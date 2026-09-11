@@ -23689,9 +23689,35 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "begin_represented_trait_authority_load_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn begin_represented_trait_authority_load_like_cpp (& mut self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "begin_represented_trait_config_authority_load_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn begin_represented_trait_config_authority_load_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "begin_represented_trait_config_load_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn begin_represented_trait_config_load_like_cpp (& mut self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -25226,6 +25252,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "clear_represented_fallback_spell_rows_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn clear_represented_fallback_spell_rows_like_cpp (& mut self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "clear_represented_group_subgroup_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn clear_represented_group_subgroup_like_cpp (& mut self)",
@@ -25292,6 +25331,32 @@
           "name": "clear_represented_trade_item_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn clear_represented_trade_item_like_cpp (& mut self , trade_slot : u8)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "clear_represented_trait_and_override_state_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn clear_represented_trait_and_override_state_like_cpp (& mut self ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "clear_represented_trait_config_rows_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn clear_represented_trait_config_rows_like_cpp (& mut self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -25567,6 +25632,19 @@
           "name": "complete_represented_trait_config_authority_load_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn complete_represented_trait_config_authority_load_like_cpp (& mut self , configs : impl IntoIterator < Item = (i32 , i32 , i32 , i32) > , entries_empty : bool ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "complete_represented_trait_config_rows_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn complete_represented_trait_config_rows_like_cpp (& mut self , configs : Vec < (i32 , i32 , i32 , i32) > , entries_empty : bool ,) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -28697,6 +28775,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "install_loaded_spell_row_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn install_loaded_spell_row_like_cpp (& mut self , spell_id : i32 , row : wow_entities :: PlayerKnownSpellRecord , complete_rows : Option < std :: collections :: BTreeMap < i32 , wow_entities :: PlayerKnownSpellRecord > , > ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "install_loaded_talent_row_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn install_loaded_talent_row_like_cpp (& mut self , talent_group : u8 , talent_id : u32 , rank : u8 ,) -> bool",
@@ -28747,6 +28838,19 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "install_represented_trait_authority_rows_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn install_represented_trait_authority_rows_like_cpp (& mut self , rows : std :: collections :: BTreeMap < i32 , wow_entities :: PlayerTraitConfigState > , entries_empty : bool ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -31095,6 +31199,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "mark_represented_spell_rows_saved_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn mark_represented_spell_rows_saved_like_cpp (& mut self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "mark_represented_talents_loaded_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn mark_represented_talents_loaded_like_cpp (& mut self)",
@@ -31757,8 +31874,23 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "mutate_player_spell_runtime_for_test_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn mutate_player_spell_runtime_for_test_like_cpp < R > (& mut self , apply : impl FnOnce (& mut wow_entities :: PlayerSpellRuntimeState) -> R ,) -> Option < R >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "mutate_player_spell_runtime_like_cpp",
-          "visibility": "pub (in crate :: session)",
+          "visibility": "pub (in crate :: session :: spell_state)",
           "signature": "fn mutate_player_spell_runtime_like_cpp < R > (& mut self , f : impl FnOnce (& mut wow_entities :: PlayerSpellRuntimeState) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
@@ -34900,6 +35032,19 @@
           "name": "realm_route_tx",
           "visibility": "pub (crate)",
           "signature": "fn realm_route_tx (& self) -> & flume :: Sender < Vec < u8 > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "rebase_represented_spells_onto_saved_rows_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn rebase_represented_spells_onto_saved_rows_like_cpp (& mut self ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -53183,6 +53328,19 @@
           "name": "take_represented_resurrection_request_if_requested_by_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn take_represented_resurrection_request_if_requested_by_like_cpp (& mut self , resurrecter : ObjectGuid ,) -> Option < PlayerResurrectionRequestLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "take_represented_trait_definition_id_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn take_represented_trait_definition_id_like_cpp (& mut self , spell_id : i32 ,) -> Option < i32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [

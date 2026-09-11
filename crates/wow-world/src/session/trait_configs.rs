@@ -10,9 +10,9 @@ impl WorldSession {
     ) -> bool {
         self.with_owned_player_mut_like_cpp(|player| {
             let runtime = &mut player.gameplay_state_mut().spells;
-            if !runtime.trait_config_rows_complete
-                || !runtime.trait_entry_rows_complete
-                || runtime.trait_config_rows.len() != configs.len()
+            if !runtime.trait_config_rows_complete_like_cpp()
+                || !runtime.trait_entry_rows_complete_like_cpp()
+                || runtime.trait_config_rows_like_cpp().len() != configs.len()
                 || configs
                     .iter()
                     .map(|config| config.id)
@@ -21,7 +21,7 @@ impl WorldSession {
                     != configs.len()
                 || configs.iter().any(|config| {
                     runtime
-                        .trait_config_rows
+                        .trait_config_rows_like_cpp()
                         .get(&config.id)
                         .is_none_or(|state| {
                             state.header
@@ -37,9 +37,8 @@ impl WorldSession {
             }
             for (create_index, config) in configs.iter().enumerate() {
                 runtime
-                    .trait_config_rows
-                    .get_mut(&config.id)
-                    .unwrap()
+                    .trait_config_row_mut_like_cpp(config.id)
+                    .expect("checked trait config row")
                     .details = Some(PlayerTraitConfigDetails {
                     create_index,
                     local_identifier: config.local_identifier,
@@ -68,11 +67,13 @@ impl WorldSession {
     ) -> Option<Vec<TraitConfigCreateData>> {
         self.with_owned_player_like_cpp(|player| {
             let runtime = &player.gameplay_state().spells;
-            if !runtime.trait_config_rows_complete || !runtime.trait_entry_rows_complete {
+            if !runtime.trait_config_rows_complete_like_cpp()
+                || !runtime.trait_entry_rows_complete_like_cpp()
+            {
                 return None;
             }
             let mut configs = runtime
-                .trait_config_rows
+                .trait_config_rows_like_cpp()
                 .iter()
                 .map(|(&id, state)| {
                     let details = state.details.as_ref()?;

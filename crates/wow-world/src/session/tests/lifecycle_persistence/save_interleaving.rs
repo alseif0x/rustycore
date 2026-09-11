@@ -21,9 +21,8 @@ fn canonical_session(
     session
         .with_owned_player_mut_like_cpp(|player| {
             let spells = &mut player.gameplay_state_mut().spells;
-            spells.rows_loaded = true;
-            spells.rows_complete = true;
-            spells.rows.insert(10, new_spell(10));
+            spells.set_row_authority_like_cpp(true, true);
+            spells.insert_row_like_cpp(10, new_spell(10));
         })
         .unwrap();
     (session, port)
@@ -111,8 +110,7 @@ async fn full_save_ack_rebases_changed_new_spell_for_the_next_transaction() {
                 player
                     .gameplay_state_mut()
                     .spells
-                    .rows
-                    .get_mut(&10)
+                    .row_mut_like_cpp(10)
                     .unwrap()
                     .favorite = true;
             })
@@ -120,7 +118,8 @@ async fn full_save_ack_rebases_changed_new_spell_for_the_next_transaction() {
     }));
     session.save_current_player_to_db_like_cpp().await;
     assert_eq!(
-        session.with_owned_player_like_cpp(|p| p.gameplay_state().spells.rows[&10].state),
+        session
+            .with_owned_player_like_cpp(|p| p.gameplay_state().spells.rows_like_cpp()[&10].state),
         Some(wow_entities::PlayerSpellLoadState::Changed)
     );
     session.save_current_player_to_db_like_cpp().await;
@@ -136,7 +135,8 @@ async fn full_save_ack_rebases_changed_new_spell_for_the_next_transaction() {
     );
     assert!(rows[0].favorite);
     assert_eq!(
-        session.with_owned_player_like_cpp(|p| p.gameplay_state().spells.rows[&10].state),
+        session
+            .with_owned_player_like_cpp(|p| p.gameplay_state().spells.rows_like_cpp()[&10].state),
         Some(wow_entities::PlayerSpellLoadState::Unchanged)
     );
 }
@@ -157,7 +157,9 @@ async fn full_save_rollback_and_unknown_leave_native_dirty_state_and_distinct_fe
         session.save_current_player_to_db_like_cpp().await;
         assert_eq!(port.character_saves().len(), 1);
         assert_eq!(
-            session.with_owned_player_like_cpp(|p| p.gameplay_state().spells.rows[&10].state),
+            session.with_owned_player_like_cpp(
+                |p| p.gameplay_state().spells.rows_like_cpp()[&10].state
+            ),
             Some(wow_entities::PlayerSpellLoadState::New)
         );
         assert_eq!(
@@ -189,7 +191,8 @@ async fn full_save_cancellation_keeps_receipt_unapplied_and_quarantines_unknown_
             .is_indeterminate_like_cpp()
     );
     assert_eq!(
-        session.with_owned_player_like_cpp(|p| p.gameplay_state().spells.rows[&10].state),
+        session
+            .with_owned_player_like_cpp(|p| p.gameplay_state().spells.rows_like_cpp()[&10].state),
         Some(wow_entities::PlayerSpellLoadState::New)
     );
 }
@@ -258,9 +261,8 @@ async fn full_save_ack_does_not_clean_a_spell_added_after_capture() {
     session
         .with_owned_player_mut_like_cpp(|player| {
             let spells = &mut player.gameplay_state_mut().spells;
-            spells.rows_loaded = true;
-            spells.rows_complete = true;
-            spells.rows.insert(10, new_spell(10));
+            spells.set_row_authority_like_cpp(true, true);
+            spells.insert_row_like_cpp(10, new_spell(10));
         })
         .unwrap();
     let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
@@ -273,8 +275,7 @@ async fn full_save_ack_does_not_clean_a_spell_added_after_capture() {
                 player
                     .gameplay_state_mut()
                     .spells
-                    .rows
-                    .insert(20, new_spell(20));
+                    .insert_row_like_cpp(20, new_spell(20));
             })
             .unwrap();
     }));
@@ -283,11 +284,11 @@ async fn full_save_ack_does_not_clean_a_spell_added_after_capture() {
     session
         .with_owned_player_like_cpp(|player| {
             assert_eq!(
-                player.gameplay_state().spells.rows[&10].state,
+                player.gameplay_state().spells.rows_like_cpp()[&10].state,
                 wow_entities::PlayerSpellLoadState::Unchanged
             );
             assert_eq!(
-                player.gameplay_state().spells.rows[&20].state,
+                player.gameplay_state().spells.rows_like_cpp()[&20].state,
                 wow_entities::PlayerSpellLoadState::New,
                 "the confirmed transaction never contained the later spell"
             );

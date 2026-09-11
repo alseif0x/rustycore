@@ -64,8 +64,18 @@ catalog, spell/aura and packet work stayed in `wow-world`. C++'s per-row talent
 records rather than changes. **No live runtime, capture or DB/restart/relogin
 evidence exists for this delivery.**
 
-The remaining P2 operations then lead into P3 runtime/lifetime/private-hecs and P4
-semantic/physical work under #584.
+**Spell-runtime encapsulation is locally accepted — 2026-09-11, #754:** the canonical
+Player owns `PlayerSpellRuntimeState` with its fields closed to the Player module and
+the transitions C++ performs on `m_spells` and `m_overrideSpells`. The owner now
+enforces the rules callers wrote by hand, and the session's generic closure is scoped
+to `session::spell_state`. The completeness flags keep their authoritative-empty versus
+unhydrated meaning. **No live runtime, capture or DB/restart/relogin evidence exists
+for this delivery.**
+
+The remaining P2 operations — taxi, collections, quest gameplay, item equipment sets
+and modifiers, cast state, difficulty, trait configs and the two canonical access
+helpers — then lead into P3 runtime/lifetime/private-hecs and P4 semantic/physical work
+under #584.
 
 Finite hecs V2 conformance passed within its recorded laboratory limits. Production `hecs`
 and Wasmtime are not installed in this base. The dated six-clock trace and the 31 oversized

@@ -19,16 +19,20 @@ fn known_spell_commands_match_previous_active_and_detached_owner() {
             for spells in [vec![], vec![10], vec![20, 10, 20, -1, 0]] {
                 for operation in 0..3 {
                     let mut initial = wow_entities::PlayerSpellRuntimeState::default();
-                    initial.known_spells = vec![10, 30, 10];
-                    initial.dependent_known_spells = BTreeSet::from([10, 30]);
-                    initial.favorite_known_spells = BTreeSet::from([10, 30]);
-                    initial.removed_known_spells = BTreeSet::from([-1, 0, 20]);
-                    initial.trait_definition_ids = BTreeMap::from([(10, 100), (30, 300)]);
-                    initial.override_spells.insert(50, BTreeSet::from([10]));
-                    initial.rows_loaded = true;
-                    initial.rows_complete = complete;
-                    initial.trait_definition_ids_complete = complete;
-                    initial.override_spells_complete = complete;
+                    initial.replace_known_spells_like_cpp(vec![10, 30, 10]);
+                    initial.replace_dependent_known_spells_like_cpp(BTreeSet::from([10, 30]));
+                    initial.replace_favorite_known_spells_like_cpp(BTreeSet::from([10, 30]));
+                    initial.replace_removed_known_spells_like_cpp(BTreeSet::from([-1, 0, 20]));
+                    initial.replace_trait_definition_ids_like_cpp(
+                        BTreeMap::from([(10, 100), (30, 300)]),
+                        true,
+                    );
+                    initial.replace_override_spells_like_cpp(
+                        std::collections::BTreeMap::from([(50, BTreeSet::from([10]))]),
+                        false,
+                    );
+                    initial.set_row_authority_like_cpp(true, complete);
+                    initial.set_acquisition_snapshot_completeness_like_cpp(complete, complete);
                     session
                         .with_owned_player_mut_like_cpp(|p| {
                             p.replace_spell_runtime_like_cpp(initial.clone())
@@ -86,8 +90,8 @@ fn known_spell_commands_leave_replacement_untouched_for_stale_and_missing_owner(
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
     let mut expected = wow_entities::PlayerSpellRuntimeState::default();
-    expected.known_spells = vec![10];
-    expected.trait_definition_ids.insert(10, 100);
+    expected.replace_known_spells_like_cpp(vec![10]);
+    expected.set_trait_definition_id_like_cpp(10, Some(100));
     replacement.replace_spell_runtime_like_cpp(expected.clone());
     let handle = manager
         .lock()
@@ -124,16 +128,20 @@ fn narrow_spell_queries_match_full_snapshot_for_active_and_detached_owner() {
             session
                 .with_owned_player_mut_like_cpp(|player| {
                     let mut runtime = wow_entities::PlayerSpellRuntimeState::default();
-                    runtime.known_spells = vec![20, -1, 10, 20];
-                    runtime.dependent_known_spells = BTreeSet::from([-1, 20]);
-                    runtime.favorite_known_spells = BTreeSet::from([10, 30]);
-                    runtime.override_spells.insert(10, BTreeSet::from([-1, 20]));
-                    runtime.trait_definition_ids.insert(20, 200);
-                    runtime.rows_loaded = flags & 1 != 0;
-                    runtime.rows_complete = flags & 2 != 0;
-                    runtime.trait_definition_ids_complete = flags & 4 != 0;
-                    runtime.override_spells_complete = flags & 8 != 0;
-                    runtime.rows.insert(
+                    runtime.replace_known_spells_like_cpp(vec![20, -1, 10, 20]);
+                    runtime.replace_dependent_known_spells_like_cpp(BTreeSet::from([-1, 20]));
+                    runtime.replace_favorite_known_spells_like_cpp(BTreeSet::from([10, 30]));
+                    runtime.replace_override_spells_like_cpp(
+                        std::collections::BTreeMap::from([(10, BTreeSet::from([-1, 20]))]),
+                        false,
+                    );
+                    runtime.set_trait_definition_id_like_cpp(20, Some(200));
+                    runtime.set_row_authority_like_cpp(flags & 1 != 0, flags & 2 != 0);
+                    runtime.set_acquisition_snapshot_completeness_like_cpp(
+                        flags & 4 != 0,
+                        flags & 8 != 0,
+                    );
+                    runtime.insert_row_like_cpp(
                         10,
                         wow_entities::PlayerKnownSpellRecord {
                             spell_id: 10,
@@ -194,7 +202,7 @@ fn narrow_spell_queries_match_full_snapshot_for_active_and_detached_owner() {
                 session.with_player_spell_runtime_like_cpp(|runtime| {
                     calls.set(calls.get() + 1);
                     assert!(manager.try_lock().is_err());
-                    runtime.known_spells.len()
+                    runtime.known_spells_like_cpp().len()
                 }),
                 Some(4)
             );
@@ -212,7 +220,10 @@ fn narrow_spell_queries_reject_stale_and_missing_owner_without_fabricated_author
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
-    replacement.gameplay_state_mut().spells.known_spells = vec![42];
+    replacement
+        .gameplay_state_mut()
+        .spells
+        .replace_known_spells_like_cpp(vec![42]);
     manager
         .lock()
         .unwrap()
@@ -285,7 +296,7 @@ fn spell_save_finalization_matches_previous_active_and_detached_owner() {
                     .enumerate()
                     {
                         let id = index as i32 + 10;
-                        initial.rows.insert(
+                        initial.insert_row_like_cpp(
                             id,
                             wow_entities::PlayerKnownSpellRecord {
                                 spell_id: id,
@@ -296,16 +307,17 @@ fn spell_save_finalization_matches_previous_active_and_detached_owner() {
                                 favorite: flags & 4 != 0,
                             },
                         );
-                        initial.trait_definition_ids.insert(id, 100 + id);
+                        initial.set_trait_definition_id_like_cpp(id, Some(100 + id));
                     }
-                    initial.rows_loaded = true;
-                    initial.rows_complete = complete;
-                    initial.trait_definition_ids_complete = complete;
-                    initial.override_spells_complete = complete;
-                    initial.known_spells = vec![99];
-                    initial.removed_known_spells.insert(99);
-                    initial.fallback_rows = initial.rows.clone();
-                    initial.override_spells.insert(10, BTreeSet::from([20]));
+                    initial.set_row_authority_like_cpp(true, complete);
+                    initial.set_acquisition_snapshot_completeness_like_cpp(complete, complete);
+                    initial.replace_known_spells_like_cpp(vec![99]);
+                    initial.mark_removed_like_cpp(99);
+                    initial.retain_rows_as_fallback_like_cpp();
+                    initial.replace_override_spells_like_cpp(
+                        std::collections::BTreeMap::from([(10, BTreeSet::from([20]))]),
+                        false,
+                    );
                     session
                         .with_owned_player_mut_like_cpp(|p| {
                             p.replace_spell_runtime_like_cpp(initial.clone())
@@ -346,8 +358,8 @@ fn spell_save_finalization_cannot_touch_a_replacement_or_missing_owner() {
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
     let mut initial = wow_entities::PlayerSpellRuntimeState::default();
-    initial.known_spells = vec![99];
-    initial.removed_known_spells.insert(10);
+    initial.replace_known_spells_like_cpp(vec![99]);
+    initial.mark_removed_like_cpp(10);
     replacement.replace_spell_runtime_like_cpp(initial.clone());
     let handle = manager
         .lock()
@@ -403,12 +415,11 @@ fn loaded_spell_reconciliation_matches_previous_active_and_detached_owner() {
                                 state,
                             };
                             let mut initial = wow_entities::PlayerSpellRuntimeState::default();
-                            initial.known_spells = vec![10, 30];
-                            initial.rows_complete = true;
-                            initial.trait_definition_ids_complete = true;
-                            initial.override_spells_complete = true;
+                            initial.replace_known_spells_like_cpp(vec![10, 30]);
+                            initial.set_rows_complete_like_cpp(true);
+                            initial.set_acquisition_snapshot_completeness_like_cpp(true, true);
                             for id in [10, 20] {
-                                initial.fallback_rows.insert(
+                                initial.insert_fallback_row_like_cpp(
                                     id,
                                     canonical_player_spell_record_like_cpp(
                                         RepresentedPlayerSpellLikeCpp {
@@ -476,13 +487,11 @@ fn loaded_spell_reconciliation_rejects_invalid_rows_and_stale_owner() {
         state: RepresentedPlayerSpellStateLikeCpp::New,
     };
     let mut initial = wow_entities::PlayerSpellRuntimeState::default();
-    initial
-        .rows
-        .insert(10, canonical_player_spell_record_like_cpp(row));
-    initial.fallback_rows = initial.rows.clone();
-    initial.rows_complete = true;
-    initial.rows_loaded = true;
-    initial.override_spells_complete = true;
+    initial.insert_row_like_cpp(10, canonical_player_spell_record_like_cpp(row));
+    initial.retain_rows_as_fallback_like_cpp();
+    initial.set_rows_complete_like_cpp(true);
+    initial.set_rows_loaded_like_cpp(true);
+    initial.set_override_spells_complete_like_cpp(true);
     for rows in [
         vec![],
         vec![row, row],
@@ -555,14 +564,15 @@ fn trait_config_lifecycle_matches_previous_route_for_active_and_detached_owner()
                 ] {
                     let prepare = |player: &mut Player| {
                         let mut runtime = wow_entities::PlayerSpellRuntimeState::default();
-                        runtime.known_spells = vec![99];
-                        runtime.trait_definition_ids.insert(99, 100);
-                        runtime.trait_definition_ids_complete = true;
-                        runtime.trait_config_rows.insert(777, (1, 62, 4).into());
-                        runtime.trait_config_rows_complete = true;
-                        runtime.trait_entry_rows_complete = true;
-                        runtime.trait_entry_rows_empty = true;
-                        runtime.override_spells.insert(50, BTreeSet::from([60]));
+                        runtime.replace_known_spells_like_cpp(vec![99]);
+                        runtime.set_trait_definition_id_like_cpp(99, Some(100));
+                        runtime.mark_trait_definition_ids_complete_like_cpp();
+                        runtime.insert_trait_config_row_like_cpp(777, (1, 62, 4).into());
+                        runtime.mark_trait_authority_complete_like_cpp(true);
+                        runtime.replace_override_spells_like_cpp(
+                            std::collections::BTreeMap::from([(50, BTreeSet::from([60]))]),
+                            false,
+                        );
                         player.replace_spell_runtime_like_cpp(runtime);
                     };
                     let projection = |player: &Player| player.spell_runtime_like_cpp().clone();
@@ -610,9 +620,9 @@ fn trait_config_lifecycle_does_not_reset_replacement_through_stale_or_missing_ow
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
     let mut expected = wow_entities::PlayerSpellRuntimeState::default();
-    expected.trait_definition_ids.insert(99, 100);
-    expected.trait_config_rows.insert(777, (1, 62, 4).into());
-    expected.trait_entry_rows_complete = true;
+    expected.set_trait_definition_id_like_cpp(99, Some(100));
+    expected.insert_trait_config_row_like_cpp(777, (1, 62, 4).into());
+    expected.mark_trait_entry_rows_complete_like_cpp();
     replacement.replace_spell_runtime_like_cpp(expected.clone());
     let handle = manager
         .lock()
@@ -663,12 +673,15 @@ fn spell_metadata_transitions_preserve_active_and_detached_owner_contracts() {
         ] {
             let prepare = |player: &mut Player| {
                 let mut runtime = wow_entities::PlayerSpellRuntimeState::default();
-                runtime.known_spells = vec![99];
-                runtime.trait_definition_ids.insert(99, 100);
-                runtime.trait_definition_ids_complete = true;
-                runtime.override_spells.insert(50, BTreeSet::from([60]));
-                runtime.override_spells_complete = true;
-                runtime.trait_config_rows.insert(777, (1, 62, 4).into());
+                runtime.replace_known_spells_like_cpp(vec![99]);
+                runtime.set_trait_definition_id_like_cpp(99, Some(100));
+                runtime.mark_trait_definition_ids_complete_like_cpp();
+                runtime.replace_override_spells_like_cpp(
+                    std::collections::BTreeMap::from([(50, BTreeSet::from([60]))]),
+                    false,
+                );
+                runtime.set_override_spells_complete_like_cpp(true);
+                runtime.insert_trait_config_row_like_cpp(777, (1, 62, 4).into());
                 player.replace_spell_runtime_like_cpp(runtime);
             };
             session.with_owned_player_mut_like_cpp(prepare).unwrap();
@@ -709,7 +722,7 @@ fn spell_metadata_transitions_preserve_active_and_detached_owner_contracts() {
                 session
                     .with_owned_player_like_cpp(|p| p
                         .spell_runtime_like_cpp()
-                        .override_spells_complete)
+                        .override_spells_complete_like_cpp())
                     .unwrap()
             );
         }
@@ -725,8 +738,11 @@ fn spell_metadata_rejects_stale_and_missing_owner_without_mutating_replacement()
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
     let mut expected = wow_entities::PlayerSpellRuntimeState::default();
-    expected.trait_definition_ids.insert(99, 100);
-    expected.override_spells.insert(50, BTreeSet::from([60]));
+    expected.set_trait_definition_id_like_cpp(99, Some(100));
+    expected.replace_override_spells_like_cpp(
+        std::collections::BTreeMap::from([(50, BTreeSet::from([60]))]),
+        false,
+    );
     replacement.replace_spell_runtime_like_cpp(expected.clone());
     let handle = manager
         .lock()
@@ -761,17 +777,17 @@ fn spellbook_mutation_uses_native_active_and_detached_owner_once() {
         }
         let calls = std::cell::Cell::new(0);
         assert_eq!(
-            session.mutate_player_spell_runtime_like_cpp(
+            session.mutate_player_spell_runtime_for_test_like_cpp(
                 |runtime: &mut wow_entities::PlayerSpellRuntimeState| {
                     calls.set(calls.get() + 1);
                     assert!(matches!(
                         manager.try_lock(),
                         Err(std::sync::TryLockError::WouldBlock)
                     ));
-                    runtime.known_spells = vec![9, 3];
-                    runtime.trait_definition_ids.insert(9, 17);
-                    runtime.override_spells.entry(3).or_default().insert(9);
-                    runtime.rows.insert(
+                    runtime.replace_known_spells_like_cpp(vec![9, 3]);
+                    runtime.set_trait_definition_id_like_cpp(9, Some(17));
+                    runtime.add_override_spell_like_cpp(3, 9);
+                    runtime.insert_row_like_cpp(
                         9,
                         wow_entities::PlayerKnownSpellRecord {
                             spell_id: 9,
@@ -782,8 +798,7 @@ fn spellbook_mutation_uses_native_active_and_detached_owner_once() {
                             dependent: false,
                         },
                     );
-                    runtime.rows_loaded = true;
-                    runtime.rows_complete = true;
+                    runtime.set_row_authority_like_cpp(true, true);
                     detached
                 }
             ),
@@ -814,15 +829,19 @@ fn spellbook_mutation_uses_native_active_and_detached_owner_once() {
     }
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
-    replacement.gameplay_state_mut().spells.known_spells = vec![42];
+    replacement
+        .gameplay_state_mut()
+        .spells
+        .replace_known_spells_like_cpp(vec![42]);
     let replacement_handle = manager
         .lock()
         .unwrap()
         .install_detached_player_like_cpp(replacement)
         .unwrap();
     assert_eq!(
-        session
-            .mutate_player_spell_runtime_like_cpp(|_| panic!("stale owner must not run callback")),
+        session.mutate_player_spell_runtime_for_test_like_cpp(|_| panic!(
+            "stale owner must not run callback"
+        )),
         None::<()>
     );
     assert_eq!(
@@ -830,13 +849,17 @@ fn spellbook_mutation_uses_native_active_and_detached_owner_once() {
             .lock()
             .unwrap()
             .with_player_like_cpp(replacement_handle, |player| {
-                player.gameplay_state().spells.known_spells.clone()
+                player
+                    .gameplay_state()
+                    .spells
+                    .known_spells_like_cpp()
+                    .to_vec()
             }),
         Some(vec![42])
     );
     session.canonical_map_manager = None;
     assert_eq!(
-        session.mutate_player_spell_runtime_like_cpp(|_| panic!(
+        session.mutate_player_spell_runtime_for_test_like_cpp(|_| panic!(
             "missing owner must not run callback"
         )),
         None::<()>

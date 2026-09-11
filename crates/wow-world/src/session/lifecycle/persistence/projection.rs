@@ -62,9 +62,9 @@ pub(super) fn request(
 
     let spell_runtime = Some(&game.spells);
     let spells = if let Some(spells) =
-        (game.spells.rows_loaded && game.spells.rows_complete).then(|| {
+        (game.spells.rows_loaded_like_cpp() && game.spells.rows_complete_like_cpp()).then(|| {
             game.spells
-                .rows
+                .rows_like_cpp()
                 .iter()
                 .map(|(&id, row)| {
                     (
@@ -102,17 +102,17 @@ pub(super) fn request(
                 .collect(),
             fallback_rows_were_present: spell_runtime
                 .as_ref()
-                .is_some_and(|runtime| !runtime.fallback_rows.is_empty()),
+                .is_some_and(|runtime| !runtime.fallback_rows_like_cpp().is_empty()),
         })
     } else if spell_runtime
         .as_ref()
-        .is_some_and(|runtime| !runtime.fallback_rows.is_empty())
+        .is_some_and(|runtime| !runtime.fallback_rows_like_cpp().is_empty())
     {
         Some(PlayerSpellSaveGroupLikeCpp::Fallback {
             rows: spell_runtime
                 .as_ref()
                 .expect("non-empty fallback spell runtime")
-                .fallback_rows
+                .fallback_rows_like_cpp()
                 .values()
                 .map(|spell| PlayerFallbackSpellSaveLikeCpp {
                     spell_id: spell.spell_id,

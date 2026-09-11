@@ -55,7 +55,7 @@ impl WorldSession {
                 applied += 1;
             }
             let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-                runtime.dependent_known_spells.insert(spell_id);
+                runtime.set_dependent_like_cpp(spell_id, true);
             });
         }
 
@@ -220,8 +220,8 @@ impl WorldSession {
                 };
                 if !learned_spell.auto_learned && learned_spell.active {
                     let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-                        runtime.dependent_known_spells.insert(learned_spell_id);
-                        runtime.favorite_known_spells.remove(&learned_spell_id);
+                        runtime.set_dependent_like_cpp(learned_spell_id, true);
+                        runtime.set_favorite_like_cpp(learned_spell_id, false);
                     });
                     if !known_spells.contains(&learned_spell_id) {
                         known_spells.push(learned_spell_id);

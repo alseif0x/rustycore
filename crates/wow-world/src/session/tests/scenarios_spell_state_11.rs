@@ -173,17 +173,9 @@ fn canonical_player_spells_and_metadata_follow_active_detached_and_stale_ownersh
         .world_mut()
         .object_mut()
         .create(player_guid);
-    replacement.replace_spell_runtime_like_cpp(wow_entities::PlayerSpellRuntimeState {
-        known_spells: vec![900],
-        rows: BTreeMap::from([(900, replacement_row.clone())]),
-        rows_loaded: true,
-        rows_complete: true,
-        trait_definition_ids: BTreeMap::from([(900, 11)]),
-        trait_definition_ids_complete: true,
-        override_spells: BTreeMap::from([(800, BTreeSet::from([900]))]),
-        override_spells_complete: true,
-        ..Default::default()
-    });
+    replacement.replace_spell_runtime_like_cpp(replacement_spell_runtime_like_cpp(
+        replacement_row.clone(),
+    ));
     let replacement_history = wow_entities::SpellHistory {
         cooldowns: HashMap::from([(
             900,
@@ -247,17 +239,7 @@ fn canonical_player_spells_and_metadata_follow_active_detached_and_stale_ownersh
             .with_player_like_cpp(replacement_handle, |player| {
                 player.spell_runtime_like_cpp().clone()
             }),
-        Some(wow_entities::PlayerSpellRuntimeState {
-            known_spells: vec![900],
-            rows: BTreeMap::from([(900, replacement_row)]),
-            rows_loaded: true,
-            rows_complete: true,
-            trait_definition_ids: BTreeMap::from([(900, 11)]),
-            trait_definition_ids_complete: true,
-            override_spells: BTreeMap::from([(800, BTreeSet::from([900]))]),
-            override_spells_complete: true,
-            ..Default::default()
-        })
+        Some(replacement_spell_runtime_like_cpp(replacement_row))
     );
     assert_eq!(
         canonical
@@ -878,4 +860,21 @@ async fn spell_self_heal_skips_dead_player_like_cpp() {
     assert_eq!(session.player_health_like_cpp(), 0);
     assert!(!session.player_is_alive_like_cpp());
     assert!(send_rx.try_recv().is_err());
+}
+
+/// The represented replacement runtime this scenario installs and expects.
+fn replacement_spell_runtime_like_cpp(
+    replacement_row: wow_entities::PlayerKnownSpellRecord,
+) -> wow_entities::PlayerSpellRuntimeState {
+    let mut state = wow_entities::PlayerSpellRuntimeState::default();
+    state.install_acquisition_snapshot_like_cpp(
+        wow_entities::PlayerSpellAcquisitionSnapshotLikeCpp {
+            known_spells: vec![900],
+            rows: BTreeMap::from([(900, replacement_row)]),
+            trait_definition_ids: BTreeMap::from([(900, 11)]),
+            override_spells: BTreeMap::from([(800, BTreeSet::from([900]))]),
+            ..Default::default()
+        },
+    );
+    state
 }

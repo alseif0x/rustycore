@@ -224,19 +224,7 @@ impl WorldSession {
         self.invalidate_represented_player_spell_rows_like_cpp();
         let known_spells = spells.clone();
         let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime.known_spells = spells;
-            runtime.removed_known_spells.clear();
-            runtime
-                .dependent_known_spells
-                .retain(|spell_id| known_spells.contains(spell_id));
-            runtime
-                .favorite_known_spells
-                .retain(|spell_id| known_spells.contains(spell_id));
-        });
-        let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime
-                .trait_definition_ids
-                .retain(|spell_id, _| known_spells.contains(spell_id));
+            runtime.replace_known_spells_and_prune_derived_like_cpp(spells);
         });
         self.learn_account_mount_spells_like_cpp();
     }
@@ -467,10 +455,7 @@ impl WorldSession {
         }
         self.invalidate_represented_player_spell_rows_like_cpp();
         let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            if !runtime.known_spells.contains(&spell_id) {
-                runtime.known_spells.push(spell_id);
-            }
-            runtime.removed_known_spells.remove(&spell_id);
+            runtime.learn_known_spell_id_unless_known_like_cpp(spell_id);
         });
     }
     pub(crate) fn learn_dependent_known_spell_like_cpp(&mut self, spell_id: i32) {
@@ -486,14 +471,7 @@ impl WorldSession {
     ) {
         self.fixture_learn_known_spell_like_cpp(spell_id);
         let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime.dependent_known_spells.insert(spell_id);
-            runtime.favorite_known_spells.remove(&spell_id);
-            if runtime.rows_complete
-                && let Some(row) = runtime.rows.get_mut(&spell_id)
-            {
-                row.dependent = true;
-                row.favorite = false;
-            }
+            runtime.mark_dependent_learned_spell_like_cpp(spell_id);
         });
     }
     pub(crate) fn remove_known_spell_like_cpp(&mut self, spell_id: i32) {
@@ -522,7 +500,7 @@ impl WorldSession {
         }
 
         let preserve_complete = self
-            .with_player_spell_runtime_like_cpp(|runtime| runtime.rows_complete)
+            .with_player_spell_runtime_like_cpp(|runtime| runtime.rows_complete_like_cpp())
             .unwrap_or(false);
         if !preserve_complete {
             self.invalidate_represented_player_spell_rows_like_cpp();
@@ -571,18 +549,12 @@ impl WorldSession {
         }
 
         let Some(was_dependent) = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            let was_known = runtime.known_spells.contains(&spell_id);
-            let was_dependent = runtime.dependent_known_spells.contains(&spell_id);
-            runtime.known_spells.retain(|known| *known != spell_id);
-            runtime.dependent_known_spells.remove(&spell_id);
-            runtime.favorite_known_spells.remove(&spell_id);
-            if was_known && !was_dependent {
-                runtime.removed_known_spells.insert(spell_id);
-            }
+            let forgotten = runtime.forget_known_spell_like_cpp(spell_id);
+            let was_dependent = forgotten.was_dependent;
             if preserve_complete {
                 if was_dependent {
-                    runtime.rows.remove(&spell_id);
-                } else if let Some(row) = runtime.rows.get_mut(&spell_id) {
+                    runtime.remove_row_like_cpp(spell_id);
+                } else if let Some(row) = runtime.row_mut_like_cpp(spell_id) {
                     row.active = false;
                     row.disabled = false;
                     row.dependent = false;
@@ -643,7 +615,7 @@ impl WorldSession {
                             } else {
                                 self.learn_known_spell_like_cpp(prev_known_spell_id);
                                 let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-                                    runtime.dependent_known_spells.remove(&prev_known_spell_id);
+                                    runtime.set_dependent_like_cpp(prev_known_spell_id, false);
                                 });
                             }
                             self.send_packet(
@@ -665,8 +637,8 @@ impl WorldSession {
 
         let trait_definition_id = self
             .mutate_player_spell_runtime_like_cpp(|runtime| {
-                runtime.override_spells.remove(&spell_id);
-                runtime.trait_definition_ids.remove(&spell_id)
+                runtime.remove_override_spell_entry_like_cpp(spell_id);
+                runtime.take_trait_definition_id_like_cpp(spell_id)
             })
             .flatten();
         if let Some(trait_definition_id) = trait_definition_id {
@@ -695,7 +667,7 @@ impl WorldSession {
         }
     }
     pub(crate) fn resolved_known_spells_like_cpp(&self) -> Option<Vec<i32>> {
-        self.with_player_spell_runtime_like_cpp(|runtime| runtime.known_spells.clone())
+        self.with_player_spell_runtime_like_cpp(|runtime| runtime.known_spells_like_cpp().to_vec())
     }
     pub(crate) fn known_spells_like_cpp(&self) -> Vec<i32> {
         self.resolved_known_spells_like_cpp().unwrap_or_default()
@@ -706,7 +678,11 @@ impl WorldSession {
     }
     pub(crate) fn represented_dependent_known_spells_like_cpp(&self) -> HashSet<i32> {
         self.with_player_spell_runtime_like_cpp(|runtime| {
-            runtime.dependent_known_spells.iter().copied().collect()
+            runtime
+                .dependent_known_spells_like_cpp()
+                .iter()
+                .copied()
+                .collect()
         })
         .unwrap_or_default()
     }
@@ -715,26 +691,22 @@ impl WorldSession {
         favorite_spells: HashSet<i32>,
     ) {
         let preserve_complete = self
-            .with_player_spell_runtime_like_cpp(|runtime| runtime.rows_complete)
+            .with_player_spell_runtime_like_cpp(|runtime| runtime.rows_complete_like_cpp())
             .unwrap_or(false);
         if !preserve_complete {
             self.invalidate_represented_player_spell_rows_like_cpp();
         }
         let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
-            runtime.favorite_known_spells = favorite_spells
-                .into_iter()
-                .filter(|spell_id| runtime.known_spells.contains(spell_id))
-                .collect();
-            if preserve_complete {
-                for row in runtime.rows.values_mut() {
-                    row.favorite = runtime.favorite_known_spells.contains(&row.spell_id);
-                }
-            }
+            runtime.replace_known_favorites_like_cpp(favorite_spells);
         });
     }
     pub(crate) fn represented_favorite_known_spells_like_cpp(&self) -> HashSet<i32> {
         self.with_player_spell_runtime_like_cpp(|runtime| {
-            runtime.favorite_known_spells.iter().copied().collect()
+            runtime
+                .favorite_known_spells_like_cpp()
+                .iter()
+                .copied()
+                .collect()
         })
         .unwrap_or_default()
     }

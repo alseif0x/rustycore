@@ -95,16 +95,16 @@ pub(crate) fn apply_base_learning_like_cpp<R: EffectLearningRuntimeLikeCpp>(
     let Some(snapshot) = runtime.fallback_snapshot() else {
         return false;
     };
-    if !snapshot.rows_complete {
+    if !snapshot.rows_complete_like_cpp() {
         return false;
     }
     let Some(chains) = runtime.fallback_chains() else {
         return false;
     };
     let previous = snapshot
-        .rows
+        .rows_like_cpp()
         .get(&spell)
-        .or_else(|| snapshot.fallback_rows.get(&spell));
+        .or_else(|| snapshot.fallback_rows_like_cpp().get(&spell));
     match chains.spell_chain_lookup_like_cpp(spell_id) {
         SpellChainLookupLikeCpp::Indeterminate(_) => return false,
         SpellChainLookupLikeCpp::Node(node)
@@ -166,13 +166,15 @@ fn validate_fallback<R: EffectLearningRuntimeLikeCpp>(
         let Some(snapshot) = runtime.fallback_snapshot() else {
             return false;
         };
-        let Some(previous) = snapshot.rows.get(&spell) else {
+        let Some(previous) = snapshot.rows_like_cpp().get(&spell) else {
             return true;
         };
-        if !snapshot.trait_definition_ids_complete || !snapshot.override_spells_complete {
+        if !snapshot.trait_definition_ids_complete_like_cpp()
+            || !snapshot.override_spells_complete_like_cpp()
+        {
             return false;
         }
-        if let Some(&trait_id) = snapshot.trait_definition_ids.get(&spell) {
+        if let Some(&trait_id) = snapshot.trait_definition_ids_like_cpp().get(&spell) {
             let Some(definition) = u32::try_from(trait_id)
                 .ok()
                 .and_then(|id| runtime.fallback_traits().and_then(|store| store.get(id)))
@@ -188,13 +190,19 @@ fn validate_fallback<R: EffectLearningRuntimeLikeCpp>(
                 return false;
             }
             if let Some(next) = next_spell(runtime, spell)
-                && snapshot.rows.get(&next).is_some_and(|row| row.disabled)
+                && snapshot
+                    .rows_like_cpp()
+                    .get(&next)
+                    .is_some_and(|row| row.disabled)
                 && !validate_fallback(runtime, next, visiting)
             {
                 return false;
             }
             for required in requiring_spells(runtime, spell) {
-                if snapshot.rows.get(&required).is_some_and(|row| row.disabled)
+                if snapshot
+                    .rows_like_cpp()
+                    .get(&required)
+                    .is_some_and(|row| row.disabled)
                     && !validate_fallback(runtime, required, visiting)
                 {
                     return false;
@@ -220,12 +228,12 @@ fn apply_fallback<R: EffectLearningRuntimeLikeCpp>(
             return false;
         };
         let previous = snapshot
-            .rows
+            .rows_like_cpp()
             .get(&spell)
-            .or_else(|| snapshot.fallback_rows.get(&spell));
+            .or_else(|| snapshot.fallback_rows_like_cpp().get(&spell));
         let was_disabled = previous.is_some_and(|row| row.disabled);
         if was_disabled
-            && (!snapshot.rows_complete
+            && (!snapshot.rows_complete_like_cpp()
                 || runtime.fallback_chains().is_none()
                 || runtime.fallback_requirements().is_none())
         {
@@ -233,11 +241,11 @@ fn apply_fallback<R: EffectLearningRuntimeLikeCpp>(
         }
         let next = next_spell(runtime, spell);
         let active = previous.filter(|row| row.disabled).map_or_else(
-            || !next.is_some_and(|id| snapshot.known_spells.contains(&id)),
+            || !next.is_some_and(|id| snapshot.known_spells_like_cpp().contains(&id)),
             |row| row.active,
         );
         let requires_learn = previous.map_or_else(
-            || !snapshot.known_spells.contains(&spell),
+            || !snapshot.known_spells_like_cpp().contains(&spell),
             |row| {
                 matches!(
                     row.state,
@@ -291,7 +299,12 @@ fn apply_fallback<R: EffectLearningRuntimeLikeCpp>(
             let disabled = |id: &i32| {
                 current
                     .as_ref()
-                    .and_then(|state| state.rows.get(id).or_else(|| state.fallback_rows.get(id)))
+                    .and_then(|state| {
+                        state
+                            .rows_like_cpp()
+                            .get(id)
+                            .or_else(|| state.fallback_rows_like_cpp().get(id))
+                    })
                     .is_some_and(|row| row.disabled)
             };
             let mut dependents = Vec::new();

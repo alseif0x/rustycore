@@ -58,8 +58,7 @@ pub(crate) fn hydrate_player_directory_fixture_like_cpp(session: &WorldSession) 
     let pet_guid = session.represented_pet_guid_like_cpp;
     let _ = session.mutate_canonical_player_like_cpp(|player| {
         let state = player.gameplay_state_mut();
-        state.spells.known_spells = known_spells.clone();
-        state.spells.rows = known_spells
+        let rows = known_spells
             .iter()
             .copied()
             .map(|spell_id| {
@@ -76,6 +75,9 @@ pub(crate) fn hydrate_player_directory_fixture_like_cpp(session: &WorldSession) 
                 )
             })
             .collect();
+        state
+            .spells
+            .replace_known_spells_and_rows_like_cpp(known_spells.clone(), rows);
         if let Some(quests) = quests.clone() {
             state.quests = quests;
         }
