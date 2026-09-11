@@ -108,6 +108,49 @@ impl PlayerInventoryRuntime {
         &mut self.inventory_items
     }
 
+    /// The buyback-slot half of C++ `Player::AddItemToBuyBackSlot`
+    /// (Player.cpp:12644), whose slot install is `m_items[slot] = pItem` at
+    /// :12681. Returns whatever occupied the slot.
+    ///
+    /// Two things stay where they already are rather than moving here. The
+    /// oldest-slot search, the sell-price and timestamp fields and the
+    /// `m_currentBuybackSlot` advance remain with the vendor callers that
+    /// perform them today; and C++ holds buyback items in the same `m_items`
+    /// array as the rest of the inventory (slots `BUYBACK_SLOT_START` to
+    /// `BUYBACK_SLOT_END`), while RustyCore keeps them in a separate map. That
+    /// split is pre-existing, and naming the transition makes it visible
+    /// instead of leaving it as a raw map write.
+    pub fn store_buyback_item_in_slot_like_cpp(
+        &mut self,
+        slot: u8,
+        item: PlayerInventoryItem,
+    ) -> Option<PlayerInventoryItem> {
+        self.buyback_items.insert(slot, item)
+    }
+
+    /// The slot-clearing half of C++ `Player::RemoveItemFromBuyBackSlot`
+    /// (Player.cpp:12709), which nulls the slot at :12729. The item state,
+    /// stored-loot cleanup, price/timestamp reset and free-slot bookkeeping
+    /// C++ performs around it stay with their current owners.
+    pub fn remove_buyback_item_from_slot_like_cpp(
+        &mut self,
+        slot: u8,
+    ) -> Option<PlayerInventoryItem> {
+        self.buyback_items.remove(&slot)
+    }
+
+    /// Return the buyback runtime to its constructed state: every slot empty,
+    /// prices and timestamps zero as C++ leaves them after
+    /// `RemoveItemFromBuyBackSlot` (Player.cpp:12733-12734), and the current
+    /// slot back to `BUYBACK_SLOT_START` as the Player constructor sets it
+    /// (Player.cpp:220).
+    pub fn clear_buyback_like_cpp(&mut self) {
+        self.buyback_items.clear();
+        self.buyback_price = [0; BUYBACK_SLOT_COUNT];
+        self.buyback_timestamp = [0; BUYBACK_SLOT_COUNT];
+        self.current_buyback_slot = BUYBACK_SLOT_START;
+    }
+
     pub fn buyback_items(&self) -> &HashMap<u8, PlayerInventoryItem> {
         &self.buyback_items
     }

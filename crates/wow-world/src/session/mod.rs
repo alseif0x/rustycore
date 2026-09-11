@@ -10953,10 +10953,7 @@ impl WorldSession {
 
     pub(crate) fn clear_buyback_runtime_like_cpp(&mut self) {
         self.mutate_player_inventory_runtime_like_cpp(|inventory| {
-            inventory.buyback_items_mut().clear();
-            *inventory.buyback_price_mut() = [0; BUYBACK_SLOT_COUNT];
-            *inventory.buyback_timestamp_mut() = [0; BUYBACK_SLOT_COUNT];
-            inventory.set_current_buyback_slot(BUYBACK_SLOT_START);
+            inventory.clear_buyback_like_cpp();
         });
     }
 
