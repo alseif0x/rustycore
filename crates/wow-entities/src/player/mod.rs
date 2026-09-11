@@ -9,6 +9,7 @@
 //! modules. `Player` remains one type with one semantic owner: no storage
 //! location, writer, mirror or runtime clock changed.
 
+mod away_status;
 mod collections;
 mod damage_control;
 mod deferred_save;
