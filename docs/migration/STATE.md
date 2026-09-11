@@ -1,29 +1,58 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Quest reward owns one durable transaction — 2026-09-11, #718 locally accepted:**
-P1 of the architecture completion plan makes quest reward the first operation
-with an explicit durable contract. C++ `Player::RewardQuest` (Player.cpp:14625)
-applies every grant in memory and reaches the database once, in its closing
-`SaveToDB(false)` (Player.cpp:14867). The represented Rust path instead wrote
-each grant as it happened, so a partial reward was reachable. The operation now
-accumulates its durable participants and commits them as one character
-transaction, with the money column or the rewarded quest's status row as the
-commit witness for an ambiguous COMMIT. The complete contract, its recorded
-departures and the participants that remain unimplemented are in the
+**Architecture plan reconciliation — 2026-09-11, #748, base `5d8c079a`:**
+All 46 initially open issues were reviewed and their bodies synchronized with the
+master plan. #42 was consolidated into #43, and #58/#59 into #41, retaining their
+acceptance before closing them as superseded (`not_planned`). The resulting inventory
+is 43 open program issues plus planning delivery #748; no functionality was marked
+implemented by these administrative closures. #748 records this delivery's local
+validation and publication status separately from historical gameplay evidence.
+
+`PORT_PLAN.md` and GitHub #49 remain the general direction; the architecture documents
+below hold the technical ownership and acceptance detail. #133 was closed on 2026-09-09.
+#578/#585/#587/#588/#589/#716/#718/#722/#737 are integrated and closed in their bounded
+scopes. Do not wait for or reopen #133, and do not use older checkpoint ordering as a
+current instruction.
+
+The technical gate remains **#584 core → #583 native/Wasm product → #153 independent
+audit**. #584 retains unfinished C0–C4 core work; #583 owns the preserved M0–M4
+native/Wasm product and does not block unrelated gameplay macros, while production module
+integration waits for required #584 work. The Rust/Wasm/C mixed product is mandatory even
+though operator activation is optional. No new micro-issues are planned:
+each macro includes its consumers and validation, with file-specific exceptions allowed by
+the module policy.
+
+The next recommended core macro is **#743**, covering group commands that carry state and
+their saturation, disconnect, replacement, stale-command and reconciliation behavior.
+**#735** follows as a recommended ordering preference, not a hard dependency: keep
+canonical reputation state and invariants with Player, resolve catalogs outside the entity
+boundary, keep packet adaptation outside it, preserve send flags/save acknowledgement, and
+migrate load/login/reward/spell/kill/save consumers. The remaining P2 operations then lead
+into P3 runtime/lifetime/private-hecs and P4 semantic/physical work under #584.
+
+Finite hecs V2 conformance passed within its recorded laboratory limits. Production `hecs`
+and Wasmtime are not installed in this base. The dated six-clock trace and the 31 oversized
+file measurement are evidence boundaries, not new exhaustive measurements. The historical
+363-test analyzer result is not a new test run.
+
+**Quest reward is integrated — 2026-09-11, #718:** P1 established one durable character
+transaction for the represented reward participants. C++ `Player::RewardQuest`
+(`Player.cpp:14625`) applies grants in memory and reaches the database through its closing
+`SaveToDB(false)` (`Player.cpp:14867`); the Rust contract and departures are in the
 [quest reward operation contract](../architecture/quest-reward-operation-contract.md).
-Implementation is `78276ddf57463fc0f568c1c4bcf84d619af68cad`. Evidence on
-aarch64, Rust 1.98.0 and one Cargo job: `cargo test -p wow-world --lib quest`
-427 passed; `./tools/validation-v2 final --base origin/3.4.3` passed at that
-SHA with a clean tree and a manifest verified green, covering the 363 analyzer
-tests, the exact ownership surface, the physical and hotspot ratchets and the
-server build. The three moved ceilings and the reviewed ownership surface each
-carry their measurement.
+Implementation is `78276ddf57463fc0f568c1c4bcf84d619af68cad`, integrated with its recorded
+local evidence. Evidence on aarch64, Rust 1.98.0 and one Cargo job: `cargo test -p wow-world --lib quest`
+427 passed; `./tools/validation-v2 final --base origin/3.4.3` passed at that SHA with a clean
+tree and a manifest verified green, covering the 363 analyzer tests, the exact ownership
+surface, the physical and hotspot ratchets and the server build. The three moved ceilings
+and the reviewed ownership surface each carry their measurement. No real database write,
+restart or relogin QA was performed; live durability and the unimplemented participants
+remain open port work.
 
-No live QA, database write, restart or relogin was performed, so the durability
-claim rests on the contract and its fixtures, not on real recovery evidence.
-The unimplemented participants listed in the contract remain open port work.
+The records dated before this reconciliation are retained below as historical evidence.
+Their former next-step, issue-state and test-count language does not override this block.
 
-**Current architecture delivery — 2026-09-10, reviewed integration `aff42a51`:**
+**Historical #716 delivery record — 2026-09-10, reviewed integration `aff42a51`:**
 the user approved starting the architecture repair program. #716 restores exact
 ownership-provenance acceptance after the mechanical module passes. At that base,
 the general architecture check and self-tests pass; the syntax-only Session check
@@ -32,7 +61,7 @@ whose parent import is lost by the analyzer. Physical terminal acceptance also f
 31 files exceed 2,000 lines, while migration ceilings still pass. These results do not
 reopen the integrated, closed #587/#588/#589 scoped gameplay deliveries.
 Implementation and acceptance of #716 are tracked in the
-[current architecture plan](../architecture/modularity-and-ecs-plan.md#current-core-delivery--2026-09-10).
+[architecture plan](../architecture/modularity-and-ecs-plan.md#architecture-program-state--2026-09-11).
 **#716 is locally accepted**, with implementation commit
 `6ae62d73a9f910ebd664d82e331520b836a73c77`: 363 analyzer library tests, syntax-only
 ownership, architecture check/self-test and validation-v2 quick pass. The 65 earlier
@@ -40,12 +69,12 @@ bridge records are preserved after the reviewed relocation; seven existing dual
 references are now inventoried, giving 72 exact records. Test commands ran on the
 working candidate at `aff42a51` and its verified V2 manifest records `dirty: true`;
 the tested code/policies were committed unchanged. The
-[complete plan for Claude](../architecture/refactor-completion-plan.md#9-estado-exacto-de-la-entrega-al-pasar-a-claude)
+[technical refactor plan](../architecture/refactor-completion-plan.md#7-registro-historico-conservado)
 records commands, source identity and the remaining boundaries. No push, merge,
 server build, deployment, live QA or exhaustive persistence rescan was performed
 for this tooling delivery. Physical terminal acceptance still fails at the same
-31 files. Required #584 core still precedes #583, #153 and #133 closure; quest reward
-is the next operation candidate requiring its complete durability/consumer contract.
+31 files. The former ordering text is historical; current #584 sequencing is #743,
+then #735 without a hard dependency, followed by remaining P2/P3/P4 work.
 
 **Second physical pass closed — 2026-09-10, integration `a4a9073e`:** fourteen
 deliveries between #685 and #711 finished the physical track outside the curated
@@ -74,9 +103,9 @@ are recorded in
 including #713's measurement that dividing the loot and quest fixture roots costs their
 hotspot aggregates +63 and +43 test lines at the cheapest wiring available. What remains
 includes both semantic extraction and justified private decomposition under #584
-C0-C4. This closes neither #133 nor #584.
+C0-C4. This dated record predates #133's closure and does not close the technical #584 gate.
 
-**Physical decomposition track closed — 2026-09-09, integration `df94f231`:**
+**Historical physical decomposition pass — 2026-09-09, integration `df94f231`:**
 #589 and its sub-issues #590-#595 are merged. Sixteen deliveries between #634 and
 #664, following the Session-root separations of #603-#632, then completed the
 physical half of the module-design policy: 184,295 lines of oversized roots
@@ -100,10 +129,10 @@ loss did not prove retirement or make file separation invalid; #716 repairs the
 parent-import provenance gap. What remains includes semantic extraction and
 justified physical decomposition under #584 C0-C4, with the per-owner entry
 conditions recorded in
-[the modularity plan](../architecture/modularity-and-ecs-plan.md#physical-decomposition-track-closed--2026-09-09).
-This closes neither #133 nor #584.
+[the modularity plan](../architecture/modularity-and-ecs-plan.md#historical-physical-decomposition-pass--2026-09-09).
+This dated record closes neither the technical #584 gate nor any current gameplay macro.
 
-**Current delivery — 2026-09-08, integration `8c47af95`:** #586 is merged and
+**Historical delivery — 2026-09-08, integration `8c47af95`:** #586 is merged and
 #585 closed. #587's represented spell-acquisition boundary is implemented locally
 on its own branch (original `43c4e801`, subsequent QA/evidence through `c88603ee`).
 The branch is now rebased onto #588 commit `328b721f`; paired trainer and controlled
@@ -122,15 +151,15 @@ the #589 branch, which stacks on both, so a single PR integrates the three
 deliveries; the user authorised that integration on 2026-09-08.
 #589, the represented Player cast-request lifecycle, is **implemented and
 locally accepted**, described in
-[the existing architecture plan](../architecture/modularity-and-ecs-plan.md#next-core-candidate--2026-09-08)
+[the existing architecture plan](../architecture/modularity-and-ecs-plan.md#historical-delivered-design--589-2026-09-08)
 and recorded in [its checkpoint](../architecture/player-cast-589.md), which owns
 the executed evidence, the represented value limits of the publication payload
 and the deviations deliberately left open. Its six sub-issues #590-#595 cover the
 functional contract and consumers, the 3.4.3 payload and publication, ownership
 and physical organization, the acceptance bot, the integral regression campaign,
 and closure. The earlier "paused, uncommitted working tree" state is superseded.
-Required #584 core still precedes #583, then #153 and #133 closure; #589 does not
-complete #133 or all spell gameplay.
+The current technical gate is #584 core → #583 → #153; #133's tracker closure is
+already recorded above. #589 does not complete all spell gameplay.
 The dated pre-merge account below remains historical
 evidence, not an instruction to reopen #585.
 
@@ -227,7 +256,7 @@ executable Cargo/handler-contract guardrails.
 
 The approved [module design guidelines](../architecture/module-design-guidelines.md) now require
 both semantic boundaries and physical source/test navigability. Remaining monolith decomposition
-remains #578 C2/C4 implementation work; #583 applies the same policy to its own SDK/modules.
+belongs to #584 C0–C4; #583 applies the same policy to its own product, including Rust/Wasm/C.
 The physical ratchet implemented above `8f5caedc` now covers repository source/tests/tooling,
 with 103 initial legacy non-growth ceilings and an independent terminal mode. The first Rust
 split above `d3f5c20c` reduces the persistence facade from 4,513 to 544 lines, preserving root
@@ -298,11 +327,11 @@ retires Session rather than pretending completion was a normal DB rejection. Gen
 synchronous sends and immediate admission-error responses remain explicit C0/C3 work;
 this is bounded callback evidence, not whole-runtime backpressure or durability acceptance.
 
-## Current architecture and execution checkpoint — 2026-09-05
+## Historical architecture and execution checkpoint — 2026-09-05
 
-The approved implementation unit remains **#578 with draft PR #579**, under #133. Internal
-commits/checkpoints do not create micro-issues, micro-PRs or a new approval gate. The current
-contract-led plan, exact inventories, acceptance evidence and remaining boundaries live in
+The former approved implementation unit was **#578 with draft PR #579**, under #133. Internal
+commits/checkpoints did not create micro-issues, micro-PRs or a new approval gate. The current
+contract-led plan, exact inventories, acceptance evidence and remaining boundaries now live in
 [`session-578-checkpoint.md`](../architecture/session-578-checkpoint.md). #153 verifies the
 complete result; it is not an implementation owner for already-known cuts.
 
@@ -311,16 +340,18 @@ is conformance before production storage migration, then review of the first rea
 with C0 execution evidence before replicating its design. C4 checks the complete #578 balance
 before #583 production integration; #153 audits both merged macros. After architecture, review
 each selected gameplay macro just in time and perform the fresh whole-port planning pass at
-#47/M6.2. No checkpoint introduces another routine approval, issue or PR.
+#47/M6.2. No checkpoint introduced another routine approval, issue or PR. The tracker closure
+of #133 is recorded in the current block above; the technical gate remains #584 → #583 → #153.
 
 At the reviewed local HEAD, canonical `wow_entities::Player` owns the migrated gameplay families
 and `wow_map::MapManager` coordinates its generation-checked active/detached lifetime. The former
 whole-Player Session write-back and ObjectAccessor Player-copy paths are retired. This is real
 ownership progress, not proof that Session is already a thin shell: gameplay orchestration,
-catalog/service retention, broad mutable Map access and runtime bridges remain #578 work.
+catalog/service retention, broad mutable Map access and runtime bridges were then #578 work;
+the remaining technical ownership now belongs to #584.
 SQLx isolation under #169 is closed; terminal capability cohesion and the complete Session/runtime
 boundary still need evidence. Closing #252/#297/#378 proved their stated directory, transport and
-classification cuts, not completion of #133.
+classification cuts; those dated results do not alter the current #133 tracker closure.
 
 The next cuts are selected by complete operation contracts and their deletion conditions, not
 field counts. Distinguish implementation, production-path integration and parity evidence. Use
@@ -906,7 +937,7 @@ byte-clean login capture.
 
 ---
 
-## 4. Architecture reality
+## Historical architecture reality
 
 At the 2026-09-05 reviewed local HEAD, the legacy creature runtime still supplies behavior while
 canonical Map storage owns active Players and the staged `MapRuntime` applies typed transitions.
@@ -939,6 +970,7 @@ acceptance: preserve bytes, metadata, connection and order with focused evidence
 required action-specific capture/live evidence when the change or acceptance calls for it.
 Report a bounded proof as bounded, and distinguish code tests, historical golden regression,
 fresh runtime evidence and full functional parity. Architecture completion requires the complete
-#133/#578/#583 contracts (including the operator-optional Wasm delivery and independent physical
-acceptance) and #153 audit, not a favorable field count or test total. Neither architecture
-closure nor playable M6 closes the full Part-2 parity ledgers.
+technical gate: #584 core, the #583 product (including the mandatory Rust/Wasm/C mixed delivery
+with optional operator activation), and the independent #153 audit. #133 is already closed
+administratively and is not a future gate. Do not substitute a favorable field count or test
+total. Neither architecture closure nor playable M6 closes the full Part-2 parity ledgers.

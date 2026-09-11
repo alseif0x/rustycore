@@ -180,6 +180,11 @@
     587,
     589,
     716,
+    718,
+    722,
+    737,
+    743,
+    735,
     583,
     153
   ],
@@ -2370,6 +2375,66 @@
       ],
       "depends_on": [
         589
+      ]
+    },
+    {
+      "number": 718,
+      "state": "closed",
+      "title": "[ARCH.CORE] Own quest reward as one complete operation with a coherent durable transaction",
+      "kind": "slice",
+      "parents": [
+        584
+      ],
+      "depends_on": [
+        578
+      ]
+    },
+    {
+      "number": 722,
+      "state": "closed",
+      "title": "[ARCH.CORE] Separate login hydration from active rules in the broad Player mutable access",
+      "kind": "slice",
+      "parents": [
+        584
+      ],
+      "depends_on": [
+        578
+      ]
+    },
+    {
+      "number": 737,
+      "state": "closed",
+      "title": "[ARCH.CORE] One owner for the Player's item slots across inventory, vendor and loot",
+      "kind": "slice",
+      "parents": [
+        584
+      ],
+      "depends_on": [
+        578
+      ]
+    },
+    {
+      "number": 743,
+      "state": "open",
+      "title": "[ARCH.CORE] Guarantee application or reconciliation of remote group state changes",
+      "kind": "slice",
+      "parents": [
+        584
+      ],
+      "depends_on": [
+        578
+      ]
+    },
+    {
+      "number": 735,
+      "state": "open",
+      "title": "[ARCH.CORE] Encapsulate Player reputation transitions without whole-state write-back",
+      "kind": "slice",
+      "parents": [
+        584
+      ],
+      "depends_on": [
+        578
       ]
     }
   ]

@@ -1,411 +1,341 @@
-# RustyCore — Port Plan (two-part: Playable → Full 1:1)
+# RustyCore — Master port and delivery plan
 
-**Plan established:** 2026-06-27 · **Execution review:** 2026-09-05 at local HEAD `93e4002a`.
-Supersedes the ordering role of `MIGRATION_ROADMAP.md` and the
-planning role of `current-session-handoff.md`. Current state: [STATE.md](STATE.md);
-architecture: [adr-runtime-tick-ownership.md](adr-runtime-tick-ownership.md); bugs in
-already-shipped code: [EXISTING-CODE-DEFECTS.md](EXISTING-CODE-DEFECTS.md) (the **D-track** —
-fixing what exists, distinct from Part 1/2 which build what's missing).
+**Reconciled 2026-09-11 under #748 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
+Source baseline: `3.4.3` at `5d8c079a06b587c060c1c6e1c06bedb73c4339d0`.
+Initial inventory: **46 open issues**, all given a disposition below; #748 is this
+bounded planning delivery. Administrative consolidation does not count as implementation.
 
-**How to use the checklists:** mark gameplay capability items `- [x]` only when their stated
-scope meets the definition of done in STATE.md §5 (live + capture-clean + exercised + C++-cited).
-A bounded completed slice is not the broader milestone exit. Historical diagnoses and unchecked
-rows are not current code audits; reconcile the next selected macro with its live issues and HEAD
-before implementation. Architecture/tooling work uses its explicit, proportional acceptance.
+The target remains **full functional parity with the TrinityCore-derived WoW 3.4.3
+server**, with the approved native/Wasm module product. A playable milestone is an
+intermediate acceptance point, not a smaller replacement target.
 
-## Current execution agreement — #133 / #578
+## 1. Direction from here
 
-**Active delivery, 2026-09-10:** #578/#585/#587/#588/#589 are integrated and closed
-within their named scopes. The user approved the architecture repair program at
-`aff42a51`; #716 first restores the ownership analyzer and exact acceptance after
-physical module moves. The [current architecture plan](../architecture/modularity-and-ecs-plan.md#current-core-delivery--2026-09-10)
-owns that contract and the next quest-reward candidate. #133/#584 remain umbrellas.
-Complete required #584 core before #583, then #153 and #133 closure. No fixed crate
-sequence or helper-issue tree is selected. Complete each implementation and its
-consumers before tests/QA; do not run CI for internal microchanges.
+**Next primary implementation: #743, reliable application/reconciliation of group
+state. Next preferred core delivery: #735, reputation encapsulation.** This is a
+priority choice based on demonstrated residuals, not a dependency between those
+issues. Neither requires rebuilding the integrated group or Player owners.
 
-**Superseding delivery agreement, 2026-09-06:** the user replaced the single
-all-core implementation PR with crate-focused macrodeliverables, each preceded by
-current-source/dependency/behavior analysis. #578/#579 closes only its delivered
-canonical-owner foundation and represented lifecycle hardening once its scoped
-regression/integration/live/publication gates pass. **#584** retains all unfinished
-C0–C4 obligations under #133 and coordinates finite implementation children; it is
-not another all-core PR. No next crate or crate order is selected (`wow-map` was only
-an example). Each child includes necessary cross-crate consumers and tests; crate
-completion means its agreed architecture outcome, not every future port feature.
-#583 production integration waits for the completed required core work in #584;
-#153 audits it and #583. Full #133 acceptance is unchanged. The closeout matrix in
-`session-578-checkpoint.md` owns the exact #578 remaining gates. Older one-PR/C0–C4
-allocation paragraphs in this section are the superseded plan, not active scope.
+Continue the remaining core under #584 by complete operations, execution/lifetime
+boundaries and physical organization. In parallel with safe independent work, prepare
+a playable circuit: effective equipment/stats → combat and death/recovery →
+quests/loot/interactions → complete class kit, travel and durable services → soak.
 
-The closed **#578 / PR #579** delivered the canonical-owner foundation. The remaining
-program is **#584**, followed by **#583 under #99**, then #153's independent audit.
-Keep coherent internal commits and checkpoints; do not turn field families into
-micro-issues/PRs or require permission to continue between routine steps. The
-[architecture plan](../architecture/modularity-and-ecs-plan.md) owns current delivery;
-[`session-578-checkpoint.md`](../architecture/session-578-checkpoint.md) retains the
-predecessor's exact evidence, not the current selection or an undated completion claim.
+The core/module acceptance chain remains **required #584 core → #583 → #153**.
+The former umbrella #133 is already closed. Its closure is neither evidence that this
+chain passed nor an extra future task. The module product need not block every
+independent gameplay delivery; its production activation still requires its actual
+core prerequisites. Complete the approved architecture/module acceptance before
+declaring the whole Part-1 program accepted at #47.
 
-Each internal block must name its complete operation, input/admission contract, canonical owner,
-mutation/commit/publication order, narrow dependencies, retired access/bridge and acceptance
-evidence. Move every related reader/writer before claiming that boundary complete. A shared
-resource bag with fewer outer fields, or gameplay spread over more Session impls, does not meet
-the terminal contract. Already-known core cuts stay in #584; #153 verifies them rather than absorbing
-their implementation. Preserve the full #133 outcome.
+The M0–M6 headings remain milestone identifiers; obsolete `[NN]` priority prefixes
+are retired. Neither is an unconditional execution order. Issue numbers, crate names and file counts
+do not define dependencies. The tables below distinguish preferred order from
+capabilities that actually block a consumer.
 
-The [module design guidelines](../architecture/module-design-guidelines.md) add independent
-physical source/test acceptance to each semantic family: manageable files, bounded file-specific
-exceptions and legacy retirement inside #584 C2/C4. They include a Rust submodule skeleton and
-cover SDK/modules in #583. Safe mechanical splits need not wait for the hecs conformance gate,
-which remains mandatory before production storage migration. The existing checker now enforces
-physical migration ceilings and a separate terminal mode. Remaining legacy-file retirement and
-semantic acceptance belong to #584 C2/C4, not #153 or a new micro-issue; a migration PASS is not
-terminal acceptance. The owning checkpoint records the exact remaining ceilings and evidence.
+## 2. Authority, evidence and limits
 
-At completed-delivery acceptance, run affected-crate checks, focused positive/negative tests,
-formatting and the applicable ownership/architecture checks. At an affected owner boundary, exercise bounded
-production-path integration and failure cases, including stale generation, detached transfer,
-save/logout and publication/backpressure as applicable. The complete exhaustive/final stack
-belongs at macro acceptance, not every internal commit. Required capture/runtime evidence remains
-an explicit gate, and this cadence grants no new deployment, push or merge authority.
+- This file and #49 own overall direction and issue allocation.
+  [STATE.md](STATE.md) owns dated implementation/evidence status.
+- [The refactor completion plan](../architecture/refactor-completion-plan.md)
+  owns the detailed P0–P6 continuation; [modularity/ECS design](../architecture/modularity-and-ecs-plan.md)
+  and [module design](../architecture/module-design-guidelines.md) own contracts and budgets.
+  Issue bodies define bounded delivery and acceptance, not competing master plans.
+- Required base behavior comes from target C++ at
+  `/home/server/woltk-trinity-legacy`, SHA
+  `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`, and appropriate target-build captures.
+  The pinned complementary AzerothCore reference and its limits are in
+  [docs/README.md](../README.md); 3.3.5 wire/SQL are not substitutes for 3.4.3.
+- This review read every open issue and traced representative current production
+  paths, relevant C++ and existing evidence. It is **not** a full opcode/effect/DB2
+  census, a fresh live scenario, a durability proof or a new whole-port parity base.
+  Partial source findings and hypotheses are distinguished in the updated issues.
+- No historical percentage, count of implemented enums, passing mock or closed
+  umbrella proves present capability. Preserve the exact source/runtime identity
+  of previous tests and captures; do not relabel them as testing this plan.
 
-The [reanalysis checkpoints](../architecture/modularity-and-ecs-plan.md#reanalysis-checkpoints--evidence-before-replication)
-make the order explicit: conformance before production storage migration; review the first real
-C1/C2 vertical with C0 admission/phase evidence before replicating it; reconcile required C0–C4
-core under #584 before #583 production integration; audit accepted deliveries in #153. Review the next
-gameplay macro just in time, then the entire port at #47/M6.2 before Part 2 planning. These are
-evidence reviews inside the approved macros, not new issues or routine confirmation gates.
+## 3. Integrated foundations to reuse
 
-After #133, re-audit the next port macro just in time against current Rust, C++ and existing
-evidence. Preserve links and hard dependencies from the ordered index while regrouping internal
-work around coherent responsibilities, not outdated table/field diagnoses. Report implemented,
-integrated and parity-proven separately; retain the full Part-1/Part-2 goal. Do not pre-granulate
-#48 or manufacture a new issue tree for every internal cut.
+These predecessor issues are closed. Reuse their integrated responsibilities and
+inspect their recorded limits when changing a consumer; do not repeat them from an
+old unchecked checklist.
 
-The latest approved [complete modularity/ECS plan](../architecture/modularity-and-ecs-plan.md)
-selects private, selective `hecs`, retaining cohesive domain aggregates. Before production storage
-migration, #578 runs the finite independent-module conformance proof: a frozen host accepts a
-third module/new state type, with equivalent native Rust/Rust Core Wasm/C Core Wasm and mixed
-execution cases. The gate can falsify the selection through a concrete backend limitation; it is
-not another indefinite candidate comparison. As reconciled on 2026-09-06 at `36d0ccbf`,
-the finite gate has passed: see the [V2 evidence](../architecture/modularity-conformance-results.md)
-and [owning checkpoint](../architecture/session-578-checkpoint.md). The next work is real-owner
-integration and all C0–C4 lifetime/save/phase/operation obligations. No production hecs dependency
-has been installed, and no SDK-wide prerequisite or new issue is added.
+| Foundation | Closed issue scope and retained boundary |
+| --- | --- |
+| Data, terrain, LOS, respawn, persistence and integrity | #14–#20, #52, #60, #62, #64; their bounded delivery does not prove every store/stat/save path. |
+| World entry, packet handling and movement/AI | #7–#11, #21–#26, #50, #53, #57, #66. #26 proves its bounded creature cast wire/lifecycle, not full effects or combat AI. |
+| Runtime clock cuts and homebind | #28/#371 and #44. They do not complete runtime convergence, all transfers or item-use. |
+| Persistence/migration and module foundation | #169/#574/#256 and #228–#231. Reuse SQLx-free contracts, the migration authority and the narrow external login API. |
+| Canonical Player, finalization, acquisition, visibility and cast | #578/#585/#587/#588/#589. Preserve residence/incarnation, save fences and metadata; broader gameplay remains open. |
+| Recent architecture repair | #716 analyzer; #718 represented quest-reward transaction; #722 named Player operations; #737 item-runtime ownership. Real reward recovery evidence and generic mutation residuals are not discharged by these closures. |
 
-The following #583 macro delivers shared semantic hooks for native first-party/custom modules
-and a bounded Wasm executor with Rust/C bindings, alongside policies, scoped/reentrant encounter
-behavior, independent state composition, durable progress/reward and install/update/disable/recovery.
-**This explicitly expands #133's closure:** Wasm is optional for the operator to enable, not
-optional for #583/#153 acceptance. The bounded delivery no longer waits for M6; broader language
-ecosystem expansion retains the fresh #99 planning gate. #583 depends on #231/#578 and required
-#584 core; core work does not depend on #583 or a production SDK/Wasm executor. #153 audits the completed program, not the entire
-#99 epic. Native-only and Wasm-enabled builds must preserve the same supported hook contracts;
-the plan does not promise every language, a stable native ABI or hot reload.
+The old high/medium findings in [EXISTING-CODE-DEFECTS.md](EXISTING-CODE-DEFECTS.md)
+are leads with dated evidence. Contrast them before making them current blockers;
+retain their owning capability even if a diagnosis proves obsolete.
 
-The [V1 laboratory is complete](../architecture/modularity-lab-results.md) at `ee9a0128`: its
-corrected campaign passes the recorded functional/resource gates, but does not prove the new
-independent-module/multilanguage gate or production integration. Native remains the default;
-the finite V2 conformance proof has also passed with its recorded limits. Real-owner production
-integration remains required. This is one
-expanded complete capability, not a PR per hook. Part 1, Part 2 and the D-track retain their goals
-and hard dependencies; the architecture update is not a fresh audit of every historical gameplay
-issue and does not change their completion states or publication/deployment approvals.
+## 4. Execution lanes and dependencies
 
-## Why two parts
+A lane describes a result and its acceptance. It does not create one PR per row,
+force unrelated work to wait, or permit a partially completed macro to be closed.
 
-Goal = **full functional parity with C++**, nothing dropped. The old plan represented every
-C++ row and hit 98% breadth on a server where bags don't open. So the plan has two parts with
-**different metrics**, run in this priority order:
+| Lane | Preferred work | Entry / exit contract |
+| --- | --- | --- |
+| **A — Core architecture** | #743, #735, then measured P2/P3/P4 residuals under #584 | One canonical authority and execution owner, complete consumers, explicit lifetime/persistence/publication and terminal physical/dependency dispositions. See §6. |
+| **F1 — Character foundations** | #61, #63; relevant #12, #486 and #524 corrections | Equipment reaches effective stats; movement and entry consume the integrated owners. Weather or all vehicles do not block unrelated combat. |
+| **F2 — Combat and recovery** | #29, residual #30, #31; consolidated #43 and #54 | A real fight can reach death, release/recovery and safe logout. Accept numeric combat only with effective stats and the necessary aura/absorb participants. |
+| **F3 — Progression and interaction** | consolidated #41; #55, #56, #13, #36 and #51 | Accept → progress → complete/reward, real loot and GO/item interactions. Shared consumers must compose; queues or recorded requests alone do not pass. |
+| **F4 — Complete class/simulation kit** | #32, #33, #34, #35, #27 | Executable effect/aura/proc/AI chains with lifecycle and observable outcomes. A participant needed by F2/F3 is delivered there, not delayed merely because its family is listed here. |
+| **F5 — Travel and durable services** | #40/#45, remaining #12; #37, #38, #39 | Flight/instance/reconnect coherence; mail, trade and AH complete their transactional lifecycles. These may advance when their real prerequisites are ready. |
+| **X — Stateful extension product** | #583 under #99, then #153 audit | Required core accepted first; real native/Rust-Wasm/C-Wasm/mixed behavior, durable module state/reward and author/operator lifecycle. Wider #99 expansion is separate. |
+| **F6 — Part-1 terminal acceptance** | #46, then #47 | Integrated functional scenarios, multi-client soak and real save/restart/relogin under load; no known integrity failures deferred to soak. |
+| **O — Environment and QA support** | #255, #351; #279/#352 when applicable | Reproducible setup and usable guarded QA. A specific broken fixture/DNS target blocks its live scenario, not every local implementation. |
+| **B — Bounded side delivery** | #582 | Reconcile and integrate the existing decoder branch; it does not activate or complete matchmaking. |
+| **D — Optional developer experience** | #260 | Typed configuration foundation while preserving current .conf behavior; not a prerequisite for #231, #583 or gameplay. |
+| **L — Full-parity continuation** | #48 and source-evidence index #65 | Preserve all remaining target behavior. Refresh the whole-port plan at #47 before creating a detailed Part-2 child tree. |
 
-- **Part 1 — Playable end-to-end** (critical path, sets order). Metric: milestone burndown M0–M6.
-- **Part 2 — Full 1:1 parity** (exhaustive backlog, nothing dropped). Metric: per-domain
-  coverage ledgers. Tracked from day one; sequenced after/alongside the Part 1 spine.
+### Hard capability relationships
 
-Both required. Part 1 makes it a game; Part 2 makes it TrinityCore. Functional parity requires
-the C++ comparison and live evidence defined in STATE.md §5. A retained capture proves only its
-recorded action/build/window. Fresh runtime availability must be checked, not inferred from the
-historical server-swap notes. Structural commits use the proportional gates above.
+- Equipment → effective Unit/Player stats (#61) precedes accepting damage numbers
+  in #29/#31. Analysis and preservation of existing combat paths may proceed earlier.
+- #13 and #36 use the shared cast contract delivered by #589 and extended by #30;
+  each owns its GO/item admission and side effects. They do not clone cast ownership.
+- #31 supplies damage/heal application to periodic/proc consumers; required aura,
+  absorb or trigger participants are integrated with the affected operation.
+  These are shared capability contracts, not a circular demand that all of #31
+  and all of #32 must each close before the other can start.
+- #43 supplies the complete death/recovery cycle used by combat, instance and
+  resurrection scenarios. #54 extends logout admission and reuses #585 finalization.
+- #41/#55/#56 share objective-credit integration, with one owner for each
+  transition. #743 supplies group-state consistency; #51 retains protocol/lifecycle
+  acceptance. Neither relation justifies merging unrelated responsibilities.
+- The reward-by-mail criterion of #41 and auction delivery in #39 require the
+  relevant durable mail capability of #37. Quests without mail may be developed
+  and tested earlier; **#41 must not close while its required mail criterion is
+  missing**. Schedule that producer before final quest closeout. Trade #38 does
+  not require AH or mail.
+- #583 waits for required #584 core; #153 waits for accepted #584 and #583.
+  #99 is a product umbrella, not an implementation prerequisite that must close.
+- #46 starts after the selected functional flows work; #47 requires their complete
+  Part-1 acceptance and #46. Failures found while building an operation are repaired
+  there rather than being stored until F6.
 
-**Core conversion principle:** audit the actual path from request to canonical mutation and
-publication. The historical `represented_*_like_cpp` label does not prove that a current function
-only records intent, nor that a feature is live. Reuse completed behavior and implement the
-remaining contract, rather than rebuilding from old diagnosis text.
+## 5. Complete disposition of the initial open issues
 
----
+“Revalidate” means a scoped current-source/behavior check at the start of delivery,
+not another project-wide audit. A consolidation is closed as superseded, with all
+acceptance retained by the recipient; it does not mark functionality complete.
 
-## Part 0 — Governance contracts and retained implementation debt
+| Issue | Primary owner / lane | Disposition and concrete next scope |
+| --- | --- | --- |
+| [#12](https://github.com/alseif0x/rustycore/issues/12) | F1/F5, entry/transitions | Revalidate transport attachment/re-seat and weather/world-state presentation; transport columns are already loaded. Track remaining entry/cinematic/hotfix presentation findings here when reproduced. |
+| [#13](https://github.com/alseif0x/rustycore/issues/13) | F3, GO-use | Integrate the real spell/portal operation from existing GO dispatch and effective templates/scripts. |
+| [#27](https://github.com/alseif0x/rustycore/issues/27) | F4, creature reactions | Trace Talk/text loading and AI/script consumers; deliver event, locale/range and multi-recipient behavior. |
+| [#29](https://github.com/alseif0x/rustycore/issues/29) | F2, melee | Complete calculation/outcomes with equipment stats and both Player/Creature consumers; reuse current timers/owners. |
+| [#30](https://github.com/alseif0x/rustycore/issues/30) | F2, cast prerequisites | Complete residual CheckCast, resources/reagents and history/cooldowns around integrated #589. |
+| [#31](https://github.com/alseif0x/rustycore/issues/31) | F2, damage/heal | Calculation → canonical application → threat/death/publication, with exact modifier and failure behavior. |
+| [#32](https://github.com/alseif0x/rustycore/issues/32) | F4, aura lifecycle | Apply/update/periodic/remove, real modifiers and required persistence; no historical aura-count target. |
+| [#33](https://github.com/alseif0x/rustycore/issues/33) | F4, procs | Trace real events/trigger consumers, filters, RNG/chance/PPM/charges and recursion/failure. |
+| [#34](https://github.com/alseif0x/rustycore/issues/34) | F4, spell effects | Complete selected class chains with their targets, auras, movement and summons; preserve full-port coverage separately. |
+| [#35](https://github.com/alseif0x/rustycore/issues/35) | F4, channels/missiles/areas | Runtime lifecycle and effects, beyond the existing packet shapes; reuse the execution clock. |
+| [#36](https://github.com/alseif0x/rustycore/issues/36) | F3, item-use | ItemEffect is loaded; deliver registered item admission, cast, charges/consumption and real effects. |
+| [#37](https://github.com/alseif0x/rustycore/issues/37) | F5, mail | Complete online/offline mail, attachments/money/COD and durable recovery; supply reward/AH consumers. |
+| [#38](https://github.com/alseif0x/rustycore/issues/38) | F5, trade | Complete two-Player item/gold exchange beyond the existing accepted-state protocol. |
+| [#39](https://github.com/alseif0x/rustycore/issues/39) | F5, AH | Complete target-version auction lifecycle and mail delivery, not a response invented for a legacy no-op opcode. |
+| [#40](https://github.com/alseif0x/rustycore/issues/40) | F5, taxi | Discovery/route/payment → flight/map transitions → landing/recovery; existing taxi state is not flight execution. |
+| [#41](https://github.com/alseif0x/rustycore/issues/41) | F3, quest lifecycle | Receives #58/#59: admission, acceptance/sharing/source items, objectives, completion and full in-scope reward; reuse #718. |
+| [#42](https://github.com/alseif0x/rustycore/issues/42) | Superseded by #43 | Transfer death, durability and ghost restrictions into the complete recovery macro; close administratively, not as implemented. |
+| [#43](https://github.com/alseif0x/rustycore/issues/43) | F2, death/recovery | Receives #42: death/CORPSE → release/ghost → corpse/graveyard → reclaim/healer/resurrection and relog. |
+| [#45](https://github.com/alseif0x/rustycore/issues/45) | F5, instances | Revalidate bind/save/difficulty/reset and actual admission; finish enter/leave/reconnect using existing transfer/finalization. |
+| [#46](https://github.com/alseif0x/rustycore/issues/46) | F6, soak | Measured multi-client stability on an identified installed build, after incremental operation acceptance. |
+| [#47](https://github.com/alseif0x/rustycore/issues/47) | F6, playable exit | Real save/recovery under load and all required functional flows; triggers the next full-port planning pass. |
+| [#48](https://github.com/alseif0x/rustycore/issues/48) | L, full-parity umbrella | Retain complete coverage, remove stale percentages; add explicit social/LFG and authentication/network coverage. |
+| [#49](https://github.com/alseif0x/rustycore/issues/49) | Master index | Maintain this direction and complete allocation; not an implementation PR or a future prerequisite to its children. |
+| [#51](https://github.com/alseif0x/rustycore/issues/51) | F3, group lifecycle | Revalidate current invite/accept/decline/cancel/leave/disband/category behavior; separate from #743 delivery guarantees. |
+| [#54](https://github.com/alseif0x/rustycore/issues/54) | F2, logout admission | Deny/delay/instant/cancel/countdown using the existing durable finalizer. |
+| [#55](https://github.com/alseif0x/rustycore/issues/55) | F3, loot | Existing gates are not globally missing; finish actual modifiers/grants/credit and multi-client consistency. |
+| [#56](https://github.com/alseif0x/rustycore/issues/56) | F3, area-trigger | Bits, conditions, scripts and tavern paths exist; trace residual explore/BG/corpse/transfer semantics. |
+| [#58](https://github.com/alseif0x/rustycore/issues/58) | Superseded by #41 | Preserve timed-active exclusivity and recursive breadcrumb admission as explicit quest criteria. |
+| [#59](https://github.com/alseif0x/rustycore/issues/59) | Superseded by #41 | Preserve acceptance/completion/reward participants and evidence, without redoing #718. |
+| [#61](https://github.com/alseif0x/rustycore/issues/61) | F1, equipment/stats | Trace existing modifier planning into effective stats and reversibility before accepting combat numbers. |
+| [#63](https://github.com/alseif0x/rustycore/issues/63) | F1, movement | Complete residual mover/transport/vehicle/teleport branches; preserve #588 deferred visibility. |
+| [#65](https://github.com/alseif0x/rustycore/issues/65) | L, source-evidence index | Correct finding/issue status and retain exact C++ provenance; not a separate implementation queue or fresh count. |
+| [#99](https://github.com/alseif0x/rustycore/issues/99) | X, module ecosystem | #583 is the selected stateful product; wider language/WIT/hot-reload proposals remain later capability-led planning. |
+| [#153](https://github.com/alseif0x/rustycore/issues/153) | X/A, terminal audit | Audit accepted #584/#583 and their evidence; do not absorb known implementation work or await #133 reopening. |
+| [#255](https://github.com/alseif0x/rustycore/issues/255) | O, reproducible bootstrap | Reuse integrated migration/status authority; deliver pinned artifact, cache/offline import and setup diagnostics. |
+| [#260](https://github.com/alseif0x/rustycore/issues/260) | D, typed JSON config | Optional bounded foundation on the current toolchain; keep .conf/overlays/environment semantics and offline validation. |
+| [#279](https://github.com/alseif0x/rustycore/issues/279) | O, QA credential rotation | Explicit disposable-fixture recovery with DB/file failure handling; create-only provisioning remains the default. |
+| [#351](https://github.com/alseif0x/rustycore/issues/351) | O, guarded loot QA | Reconcile current runtime/capture orchestration and chest fixture ownership; preserve restore guarantees and prove the actual smoke. |
+| [#352](https://github.com/alseif0x/rustycore/issues/352) | O, realm address operations | Revalidate configured DNS/IP and restart diagnostics. No silent fallback or code change inferred from the historical incident. |
+| [#486](https://github.com/alseif0x/rustycore/issues/486) | F1, target identity query | Return target game/BNet account identities via the canonical cache/connected target; current querying-session IDs are wrong. |
+| [#524](https://github.com/alseif0x/rustycore/issues/524) | F1, skill startup order | Correct table-granular base/official/custom order and failure/publication phases across the current loader/port. |
+| [#582](https://github.com/alseif0x/rustycore/issues/582) | B, existing LFG decoders | Resume local branch at `607e9bb4` / code `bef2d707`, reconcile and validate before integration; no matchmaking claim. |
+| [#583](https://github.com/alseif0x/rustycore/issues/583) | X, stateful native/Wasm | Deliver the preserved M0–M4 product after required core; the external login API and laboratory are insufficient. |
+| [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions; select finite complete implementation macros from current consumers. |
+| [#735](https://github.com/alseif0x/rustycore/issues/735) | A, reputation boundary | Encapsulate domain transitions; resolve catalogs and construct packets outside Player; migrate save/load/publication consumers. |
+| [#743](https://github.com/alseif0x/rustycore/issues/743) | A, group consistency | Guarantee application or reconciliation despite saturation, disconnection, replacement and stale commands. |
 
-- **P0.1 — Active policy:** [STATE.md](STATE.md) owns dated current-state evidence;
-  historical migration tables are not current status authorities. Enter through [docs/README.md](../README.md).
-- **P0.2 — Active policy:** retain the old handoff through its Git-history pointer;
-  update the owning current checkpoint, STATE.md and PORT_PLAN.md instead of another append-log.
-- **P0.3 — Active policy:** AGENTS.md points to those authorities and the current workflow;
-  documentation changes do not create a new parity-audit base or revive old percentage headlines.
-- [ ] **P0.4** Retire `represented-complete` as a closure state in the inventory TSVs.
-- [x] **P0.5** (issue #66) Repeatable **capture-diff harness** stood up.
-  - `crates/capture-diff/` — parses the C++ PKT 3.1 log + the Rust
-    `RUSTYCORE_PACKET_DUMP_DIR` dump, aligns by opcode/direction, reports count/order/value
-    divergences. One command: `cargo run -p capture-diff -- diff <flow> [--strict]`. Capture
-    scripts in `scripts/`; `import` installs a captured pair as a golden.
-  - **Login golden = real capture** (2026-06-28): C++ TrinityCore vs RustyCore, same character,
-    trimmed to the login flow, s2c-only, wired as a gated test (`cargo test -p capture-diff`).
-    The committed baseline is the *current* real login divergence set (live equivalent of
-    `world-load-audit.md`) and shrinks as login parity improves — re-pin with `import`.
-  - **Note:** "capture-clean" per STATE.md §5 means *zero* divergences for a flow; login is
-    captured and gated but **not yet clean** (the baseline holds the open divergences).
+**Planning delivery:** [#748](https://github.com/alseif0x/rustycore/issues/748) owns
+this documentation/issue reconciliation and its validation. Closing it does not close #49
+or any gameplay acceptance. #42/#58/#59 retain their history and redirects to recipients.
 
----
+## 6. Finish architecture without another endless rewrite
 
-## Part 1 — Playable end-to-end (critical path)
+### A1 — Group consistency and reputation
 
-### M0 — Simulation foundations (silent subdependencies; unblock M2–M5)
-> Discovered in deep audit: without these, "alive world" and "real combat" are built on sand.
-- [ ] **M0.1** Load the missing stat/data DB2 stores: `ChrClasses`, `FactionTemplate`,
-  `CharBaseInfo`, `SpellPower`, `SpellCastTimes`, `SpellCooldowns`, stat-formula GameTables
-  (`GtOCTBaseHP`, `GtCombatRatings`, `GtChanceToMeleeCrit`, …); wire onto sessions/runtime.
-- [ ] **M0.2** Implement terrain height query (`GetHeightZ`/ground snap) so spawns/movement sit
-  on the ground.
-- [ ] **M0.3** Implement VMap line-of-sight (replace the `return true` stub) — gates spells,
-  aggro, and pathing.
-- [x] **M0.4** Player persistence safety: periodic save timer + one transaction for the
-  represented multi-statement save landed in issue #17 / PR #88, with runtime and manual-client
-  logout/relog persistence QA. Full C++ save breadth remains Part-2 parity work.
-- [ ] **M0.5** Persist respawns to a DB respawn table (survive restart).
-- [ ] **M0.6** Establish the **represented→live bridge** convention (a single place where a
-  recorded intent is applied to live state), so M2–M5 convert consistently.
-- [x] **M0.7 (D-track CRIT: stop data loss/dupe NOW)** — closed by issue #20 and merged PRs
-  #89, #103, #105, #107, #109, #111, #113 and #115, plus the already-merged #88 save slice:
-  load item enchantments + random properties on relog (**D-C1/D-C2**), persist bank/
-  equipment-sets/void-storage (**D-C3/M6/M7**), wrap inventory swap + player save in
-  transactions (**D-C4/D-C7**), close loot item/money TOCTOU dupe (**D-C5/D-C6**), make vendor
-  buy + group full-check atomic (**D-C8/D-C9**). Every child merged with its required CI and
-  current-HEAD Codex verdict; installed action-specific QA/captures are recorded in
-  EXISTING-CODE-DEFECTS.md. HIGH/MED mechanics and the separately documented post-COMMIT crash
-  journal boundary remain outside this scoped CRIT closeout.
+#743 is a demonstrated dropped-state-change path. Resolve the bounded group
+command/reader contract and saturated/replaced-target cases, not every mailbox in
+the server. #735 is a domain encapsulation residual, not proven concurrent double
+ownership: the current reconstruction occurs synchronously under canonical Player
+access. Move rules/state transitions, not the packet/catalog-dependent manager wholesale.
 
-### M1 — Clean, crash-free world entry
-- [x] **M1.1** Fix **#7** (CUF profiles → bags don't open): match C++'s post-add
-  `InitWorldStates → LoadCufProfiles → AuraUpdate → PhaseShiftChange` order and pin a live,
-  non-empty C++/Rust capture pair.
-- [x] **M1.2** Restore real compression **#8**: the `0x400` C++ threshold is active,
-  one deflate stream survives the direct-send → async-writer ownership split, and live login QA
-  decoded four consecutive large packets through one persistent inflater.
-- [ ] **M1.3** Close the 33 login-burst divergences (**#9–#12**, `world-load-audit.md`):
-  proficiency set, AccountDataTimes/TutorialFlags resend, ordering, FeatureSystemStatus, MOTD, etc.
-  Issues #9–#11 are merged. Issue #12 retains the later movement/order rows and the full
-  capture/original-client exit.
-- [x] **M1.4** Re-audit and fix the bounded CREATE-block UpdateField VALUE gaps (issue #10,
-  `world-load-audit.md` cross-cutting). Five findings were already fixed, player power slots were
-  correct, canonical ParentRotation retains a documented architecture follow-up, and merged
-  PR #123 closes selected non-mana creature power (including
-  hotfix overlays and legacy-to-canonical state) plus runtime GameObject ArtKit.
-- [ ] **M1 exit:** fresh character logs in, bags open, correct UI, no Lua errors, login burst capture-clean.
+### A2 — Remaining application and persistence boundaries
 
-### M2 — A world that feels alive
-- [x] **M2.1** Broadcast creature movement (issue #21): the global legacy tick launches
-  random/waypoint splines and sends `SMSG_ON_MONSTER_MOVE` to nearby visible clients. PR #77
-  supplied installed/original-client validation; issue #21 pins a real C++ compressed-waypoint
-  packet and reproduces all 117 body bytes exactly in Rust.
-- [x] **M2.2** Wire `MotionMaster::update()` into the runtime tick: every legacy
-  `WorldCreature` owns a persistent stack, the global frame advances spline then ticks that stack
-  exactly once, and selected random/waypoint execution is interrupted by normal-priority chase.
-  The global aggro phase installs chase and emits its C++-shape movement stop in the same tick,
-  while a highest-priority point/charge generator remains selected above chase and its
-  represented finite lifecycle releases the selector proxy on completion. M2.5 supplies target
-  pathing; moving every owner-dependent generator body behind one generic Unit interface remains
-  wider movement architecture work.
-- [x] **M2.3** Connect creature movement generators (random/waypoint) + load waypoint paths:
-  startup already loaded the exact C++ parent/node query shape and current data resolves 7,698
-  paths, 142,185 nodes and 5,419 waypoint spawns. The global owner now supplies measured elapsed
-  `diff` to spline and generator timers, so scheduler delay cannot make random or waypoint
-  re-arming lag behind a finalized leg. Long-horizon random and multi-node waypoint regressions pass;
-  an installed bot run received two movement packets while the server published 627 across 327
-  visible-work ticks. This does not claim Detour, formation/transport transforms, SmartAI
-  callbacks or chase/threat parity.
-- [x] **M2.4** Query the Detour navmesh (`find_path`) instead of straight-line fallback: the
-  "never invoked" diagnosis was stale — `wow-recastdetour` is a real vendored Detour build and both
-  live generators already launched corridors. Four contrasted defects in *what the query returned
-  and when it ran* are closed against `PathGenerator.cpp`: the Detour filter is derived per owner
-  (`CreateFilter`/`UpdateFilter`) instead of a hardcoded ground-only mask; a missing navmesh/tile
-  now yields the C++ `BuildShortcut()` + `PATHFIND_NORMAL | PATHFIND_NOT_USING_PATH` that callers
-  launch, instead of a failure that froze wander in a 100 ms retry loop; `BuildPointPath` runs
-  exactly once so a discarded straight pass can no longer leak `PATHFIND_SHORTCUT`/`SHORT` into a
-  usable smooth path; and both endpoint tiles are demand-loaded, so a destination one `.mmtile`
-  over no longer reports "no navmesh". Shortcut/failure `PathType` values are bit-exact.
-  A deterministic ring-around-a-hole navmesh fixture proves the live waypoint tick routes around
-  the obstacle with real intermediate points and fails when pathfinding is disabled.
-  Four further C++ branches were closed in the same slice: the `CanFly()`/falling mesh-hole and
-  far-from-poly shortcuts (`:180-202`, `:221-240`), `UNIT_STATE_IGNORE_PATHFINDING` from
-  `flags_extra` (`Creature.cpp:1154-1155`), corridor reuse plus `GetPathPolyByPosition`
-  (`:94-123`, `:291-413`), and **live pathing for chase and home** — both were faithful ports with
-  no caller, and home previously *teleported* the creature on evade. Both have around-obstacle
-  tests that fail with pathfinding disabled. Proven legacy defects are repaired rather than
-  copied: an empty suffix retains the complete valid multi-poly prefix (there is no overlap to
-  subtract), clamps movement to its reachable boundary, and recalculates a singleton before C++'s
-  zero-length tail underflow; a disconnected singleton partial path is likewise clamped instead
-  of straight-lining across the gap; and chase stores the computed move-away direction that C++
-  reads but never assigns. Chase commits that direction only after a successful spline launch
-  and drops the prior corridor before a direction-flip query. The 3D squared `< 3.0f` corridor
-  lookup remains C++-faithful. The fail-closed `detour-chase-around-obstacle` flow pins the
-  connected MMap/action/provenance contract; its reviewed C++/Rust pair is strict-CLEAN across the
-  exact heartbeat → compressed chase spline → ping window (3/3 packets, empty baseline).
-  Not claimed: point/charge, fleeing and confused have no live trigger (no fear/confuse aura
-  handlers, no live `MovePoint` caller), so their ported generators stay unreachable; also open are
-  mutual chase, VMap LOS, the `CanSwim()` mesh-hole halves, raycast/straight-path modes,
-  liquid-aware `NormalizePath`, transports/formation/off-mesh links, and per-instance pathfinder
-  concurrency.
-- [x] **M2.5** Real threat: generate threat from damage/heal/taunt; target switch; aggro range by level diff; leash/evade home; call-for-help.
-- [x] **M2.6 bounded wire/lifecycle slice (#26)** — Creature template-spell scheduling and
-  publication; not completion of general creature spell execution.
-  The bounded CombatAI/TurretAI slice reads template spell slots, schedules supported instant
-  casts with C++ cooldown/range/target/visual rules, and publishes an atomic START/GO pair before
-  the same-frame melee phase. The final issue-#26 P1 hardening removes GO's unconditional-hit
-  assumption: bounded resolution is publishable only for a physical `DmgClass=MELEE` Creature
-  spell against a Player attacked from behind, with zero spell/effect mechanics and complete
-  Creature/Player source authority proving every omitted source hit-inert. Canonical local aura
-  application/modifier/visible containers still must be empty; persisted/login sources may be
-  nonempty only when their exact effects are proven neutral to this hit result. Player authority
-  fails closed across persistence, login/zone reconciliation, map/area, guild, skills, quests,
-  glyphs, active traits, pets/battle-pet slots, FFA/PvP/war mode, SpellArea/outdoor sources, and
-  script/legacy/all-rank/SpellLinked hooks. Valid linked hooks and trigger IDs from rejected
-  SpellLinked rows both block the candidate.
+Use the actual generic Player/item mutation callers in the ownership ledger.
+For each complete operation, migrate its rules, readers, writers, persistence and
+publication; retire broad access or justify a bounded stable seam under the existing
+policy. Replacing a closure with a differently named generic closure is not retirement.
+A short canonical access adapter is not automatically an independent gameplay owner.
 
-  A Creature-owned `0..=9_999` roll yields base `MISS` below `500` (5%) and `HIT` otherwise.
-  The local order is cast then schedule and hit roll before cooldown; `NO_ATTACK_MISS` consumes
-  one hit roll before forcing `HIT`. An accepted HIT publishes its topology, then tombstones
-  before scheduling because C++ next consumes unrepresented launch-crit/effect-value draws;
-  MISS may retain authority and draw its repeat delay. Spell/melee/movement RNG share a
-  fail-closed Creature tombstone. Reaching the unrepresented valid-melee damage/outcome/proc branch sets it and emits
-  no fabricated damage or wire. Because C++ uses a process-global RNG and Rust a per-Creature
-  RNG, the represented guarantee is distribution and local causal order, not exact global draw
-  interleaving. Unaccredited states publish neither START nor GO; event-slot clearing and other
-  already-performed deterministic reset work remain, while a tombstone blocks future
-  random-dependent scheduling. Final live authority also loads effective specialization hotfixes,
-  corrects the external-ID `AreaTable` offsets that resolve Shattrath to Terokkar, and admits exact
-  OutdoorPvPTF spell `33377` only after its XP/outgoing-damage auras and runtime hooks prove
-  hit-inert. The final C++/Rust Cabal Interrogator/Eviscerate generation was
-  recaptured from clean harness HEAD
-  `42977e9accb24fc3921af075f4122e1f0180f4a2`. Fixture guard v2 verifies the stock
-  `SmartAI`/difficulty-0 flags `0`, CAS-switches only the capture window to
-  `CombatAI`/`CREATURE_STATIC_FLAG_NO_MELEE`, and restores the exact `SmartAI`/`0` state. The
-  selected pair is an observed **HIT**, strict-CLEAN at 2/2 packets with an empty baseline, and
-  `verify-required creature-spell-casting` is CLEAN. It is not proof of deterministic hit. This
-  closes only the M2.6 wire/lifecycle slice: spell effects, damage/health mutation, the full Spell
-  pipeline, and the other AI families remain later work. The residual functional contract is
-  carried by the existing spell pipeline work (#30–#35) and full AI/spell ledgers, not erased by
-  closing #26 or by this two-packet proof. Revalidate Creature callers as those capabilities land.
-- [ ] **M2.7** Creature reactions: on-aggro/death/evade `creature_text` emotes/yells/sounds.
-- [ ] **M2.8 terminal runtime ownership** — #28 closed its bounded writer cut and #371 removed
-  the independent creature-local clock. Those closures do not prove full Map/runtime convergence;
-  the remaining #578 ownership/phase contract must be demonstrated before this broader item closes.
-- [ ] **M2 exit:** creatures patrol, path around walls, fight back with abilities, speak, respawn; two clients see identical state.
+Preserve #718's represented quest transaction and #585's finalization. Complete the
+remaining account/character, save/acknowledgement, unknown-COMMIT, cancellation and
+recovery obligations where their promised contract is not discharged. Real DB/restart/
+relogin evidence remains necessary; source guards and controlled futures alone are
+not a durability claim. Unrelated missing gameplay is allocated to its functional macro.
 
-### M3 — Combat & spells (leveling-grade)
-> D-track: M3 is also where the **existing melee is fixed** — today it has no damage formula,
-> no hit table, no armor mitigation (D-H1/D-H2/D-H3); "melee works" only means it deals
-> *some* number and broadcasts.
-- [ ] **M3.0 (D-track)** Real melee math: weapon-damage + AP scaling, `CalcArmorReducedDamage`, level reduction, hit table (miss/dodge/parry/block/glancing/crit), dual-wield penalty, haste cap (D-H1/D-H2/D-M3/D-M4).
-- [ ] **M3.1 / #30** Complete spell cast prerequisites: power/mana cost deduction, cast time
-  (DB2), GCD + category cooldowns, range/LOS/facing, reagents. Re-audit the residual: the original
-  issue's "no power deduction" and wholly missing-store premises are stale. Current
-  `handlers/spell.rs` already checks/deducts canonical Player power, with accepted-cast and
-  rejected-cast tests; that does not establish the complete `Spell::CheckCast` contract.
-- [ ] **M3.2** Damage/heal calc pipeline: coefficients (SP/AP), crit, school resist, miss/dodge/parry/block, absorb shields (D-H3).
-- [ ] **M3.3** Aura **periodic tick** (DoT/HoT) + the gameplay-critical SPELL_AURA_* types (stat mods, %mods, immunities).
-- [ ] **M3.4** Proc system (proc flags/chance/charges/ppm → trigger spell).
-- [ ] **M3.5** Expand spell effects 42→leveling set: CC (stun/root/fear/silence), charge/leap/knockback, interrupt, dispel, summon/totem, threat mods.
-- [ ] **M3.6** Channeled spells, travel-time/missiles, ground-targeted AOE + `DynamicObject` area auras.
-- [ ] **M3 exit:** a class levels via its normal rotation; DoTs tick; CC lands; mana matters; capture-clean SPELL_GO/AURA_UPDATE + health/aura deltas.
+### A3 — Production execution, lifetime and private storage
 
-### M4 — World interaction (convert represented→live)
-- [ ] **M4.1** GameObject-use → spell/teleport: **portals (#13)**, chests/loot GOs, quest objects, doors/buttons/levers, summoning.
-- [ ] **M4.2** Item-use → cast spell: load `ItemEffect.db2`; wire `CMSG_USE_ITEM` executor (potions, scrolls, trinkets, hearthstone).
-- [ ] **M4.3** Mail: register + implement send/list/take-item/take-money/delete/return (+DB mail tables).
-- [ ] **M4.4** Player trade: real item/gold transfer with inventory checks.
-- [ ] **M4.5** Auction House: list/bid/buy/sell/cancel live (+DB auction tables).
-- [ ] **M4.6** Taxi/flight: node discovery + `MoveTaxi` flight-path movement.
-- [ ] **M4.7** Quest objective auto-credit (D-track D-H4/H5/H6): wire kill-credit, item-loot, and area-trigger (explore) objectives so quests are completable; apply title/skill/spell rewards live; send queued mail rewards. **Verify D-H4 (kill credit) on a live kill first — agents disagreed whether it already works.**
-- [ ] **M4 exit:** portals teleport; potions/hearthstone work; mail, trade, AH, flights usable end-to-end; quests of all common objective types complete.
+Trace startup and the current Session/map/legacy calls, using the dated
+[clock/phase trace](../architecture/runtime-clock-phase-trace.md) as a starting point.
+The current source still selects GlobalLegacy for its creature path and starts the
+canonical map loop; that is not by itself a demonstrated double tick.
+Reconcile admission, phases/barriers, one resolution, backpressure and
+transfer/detach/unload/shutdown before removing a bridge.
 
-### M5 — Death, transitions & persistence edges
-- [ ] **M5.1** Death→ghost: PLAYER_FLAGS_GHOST, durability loss on death, ghost movement/interaction restrictions.
-- [ ] **M5.2** Resurrection/corpse/graveyard: corpse spawn, repop teleport to nearest graveyard, reclaim corpse, spirit healer + res sickness.
-- [ ] **M5.3** Hearthstone bind / innkeeper set-home (persist to DB).
-- [ ] **M5.4** Login-on-transport re-seat (1230); zone weather (1231); world-state header (1233).
-- [ ] **M5.5** Instance enter/leave basics; reconnect/logout integrity.
-- [ ] **M5 exit:** all common transitions seamless and persistent.
+Keep the selected private hecs direction and finite V2 conformance evidence.
+Integrate it only with real owners/consumers and the lifetime/reentry contract;
+no global ECS, public raw storage API, extra runtime clock or dependency-only “migration.”
+Define the next finite implementation contract from these traced transitions under #584,
+not a speculative issue per bridge or crate.
 
-### M6 — Stability soak
+### A4 — Physical and dependency closeout
 
-Multi-hour soak is the terminal stability test, not the first time concurrency is exercised.
-Ownership-changing macros must already carry bounded integration/failure coverage for the
-transitions they change; M6 then tests sustained composition and load.
+Apply the same semantic/physical policy to production, tests, fixtures, adapters,
+composition and tools. Replace arbitrary numerical file partitions with cohesive
+responsibilities when closing their family; do not conduct a blind global rename.
+Private modules precede earned crates. Preserve visibility, exact registration sets
+and persistence inventories while retiring the real legacy accesses.
 
-- [ ] **M6.1** Multi-client multi-hour soak; fix runtime races, channel backpressure, lock-held-sends (ADR risks).
-- [ ] **M6.2** Warning cleanup; periodic-save under load verified.
-- [ ] **M6 exit:** stable session declared → "playable end-to-end".
+Migration non-growth is not terminal acceptance. Measure remaining oversized files,
+logical owners, permitted dependency exceptions and production bridges at closeout;
+every residual needs the policy's specific accepted disposition. #153 audits that
+result; it is not the implementation owner of known splits.
 
----
+## 7. Part 1 acceptance — a complete playable circuit
 
-## Part 2 — Full 1:1 parity (exhaustive backlog, nothing dropped)
+The M0–M6 names remain milestone identifiers. Their broad exits cannot be inferred
+from a child issue's closure or from a single working spell/class.
 
-Per-domain coverage ledgers. Each: current → target, with "done = live + capture-clean".
-Sequenced after/alongside the M0–M6 spine; listed now so the long tail can't fall through.
+| Milestone | Required integrated outcome |
+| --- | --- |
+| M0 foundations | Effective data/stats, terrain/LOS/pathing, respawn and persistence/integrity prerequisites used by the selected scenarios. Preserve accepted predecessor coverage and identify residuals. |
+| M1 entry | Create/login, bags/UI and correct identity/initial publication, with no client/Lua failures and scoped capture-clean entry flows; #12/#486 own relevant remaining paths. |
+| M2 world | Movement, visibility, patrol/path/aggro/evade, abilities, reactions and respawn; multiple clients agree. Bounded #26/#28 acceptance is not this full exit. |
+| M3 combat/classes | Normal class rotations, melee/spell outcomes, resources/cooldowns, periodic effects/CC/procs and required channels/areas, with effective stats and correct death/recovery consequences. |
+| M4 interaction | GO/item-use, common quest objective and reward types, groups/loot, mail/trade/AH and flights work end-to-end. Earlier quest development does not remove commercial services from this exit. |
+| M5 lifecycle | Death/release/corpse/resurrection, homebind, transport/weather/world state, instances and deny/delay/cancel logout; reconnect/relogin preserve the correct outcome. |
+| M6 stability | Multi-session/map soak and actual periodic-save/recovery under load; no lost acknowledged state, duplicate grant, known unresolved integrity defect or unbounded queue failure. |
 
-> 🚦 **Part 2 transition gate (do NOT break this down yet).** Part 2 lives as a single epic
-> (GitHub #48) on purpose. **When Part 1 (M0–M6) is essentially done** — "playable end-to-end"
-> declared at M6.2 — **run a fresh planning pass**: re-audit HEAD (the live state will have moved
-> a lot), then break each L-ledger into PR-sized child issues *at that point* (not now — premature
-> granularity would create hundreds of issues that rot before they're touched). Source-reference
-> verification (L26) rides along: anchor affected comments to C++ as each domain is contrasted. Trigger owner: whoever
-> closes #47 (M6.2) opens the Part-2 planning pass.
+At #47, record a concrete scenario matrix with target client/build/data, representative
+class/race/level/map coverage and every required milestone exit. One successful class
+or login is evidence for that case, not all Part 1. Preserve wider target coverage for
+Part 2; any scope adjustment needs an explicit retained owner, not a smaller headline.
 
-- [ ] **L1 CMSG handlers** — 385 / 631 implemented (61%) → 631/631. (`cpp-server-opcodes.tsv`)
-- [ ] **L2 SMSG fidelity** — partial → all capture-clean. (`r3-opcodes-registry.tsv`)
-- [ ] **L3 Spell effects** — ~42 / 150 → 150. (`spells-effects.md`)
-- [ ] **L4 Aura types (incl. periodic/proc)** — ~5 / ~255 → all. (C++ `SpellAuraEffects`)
-- [ ] **L5 DBC/DB2 stores** — ~110 / ~325 (34%) → all needed. (`cpp-db2-stores.tsv`)
-- [ ] **L6 Creature AI families** — partial (bounded live AggressorAI/CombatAI/TurretAI combat
-  slices) → full AggressorAI/CombatAI/Guard/Passive/Critter/Turret/Vehicle behavior.
-- [ ] **L7 SmartAI (SMART_SCRIPT)** — recognized-not-interpreted → full event/action/target interpreter. (`ai-smartscripts.md`)
-- [ ] **L8 Movement generators** — disconnected → all wired (idle/wander/waypoint/chase/follow/point/flee/charge/taxi/transport).
-- [ ] **L9 Pathfinding/terrain/vmap** — stub → full Detour + height + LOS + collision.
-- [ ] **L10 Conditions** — default-true → full ConditionMgr. (`conditions.md`)
-- [ ] **L11 Phasing** — partial → full PhaseMgr + change refresh. (`phasing.md`)
-- [ ] **L12 Items: bank contents DB / reagent bank / equipment-set DB / durability-on-death / buyback / gift** — close the partials.
-- [ ] **L13 Quests: skill/expansion gates, talent rewards, POI player-conditions, daily-pool persistence.**
-- [ ] **L14 Mail / Calendar / Petitions** — absent → full. (`mails.md`/`calendar.md`/`petitions.md`)
-- [ ] **L15 Auction House (+bot)** — represented → full. (`auctionhouse.md`)
-- [ ] **L16 Battlegrounds / Arena / Battlefield / OutdoorPvP** — absent → full WotLK set.
-- [ ] **L17 Instances** — lock/save/difficulty toggle, raid resets. (`instances.md`)
-- [ ] **L18 Achievements / Reputation / Skills / Titles** — partial/stub → full.
-- [ ] **L19 Pets / Vehicles / Totems (AI + lifecycle)** — partial → full. (`pets.md`)
-- [ ] **L20 Content scripts** — ~0 / 294k LOC C++ → full by family (Commands/Spells/World/continents/raids/events/PvP). (`scripts*.md`)
-- [ ] **L21 Warden / anticheat** — constants + sanitization → full enforcement. (`warden.md`)
-- [ ] **L22 UpdateField VALUE completeness** — many 0/default → all computed. (`world-load-audit.md`)
-- [ ] **L23 Config keys** — partial → full. (`cpp-world-config-registry.tsv`)
-- [ ] **L24 DB prepared statements / loaders** — partial → full. (`cpp-sql-prepared.tsv`)
-- [ ] **L25 Runtime convergence** — legacy global loop → canonical `Map::Update` owns the tick (incl. `SendObjectUpdates`, per-map visibility range, grid-unload despawn); retire legacy. (ADR steps 5–8)
-- [ ] **L26 C++ source-reference verification** — retain issues #50–#64 and index #65 for
-  traceability, not as proof that their original analysis was correct. Reproduce each selected
-  residual against current Rust and exact C++ call paths; discard unsupported diagnoses without
-  reviving completed work. Relevant families include character lifecycle (M5.5), area triggers
-  (M4.7), GUID entry semantics, quest packets/rewards, item stats and movement. Preserve the
-  independently C++-anchored evidence for #52/#60 and the bounded #62 skill work
-  (`Player::LearnDefaultSkills` / `LearnSkillRewardedSpells`); verify actual issue/code state
-  before relying on a historical completion label. Those slices do not close L26 or the broader
-  gameplay ledgers. The [C++ findings](../audits/cpp-parity-findings.md) retain evidence and limits;
-  no inherited analysis or finding count is itself a correctness source.
+The environment for required QA must be reproducible and its addresses/fixtures usable.
+That requirement is not a claim that all optional authoring tooling (#260), the full
+#99 ecosystem or a production LFG queue must be finished to call Part 1 playable.
 
-**Process:** drive each ledger to 100% under STATE.md §5. The R8 inventory TSVs feed these
-ledgers but are **re-anchored** — a row counts only when live + capture-clean.
+## 8. Part 2 — full target parity, with an explicit coverage map
 
----
+#48 retains the complete target beyond the playable cases. The old numeric
+baselines (385/631 handlers, 42/150 effects, 5/255 auras, 110/325 stores and script LOC)
+are historical and are retired as current status or fixed acceptance denominators.
+Measure the target-version inventory and real consumers when the relevant domain is
+audited. A registered opcode, represented request or loaded table alone is not coverage.
 
-## Progress metric (replaces the 98% headline)
+| Ledger | Required target coverage |
+| --- | --- |
+| L1 | Client packet handlers, metadata/admission, operation and errors. |
+| L2 | Server packet layouts, values, recipients, connection and observable order. |
+| L3 | Spell effects and their complete application chains. |
+| L4 | Aura types, periodicity, stacking/removal, modifiers and proc interactions. |
+| L5 | Required DB2/DBC/GameTable catalogs, effective overlays/removals and consumers. |
+| L6 | Creature AI families and lifecycle, beyond bounded combat slices. |
+| L7 | SmartAI event/action/target execution and script integration. |
+| L8 | Movement generators and transport/taxi/vehicle integration. |
+| L9 | Terrain, pathfinding, LOS, collision and required extraction/data support. |
+| L10 | Conditions and their actual operation consumers. |
+| L11 | Phasing and visibility refresh across state/lifecycle changes. |
+| L12 | Complete item/inventory/bank/equipment/durability/buyback/gift behavior. |
+| L13 | Complete quest rules, objective types, rewards and persistent state. |
+| L14 | Mail, calendar, petitions and their delivery/lifecycle. |
+| L15 | Target-version auction house and associated behaviors. |
+| L16 | Battlegrounds, arenas, battlefields and outdoor PvP. |
+| L17 | Instances, save/bind/difficulty/lockouts/resets and raids. |
+| L18 | Achievements, reputation, skills, talents/glyphs, titles and progression. |
+| L19 | Pets, vehicles, totems and related AI/state/lifetime. |
+| L20 | Required first-party content scripts by family, independently of optional modules. |
+| L21 | Warden/anticheat and target-supported enforcement. |
+| L22 | UpdateField values and derived state, not only layouts. |
+| L23 | Supported server configuration and effective runtime consumers. |
+| L24 | Database statements/loaders, schemas, transactions and recovery. |
+| L25 | Remaining production runtime, grids, visibility/object updates and legacy retirement. |
+| L26 | Source-reference verification, including the historical #65 findings. |
+| **L27** | **Explicit social coverage:** groups/raids, guilds, friends/ignores/channels and automatic LFG, beyond #51/#582. |
+| **L28** | **Explicit authentication/network coverage:** bnet/world account and realm flows, session/connection lifecycle and target-required security/protocol behavior. |
 
-Report three things, never one blended number:
-1. **Part 1:** M-milestone burndown (e.g. "M0 3/6, M1 done").
-2. **Part 2:** per-domain ledger %s (e.g. "CMSG 61%, spell effects 28%, aura types 2%, scripts 0%").
-3. **Validation:** count of capture-diff-clean flows.
+L27/L28 make previously implicit coverage visible; they do not create child issue
+trees or promise unrelated platform features. The map is a planning coverage aid,
+not proof that every target operation has already been inventoried.
+
+### Part 2 transition gate
+
+This review establishes the full direction **now**. After #47/M6.2, refresh the
+whole-port inventory against that later integration and versioned C++/data/captures,
+then decompose the remaining L-ledgers into complete implementation macros.
+Do not create hundreds of speculative child issues today. Existing justified
+functional work may proceed earlier through its actual dependencies.
+
+The owner closing #47 records the new review base and hands the remaining scope
+to #48/#49. Reconcile delivered behavior and evidence before calculating any coverage
+denominator or proposing a first Part-2 implementation.
+
+## 9. Delivery, validation and maintenance
+
+1. Select a ready complete responsibility from this plan. Reuse its issue/branch;
+   declare exact operation, current consumers, source/data contract, dependencies,
+   retirement list and acceptance. Distinguish unknowns from established gaps.
+2. Finish the implementation, consumers and tests with coherent internal commits.
+   Keep behavioral repair separate from structural movement. No issue/PR per helper,
+   routine approval round or partially implemented macro passed off as complete.
+3. At delivery acceptance, run affected unit/production-linked/failure tests,
+   architecture/metadata checks and the applicable final profile. The parent or one
+   assigned executor schedules heavyweight validation sequentially on the shared host.
+4. Changed bytes/metadata/connection/order need scoped packet/capture evidence;
+   new action-specific live scenarios differ from regression goldens. Randomized
+   combat needs controlled inputs/RNG or justified distribution/causal checks.
+   Real durability claims need real DB/restart/relogin evidence.
+5. Update the owning issue/checkpoint and current status with exact tested SHA,
+   command, host, result and limits. Remove superseded accesses/baselines only from
+   reviewed semantic evidence. Preserve prior evidence identities and user work.
+6. Close an implementation issue only after integrated scoped acceptance. Close
+   superseded tracking issues administratively with full scope transferred and
+   backlinks. Do not close #49 merely because a planning PR lands.
+7. Reconcile this index after a macro lands, a dependency changes or a concrete new
+   defect alters priority. Do not append another contradictory “current plan.”
+   Urgent integrity faults move ahead of preferences; an unverified historical
+   diagnosis does not silently become a new global blocker.
+
+Use [AGENTS.md](../../AGENTS.md) and [validation-v2](../operations/validation-v2.md)
+for the actual commands, authority and evidence reuse. Planning changes create no
+new runtime result. Report **implemented**, **integrated** and **parity-proven**
+separately; do not replace acceptance with percentages of files, fields or closed issues.

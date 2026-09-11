@@ -12,8 +12,35 @@ agents (marked ⚠VERIFY). Signedness divergences (i32 vs u32) are rated **LOW**
 only differ for values >2³¹ that never occur in normal play (stack counts, durability) —
 identical bytes otherwise. Severity reflects my judgment after that filter.
 
-Headline: the scoped **D-C1…D-C9 CRIT integrity track is closed**. The HIGH/MED defects below
-remain real; "sends the packet and mutates DB" still does not imply full gameplay parity.
+The scoped **D-C1…D-C9 CRIT integrity track is closed** with its recorded evidence.
+The HIGH/MED entries below retain historical diagnoses; their current existence and
+severity require source contrast or reproduction. Sending a packet and mutating a
+database is not by itself full gameplay parity.
+
+## Current allocation — 2026-09-11, #748 / #49
+
+The master [PORT_PLAN.md](PORT_PLAN.md) allocates every open issue at integration
+`5d8c079a06b587c060c1c6e1c06bedb73c4339d0`. This reconciliation changes planning,
+not the dates, source identities or execution evidence of the findings below.
+Closed #578/#585/#587/#588/#589/#718/#722/#737 have changed relevant consumers;
+an old unchecked row is not an instruction to implement its original diagnosis.
+
+| Finding family | Current review/implementation owner |
+| --- | --- |
+| Melee, damage/heal, offhand/haste and threat modifiers | #29/#31 and the affected aura/proc/effect consumers #32/#33/#34; effective item stats #61. |
+| Quest credit, timed/breadcrumb and accept/reward participants | Consolidated #41 (receives #58/#59), with loot #55 and area #56. Preserve the integrated #718 transaction. |
+| Aura persistence, broader save/recovery and silent-save diagnoses | #32 for aura semantics; #584 for remaining core save/lifetime contracts, #54 admission, #45 instances, #47 real load/recovery acceptance. Recheck #585 evidence before declaring a residual. |
+| Trainer/acquisition and effective skill data | Reuse #587; #524 owns the verified startup-order difference. A newly reproduced acquisition defect gets a bounded owner through #49, not automatic reopening of #587. |
+| Group lifecycle/persistence/fanout | #51 for the complete gameplay operation; #743 for state-bearing command delivery/reconciliation. |
+| Movement, visibility, entry and transfer presentation | #63 and #12, reusing #588. #12 also revalidates the dated cinematic-catalog/hotfix-routing findings in the entry/transition presentation contract. |
+| Target player-name identity | #486, whose current adapter still loads a full character row and whose handler still uses querying-session account IDs. |
+| Vendor/buyback races and item persistence | #584 retains represented inventory-operation integrity disposition; recheck #737 and existing transaction/fence evidence before selecting a repair. Wider unrepresented behavior stays in #48/L12. |
+| Rest arithmetic, talent reset/load, glyph selection and other long-tail progression | #48/L18/L26; promote a reproduced defect into its affected Part-1 operation when it invalidates that operation's acceptance. |
+| Lower-priority protocol/value and source-reference findings | #48/L2/L22/L26 and #65, with an exact current consumer before implementation. |
+
+These are responsibility routes, not automatic hard dependencies between every listed
+issue. A verified integrity failure takes priority in its affected operation. No row is
+bulk-closed, retested or reclassified as parity-proven by this planning review.
 
 ## Later verified open findings
 
@@ -32,11 +59,12 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
   `sync_player_registry_state_like_cpp` (`session/mod.rs:12431`) pushes session
   state *to* the registry and never re-derives the Player's group from it, and
   although `set_owned_player_group_like_cpp` validates against the registry when
-  setting, the read paths use the Player snapshot directly. When the drop
-  happens the registry has revoked membership while the kicked player's Player
-  still claims it, with no path back to agreement until relog. C++ cannot reach
-  this state: `Group::RemoveMember` calls `SetGroup(nullptr)` on the Player
-  in-process, and an in-process call cannot be dropped for backpressure.
+  setting, some consumers still use the Player snapshot. The 2026-09-11 review
+  at `5d8c079a` corrects the earlier blanket claim: some social/chat readers
+  revalidate membership, while tap/instance readers need explicit coherence.
+  A lost removal can leave the registry and Player disagreeing. C++
+  `Group::RemoveMember` clears the linked Player reference directly; Rust's
+  cached DTO needs equivalent application/reconciliation guarantees.
   Severity is bounded by the trigger, which needs a saturated or stalled session
   loop. This is a source-verified mechanism, not a live reproduction; no live
   capture or runtime QA was run for it. Delivery-guarantee choice and fix are

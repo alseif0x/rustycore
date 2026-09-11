@@ -1481,7 +1481,7 @@
   "known_gaps": [
     {
       "id": "semantic_residual_is_intentional",
-      "detail": "Exact residual membership prevents hidden omissions but does not approve Session ownership. #578 must resolve its 18 production members; #153 subsequently verifies the terminal cut."
+      "detail": "Exact residual membership prevents hidden omissions but does not approve Session ownership. The recorded residual is retained without refreshing its measurements in this planning edit. #578 is closed; #584 owns remaining operation/authority dispositions and #153 subsequently verifies terminal acceptance."
     },
     {
       "id": "syntax_policy_cross_check_may_be_production_only",
@@ -1501,7 +1501,7 @@
     },
     {
       "id": "session_convergence_remains_open",
-      "detail": "#578 exists and remains open: remove remaining Session gameplay/catalog/Map authority and narrow handler consumers before terminal audit #153. Required resource grouping and refreshed syntax/hotspot counts are not closure evidence."
+      "detail": "#578/#585/#587/#588/#589 and the recent #716/#718/#722/#737 deliveries are integrated and closed in their scopes. #584 retains remaining Session gameplay/catalog/Map boundaries and complete handler consumers before terminal audit #153. Resource grouping and refreshed syntax/hotspot counts are not closure evidence; PORT_PLAN.md and the refactor completion plan own current execution."
     },
     {
       "id": "inherited_persistence_targets_require_semantic_reconciliation",
@@ -1509,7 +1509,7 @@
     },
     {
       "id": "broad_player_state_access_residual_is_generic_closures",
-      "detail": "#722 retired every concrete production reach into the canonical Player's gameplay state: each one became a named Player transition, install or hydration carrying its C++ anchor. The 15 production reaches that remain are all the same shape - a session mutator that hands a `&mut` sub-state to its caller's closure - at session/mod.rs:8873 and :16056, trait_configs.rs:12, quest/state.rs:53, instances/difficulty.rs:137, taxi/operations.rs:61 and :501, player_items/equipment_sets.rs:34, player_items/modifiers.rs:123, player_cast/state.rs:134, progression/reputation.rs:169, progression/talents.rs:74, spell_state/spell.rs:672 and canonical_access/operations.rs:144 and :283. Wrapping a generic closure in a Player method would relocate the broad access rather than retire it, which the refactor-completion plan forbids; each retires only when its own operation is modelled and the closure disappears. progression/reputation.rs:169 is a distinct case: C++ owns `Player::m_reputationMgr` on the Player, but `ReputationMgrLikeCpp` lives in wow-world, so retiring that reach means moving the manager into wow-entities - tracked as #735, not deferred silently. A further 17 reaches in non-test files sit inside `#[cfg(test)]` fixture hydration and are not production surface."
+      "detail": "#722 retired the concrete Player transition/install/hydration reaches recorded by that delivery. Its 15 recorded production residual sites include generic mutator closures and one distinct reputation reconstruction/write-back: session/mod.rs:8873 and :16056, trait_configs.rs:12, quest/state.rs:53, instances/difficulty.rs:137, taxi/operations.rs:61 and :501, player_items/equipment_sets.rs:34, player_items/modifiers.rs:123, player_cast/state.rs:134, progression/reputation.rs:169, progression/talents.rs:74, spell_state/spell.rs:672 and canonical_access/operations.rs:144 and :283. These are dated anchors, not a new count. A generic Player wrapper merely relocating broad mutable access is not retirement; #584 must migrate complete operations/consumers or record a specifically justified boundary under the existing policy. #735 corrects the former literal manager-move prescription: reconstruction/write-back currently runs synchronously under canonical mutable Player access, not as a second persistent owner. Encapsulate reputation state transitions with Player/domain rules, resolve catalog inputs outside entities and retain packet construction/publication adapters outside; migrate load/login/reward/effect/kill/save/ack consumers and independent send flags. Moving the whole wow-world manager with its wow-data/wow-packet dependencies into wow-entities is not an accepted solution. The additional 17 cfg(test) fixture reaches recorded by #722 are not production surface."
     },
     {
       "id": "item_runtime_residual_is_one_closure_and_test_fixtures",
