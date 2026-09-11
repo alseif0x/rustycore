@@ -4575,6 +4575,11 @@ async fn run_inner(
         Arc::new(
             wow_database::MariaDbPlayerQuestPersistenceAdapterLikeCpp::new(Arc::clone(&char_db)),
         );
+    let player_quest_reward_persistence_port: Arc<
+        dyn wow_persistence::PlayerQuestRewardPersistencePortLikeCpp,
+    > = Arc::new(
+        wow_database::MariaDbPlayerQuestRewardPersistenceAdapterLikeCpp::new(Arc::clone(&char_db)),
+    );
     let vendor_trade_persistence_port: Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp> =
         Arc::new(
             wow_database::MariaDbVendorTradePersistenceAdapterLikeCpp::new(Arc::clone(&char_db)),
@@ -4596,6 +4601,7 @@ async fn run_inner(
             Arc::clone(&stored_item_persistence_port),
             Arc::clone(&player_inventory_persistence_port),
             Arc::clone(&player_quest_persistence_port),
+            Arc::clone(&player_quest_reward_persistence_port),
             Arc::clone(&vendor_trade_persistence_port),
             Arc::clone(&spell_acquisition_port),
             Arc::clone(&instance_lock_persistence_port),

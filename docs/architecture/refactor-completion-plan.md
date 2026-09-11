@@ -392,8 +392,9 @@ evidencia verde con su consistencia comprobada según validation-v2.
 
 ## 8. Decisiones que siguen abiertas
 
-- Protocolo durable exacto de recompensa: transacción de personaje coherente frente
-  a etapas con recovery, y tratamiento explícito de participantes no implementados.
+- ~~Protocolo durable exacto de recompensa~~: resuelto en #718 a favor de la
+  transacción coherente de personaje. El tratamiento de los participantes no
+  implementados sigue abierto y está inventariado en el contrato de la operación.
 - Siguiente familia P2 y sus requisitos de fases P3, después de contrastar consumidores.
 - Ubicación final de reglas hoy repartidas entre los dos componentes de Player.
 - Excepciones físicas individuales, especialmente enums/tablas cohesivas y vendor.
@@ -437,10 +438,20 @@ No se regeneró el inventario exhaustivo de persistencia. No se ejecutaron build
 servidor, capturas, QA live, reinicio, escrituras de DB, push, merge ni despliegue.
 El perfil de publicación `final` sigue siendo obligatorio antes de un push autorizado.
 
-**Siguiente acción para Claude:** leer P1 y contrastar el contrato completo de
-recompensa de misión antes de elegir su implementación. No repetir P0 salvo que
-cambie su código o aparezca una regresión. P1–P6 siguen pendientes; #716 aún requiere
-su publicación/integración para cerrar la issue, y #584 continúa abierto.
+**P0 publicado.** El perfil `final` se ejecutó sobre el candidato comprometido
+`433a3a33` con árbol limpio y manifiesto verificado en verde; la rama está
+empujada y el PR es [#717](https://github.com/alseif0x/rustycore/pull/717).
+Su integración sigue pendiente de revisión.
+
+**P1 aceptada localmente en [#718](https://github.com/alseif0x/rustycore/issues/718).**
+El contrato completo de la operación quedó contrastado contra
+`Player::RewardQuest` (Player.cpp:14625) y su `SaveToDB(false)` de cierre
+(Player.cpp:14867), y está documentado en
+[quest-reward-operation-contract.md](quest-reward-operation-contract.md).
+La decisión abierta de la sección 8 sobre el protocolo durable quedó resuelta
+por el usuario a favor de la transacción coherente de personaje. No repetir P0
+salvo que cambie su código o aparezca una regresión. P2–P6 siguen pendientes y
+#584 continúa abierto.
 
 Si el worktree temporal ya no existe, localizar la rama local anterior con
 `git worktree list` y `git branch --list '*716*'`; el commit conserva el plan y la

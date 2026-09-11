@@ -1291,7 +1291,7 @@
         {
           "name": "loot_money_persistence_test_result_like_cpp",
           "type": "Option < bool >",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "cfg": [
             "cfg (test)"
           ],
@@ -5743,6 +5743,12 @@
         },
         {
           "module": "crate::profession",
+          "trait_path": null,
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::quest::application::reward_commit",
           "trait_path": null,
           "cfg": [],
           "source_class": "production"
@@ -17667,6 +17673,20 @@
           "module": "crate::handlers::quest::persistence",
           "trait_path": null,
           "kind": "method",
+          "name": "plan_quest_status_save_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn plan_quest_status_save_like_cpp (& self , quest_id : u32 , status : u8 ,) -> Option < wow_persistence :: PlayerQuestStatusPersistenceRequestLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::persistence",
+          "trait_path": null,
+          "kind": "method",
           "name": "quest_poi_store_like_cpp",
           "visibility": "pub (super)",
           "signature": "async fn quest_poi_store_like_cpp (& mut self) -> Arc < HashMap < i32 , QuestPoiData > >",
@@ -17769,7 +17789,7 @@
           "kind": "method",
           "name": "apply_quest_reward_lockout_status_like_cpp",
           "visibility": "private",
-          "signature": "async fn apply_quest_reward_lockout_status_like_cpp (& mut self , quest : & wow_data :: quest :: QuestTemplate ,)",
+          "signature": "fn apply_quest_reward_lockout_status_like_cpp (& mut self , plan : & mut QuestRewardDurablePlanLikeCpp , quest : & wow_data :: quest :: QuestTemplate ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -17890,7 +17910,7 @@
           "kind": "method",
           "name": "remove_quest_required_items_and_currencies_like_cpp",
           "visibility": "private",
-          "signature": "async fn remove_quest_required_items_and_currencies_like_cpp (& mut self , quest : & wow_data :: quest :: QuestTemplate ,) -> bool",
+          "signature": "async fn remove_quest_required_items_and_currencies_like_cpp (& mut self , plan : & mut QuestRewardDurablePlanLikeCpp , quest : & wow_data :: quest :: QuestTemplate ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -18040,7 +18060,7 @@
           "kind": "method",
           "name": "store_chosen_quest_reward_item_like_cpp",
           "visibility": "private",
-          "signature": "async fn store_chosen_quest_reward_item_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , quest : & wow_data :: quest :: QuestTemplate , choice : QuestChoiceItemLikeCpp ,) -> bool",
+          "signature": "async fn store_chosen_quest_reward_item_like_cpp (& mut self , plan : & mut QuestRewardDurablePlanLikeCpp , item_guid_generator : & wow_core :: ObjectGuidGenerator , quest : & wow_data :: quest :: QuestTemplate , choice : QuestChoiceItemLikeCpp ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -18053,7 +18073,7 @@
           "kind": "method",
           "name": "store_fixed_quest_reward_items_like_cpp",
           "visibility": "private",
-          "signature": "async fn store_fixed_quest_reward_items_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , quest : & wow_data :: quest :: QuestTemplate ,) -> bool",
+          "signature": "async fn store_fixed_quest_reward_items_like_cpp (& mut self , plan : & mut QuestRewardDurablePlanLikeCpp , item_guid_generator : & wow_core :: ObjectGuidGenerator , quest : & wow_data :: quest :: QuestTemplate ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -18066,7 +18086,7 @@
           "kind": "method",
           "name": "store_quest_package_reward_entry_like_cpp",
           "visibility": "private",
-          "signature": "async fn store_quest_package_reward_entry_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , entry : & QuestPackageItemEntry ,) -> bool",
+          "signature": "async fn store_quest_package_reward_entry_like_cpp (& mut self , plan : & mut QuestRewardDurablePlanLikeCpp , item_guid_generator : & wow_core :: ObjectGuidGenerator , entry : & QuestPackageItemEntry ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -18079,7 +18099,7 @@
           "kind": "method",
           "name": "store_quest_package_reward_items_like_cpp",
           "visibility": "private",
-          "signature": "async fn store_quest_package_reward_items_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , quest : & wow_data :: quest :: QuestTemplate , choice : QuestChoiceItemLikeCpp ,) -> bool",
+          "signature": "async fn store_quest_package_reward_items_like_cpp (& mut self , plan : & mut QuestRewardDurablePlanLikeCpp , item_guid_generator : & wow_core :: ObjectGuidGenerator , quest : & wow_data :: quest :: QuestTemplate , choice : QuestChoiceItemLikeCpp ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -18092,7 +18112,7 @@
           "kind": "method",
           "name": "store_quest_reward_item_like_cpp",
           "visibility": "private",
-          "signature": "async fn store_quest_reward_item_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , entry_id : u32 , quantity : u32 , dest : & [ItemPosCount] ,) -> bool",
+          "signature": "async fn store_quest_reward_item_like_cpp (& mut self , plan : & mut QuestRewardDurablePlanLikeCpp , item_guid_generator : & wow_core :: ObjectGuidGenerator , entry_id : u32 , quantity : u32 , dest : & [ItemPosCount] ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -19805,6 +19825,59 @@
           "guards": [
             "external_impl",
             "visible"
+          ]
+        },
+        {
+          "module": "crate::quest::application::reward_commit",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_committed_quest_reward_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_committed_quest_reward_state_like_cpp (& mut self , money : Option < wow_persistence :: PlayerQuestRewardMoneyLikeCpp > , currencies : Option < HashMap < u32 , PlayerCurrency > > ,) -> Option < Option < wow_persistence :: PlayerQuestRewardMoneyLikeCpp > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl"
+          ]
+        },
+        {
+          "module": "crate::quest::application::reward_commit",
+          "trait_path": null,
+          "kind": "method",
+          "name": "commit_quest_reward_plan_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn commit_quest_reward_plan_like_cpp (& mut self , mut plan : QuestRewardDurablePlanLikeCpp , quest_id : u32 ,) -> Option < Option < wow_persistence :: PlayerQuestRewardMoneyLikeCpp > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::quest::application::reward_commit",
+          "trait_path": null,
+          "kind": "method",
+          "name": "fail_quest_reward_after_rollback_like_cpp",
+          "visibility": "private",
+          "signature": "fn fail_quest_reward_after_rollback_like_cpp (& mut self , quest_id : u32 , reason : & str)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl"
+          ]
+        },
+        {
+          "module": "crate::quest::application::reward_commit",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolve_unknown_quest_reward_commit_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolve_unknown_quest_reward_commit_like_cpp (& mut self , quest_id : u32 , reason : String , witness : wow_persistence :: PlayerQuestRewardCommitWitnessLikeCpp , currencies : Option < HashMap < u32 , PlayerCurrency > > ,) -> Option < Option < wow_persistence :: PlayerQuestRewardMoneyLikeCpp > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl"
           ]
         },
         {
@@ -55552,6 +55625,20 @@
           "module": "crate::session_persistence_capabilities",
           "trait_path": null,
           "kind": "method",
+          "name": "player_quest_reward_persistence_port_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn player_quest_reward_persistence_port_like_cpp (& self ,) -> Option < Arc < dyn wow_persistence :: PlayerQuestRewardPersistencePortLikeCpp > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session_persistence_capabilities",
+          "trait_path": null,
+          "kind": "method",
           "name": "set_character_administration_persistence_port_like_cpp",
           "visibility": "pub",
           "signature": "fn set_character_administration_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: CharacterAdministrationPersistencePortLikeCpp > ,)",
@@ -55600,6 +55687,21 @@
           "name": "set_player_quest_persistence_port_like_cpp",
           "visibility": "pub",
           "signature": "fn set_player_quest_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: PlayerQuestPersistencePortLikeCpp > ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session_persistence_capabilities",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_player_quest_reward_persistence_port_like_cpp",
+          "visibility": "pub",
+          "signature": "fn set_player_quest_reward_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: PlayerQuestRewardPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -74711,7 +74813,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:49747900b94e6e7a62867b7f9b04e9bd:len=91975|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:19b8b5874bc4081dc5f7511246ea2986:len=91987|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

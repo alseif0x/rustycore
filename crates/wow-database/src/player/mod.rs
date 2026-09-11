@@ -11,6 +11,7 @@ pub mod lifecycle_adapter;
 pub mod money_transaction_adapter;
 pub mod name_query_adapter;
 pub mod quest_adapter;
+pub mod quest_reward_adapter;
 pub mod spell_acquisition_adapter;
 
 pub use base_stats_adapter::*;
@@ -21,4 +22,5 @@ pub use lifecycle_adapter::*;
 pub use money_transaction_adapter::*;
 pub use name_query_adapter::*;
 pub use quest_adapter::*;
+pub use quest_reward_adapter::*;
 pub use spell_acquisition_adapter::*;

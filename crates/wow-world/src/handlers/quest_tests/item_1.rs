@@ -693,11 +693,14 @@ async fn quest_giver_choose_reward_fixed_reward_stores_and_pushes_item_like_cpp(
 #[tokio::test]
 async fn quest_reward_item_definite_and_unknown_commit_fail_closed_before_publication_like_cpp() {
     for outcome in [
-        PersistenceOutcomeLikeCpp::Failed {
+        wow_persistence::PlayerQuestRewardCommitOutcomeLikeCpp::DefinitelyRolledBack {
             reason: "fixture rollback".into(),
         },
-        PersistenceOutcomeLikeCpp::Unknown {
+        wow_persistence::PlayerQuestRewardCommitOutcomeLikeCpp::CommitOutcomeUnknown {
             reason: "fixture unknown commit".into(),
+            witness: wow_persistence::PlayerQuestRewardCommitWitnessLikeCpp::Money {
+                observed_money: None,
+            },
         },
     ] {
         let (mut session, _send_rx) = make_session();
@@ -724,12 +727,15 @@ async fn quest_reward_item_definite_and_unknown_commit_fail_closed_before_public
                 slot: 0,
             },
         );
-        let (port, requests) =
-            PlayerInventoryPersistencePortFixtureLikeCpp::with_outcomes_like_cpp([
-                PersistenceOutcomeLikeCpp::Applied { rows: 0 },
+        // The reward no longer commits each grant: it accumulates them and
+        // closes with one character transaction, so the outcome under test is
+        // that transaction's, not an individual inventory write's.
+        let fixture =
+            crate::player::quest_persistence_test_fixture::PlayerQuestRewardPersistencePortFixtureLikeCpp::with_outcome(
                 outcome,
-            ]);
-        session.set_player_inventory_persistence_port_like_cpp(port);
+            );
+        let requests = Arc::clone(&fixture.requests);
+        session.set_player_quest_reward_persistence_port_like_cpp(Arc::new(fixture));
 
         session
             .handle_quest_giver_choose_reward(quest_giver_choose_reward_packet_like_cpp(
@@ -749,15 +755,23 @@ async fn quest_reward_item_definite_and_unknown_commit_fail_closed_before_public
         );
         assert!(!session.rewarded_quests.contains(&quest_id));
         assert_eq!(session.player_gold_like_cpp(), 5);
-        assert!(
-            session
-                .inventory_items_like_cpp()
-                .values()
-                .all(|item| item.entry_id != reward_item_id)
+        // The operation mutated the in-memory inventory while it planned, as
+        // C++ `StoreNewItem` does before its save. Nothing durable changed, so
+        // the session is quarantined instead of being left showing an item the
+        // database does not have.
+        assert_eq!(
+            session.state(),
+            crate::session::SessionState::Disconnecting,
+            "a reward that did not commit must quarantine the session"
         );
         let requests = requests.lock().unwrap();
+        assert_eq!(
+            requests.len(),
+            1,
+            "a failed reward must have attempted exactly one transaction"
+        );
         assert!(matches!(
-            requests.as_slice(),
+            requests[0].inventory_mutations.as_slice(),
             [
                 wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::QuestTurnIn(_),
                 wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::QuestItemGrant(_),

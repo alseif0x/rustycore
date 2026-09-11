@@ -1,5 +1,28 @@
 # RustyCore — Honest Current State (single source of truth)
 
+**Quest reward owns one durable transaction — 2026-09-11, #718 locally accepted:**
+P1 of the architecture completion plan makes quest reward the first operation
+with an explicit durable contract. C++ `Player::RewardQuest` (Player.cpp:14625)
+applies every grant in memory and reaches the database once, in its closing
+`SaveToDB(false)` (Player.cpp:14867). The represented Rust path instead wrote
+each grant as it happened, so a partial reward was reachable. The operation now
+accumulates its durable participants and commits them as one character
+transaction, with the money column or the rewarded quest's status row as the
+commit witness for an ambiguous COMMIT. The complete contract, its recorded
+departures and the participants that remain unimplemented are in the
+[quest reward operation contract](../architecture/quest-reward-operation-contract.md).
+Implementation is `78276ddf57463fc0f568c1c4bcf84d619af68cad`. Evidence on
+aarch64, Rust 1.98.0 and one Cargo job: `cargo test -p wow-world --lib quest`
+427 passed; `./tools/validation-v2 final --base origin/3.4.3` passed at that
+SHA with a clean tree and a manifest verified green, covering the 363 analyzer
+tests, the exact ownership surface, the physical and hotspot ratchets and the
+server build. The three moved ceilings and the reviewed ownership surface each
+carry their measurement.
+
+No live QA, database write, restart or relogin was performed, so the durability
+claim rests on the contract and its fixtures, not on real recovery evidence.
+The unimplemented participants listed in the contract remain open port work.
+
 **Current architecture delivery — 2026-09-10, reviewed integration `aff42a51`:**
 the user approved starting the architecture repair program. #716 restores exact
 ownership-provenance acceptance after the mechanical module passes. At that base,

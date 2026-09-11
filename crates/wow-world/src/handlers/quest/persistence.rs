@@ -514,15 +514,17 @@ impl WorldSession {
         }
     }
 
-    pub(super) async fn save_quest_to_db(&self, quest_id: u32, status: u8) {
-        let owner_guid = match self.player_guid() {
-            Some(g) => g.counter() as u64,
-            None => return,
-        };
-        let port = match self.player_quest_persistence_port_like_cpp() {
-            Some(port) => port,
-            None => return,
-        };
+    /// Project the quest's durable status without writing it.
+    ///
+    /// Shared by the standalone save below and by the quest-reward operation,
+    /// which carries the same row inside its own closing transaction rather
+    /// than committing it separately.
+    pub(crate) fn plan_quest_status_save_like_cpp(
+        &self,
+        quest_id: u32,
+        status: u8,
+    ) -> Option<wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp> {
+        let owner_guid = self.player_guid()?.counter() as u64;
         let quest_state = self.player_quest_gameplay_snapshot_like_cpp();
         let mut projection = match quest_state
             .as_ref()
@@ -545,20 +547,28 @@ impl WorldSession {
                     quest_id,
                     "Quest status save skipped because canonical Player quest state is unavailable"
                 );
-                return;
+                return None;
             }
         };
         projection.status = status;
+        Some(
+            wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp::Save {
+                owner_guid,
+                status: projection,
+            },
+        )
+    }
 
-        match port
-            .persist_status_like_cpp(
-                wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp::Save {
-                    owner_guid,
-                    status: projection,
-                },
-            )
-            .await
-        {
+    pub(super) async fn save_quest_to_db(&self, quest_id: u32, status: u8) {
+        let port = match self.player_quest_persistence_port_like_cpp() {
+            Some(port) => port,
+            None => return,
+        };
+        let Some(request) = self.plan_quest_status_save_like_cpp(quest_id, status) else {
+            return;
+        };
+
+        match port.persist_status_like_cpp(request).await {
             wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
             wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
                 account = self.account_id,
