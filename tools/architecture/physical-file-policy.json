@@ -237,8 +237,8 @@
     },
     {
       "path": "crates/wow-entities/src/player/mod.rs",
-      "observed_lines": 4904,
-      "ceiling_lines": 4904,
+      "observed_lines": 4802,
+      "ceiling_lines": 4802,
       "split": "Separate the player login/gameplay load plans from the state definitions they own; 17 responsibility submodules already exist. #636 measured this root and deferred it: the runtime-ownership hotspot ratchet forbids growth in the player module aggregate, and relocating the plans into sibling modules adds module headers and re-export wiring without reducing the hotspot, so this root needs the semantic extraction owned by 584:C4 rather than a physical move.",
       "review_checkpoint": "584:C4"
     },
