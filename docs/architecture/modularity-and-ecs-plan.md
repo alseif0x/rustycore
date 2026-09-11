@@ -1,29 +1,46 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Delivery revision, 2026-09-06:** #584 now coordinates the unfinished core C0–C4
-contracts through analyzed crate-focused macrodeliverables. #578/#579 retains its
-delivered foundation/hardening and scoped closeout gates, not the entire remaining
-architecture. References below assigning all remaining core work to #578 are the
-superseded allocation. #583 depends on the completed required core deliveries in
-#584, not merely #578 merging; #153 audits both programs. No next crate is selected.
-The finite pre-migration conformance has passed as recorded in the V2 evidence;
-production storage integration and SDK acceptance remain distinct and unfinished.
-Storage/module choices and the full #133 outcome are unchanged.
+**Plan synchronization, 2026-09-11 (#748):** `PORT_PLAN.md` and GitHub #49 are the
+general direction and issue scope. This document is the technical authority for
+module, ownership, dependency and acceptance contracts; it is not a rival execution
+plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
+are integrated and closed in their bounded scopes. #584 retains unfinished C0–C4 core
+work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate remains
+#584 core → #583 native/Wasm product
+→ #153 independent audit. #583 does not block an unrelated gameplay macro, while
+production module integration waits for the required core work. Its Rust/Wasm/C mixed
+product remains mandatory even though operator activation is optional.
 
-## Current core delivery — 2026-09-10
+The finite hecs V2 conformance proof has passed within its recorded laboratory limits.
+That evidence does not install production `hecs` or Wasmtime, prove production storage
+integration, or close the remaining #584 boundaries. The current recommended sequence
+is #743, then #735 as an ordering preference without a hard dependency, then the
+remaining P2 operations and P3 runtime/lifetime/private-hecs and P4 semantic/physical
+work. No new micro-issues are implied; each macro includes its consumers and validation.
 
-The user-requested [complete continuation plan for Claude](refactor-completion-plan.md)
-collects the diagnosis, target organization, P0–P6 delivery order and handoff evidence.
-This document retains the canonical semantic/SDK contracts; the continuation plan
-does not turn its pending tasks into accepted results.
+## Architecture program state — 2026-09-11
 
-The user approved starting the architecture repair program reviewed on integrated
-`3.4.3` at `aff42a5166530de948cc3b1b94dc4e813c538bff`. #587/#588/#589 are integrated
-and closed. Their checkpoints retain their scoped runtime/capture evidence; they
-are not reopened by the remaining core work or by naming preferences.
+The [refactor completion plan](refactor-completion-plan.md) records the detailed
+operation contracts and continuation sequence. This document retains the canonical
+semantic, storage and extension contracts; neither document turns a pending task into
+an accepted result.
+
+The architecture repair program is reviewed against integrated `3.4.3` at
+`5d8c079a06b587c060c1c6e1c06bedb73c4339d0`. #587/#588/#589 and the subsequent
+#716/#718/#722/#737 deliveries are integrated and closed in their bounded scopes.
+Their checkpoints retain scoped runtime/capture evidence; they are not reopened by
+the remaining core work or by naming preferences.
+
+### Historical #716 baseline and local acceptance — `aff42a51`
+
+The following #716 account is retained as historical implementation evidence. Its
+local test counts, candidate wording and former next-operation text do not select the
+current macro; the current sequence is #743 → #735 (without a hard dependency) →
+remaining #584 work below.
 
 **#716 — restore ownership provenance and acceptance after module decomposition**
-is the first implementation delivery under #584. Its scope is the analyzer, the
+was the first delivery of the repair program reviewed at `aff42a51` under #584.
+Its scope was the analyzer, the
 exact reviewed inventories and the current design/status guidance. No gameplay,
 SQL, packet, scheduling or runtime operation changes belong to this delivery.
 
@@ -85,7 +102,7 @@ and validation-v2 quick (six commands, verified green manifest). Runs used the
 working candidate at parent `aff42a51`; the manifest truthfully records `dirty: true`.
 The tested code/policies were committed unchanged in `6ae62d73`; subsequent handoff
 edits only record documentation. Exact commands and evidence limits are in the
-[Claude handoff](refactor-completion-plan.md#9-estado-exacto-de-la-entrega-al-pasar-a-claude).
+[historical handoff record](refactor-completion-plan.md#7-registro-historico-conservado).
 This is local acceptance of #716, not publication, gameplay/runtime acceptance,
 terminal physical acceptance or closure of #584.
 
@@ -97,7 +114,12 @@ The [module-design correction](module-design-guidelines.md#what-a-physical-divis
 replaces the blanket single-item/operation prohibition with responsibility-preserving
 delegation, explicit imports and scenario names at each completed family.
 
-The next represented-operation candidate is **quest reward**, because its Session
+### Historical quest-reward design before #718
+
+The following contrast predates integrated #718; its contract and accepted scope are
+recorded in [STATE.md](../migration/STATE.md) and
+[quest-reward-operation-contract.md](quest-reward-operation-contract.md).
+The former represented-operation candidate was **quest reward**, because its Session
 coordinator grants/persists participants separately and discards status-save outcomes.
 Before implementation, freeze the complete operation and compare a coherent character
 transaction with durable staged recovery where participants require it. Current source
@@ -120,16 +142,17 @@ The initial source contrast also bounds that next design:
 | Full character save | `PlayerCharacterSaveRequestLikeCpp` in `wow-persistence/src/player/save.rs` covers character/spell/skill and other groups, but has no quest, inventory or currency group | Calling the existing full-save helper cannot by itself make quest rewards coherent; all affected persistence consumers must participate. |
 | Mail and observable publication | Rust's `record_represented_quest_reward_mail_like_cpp` only records test evidence and is a production no-op. Classic commits reward mail separately, sends the reward and executes further effects before `SaveToDB(false)` | Keep the unimplemented mail participant explicit and record separate durability boundaries and actual message/effect order; universal commit-before-publication would be an intentional behavior change. |
 
-This is source-based design preparation, not a selected transaction protocol or new
-runtime acceptance. It does not authorize a silent durability repair inside #716.
+This is source-based historical design preparation, not a selected transaction protocol
+or new runtime acceptance. It did not authorize a silent durability repair inside #716.
 
-Then complete the remaining analyzed #584 operation/lifetime and map-phase/storage
-deliveries. Physical organization, scoped fixture migration and dependency disposition
-accompany each responsibility; the later #583 SDK does not inherit those core debts.
-Preserve required #584 core → #583 → #153 → #133 and the post-M6.2 whole-port review.
-The approved program grants no new push, merge, deployment or live-database authority.
+The current #584 operation/lifetime and map-phase/storage sequence is maintained in the
+architecture program state above and the refactor completion plan. Physical organization,
+scoped fixture migration and dependency disposition accompany each responsibility; the
+later #583 product does not inherit those core debts. Preserve the technical gate
+#584 core → #583 → #153 and the post-M6.2 whole-port review. The tracker closure of #133
+does not reopen or add a further gate.
 
-## Next core candidate — 2026-09-08
+## Historical delivered design — #589, 2026-09-08
 
 This dated section preserves the delivered #589 design; current selection is above.
 
@@ -242,7 +265,8 @@ work; any missing behavior required by the declared lifecycle scenarios must be
 resolved within its acceptance rather than waived through an exclusion. The account
 SaveToDB alternative remains unselected: its complete responsibility includes missing
 Login-side participants and cross-schema recovery, not just Session account caches.
-The global order remains required #584 core → #583 → #153 → #133.
+The technical gate remains required #584 core → #583 → #153. #133 was closed on
+2026-09-09 and is not a future prerequisite or a reason to reopen this delivery.
 
 **Decision date:** 2026-09-05. **Reviewed production code:** `93e4002a` on the
 #578 branch; reviewed laboratory/planning HEAD: `ee9a0128`. This is a bounded
@@ -251,7 +275,8 @@ architecture review, not a new whole-port parity audit or an implemented ECS mig
 This plan supersedes the earlier “ECS review next”, unconditional backend-selection,
 snapshot-only extension and automatic post-M6 Wasm directions. It preserves the full
 [port plan](../migration/PORT_PLAN.md), useful completed ownership/module work, and
-#578's complete C0–C4 acceptance. The user has approved the direction and plan update;
+#578's delivered foundation and the remaining #584 C0–C4 acceptance. The user has approved
+the direction and plan update;
 publication, deployment and destructive operations keep their separate approval rules.
 
 **Latest decision — 2026-09-05:** select **private, selective `hecs`** for composable entity
@@ -260,27 +285,33 @@ first-party and custom modules; **Wasm is a planned, operator-optional execution
 same extension contracts**, including a tested second source language. Hooks, state/lifecycle
 and host integrity are shared, not two independently designed gameplay APIs.
 
-This is an architectural selection now, not a claim that implementation acceptance has passed.
-It supersedes the earlier preferred-candidate wording, the proposal to defer selection until
-production integration, and the proposed three-backend preselection contest. A finite independent
-module/conformance proof runs **before production storage migration** (§5); it can falsify the
-selection through a named backend limitation, not keep it perpetually undecided. That proof has
-not run. The completed [V1 laboratory](modularity-lab-results.md) contains 34 contract checks and
-120 corrected-campaign samples on aarch64, not an arbitrary-module or multilang SDK proof.
+This is an architectural selection, not a claim that production implementation acceptance has
+passed. It supersedes the earlier preferred-candidate wording, the proposal to defer selection
+until production integration, and the proposed three-backend preselection contest. The finite
+independent module/conformance proof has passed within the recorded laboratory limits in
+[V2 results](modularity-conformance-results.md); it does not install production `hecs` or
+Wasmtime, prove production storage integration, or establish the complete #583 product.
 
-**Explicit scope expansion:** #583 now includes the bounded Wasm execution/second-language
-delivery, not just trusted Rust. Consequently #153/#133 closure requires that delivery. The
-broader #99 language/ecosystem roadmap still has an M6 re-audit; this bounded delivery no longer
-waits for M6. No new micro-issues, production dependency, deployment or code publication follows from
-this plan update. C0–C4 and all existing durability/operator acceptance remain intact.
+**Product scope:** #583 includes bounded Wasm execution and the second-language C guest,
+not just trusted Rust. The mixed Rust/Wasm/C product is mandatory even though operator
+activation is optional. #153 audits the delivered #584 core and #583 product; the broader
+#99 language/ecosystem roadmap still has an M6 re-audit. This product requirement does not
+block unrelated gameplay macros. No new micro-issues, production dependency, deployment or
+code publication follows from this plan update. The #583 M0–M4 product, #584 C0–C4 core
+and existing durability/operator acceptance remain intact.
 
-## Physical decomposition track closed — 2026-09-09
+## Historical physical decomposition pass — 2026-09-09
 
 Sixteen deliveries between #634 and #664, following the Session-root separations
 of #603-#632, completed the physical half of rule 5 (manageable production/test/
 fixture files). Those sixteen reduced 184,295 lines of oversized roots to 4,972.
 At `df94f231` the reviewed physical ceilings are met and no file outside the four
 categories below exceeds the 2,000-line terminal limit.
+
+This is dated evidence from that integration, not a current terminal claim. The later
+#716 review measured 31 files above 2,000 lines and 63 above 1,000 at its reviewed base;
+that measurement is retained without a new scan and remains #584 P4 work. Do not turn
+the count into one issue per file or refresh ceilings to make a check green.
 
 | Delivery | Scope | Before | After |
 | --- | --- | --- | --- |
@@ -378,15 +409,16 @@ first-party base scripts remain enabled; neutrality must not remove behavior nee
 
 | Boundary | Implemented at the reviewed code | Acceptance still required |
 | --- | --- | --- |
-| Canonical Player/Map authority | Migrated Player families, generation-checked active/detached lifetime, retirement of whole-Player Session write-back and directory copies | Complete lifetime/save, operations, phase/publication and inherited boundaries in #578; see its [checkpoint](session-578-checkpoint.md) |
+| Canonical Player/Map authority | Migrated Player families, generation-checked active/detached lifetime, retirement of whole-Player Session write-back and directory copies | Remaining lifetime/save, operations, phase/publication and inherited boundaries belong to #584; see its [checkpoint](session-578-checkpoint.md) for historical #578 evidence |
 | External source/build modules | #228–#231: API, compositor/lock, CLI/skeleton and typed configuration; real `player.login → message` | Stateful behavior, composable policies, durable state/reward and operator lifecycle in #583 |
-| Private entity storage | Production private `HashMap` entity records; `hecs` only in isolated experiments | Selected selective `hecs`: pre-migration conformance and real-owner integration under #578; external-consumer validation under #583 |
+| Private entity storage | Production private `HashMap` entity records; finite `hecs` V2 conformance passed in the lab | Selected selective `hecs`: production integration and real-owner acceptance remain #584 work; external-consumer validation belongs to #583 |
 | Schema migration | `rustycore-db` owns immutable checksummed migrations and fail-closed startup compatibility | Module artifact/history retention, state upgrade and recovery workflow under #583 |
 | Wasm execution | Core Wasm exercised only in the isolated lab; no production sandbox | Bounded Wasm adapter and second-language module in #583, optional to enable; hot reload remains excluded |
 
 The external module product is tracked by #99; this milestone's concrete implementation
-is #583. Closing #133 requires #578 **and #583**, followed by #153's independent audit.
-It does not require closing the entire evolving #99 ecosystem epic.
+is #583. The technical gate is required #584 core, then #583, followed by #153's
+independent audit. #133 was closed on 2026-09-09 and is not a pending prerequisite;
+the unrelated #99 ecosystem epic need not close for this bounded product.
 
 ## 2. Authorities and dependency direction
 
@@ -394,8 +426,9 @@ Internal organization follows [module design and source navigability](module-des
 each completed family must have both a correct owner/narrow dependencies and manageable physical
 production/test files. The guide defines project budgets, bounded exceptions, a Rust submodule
 skeleton and incremental legacy retirement. It supplements this plan; ECS and extension hooks do
-not discharge physical decomposition. #578 C2/C4 own the remaining core cuts and physical checker
-extension; #583 applies the policy to its own SDK/modules, and #153 verifies both completed macros.
+not discharge physical decomposition. #584 C0–C4 own the remaining core cuts and physical checker
+extension; #583 applies the policy to its own product, including Rust/Wasm/C, and #153 verifies
+both completed macros without inheriting implementation.
 
 | Responsibility | Canonical authority | Extension access |
 | --- | --- | --- |
@@ -559,9 +592,10 @@ capability; it is not a claim of experimentally proven global optimality.
 
 ### Finite conformance proof before production migration
 
-This is the **next authorized implementation checkpoint**, within #578, not a new issue or
-completion of #583's SDK. The earlier three-candidate experiment becomes validation of the
-selected design, not a prerequisite to naming the choice. Preserve the useful falsification test:
+This finite proof is complete within #584's recorded laboratory scope; it is not a new issue
+or completion of #583's product. The earlier three-candidate experiment became validation of
+the selected design, not a prerequisite to naming the choice. Preserve the useful falsification
+test and production boundary:
 
 1. Define one private experimental host contract, anchored to the represented C++ owner/callback
    paths and clearly named custom behavior. Implement two independent modules; then freeze the
@@ -584,12 +618,11 @@ selected design, not a prerequisite to naming the choice. Preserve the useful fa
    separately; retain every failed sample. V1 provisional budgets are not a server SLA. Report
    central code touched and state/lifecycle plumbing as well as timing; no favourable-run selection.
 6. Record pass/fail of the selected implementation and exact remaining production boundaries.
-   Continue into affected #578 integration only after this proof passes; do not postpone it until
-   after production migration or the entire #583 SDK. The [two-module freeze and third-module
-   correctness stages](session-578-checkpoint.md#independent-extension-checkpoint--2026-09-05-c67acbfd)
-   now pass, as do all 320 preregistered cost samples on aarch64. See the [V2 results and
+   The [two-module freeze and third-module correctness stages](session-578-checkpoint.md#independent-extension-checkpoint--2026-09-05-c67acbfd)
+   pass, as do the recorded preregistered cost samples on aarch64. See the [V2 results and
    remaining boundaries](modularity-conformance-results.md). The finite pre-migration gate is
-   complete; production acceptance and actual frame-budget evidence remain open.
+   complete; production acceptance, actual frame-budget evidence and Wasmtime installation
+   remain open. Do not repeat this lab proof as a new "next" task.
 
 An implementation error means fix and rerun the affected case. A Wasm/ABI defect is not evidence
 against ECS. Reopen the backend decision only for a demonstrated hecs-specific obstacle such as
@@ -598,10 +631,11 @@ or unacceptable measured structural cost after bounded correction. Then compare 
 aggregate + generic registry fallback (a dense library only if layout is the diagnosed issue).
 No perpetual candidate carousel, no frozen second live authority, no waived correctness gate.
 
-After that proof, #578 still must exercise real save/admission/phase/two-map/backpressure/shutdown
+After that proof, #584 still must exercise real save/admission/phase/two-map/backpressure/shutdown
 paths and retire the superseded writers for each migrated family. #583 delivers the production
-external-module and durable operator lifecycle. The [entity-world ADR](../migration/adr-map-runtime-entity-world.md)
-records the selection and integration gates. Production still has no hecs dependency today.
+external-module and durable operator lifecycle, including the required Rust/Wasm/C product. The
+[entity-world ADR](../migration/adr-map-runtime-entity-world.md) records the selection and
+integration gates. Production still has no hecs or Wasmtime dependency today.
 
 ## 6. Complete execution sequence and ownership
 
@@ -609,7 +643,7 @@ records the selection and integration gates. Production still has no hecs depend
 
 **Requested 2026-09-05:** after the bounded native/Wasm state and operator-lifecycle
 contract is delivered, design safe hot reload under the future #99 extension work.
-This records a later design task; it neither enables hot reload now nor expands #578/#583
+This records a later design task; it neither enables hot reload now nor expands #584/#583
 acceptance or their dependencies.
 
 Evaluate separately reloadable data/configuration, replacement of a Wasm module without
@@ -625,21 +659,24 @@ with the added lifecycle/recovery risk before approving an implementation.
 
 | Macro / epic | Deliverable and completion gate | Dependencies |
 | --- | --- | --- |
-| #578 / PR #579, under #133 | Pre-migration conformance of selected hecs; all C0–C4: admitted execution, Player lifetime/save, complete operations, runtime/publication/bridge retirement and final boundaries | Existing completed #378/#574; isolated native/Wasm conformance does not depend on a production SDK or #583 |
-| #583, under #133 and #99 | Real external stateful modules, shared hooks, native/Wasm execution including a C reference guest, durable reward/state and complete author/operator lifecycle | #231 and #578 merged; contract research/conformance runs now inside #578 |
-| #153 | Independent terminal audit of the complete #133 contract and evidence from both macros; known work is fixed by its implementation owner | #184, #578 and #583; not the closure of epic #99 |
+| #584 core / C0–C4 | Complete each core responsibility with canonical ownership, consumers, physical navigability, lifecycle/persistence and scoped acceptance; the finite hecs V2 proof is already passed within lab limits | Closed predecessors provide evidence; no #133 reopening and no new micro-issue per helper |
+| #743 | Group-command state delivery and reconciliation across saturation, disconnect, replacement, stale removal and related state-bearing transitions | Current recommended macro; #583 is not a prerequisite |
+| #735 | Reputation encapsulation under canonical Player ownership with catalog resolution outside the entity boundary and preserved publication/save flags | Recommended after #743; ordering preference, not a hard dependency |
+| Remaining #584 P2 → P3 → P4 | Finish residual operations, then runtime/lifetime/private-hecs integration and semantic/physical decomposition with consumer migration | Select by complete operation contract and real dependency; keep exceptions file-specific |
+| #583, under #99 / M0–M4 | Production module product: shared hooks/state/lifecycle, native and Wasm execution, Rust/Wasm/C mixed evidence, durable reward/state and author/operator lifecycle | Waits for required #584 core, but does not block unrelated gameplay macros |
+| #153 | Independent terminal audit of the completed #584 core and #583 product; known work stays with its implementation owner | #584 and #583; #133 tracker closure is already recorded |
 | Next Part-1 port macro | Re-audit its actual residual path against current Rust/C++; implement complete gameplay responsibility with existing hard dependencies | Ordered #49 index, retaining M0–M6 and relevant prerequisites |
 | #48 / Part 2 | Full 1:1 ledgers, nothing dropped; fresh audit/planning after playable #47/M6.2 | Existing Part-2 transition gate; no speculative child tree now |
 | #99 future extensions | Expand the public API through real consumers and reusable semantic seams | Evidence-led; no issue/PR per field or callback |
 | Wasm bounded delivery / broader language ecosystem | #583 delivers an optional executor with Rust/C bindings and explicit limits; further languages, WIT or hot reload are not implied | No M6 gate for the approved bounded #583 delivery; broader #99 expansion retains fresh planning |
 
-First run the finite pre-migration conformance checkpoint above; the architecture selection is
-already made. This sequence gates production storage migration, not safe same-owner source/test
-splits, which may precede or run alongside the experiment. Then complete #578 lifetime/save and
-C0 phase proof alongside whole-operation C2 integration, followed by C3/C4. Preserve the committed
-Player work. The production module product
-is one subsequent #583 PR, not a series of greeting-size deliverables. Internal focused commits
-and checks are not user approval gates; runtime/publication authority remains separate.
+The finite pre-migration conformance checkpoint above is already passed within its lab scope;
+do not repeat it as a new "next" task. Continue #584 with the complete #743 contract, then
+#735 as an ordering preference, then the remaining P2/P3/P4 responsibilities. Safe same-owner
+source/test splits may precede or accompany these operations, but they do not retire semantic
+ownership. Preserve the committed Player work. The production module product is one subsequent
+#583 delivery, not a series of greeting-size deliverables. Internal focused commits and checks
+are not user approval gates; runtime/publication authority remains separate.
 
 ### Reanalysis checkpoints — evidence before replication
 
@@ -649,11 +686,11 @@ the affected migration while its cause is investigated and corrected within scop
 
 | Point | Question the evidence must answer |
 | --- | --- |
-| Before production storage migration — #578 conformance (§5) | Can the frozen host accept independent state and native/Rust-Wasm/C-Wasm composition without module-specific core edits, duplicate authority, stale reentrant writes or violated limits? This finite gate can falsify a concrete backend premise; V1 did not pass it. |
+| Before production storage migration — #584 conformance (§5) | Can the frozen host accept independent state and native/Rust-Wasm/C-Wasm composition without module-specific core edits, duplicate authority, stale reentrant writes or violated limits? This finite gate passed within the recorded V2 laboratory limits; production integration remains open. |
 | First production C1/C2 vertical, with its C0 contract — before replicating the pattern | Does one complete operation work through real admission, canonical lifetime/save and ordered publication, including controlled I/O, late acknowledgements, replacement/detach and affected phase/backpressure failures? Check semantic ownership and physical source/test boundaries together. A fixture-only success or renamed phase cannot justify scaling the pattern. |
-| C4 — complete #578 balance, before #583 starts production integration | Do all C0–C4 exits hold at the validated SHA, including every remaining owner/bridge, inherited decision, persistence classification and physical-file exception? Reconcile the whole macro, not only its last successful vertical; #583 must not inherit unfinished Session work. |
+| C4 — complete #584 balance, before #583 starts production integration | Do all C0–C4 exits hold at the validated SHA, including every remaining owner/bridge, inherited decision, persistence classification and physical-file exception? Reconcile the whole macro, not only its last successful vertical; #583 must not inherit unfinished core work. |
 | #583 first real external-module integration, before extending its API | Can independent authors exercise the shared hooks and state contract without a core patch? Validate the supported native/Wasm behavior and real durable/operator lifecycle as they become available; do not extrapolate from a greeting or mock replay. |
-| #153 after both macros merge | Independently audit the complete #133 acceptance and evidence at integration HEAD. Known implementation work stays with #578/#583, not the auditor. |
+| #153 after both macros merge | Independently audit the complete technical gate and evidence at integration HEAD. Known implementation work stays with #584/#583, not the auditor. |
 | After architecture, then #47/M6.2 | Re-audit each selected gameplay macro just in time. At the playable exit, perform the fresh whole-port state/plan review before decomposing Part 2/#48; architecture closure is not full-port parity. |
 
 The first production vertical is a focused design stress test, not a second global architecture
@@ -688,10 +725,11 @@ Git workflow, fixing it if necessary, rather than relying only on path-source fi
 ## 7. Validation, stop conditions and future decisions
 
 Terminal acceptance includes independent physical-file and logical-owner reports under the
-module design guide, including tests/fixtures and file-specific exceptions. The existing checker
-currently enforces selected logical ceilings, not the new physical policy; #578 C4 implements
-that extension and retires the remaining core monoliths before #153's audit. No permanent Session
-exception, known future split plan or moved-file count substitutes for completion.
+module design guide, including tests/fixtures and file-specific exceptions. #584 C0–C4 owns
+the remaining core physical policy and semantic boundaries; #583 applies the policy to its
+own product before #153's audit. The dated 31-file measurement remains evidence, not a new
+scan or a standing exception. No permanent Session exception, known future split plan or
+moved-file count substitutes for completion.
 
 Use focused positive/negative tests and inexpensive architecture/syntax checks during a cut.
 At affected boundaries, use production-linked dev/release integration tests, controlled I/O
@@ -746,7 +784,14 @@ Recheck locations against the implementation HEAD; these support the decision, n
   [Wasmtime resource configuration](https://docs.rs/wasmtime/47.0.3/wasmtime/struct.Config.html).
   Component-language tooling is contextual evidence, not proof our Core Wasm ABI supports it.
 
-## 9. Earlier plan synchronization evidence — 2026-09-05 (before the latest decision)
+## Historical synchronization records — 2026-09-05 and earlier
+
+Everything in this section is dated planning evidence retained for provenance. It does
+not override the current status and sequence at the beginning of this document, STATE.md,
+or `PORT_PLAN.md`/#49. In particular, old references saying that #133 or #578 were open
+are historical and do not create a future prerequisite.
+
+### Earlier plan synchronization evidence — 2026-09-05
 
 On the aarch64 development host, with production HEAD still `93e4002a` and planning changes
 uncommitted above `32d9a683`:
@@ -770,7 +815,7 @@ gameplay parity or a new benchmark. No production code, runtime, schema, migrati
 PR contents or dependency allowlist changed. No commit or push was made. Earlier skill edits
 and the unrelated local LFG audit remain separate from this plan update.
 
-## 10. Latest decision synchronization and validation — 2026-09-05
+### Latest decision synchronization and validation — 2026-09-05
 
 At laboratory HEAD `ee9a0128`, before the documentation commit:
 
@@ -795,7 +840,7 @@ clean-HEAD macro-final acceptance. No runtime/code, dependency allowlist, DB, PR
 was changed. This documentation commit preserves the earlier approved plan changes while leaving
 skill edits and the unrelated LFG audit outside it; no push or merge is included.
 
-## 11. Module-design policy adoption — 2026-09-05
+### Module-design policy adoption — 2026-09-05
 
 Reviewed above planning HEAD `816d5c84`, with production code still `93e4002a`:
 

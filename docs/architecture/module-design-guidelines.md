@@ -1,12 +1,17 @@
 # Module design and source navigability
 
-**Allocation revision, 2026-09-06:** remaining core semantic/physical work previously
-assigned below to #578 C2/C4 is now owned by coordination epic #584 under #133 and
-its analyzed crate-focused implementation children. #578 closes its delivered
-foundation only after scoped acceptance. This changes delivery size, not budgets,
-invariants or global terminal acceptance. No next crate is selected. Each child
-includes necessary consumer integration and meets both criteria below; #153 must
-not inherit implementation work. References to #578 below record the former allocation.
+**Allocation/status revision, 2026-09-11:** #133 was closed on 2026-09-09. The
+remaining core semantic/physical work previously assigned below to #578 C2/C4 is
+owned by coordination epic #584 and its analyzed crate-focused implementation
+children. #578/#585/#587/#588/#589/#716/#718/#722/#737 are integrated and closed in
+their bounded scopes. The technical gate remains #584 core → #583 native/Wasm
+product → #153 independent audit; #583 does not block unrelated gameplay work, but
+its production module product waits for required #584 work. Keep the Rust/Wasm/C
+mixed product mandatory even though operator activation is optional. This changes
+delivery allocation, not budgets, invariants or global terminal acceptance. No next
+crate is selected. Each macro includes its consumers and both criteria below; #153
+must not inherit implementation work. References to #578 below describe the former
+allocation or historical evidence unless explicitly updated.
 
 **Approved project policy: 2026-09-05.** Applies to RustyCore's internal refactors,
 new code, integrated tooling and module SDK/examples. This is a maintained design
@@ -254,16 +259,18 @@ methods must still enforce the relevant invariants; the getter only illustrates 
 
 ## 6. Implementation ownership and honest enforcement
 
-- **#133:** closure requires semantic boundaries and physical source/test navigability.
-- **#578 C2:** both criteria for every completed operation family, including its tests.
-  Safe same-owner mechanical splits can precede or run alongside the hecs conformance
-  experiment. That experiment gates production storage migration, not source organization.
-- **#578 C4:** inventory and finish the remaining core/adapter/composition/tooling hotspots
-  in #133 scope, with file-specific exits; implement the physical ratchet in the existing
-  architecture checker and retire blanket legacy exceptions. Do not reopen completed
-  historical issues or transfer known work to the terminal auditor.
+- **#133:** closed on 2026-09-09 in the tracker. Its technical acceptance is carried
+  forward by the required #584 core work, #583 product and #153 audit; do not reopen
+  the umbrella or wait for another #133 transition.
+- **#584 C0–C4:** owns the remaining core/adapter/composition/tooling hotspots and
+  every completed operation family's semantic and physical criteria, including its
+  tests and consumers. Safe same-owner mechanical splits can precede or accompany
+  the finite hecs conformance evidence; conformance gates production storage
+  integration, not source organization.
 - **#583:** its SDK, hosts, bindings, module examples and supporting tooling meet the same
-  criteria in its own macro; it does not inherit unfinished Session decomposition.
+  criteria in its own macro, including the required Rust/Wasm/C mixed product. It does
+  not inherit unfinished core decomposition, and its implementation does not block
+  unrelated gameplay macros.
 - **#153:** independently verify both implementation macros, file exceptions and semantic
   boundaries. It is an audit, not the implementation owner of known cleanup.
 
@@ -309,7 +316,8 @@ changes; workspace Rust additionally retains its independent logical ratchet. Ch
 the physical module/policy run its adversarial unit suite during `quick`; changes to the
 shared checker/scanner run the existing architecture self-test. Macro closeout must also
 run `physical-files --terminal`; it is deliberately not the daily migration gate. All
-remaining core physical splits belong to #584, not #583/#153.
+remaining core physical splits belong to #584; #583 applies the policy to its own
+product and #153 verifies both without inheriting implementation.
 
 ## 7. Evidence and design references
 
