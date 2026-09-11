@@ -12,6 +12,17 @@ impl Player {
         state.last_fall_z = z;
     }
 
+    /// Whether the vehicle currently moving this Player carries
+    /// `VEHICLE_FLAG_FIXED_POSITION` (`VehicleDefines.h:72`). C++ reads the
+    /// flag straight off `m_unitMovedByMe`'s vehicle inside
+    /// `Player::ValidateMovementInfo` (Player.cpp:28433); RustyCore caches the
+    /// answer on the Player it belongs to, so the setter lives here with it.
+    pub fn set_mover_fixed_position_vehicle_like_cpp(&mut self, fixed: bool) {
+        self.gameplay_state
+            .movement_control
+            .mover_fixed_position_vehicle = fixed;
+    }
+
     pub fn forced_speed_changes_like_cpp(&self, move_type_index: usize) -> Option<u8> {
         self.gameplay_state
             .movement_control
