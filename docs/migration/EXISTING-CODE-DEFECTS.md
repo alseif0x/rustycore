@@ -67,8 +67,11 @@ bulk-closed, retested or reclassified as parity-proven by this planning review.
   cached DTO needs equivalent application/reconciliation guarantees.
   Severity is bounded by the trigger, which needs a saturated or stalled session
   loop. This is a source-verified mechanism, not a live reproduction; no live
-  capture or runtime QA was run for it. Delivery-guarantee choice and fix are
-  scoped in #743.
+  capture or runtime QA was run for it. **Repaired and locally accepted at
+  `9e6767bb` under #743:** a group state change that cannot be handed to its member
+  records a delivery obligation, and the member converges on `GroupRegistry` in a
+  dedicated driver phase; the tap and instance readers named above now resolve
+  through the authority. No live runtime or DB evidence exists for that repair.
 
 - **2026-09-05, #578 quest dialog — repeatable turn-in markers reversed.**
   Source-verified on `e478ac5d`: in `handlers/quest/eligibility.rs`,
