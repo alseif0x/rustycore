@@ -1509,7 +1509,7 @@ impl PlayerRegistry {
             guid,
             old_placement.map_id,
             old_placement.instance_id,
-            |player| player.gameplay_state_mut().transport = transport,
+            |player| player.set_transport_like_cpp(transport),
         )
         .is_some()
     }

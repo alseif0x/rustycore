@@ -29,6 +29,7 @@ pub use save_ack::{PlayerSaveAcknowledgementLikeCpp, PlayerSavedGroupsLikeCpp};
 mod social;
 mod spellbook;
 mod trait_config;
+mod transport_and_faction;
 pub use trait_config::{PlayerTraitConfigDetails, PlayerTraitConfigState, PlayerTraitEntry};
 mod visibility;
 mod vitals;

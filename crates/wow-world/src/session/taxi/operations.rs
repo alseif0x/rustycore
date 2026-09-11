@@ -603,7 +603,7 @@ impl WorldSession {
             vehicle_id: info.vehicle_id,
         });
         let _ = self.with_owned_player_mut_like_cpp(|player| {
-            player.gameplay_state_mut().transport = transport;
+            player.set_transport_like_cpp(transport);
         });
     }
     pub(crate) fn player_transport_guid_like_cpp(&self) -> Option<ObjectGuid> {
