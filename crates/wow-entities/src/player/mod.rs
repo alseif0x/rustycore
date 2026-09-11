@@ -24,6 +24,7 @@ mod pvp;
 pub use progression::PreparedPlayerSpellAcquisitionLikeCpp;
 mod collections_hydration;
 mod group_membership;
+mod load_hydration;
 mod recent_instances;
 mod resurrection;
 mod save_ack;

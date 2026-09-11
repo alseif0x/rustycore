@@ -772,7 +772,7 @@ impl WorldSession {
     }
     pub(crate) fn mark_represented_cuf_profiles_loaded_like_cpp(&mut self) {
         let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            player.gameplay_state_mut().cuf_profiles_loaded = true;
+            player.mark_cuf_profiles_loaded_like_cpp();
         });
         if canonical.is_some() {
             return;
@@ -796,11 +796,7 @@ impl WorldSession {
         let fixture_profile = profile.clone();
         let profile = player_cuf_profile_from_packet_like_cpp(profile);
         let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            let profiles = &mut player.gameplay_state_mut().cuf_profiles;
-            if profiles.len() != wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP {
-                *profiles = vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
-            }
-            profiles[index] = Some(profile);
+            player.save_cuf_profile_like_cpp(index, Some(profile));
         });
         if canonical.is_some() {
             return true;
@@ -861,7 +857,7 @@ impl WorldSession {
             })
             .collect();
         let _ = self.mutate_canonical_player_like_cpp(|player| {
-            player.gameplay_state_mut().customizations = choices;
+            player.hydrate_customizations_like_cpp(choices);
         });
         #[cfg(test)]
         {
