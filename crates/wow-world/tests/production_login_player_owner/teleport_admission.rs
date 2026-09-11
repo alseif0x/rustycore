@@ -19,7 +19,7 @@ async fn production_worldport_cannot_finish_with_incomplete_self_create() {
             .unwrap()
             .gameplay_state()
             .spells
-            .trait_config_rows_complete
+            .trait_config_rows_complete_like_cpp()
     );
     session.set_map_store(Arc::new(MapStore::from_entries([0, 1].map(|id| {
         MapEntry {

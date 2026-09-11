@@ -102,9 +102,7 @@ async fn exercise(replace: bool, cancel: bool, outcome: PersistenceOutcomeLikeCp
             .get_typed_player_mut(guid)
             .unwrap();
         let spells = &mut p.gameplay_state_mut().spells;
-        spells.rows_loaded = true;
-        spells.rows_complete = true;
-        spells.rows.insert(10, spell(10));
+        spells.replace_rows_like_cpp(std::collections::BTreeMap::from([(10, spell(10))]), true);
         // Change only the canonical owner after login hydrated Session's level.
         p.unit_mut().set_level(73);
         p.teleport_state_mut_like_cpp().far_pending = true;
@@ -151,9 +149,9 @@ async fn exercise(replace: bool, cancel: bool, outcome: PersistenceOutcomeLikeCp
         if replace {
             let mut p = Box::new(wow_entities::Player::new(Some(1), false));
             p.unit_mut().world_mut().object_mut().create(guid);
-            p.gameplay_state_mut().spells.rows_loaded = true;
-            p.gameplay_state_mut().spells.rows_complete = true;
-            p.gameplay_state_mut().spells.rows.insert(10, spell(10));
+            p.gameplay_state_mut()
+                .spells
+                .replace_rows_like_cpp(std::collections::BTreeMap::from([(10, spell(10))]), true);
             p.teleport_state_mut_like_cpp().far_pending = true;
             assert_eq!(p.defer_save_if_transfer_pending_like_cpp(), Some(true));
             p.teleport_state_mut_like_cpp().far_pending = false;
@@ -167,8 +165,7 @@ async fn exercise(replace: bool, cancel: bool, outcome: PersistenceOutcomeLikeCp
                 .unwrap()
                 .gameplay_state_mut()
                 .spells
-                .rows
-                .insert(20, spell(20));
+                .insert_row_like_cpp(20, spell(20));
             None
         }
     };
@@ -194,7 +191,7 @@ async fn exercise(replace: bool, cancel: bool, outcome: PersistenceOutcomeLikeCp
             !replace && !cancel && matches!(outcome, PersistenceOutcomeLikeCpp::Applied { .. });
         assert_eq!(p.has_deferred_player_save_like_cpp(), !clean);
         assert_eq!(
-            spells.rows[&10].state,
+            spells.rows_like_cpp()[&10].state,
             if clean {
                 wow_entities::PlayerSpellLoadState::Unchanged
             } else {
@@ -203,7 +200,7 @@ async fn exercise(replace: bool, cancel: bool, outcome: PersistenceOutcomeLikeCp
         );
         if !replace {
             assert_eq!(
-                spells.rows[&20].state,
+                spells.rows_like_cpp()[&20].state,
                 wow_entities::PlayerSpellLoadState::New
             );
         }

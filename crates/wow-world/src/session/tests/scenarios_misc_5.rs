@@ -529,10 +529,10 @@ fn canonical_player_trait_config_authority_follows_detached_and_stale_ownership_
             player.spell_runtime_like_cpp().clone()
         })
         .expect("replacement spell owner");
-    assert!(replacement_runtime.trait_config_rows.is_empty());
-    assert!(!replacement_runtime.trait_config_rows_complete);
-    assert!(!replacement_runtime.trait_entry_rows_complete);
-    assert!(!replacement_runtime.trait_entry_rows_empty);
+    assert!(replacement_runtime.trait_config_rows_like_cpp().is_empty());
+    assert!(!replacement_runtime.trait_config_rows_complete_like_cpp());
+    assert!(!replacement_runtime.trait_entry_rows_complete_like_cpp());
+    assert!(!replacement_runtime.trait_entry_rows_empty_like_cpp());
 }
 #[test]
 fn canonical_player_collection_authority_follows_detached_and_stale_ownership_like_cpp() {

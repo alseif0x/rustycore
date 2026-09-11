@@ -24,11 +24,15 @@ mod pet_lifecycle;
 mod progression;
 mod pvp;
 mod reputation;
+mod spell_runtime;
 mod talent_runtime;
 pub use progression::PreparedPlayerSpellAcquisitionLikeCpp;
 pub use reputation::{
     PlayerFactionStateLikeCpp, PlayerReputationStateLikeCpp, ReputationRankCounterLikeCpp,
     ReputationRankCountersLikeCpp,
+};
+pub use spell_runtime::{
+    ForgottenKnownSpellLikeCpp, PlayerSpellAcquisitionSnapshotLikeCpp, PlayerSpellRuntimeState,
 };
 pub use talent_runtime::PlayerTalentRuntimeState;
 mod collections_hydration;
@@ -517,30 +521,6 @@ pub struct PlayerKnownSpellRecord {
     pub disabled: bool,
     pub favorite: bool,
     pub dependent: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct PlayerSpellRuntimeState {
-    pub known_spells: Vec<i32>,
-    pub rows: BTreeMap<i32, PlayerKnownSpellRecord>,
-    pub rows_loaded: bool,
-    pub rows_complete: bool,
-    pub fallback_rows: BTreeMap<i32, PlayerKnownSpellRecord>,
-    pub dependent_known_spells: BTreeSet<i32>,
-    pub removed_known_spells: BTreeSet<i32>,
-    pub favorite_known_spells: BTreeSet<i32>,
-    pub trait_definition_ids: BTreeMap<i32, i32>,
-    pub trait_definition_ids_complete: bool,
-    /// Exact C++ `TraitConfig` headers loaded for this Player, keyed by
-    /// config ID. Completeness is explicit because an authoritative empty
-    /// entry result is materially different from an owner that was not
-    /// resolved during login.
-    pub trait_config_rows: BTreeMap<i32, PlayerTraitConfigState>,
-    pub trait_config_rows_complete: bool,
-    pub trait_entry_rows_complete: bool,
-    pub trait_entry_rows_empty: bool,
-    pub override_spells: BTreeMap<i32, BTreeSet<i32>>,
-    pub override_spells_complete: bool,
 }
 
 pub const PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP: usize = 4;

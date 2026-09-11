@@ -307,6 +307,36 @@ Aceptación local: `wow-entities` (745) y `wow-world` (3.842) en verde, once
 regresiones nuevas de invariantes, controles de arquitectura y ownership con delta
 de inventario revisado. Sin QA viva ni evidencia de DB/reinicio.
 
+#### Entrega local aceptada — #754
+
+Cuarta macro P2 por evidencia: el runtime de hechizos tenía dieciséis campos
+públicos y un cierre genérico con treinta y seis sitios de escritura de
+producción repartidos por spellbook, adquisición, efectos, carga de persistencia,
+aprendizaje por efecto y el reset de talentos.
+
+- Estado e invariantes en el Player:
+  `crates/wow-entities/src/player/spell_runtime.rs` posee
+  `PlayerSpellRuntimeState` con los campos cerrados al módulo Player y las
+  transiciones que C++ hace sobre `m_spells` (`Player.h:2961`) y
+  `m_overrideSpells` (`:2962`). El propietario impone ahora lo que antes escribía
+  cada llamador a mano: un hechizo dependiente nunca se registra como eliminado,
+  la entrada de override se borra con su último reemplazo, marcar dependiente
+  solo alcanza filas autoritativas y el rebase tras guardar recalcula cada
+  conjunto derivado a partir de las filas que sobrevivieron.
+- Banderas de completitud: conservan su significado —vacío autoritativo frente a
+  propietario no hidratado— y siguen siendo hechos independientes, de modo que un
+  consumidor falle cerrado ante cualquier combinación.
+- Frontera retirada: `mutate_player_spell_runtime_like_cpp` queda acotado a
+  `session::spell_state`. Autoridad de carga, reset de login, aprendizaje por
+  efecto y reset de talentos usan transiciones con nombre; queda un gancho
+  `cfg(test)` para las regresiones de despacho.
+- Reglas que no se movieron: catálogos, reglas de rango/habilidad, planificador de
+  adquisición y construcción de paquetes siguen en `wow-world`.
+
+Aceptación local: `wow-entities` (760) y `wow-world` (3.842) en verde, quince
+regresiones nuevas de invariantes, controles de arquitectura y ownership con
+delta de inventario revisado. Sin QA viva ni evidencia de DB/reinicio.
+
 ### 4.3 Residuales P2 y paso a P3/P4
 
 Después de #743 y #735 se retiran los accesos genéricos operación por operación. El
