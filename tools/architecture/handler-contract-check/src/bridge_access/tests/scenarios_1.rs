@@ -21,7 +21,7 @@ fn innocent_bridge_shaped_function_name_is_not_evidence() {
 fn canonical_dto_in_transparent_macro_does_not_invent_authority() {
     let baseline = inventory(
         r#"
-            fn step(creature: &crate::map_manager::WorldCreature) {
+            fn step(creature: &wow_world::WorldCreature) {
                 let _ = matches!(
                     creature.state(),
                     wow_entities::CreatureAiState::Idle
@@ -86,7 +86,7 @@ fn bridge_capable_globs_and_namespace_aliases_fail_closed() {
     let error = inventory(
         r#"
             use wow_entities::*;
-            use crate::map_manager as old_runtime;
+            use wow_world::map_manager as old_runtime;
         "#,
     )
     .expect_err("namespace indirection can hide exact authority types");
@@ -358,38 +358,8 @@ fn comparator_rejects_multiplicity_and_noncanonical_rows() {
 
 #[test]
 fn real_runtime_ledger_anchor_definitions_are_present_once() {
-    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
-    let delivery_path = repository.join("crates/world-server/src/runtime/delivery.rs");
-    let game_events_path = repository.join("crates/world-server/src/runtime/game_events.rs");
-    let session_path = repository.join("crates/wow-world/src/session/mod.rs");
-    let delivery = fs::read_to_string(&delivery_path).expect("world-server delivery source");
-    let game_events =
-        fs::read_to_string(&game_events_path).expect("world-server game-events source");
-    let session = fs::read_to_string(&session_path).expect("wow-world session source");
-    let baseline = inventory_bridge_accesses(&[
-        BridgeSource {
-            package: "world-server",
-            module: "crate::runtime::delivery",
-            source_path: "crates/world-server/src/runtime/delivery.rs",
-            inherited_cfg: &[],
-            source: &delivery,
-        },
-        BridgeSource {
-            package: "world-server",
-            module: "crate::runtime::game_events",
-            source_path: "crates/world-server/src/runtime/game_events.rs",
-            inherited_cfg: &[],
-            source: &game_events,
-        },
-        BridgeSource {
-            package: "wow-world",
-            module: "crate::session",
-            source_path: "crates/wow-world/src/session/mod.rs",
-            inherited_cfg: &[],
-            source: &session,
-        },
-    ])
-    .expect("real bridge anchor sources must remain inspectable");
-    validate_curated_bridge_anchors(&baseline)
+    let baseline = crate::session_ownership::repository_syntax_for_tests()
+        .expect("real bridge anchors retain complete lexical source context");
+    validate_curated_bridge_anchors(&baseline.bridge_accesses)
         .expect("every curated runtime-ledger anchor is defined exactly once");
 }

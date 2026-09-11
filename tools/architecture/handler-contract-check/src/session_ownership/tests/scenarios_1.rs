@@ -89,6 +89,42 @@ fn synthetic_baseline(world: &str, server: &str) -> Result<SessionSyntaxBaseline
     )
 }
 
+#[test]
+fn test_only_external_modules_supply_bridge_import_context() {
+    let world = format!(
+        "{} #[cfg(test)] mod test_fixture; \
+         #[cfg(test)] mod checks {{ \
+           use crate::test_fixture::Entity; \
+           fn bridge(old: &wow_world::SharedMapManager, new: &Entity) {{}} \
+         }}",
+        world_source("", ""),
+    );
+    let mut fixture = unit(
+        PackageRole::World,
+        "wow-world/src/test_fixture.rs",
+        "pub type Entity = wow_entities::Creature;",
+    );
+    fixture.logical_module_path = "crate::test_fixture".to_owned();
+    fixture.cfg = vec!["cfg(test)".to_owned()];
+    fixture.availability = Availability {
+        production: false,
+        test: true,
+    };
+    let baseline = collect_units(
+        vec![
+            unit(PackageRole::World, "wow-world/src/lib.rs", &world),
+            fixture,
+            unit(PackageRole::Server, "world-server/src/main.rs", &server_source("", "")),
+            unit(PackageRole::Network, "wow-network/src/lib.rs",
+                "pub enum SessionCommand { Kick(KickCommand) } pub struct KickCommand { pub reason: String }"),
+        ],
+        PersistenceAccessBaseline { schema_version: 3, accesses: Vec::new() },
+    ).expect("top-level test-only mounts must not be dropped from bridge provenance");
+    assert_eq!(baseline.bridge_accesses.bridges.len(), 1);
+    assert_eq!(baseline.bridge_accesses.bridges[0].module, "crate::checks");
+    assert_eq!(baseline.bridge_accesses.bridges[0].cfg, vec!["cfg (test)"]);
+}
+
 fn world_source(field: &str, extra_impl_item: &str) -> String {
     format!(
         r#"
@@ -637,7 +673,7 @@ fn server_ownership_root_follows_private_library_modules() {
 #[test]
 fn repository_surface_can_be_collected() {
     let repository_root = crate::repository_root().expect("repository root");
-    let baseline = collect_repository_baseline_with_persistence(&repository_root, false)
+    let baseline = repository_syntax_for_tests()
         .unwrap_or_else(|error| panic!("repository baseline must parse:\n{error}"));
 
     let raw_session_source =

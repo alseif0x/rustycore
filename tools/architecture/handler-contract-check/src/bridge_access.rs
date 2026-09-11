@@ -29,17 +29,19 @@ use quote::ToTokens;
 use serde::{Deserialize, Serialize};
 use syn::visit::{self, Visit};
 use syn::{
-    Attribute, Expr, ExprCall, ExprField, ExprMacro, ExprMethodCall, FnArg, ImplItem, Item, ItemFn,
-    ItemImpl, ItemMacro, ItemMod, Local, Member, Pat, Path, Signature, Type, UseTree,
+    Attribute, Expr, FnArg, ImplItem, Item, ItemFn, ItemImpl, ItemMacro, ItemMod, Member, Pat,
+    Path, Signature, Type, UseTree,
 };
 
 use crate::ownership::{
     cfg_context_allows_production, cfg_context_allows_test, extend_cfg_context,
 };
 
+mod provenance;
 mod state_1;
 mod state_2;
 mod state_3;
+use provenance::{build_module_index, resolve_module_symbols};
 #[allow(unused_imports)]
 pub use state_1::*;
 #[allow(unused_imports)]

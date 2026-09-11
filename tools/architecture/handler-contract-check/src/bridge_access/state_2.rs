@@ -8,19 +8,33 @@ impl<'a> CandidateAnalyzer<'a> {
     pub(super) fn new(
         context: &'a ModuleContext<'a>,
         enclosing: String,
-        symbols: &Symbols,
+        symbols: &'a Symbols,
         errors: &'a mut Vec<String>,
     ) -> Self {
         Self {
             context,
             enclosing,
-            symbols: symbols.clone(),
+            symbols: symbols.for_cfg(&context.cfg).clone(),
+            module_symbols: symbols,
+            local_imports: Vec::new(),
+            active_cfg: context.cfg.clone(),
             variables: BTreeMap::new(),
             evidence: Vec::new(),
             directions: BTreeSet::new(),
             opaque_authority_macros: Vec::new(),
+            reported_resolution_issues: BTreeSet::new(),
+            generic_parameters: BTreeSet::new(),
             errors,
         }
+    }
+
+    pub(super) fn set_active_cfg(&mut self, cfg: Vec<String>) {
+        self.symbols = self.module_symbols.for_cfg(&cfg).clone();
+        for name in &self.generic_parameters {
+            self.symbols.shadow_generic(name);
+        }
+        self.active_cfg = cfg;
+        self.apply_local_imports();
     }
 
     pub(super) fn add(
@@ -85,7 +99,8 @@ impl<'a> CandidateAnalyzer<'a> {
                 }
             }
             Pat::Type(typed) => {
-                let typed_sides = sides_in_type(&self.symbols, &typed.ty);
+                let typed_sides =
+                    sides_in_type_with_cfg(&self.symbols, &typed.ty, &self.active_cfg);
                 let bound = if typed_sides.is_empty() {
                     sides.clone()
                 } else {
@@ -125,21 +140,40 @@ impl<'a> CandidateAnalyzer<'a> {
     }
 
     pub(super) fn bind_signature(&mut self, signature: &Signature) {
+        self.bind_generics(&signature.generics);
         for input in &signature.inputs {
-            match input {
-                FnArg::Receiver(_) => {}
-                FnArg::Typed(typed) => {
-                    let sides = sides_in_type(&self.symbols, &typed.ty);
-                    self.bind_pattern(&typed.pat, &sides);
+            let attrs = match input {
+                FnArg::Receiver(receiver) => &receiver.attrs,
+                FnArg::Typed(typed) => &typed.attrs,
+            };
+            self.within_cfg(attrs, |analyzer| {
+                if let FnArg::Typed(typed) = input {
+                    let sides =
+                        sides_in_type_with_cfg(&analyzer.symbols, &typed.ty, &analyzer.active_cfg);
+                    analyzer.bind_pattern(&typed.pat, &sides);
                 }
-            }
+            });
+        }
+    }
+
+    fn bind_generics(&mut self, generics: &syn::Generics) {
+        for parameter in &generics.params {
+            let name = match parameter {
+                syn::GenericParam::Type(parameter) => parameter.ident.to_string(),
+                syn::GenericParam::Const(parameter) => parameter.ident.to_string(),
+                syn::GenericParam::Lifetime(_) => continue,
+            };
+            self.generic_parameters.insert(name.clone());
+            self.symbols.shadow_generic(&name);
         }
     }
 
     pub(super) fn sides_of_expr(&self, expression: &Expr) -> BTreeSet<BridgeSide> {
         match expression {
             Expr::Path(path) => {
-                let mut sides = self.symbols.sides_for_path(&path.path);
+                let mut sides = self
+                    .symbols
+                    .sides_for_path_with_cfg(&path.path, &self.active_cfg);
                 if let Some(name) = last_path_ident(&path.path) {
                     if let Some(variable_sides) = self.variables.get(&name) {
                         sides.extend(variable_sides);
@@ -172,7 +206,10 @@ impl<'a> CandidateAnalyzer<'a> {
             Expr::Call(call) => {
                 let mut sides = BTreeSet::new();
                 if let Expr::Path(path) = call.func.as_ref() {
-                    sides.extend(self.symbols.sides_for_path(&path.path));
+                    sides.extend(
+                        self.symbols
+                            .sides_for_path_with_cfg(&path.path, &self.active_cfg),
+                    );
                     let passthrough = last_path_ident(&path.path)
                         .is_some_and(|name| matches!(name.as_str(), "clone" | "from"));
                     if passthrough {
@@ -189,6 +226,18 @@ impl<'a> CandidateAnalyzer<'a> {
 
     pub(super) fn audit_macro(&mut self, mac: &syn::Macro, label: &str) {
         let name = last_path_ident(&mac.path).unwrap_or_else(|| "<macro>".to_owned());
+        for path in provenance::token_paths(&mac.tokens) {
+            if let Some(issue) = self.symbols.path_issue_for_segments(&path)
+                && self.reported_resolution_issues.insert(path.join("::"))
+            {
+                self.errors.push(issue.to_owned());
+            }
+            if path.len() > 1
+                && let Ok(path) = syn::parse_str::<Path>(&path.join("::"))
+            {
+                self.report_missing_glob_path(&path, true);
+            }
+        }
         let sides = token_sides(&mac.tokens, &self.symbols, &self.variables);
         let has_both =
             sides.contains(&BridgeSide::Canonical) && sides.contains(&BridgeSide::Legacy);
@@ -301,128 +350,6 @@ impl<'a> CandidateAnalyzer<'a> {
     }
 }
 
-impl<'ast> Visit<'ast> for CandidateAnalyzer<'_> {
-    fn visit_type_path(&mut self, path: &'ast syn::TypePath) {
-        let sides = self.symbols.sides_for_path(&path.path);
-        if !sides.is_empty() {
-            self.add_sides(
-                &sides,
-                BridgeEvidenceKind::TypeReference,
-                last_path_ident(&path.path).unwrap_or_else(|| "<type>".to_owned()),
-                normalized_tokens(path),
-            );
-        }
-        visit::visit_type_path(self, path);
-    }
-
-    fn visit_expr_path(&mut self, path: &'ast syn::ExprPath) {
-        let mut sides = self.symbols.sides_for_path(&path.path);
-        if let Some(name) = last_path_ident(&path.path) {
-            if let Some(variable_sides) = self.variables.get(&name) {
-                sides.extend(variable_sides);
-            }
-        }
-        if !sides.is_empty() {
-            self.add_sides(
-                &sides,
-                BridgeEvidenceKind::ValueReference,
-                last_path_ident(&path.path).unwrap_or_else(|| "<value>".to_owned()),
-                normalized_tokens(path),
-            );
-        }
-        visit::visit_expr_path(self, path);
-    }
-
-    fn visit_expr_field(&mut self, field: &'ast ExprField) {
-        let sides = self.sides_of_expr(&Expr::Field(field.clone()));
-        if !sides.is_empty() {
-            let symbol = match &field.member {
-                Member::Named(member) => member.to_string(),
-                Member::Unnamed(index) => index.index.to_string(),
-            };
-            self.add_sides(
-                &sides,
-                BridgeEvidenceKind::FieldAccess,
-                symbol,
-                normalized_tokens(field),
-            );
-        }
-        visit::visit_expr_field(self, field);
-    }
-
-    fn visit_expr_call(&mut self, call: &'ast ExprCall) {
-        if let Expr::Path(path) = call.func.as_ref() {
-            let name = last_path_ident(&path.path).unwrap_or_else(|| "<call>".to_owned());
-            let sides = self.symbols.sides_for_path(&path.path);
-            if !sides.is_empty() {
-                self.add_sides(
-                    &sides,
-                    BridgeEvidenceKind::FunctionCall,
-                    name.clone(),
-                    normalized_tokens(call),
-                );
-            }
-        }
-        visit::visit_expr_call(self, call);
-    }
-
-    fn visit_expr_method_call(&mut self, call: &'ast ExprMethodCall) {
-        let name = call.method.to_string();
-        let sides = self.sides_of_expr(&call.receiver);
-        if !sides.is_empty() {
-            self.add_sides(
-                &sides,
-                BridgeEvidenceKind::MethodCall,
-                name.clone(),
-                normalized_tokens(call),
-            );
-        }
-        visit::visit_expr_method_call(self, call);
-    }
-
-    fn visit_local(&mut self, local: &'ast Local) {
-        if let Pat::Type(typed) = &local.pat {
-            self.visit_type(&typed.ty);
-        }
-        let mut sides = BTreeSet::new();
-        if let Some(init) = &local.init {
-            self.visit_expr(&init.expr);
-            sides.extend(self.sides_of_expr(&init.expr));
-            if let Some((_, diverge)) = &init.diverge {
-                self.visit_expr(diverge);
-            }
-        }
-        if let Pat::Type(typed) = &local.pat {
-            sides.extend(sides_in_type(&self.symbols, &typed.ty));
-        }
-        self.bind_pattern(&local.pat, &sides);
-    }
-
-    fn visit_expr_macro(&mut self, expression: &'ast ExprMacro) {
-        self.audit_macro(&expression.mac, "expression macro");
-    }
-
-    fn visit_stmt_macro(&mut self, statement: &'ast syn::StmtMacro) {
-        self.audit_macro(&statement.mac, "statement macro");
-    }
-
-    fn visit_type_macro(&mut self, type_macro: &'ast syn::TypeMacro) {
-        self.audit_macro(&type_macro.mac, "type macro");
-    }
-
-    fn visit_item(&mut self, item: &'ast Item) {
-        match item {
-            Item::Use(item_use) => add_use_to_symbols(item_use, &mut self.symbols, self.errors),
-            Item::Macro(item_macro) => {
-                self.audit_macro(&item_macro.mac, "nested item macro");
-            }
-            // Nested items have their own enclosing identity and must be passed
-            // as source/module items rather than folded into this function.
-            _ => {}
-        }
-    }
-}
-
 pub(super) fn method_enclosing(item_impl: &ItemImpl, signature: &Signature) -> String {
     let self_type = normalized_tokens(&item_impl.self_ty);
     match &item_impl.trait_ {
@@ -452,6 +379,7 @@ pub(super) fn analyze_function(
     let cfg = extend_cfg_context(&context.cfg, &function.attrs);
     let enclosing = format!("fn::{}", function.sig.ident);
     let mut analyzer = CandidateAnalyzer::new(context, enclosing, symbols, errors);
+    analyzer.set_active_cfg(cfg.clone());
     analyzer.seed_definition_anchor(&function.sig.ident.to_string());
     analyzer.bind_signature(&function.sig);
     analyzer.visit_signature(&function.sig);
@@ -475,12 +403,6 @@ pub(super) fn analyze_impl(
 ) {
     validate_cfg(&context.cfg, &item_impl.attrs, "impl", errors);
     let impl_cfg = extend_cfg_context(&context.cfg, &item_impl.attrs);
-    let self_sides = sides_in_type(symbols, &item_impl.self_ty);
-    let trait_sides = item_impl
-        .trait_
-        .as_ref()
-        .map(|(_, path, _)| symbols.sides_for_path(path))
-        .unwrap_or_default();
     for item in &item_impl.items {
         match item {
             ImplItem::Fn(method) => {
@@ -491,8 +413,22 @@ pub(super) fn analyze_impl(
                     errors,
                 );
                 let cfg = extend_cfg_context(&impl_cfg, &method.attrs);
+                let self_sides = sides_in_type_with_cfg(symbols, &item_impl.self_ty, &cfg);
+                let trait_sides = item_impl
+                    .trait_
+                    .as_ref()
+                    .map(|(_, path, _)| symbols.sides_for_path_with_cfg(path, &cfg))
+                    .unwrap_or_default();
                 let enclosing = method_enclosing(item_impl, &method.sig);
                 let mut analyzer = CandidateAnalyzer::new(context, enclosing, symbols, errors);
+                analyzer.set_active_cfg(cfg.clone());
+                analyzer.bind_generics(&item_impl.generics);
+                if let Type::Path(path) = item_impl.self_ty.as_ref() {
+                    analyzer.report_path_issue(&path.path);
+                }
+                if let Some((_, path, _)) = &item_impl.trait_ {
+                    analyzer.report_path_issue(path);
+                }
                 analyzer.seed_definition_anchor(&method.sig.ident.to_string());
                 analyzer.bind_signature(&method.sig);
                 if !self_sides.is_empty() {
@@ -543,6 +479,7 @@ pub(super) fn analyze_impl(
                     constant.ident
                 );
                 let mut analyzer = CandidateAnalyzer::new(context, enclosing, symbols, errors);
+                analyzer.set_active_cfg(cfg.clone());
                 analyzer.visit_type(&constant.ty);
                 analyzer.visit_expr(&constant.expr);
                 let header = format!(
@@ -563,6 +500,7 @@ pub(super) fn analyze_impl(
                     item_type.ident
                 );
                 let mut analyzer = CandidateAnalyzer::new(context, enclosing, symbols, errors);
+                analyzer.set_active_cfg(cfg.clone());
                 analyzer.visit_type(&item_type.ty);
                 let header = format!(
                     "type {}={}",
@@ -611,20 +549,22 @@ pub(super) fn analyze_data_item(
     let cfg = extend_cfg_context(&context.cfg, attrs);
     let header = format!("{name}|surface={}", compact_token_fingerprint(item));
     let mut analyzer = CandidateAnalyzer::new(context, name, symbols, errors);
+    analyzer.set_active_cfg(cfg.clone());
+    match item {
+        Item::Struct(item) => analyzer.bind_generics(&item.generics),
+        Item::Enum(item) => analyzer.bind_generics(&item.generics),
+        Item::Type(item) => analyzer.bind_generics(&item.generics),
+        _ => {}
+    }
     match item {
         Item::Struct(value) => {
             for field in &value.fields {
-                analyzer.visit_type(&field.ty);
+                analyzer.visit_field(field);
             }
         }
         Item::Enum(value) => {
             for variant in &value.variants {
-                for field in &variant.fields {
-                    analyzer.visit_type(&field.ty);
-                }
-                if let Some((_, discriminant)) = &variant.discriminant {
-                    analyzer.visit_expr(discriminant);
-                }
+                analyzer.visit_variant(variant);
             }
         }
         Item::Type(value) => analyzer.visit_type(&value.ty),
@@ -650,6 +590,8 @@ pub(super) fn audit_item_macro(
     errors: &mut Vec<String>,
     label: &str,
 ) {
+    let cfg = extend_cfg_context(&context.cfg, &item_macro.attrs);
+    let symbols = symbols.for_cfg(&cfg);
     let name = item_macro
         .ident
         .as_ref()
@@ -672,11 +614,10 @@ pub(super) fn audit_item_macro(
 pub(super) fn analyze_module_items(
     items: &[Item],
     context: &ModuleContext<'_>,
-    inherited_symbols: &Symbols,
+    symbols: &Symbols,
     accumulator: &mut BridgeAccumulator,
     errors: &mut Vec<String>,
 ) {
-    let symbols = register_module_symbols(items, context, inherited_symbols, errors);
     for item in items {
         match item {
             Item::Fn(function) => {
@@ -698,13 +639,11 @@ pub(super) fn analyze_module_items(
                 ..
             }) => {
                 validate_cfg(&context.cfg, attrs, &format!("module {ident}"), errors);
-                let child = ModuleContext {
-                    package: context.package,
-                    module: format!("{}::{ident}", context.module),
-                    path: context.path,
-                    cfg: extend_cfg_context(&context.cfg, attrs),
-                };
-                analyze_module_items(child_items, &child, &symbols, accumulator, errors);
+                // Inline children are indexed and analyzed as independent
+                // lexical modules by `provenance.rs`.  Re-entering them here
+                // would use the parent's symbol table and double-count the
+                // same source mount.
+                let _ = child_items;
             }
             _ => {}
         }
@@ -736,6 +675,7 @@ pub(crate) fn inventory_bridge_accesses(
     let mut seen = BTreeSet::new();
     let mut accumulator = BridgeAccumulator::default();
     let mut errors = Vec::new();
+    let mut parsed_sources = Vec::new();
     for source in ordered {
         if source.package.is_empty() || source.module.is_empty() || source.source_path.is_empty() {
             errors.push("bridge source package/module/path must be non-empty".to_owned());
@@ -769,16 +709,25 @@ pub(crate) fn inventory_bridge_accesses(
             source.source_path,
             &mut errors,
         );
+        parsed_sources.push((source, syntax));
+    }
+
+    // The repository caller has already resolved source mounts and logical
+    // module paths.  Build the lexical graph from exactly those inputs so
+    // external and inline children receive identical `super`/glob handling.
+    let index = build_module_index(&parsed_sources);
+    let symbols = resolve_module_symbols(&index, &mut errors);
+    for (node, module_symbols) in index.modules.iter().zip(symbols.iter()) {
         let context = ModuleContext {
-            package: source.package,
-            module: source.module.to_owned(),
-            path: source.source_path,
-            cfg: extend_cfg_context(source.inherited_cfg, &syntax.attrs),
+            package: &node.package,
+            module: node.module.clone(),
+            path: &node.source_path,
+            cfg: node.cfg.clone(),
         };
         analyze_module_items(
-            &syntax.items,
+            &node.items,
             &context,
-            &Symbols::for_module(source.package, source.module),
+            module_symbols,
             &mut accumulator,
             &mut errors,
         );

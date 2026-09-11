@@ -242,6 +242,23 @@ impl BridgeAccumulator {
 #[derive(Clone, Default)]
 pub(super) struct Symbols {
     pub(super) named: BTreeMap<String, BTreeSet<BridgeSide>>,
+    /// Names that are known to bind locally, but whose provenance is not one
+    /// of the authority surfaces.  Keeping this separate from `named` is
+    /// important: an ordinary local `Creature` must shadow a parent glob
+    /// without turning unknown external data into a known non-authority.
+    pub(super) non_authority: BTreeSet<String>,
+    /// Resolution failures are retained beside the final table and reported
+    /// only when a candidate path actually uses the affected name.
+    pub(super) path_issues: BTreeMap<String, String>,
+    /// A missing relative glob can supply an arbitrarily renamed type.
+    /// These diagnostics need lexical use context before they can be emitted.
+    pub(super) unresolved_glob_paths: BTreeMap<String, String>,
+    /// Qualified paths are resolved from the supplied module graph.  The
+    /// legacy `named` table remains the compact fast path for bare names and
+    /// transparent macro tokens.
+    pub(super) qualified: BTreeMap<String, BTreeSet<BridgeSide>>,
+    /// Private symbol tables for each enclosing item's exact cfg context.
+    pub(super) contexts: BTreeMap<Vec<String>, Symbols>,
 }
 
 impl Symbols {
@@ -261,7 +278,9 @@ impl Symbols {
     where
         I: IntoIterator<Item = BridgeSide>,
     {
-        self.named.entry(name.into()).or_default().extend(sides);
+        let name = name.into();
+        self.non_authority.remove(&name);
+        self.named.entry(name).or_default().extend(sides);
     }
 
     pub(super) fn sides_for_ident(&self, name: &str) -> BTreeSet<BridgeSide> {
@@ -275,6 +294,84 @@ impl Symbols {
             .map(|segment| segment.ident.to_string())
             .collect();
         sides_for_segments(self, &segments)
+    }
+
+    pub(super) fn path_issue(&self, path: &Path) -> Option<&str> {
+        let segments: Vec<_> = path
+            .segments
+            .iter()
+            .map(|segment| segment.ident.to_string())
+            .collect();
+        self.path_issue_for_segments(&segments)
+    }
+
+    pub(super) fn sides_for_path_with_cfg(
+        &self,
+        path: &Path,
+        cfg: &[String],
+    ) -> BTreeSet<BridgeSide> {
+        let segments: Vec<_> = path
+            .segments
+            .iter()
+            .map(|segment| segment.ident.to_string())
+            .collect();
+        self.sides_for_segments_with_cfg(&segments, cfg)
+    }
+
+    pub(super) fn for_cfg(&self, cfg: &[String]) -> &Self {
+        self.contexts.get(cfg).unwrap_or(self)
+    }
+
+    pub(super) fn shadow_generic(&mut self, name: &str) {
+        self.named.remove(name);
+        self.non_authority.insert(name.to_owned());
+        let prefix = format!("{name}::");
+        self.qualified
+            .retain(|path, _| path != name && !path.starts_with(&prefix));
+        self.path_issues
+            .retain(|path, _| path != name && !path.starts_with(&prefix));
+    }
+
+    pub(super) fn bind_local_import(
+        &mut self,
+        name: &str,
+        sides: BTreeSet<BridgeSide>,
+        issue: Option<String>,
+    ) {
+        self.shadow_generic(name);
+        let prefix = format!("{name}::");
+        self.unresolved_glob_paths
+            .retain(|path, _| path != name && !path.starts_with(&prefix));
+        if !sides.is_empty() {
+            self.non_authority.remove(name);
+            self.named.insert(name.to_owned(), sides);
+        }
+        if let Some(issue) = issue {
+            self.path_issues.insert(name.to_owned(), issue);
+        }
+    }
+
+    pub(super) fn sides_for_segments_with_cfg(
+        &self,
+        segments: &[String],
+        cfg: &[String],
+    ) -> BTreeSet<BridgeSide> {
+        sides_for_segments(self.for_cfg(cfg), segments)
+    }
+
+    pub(super) fn path_issue_with_cfg(&self, path: &Path, cfg: &[String]) -> Option<&str> {
+        self.for_cfg(cfg).path_issue(path)
+    }
+
+    pub(super) fn path_issue_for_segments(&self, segments: &[String]) -> Option<&str> {
+        self.path_issues
+            .get(&segments.join("::"))
+            .or_else(|| {
+                segments
+                    .first()
+                    .and_then(|first| self.path_issues.get(first))
+            })
+            .map(String::as_str)
     }
 }
 
@@ -360,10 +457,23 @@ pub(super) fn direction_sides(direction: BridgeDirection) -> &'static [BridgeSid
 }
 
 pub(super) fn sides_for_segments(symbols: &Symbols, segments: &[String]) -> BTreeSet<BridgeSide> {
+    let qualified = segments.join("::");
+    if let Some(sides) = symbols.qualified.get(&qualified) {
+        return sides.clone();
+    }
     let mut sides = BTreeSet::new();
     let Some(first) = segments.first().map(String::as_str) else {
         return sides;
     };
+
+    // A local declaration or an explicit unknown import has lexical
+    // precedence over inherited/glob provenance.  Do this before the
+    // hard-coded crate roots below so a fixture-local `Creature` cannot be
+    // mistaken for `wow_entities::Creature` merely because a parent imports
+    // it.
+    if symbols.non_authority.contains(first) {
+        return sides;
+    }
 
     // Authority provenance is deliberately narrower than crate provenance:
     // using a coordinate, key, entity, or DTO from an authority-owned crate
@@ -621,6 +731,7 @@ pub(super) fn add_use_to_symbols(
     collect_use_bindings(&item_use.tree, &mut Vec::new(), &mut bindings, &mut globs);
     for (local, full) in bindings {
         let sides = sides_for_segments(symbols, &full);
+        let issue = symbols.path_issue_for_segments(&full).map(str::to_owned);
         if sides.is_empty()
             && bridge_capable_namespace_import(&full)
             && !(full.len() == 1 && local == full[0])
@@ -630,7 +741,7 @@ pub(super) fn add_use_to_symbols(
                 full.join("::")
             ));
         }
-        symbols.add(local, sides);
+        symbols.bind_local_import(&local, sides, issue);
     }
     for glob in globs {
         let sides = sides_for_segments(symbols, &glob);
@@ -645,63 +756,47 @@ pub(super) fn add_use_to_symbols(
 
 pub(super) struct TypeSideCollector<'a> {
     pub(super) symbols: &'a Symbols,
+    pub(super) cfg: Option<&'a [String]>,
     pub(super) sides: BTreeSet<BridgeSide>,
 }
 
 impl<'ast> Visit<'ast> for TypeSideCollector<'_> {
     fn visit_type_path(&mut self, path: &'ast syn::TypePath) {
-        self.sides.extend(self.symbols.sides_for_path(&path.path));
+        let sides = self.cfg.map_or_else(
+            || self.symbols.sides_for_path(&path.path),
+            |cfg| self.symbols.sides_for_path_with_cfg(&path.path, cfg),
+        );
+        self.sides.extend(sides);
         visit::visit_type_path(self, path);
     }
 }
 
-pub(super) fn sides_in_type(symbols: &Symbols, type_expression: &Type) -> BTreeSet<BridgeSide> {
+pub(super) fn sides_in_type_with_cfg(
+    symbols: &Symbols,
+    type_expression: &Type,
+    cfg: &[String],
+) -> BTreeSet<BridgeSide> {
     let mut collector = TypeSideCollector {
         symbols,
+        cfg: Some(cfg),
         sides: BTreeSet::new(),
     };
     collector.visit_type(type_expression);
     collector.sides
 }
 
-pub(super) fn register_module_symbols(
-    items: &[Item],
-    context: &ModuleContext<'_>,
-    inherited: &Symbols,
-    errors: &mut Vec<String>,
-) -> Symbols {
-    let mut symbols = inherited.clone();
-    let builtins = Symbols::for_module(context.package, &context.module);
-    for (name, sides) in builtins.named {
-        symbols.add(name, sides);
-    }
-    for item in items {
-        if let Item::Use(item_use) = item {
-            add_use_to_symbols(item_use, &mut symbols, errors);
-        }
-    }
-
-    // A few passes resolve explicit type-alias chains without pretending that
-    // every struct/function touching an authority type inherits that
-    // authority. The latter poisoned generic symbols such as WorldSession and
-    // then propagated false provenance through `Self` and ordinary calls.
-    for _ in 0..3 {
-        for item in items {
-            if let Item::Type(alias) = item {
-                symbols.add(alias.ident.to_string(), sides_in_type(&symbols, &alias.ty));
-            }
-        }
-    }
-    symbols
-}
-
 pub(super) struct CandidateAnalyzer<'a> {
     pub(super) context: &'a ModuleContext<'a>,
     pub(super) enclosing: String,
     pub(super) symbols: Symbols,
+    pub(super) module_symbols: &'a Symbols,
+    pub(super) local_imports: Vec<(Vec<String>, syn::ItemUse)>,
+    pub(super) active_cfg: Vec<String>,
     pub(super) variables: BTreeMap<String, BTreeSet<BridgeSide>>,
     pub(super) evidence: Vec<RawEvidence>,
     pub(super) directions: BTreeSet<BridgeDirection>,
     pub(super) opaque_authority_macros: Vec<String>,
+    pub(super) reported_resolution_issues: BTreeSet<String>,
+    pub(super) generic_parameters: BTreeSet<String>,
     pub(super) errors: &'a mut Vec<String>,
 }

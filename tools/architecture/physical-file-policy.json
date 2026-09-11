@@ -658,15 +658,15 @@
     {
       "path": "tools/architecture/handler-contract-check/src/bridge_access.rs",
       "observed_lines": 2128,
-      "ceiling_lines": 52,
-      "split": "Separate the bridge access record, accumulator and symbol table from their regressions. #660 decomposes the 2,128-line root into three state modules and one regression module, dropping it to 52 lines and tightening the ceiling to that figure. Item-for-item with the checker's 334 tests unchanged.",
+      "ceiling_lines": 54,
+      "split": "Separate the bridge access record, accumulator and symbol table from their regressions. #660 decomposes the 2,128-line root into three state modules and one regression module, dropping it to 52 lines. #716 adds two reviewed wiring lines for private lexical provenance resolution; the root is 54 lines, with no relocation counted as ownership retirement.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "tools/architecture/handler-contract-check/src/persistence_access.rs",
       "observed_lines": 21248,
       "ceiling_lines": 239,
-      "split": "Separate the remaining production AST traversal, statement/workflow classification and provenance. #634 decomposes the 12,348-line root into 21 private responsibility modules (72-949 lines) plus the divided body analyzer, dropping it to 239 lines and tightening the ceiling to that figure; only the pinned constant tables, the shared TargetSet alias and the module composition remain. The inherent `impl BodyAnalyzer` is divided by analysis phase across five body_ops modules, which is behaviour-identical in Rust. One justified exception: persistence_access/body_visit.rs is 1,686 lines because it is the single `Visit for BodyAnalyzer` trait impl and a trait impl cannot be split; its exit is the semantic separation of body analysis into per-expression-kind analyzers, owned by 584:C4. Item-for-item with the checker's 334 tests unchanged.",
+      "split": "Separate the remaining production AST traversal, statement/workflow classification and provenance. #634 decomposes the 12,348-line root into 21 private responsibility modules (72-949 lines) plus the divided body analyzer, dropping it to 239 lines and tightening the ceiling to that figure; only the pinned constant tables, the shared TargetSet alias and the module composition remain. The inherent `impl BodyAnalyzer` is divided by analysis phase across five body_ops modules. The retained 1,686-line persistence_access/body_visit.rs needs review under 584:C4: one Visit trait impl can delegate to private expression analyzers while preserving traversal order. #716 corrects the earlier blanket single-impl exception without changing this file's measured ceiling or claiming its decomposition complete.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -679,8 +679,8 @@
     {
       "path": "tools/architecture/handler-contract-check/src/session_ownership.rs",
       "observed_lines": 2996,
-      "ceiling_lines": 54,
-      "split": "Separate the package roles, the expression-surface collector and the baseline builder. #660 decomposes the 2,996-line root into three state modules and one regression module, dropping it to 54 lines and tightening the ceiling to that figure. Item-for-item with the checker's 334 tests unchanged.",
+      "ceiling_lines": 68,
+      "split": "Separate the package roles, the expression-surface collector and the baseline builder. #660 decomposes the 2,996-line root into three state modules and one regression module, dropping it to 54 lines. #716 adds a 14-line cfg(test) cached complete repository syntax fixture: real bridge and ownership assertions share actual lexical context instead of incomplete file subsets or repeated full syntax scans. The reviewed 68-line root retains the same production owner and inventory obligations.",
       "review_checkpoint": "584:C4"
     },
     {

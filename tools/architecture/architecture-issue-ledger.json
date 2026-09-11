@@ -178,6 +178,8 @@
     585,
     588,
     587,
+    589,
+    716,
     583,
     153
   ],
@@ -2309,7 +2311,7 @@
     },
     {
       "number": 588,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.CORE] Complete deferred player visibility publication",
       "kind": "slice",
       "parents": [133, 584],
@@ -2317,11 +2319,27 @@
     },
     {
       "number": 587,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.CORE] Complete represented spell-acquisition application boundary",
       "kind": "slice",
       "parents": [133, 584],
       "depends_on": [585, 588]
+    },
+    {
+      "number": 589,
+      "state": "closed",
+      "title": "[ARCH.CORE] Complete represented Player cast-request lifecycle",
+      "kind": "slice",
+      "parents": [133, 584],
+      "depends_on": [587, 588]
+    },
+    {
+      "number": 716,
+      "state": "open",
+      "title": "[ARCH.CORE] Restore ownership provenance and acceptance after module decomposition",
+      "kind": "slice",
+      "parents": [133, 584],
+      "depends_on": [589]
     }
   ]
 }

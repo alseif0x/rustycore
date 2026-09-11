@@ -101,36 +101,42 @@ and physical splitting alone must not remove logical ownership debt.
 
 ### What a physical division cannot reach
 
-Three limits are measured, not opinions. Reaching them means the remaining work is
-semantic, and the honest move is to record the file with its reason instead of
-inventing a split.
+**Review correction, 2026-09-10, #716:** the earlier examples describe limits of
+item relocation, not proof that useful private decomposition is impossible. Preserve
+their measurements without treating a parser item or a LOC ceiling as the design owner.
 
-**A single item is the floor.** A file whose bulk is one `enum`, one `match` or one
-trait impl cannot become modules without changing the type or the trait's shape. Rust
-allows any number of *inherent* impl blocks per type - which is how #705 and #707
-divided a 2,069-line `impl WorldCreature` and a 1,408-line `impl WorldSession` - but
-exactly one impl per (trait, type). So `statements/character/identities.rs` (1,789
-lines, one `CharStatements` enum), `statement_def.rs` (1,627, one `match` over it) and
-`player/lifecycle_adapter.rs` (1,609, one `impl PlayerLifecyclePortLikeCpp`) stay until
-their responsibility is cut semantically.
+**Keep one implementation while delegating cohesive work.** Rust's single applicable
+trait impl can contain short methods that delegate to private modules without changing
+the trait, type or state owner. `player/lifecycle_adapter.rs` already has `economy`,
+`login_reads` and `save_plan` children; its bodies can use those responsibilities.
+An exhaustive `match` can retain its dispatch and delegate branch bodies. A large
+`CharStatements` enum may instead justify a cohesive file-specific exception. Evaluate
+these cases separately; a single item does not establish a blanket exemption.
 
-**Inside a curated hotspot, relocation is measured, not free.** The hotspot ratchet
-counts the module aggregate, so moving a file into an owner - or adding the wiring a
-division needs *inside* one - grows the number being measured. #713 measured the floor:
-dividing the loot and quest fixture roots worked and still cost those aggregates +63 and
-+43 test lines at the cheapest wiring available, about seven lines per new module for a
-doc line, `use super::*;`, the `#[path]` mount pair and one glob. #697 left
-`wow-world/player_cast` flat for the same reason at a smaller scale: two characters of
-extra path made rustfmt re-wrap three call sites, +6 lines on the session aggregate.
-A delivery whose subject *is* an owner's shape can still proceed with an explicit
-reviewed delta - #699 recorded +12 production lines in `world-server` and #703 gave one
-back - but that is a decision to record, never a side effect to absorb.
+**Review wiring growth without erasing semantic debt.** The hotspot ratchet counts
+the whole owner, so private module declarations/imports and formatting can raise its
+physical line total even when operations are unchanged. #713 measured +63/+43 test
+lines for loot/quest fixture splits; #697 recorded +6 Session lines from path wrapping.
+Those are costs to review, not evidence that the new module boundary is wrong. An
+explained delta may update only the affected ceiling while preserving the logical owner,
+its complete descendants and retirement obligation, as the existing policy permits.
+Keep the before/after evidence; never reset all baselines or count relocation as retired
+gameplay ownership. Adding a helper does not require a new issue or approval round.
 
-**A single operation stays whole.** An 865-line
-`handle_void_storage_transfer_with_generators_like_cpp` (#707) or a 1,086-line
-`session/spell_effects/execution.rs` entry point (#621) is one C++-mirroring operation.
-Cutting it into pieces is a behaviour question, so it stays whole and its group stays
-within the budget instead.
+**Keep one operation coordinator and its ordering contract.** Long operations such as
+`handle_void_storage_transfer_with_generators_like_cpp` and the spell-effects executor
+can extract cohesive private phases while retaining one coordinator, authority and
+transaction/publication sequence. Review captured values, borrows, cancellation, early
+returns and failure paths before extraction. If a faithful split is unclear, retain a
+specific bounded exit; do not infer that the operation must remain one physical function.
+
+**Names and imports are part of navigability.** New private files name a rule, operation,
+adapter or scenario. `state_1`, `ops_2` or `scenarios_14` is a temporary relocation label
+unless its number has domain meaning. Reunite definitions and operations by responsibility
+when completing the family. Prefer explicit production imports and deliberate facade
+exports; `use super::*` in a small test or a transitional `#[path]` mount can remain when
+its real dependencies, visibility and analyzer coverage are preserved. Do not widen state
+visibility merely to make a split compile or replace these criteria with a zero-glob quota.
 
 ## 4. Tests and a complete operation
 
@@ -303,7 +309,7 @@ changes; workspace Rust additionally retains its independent logical ratchet. Ch
 the physical module/policy run its adversarial unit suite during `quick`; changes to the
 shared checker/scanner run the existing architecture self-test. Macro closeout must also
 run `physical-files --terminal`; it is deliberately not the daily migration gate. All
-remaining physical splits still belong to #578, not #583/#153.
+remaining core physical splits belong to #584, not #583/#153.
 
 ## 7. Evidence and design references
 
