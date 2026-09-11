@@ -11,7 +11,7 @@ impl WorldSession {
         mails: Vec<wow_entities::PlayerMailRecord>,
     ) -> bool {
         self.with_owned_player_mut_like_cpp(|player| {
-            player.gameplay_state_mut().mails = mails;
+            player.hydrate_mails_like_cpp(mails);
         })
         .is_some()
     }
@@ -55,7 +55,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| {
-                player.gameplay_state_mut().achievements = achievements;
+                player.hydrate_completed_achievements_like_cpp(achievements);
             })
             .is_some();
         #[cfg(test)]
