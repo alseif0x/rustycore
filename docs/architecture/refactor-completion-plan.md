@@ -501,8 +501,43 @@ producción mantiene más de una escritura durable de inventario, y sus dos
 escrituras son las ramas exclusivas verificadas en #720. Ninguna familia añadió
 un participante de persistencia.
 
-Quedan tres filas de P2: progresión/spells/effects, social y grupos, y cuenta,
-carga y guardado.
+**Estado medido de las tres filas restantes de P2** (2026-09-11, contrastado en
+código, no asumido desde la tabla de la sección P2):
+
+*Social y grupos.* La propiedad ya es correcta: el grupo de `wow-social` posee la
+pertenencia con una API nombrada equivalente a `Group` de C++, y la instantánea
+del lado del Player no es dato derivado confundido con autoridad, porque
+`Player::GetGroup()` (Player.h:2547) también lee el grupo de la referencia
+`m_group` del propio Player. Lo que sí apareció es un defecto de garantía de
+entrega: el borrado de estado del miembro afectado viaja por
+`try_send_current_command`, un `try_send` sobre un canal `bounded(256)`, y su
+resultado se descarta; nada reconcilia después. Registrado en
+EXISTING-CODE-DEFECTS.md y acotado en
+[#743](https://github.com/alseif0x/rustycore/issues/743), que además lleva el
+resto de la fila. No se parcheó porque elegir entre envío bloqueante con orden
+de cerraduras explícito, reintento, o estado reconciliable es una decisión de
+diseño con su propio contrato.
+
+*Progresión/spells/effects.* Entregada en lo esencial por #587 y documentada en
+ownership-and-boundaries.md, que ya fija su condición de retirada: retirar el
+seam especializado solo cuando métodos canónicos del `Player` expongan el mismo
+contrato atómico de dry-run/apply. El planificador vive en
+`wow_world::spell_acquisition`, la durabilidad en su puerto, y el Player tiene
+`apply_prepared_spell_acquisition_like_cpp`. No inventar trabajo nuevo aquí sin
+medición propia.
+
+*Cuenta, carga y guardado.* Los dos criterios de cierre de la fila están
+cubiertos y verificados en código: la revisión de guardado diferido usa
+`checked_add` y el recibo limpia solo la intención confirmada que coincide
+(`crates/wow-entities/src/player/deferred_save.rs`), y un COMMIT incierto no
+reanuda la sesión: `session/lifecycle/persistence.rs:255-270` marca el dinero
+como indeterminado, desarma la valla y expulsa con «relog required before
+another money mutation».
+
+Por tanto P2 queda a falta de: el contrato de entrega de #743, la decisión de
+diseño de #735, y el residuo de cierres genéricos, que se retira operación por
+operación. Falta también evidencia de durabilidad en vivo (escritura real en DB,
+reinicio, relogin), que exige autoridad de runtime y no se ha ejecutado.
 
 P3–P6 siguen pendientes y #584 continúa abierto.
 
