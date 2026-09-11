@@ -283,10 +283,7 @@ impl WorldSession {
     pub(crate) fn set_represented_mover_fixed_position_vehicle_like_cpp(&mut self, fixed: bool) {
         let _canonical = self
             .with_owned_player_mut_like_cpp(|player| {
-                player
-                    .gameplay_state_mut()
-                    .movement_control
-                    .mover_fixed_position_vehicle = fixed;
+                player.set_mover_fixed_position_vehicle_like_cpp(fixed);
             })
             .is_some();
         #[cfg(test)]
@@ -837,13 +834,8 @@ impl WorldSession {
             return;
         }
         let _ = self.with_owned_player_mut_like_cpp(|player| {
-            if let (Some(transport), Some(position)) =
-                (player.gameplay_state_mut().transport.as_mut(), position)
-            {
-                transport.x = position.x;
-                transport.y = position.y;
-                transport.z = position.z;
-                transport.orientation = position.orientation;
+            if let Some(position) = position {
+                player.set_transport_position_like_cpp(position);
             }
         });
     }
