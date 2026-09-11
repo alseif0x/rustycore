@@ -159,6 +159,28 @@ impl PlayerInventoryRuntime {
         &mut self.buyback_items
     }
 
+    /// C++ `Player::SetBuybackPrice` and `Player::SetBuybackTimestamp`
+    /// (Player.h:1426-1427), which the vendor path always sets together for one
+    /// buyback slot - on sale with the sell price and expiry
+    /// (`Player::AddItemToBuyBackSlot`, Player.cpp:12688-12692) and back to
+    /// zero when the slot is released (`Player::RemoveItemFromBuyBackSlot`,
+    /// :12733-12734). The index is the slot offset from `BUYBACK_SLOT_START`,
+    /// as C++ computes it; an index outside the array is refused rather than
+    /// panicking, and reports false.
+    pub fn set_buyback_price_and_timestamp_like_cpp(
+        &mut self,
+        index: usize,
+        price: u32,
+        timestamp: i64,
+    ) -> bool {
+        if index >= BUYBACK_SLOT_COUNT {
+            return false;
+        }
+        self.buyback_price[index] = price;
+        self.buyback_timestamp[index] = timestamp;
+        true
+    }
+
     pub const fn buyback_price(&self) -> &[u32; BUYBACK_SLOT_COUNT] {
         &self.buyback_price
     }
