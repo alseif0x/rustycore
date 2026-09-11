@@ -9,6 +9,13 @@ use super::*;
 use crate::PlayerTeleportStateLikeCpp;
 
 impl Player {
+    /// C++ `WorldObject::m_liquidStatus` (Object.h:790), which
+    /// `WorldObject::ProcessPositionDataChanged` assigns from the freshly
+    /// queried position data (Object.cpp:1014).
+    pub fn set_liquid_status_like_cpp(&mut self, status: u32) {
+        self.gameplay_state_mut().liquid_status = status;
+    }
+
     pub fn bind_session(&mut self, session_id: Option<u64>) {
         self.session_id = session_id;
     }
