@@ -11049,7 +11049,7 @@ impl WorldSession {
     pub(crate) fn set_championing_faction_like_cpp(&mut self, faction_id: u32) {
         let _canonical = self
             .with_owned_player_mut_like_cpp(|player| {
-                player.gameplay_state_mut().championing_faction_id = faction_id;
+                player.set_championing_faction_like_cpp(faction_id);
             })
             .is_some();
         #[cfg(test)]
