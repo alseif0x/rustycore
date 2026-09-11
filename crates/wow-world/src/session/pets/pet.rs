@@ -20,7 +20,7 @@ impl WorldSession {
     ) -> bool {
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| {
-                player.gameplay_state_mut().pet_guid = pet_guid;
+                player.set_pet_guid_like_cpp(pet_guid);
             })
             .is_some();
         #[cfg(test)]

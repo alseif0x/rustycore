@@ -381,10 +381,14 @@ impl WorldSession {
             .map(player_cuf_profile_from_packet_like_cpp)
             .collect::<Vec<_>>();
         let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            let state = player.gameplay_state_mut();
-            state.cuf_profiles = vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
+            // C++ `WorldSession::HandleSaveCUFProfiles` saves the sent slots
+            // and then empties the rest (MiscHandler.cpp:1115-1119).
+            let sent = profiles.len();
             for (slot, profile) in profiles.into_iter().enumerate() {
-                state.cuf_profiles[slot] = Some(profile);
+                player.save_cuf_profile_like_cpp(slot, Some(profile));
+            }
+            for slot in sent..wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP {
+                player.save_cuf_profile_like_cpp(slot, None);
             }
         });
         if canonical.is_some() {

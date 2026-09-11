@@ -286,8 +286,7 @@ impl WorldSession {
     ) -> bool {
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| {
-                let rewarded = &mut player.gameplay_state_mut().quest_rewarded_talent_points;
-                *rewarded = rewarded.saturating_add(points);
+                player.add_quest_rewarded_talent_points_like_cpp(points);
             })
             .is_some();
         if canonical {

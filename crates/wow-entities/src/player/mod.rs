@@ -29,6 +29,7 @@ mod load_hydration;
 mod recent_instances;
 mod resurrection;
 mod save_ack;
+mod scalar_transitions;
 pub use save_ack::{PlayerSaveAcknowledgementLikeCpp, PlayerSavedGroupsLikeCpp};
 mod social;
 mod spellbook;

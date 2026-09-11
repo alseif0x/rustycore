@@ -213,7 +213,7 @@ impl WorldSession {
     pub(crate) fn set_represented_using_pvp_item_levels_like_cpp(&mut self, active: bool) -> bool {
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| {
-                player.gameplay_state_mut().using_pvp_item_levels = active
+                player.activate_pvp_item_levels_like_cpp(active)
             })
             .is_some();
         if canonical {
