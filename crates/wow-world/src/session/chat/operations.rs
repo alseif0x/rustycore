@@ -19,37 +19,55 @@ impl WorldSession {
             return false;
         }
 
-        let (active_flag, other_flag, default_text) = match mode {
-            PlayerAwayModeLikeCpp::Afk => (
-                PLAYER_FLAGS_AFK_LIKE_CPP,
-                PLAYER_FLAGS_DND_LIKE_CPP,
-                "Away from Keyboard",
-            ),
-            PlayerAwayModeLikeCpp::Dnd => (
-                PLAYER_FLAGS_DND_LIKE_CPP,
-                PLAYER_FLAGS_AFK_LIKE_CPP,
-                "Do not Disturb",
-            ),
+        let default_text = match mode {
+            PlayerAwayModeLikeCpp::Afk => "Away from Keyboard",
+            PlayerAwayModeLikeCpp::Dnd => "Do not Disturb",
         };
 
+        // C++ `WorldSession::HandleChatMessageAFKOpcode` (ChatHandler.cpp:594)
+        // and its DND twin (:640) compose two Player transitions in this exact
+        // order: assign the auto-reply message, clear the opposite mode, then
+        // toggle this one. The session adapts the packet; the Player owns both
+        // steps.
+        //
+        // Unimplemented participant: Classic then notifies the guild through
+        // `Guild::SendEventAwayChanged`.
         self.mutate_canonical_player_like_cpp(move |player| {
-            if player.has_player_flag(active_flag) {
+            let already_active = match mode {
+                PlayerAwayModeLikeCpp::Afk => player.is_afk_like_cpp(),
+                PlayerAwayModeLikeCpp::Dnd => player.is_dnd_like_cpp(),
+            };
+            if already_active {
                 if text.is_empty() {
-                    player.remove_player_flag(active_flag);
+                    match mode {
+                        PlayerAwayModeLikeCpp::Afk => player.toggle_afk_like_cpp(),
+                        PlayerAwayModeLikeCpp::Dnd => player.toggle_dnd_like_cpp(),
+                    }
                 } else {
-                    player.gameplay_state_mut().social.auto_reply_msg_like_cpp = text;
+                    player.set_auto_reply_message_like_cpp(text);
                 }
                 return;
             }
-            if player.has_player_flag(other_flag) {
-                player.remove_player_flag(other_flag);
-            }
-            player.set_player_flag(active_flag);
-            player.gameplay_state_mut().social.auto_reply_msg_like_cpp = if text.is_empty() {
+
+            player.set_auto_reply_message_like_cpp(if text.is_empty() {
                 default_text.to_string()
             } else {
                 text
-            };
+            });
+            match mode {
+                PlayerAwayModeLikeCpp::Afk => {
+                    if player.is_dnd_like_cpp() {
+                        player.toggle_dnd_like_cpp();
+                    }
+                    player.toggle_afk_like_cpp();
+                }
+                PlayerAwayModeLikeCpp::Dnd => {
+                    if player.is_afk_like_cpp() {
+                        player.toggle_afk_like_cpp();
+                    }
+                    player.toggle_dnd_like_cpp();
+                }
+            }
         })
         .is_some()
     }
