@@ -38,6 +38,9 @@ pub(crate) enum SessionDriverPhaseLikeCpp {
     FlushPacketSpoofBan,
     /// Drain the Session mailbox in FIFO order.
     SessionCommands,
+    /// Converge the owned group snapshot on `GroupRegistry` when the group
+    /// authority could not hand this session a state change (#743).
+    ReconcileGroupState,
     /// Settle queued creature kills, loot and rewards.
     CreatureKills,
     /// Logged-in gameplay follow-ups (loot rolls, GameObject, spell casts).

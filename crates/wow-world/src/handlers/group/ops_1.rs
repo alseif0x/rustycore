@@ -435,7 +435,7 @@ impl WorldSession {
                 persistence,
             } => {
                 if let Some(leader) = leader.as_ref() {
-                    let _ = registry.try_send_current_command(
+                    let _ = registry.deliver_group_state_command_like_cpp(
                         leader.registration,
                         SessionCommand::ApplyGroupJoinLikeCpp(ApplyGroupJoinLikeCppCommand {
                             group_guid: group.group_guid,
@@ -445,6 +445,12 @@ impl WorldSession {
                             refresh_visible_gameobjects_or_spellclicks: false,
                         }),
                     );
+                } else {
+                    // The leader is connected but not resolvable this instant
+                    // (transfer, detached residence). C++ installs the group on
+                    // the leader inside the same operation, so the obligation is
+                    // recorded rather than dropped (#743).
+                    registry.mark_group_state_reconciliation_like_cpp(invite.leader_guid);
                 }
                 (group, persistence, false)
             }
@@ -630,10 +636,14 @@ impl WorldSession {
             refresh_visible_gameobjects_or_spellclicks: true,
         };
         if let Some(target) = registry.group_presence(uninvite.target_guid) {
-            let _ = registry.try_send_current_command(
+            let _ = registry.deliver_group_state_command_like_cpp(
                 target.registration,
                 SessionCommand::ApplyGroupRemovalLikeCpp(cleanup_command),
             );
+        } else {
+            // C++ `Group::RemoveMember` clears `Player::m_group` on the target
+            // itself; an unresolvable target keeps the obligation (#743).
+            registry.mark_group_state_reconciliation_like_cpp(uninvite.target_guid);
         }
 
         if should_disband {
@@ -779,10 +789,14 @@ impl WorldSession {
                         send_group_uninvite: false,
                         refresh_visible_gameobjects_or_spellclicks: true,
                     };
-                    let _ = registry.try_send_current_command(
+                    let _ = registry.deliver_group_state_command_like_cpp(
                         last.registration,
                         SessionCommand::ApplyGroupRemovalLikeCpp(command),
                     );
+                } else {
+                    // C++ `Group::Disband` clears every connected member's
+                    // group in the same operation (#743).
+                    registry.mark_group_state_reconciliation_like_cpp(last_guid);
                 }
             }
             // Tell self to leave.

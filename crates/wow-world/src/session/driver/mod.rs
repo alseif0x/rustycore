@@ -222,6 +222,11 @@ impl WorldSession {
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::SessionCommands);
         self.process_represented_session_commands_with_catalogs_like_cpp(catalogs)
             .await;
+        // #743: a group state change the authority could not hand to this
+        // session is applied here, after the mailbox drain that would have
+        // carried it, so a delivered command is never applied twice.
+        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::ReconcileGroupState);
+        self.reconcile_group_state_like_cpp();
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::CreatureKills);
         self.process_pending_creature_kills_with_generator_like_cpp(
             catalogs.id_generators.item.as_ref(),
