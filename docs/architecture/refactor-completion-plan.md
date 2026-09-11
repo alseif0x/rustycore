@@ -443,7 +443,7 @@ El perfil de publicación `final` sigue siendo obligatorio antes de un push auto
 empujada y el PR es [#717](https://github.com/alseif0x/rustycore/pull/717).
 Su integración sigue pendiente de revisión.
 
-**P1 en curso en [#718](https://github.com/alseif0x/rustycore/issues/718).**
+**P1 aceptada localmente en [#718](https://github.com/alseif0x/rustycore/issues/718).**
 El contrato completo de la operación quedó contrastado contra
 `Player::RewardQuest` (Player.cpp:14625) y su `SaveToDB(false)` de cierre
 (Player.cpp:14867), y está documentado en
