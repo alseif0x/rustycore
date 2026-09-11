@@ -19,6 +19,7 @@ mod menu;
 mod movement_control;
 mod pet_lifecycle;
 mod progression;
+mod pvp;
 pub use progression::PreparedPlayerSpellAcquisitionLikeCpp;
 mod resurrection;
 mod save_ack;

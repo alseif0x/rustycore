@@ -76,21 +76,13 @@ impl WorldSession {
         state: bool,
         override_state: bool,
     ) {
-        let end_timer = if !state || override_state {
-            None
-        } else {
-            Some(wow_entities::game_time_secs_like_cpp())
-        };
+        // C++ `Player::UpdatePvP` (Player.cpp:22663) is a Player transition:
+        // the flag and the timer move together and this session only asks for
+        // it.
+        let now_secs = wow_entities::game_time_secs_like_cpp();
         #[cfg_attr(not(test), allow(unused_mut))]
         let mut mutated = self.with_owned_player_mut_like_cpp(|player| {
-            player.gameplay_state_mut().world_local.pvp_end_timer = end_timer;
-            if state {
-                player.unit_mut().set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
-            } else {
-                player
-                    .unit_mut()
-                    .remove_pvp_flag_like_cpp(UnitPvpFlags::PVP);
-            }
+            player.update_pvp_like_cpp(state, now_secs, override_state);
         });
         #[cfg(test)]
         if mutated.is_none()
@@ -98,19 +90,16 @@ impl WorldSession {
             && let Some(guid) = self.player_guid()
         {
             mutated = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
-                player.gameplay_state_mut().world_local.pvp_end_timer = end_timer;
-                if state {
-                    player.unit_mut().set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
-                } else {
-                    player
-                        .unit_mut()
-                        .remove_pvp_flag_like_cpp(UnitPvpFlags::PVP);
-                }
+                player.update_pvp_like_cpp(state, now_secs, override_state);
             });
         }
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            self.player_pvp_end_timer_like_cpp = end_timer;
+            self.player_pvp_end_timer_like_cpp = if !state || override_state {
+                None
+            } else {
+                Some(now_secs)
+            };
             self.player_pvp_enabled_like_cpp = state;
         }
         let _ = mutated;
@@ -138,14 +127,12 @@ impl WorldSession {
         if end_timer <= curr_time {
             #[cfg_attr(not(test), allow(unused_mut))]
             let mut mutated = self.with_owned_player_mut_like_cpp(|player| {
-                player.gameplay_state_mut().world_local.pvp_end_timer = None;
-                player.remove_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
+                player.expire_pvp_timer_like_cpp();
             });
             #[cfg(test)]
             if mutated.is_none() && self.player_handle_like_cpp.is_none() {
                 mutated = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
-                    player.gameplay_state_mut().world_local.pvp_end_timer = None;
-                    player.remove_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
+                    player.expire_pvp_timer_like_cpp();
                 });
             }
             #[cfg(test)]
@@ -409,20 +396,12 @@ impl WorldSession {
 
         #[cfg_attr(not(test), allow(unused_mut))]
         let mut mutated = self.with_owned_player_mut_like_cpp(|player| {
-            player
-                .unit_mut()
-                .clear_unit_state(UnitState::ATTACK_PLAYER.bits());
-            player.remove_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP);
-            player.gameplay_state_mut().world_local.contested_pvp_timer = 0;
+            player.clear_contested_pvp_like_cpp();
         });
         #[cfg(test)]
         if mutated.is_none() && self.player_handle_like_cpp.is_none() {
             mutated = self.mutate_canonical_player_by_guid_like_cpp(_guid, |player| {
-                player
-                    .unit_mut()
-                    .clear_unit_state(UnitState::ATTACK_PLAYER.bits());
-                player.remove_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP);
-                player.gameplay_state_mut().world_local.contested_pvp_timer = 0;
+                player.clear_contested_pvp_like_cpp();
             });
             self.player_contested_pvp_timer_like_cpp = 0;
         }
