@@ -421,6 +421,21 @@ mod talent_point_tests {
 }
 
 impl Player {
+    /// C++ `Unit::SetLevel` (Unit.h:735) together with the gray level C++
+    /// derives on demand from `Trinity::XP::GetGrayLevel` (Formulas.h:67) and
+    /// RustyCore caches on the Player it describes. Both move as one step so
+    /// the cache can never describe a level the Player no longer has.
+    pub fn set_level_and_gray_level_like_cpp(&mut self, level: u8, gray_level: u8) {
+        self.unit_mut().set_level(level);
+        self.gameplay_state_mut().gray_level = gray_level;
+    }
+
+    /// The cached `Trinity::XP::GetGrayLevel` (Formulas.h:67) result alone, for
+    /// the initial construction where the level is already installed.
+    pub fn set_gray_level_like_cpp(&mut self, gray_level: u8) {
+        self.gameplay_state_mut().gray_level = gray_level;
+    }
+
     /// Install the immutable process-owned `player_xp_for_level` view used by
     /// C++ `Player::GiveLevel`. The canonical Player retains only the shared
     /// read handle, so active and far-teleport-detached residence use the same
