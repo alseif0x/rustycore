@@ -23,12 +23,12 @@ fn talent_tab_validation_uses_the_supplied_catalog_for_active_and_detached_playe
         let before = session
             .player_talent_runtime_snapshot_like_cpp()
             .unwrap()
-            .talent_groups;
+            .talent_groups_snapshot_like_cpp();
         assert!(!session.load_represented_talent_row_like_cpp(&absent, 101, 2, 1));
         let after = session
             .player_talent_runtime_snapshot_like_cpp()
             .unwrap()
-            .talent_groups;
+            .talent_groups_snapshot_like_cpp();
         assert_eq!(after, before);
         assert_eq!(after[0].get(&101), Some(&2));
         assert!(!after[1].contains_key(&101));

@@ -28,8 +28,8 @@ fn glyph_load_uses_supplied_catalog_for_active_and_detached_canonical_player() {
         assert!(!session.load_represented_glyph_row_like_cpp(&missing, 0, 0, 999));
         assert!(!session.load_represented_glyph_row_like_cpp(&missing, 0, 1, 123));
         let runtime = session.player_talent_runtime_snapshot_like_cpp().unwrap();
-        assert_eq!(runtime.glyph_groups[0][0], 123);
-        assert_eq!(runtime.glyph_groups[0][1], 0);
+        assert_eq!(runtime.glyph_like_cpp(0, 0).unwrap(), 123);
+        assert_eq!(runtime.glyph_like_cpp(0, 1).unwrap(), 0);
         assert_eq!(
             Arc::strong_count(&catalog),
             references,
@@ -41,7 +41,8 @@ fn glyph_load_uses_supplied_catalog_for_active_and_detached_canonical_player() {
             session
                 .player_talent_runtime_snapshot_like_cpp()
                 .unwrap()
-                .glyph_groups[0][0],
+                .glyph_like_cpp(0, 0)
+                .unwrap(),
             0
         );
     }

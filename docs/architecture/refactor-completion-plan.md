@@ -276,6 +276,37 @@ Aceptación local ejecutada en este árbol: pruebas de `wow-entities` (735),
 validación final registrados en la issue y en `STATE.md`. No se ejecuta QA viva ni
 evidencia de DB/reinicio para esta entrega.
 
+#### Entrega local aceptada — #752
+
+Tercera macro P2 seleccionada por evidencia tras #735: el runtime de talentos tenía
+la misma forma —campos públicos y un cierre genérico que entregaba `&mut` al
+llamador— con doce consumidores de producción.
+
+- Estado y sus invariantes en el Player:
+  `crates/wow-entities/src/player/talent_runtime.rs` posee
+  `PlayerTalentRuntimeState` con campos privados y las transiciones que C++ hace
+  sobre `_talents`/`_specializationInfo`: `Player::AddTalent` (`Player.cpp:2644`),
+  `SetGlyph` (`:25477`), la toma de grupo de `ActivateTalentGroup` (`:26894`),
+  `ResetTalents` (`:3505`) y las banderas de hidratación de `_LoadTalents`
+  (`:26623`) y `_LoadGlyphs` (`:26573`). Cada operación acota su índice de grupo y
+  su ranura de glifo; un grupo fuera de rango se rechaza en vez de entrar en pánico
+  y el grupo activo se recorta a la última especialización.
+- Frontera retirada: `mutate_player_talent_runtime_like_cpp` deja de ser alcanzable
+  desde otros módulos. `session/persistence/load.rs` y `session/persistence/commit.rs`
+  llaman transiciones con nombre (instalar una fila de talento cargada, instalar un
+  glifo cargado, marcar talentos/glifos cargados, instalar los grupos que deja un
+  reset). El cierre queda privado al módulo propietario, con un gancho `cfg(test)`
+  para las regresiones de despacho activo/detached/reemplazo.
+- Reglas que no se movieron: catálogos, efectos de hechizo y aura, derivación de
+  puntos de talento y construcción de paquetes siguen en `wow-world`.
+- Límite registrado: C++ guarda `{State, Rank}` por fila de talento y la
+  representación Rust solo guarda el rango. Esa diferencia es una frontera
+  representada previa; esta entrega no la introduce ni la cierra.
+
+Aceptación local: `wow-entities` (745) y `wow-world` (3.842) en verde, once
+regresiones nuevas de invariantes, controles de arquitectura y ownership con delta
+de inventario revisado. Sin QA viva ni evidencia de DB/reinicio.
+
 ### 4.3 Residuales P2 y paso a P3/P4
 
 Después de #743 y #735 se retiran los accesos genéricos operación por operación. El

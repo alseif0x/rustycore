@@ -54,6 +54,16 @@ and `need_save` still independent. The delivered contract is in
 [the refactor completion plan](../architecture/refactor-completion-plan.md). **No live
 runtime, capture or DB/restart/relogin evidence exists for this delivery.**
 
+**Talent encapsulation is locally accepted — 2026-09-11, #752:** the canonical Player
+owns `PlayerTalentRuntimeState` with private fields and the named transitions C++
+performs on `_talents`/`_specializationInfo`, each bounding its group index and glyph
+slot. The session's generic talent-runtime closure is private to its owner module:
+persistence load and the talent-reset COMMIT call named transitions instead. The
+catalog, spell/aura and packet work stayed in `wow-world`. C++'s per-row talent
+`State` remains unrepresented in Rust; that is a pre-existing boundary this delivery
+records rather than changes. **No live runtime, capture or DB/restart/relogin
+evidence exists for this delivery.**
+
 The remaining P2 operations then lead into P3 runtime/lifetime/private-hecs and P4
 semantic/physical work under #584.
 

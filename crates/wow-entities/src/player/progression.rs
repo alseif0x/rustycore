@@ -149,7 +149,7 @@ impl PlayerTalentRuntimeState {
     /// this is a read of this Player's reset history, not a Session policy.
     pub fn next_reset_talents_cost_like_cpp(&self, now_secs: u64) -> u32 {
         let gold = 10_000;
-        let reset_cost = self.reset_talents_cost;
+        let reset_cost = self.reset_talents_cost_like_cpp();
         if reset_cost < gold {
             return gold;
         }
@@ -160,7 +160,8 @@ impl PlayerTalentRuntimeState {
             return 10 * gold;
         }
 
-        let months = now_secs.saturating_sub(self.reset_talents_time_secs) / (30 * 24 * 60 * 60);
+        let months =
+            now_secs.saturating_sub(self.reset_talents_time_secs_like_cpp()) / (30 * 24 * 60 * 60);
         if months > 0 {
             let reduced = i64::from(reset_cost)
                 - i64::try_from(5 * u64::from(gold) * months).unwrap_or(i64::MAX);
@@ -345,11 +346,8 @@ mod talent_point_tests {
             (100_000, now + 1, 150_000),
             (u32::MAX, now, 500_000),
         ] {
-            let state = PlayerTalentRuntimeState {
-                reset_talents_cost: cost,
-                reset_talents_time_secs: stamp,
-                ..Default::default()
-            };
+            let mut state = PlayerTalentRuntimeState::default();
+            state.set_reset_talents_state_like_cpp(cost, stamp);
             let before = state.clone();
             assert_eq!(
                 state.next_reset_talents_cost_like_cpp(now),
@@ -363,10 +361,22 @@ mod talent_point_tests {
     #[test]
     fn refresh_counts_only_valid_active_talents_and_marks_the_same_update_field() {
         let mut player = Player::new(None, false);
-        player.gameplay_state_mut().talents.active_group = 1;
-        player.gameplay_state_mut().talents.talent_groups[0].insert(10, 8);
-        player.gameplay_state_mut().talents.talent_groups[1].insert(20, 2);
-        player.gameplay_state_mut().talents.talent_groups[1].insert(30, 1);
+        player
+            .gameplay_state_mut()
+            .talents
+            .set_active_group_like_cpp(1);
+        player
+            .gameplay_state_mut()
+            .talents
+            .add_talent_like_cpp(0, 10, 8);
+        player
+            .gameplay_state_mut()
+            .talents
+            .add_talent_like_cpp(1, 20, 2);
+        player
+            .gameplay_state_mut()
+            .talents
+            .add_talent_like_cpp(1, 30, 1);
         player.gameplay_state_mut().quest_rewarded_talent_points = 5;
         let before = player.talent_runtime_like_cpp().clone();
         player.clear_data_changes();
@@ -400,12 +410,21 @@ mod talent_point_tests {
     #[test]
     fn refresh_preserves_empty_group_saturation_and_signed_field_bounds() {
         let mut player = Player::new(None, false);
-        player.gameplay_state_mut().talents.talent_groups[0].insert(20, 2);
+        player
+            .gameplay_state_mut()
+            .talents
+            .add_talent_like_cpp(0, 20, 2);
         assert_eq!(
             player.refresh_represented_talent_points_like_cpp(2, |_, _| true),
             0
         );
-        player.gameplay_state_mut().talents.active_group = u8::MAX;
+        // #752: the owner clamps an out-of-range group to the last
+        // specialization, which C++ never addresses past either. That group
+        // still holds no talents, so the count saturates the same way.
+        player
+            .gameplay_state_mut()
+            .talents
+            .set_active_group_like_cpp(u8::MAX);
         assert_eq!(
             player.refresh_represented_talent_points_like_cpp(7, |_, _| {
                 panic!("invalid group has no talents to validate")
@@ -526,8 +545,7 @@ impl Player {
     ) -> i32 {
         let runtime = self.talent_runtime_like_cpp();
         let spent: u32 = runtime
-            .talent_groups
-            .get(usize::from(runtime.active_group))
+            .talent_group_like_cpp(runtime.active_group_like_cpp())
             .into_iter()
             .flat_map(|talents| talents.iter())
             .filter(|(talent_id, rank)| valid_talent(**talent_id, **rank))

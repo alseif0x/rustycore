@@ -85,8 +85,7 @@ impl WorldSession {
             .player_talent_runtime_snapshot_like_cpp()
             .and_then(|runtime| {
                 runtime
-                    .talent_groups
-                    .get(usize::from(talent_group))
+                    .talent_group_like_cpp(talent_group)
                     .and_then(|talents| talents.get(&talent_id).copied())
             });
 
