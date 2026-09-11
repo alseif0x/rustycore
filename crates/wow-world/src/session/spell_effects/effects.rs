@@ -307,9 +307,7 @@ impl WorldSession {
         homebind: RepresentedHomebindLikeCpp,
     ) -> bool {
         let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.gameplay_state_mut().homebind = Some(homebind)
-            })
+            .with_owned_player_mut_like_cpp(|player| player.set_homebind_like_cpp(homebind))
             .is_some();
         if canonical {
             return true;
