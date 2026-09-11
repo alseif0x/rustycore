@@ -27,6 +27,15 @@ impl Player {
         self.gameplay_state_mut().cuf_profiles_loaded = true;
     }
 
+    /// Reset the Player's CUF profiles to the constructed state: C++ empties
+    /// every slot in the Player constructor (Player.cpp:342), and the load
+    /// marker goes back to unloaded with them.
+    pub fn reset_cuf_profiles_like_cpp(&mut self) {
+        let state = self.gameplay_state_mut();
+        state.cuf_profiles = vec![None; MAX_CUF_PROFILES_LIKE_CPP];
+        state.cuf_profiles_loaded = false;
+    }
+
     /// C++ `Player::SaveCUFProfile` (Player.h:1635): replace the profile at
     /// position 0-4, `None` for the overload that empties it (Player.h:1634).
     /// Returns whether the index is one of the five slots.

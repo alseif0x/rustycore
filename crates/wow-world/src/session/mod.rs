@@ -10419,7 +10419,7 @@ impl WorldSession {
     ) -> bool {
         let canonical = self
             .mutate_canonical_player_like_cpp(|player| {
-                player.gameplay_state_mut().collections = state.clone();
+                player.install_collection_state_like_cpp(state.clone());
             })
             .is_some();
         #[cfg(test)]
@@ -13393,7 +13393,7 @@ impl WorldSession {
     ) -> bool {
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| {
-                player.gameplay_state_mut().currencies = currencies.clone();
+                player.install_currencies_like_cpp(currencies.clone());
             })
             .is_some();
         #[cfg(test)]
@@ -16167,9 +16167,7 @@ impl WorldSession {
 
     pub(crate) fn clear_represented_cuf_profiles_like_cpp(&mut self) {
         let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            let state = player.gameplay_state_mut();
-            state.cuf_profiles = vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
-            state.cuf_profiles_loaded = false;
+            player.reset_cuf_profiles_like_cpp();
         });
         if canonical.is_some() {
             return;
@@ -16246,15 +16244,7 @@ impl WorldSession {
 
     fn set_represented_can_swim_to_fly_transition_like_cpp(&mut self, enable: bool) -> bool {
         let canonical_changed = self.with_owned_player_mut_like_cpp(|player| {
-            let value = &mut player
-                .gameplay_state_mut()
-                .movement_control
-                .can_swim_to_fly_transition;
-            if *value == enable {
-                return false;
-            }
-            *value = enable;
-            true
+            player.set_can_transition_between_swim_and_fly_like_cpp(enable)
         });
         #[cfg(test)]
         let changed = canonical_changed.unwrap_or_else(|| {
