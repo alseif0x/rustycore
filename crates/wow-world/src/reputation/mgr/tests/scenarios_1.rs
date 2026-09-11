@@ -9,7 +9,7 @@ fn faction_state_defaults_match_cpp_initialize_shape() {
     let flags = ReputationFlagsLikeCpp::VISIBLE | ReputationFlagsLikeCpp::AT_WAR;
     let state = FactionStateLikeCpp::new_like_cpp(72, 4, flags);
 
-    assert_eq!(state.id, 72);
+    assert_eq!(state.faction_id, 72);
     assert_eq!(state.reputation_list_id, 4);
     assert_eq!(state.standing, 0);
     assert_eq!(state.visual_standing_increase, 0);
@@ -22,8 +22,8 @@ fn faction_state_defaults_match_cpp_initialize_shape() {
 fn reputation_mgr_initial_state_matches_cpp_constructor_shape() {
     let mgr = ReputationMgrLikeCpp::new_like_cpp();
 
-    assert!(mgr.factions().is_empty());
-    assert!(mgr.forced_reactions().is_empty());
+    assert_eq!(mgr.factions().count(), 0);
+    assert_eq!(mgr.forced_reactions().count(), 0);
     assert_eq!(
         mgr.rank_counters(),
         ReputationRankCountersLikeCpp::default()
@@ -67,7 +67,7 @@ fn set_faction_standing_packet_like_cpp_matches_send_state_order_and_clears_flag
     secondary.visual_standing_increase = 25;
     secondary.need_send = true;
     mgr.insert_state_for_test_like_cpp(secondary);
-    mgr.send_faction_increased = true;
+    mgr.set_send_faction_increased_like_cpp(true);
 
     let packet = mgr.set_faction_standing_packet_like_cpp(Some(4));
 
@@ -128,10 +128,13 @@ fn reputation_mgr_uses_replist_ordered_faction_state_map_like_cpp() {
         ReputationFlagsLikeCpp::HIDDEN,
     ));
 
-    let keys: Vec<_> = mgr.factions().keys().copied().collect();
+    let keys: Vec<_> = mgr
+        .factions()
+        .map(|state| state.reputation_list_id)
+        .collect();
     assert_eq!(keys, vec![1, 3]);
-    assert_eq!(mgr.get_state(1).map(|state| state.id), Some(11));
-    assert_eq!(mgr.get_state(3).map(|state| state.id), Some(10));
+    assert_eq!(mgr.get_state(1).map(|state| state.faction_id), Some(11));
+    assert_eq!(mgr.get_state(3).map(|state| state.faction_id), Some(10));
 }
 
 #[test]
@@ -140,18 +143,18 @@ fn apply_force_reaction_insert_and_erase_matches_cpp_map_behavior() {
 
     mgr.apply_force_reaction_like_cpp(72, ReputationRankLikeCpp::Hostile, true);
     assert_eq!(
-        mgr.forced_reactions().get(&72),
-        Some(&ReputationRankLikeCpp::Hostile)
+        mgr.forced_rank_by_faction_id_like_cpp(72),
+        Some(ReputationRankLikeCpp::Hostile)
     );
 
     mgr.apply_force_reaction_like_cpp(72, ReputationRankLikeCpp::Friendly, true);
     assert_eq!(
-        mgr.forced_reactions().get(&72),
-        Some(&ReputationRankLikeCpp::Friendly)
+        mgr.forced_rank_by_faction_id_like_cpp(72),
+        Some(ReputationRankLikeCpp::Friendly)
     );
 
     mgr.apply_force_reaction_like_cpp(72, ReputationRankLikeCpp::Friendly, false);
-    assert!(!mgr.forced_reactions().contains_key(&72));
+    assert!(mgr.forced_rank_by_faction_id_like_cpp(72).is_none());
 }
 
 #[test]
@@ -165,7 +168,7 @@ fn initialize_like_cpp_creates_state_for_reputation_factions_only() {
 
     mgr.initialize_like_cpp(&faction_store, None, 1, 1);
 
-    assert_eq!(mgr.factions().len(), 1);
+    assert_eq!(mgr.factions().count(), 1);
     assert!(mgr.get_state(3).is_some());
     assert_eq!(mgr.rank_counters().visible, 1);
     assert!(!mgr.send_faction_increased());

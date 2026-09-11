@@ -390,20 +390,20 @@ fn player_registry_relation_snapshot_syncs_from_session_and_canonical_like_cpp()
     session.set_player_registry(Arc::clone(&player_registry));
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
     session.mutate_canonical_player_like_cpp(|player| {
-        player
-            .gameplay_state_mut()
-            .reputations
-            .push(wow_entities::PlayerReputationRecord {
+        player.reputation_mut_like_cpp().insert_faction_like_cpp(
+            wow_entities::PlayerFactionStateLikeCpp {
                 faction_id: 72,
                 standing: -6000,
-                flags: wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP,
+                flags: wow_constants::reputation::ReputationFlagsLikeCpp::AT_WAR,
                 ..Default::default()
-            });
-        player.set_forced_reputation_rank_like_cpp(87, true);
-        player.gameplay_state_mut().forced_reputation_ranks = vec![(
-            87,
-            wow_data::reputation::ReputationRankLikeCpp::Hostile.as_u8(),
-        )];
+            },
+        );
+        player
+            .reputation_mut_like_cpp()
+            .set_forced_reaction_like_cpp(
+                87,
+                Some(wow_data::reputation::ReputationRankLikeCpp::Hostile),
+            );
         player
             .unit_mut()
             .set_unit_flags2_like_cpp(UnitFlags2::IGNORE_REPUTATION);

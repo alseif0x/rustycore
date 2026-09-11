@@ -8,8 +8,8 @@ use crate::{
     PlayerBattlegroundState, PlayerCufProfile, PlayerCustomizationChoice,
     PlayerEquipmentSetLikeCpp, PlayerGroupState, PlayerGroupUpdateSequenceLikeCpp,
     PlayerGuildState, PlayerMailRecord, PlayerPersistentCapabilityStateLikeCpp,
-    PlayerQuestGameplayState, PlayerReputationRecord, PlayerRestState, PlayerSkillRecord,
-    PlayerSocialState, PlayerSpellChargeRecord, PlayerSpellCooldownRecord, PlayerSpellRuntimeState,
+    PlayerQuestGameplayState, PlayerRestState, PlayerSkillRecord, PlayerSocialState,
+    PlayerSpellChargeRecord, PlayerSpellCooldownRecord, PlayerSpellRuntimeState,
     PlayerTalentRuntimeState, PlayerTaxiState, PlayerTradeStateLikeCpp, PlayerTransportState,
     PlayerVoidStorageItemLikeCpp, PlayerWorldLocalState,
 };
@@ -55,11 +55,6 @@ pub struct PlayerGameplayState {
     /// C++ `Player::m_recentInstances`, keyed by map ID.
     pub recent_instances: HashMap<u32, u32>,
     pub pass_on_group_loot: bool,
-    pub forced_reputation_ranks: Vec<(u32, u8)>,
-    /// C++ `ReputationMgr` cached visible/honored/revered/exalted counters.
-    pub reputation_rank_counters: [u8; 4],
-    /// C++ `ReputationMgr::_sendFactionIncreased`.
-    pub send_faction_increased: bool,
     /// C++ `Player::m_ChampioningFaction`.
     pub championing_faction_id: u32,
     pub transport: Option<PlayerTransportState>,
@@ -109,7 +104,10 @@ pub struct PlayerGameplayState {
     /// C++ `Player::PlayerTalkClass` state. The network session services the
     /// menu, but its mutable interaction lifetime belongs to the Player.
     pub menu: PlayerMenuStateLikeCpp,
-    pub reputations: Vec<PlayerReputationRecord>,
+    /// C++ `Player::m_reputationMgr` (`Player.h:3116`): standings, forced
+    /// reactions, rank counters and the pending-increase flag, owned by the
+    /// Player for its whole lifetime (#735).
+    pub reputation: crate::PlayerReputationStateLikeCpp,
     pub achievements: Vec<PlayerAchievementRecord>,
     pub achievement_criteria: Vec<PlayerAchievementCriteriaRecord>,
     /// C++ `Player::_currencyStorage`, including its per-row persistence state.

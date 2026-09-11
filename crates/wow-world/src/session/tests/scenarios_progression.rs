@@ -357,9 +357,8 @@ fn canonical_player_reputation_follows_active_detached_and_stale_ownership_like_
         .create(player_guid);
     replacement.gameplay_state_mut().championing_faction_id = 999;
     replacement
-        .gameplay_state_mut()
-        .reputations
-        .push(wow_entities::PlayerReputationRecord {
+        .reputation_mut_like_cpp()
+        .insert_faction_like_cpp(wow_entities::PlayerFactionStateLikeCpp {
             faction_id: 999,
             reputation_list_id: 6,
             standing: 7_777,
@@ -382,12 +381,16 @@ fn canonical_player_reputation_follows_active_detached_and_stale_ownership_like_
             .with_player_like_cpp(replacement_handle, |player| {
                 (
                     player.gameplay_state().championing_faction_id,
-                    player.gameplay_state().reputations.clone(),
+                    player
+                        .reputation_like_cpp()
+                        .factions_like_cpp()
+                        .cloned()
+                        .collect::<Vec<_>>(),
                 )
             }),
         Some((
             999,
-            vec![wow_entities::PlayerReputationRecord {
+            vec![wow_entities::PlayerFactionStateLikeCpp {
                 faction_id: 999,
                 reputation_list_id: 6,
                 standing: 7_777,
@@ -495,8 +498,8 @@ fn first_login_start_all_reputation_applies_cpp_common_and_alliance_lists() {
         .chain(FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP.iter())
     {
         let faction = faction_store.get(*faction_id).expect("configured faction");
-        let state = session
-            .reputation_mgr_like_cpp()
+        let reputation = session.reputation_mgr_like_cpp();
+        let state = reputation
             .get_state(faction.reputation_index as u32)
             .expect("reputation state");
         assert_eq!(
@@ -572,6 +575,75 @@ fn first_login_start_all_reputation_is_config_gated_and_uses_horde_branch() {
         "Horde first login must not apply the Alliance-only branch"
     );
 }
+/// #735: a reputation transition writes through to the canonical Player.
+///
+/// C++ `ReputationMgr` mutates the members of the `Player` that owns it
+/// (`Player.h:3116`). The session manager therefore borrows that state: a
+/// mutation must be observable on the Player without any write-back step, and
+/// a read taken afterwards must see the same value.
+#[test]
+fn reputation_transition_writes_through_to_the_canonical_player_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_registry = Arc::new(PlayerRegistry::default());
+    let player_guid = ObjectGuid::create_player(1, 735);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.set_player_registry(Arc::clone(&player_registry));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "RepOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical world map");
+
+    let applied = session
+        .mutate_reputation_mgr_like_cpp(|manager| {
+            manager.insert_state_for_test_like_cpp(wow_entities::PlayerFactionStateLikeCpp {
+                faction_id: 72,
+                reputation_list_id: 4,
+                standing: 1_500,
+                need_save: true,
+                ..Default::default()
+            });
+            manager.set_send_faction_increased_like_cpp(true);
+        })
+        .is_some();
+    assert!(applied, "the canonical owner must accept the transition");
+
+    // Read the Player directly through its canonical owner handle: no
+    // projection, no write-back, no copy.
+    let handle = session.player_handle_like_cpp.expect("canonical handle");
+    let observed = canonical
+        .lock()
+        .unwrap()
+        .with_player_like_cpp(handle, |player| {
+            let reputation = player.reputation_like_cpp();
+            (
+                reputation
+                    .faction_like_cpp(4)
+                    .map(|state| (state.faction_id, state.standing, state.need_save)),
+                reputation.send_faction_increased_like_cpp(),
+            )
+        });
+    assert_eq!(observed, Some((Some((72, 1_500, true)), true)));
+
+    // A later read through the manager observes the same owned state.
+    assert_eq!(
+        session.with_reputation_mgr_like_cpp(|manager| manager
+            .get_state(4)
+            .map(|state| state.standing)),
+        Some(Some(1_500))
+    );
+}
 #[test]
 fn player_registry_reputation_snapshot_syncs_from_canonical_player_like_cpp() {
     let (mut session, _, _) = make_session();
@@ -587,15 +659,13 @@ fn player_registry_reputation_snapshot_syncs_from_canonical_player_like_cpp() {
     session.set_player_registry(Arc::clone(&player_registry));
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
     session.mutate_canonical_player_like_cpp(|player| {
-        player
-            .gameplay_state_mut()
-            .reputations
-            .push(wow_entities::PlayerReputationRecord {
+        player.reputation_mut_like_cpp().insert_faction_like_cpp(
+            wow_entities::PlayerFactionStateLikeCpp {
                 faction_id: 72,
                 standing: 1234,
-                flags: 0,
                 ..Default::default()
-            });
+            },
+        );
     });
 
     session.register_in_player_registry();
@@ -632,11 +702,10 @@ fn represented_faction_reaction_static_branch_uses_player_reputation_and_at_war_
             faction_template_entry(2, 930, 0, 0, 0),
         ]),
     ));
-    let state = session
-        .reputation_mgr_like_cpp_mut()
-        .get_state_mut(1)
-        .unwrap();
+    let mut reputation = session.reputation_mgr_like_cpp_mut();
+    let state = reputation.get_state_mut(1).unwrap();
     state.standing = 3_500;
+    drop(reputation);
 
     let input = RepresentedFactionReactionInputLikeCpp {
         source_faction_template_id: 1,

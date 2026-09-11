@@ -40,11 +40,22 @@ relocation. **No live runtime, capture or DB/restart/relogin evidence exists for
 delivery**; queue saturation is exercised on the real bounded channel in the session
 composition, not on a running server.
 
-**#735** is the next recommended core macro — an ordering preference, not a hard dependency: keep
-canonical reputation state and invariants with Player, resolve catalogs outside the entity
-boundary, keep packet adaptation outside it, preserve send flags/save acknowledgement, and
-migrate load/login/reward/spell/kill/save consumers. The remaining P2 operations then lead
-into P3 runtime/lifetime/private-hecs and P4 semantic/physical work under #584.
+**Reputation encapsulation is locally accepted — 2026-09-11, #735:** the canonical Player
+owns `PlayerReputationStateLikeCpp`, the equivalent of C++ `Player::m_reputationMgr`
+(`Player.h:3116`), together with the state-changing invariants that need no catalog.
+`ReputationMgrLikeCpp` became a borrow of that state, so the per-operation reconstruction
+and the whole-aggregate write-back through `gameplay_state_mut()` are removed from the tree
+rather than renamed; catalog resolution, rank/spillover rules and packet construction stayed
+in `wow-world`, and the shared value types moved to `wow-constants` with a
+`wow_data::reputation` re-export so no forbidden dependency was added. Every recorded
+consumer migrated: load/hydration, login publication, reputation flags, quest rewards, spell
+effects, kill rewards, the save projection and the save acknowledgement, with `need_send`
+and `need_save` still independent. The delivered contract is in
+[the refactor completion plan](../architecture/refactor-completion-plan.md). **No live
+runtime, capture or DB/restart/relogin evidence exists for this delivery.**
+
+The remaining P2 operations then lead into P3 runtime/lifetime/private-hecs and P4
+semantic/physical work under #584.
 
 Finite hecs V2 conformance passed within its recorded laboratory limits. Production `hecs`
 and Wasmtime are not installed in this base. The dated six-clock trace and the 31 oversized

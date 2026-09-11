@@ -942,57 +942,64 @@ impl Player {
             .unwrap_or(0)
     }
 
+    /// C++ `ReputationMgr::ApplyForceReaction`: an existing forced rank keeps
+    /// its value; only the presence of the entry changes here.
     pub fn set_forced_reputation_rank_like_cpp(&mut self, faction_id: u32, forced: bool) {
+        let reputation = &mut self.gameplay_state.reputation;
         if forced {
-            if !self
-                .gameplay_state
-                .forced_reputation_ranks
-                .iter()
-                .any(|(id, _)| *id == faction_id)
-            {
-                self.gameplay_state
-                    .forced_reputation_ranks
-                    .push((faction_id, 0));
+            if reputation.forced_reaction_like_cpp(faction_id).is_none() {
+                reputation.set_forced_reaction_like_cpp(
+                    faction_id,
+                    Some(wow_constants::reputation::ReputationRankLikeCpp::Hated),
+                );
             }
         } else {
-            self.gameplay_state
-                .forced_reputation_ranks
-                .retain(|(id, _)| *id != faction_id);
+            reputation.set_forced_reaction_like_cpp(faction_id, None);
         }
     }
 
     pub fn has_forced_reputation_rank_like_cpp(&self, faction_id: u32) -> bool {
         self.gameplay_state
-            .forced_reputation_ranks
-            .iter()
-            .any(|(id, _)| *id == faction_id)
+            .reputation
+            .forced_reaction_like_cpp(faction_id)
+            .is_some()
     }
 
     pub fn forced_reputation_faction_ids_like_cpp(&self) -> impl Iterator<Item = u32> + '_ {
         self.gameplay_state
-            .forced_reputation_ranks
-            .iter()
-            .map(|(id, _)| *id)
+            .reputation
+            .forced_reactions_like_cpp()
+            .map(|(faction_id, _)| faction_id)
     }
 
     pub fn replace_forced_reputation_faction_ids_like_cpp(&mut self, faction_ids: HashSet<u32>) {
-        self.gameplay_state.forced_reputation_ranks =
-            faction_ids.into_iter().map(|id| (id, 0)).collect();
+        self.gameplay_state
+            .reputation
+            .replace_forced_reactions_like_cpp(faction_ids.into_iter().map(|faction_id| {
+                (
+                    faction_id,
+                    wow_constants::reputation::ReputationRankLikeCpp::Hated,
+                )
+            }));
     }
 
     pub fn is_at_war_with_faction_like_cpp(&self, faction_id: u32) -> bool {
         self.gameplay_state
-            .reputations
-            .iter()
-            .find(|rep| rep.faction_id == faction_id)
-            .is_some_and(|rep| rep.flags & REPUTATION_FLAG_AT_WAR_LIKE_CPP != 0)
+            .reputation
+            .factions_like_cpp()
+            .find(|state| state.faction_id == faction_id)
+            .is_some_and(|state| {
+                state
+                    .flags
+                    .contains(wow_constants::reputation::ReputationFlagsLikeCpp::AT_WAR)
+            })
     }
 
     pub fn has_reputation_state_like_cpp(&self, faction_id: u32) -> bool {
         self.gameplay_state
-            .reputations
-            .iter()
-            .any(|rep| rep.faction_id == faction_id)
+            .reputation
+            .factions_like_cpp()
+            .any(|state| state.faction_id == faction_id)
     }
 
     pub const fn shared_quest_id(&self) -> u32 {

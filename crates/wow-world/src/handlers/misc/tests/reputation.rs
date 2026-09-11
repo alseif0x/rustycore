@@ -42,10 +42,8 @@ async fn set_faction_at_war_handlers_mark_reputation_state_like_cpp() {
     at_war.write_uint16(4);
     session.handle_set_faction_at_war(at_war).await;
 
-    let state = session
-        .reputation_mgr_like_cpp()
-        .get_state(4)
-        .expect("reputation state");
+    let reputation = session.reputation_mgr_like_cpp();
+    let state = reputation.get_state(4).expect("reputation state");
     assert!(state.flags.contains(ReputationFlagsLikeCpp::AT_WAR));
     assert!(state.need_send);
     assert!(state.need_save);
@@ -56,10 +54,8 @@ async fn set_faction_at_war_handlers_mark_reputation_state_like_cpp() {
     not_at_war.write_uint16(4);
     session.handle_set_faction_not_at_war(not_at_war).await;
 
-    let state = session
-        .reputation_mgr_like_cpp()
-        .get_state(4)
-        .expect("reputation state");
+    let reputation = session.reputation_mgr_like_cpp();
+    let state = reputation.get_state(4).expect("reputation state");
     assert!(!state.flags.contains(ReputationFlagsLikeCpp::AT_WAR));
     assert!(state.need_send);
     assert!(state.need_save);
@@ -84,10 +80,8 @@ async fn set_faction_inactive_marks_visible_state_like_cpp() {
     pkt.flush_bits();
     session.handle_set_faction_inactive(pkt).await;
 
-    let state = session
-        .reputation_mgr_like_cpp()
-        .get_state(4)
-        .expect("reputation state");
+    let reputation = session.reputation_mgr_like_cpp();
+    let state = reputation.get_state(4).expect("reputation state");
     assert!(state.flags.contains(ReputationFlagsLikeCpp::INACTIVE));
     assert!(state.need_send);
     assert!(state.need_save);

@@ -1635,13 +1635,8 @@ impl PlayerRegistry {
                     (
                         player.unit().world().combat_reach(),
                         player
-                            .gameplay_state()
-                            .forced_reputation_ranks
-                            .iter()
-                            .filter_map(|(faction, rank)| {
-                                wow_data::reputation::ReputationRankLikeCpp::from_u8_like_cpp(*rank)
-                                    .map(|rank| (*faction, rank))
-                            })
+                            .reputation_like_cpp()
+                            .forced_reactions_like_cpp()
                             .collect(),
                         canonical_player_aggro_unit_state_like_cpp(player),
                     )

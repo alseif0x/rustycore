@@ -227,12 +227,7 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
             },
             ..Default::default()
         },
-        reputations: vec![PlayerReputationRecord {
-            faction_id: TEAM_ALLIANCE_ID,
-            standing: 4_200,
-            flags: 0x1,
-            ..Default::default()
-        }],
+        reputation: reputation::alliance_reputation_state_like_cpp(),
         achievements: vec![PlayerAchievementRecord {
             achievement_id: 6,
             completed_at: Some(1_700_000_070),
@@ -493,6 +488,8 @@ mod persistence;
 mod pet;
 #[path = "player_tests/quest.rs"]
 mod quest;
+#[path = "player_tests/reputation.rs"]
+mod reputation;
 #[path = "player_tests/skill.rs"]
 mod skill;
 #[path = "player_tests/spell.rs"]

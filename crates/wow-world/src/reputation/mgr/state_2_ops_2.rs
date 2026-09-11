@@ -5,7 +5,81 @@
 
 use super::*;
 
-impl ReputationMgrLikeCpp {
+impl<S: std::borrow::Borrow<PlayerReputationStateLikeCpp>> ReputationMgrLikeCpp<S> {
+    pub(super) fn get_reputation_rank_by_faction_id_like_cpp(
+        &self,
+        faction_id: u32,
+        faction_store: &FactionStore,
+        friendship_rep_reaction_store: Option<&FriendshipRepReactionStore>,
+        player_race: u8,
+        player_class: u8,
+    ) -> ReputationRankLikeCpp {
+        faction_store
+            .get(faction_id)
+            .map(|faction| {
+                let standing = self
+                    .get_state(faction.reputation_index as RepListIdLikeCpp)
+                    .map(|state| state.standing)
+                    .unwrap_or(0)
+                    + base_reputation_like_cpp(faction, player_race, player_class);
+                reputation_to_rank_like_cpp(faction, standing, friendship_rep_reaction_store)
+            })
+            .unwrap_or(ReputationRankLikeCpp::Neutral)
+    }
+    pub(super) fn can_gain_paragon_reputation_for_faction_like_cpp(
+        &self,
+        faction_entry: &FactionEntry,
+        faction_store: &FactionStore,
+        paragon_reputation_store: Option<&ParagonReputationStore>,
+        renown_current_level_like_cpp: i32,
+        renown_currency_increased_cap_quantity_like_cpp: u32,
+        currency_types_store: Option<&CurrencyTypesStore>,
+        player_race: u8,
+        player_class: u8,
+    ) -> bool {
+        if faction_store
+            .get(u32::from(faction_entry.paragon_faction_id))
+            .is_none()
+        {
+            return false;
+        }
+
+        let rank = self
+            .get_state(faction_entry.reputation_index as RepListIdLikeCpp)
+            .map(|state| {
+                reputation_to_rank_like_cpp(
+                    faction_entry,
+                    base_reputation_like_cpp(faction_entry, player_race, player_class)
+                        + state.standing,
+                    None,
+                )
+            });
+        if rank != Some(ReputationRankLikeCpp::Exalted)
+            && renown_current_level_like_cpp
+                < renown_max_level_like_cpp(
+                    faction_entry,
+                    currency_types_store,
+                    renown_currency_increased_cap_quantity_like_cpp,
+                )
+        {
+            return false;
+        }
+
+        paragon_reputation_store
+            .and_then(|store| {
+                store.get_by_faction_id_like_cpp(u32::from(faction_entry.paragon_faction_id))
+            })
+            .is_some()
+    }
+}
+
+impl<S: std::borrow::BorrowMut<PlayerReputationStateLikeCpp>> ReputationMgrLikeCpp<S> {
+    /// C++ `ReputationMgr::_sendFactionIncreased`, set by a gain and cleared
+    /// once the visual has been published.
+    pub fn set_send_faction_increased_like_cpp(&mut self, value: bool) {
+        self.state_mut().set_send_faction_increased_like_cpp(value);
+    }
+
     pub fn set_one_faction_reputation_like_cpp(
         &mut self,
         faction_entry: &FactionEntry,
@@ -22,7 +96,7 @@ impl ReputationMgrLikeCpp {
         player_class: u8,
     ) -> ReputationMutationOutcomeLikeCpp {
         let rep_list_id = faction_entry.reputation_index as RepListIdLikeCpp;
-        let Some(state) = self.factions.get(&rep_list_id) else {
+        let Some(state) = self.state().faction_like_cpp(rep_list_id) else {
             return ReputationMutationOutcomeLikeCpp {
                 applied: false,
                 reputation_change: 0,
@@ -47,7 +121,7 @@ impl ReputationMgrLikeCpp {
                     renown_currency_increased_cap_quantity_like_cpp,
                 )
         {
-            if let Some(state) = self.factions.get_mut(&rep_list_id) {
+            if let Some(state) = self.state_mut().faction_mut_like_cpp(rep_list_id) {
                 state.need_send = false;
                 state.need_save = false;
             }
@@ -117,13 +191,13 @@ impl ReputationMgrLikeCpp {
                 set_at_war_for_hostile = true;
             }
             if new > old {
-                self.send_faction_increased = true;
+                self.state_mut().set_send_faction_increased_like_cpp(true);
             }
             if faction_entry.friendship_rep_id == 0 {
                 self.update_rank_counters_like_cpp(old, new);
             }
         } else {
-            self.send_faction_increased = true;
+            self.state_mut().set_send_faction_increased_like_cpp(true);
         }
 
         let mut new_standing = target_standing - base_reputation;
@@ -152,7 +226,7 @@ impl ReputationMgrLikeCpp {
                             (renown_max_level * renown_level_threshold) - total_reputation;
                     }
 
-                    if let Some(state) = self.factions.get_mut(&rep_list_id) {
+                    if let Some(state) = self.state_mut().faction_mut_like_cpp(rep_list_id) {
                         state.visual_standing_increase = reputation_change;
                     }
                     if renown_current_level_like_cpp != new_renown_level {
@@ -165,7 +239,7 @@ impl ReputationMgrLikeCpp {
             }
         }
 
-        if let Some(state) = self.factions.get_mut(&rep_list_id) {
+        if let Some(state) = self.state_mut().faction_mut_like_cpp(rep_list_id) {
             state.standing = new_standing;
             state.need_send = true;
             state.need_save = true;
@@ -201,7 +275,7 @@ impl ReputationMgrLikeCpp {
         rep_list_id: RepListIdLikeCpp,
         paragon_reputation_store: Option<&ParagonReputationStore>,
     ) {
-        let Some(faction) = self.factions.get_mut(&rep_list_id) else {
+        let Some(faction) = self.state_mut().faction_mut_like_cpp(rep_list_id) else {
             return;
         };
         if faction.flags.contains(ReputationFlagsLikeCpp::HIDDEN) {
@@ -214,9 +288,11 @@ impl ReputationMgrLikeCpp {
         {
             return;
         }
-        if paragon_reputation_store
-            .is_some_and(|store| store.get_by_faction_id_like_cpp(faction.id).is_some())
-        {
+        if paragon_reputation_store.is_some_and(|store| {
+            store
+                .get_by_faction_id_like_cpp(faction.faction_id)
+                .is_some()
+        }) {
             return;
         }
         if faction.flags.contains(ReputationFlagsLikeCpp::VISIBLE) {
@@ -225,10 +301,11 @@ impl ReputationMgrLikeCpp {
         faction.flags |= ReputationFlagsLikeCpp::VISIBLE;
         faction.need_send = true;
         faction.need_save = true;
-        self.rank_counters.visible = self.rank_counters.visible.saturating_add(1);
+        self.state_mut()
+            .adjust_rank_counter_like_cpp(ReputationRankCounterLikeCpp::Visible, 1);
     }
     pub(super) fn set_inactive_like_cpp(&mut self, rep_list_id: RepListIdLikeCpp, inactive: bool) {
-        let Some(faction) = self.factions.get_mut(&rep_list_id) else {
+        let Some(faction) = self.state_mut().faction_mut_like_cpp(rep_list_id) else {
             return;
         };
         if faction
@@ -260,8 +337,8 @@ impl ReputationMgrLikeCpp {
         player_class: u8,
     ) {
         let rank = self
-            .factions
-            .get(&rep_list_id)
+            .state()
+            .faction_like_cpp(rep_list_id)
             .map(|faction| {
                 reputation_to_rank_like_cpp(
                     faction_entry,
@@ -272,7 +349,7 @@ impl ReputationMgrLikeCpp {
             })
             .unwrap_or(ReputationRankLikeCpp::Neutral);
 
-        let Some(faction) = self.factions.get_mut(&rep_list_id) else {
+        let Some(faction) = self.state_mut().faction_mut_like_cpp(rep_list_id) else {
             return;
         };
         if faction
@@ -305,88 +382,29 @@ impl ReputationMgrLikeCpp {
         new_rank: ReputationRankLikeCpp,
     ) {
         if old_rank >= ReputationRankLikeCpp::Exalted {
-            self.rank_counters.exalted = self.rank_counters.exalted.saturating_sub(1);
+            self.state_mut()
+                .adjust_rank_counter_like_cpp(ReputationRankCounterLikeCpp::Exalted, -1);
         }
         if old_rank >= ReputationRankLikeCpp::Revered {
-            self.rank_counters.revered = self.rank_counters.revered.saturating_sub(1);
+            self.state_mut()
+                .adjust_rank_counter_like_cpp(ReputationRankCounterLikeCpp::Revered, -1);
         }
         if old_rank >= ReputationRankLikeCpp::Honored {
-            self.rank_counters.honored = self.rank_counters.honored.saturating_sub(1);
+            self.state_mut()
+                .adjust_rank_counter_like_cpp(ReputationRankCounterLikeCpp::Honored, -1);
         }
 
         if new_rank >= ReputationRankLikeCpp::Exalted {
-            self.rank_counters.exalted = self.rank_counters.exalted.saturating_add(1);
+            self.state_mut()
+                .adjust_rank_counter_like_cpp(ReputationRankCounterLikeCpp::Exalted, 1);
         }
         if new_rank >= ReputationRankLikeCpp::Revered {
-            self.rank_counters.revered = self.rank_counters.revered.saturating_add(1);
+            self.state_mut()
+                .adjust_rank_counter_like_cpp(ReputationRankCounterLikeCpp::Revered, 1);
         }
         if new_rank >= ReputationRankLikeCpp::Honored {
-            self.rank_counters.honored = self.rank_counters.honored.saturating_add(1);
+            self.state_mut()
+                .adjust_rank_counter_like_cpp(ReputationRankCounterLikeCpp::Honored, 1);
         }
-    }
-    pub(super) fn get_reputation_rank_by_faction_id_like_cpp(
-        &self,
-        faction_id: u32,
-        faction_store: &FactionStore,
-        friendship_rep_reaction_store: Option<&FriendshipRepReactionStore>,
-        player_race: u8,
-        player_class: u8,
-    ) -> ReputationRankLikeCpp {
-        faction_store
-            .get(faction_id)
-            .map(|faction| {
-                let standing = self
-                    .get_state(faction.reputation_index as RepListIdLikeCpp)
-                    .map(|state| state.standing)
-                    .unwrap_or(0)
-                    + base_reputation_like_cpp(faction, player_race, player_class);
-                reputation_to_rank_like_cpp(faction, standing, friendship_rep_reaction_store)
-            })
-            .unwrap_or(ReputationRankLikeCpp::Neutral)
-    }
-    pub(super) fn can_gain_paragon_reputation_for_faction_like_cpp(
-        &self,
-        faction_entry: &FactionEntry,
-        faction_store: &FactionStore,
-        paragon_reputation_store: Option<&ParagonReputationStore>,
-        renown_current_level_like_cpp: i32,
-        renown_currency_increased_cap_quantity_like_cpp: u32,
-        currency_types_store: Option<&CurrencyTypesStore>,
-        player_race: u8,
-        player_class: u8,
-    ) -> bool {
-        if faction_store
-            .get(u32::from(faction_entry.paragon_faction_id))
-            .is_none()
-        {
-            return false;
-        }
-
-        let rank = self
-            .get_state(faction_entry.reputation_index as RepListIdLikeCpp)
-            .map(|state| {
-                reputation_to_rank_like_cpp(
-                    faction_entry,
-                    base_reputation_like_cpp(faction_entry, player_race, player_class)
-                        + state.standing,
-                    None,
-                )
-            });
-        if rank != Some(ReputationRankLikeCpp::Exalted)
-            && renown_current_level_like_cpp
-                < renown_max_level_like_cpp(
-                    faction_entry,
-                    currency_types_store,
-                    renown_currency_increased_cap_quantity_like_cpp,
-                )
-        {
-            return false;
-        }
-
-        paragon_reputation_store
-            .and_then(|store| {
-                store.get_by_faction_id_like_cpp(u32::from(faction_entry.paragon_faction_id))
-            })
-            .is_some()
     }
 }

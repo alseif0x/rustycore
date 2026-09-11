@@ -40,7 +40,7 @@ use wow_data::{
     },
     reputation::{ReputationRewardRateEntryLikeCpp, ReputationRewardRateStoreLikeCpp},
 };
-use wow_entities::{ITEM_LIMIT_CATEGORY_MODE_HAVE, Player, PlayerReputationRecord};
+use wow_entities::{ITEM_LIMIT_CATEGORY_MODE_HAVE, Player, PlayerFactionStateLikeCpp};
 use wow_packet::packets::item::InventoryChangeFailure;
 use wow_packet::packets::quest::QuestGiverQuestFailed;
 use wow_packet::{ClientPacket, WorldPacket};
@@ -602,12 +602,10 @@ fn insert_player_with_reputation(
         .world_mut()
         .relocate(Position::new(10.0, 0.0, 0.0, 0.0));
     player
-        .gameplay_state_mut()
-        .reputations
-        .push(PlayerReputationRecord {
+        .reputation_mut_like_cpp()
+        .insert_faction_like_cpp(PlayerFactionStateLikeCpp {
             faction_id,
             standing,
-            flags: 0,
             ..Default::default()
         });
     manager
@@ -1296,19 +1294,13 @@ fn set_canonical_party_reputation_like_cpp(
         .map_mut()
         .get_typed_player_mut(guid)
         .expect("canonical party member");
-    player
-        .gameplay_state_mut()
-        .reputations
-        .retain(|record| record.faction_id != faction_id);
-    player
-        .gameplay_state_mut()
-        .reputations
-        .push(wow_entities::PlayerReputationRecord {
+    player.reputation_mut_like_cpp().insert_faction_like_cpp(
+        wow_entities::PlayerFactionStateLikeCpp {
             faction_id,
             standing,
-            flags: 0,
             ..Default::default()
-        });
+        },
+    );
 }
 
 fn install_represented_party(

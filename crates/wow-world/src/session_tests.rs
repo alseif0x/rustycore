@@ -1952,7 +1952,7 @@ fn adopt_player_quest_fixture_into_canonical_owner_like_cpp(session: &mut WorldS
         .player_currencies_like_cpp()
         .expect("handle-less currency fixture");
     let gold = session.player_gold_like_cpp();
-    let reputation = session.reputation_mgr_like_cpp().clone();
+    let reputation = session.reputation_mgr_like_cpp().cloned_state_like_cpp();
     install_canonical_player_owner_for_test(session, 0, 0);
     session.set_item_guid_generator_like_cpp(Arc::new(wow_core::ObjectGuidGenerator::new(
         HighGuid::Item,
@@ -1962,7 +1962,7 @@ fn adopt_player_quest_fixture_into_canonical_owner_like_cpp(session: &mut WorldS
     session.set_player_gold_like_cpp(gold);
     assert!(
         session
-            .mutate_reputation_mgr_like_cpp(|manager| *manager = reputation)
+            .mutate_reputation_mgr_like_cpp(|manager| manager.replace_state_like_cpp(reputation))
             .is_some()
     );
     assert!(
