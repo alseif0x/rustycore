@@ -9,7 +9,7 @@ checkbox or an old percentage is not proof that the current server implements th
 | --- | --- |
 | What is implemented, integrated or still unproven? | [STATE.md](migration/STATE.md), its dated evidence boundaries and the active issue/checkpoint |
 | What do we execute next? | [PORT_PLAN.md](migration/PORT_PLAN.md) and [GitHub #49](https://github.com/alseif0x/rustycore/issues/49) |
-| What remains in the current architecture delivery? | [Current core delivery](architecture/modularity-and-ecs-plan.md#current-core-delivery--2026-09-10) |
+| What remains in the current architecture delivery? | [Architecture program state](architecture/modularity-and-ecs-plan.md#architecture-program-state--2026-09-11) |
 | How should Claude continue the complete refactor? | [Refactor completion plan](architecture/refactor-completion-plan.md) |
 | What must a quest reward make durable, and when? | [Quest reward operation contract](architecture/quest-reward-operation-contract.md) |
 | What architecture and extension direction is approved? | [Modularity/ECS plan](architecture/modularity-and-ecs-plan.md) |
@@ -21,6 +21,12 @@ captures, not by a Rust comment or a planning document. AGENTS.md owns the compa
 adaptation rules; neither upstream is assumed complete or correct. An architecture plan can be
 approved while its
 implementation and acceptance remain open. Keep those statuses separate.
+
+`PORT_PLAN.md` and GitHub #49 provide the general direction and issue scope. The
+modularity/ECS and refactor-completion documents provide the technical ownership,
+consumer, dependency and acceptance detail for that direction; they are not a rival
+execution plan. On the current architecture track, #133 was closed on 2026-09-09,
+while the technical gate remains #584 core → #583 native/Wasm product → #153 audit.
 
 ## Versioned behavioral references
 
@@ -64,6 +70,10 @@ The per-subsystem files under migration/, numbered inventory campaigns, older au
 implementation reports preserve source mappings and past experiments. Their old next-step
 lists, commands and completion tables do not override the current sources above. Read them
 when the active operation needs that evidence; do not load the whole archive for each task.
+
+Older architecture checkpoints may still contain the pre-closure #133/#578 ordering. They
+are historical evidence and must not be used as current instructions; use STATE.md and the
+current architecture plan for status and sequence.
 
 [MIGRATION_ROADMAP.md](MIGRATION_ROADMAP.md), [migration/_INDEX.md](migration/_INDEX.md)
 and the root [MIGRATION_STATUS.md](../MIGRATION_STATUS.md) are not competing current plans.

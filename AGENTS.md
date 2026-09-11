@@ -133,13 +133,19 @@ they are not separate frozen architecture snapshots.
   crates/wow-world/src/session/registry.rs and actual registrations for the current thunk
   signature; do not copy an outdated snippet or reintroduce a dispatcher opcode match.
   Keep exact-set metadata/registration tests for changes to that boundary.
-- #578/#585 and the integrated #587/#588/#589 deliveries are closed. The current
-  architecture plan and STATE.md own the selected delivery and its evidence; do not
-  infer current status from the older dated checkpoints. Complete required core
-  macrodeliverables under #584, then #583 and #153 before #133 closes.
-  #133/#584 are umbrellas, not prerequisite implementations. #584 retains unfinished C0–C4;
-  closing a bounded predecessor does not open #583 immediately.
-  Analyze each responsibility before defining its implementation macro,
+- #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737 are
+  integrated and closed in their bounded scopes. The current architecture plan and
+  STATE.md own the selected delivery and its evidence; do not infer current status
+  from older dated checkpoints or wait for #133 to close again.
+  The technical gate remains required core #584 → native/Wasm product #583 → independent
+  audit #153. #584 retains unfinished C0–C4 core work; #583 owns the preserved M0–M4
+  native/Wasm product and does not block an unrelated gameplay macro, while its
+  production integration waits for the required core work. The Rust/Wasm/C mixed
+  product remains mandatory even though its operator activation is optional.
+  The next recommended core macro is #743 (group-command state delivery), followed by
+  #735 (reputation encapsulation, an ordering preference rather than a hard dependency),
+  then the remaining P2 operations and P3 runtime/lifetime/private-hecs and P4 semantic/
+  physical work under #584. Analyze each responsibility before defining its macro,
   include cross-crate consumers and preserve scoped regression/live acceptance. These
   evidence reviews do not add routine approvals or authorize merge/runtime operations.
 - After playable M6.2/#47, perform the fresh whole-port planning pass before decomposing
