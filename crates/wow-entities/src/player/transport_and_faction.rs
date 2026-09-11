@@ -24,6 +24,17 @@ impl Player {
         self.gameplay_state_mut().transport = transport;
     }
 
+    /// The `VehicleSeatEntry::Flags` and `ID` of the seat this Player
+    /// occupies. C++ resolves the seat on demand through
+    /// `Vehicle::GetSeatForPassenger` (Vehicle.h:68); RustyCore caches the two
+    /// values it needs on the passenger they describe, so both move together
+    /// and the cache can never describe half a seat.
+    pub fn set_vehicle_seat_like_cpp(&mut self, flags: Option<i32>, seat_id: Option<u32>) {
+        let state = self.gameplay_state_mut();
+        state.vehicle_seat_flags = flags;
+        state.vehicle_seat_id = seat_id;
+    }
+
     /// The transport offset inside the Player's own `m_movementInfo.transport`,
     /// which C++ reassigns wholesale from the validated client status
     /// (`MovementHandler.cpp:119` after a worldport ack, `:405` on ordinary
