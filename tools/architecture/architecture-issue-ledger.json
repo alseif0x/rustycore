@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "parent_issue": 133,
+  "parent_issue": 584,
   "reaudit_issue": 153,
   "external_prerequisites": [
     {
@@ -204,7 +204,7 @@
     },
     {
       "number": 133,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH] Modularize RustyCore: physical structure, ownership and extension seams",
       "kind": "epic",
       "parents": [],
@@ -2298,48 +2298,79 @@
       "state": "open",
       "title": "[ARCH.CORE] Complete remaining architecture through analyzed crate-scoped macrodeliverables",
       "kind": "epic",
-      "parents": [133],
-      "depends_on": [578]
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        578
+      ]
     },
     {
       "number": 585,
       "state": "closed",
       "title": "[ARCH.CORE.FINALIZATION] Complete represented session finalization outcomes and retirement supervision",
       "kind": "slice",
-      "parents": [133, 584],
-      "depends_on": [578]
+      "parents": [
+        133,
+        584
+      ],
+      "depends_on": [
+        578
+      ]
     },
     {
       "number": 588,
       "state": "closed",
       "title": "[ARCH.CORE] Complete deferred player visibility publication",
       "kind": "slice",
-      "parents": [133, 584],
-      "depends_on": [585]
+      "parents": [
+        133,
+        584
+      ],
+      "depends_on": [
+        585
+      ]
     },
     {
       "number": 587,
       "state": "closed",
       "title": "[ARCH.CORE] Complete represented spell-acquisition application boundary",
       "kind": "slice",
-      "parents": [133, 584],
-      "depends_on": [585, 588]
+      "parents": [
+        133,
+        584
+      ],
+      "depends_on": [
+        585,
+        588
+      ]
     },
     {
       "number": 589,
       "state": "closed",
       "title": "[ARCH.CORE] Complete represented Player cast-request lifecycle",
       "kind": "slice",
-      "parents": [133, 584],
-      "depends_on": [587, 588]
+      "parents": [
+        133,
+        584
+      ],
+      "depends_on": [
+        587,
+        588
+      ]
     },
     {
       "number": 716,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.CORE] Restore ownership provenance and acceptance after module decomposition",
       "kind": "slice",
-      "parents": [133, 584],
-      "depends_on": [589]
+      "parents": [
+        133,
+        584
+      ],
+      "depends_on": [
+        589
+      ]
     }
   ]
 }

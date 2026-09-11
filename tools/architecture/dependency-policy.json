@@ -110,55 +110,55 @@
     {
       "from": "wow-anticheat",
       "to": "wow-packet",
-      "tracking_issue": 133,
+      "tracking_issue": 584,
       "reason": "The anticheat domain still consumes transport packet shapes directly."
     },
     {
       "from": "wow-data",
       "to": "wow-entities",
-      "tracking_issue": 133,
+      "tracking_issue": 584,
       "reason": "Static-data rows still reuse mutable entity-domain types."
     },
     {
       "from": "wow-data",
       "to": "wow-movement",
-      "tracking_issue": 133,
+      "tracking_issue": 584,
       "reason": "Static-data loaders still reuse movement runtime types."
     },
     {
       "from": "wow-instances",
       "to": "wow-data",
-      "tracking_issue": 133,
+      "tracking_issue": 584,
       "reason": "Instance state still reads concrete static-data stores."
     },
     {
       "from": "wow-packet",
       "to": "wow-loot",
-      "tracking_issue": 133,
+      "tracking_issue": 584,
       "reason": "Wire packet models still reuse loot-domain values."
     },
     {
       "from": "wow-packet",
       "to": "wow-movement",
-      "tracking_issue": 133,
+      "tracking_issue": 584,
       "reason": "Wire packet models still reuse movement-domain values."
     },
     {
       "from": "wow-world",
       "to": "wow-config",
-      "tracking_issue": 133,
+      "tracking_issue": 584,
       "reason": "The mixed world application crate still reads concrete configuration."
     },
     {
       "from": "wow-world",
       "to": "wow-crypto",
-      "tracking_issue": 133,
+      "tracking_issue": 584,
       "reason": "The mixed world application crate still performs protocol crypto work."
     },
     {
       "from": "wow-world",
       "to": "wow-data",
-      "tracking_issue": 133,
+      "tracking_issue": 584,
       "reason": "The mixed world application crate still reads concrete static-data stores."
     },
     {
@@ -170,7 +170,7 @@
     {
       "from": "wow-world",
       "to": "wow-logging",
-      "tracking_issue": 133,
+      "tracking_issue": 584,
       "reason": "The mixed world application crate still consumes logging infrastructure directly."
     },
     {
@@ -188,7 +188,7 @@
     {
       "from": "wow-world",
       "to": "wow-recastdetour",
-      "tracking_issue": 133,
+      "tracking_issue": 584,
       "reason": "The mixed world application crate still reaches the concrete pathfinding adapter."
     },
     {
@@ -390,14 +390,14 @@
         "from": "wow-loot",
         "to": "tokio",
         "kind": "normal",
-        "tracking_issue": 133,
+        "tracking_issue": 584,
         "reason": "Loot authority still exposes Tokio watch-based asynchronous coordination from a domain/runtime crate."
       },
       {
         "from": "wow-world",
         "to": "tokio",
         "kind": "normal",
-        "tracking_issue": 133,
+        "tracking_issue": 584,
         "reason": "The mixed world application crate still owns Tokio tasks, timers, and channels that must move behind application ports or composition adapters incrementally."
       }
     ]
