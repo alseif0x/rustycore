@@ -54,7 +54,7 @@ impl WorldSession {
 
         if !self
             .player_battleground_state_snapshot_like_cpp()
-            .is_some_and(|state| state.represented_type_id.is_some())
+            .is_some_and(|state| state.in_battleground_like_cpp())
         {
             return false;
         }

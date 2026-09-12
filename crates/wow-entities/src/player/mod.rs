@@ -16,6 +16,7 @@ mod deferred_save;
 mod identity;
 mod inventory_runtime;
 pub use inventory_runtime::PlayerInventoryRuntime;
+mod battleground;
 mod cinematic;
 mod collection_state;
 mod difficulty;
@@ -36,6 +37,7 @@ mod spell_runtime;
 mod talent_runtime;
 mod taxi_state;
 mod world_local;
+pub use battleground::PlayerBattlegroundState;
 pub use cinematic::PlayerCinematicStateLikeCpp;
 pub use collection_state::PlayerCollectionStateLikeCpp;
 pub use equipment_sets::PlayerEquipmentSetsLikeCpp;
@@ -760,24 +762,6 @@ impl PlayerTradeStateLikeCpp {
             spell_cast_item_guid: None,
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct PlayerBattlegroundState {
-    pub queues: Vec<PlayerBattlegroundQueueRecord>,
-    pub current_bg_instance_id: Option<u32>,
-    pub current_bg_team: Option<u32>,
-    pub random: PlayerRandomBattlegroundState,
-    /// Represented C++ `Player::m_bgData.bgTypeID`.
-    pub represented_type_id: Option<u32>,
-    /// Represented current battleground map/instance map used by teleport leave gates.
-    pub represented_map_id: Option<u32>,
-    /// Represented `Battleground::GetStatus()` until live Battleground ownership exists.
-    pub represented_status: Option<u8>,
-    /// C++ `Player::m_bgData.bgBattlegroundQueueID` slots.
-    pub represented_queue_slots: Vec<PlayerBattlegroundQueueSlotLikeCpp>,
-    /// C++ `Player::m_ArenaTeamIdInvited`.
-    pub arena_team_id_invited: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

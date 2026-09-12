@@ -657,18 +657,17 @@ fn canonical_player_battleground_context_follows_detached_and_stale_ownership_li
     assert!(session.represented_battleground_status_is_wait_leave_like_cpp());
     assert_eq!(session.represented_arena_team_id_invited_like_cpp(), 77);
 
-    let replacement_state = wow_entities::PlayerBattlegroundState {
-        represented_type_id: Some(7),
-        represented_map_id: Some(30),
-        represented_status: Some(3),
-        represented_queue_slots: vec![wow_entities::PlayerBattlegroundQueueSlotLikeCpp {
+    let replacement_state = wow_entities::PlayerBattlegroundState::from_represented_parts_like_cpp(
+        Some(7),
+        Some(30),
+        Some(3),
+        vec![wow_entities::PlayerBattlegroundQueueSlotLikeCpp {
             slot: 2,
             queue_type_id: queue_type,
             invited_instance_guid: 99,
         }],
-        arena_team_id_invited: 100,
-        ..Default::default()
-    };
+        100,
+    );
     let mut replacement = Box::new(Player::new(Some(2), false));
     replacement
         .unit_mut()

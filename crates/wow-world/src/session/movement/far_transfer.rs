@@ -95,7 +95,7 @@ impl WorldSession {
     ) {
         if self
             .player_battleground_state_snapshot_like_cpp()
-            .and_then(|state| state.represented_map_id)
+            .and_then(|state| state.battleground_map_id_like_cpp())
             .is_some_and(|bg_map_id| bg_map_id != new_map)
         {
             self.request_represented_battleground_leave_like_cpp();

@@ -14022,14 +14022,15 @@ impl WorldSession {
             self.with_owned_player_like_cpp(|player| player.gameplay_state().battleground.clone());
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(wow_entities::PlayerBattlegroundState {
-                represented_type_id: self.player_battleground_type_id_like_cpp,
-                represented_map_id: self.player_battleground_map_id_like_cpp,
-                represented_status: self.represented_battleground_status_like_cpp,
-                represented_queue_slots: self.represented_battleground_queue_slots_like_cpp.clone(),
-                arena_team_id_invited: self.represented_arena_team_id_invited_like_cpp,
-                ..Default::default()
-            });
+            return Some(
+                wow_entities::PlayerBattlegroundState::from_represented_parts_like_cpp(
+                    self.player_battleground_type_id_like_cpp,
+                    self.player_battleground_map_id_like_cpp,
+                    self.represented_battleground_status_like_cpp,
+                    self.represented_battleground_queue_slots_like_cpp.clone(),
+                    self.represented_arena_team_id_invited_like_cpp,
+                ),
+            );
         }
         canonical
     }
@@ -14037,7 +14038,7 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn set_player_battleground_type_id_like_cpp(&mut self, bg_type_id: u32) -> bool {
         self.mutate_player_battleground_state_like_cpp(|state| {
-            state.represented_type_id = (bg_type_id != 0).then_some(bg_type_id);
+            state.set_battleground_type_id_like_cpp(bg_type_id);
         })
         .is_some()
     }
@@ -14049,26 +14050,25 @@ impl WorldSession {
         bg_map_id: u32,
     ) -> bool {
         self.mutate_player_battleground_state_like_cpp(|state| {
-            state.represented_type_id = (bg_type_id != 0).then_some(bg_type_id);
-            state.represented_map_id = (bg_map_id != 0).then_some(bg_map_id);
+            state.set_battleground_context_like_cpp(bg_type_id, bg_map_id);
         })
         .is_some()
     }
 
     pub(crate) fn set_represented_battleground_status_like_cpp(&mut self, status: Option<u8>) {
         let _ = self.mutate_player_battleground_state_like_cpp(|state| {
-            state.represented_status = status;
+            state.set_battleground_status_like_cpp(status);
         });
     }
 
     pub(crate) fn player_in_represented_battleground_like_cpp(&self) -> bool {
         self.player_battleground_state_snapshot_like_cpp()
-            .is_some_and(|state| state.represented_type_id.is_some())
+            .is_some_and(|state| state.in_battleground_like_cpp())
     }
 
     pub(crate) fn represented_battleground_status_is_wait_leave_like_cpp(&self) -> bool {
         self.player_battleground_state_snapshot_like_cpp()
-            .is_some_and(|state| state.represented_status == Some(4))
+            .is_some_and(|state| state.battleground_status_like_cpp() == Some(4))
     }
 
     #[cfg_attr(not(test), allow(unused_variables))]
@@ -14328,20 +14328,11 @@ impl WorldSession {
         invited_instance_guid: u32,
     ) {
         let _ = self.mutate_player_battleground_state_like_cpp(|state| {
-            let updated = RepresentedBattlegroundQueueSlotLikeCpp {
+            state.install_queue_slot_like_cpp(RepresentedBattlegroundQueueSlotLikeCpp {
                 slot,
                 queue_type_id,
                 invited_instance_guid,
-            };
-            if let Some(existing) = state
-                .represented_queue_slots
-                .iter_mut()
-                .find(|queued| queued.slot == slot)
-            {
-                *existing = updated;
-            } else {
-                state.represented_queue_slots.push(updated);
-            }
+            });
         });
     }
 
@@ -14354,11 +14345,11 @@ impl WorldSession {
         let Some(state) = self.player_battleground_state_snapshot_like_cpp() else {
             return false;
         };
-        if state.represented_queue_slots.is_empty() {
+        if state.has_no_queue_slot_like_cpp() {
             return false;
         }
         let Some(queued) = state
-            .represented_queue_slots
+            .queue_slots_like_cpp()
             .iter()
             .copied()
             .find(|queued| queued.slot == ticket.id)
@@ -15156,7 +15147,7 @@ impl WorldSession {
         arena_team_id: u32,
     ) -> bool {
         self.mutate_player_battleground_state_like_cpp(|state| {
-            state.arena_team_id_invited = arena_team_id;
+            state.set_arena_team_id_invited_like_cpp(arena_team_id);
         })
         .is_some()
     }
@@ -15165,7 +15156,7 @@ impl WorldSession {
     pub(crate) fn represented_arena_team_id_invited_like_cpp(&self) -> u32 {
         self.player_battleground_state_snapshot_like_cpp()
             .expect("test Player battleground owner must resolve")
-            .arena_team_id_invited
+            .arena_team_id_invited_like_cpp()
     }
 
     #[cfg(test)]
@@ -15563,7 +15554,7 @@ impl WorldSession {
         player_guid: ObjectGuid,
     ) -> Option<u32> {
         let state = self.player_battleground_state_snapshot_like_cpp()?;
-        if let Some(bg_type_id) = state.represented_type_id {
+        if let Some(bg_type_id) = state.battleground_type_id_like_cpp() {
             return Some(bg_type_id);
         }
 
