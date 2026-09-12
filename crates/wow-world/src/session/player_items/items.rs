@@ -242,15 +242,7 @@ impl WorldSession {
         let mut events = Vec::new();
         let Some(equipped_count_after) =
             self.mutate_player_item_modifier_runtime_like_cpp(|state| {
-                let effect = state
-                    .item_set_effects
-                    .entry(item_set.id)
-                    .or_insert_with(|| RepresentedItemSetEffectLikeCpp {
-                        item_set_id: item_set.id,
-                        ..Default::default()
-                    });
-                effect.equipped_items.insert(item_guid);
-                effect.equipped_items.len()
+                state.add_item_set_item_like_cpp(item_set.id, item_guid)
             })
         else {
             return Vec::new();
@@ -271,10 +263,7 @@ impl WorldSession {
             }
             let inserted = self
                 .mutate_player_item_modifier_runtime_like_cpp(|state| {
-                    state
-                        .item_set_effects
-                        .get_mut(&item_set.id)
-                        .is_some_and(|effect| effect.set_bonuses.insert(item_set_spell.id))
+                    state.add_item_set_bonus_like_cpp(item_set.id, item_set_spell.id)
                 })
                 .unwrap_or(false);
             if !inserted {
@@ -303,9 +292,7 @@ impl WorldSession {
     ) -> Vec<RepresentedItemSetSpellEventLikeCpp> {
         let Some(equipped_count_after) = self
             .mutate_player_item_modifier_runtime_like_cpp(|state| {
-                let effect = state.item_set_effects.get_mut(&item_set.id)?;
-                effect.equipped_items.remove(&item_guid);
-                Some(effect.equipped_items.len())
+                state.remove_item_set_item_like_cpp(item_set.id, item_guid)
             })
             .flatten()
         else {
@@ -324,10 +311,7 @@ impl WorldSession {
             }
             let removed = self
                 .mutate_player_item_modifier_runtime_like_cpp(|state| {
-                    state
-                        .item_set_effects
-                        .get_mut(&item_set.id)
-                        .is_some_and(|effect| effect.set_bonuses.remove(&item_set_spell.id))
+                    state.remove_item_set_bonus_like_cpp(item_set.id, item_set_spell.id)
                 })
                 .unwrap_or(false);
             if !removed {
@@ -343,13 +327,7 @@ impl WorldSession {
         }
 
         let _ = self.mutate_player_item_modifier_runtime_like_cpp(|state| {
-            if state
-                .item_set_effects
-                .get(&item_set.id)
-                .is_some_and(|effect| effect.equipped_items.is_empty())
-            {
-                state.item_set_effects.remove(&item_set.id);
-            }
+            state.drop_empty_item_set_effect_like_cpp(item_set.id);
         });
 
         events

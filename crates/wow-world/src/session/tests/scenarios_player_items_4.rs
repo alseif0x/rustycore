@@ -105,16 +105,8 @@ fn canonical_player_item_modifier_runtime_follows_detached_and_stale_ownership_l
     assert!(
         session
             .mutate_player_item_modifier_runtime_like_cpp(|runtime| {
-                runtime.item_set_effects.insert(
-                    700,
-                    RepresentedItemSetEffectLikeCpp {
-                        item_set_id: 700,
-                        equipped_items: std::collections::HashSet::from([ObjectGuid::create_item(
-                            1, 88,
-                        )]),
-                        set_bonuses: BTreeSet::from([35]),
-                    },
-                );
+                runtime.add_item_set_item_like_cpp(700, ObjectGuid::create_item(1, 88));
+                runtime.add_item_set_bonus_like_cpp(700, 35);
             })
             .is_some()
     );
@@ -152,8 +144,8 @@ fn canonical_player_item_modifier_runtime_follows_detached_and_stale_ownership_l
     let detached = session
         .player_item_modifier_runtime_snapshot_like_cpp()
         .expect("detached canonical item-modifier owner");
-    assert_eq!(detached.bonuses.shield_block_value, 29);
-    assert_eq!(detached.item_level_caps.max_item_level, 200);
+    assert_eq!(detached.bonuses_like_cpp().shield_block_value, 29);
+    assert_eq!(detached.item_level_caps_like_cpp().max_item_level, 200);
 
     let mut replacement = Box::new(Player::new(Some(2), false));
     replacement

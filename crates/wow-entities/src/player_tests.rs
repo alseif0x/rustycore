@@ -466,6 +466,8 @@ mod item_5;
 mod item_6;
 #[path = "player_tests/item_7.rs"]
 mod item_7;
+#[path = "player_tests/item_modifiers.rs"]
+mod item_modifiers;
 #[path = "player_tests/loot.rs"]
 mod loot;
 #[path = "player_tests/misc.rs"]

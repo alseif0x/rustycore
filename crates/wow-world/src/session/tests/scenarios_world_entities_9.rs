@@ -507,9 +507,13 @@ async fn spell_damage_effects_add_pct_threat_and_one_cast_bonus_like_cpp() {
             },
         )]),
     }));
-    session
-        .represented_item_bonus_state_like_cpp
-        .attack_power_total = 10;
+    assert!(
+        session
+            .mutate_player_item_modifier_runtime_like_cpp(|runtime| {
+                runtime.with_bonuses_mut_like_cpp(|bonuses| bonuses.attack_power_total = 10);
+            })
+            .is_some()
+    );
 
     session.execute_spell(spell_id, guid).await.unwrap();
 
