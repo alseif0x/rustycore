@@ -260,9 +260,11 @@ fn player_gameplay_rest_and_taxi_destination_round_trip() {
     player.apply_gameplay_state_from_load(PlayerGameplayLoadRecord { state });
 
     assert_eq!(player.gameplay_state().taxi, expected_taxi);
-    assert_eq!(player.gameplay_state().taxi.source_node_id, Some(1));
-    assert_eq!(player.gameplay_state().taxi.destination_node_id, Some(2));
-    assert_eq!(player.gameplay_state().taxi.destinations, vec![1, 2, 3]);
+    let taxi = &player.gameplay_state().taxi;
+    assert_eq!(taxi.taxi_destination_like_cpp(), Some(2));
+    assert_eq!(taxi.destinations_like_cpp(), [1, 2, 3]);
+    assert!(taxi.is_taximask_node_known_like_cpp(1));
+    assert_eq!(taxi.known_node_mask_text_like_cpp(), Some("3 128"));
     assert_eq!(player.gameplay_state().rest, expected_rest);
     assert_eq!(player.gameplay_state().rest.rest_bonus, 1.5);
     assert!(player.gameplay_state().rest.logout_was_resting);

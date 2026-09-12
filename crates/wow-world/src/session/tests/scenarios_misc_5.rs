@@ -148,9 +148,9 @@ fn canonical_player_taxi_and_titles_follow_active_detached_and_stale_ownership_l
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
     let old_handle = session.player_handle_like_cpp.expect("canonical handle");
-    let owned_taxi = wow_entities::PlayerTaxiState {
-        destinations: vec![10, 20],
-        flight: Some(wow_entities::PlayerTaxiFlightStateLikeCpp {
+    let owned_taxi = wow_entities::PlayerTaxiState::from_represented_parts_like_cpp(
+        vec![10, 20],
+        Some(wow_entities::PlayerTaxiFlightStateLikeCpp {
             current_node: wow_entities::PlayerTaxiFlightNodeLikeCpp {
                 map_id: 571,
                 position: Position::new(1.0, 2.0, 3.0, 0.0),
@@ -158,10 +158,9 @@ fn canonical_player_taxi_and_titles_follow_active_detached_and_stale_ownership_l
             },
             node_after_teleport: None,
         }),
-        unit_flags: UnitFlags::ON_TAXI.bits(),
-        mounted: true,
-        ..Default::default()
-    };
+        UnitFlags::ON_TAXI.bits(),
+        true,
+    );
 
     assert!(session.replace_player_taxi_state_like_cpp(owned_taxi.clone()));
     session.represented_learn_title_like_cpp(42);
@@ -186,11 +185,8 @@ fn canonical_player_taxi_and_titles_follow_active_detached_and_stale_ownership_l
     );
     assert!(session.represented_has_title_like_cpp(42));
 
-    let replacement_taxi = wow_entities::PlayerTaxiState {
-        destinations: vec![90],
-        mounted: false,
-        ..Default::default()
-    };
+    let replacement_taxi =
+        wow_entities::PlayerTaxiState::from_represented_parts_like_cpp(vec![90], None, 0, false);
     let mut replacement = Box::new(Player::new(Some(2), false));
     replacement
         .unit_mut()

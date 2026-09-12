@@ -164,13 +164,11 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
             action_id: 635,
             action_type: 0,
         }],
-        taxi: PlayerTaxiState {
-            known_node_mask: vec![0b0000_0011, 0b1000_0000],
-            known_node_mask_text: Some("3 128".to_string()),
-            source_node_id: Some(1),
-            destination_node_id: Some(2),
-            destinations: vec![1, 2, 3],
-            ..Default::default()
+        taxi: {
+            let mut taxi =
+                PlayerTaxiState::from_represented_parts_like_cpp(vec![1, 2, 3], None, 0, false);
+            taxi.load_taxi_mask_like_cpp(vec![0b0000_0011, 0b1000_0000], Some("3 128".to_string()));
+            taxi
         },
         social: PlayerSocialState {
             friend_guids: vec![ObjectGuid::create_player(1, 1001)],
@@ -490,5 +488,7 @@ mod spell;
 mod spell_runtime;
 #[path = "player_tests/talents.rs"]
 mod talents;
+#[path = "player_tests/taxi_state.rs"]
+mod taxi_state;
 #[path = "player_tests/visibility.rs"]
 mod visibility;

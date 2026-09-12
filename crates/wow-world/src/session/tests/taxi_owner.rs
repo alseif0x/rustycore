@@ -19,9 +19,8 @@ fn taxi_mutation_runs_once_on_active_and_detached_owner_and_rejects_stale_handle
                     manager.try_lock(),
                     Err(std::sync::TryLockError::WouldBlock)
                 ));
-                taxi.destinations = vec![20, 10];
-                taxi.mounted = true;
-                taxi.unit_flags = UnitFlags::ON_TAXI.bits();
+                taxi.replace_destinations_like_cpp(vec![20, 10]);
+                taxi.set_taxi_cleanup_state_like_cpp(UnitFlags::ON_TAXI.bits(), true);
                 detached
             }),
             Some(detached)
@@ -30,13 +29,16 @@ fn taxi_mutation_runs_once_on_active_and_detached_owner_and_rejects_stale_handle
         assert!(manager.try_lock().is_ok());
         session.set_taxi_destinations_like_cpp(vec![30, 20]);
         let taxi = session.player_taxi_state_snapshot_like_cpp().unwrap();
-        assert_eq!(taxi.destinations, vec![30, 20]);
-        assert!(taxi.mounted);
-        assert_eq!(taxi.unit_flags, UnitFlags::ON_TAXI.bits());
+        assert_eq!(taxi.destinations_like_cpp(), [30, 20]);
+        assert!(taxi.mounted_like_cpp());
+        assert_eq!(taxi.unit_flags_like_cpp(), UnitFlags::ON_TAXI.bits());
     }
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
-    replacement.gameplay_state_mut().taxi.destinations = vec![42];
+    replacement
+        .gameplay_state_mut()
+        .taxi
+        .replace_destinations_like_cpp(vec![42]);
     let handle = manager
         .lock()
         .unwrap()
@@ -51,7 +53,10 @@ fn taxi_mutation_runs_once_on_active_and_detached_owner_and_rejects_stale_handle
             .lock()
             .unwrap()
             .with_player_like_cpp(handle, |player| {
-                player.taxi_state_like_cpp().destinations.clone()
+                player
+                    .taxi_state_like_cpp()
+                    .destinations_like_cpp()
+                    .to_vec()
             }),
         Some(vec![42])
     );
