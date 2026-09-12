@@ -5,13 +5,14 @@ use wow_core::{ObjectGuid, Position};
 
 use crate::{
     PlayerAchievementCriteriaRecord, PlayerAchievementRecord, PlayerActionButtonRecord,
-    PlayerBattlegroundState, PlayerCufProfile, PlayerCustomizationChoice,
-    PlayerEquipmentSetsLikeCpp, PlayerGroupState, PlayerGroupUpdateSequenceLikeCpp,
-    PlayerGuildState, PlayerItemModifierRuntimeStateLikeCpp, PlayerMailRecord,
-    PlayerPersistentCapabilityStateLikeCpp, PlayerQuestGameplayState, PlayerRestState,
-    PlayerSkillRecord, PlayerSocialState, PlayerSpellChargeRecord, PlayerSpellCooldownRecord,
-    PlayerSpellRuntimeState, PlayerTalentRuntimeState, PlayerTaxiState, PlayerTradeStateLikeCpp,
-    PlayerTransportState, PlayerVoidStorageItemLikeCpp, PlayerWorldLocalState,
+    PlayerBattlegroundState, PlayerCinematicStateLikeCpp, PlayerCufProfile,
+    PlayerCustomizationChoice, PlayerEquipmentSetsLikeCpp, PlayerGroupState,
+    PlayerGroupUpdateSequenceLikeCpp, PlayerGuildState, PlayerItemModifierRuntimeStateLikeCpp,
+    PlayerMailRecord, PlayerPersistentCapabilityStateLikeCpp, PlayerQuestGameplayState,
+    PlayerRestState, PlayerSkillRecord, PlayerSocialState, PlayerSpellChargeRecord,
+    PlayerSpellCooldownRecord, PlayerSpellRuntimeState, PlayerTalentRuntimeState, PlayerTaxiState,
+    PlayerTradeStateLikeCpp, PlayerTransportState, PlayerVoidStorageItemLikeCpp,
+    PlayerWorldLocalState,
 };
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -139,25 +140,6 @@ pub struct PlayerHomebindLikeCpp {
     pub map_id: u32,
     pub area_id: u32,
     pub position: Position,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PlayerCinematicStateLikeCpp {
-    pub cinematic_id: Option<u32>,
-    pub camera_ids: Option<[u16; 8]>,
-    pub camera_index: i32,
-    pub movie_id: Option<u32>,
-}
-
-impl Default for PlayerCinematicStateLikeCpp {
-    fn default() -> Self {
-        Self {
-            cinematic_id: None,
-            camera_ids: None,
-            camera_index: -1,
-            movie_id: None,
-        }
-    }
 }
 
 /// C++ `PlayerMenu::InteractionData`.

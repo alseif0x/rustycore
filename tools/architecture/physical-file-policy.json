@@ -244,9 +244,9 @@
     },
     {
       "path": "crates/wow-entities/src/player_tests.rs",
-      "observed_lines": 504,
-      "ceiling_lines": 504,
-      "split": "Distribute Player tests by canonical gameplay responsibility without duplicating whole-Player fixtures. Above 2fdbd962 +3 formatting lines adapt existing tuple-header expectations to the native trait value; no new scenario bodies here. C4 retirement remains. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 9497 to 501 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved. 2026-09-12 #763/#765/#767/#769/#771/#773 add one `#[path]` scenario module each for the encapsulated Player owners (collections, taxi, equipment sets, item modifiers, pending spell cast, difficulty); six two-line index entries raise the file from 501 to 502 lines net after the quest-state module it replaced was already counted. The ceiling moves with the index by exactly that one line: the bodies live in the scenario modules, not here. #775 adds the trait-config hydration scenario module, two more index lines.",
+      "observed_lines": 506,
+      "ceiling_lines": 506,
+      "split": "Distribute Player tests by canonical gameplay responsibility without duplicating whole-Player fixtures. Above 2fdbd962 +3 formatting lines adapt existing tuple-header expectations to the native trait value; no new scenario bodies here. C4 retirement remains. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 9497 to 501 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved. 2026-09-12 #763/#765/#767/#769/#771/#773 add one `#[path]` scenario module each for the encapsulated Player owners (collections, taxi, equipment sets, item modifiers, pending spell cast, difficulty); six two-line index entries raise the file from 501 to 502 lines net after the quest-state module it replaced was already counted. The ceiling moves with the index by exactly that one line: the bodies live in the scenario modules, not here. #775 adds the trait-config hydration scenario module, two more index lines. #777 adds the cinematic scenario module, two more index lines.",
       "review_checkpoint": "584:C4"
     },
     {

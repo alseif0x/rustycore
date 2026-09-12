@@ -3156,17 +3156,8 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "represented_cinematic_camera_ids_like_cpp",
-          "type": "Option < [u16 ; 8] >",
-          "visibility": "private",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_cinematic_camera_index_like_cpp",
-          "type": "i32",
+          "name": "represented_cinematic_state_like_cpp",
+          "type": "wow_entities :: PlayerCinematicStateLikeCpp",
           "visibility": "private",
           "cfg": [
             "cfg (test)"
@@ -3176,15 +3167,6 @@
         {
           "name": "represented_cinematic_end_events_like_cpp",
           "type": "Vec < u32 >",
-          "visibility": "private",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_cinematic_like_cpp",
-          "type": "Option < u32 >",
           "visibility": "private",
           "cfg": [
             "cfg (test)"
@@ -3827,15 +3809,6 @@
         {
           "name": "represented_movie_complete_events_like_cpp",
           "type": "Vec < u32 >",
-          "visibility": "private",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_movie_like_cpp",
-          "type": "Option < u32 >",
           "visibility": "private",
           "cfg": [
             "cfg (test)"
@@ -31821,9 +31794,9 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "mutate_player_cinematic_state_like_cpp",
+          "name": "with_player_cinematic_state_like_cpp",
           "visibility": "pub (in crate :: session)",
-          "signature": "fn mutate_player_cinematic_state_like_cpp < R > (& mut self , mut mutate : impl FnMut (& mut wow_entities :: PlayerCinematicStateLikeCpp) -> R ,) -> Option < R >",
+          "signature": "fn with_player_cinematic_state_like_cpp < R > (& mut self , mut apply : impl FnMut (& mut wow_entities :: PlayerCinematicStateLikeCpp) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -75526,7 +75499,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:d8f144e63570053c9ff4454cf8e5d4e7:len=91944|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:e17e804bb88ce2908e494188d472d07b:len=91769|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

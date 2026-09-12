@@ -612,6 +612,34 @@ con delta de inventario revisado. Techo físico de `player_tests.rs` 502 -> 504
 por el módulo de escenario nuevo. Sin QA viva ni evidencia de
 DB/reinicio/relogin.
 
+#### Entrega local aceptada — #777
+
+Decimotercera macro P2: el estado de cinemática y película tenía cuatro miembros
+públicos y un cierre de subestado en `canonical_access/operations.rs`.
+
+- Estado e invariantes en el Player:
+  `crates/wow-entities/src/player/cinematic.rs` posee
+  `PlayerCinematicStateLikeCpp` con los miembros cerrados y las transiciones que
+  C++ hace sobre el `CinematicMgr` que el Player posee: `BeginCinematic`
+  (`Entities/Player/CinematicMgr.h:39`), `NextCinematicCamera`
+  (`CinematicMgr.cpp:46`) y `EndCinematic` (`:83`), más el par de película
+  detrás de `Player::SendMovieStart`.
+- El propietario impone que una secuencia nueva reinicia el recorrido de
+  cámaras, que terminar una secuencia suelta sus cámaras y la reporta una sola
+  vez, y que el avance de cámara rechaza el borde fuera de rango.
+- Departura conservada y nombrada en el módulo, no rededucida en cada llamada:
+  C++ lee la cámara del índice que abandona y pre-incrementa sin proteger el
+  final del array; RustyCore rechaza ese borde.
+- Los siete consumidores de `session/{mod,publication,spell_effects,test_support}`
+  nombran su transición y los cuatro campos espejo `#[cfg(test)]` se funden en
+  uno del tipo del propietario; el inventario de campos pierde tres. Los envíos
+  de paquete siguen en la sesión, que posee la conexión.
+
+Aceptación local: diez regresiones nuevas de invariantes en
+`player_tests/cinematic.rs`, controles de arquitectura y ownership con delta de
+inventario revisado; techo de `player_tests.rs` 504 -> 506. Sin QA viva ni
+evidencia de DB/reinicio/relogin.
+
 ### 4.3 Residuales P2 y paso a P3/P4
 
 Después de #743 y #735 se retiran los accesos genéricos operación por operación. El
