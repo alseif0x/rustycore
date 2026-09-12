@@ -44,7 +44,7 @@
     "families": [
       {
         "id": "test_only_fixtures",
-        "expected_field_count": 427,
+        "expected_field_count": 426,
         "field_names": [
           "account_mounts_like_cpp",
           "active_player_local_flags_like_cpp",
@@ -307,7 +307,6 @@
           "represented_dungeon_difficulty_id_like_cpp",
           "represented_enchanting_skill",
           "represented_equipment_sets_like_cpp",
-          "represented_equipment_sets_loaded_like_cpp",
           "represented_explored_zones_like_cpp",
           "represented_fallback_player_spell_rows_like_cpp",
           "represented_far_teleport_pending_like_cpp",
@@ -976,10 +975,10 @@
         "review": "docs/architecture/session-578-checkpoint.md; current exact membership, not terminal ownership acceptance."
       }
     ],
-    "expected_field_count": 648,
+    "expected_field_count": 647,
     "expected_unique_field_count": 648,
     "expected_production_field_count": 221,
-    "expected_test_fixture_field_count": 427
+    "expected_test_fixture_field_count": 426
   },
   "inventories": {
     "session_resources": {
