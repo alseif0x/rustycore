@@ -46,9 +46,11 @@ def main() -> int:
         help="handler logical-module ownership policy JSON (default: repository policy)",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
-    subparsers.add_parser(
+    check_parser = subparsers.add_parser(
         "check", help="check architecture ratchets and report source hotspots"
     )
+    check_parser.add_argument("--self-test", action="store_true",
+                              help="also run fixtures, reusing measured inventories")
     subparsers.add_parser("self-test", help="validate policy and focused fixtures")
     subparsers.add_parser(
         "hotspot-ratchet",
@@ -126,7 +128,7 @@ def main() -> int:
             )
             traced_clocks = validate_runtime_clock_phase_trace(REPO_ROOT)
             validate_documented_sequence(ledger)
-        if args.command == "self-test":
+        if args.command == "self-test" or (args.command == "check" and args.self_test):
             from test_physical_files import run_self_tests
             if not run_self_tests():
                 raise ArchitectureError("physical source self-tests failed")
@@ -155,12 +157,12 @@ def main() -> int:
                 f"{hotspot_reduction_acceptances} hotspot-reduction acceptance, "
                 f"{handler_module_policy_rejections} handler-module-policy rejections)"
             )
-        elif args.command == "hotspots":
+        if args.command == "hotspots":
             if args.limit <= 0:
                 raise ArchitectureError("--limit must be positive")
             runtime_ledger = load_json(args.runtime_ledger)
             print_hotspots(runtime_ledger, args.limit)
-        else:
+        elif args.command == "check":
             (
                 packages,
                 workspace_edges,
@@ -195,8 +197,5 @@ def main() -> int:
         print(f"architecture check failed: {exc}", file=sys.stderr)
         return 1
     return 0
-
-
-
 if __name__ == "__main__":
     raise SystemExit(main())

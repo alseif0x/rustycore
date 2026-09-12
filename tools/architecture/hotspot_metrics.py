@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from functools import cache
 import pathlib
 import re
 import subprocess
@@ -559,8 +560,9 @@ def path_module_children(path: pathlib.Path, source: str) -> list[tuple[pathlib.
     return path_module_mounts().get(path, [])
 
 
+@cache
 def physical_hotspot_row(path: pathlib.Path) -> tuple[int, int, int, str]:
-    """Count one real source file without charging any child module to it."""
+    """Count each frozen input once per CLI process, without charging child modules."""
     try:
         source = path.read_text(encoding="utf-8")
     except OSError as exc:

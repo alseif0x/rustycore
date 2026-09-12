@@ -678,6 +678,12 @@ def validation_commands(
         "tools/architecture/hotspot_metrics.py",
     } for path in all_paths):
         add_command(planned, ["python3", "tools/architecture/check_architecture.py", "self-test"])
+    if any(path in {
+        "tools/architecture/check_architecture.py",
+        "tools/architecture/test_check_architecture.py",
+        "tools/architecture/hotspot_metrics.py",
+    } for path in all_paths):
+        add_command(planned, ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_check_architecture.py"])
     text_suffixes = {".json", ".lock", ".md", ".proto", ".py", ".rs", ".sh", ".toml", ".tsv", ".txt", ".yaml", ".yml"}
     text_files = existing(
         sorted(
@@ -856,6 +862,27 @@ def build_plan(
         "planned_steps": steps,
         "planned_commands": planned,
     }
+
+
+def enable_architecture_acceptance(plan: dict[str, object], jobs: int) -> None:
+    """Run the full architecture/syntax acceptance once inside the final manifest."""
+    checker = ["python3", "tools/architecture/check_architecture.py"]
+    combined = [*checker, "check", "--self-test"]
+    covered = [
+        [*checker, command] for command in ("physical-files", "hotspot-ratchet", "self-test", "check")
+    ] + [combined]
+    ownership = [
+        "cargo", "run", "--release", "--locked", "--manifest-path", CHECKER_MANIFEST,
+        "--bin", "session-ownership-check", "--jobs", str(jobs), "--", "check", "--syntax-only",
+    ]
+    remaining = [step for step in plan["planned_steps"] if step["argv"] not in [*covered, ownership]]
+    steps = [
+        {"section": "architecture-policy-acceptance", "argv": combined},
+        {"section": "session-syntax-acceptance", "argv": ownership},
+        *remaining,
+    ]
+    plan["planned_steps"] = steps
+    plan["planned_commands"] = [step["argv"] for step in steps]
 
 
 def enable_cargo_timings(plan: dict[str, object]) -> None:
@@ -1193,9 +1220,15 @@ def main() -> int:
         help="record Cargo timing reports during quick/final/audit without a second build",
     )
     parser.add_argument(
+        "--architecture", action="store_true",
+        help="include combined architecture fixtures/checks and syntax ownership in final",
+    )
+    parser.add_argument(
         "--manifest", help="manifest for the verify and normalize profiles"
     )
     args = parser.parse_args()
+    if args.architecture and args.profile != "final":
+        return fail("--architecture is only valid with final")
     if args.timings and args.profile not in {"quick", "final", "audit"}:
         return fail("--timings is only valid with quick, final or audit")
     if args.profile in {"verify", "normalize"}:
@@ -1281,6 +1314,9 @@ def main() -> int:
             exit_code = 0 if outcome["status"] == "passed" else failed_exit_code(outcome)
         else:
             plan = build_plan(repo, args.profile, jobs, args.base, environment, timeout)
+            if args.architecture:
+                enable_architecture_acceptance(plan, jobs)
+                require_protoc_for(plan["planned_steps"], environment)
             if args.timings:
                 enable_cargo_timings(plan)
             document["plan"] = plan
