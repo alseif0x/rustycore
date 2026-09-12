@@ -498,5 +498,7 @@ mod spell_runtime;
 mod talents;
 #[path = "player_tests/taxi_state.rs"]
 mod taxi_state;
+#[path = "player_tests/trait_config_hydration.rs"]
+mod trait_config_hydration;
 #[path = "player_tests/visibility.rs"]
 mod visibility;
