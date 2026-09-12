@@ -735,6 +735,58 @@ cierre llamador; cambiar el nombre del helper no retira la superficie. El residu
 autoridad de oro, porque `Player::SetMoney`/`ModifyMoney` ya viven en
 `wow-entities/src/player/progression.rs`.
 
+#### Contraste P3 de composición y fases — revisión acotada 2026-09-12
+
+Lectura de fuentes: C++ `Map::Update` (`Maps/Map.cpp:666-813`), `MapManager::Update`
+(`Maps/MapManager.cpp:287-318`) y los filtros de sesión de
+`Server/WorldSession.cpp:64-108`; RustyCore en `f2fb8955`:
+`tools/architecture/runtime-clock-phase-trace.json`,
+`crates/world-server/src/runtime/{map,delivery}.rs`,
+`crates/world-server/src/session_factory.rs` y
+`crates/wow-world/src/session/driver/phases.rs`. Es una revisión de fuentes con fecha:
+no ejecuta el runtime ni prueba alcanzabilidad, orden real ni seguridad de cerrojos.
+
+Lo que hace C++ y RustyCore no reproduce hoy:
+
+1. **Un solo reloj gobierna todos los mapas.** `MapManager::Update` avanza `i_timer` y
+   solo entonces recorre los mapas; cada iteración primero comprueba `CanUnload` y
+   destruye el mapa que ya no hace falta, después actualiza (en el pool de
+   actualización si está activo) y al final espera con `m_updater.wait()` antes de
+   recorrer otra vez con `DelayedUpdate`. RustyCore tiene dos bucles de producción
+   independientes al intervalo de mapa configurado —`canonical_map_update` y
+   `legacy_creature_runtime`— sin temporizador compartido, sin paso de descarga y sin
+   la barrera previa a un `DelayedUpdate`.
+2. **La sesión se actualiza dentro del mapa.** `Map::Update` recorre primero los
+   jugadores del mapa y llama a `session->Update(diff, MapSessionFilter)`; el filtro
+   (`WorldSession.cpp:64`) admite `PROCESS_INPLACE`, rechaza `PROCESS_THREADUNSAFE` y
+   exige `IsInWorld` para el resto, de modo que los paquetes inseguros quedan para
+   `World::UpdateSessions` con `WorldSessionFilter` (`:85`). En RustyCore cada sesión
+   corre en su propia tarea (`session_factory.rs`) con su propio diff y su propia
+   espera de 50 ms cuando no hubo paquetes; no existe actualización de sesión dirigida
+   por el mapa ni un contrato de `ProcessingPlace` que decida qué puede procesarse ahí.
+3. **El orden de fases dentro del mapa.** Tras las sesiones, C++ hace respawns,
+   `resetMarkedCells`, visitas de celdas por jugador y objetos activos, transportes,
+   `SendObjectUpdates`, scripts, `MoveAllCreaturesInMoveList` y
+   `ProcessRelocationNotifies`. La traza fechada de RustyCore describe qué posee cada
+   reloj, no este orden.
+
+Qué conservar en cualquier corte P3, ya registrado en las fuentes actuales:
+residencia/incarnation del Player canónico, backpressure y cancelación de la tarea de
+sesión, transferencia entre mapas, descarga y las barreras de apagado; y la invariante
+no negociable de que no se entrega paquete ni comando entre sesiones sosteniendo un
+cerrojo de mapa, que el comprobador ya rechaza declarativamente.
+
+Conteo real de tareas en producción (de la traza y los puntos de arranque): dos bucles
+de simulación al intervalo de mapa, tres tareas periódicas (ready-check, lista de
+reinos, keepalive) y una tarea por sesión. El antiguo `world_update` no existe como
+productor. `RuntimeTickOwner` elige entre `Session` y `GlobalLegacy` para el tick de
+criaturas, con `GlobalLegacy` por defecto en producción.
+
+Primer macro P3 derivado de este contraste: **#785**, composición de actualización de
+mapas —un propietario de reloj con descarga y barrera antes de la fase retrasada—
+antes de tocar la colocación de la actualización de sesión, que depende del contrato
+de `ProcessingPlace` y no puede definirse sin él.
+
 P3 debe contrastar composición, fases y lifetime con `Map.cpp:666-813`,
 `MapManager.cpp:287-318` y `WorldSession.cpp:64-108`, contar tareas reales y conservar
 residence/incarnation, backpressure, cancelación, transfer, unload y shutdown. La
