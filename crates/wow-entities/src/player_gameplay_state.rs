@@ -49,9 +49,9 @@ pub struct PlayerGameplayState {
     pub customizations: Vec<PlayerCustomizationChoice>,
     pub gray_level: u8,
     pub liquid_status: u32,
-    pub dungeon_difficulty_id: u32,
-    pub raid_difficulty_id: u32,
-    pub legacy_raid_difficulty_id: u32,
+    pub(crate) dungeon_difficulty_id: u32,
+    pub(crate) raid_difficulty_id: u32,
+    pub(crate) legacy_raid_difficulty_id: u32,
     /// C++ `Player::m_recentInstances`, keyed by map ID.
     pub recent_instances: HashMap<u32, u32>,
     pub pass_on_group_loot: bool,

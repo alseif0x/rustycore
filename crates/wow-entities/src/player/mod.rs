@@ -17,6 +17,7 @@ mod identity;
 mod inventory_runtime;
 pub use inventory_runtime::PlayerInventoryRuntime;
 mod collection_state;
+mod difficulty;
 mod equipment_sets;
 mod item_modifiers;
 mod items;
