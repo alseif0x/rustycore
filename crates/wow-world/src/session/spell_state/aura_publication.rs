@@ -124,10 +124,10 @@ impl WorldSession {
         let Some(world_local) = self.player_world_local_state_like_cpp() else {
             return false;
         };
-        if !world_local.zone_area_authority_complete {
+        if !world_local.has_zone_area_authority_like_cpp() {
             return false;
         }
-        let zone_id = world_local.zone_id;
+        let zone_id = world_local.zone_id_like_cpp();
         let audited_source_spell_id = match zone_id {
             // OutdoorPvPNA::NA_CAPTURE_BUFF.
             3_518 => Some(33_795),
@@ -180,13 +180,13 @@ impl WorldSession {
         let Some(world_local) = self.player_world_local_state_like_cpp() else {
             return false;
         };
-        if !world_local.zone_area_authority_complete {
+        if !world_local.has_zone_area_authority_like_cpp() {
             return false;
         }
         let Some(areas) = self.area_table_store.as_ref() else {
             return false;
         };
-        let mut area_id = world_local.area_id;
+        let mut area_id = world_local.area_id_like_cpp();
         if area_id == 0 {
             return false;
         }

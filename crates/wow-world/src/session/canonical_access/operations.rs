@@ -150,13 +150,14 @@ impl WorldSession {
                 .player_world_local_state_like_cpp()
                 .expect("handle-less fixture world-local state");
             let result = mutate.take().expect("world-local mutation runs once")(&mut state);
-            self.player_zone_id_like_cpp = state.zone_id;
-            self.player_area_id_like_cpp = state.area_id;
-            self.player_zone_area_authority_complete_like_cpp = state.zone_area_authority_complete;
-            self.player_pvp_hostile_like_cpp = state.pvp_hostile;
-            self.player_pvp_end_timer_like_cpp = state.pvp_end_timer;
-            self.player_contested_pvp_timer_like_cpp = state.contested_pvp_timer;
-            self.represented_is_outdoors_like_cpp = state.is_outdoors;
+            self.player_zone_id_like_cpp = state.zone_id_like_cpp();
+            self.player_area_id_like_cpp = state.area_id_like_cpp();
+            self.player_zone_area_authority_complete_like_cpp =
+                state.has_zone_area_authority_like_cpp();
+            self.player_pvp_hostile_like_cpp = state.is_pvp_hostile_like_cpp();
+            self.player_pvp_end_timer_like_cpp = state.pvp_end_timer_like_cpp();
+            self.player_contested_pvp_timer_like_cpp = state.contested_pvp_timer_like_cpp();
+            self.represented_is_outdoors_like_cpp = state.is_outdoors_like_cpp();
             return Some(result);
         }
         canonical
