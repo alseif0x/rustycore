@@ -290,9 +290,13 @@ pub(super) fn request(
         None
     };
 
-    let equipment_sets = match Some((&game.equipment_sets, game.equipment_sets_loaded)) {
-        Some((sets, true)) => Some(
-            sets.values()
+    let equipment_sets = match (
+        &game.equipment_sets,
+        game.equipment_sets.is_loaded_like_cpp(),
+    ) {
+        (sets, true) => Some(
+            sets.sets_like_cpp()
+                .values()
                 .map(|equipment_set| PlayerEquipmentSetSaveLikeCpp {
                     set_guid: equipment_set.guid,
                     set_id: equipment_set.set_id,

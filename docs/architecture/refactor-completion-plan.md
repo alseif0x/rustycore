@@ -453,6 +453,49 @@ Aceptación local: catorce regresiones nuevas de invariantes en
 inventario revisado (session/mod.rs -2 producción/+1 test; player/mod.rs +200
 producción/+188 test). Sin QA viva ni evidencia de DB/reinicio/relogin.
 
+#### Entrega local aceptada — #767
+
+Octava macro P2: los conjuntos de equipo vivían como dos miembros públicos
+sueltos del estado de juego y un cierre genérico que entregaba `&mut BTreeMap`
+y `&mut bool` al llamador.
+
+- Estado e invariantes en el Player:
+  `crates/wow-entities/src/player/equipment_sets.rs` posee
+  `PlayerEquipmentSetsLikeCpp` —C++ `Player::_equipmentSets` (`Player.h:3050`)—
+  con almacenamiento privado y las transiciones que C++ hace:
+  `_LoadEquipmentSets` (`Player.cpp:16907`), `SetEquipmentSet` (`:26376`),
+  `_SaveEquipmentSets` (`:26409`) y `DeleteEquipmentSet` (`:26524`).
+- `SetEquipmentSet` se separa en las dos operaciones que C++ distingue por el
+  guid de la petición: la creación, para la que C++ toma el guid de
+  `GenerateEquipmentSetGuid`, y la edición, que rechaza un guid no almacenado
+  exactamente como C++ registra y retorna, y aplica la regla de estado de
+  `:26406` —lo que sigue siendo `New` se queda en `New`, lo demás pasa a
+  `Changed`— para que un conjunto creado y editado antes del primer guardado se
+  inserte una sola vez.
+- El reconocimiento del guardado diferido deja de ser una función libre en
+  `save_ack.rs` y pasa al propietario, documentado como reconciliación propia de
+  RustyCore y no como función C++: C++ escribe sus sentencias dentro de
+  `_SaveEquipmentSets` sosteniendo el Player y no tiene nada que reconciliar.
+- Los diez consumidores de producción en
+  `session/player_items/{equipment_sets,appearance}.rs`, la proyección de
+  guardado del ciclo de vida y la raíz de sesión llaman cada uno a una
+  transición con nombre. Los dos campos espejo `#[cfg(test)]` de la sesión se
+  funden en uno del mismo tipo y el inventario de campos pierde uno.
+- Corrección de comportamiento nombrada, no escondida: las filas se indexan por
+  su propio guid, como C++ indexa `_equipmentSets`, donde antes los fixtures
+  insertaban con una clave junto a una fila cuyo guid quedaba a cero. Cinco
+  pruebas de `character_tests/item_1.rs` dependían de esa inconsistencia y
+  siguen el guid real sin cambiar sus aserciones de estado.
+- La validación de catálogo, la generación de guid y la construcción de paquetes
+  siguen en `wow-world`, donde la política de dependencias las permite.
+
+Aceptación local: dieciséis regresiones nuevas de invariantes en
+`player_tests/equipment_sets.rs`, controles de arquitectura y ownership con
+delta de inventario revisado (session/mod.rs -37 producción/+8 test;
+player/mod.rs +177 producción/+307 test) y baseline de ownership actualizado por
+el campo fundido y las dos firmas del préstamo. Sin QA viva ni evidencia de
+DB/reinicio/relogin.
+
 ### 4.3 Residuales P2 y paso a P3/P4
 
 Después de #743 y #735 se retiran los accesos genéricos operación por operación. El

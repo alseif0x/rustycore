@@ -210,15 +210,14 @@ fn full_save_preparation_is_owned_and_matches_previous_projection_for_loaded_gro
     session
         .with_owned_player_mut_like_cpp(|p| {
             let game = p.gameplay_state_mut();
-            game.equipment_sets_loaded = true;
-            game.equipment_sets.insert(
+            game.equipment_sets.mark_loaded_like_cpp();
+            let mut stored = wow_entities::PlayerEquipmentSetLikeCpp::equipment(
                 1,
-                wow_entities::PlayerEquipmentSetLikeCpp::equipment(
-                    1,
-                    0,
-                    wow_entities::PlayerEquipmentSetUpdateStateLikeCpp::New,
-                ),
+                0,
+                wow_entities::PlayerEquipmentSetUpdateStateLikeCpp::New,
             );
+            stored.guid = 1;
+            game.equipment_sets.install_loaded_set_like_cpp(stored);
             game.cuf_profiles_loaded = true;
             game.action_buttons_loaded = true;
             game.talents.mark_talents_loaded_like_cpp();

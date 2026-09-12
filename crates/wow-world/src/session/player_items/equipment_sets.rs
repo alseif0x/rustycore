@@ -8,41 +8,32 @@ use super::*;
 impl WorldSession {
     pub(in crate::session) fn with_owned_equipment_sets_like_cpp<R>(
         &self,
-        mut f: impl FnMut(&BTreeMap<u64, RepresentedEquipmentSetLikeCpp>, bool) -> R,
+        mut f: impl FnMut(&wow_entities::PlayerEquipmentSetsLikeCpp) -> R,
     ) -> Option<R> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            let state = player.gameplay_state();
-            f(&state.equipment_sets, state.equipment_sets_loaded)
-        });
+        let canonical =
+            self.with_owned_player_like_cpp(|player| f(&player.gameplay_state().equipment_sets));
         if canonical.is_some() {
             return canonical;
         }
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            return Some(f(
-                &self.represented_equipment_sets_like_cpp,
-                self.represented_equipment_sets_loaded_like_cpp,
-            ));
+            return Some(f(&self.represented_equipment_sets_like_cpp));
         }
         None
     }
     pub(in crate::session) fn with_owned_equipment_sets_mut_like_cpp<R>(
         &mut self,
-        mut f: impl FnMut(&mut BTreeMap<u64, RepresentedEquipmentSetLikeCpp>, &mut bool) -> R,
+        mut f: impl FnMut(&mut wow_entities::PlayerEquipmentSetsLikeCpp) -> R,
     ) -> Option<R> {
         let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            let state = player.gameplay_state_mut();
-            f(&mut state.equipment_sets, &mut state.equipment_sets_loaded)
+            f(&mut player.gameplay_state_mut().equipment_sets)
         });
         if canonical.is_some() {
             return canonical;
         }
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            return Some(f(
-                &mut self.represented_equipment_sets_like_cpp,
-                &mut self.represented_equipment_sets_loaded_like_cpp,
-            ));
+            return Some(f(&mut self.represented_equipment_sets_like_cpp));
         }
         None
     }
@@ -52,18 +43,17 @@ impl WorldSession {
         guid: u64,
         equipment_set: RepresentedEquipmentSetLikeCpp,
     ) {
-        let _ = self.with_owned_equipment_sets_mut_like_cpp(|sets, _| {
-            sets.insert(guid, equipment_set.clone());
+        let mut equipment_set = equipment_set;
+        equipment_set.guid = guid;
+        let _ = self.with_owned_equipment_sets_mut_like_cpp(|sets| {
+            sets.install_loaded_set_like_cpp(equipment_set.clone());
         });
     }
     pub(crate) fn clear_represented_equipment_sets_like_cpp(&mut self) {
-        let _ = self.with_owned_equipment_sets_mut_like_cpp(|sets, loaded| {
-            sets.clear();
-            *loaded = false;
-        });
+        let _ = self.with_owned_equipment_sets_mut_like_cpp(|sets| sets.clear_like_cpp());
     }
     pub(crate) fn mark_represented_equipment_sets_loaded_like_cpp(&mut self) {
-        let _ = self.with_owned_equipment_sets_mut_like_cpp(|_, loaded| *loaded = true);
+        let _ = self.with_owned_equipment_sets_mut_like_cpp(|sets| sets.mark_loaded_like_cpp());
     }
     pub(crate) fn load_represented_equipment_set_row_like_cpp(
         &mut self,
@@ -97,16 +87,17 @@ impl WorldSession {
             set_icon,
             state: RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
         };
-        self.with_owned_equipment_sets_mut_like_cpp(|sets, _| {
-            sets.insert(guid, equipment_set.clone());
+        self.with_owned_equipment_sets_mut_like_cpp(|sets| {
+            sets.install_loaded_set_like_cpp(equipment_set.clone());
         })
         .is_some()
     }
     pub(crate) fn represented_load_equipment_set_packet_like_cpp(
         &self,
     ) -> Option<wow_packet::packets::misc::LoadEquipmentSet> {
-        self.with_owned_equipment_sets_like_cpp(|stored, _| {
+        self.with_owned_equipment_sets_like_cpp(|stored| {
             let sets = stored
+                .sets_like_cpp()
                 .values()
                 .filter(|equipment_set| {
                     equipment_set.state != RepresentedEquipmentSetUpdateStateLikeCpp::Deleted
@@ -140,7 +131,7 @@ impl WorldSession {
         &self,
         guid: u64,
     ) -> Option<RepresentedEquipmentSetLikeCpp> {
-        self.with_owned_equipment_sets_like_cpp(|sets, _| sets.get(&guid).cloned())?
+        self.with_owned_equipment_sets_like_cpp(|sets| sets.set_like_cpp(guid).cloned())?
     }
     pub(crate) fn save_represented_equipment_set_with_generator_like_cpp(
         &mut self,
@@ -216,9 +207,8 @@ impl WorldSession {
             }
         }
 
-        let existing_state = self.with_owned_equipment_sets_like_cpp(|sets, _| {
-            sets.get(&set.guid).map(|equipment_set| equipment_set.state)
-        })?;
+        let existing_state =
+            self.with_owned_equipment_sets_like_cpp(|sets| sets.set_state_like_cpp(set.guid))?;
         if set.guid != 0 && existing_state.is_none() {
             return None;
         }
@@ -231,22 +221,25 @@ impl WorldSession {
         };
         set.guid = guid;
 
-        let next_state = existing_state
-            .map(|state| {
-                if state == RepresentedEquipmentSetUpdateStateLikeCpp::New {
-                    RepresentedEquipmentSetUpdateStateLikeCpp::New
-                } else {
-                    RepresentedEquipmentSetUpdateStateLikeCpp::Changed
-                }
-            })
-            .unwrap_or(RepresentedEquipmentSetUpdateStateLikeCpp::New);
-
-        let saved = represented_equipment_set_from_packet_like_cpp(set, guid, next_state)?;
+        // The owner applies C++ `Player::SetEquipmentSet`'s state rule
+        // (Player.cpp:26406), so the state passed here is only the row's
+        // starting point.
+        let saved = represented_equipment_set_from_packet_like_cpp(
+            set,
+            guid,
+            existing_state.unwrap_or(RepresentedEquipmentSetUpdateStateLikeCpp::New),
+        )?;
         let saved_raw_type = saved.raw_set_type;
         let saved_set_id = saved.set_id;
-        self.with_owned_equipment_sets_mut_like_cpp(|sets, _| {
-            sets.insert(guid, saved.clone());
-        })?;
+        self.with_owned_equipment_sets_mut_like_cpp(|sets| {
+            if generated_new_guid {
+                sets.create_set_like_cpp(saved.clone());
+                true
+            } else {
+                sets.update_set_like_cpp(saved.clone())
+            }
+        })?
+        .then_some(())?;
 
         Some(RepresentedEquipmentSetSavedLikeCpp {
             guid,
@@ -265,35 +258,14 @@ impl WorldSession {
             return false;
         }
 
-        self.with_owned_equipment_sets_mut_like_cpp(|sets, _| {
-            let Some((_, equipment_set)) = sets.iter_mut().find(|(_, equipment_set)| {
-                equipment_set.set_id == set_id
-                    && equipment_set.set_type == RepresentedEquipmentSetTypeLikeCpp::Equipment
-            }) else {
-                return false;
-            };
-
-            equipment_set.assigned_spec_index = spec_index as i32;
-            if equipment_set.state != RepresentedEquipmentSetUpdateStateLikeCpp::New {
-                equipment_set.state = RepresentedEquipmentSetUpdateStateLikeCpp::Changed;
-            }
-            true
+        self.with_owned_equipment_sets_mut_like_cpp(|sets| {
+            sets.assign_set_to_spec_like_cpp(set_id, spec_index as i32)
         })
         .unwrap_or(false)
     }
     pub(crate) fn delete_represented_equipment_set_like_cpp(&mut self, id: u64) -> bool {
-        self.with_owned_equipment_sets_mut_like_cpp(|sets, _| {
-            let Some(equipment_set) = sets.get_mut(&id) else {
-                return false;
-            };
-            if equipment_set.state == RepresentedEquipmentSetUpdateStateLikeCpp::New {
-                sets.remove(&id);
-            } else {
-                equipment_set.state = RepresentedEquipmentSetUpdateStateLikeCpp::Deleted;
-            }
-            true
-        })
-        .unwrap_or(false)
+        self.with_owned_equipment_sets_mut_like_cpp(|sets| sets.delete_set_like_cpp(id))
+            .unwrap_or(false)
     }
     pub(crate) fn use_represented_equipment_set_like_cpp(
         &mut self,
@@ -410,14 +382,6 @@ impl WorldSession {
     /// preserves them and the incomplete runtime cannot reconstruct them.
     #[cfg(test)]
     pub(in crate::session) fn mark_equipment_sets_saved_like_cpp(&mut self) {
-        let _ = self.with_owned_equipment_sets_mut_like_cpp(|sets, _| {
-            sets.retain(|_, equipment_set| {
-                if equipment_set.state == RepresentedEquipmentSetUpdateStateLikeCpp::Deleted {
-                    return false;
-                }
-                equipment_set.state = RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged;
-                true
-            });
-        });
+        let _ = self.with_owned_equipment_sets_mut_like_cpp(|sets| sets.mark_sets_saved_like_cpp());
     }
 }
