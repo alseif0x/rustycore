@@ -37,13 +37,17 @@ fn pending_cast_uses_active_and_detached_player_and_publishes_replacement_cancel
         }
         let calls = std::cell::Cell::new(0);
         assert_eq!(
-            session.mutate_pending_spell_cast_like_cpp(|pending| {
+            session.with_owned_player_mut_like_cpp(|player| {
                 calls.set(calls.get() + 1);
                 assert!(matches!(
                     manager.try_lock(),
                     Err(std::sync::TryLockError::WouldBlock)
                 ));
-                *pending = Some(request(guid, 1));
+                assert!(
+                    player
+                        .request_spell_cast_like_cpp(request(guid, 1))
+                        .is_none()
+                );
             }),
             Some(())
         );
@@ -77,7 +81,7 @@ fn stale_pending_cast_cannot_cancel_replace_or_publish_for_new_incarnation() {
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
-    replacement.gameplay_state_mut().pending_spell_cast = Some(request(guid, 3));
+    replacement.request_spell_cast_like_cpp(request(guid, 3));
     let handle = manager
         .lock()
         .unwrap()
@@ -85,7 +89,7 @@ fn stale_pending_cast_cannot_cancel_replace_or_publish_for_new_incarnation() {
         .unwrap();
     assert_eq!(session.pending_spell_cast_snapshot_like_cpp(), None);
     assert_eq!(
-        session.mutate_pending_spell_cast_like_cpp(|_| panic!("stale owner")),
+        session.with_owned_player_mut_like_cpp(|_| panic!("stale owner")),
         None::<()>
     );
     assert!(!session.cancel_pending_spell_cast_request_like_cpp());
@@ -95,14 +99,14 @@ fn stale_pending_cast_cannot_cancel_replace_or_publish_for_new_incarnation() {
             .lock()
             .unwrap()
             .with_player_like_cpp(handle, |player| {
-                player.gameplay_state().pending_spell_cast.clone()
+                player.pending_spell_cast_snapshot_like_cpp()
             }),
         Some(Some(request(guid, 3)))
     );
     assert!(drain_server_opcodes(&send_rx).is_empty());
     session.canonical_map_manager = None;
     assert_eq!(
-        session.mutate_pending_spell_cast_like_cpp(|_| panic!("missing owner")),
+        session.with_owned_player_mut_like_cpp(|_| panic!("missing owner")),
         None::<()>
     );
 }

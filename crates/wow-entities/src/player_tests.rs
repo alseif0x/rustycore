@@ -474,6 +474,8 @@ mod loot;
 mod misc;
 #[path = "player_tests/movement.rs"]
 mod movement;
+#[path = "player_tests/pending_spell_cast.rs"]
+mod pending_spell_cast;
 #[path = "player_tests/persistence.rs"]
 mod persistence;
 #[path = "player_tests/pet.rs"]

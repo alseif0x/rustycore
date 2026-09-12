@@ -31784,14 +31784,12 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "mutate_pending_spell_cast_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn mutate_pending_spell_cast_like_cpp < R > (& mut self , f : impl FnOnce (& mut Option < RepresentedPendingSpellCastRequestLikeCpp >) -> R ,) -> Option < R >",
+          "name": "with_pending_spell_cast_owner_like_cpp",
+          "visibility": "private",
+          "signature": "fn with_pending_spell_cast_owner_like_cpp < R > (& mut self , canonical : impl FnOnce (& mut wow_entities :: Player) -> R , # [cfg (test)] fallback : impl FnOnce (& mut Option < RepresentedPendingSpellCastRequestLikeCpp >) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
-          "guards": [
-            "visible"
-          ]
+          "guards": []
         },
         {
           "module": "crate::session",

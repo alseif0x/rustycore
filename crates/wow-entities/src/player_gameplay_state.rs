@@ -31,7 +31,7 @@ pub struct PlayerGameplayState {
     pub non_durable_skill_tombstones: BTreeSet<u16>,
     pub spells: PlayerSpellRuntimeState,
     /// C++ `Player::_pendingSpellCastRequest`; independent of the active Unit cast.
-    pub pending_spell_cast: Option<crate::PendingSpellCastRequestLikeCpp>,
+    pub(crate) pending_spell_cast: Option<crate::PendingSpellCastRequestLikeCpp>,
     pub talents: PlayerTalentRuntimeState,
     /// C++ `Player::_questRewardedTalentPoints`.
     pub quest_rewarded_talent_points: u32,
@@ -349,6 +349,24 @@ pub struct PlayerCurrency {
 }
 
 impl PlayerGameplayState {
+    /// Build a gameplay state carrying only the active-player update fields,
+    /// for the handle-less represented mirror that has no Player to borrow.
+    /// Every other member keeps its default, including the queued spell cast
+    /// that #771 closed to this crate.
+    #[must_use]
+    pub fn with_active_player_update_fields_like_cpp(
+        active_local_flags: u32,
+        active_transport_server_time: i32,
+        multi_action_bars: u8,
+    ) -> Self {
+        Self {
+            active_local_flags,
+            active_transport_server_time,
+            multi_action_bars,
+            ..Self::default()
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         self == &Self::default()
     }
