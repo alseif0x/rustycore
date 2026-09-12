@@ -813,7 +813,7 @@ fn canonical_player_outdoors_state_follows_active_detached_and_stale_ownership_l
     assert_eq!(
         session
             .player_world_local_state_like_cpp()
-            .and_then(|state| state.is_outdoors),
+            .and_then(|state| state.is_outdoors_like_cpp()),
         Some(true)
     );
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
@@ -828,7 +828,7 @@ fn canonical_player_outdoors_state_follows_active_detached_and_stale_ownership_l
     assert_eq!(
         session
             .player_world_local_state_like_cpp()
-            .and_then(|state| state.is_outdoors),
+            .and_then(|state| state.is_outdoors_like_cpp()),
         Some(false)
     );
 
@@ -838,7 +838,10 @@ fn canonical_player_outdoors_state_follows_active_detached_and_stale_ownership_l
         .world_mut()
         .object_mut()
         .create(player_guid);
-    replacement.gameplay_state_mut().world_local.is_outdoors = Some(true);
+    replacement
+        .gameplay_state_mut()
+        .world_local
+        .set_is_outdoors_like_cpp(Some(true));
     let replacement_handle = canonical
         .lock()
         .unwrap()
@@ -854,7 +857,7 @@ fn canonical_player_outdoors_state_follows_active_detached_and_stale_ownership_l
             .with_player_like_cpp(replacement_handle, |player| player
                 .gameplay_state()
                 .world_local
-                .is_outdoors,),
+                .is_outdoors_like_cpp(),),
         Some(Some(true))
     );
 }

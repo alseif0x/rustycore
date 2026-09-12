@@ -141,7 +141,7 @@ impl WorldSession {
             false
         };
         let _ = self.mutate_player_world_local_state_like_cpp(|state| {
-            state.pvp_hostile = zone_hostile || war_mode_active;
+            state.set_pvp_hostile_like_cpp(zone_hostile || war_mode_active);
         });
     }
     pub(crate) fn handle_represented_tavern_area_trigger_with_catalog_like_cpp(
@@ -215,22 +215,19 @@ impl WorldSession {
         let Some(world_local) = self.player_world_local_state_like_cpp() else {
             return false;
         };
-        let old_area = world_local.area_id;
+        let old_area = world_local.area_id_like_cpp();
         if old_area != new_area {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         if self
             .mutate_player_world_local_state_like_cpp(|state| {
-                if old_area != new_area {
-                    state.zone_area_authority_complete = false;
-                }
-                state.area_id = new_area;
+                state.set_area_id_like_cpp(new_area);
             })
             .is_none()
         {
             return false;
         }
-        let zone_id = world_local.zone_id;
+        let zone_id = world_local.zone_id_like_cpp();
         let _ = self.with_owned_player_mut_like_cpp(|player| {
             player
                 .unit_mut()
@@ -302,22 +299,19 @@ impl WorldSession {
         let Some(world_local) = self.player_world_local_state_like_cpp() else {
             return false;
         };
-        let old_zone = world_local.zone_id;
+        let old_zone = world_local.zone_id_like_cpp();
         if old_zone != new_zone {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         if self
             .mutate_player_world_local_state_like_cpp(|state| {
-                if old_zone != new_zone {
-                    state.zone_area_authority_complete = false;
-                }
-                state.zone_id = new_zone;
+                state.set_zone_id_like_cpp(new_zone);
             })
             .is_none()
         {
             return false;
         }
-        let area_id = world_local.area_id;
+        let area_id = world_local.area_id_like_cpp();
         let _ = self.with_owned_player_mut_like_cpp(|player| {
             player
                 .unit_mut()
@@ -364,7 +358,7 @@ impl WorldSession {
         // LinkedChat zone. It removes the flag only in the outer non-LinkedChat
         // branch; the hostile inner branch performs no RestMgr mutation.
         if zone.linked_chat_like_cpp() {
-            if !world_local.pvp_hostile || zone.is_sanctuary_like_cpp() {
+            if !world_local.is_pvp_hostile_like_cpp() || zone.is_sanctuary_like_cpp() {
                 self.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0);
             }
         } else {
@@ -663,11 +657,7 @@ impl WorldSession {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         let _ = self.mutate_player_world_local_state_like_cpp(|state| {
-            if changed {
-                state.zone_area_authority_complete = false;
-            }
-            state.zone_id = zone_id;
-            state.area_id = area_id;
+            state.set_zone_area_like_cpp(zone_id, area_id);
         });
         let _ = self.with_owned_player_mut_like_cpp(|player| {
             player
@@ -678,7 +668,7 @@ impl WorldSession {
     }
     pub(crate) fn set_player_zone_area_authority_complete_like_cpp(&mut self, complete: bool) {
         let _ = self.mutate_player_world_local_state_like_cpp(|state| {
-            state.zone_area_authority_complete = complete;
+            state.set_zone_area_authority_like_cpp(complete);
         });
         if !complete {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
@@ -686,6 +676,6 @@ impl WorldSession {
     }
     pub(crate) fn player_zone_area_like_cpp(&self) -> Option<(u32, u32)> {
         self.player_world_local_state_like_cpp()
-            .map(|state| (state.zone_id, state.area_id))
+            .map(|state| state.zone_area_like_cpp())
     }
 }

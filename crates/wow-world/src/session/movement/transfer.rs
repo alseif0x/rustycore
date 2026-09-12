@@ -789,14 +789,14 @@ impl WorldSession {
                 false,
             );
         }
-        let old_zone = world_local_before.zone_id;
+        let old_zone = world_local_before.zone_id_like_cpp();
         self.set_player_map_position_like_cpp(map_id, destination);
         self.update_registry_position();
         self.set_fall_information_like_cpp(0, destination.z);
 
         let (new_zone, new_area) = teleport
             .near_destination_zone_area
-            .unwrap_or((world_local_before.zone_id, world_local_before.area_id));
+            .unwrap_or(world_local_before.zone_area_like_cpp());
         self.update_zone_represented_like_cpp(new_zone, new_area);
 
         let zone_changed = old_zone != new_zone;
@@ -817,9 +817,11 @@ impl WorldSession {
                 false,
             );
         };
-        let honorless_target_cast = zone_changed && world_local_after.pvp_hostile;
-        let pvp_disabled =
-            zone_changed && !world_local_after.pvp_hostile && pvp_enabled_before && !in_pvp_before;
+        let honorless_target_cast = zone_changed && world_local_after.is_pvp_hostile_like_cpp();
+        let pvp_disabled = zone_changed
+            && !world_local_after.is_pvp_hostile_like_cpp()
+            && pvp_enabled_before
+            && !in_pvp_before;
         if pvp_disabled {
             self.update_player_pvp_like_cpp(false, true);
         }

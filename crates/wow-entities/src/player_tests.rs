@@ -506,3 +506,5 @@ mod taxi_state;
 mod trait_config_hydration;
 #[path = "player_tests/visibility.rs"]
 mod visibility;
+#[path = "player_tests/world_local.rs"]
+mod world_local;

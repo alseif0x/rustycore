@@ -442,7 +442,7 @@ async fn world_port_response_recomputes_destination_rest_state_post_add_like_cpp
             .unwrap()
             .gameplay_state()
             .world_local
-            .zone_area_authority_complete
+            .has_zone_area_authority_like_cpp()
     };
     let mut send_rx = Some(send_rx);
     for disconnected in [false, true] {

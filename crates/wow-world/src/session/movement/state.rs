@@ -690,7 +690,7 @@ impl WorldSession {
         self.set_fall_information_like_cpp(0, current_z);
         let honorless_target_cast = self
             .player_world_local_state_like_cpp()
-            .is_some_and(|state| state.pvp_hostile);
+            .is_some_and(|state| state.is_pvp_hostile_like_cpp());
 
         self.record_move_spline_done_taxi_event_like_cpp(
             spline_id,

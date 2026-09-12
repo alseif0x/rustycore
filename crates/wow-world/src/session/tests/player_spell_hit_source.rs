@@ -465,12 +465,11 @@ fn player_spell_hit_source_authority_gates_update_zone_aura_producers_like_cpp()
     let mut session = complete_empty_player_spell_hit_authority_fixture_like_cpp();
     assert_eq!(
         session.player_world_local_state_like_cpp(),
-        Some(wow_entities::PlayerWorldLocalState {
-            zone_id: 1,
-            area_id: 12,
-            zone_area_authority_complete: true,
-            ..Default::default()
-        })
+        Some(
+            wow_entities::PlayerWorldLocalState::from_represented_parts_like_cpp(
+                1, 12, true, false, None, 0, None,
+            )
+        )
     );
     assert_eq!(session.represented_player_flags_value_like_cpp(), Some(0));
     assert!(!session.represented_player_has_flag_like_cpp(PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP));

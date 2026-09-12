@@ -9195,15 +9195,16 @@ impl WorldSession {
         player.set_explored_zones_blocks_like_cpp(&self.represented_explored_zones_like_cpp);
         #[cfg(test)]
         {
-            player.gameplay_state_mut().world_local = wow_entities::PlayerWorldLocalState {
-                zone_id: self.player_zone_id_like_cpp,
-                area_id: self.player_area_id_like_cpp,
-                zone_area_authority_complete: self.player_zone_area_authority_complete_like_cpp,
-                pvp_hostile: self.player_pvp_hostile_like_cpp,
-                pvp_end_timer: self.player_pvp_end_timer_like_cpp,
-                contested_pvp_timer: self.player_contested_pvp_timer_like_cpp,
-                is_outdoors: self.represented_is_outdoors_like_cpp,
-            };
+            player.gameplay_state_mut().world_local =
+                wow_entities::PlayerWorldLocalState::from_represented_parts_like_cpp(
+                    self.player_zone_id_like_cpp,
+                    self.player_area_id_like_cpp,
+                    self.player_zone_area_authority_complete_like_cpp,
+                    self.player_pvp_hostile_like_cpp,
+                    self.player_pvp_end_timer_like_cpp,
+                    self.player_contested_pvp_timer_like_cpp,
+                    self.represented_is_outdoors_like_cpp,
+                );
             player.gameplay_state_mut().vehicle_seat_flags =
                 self.player_vehicle_seat_flags_like_cpp;
             player.gameplay_state_mut().vehicle_seat_id = self.player_vehicle_seat_id_like_cpp;
@@ -9428,15 +9429,17 @@ impl WorldSession {
             self.with_owned_player_like_cpp(|player| player.gameplay_state().world_local);
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(wow_entities::PlayerWorldLocalState {
-                zone_id: self.player_zone_id_like_cpp,
-                area_id: self.player_area_id_like_cpp,
-                zone_area_authority_complete: self.player_zone_area_authority_complete_like_cpp,
-                pvp_hostile: self.player_pvp_hostile_like_cpp,
-                pvp_end_timer: self.player_pvp_end_timer_like_cpp,
-                contested_pvp_timer: self.player_contested_pvp_timer_like_cpp,
-                is_outdoors: self.represented_is_outdoors_like_cpp,
-            });
+            return Some(
+                wow_entities::PlayerWorldLocalState::from_represented_parts_like_cpp(
+                    self.player_zone_id_like_cpp,
+                    self.player_area_id_like_cpp,
+                    self.player_zone_area_authority_complete_like_cpp,
+                    self.player_pvp_hostile_like_cpp,
+                    self.player_pvp_end_timer_like_cpp,
+                    self.player_contested_pvp_timer_like_cpp,
+                    self.represented_is_outdoors_like_cpp,
+                ),
+            );
         }
         canonical
     }
@@ -10600,7 +10603,7 @@ impl WorldSession {
 
     pub fn set_represented_is_outdoors_like_cpp(&mut self, is_outdoors: bool) {
         let _ = self.mutate_player_world_local_state_like_cpp(|state| {
-            state.is_outdoors = Some(is_outdoors);
+            state.set_is_outdoors_like_cpp(Some(is_outdoors));
         });
     }
 
@@ -12685,7 +12688,7 @@ impl WorldSession {
         let player_changed = self.player_guid != guid;
         if player_changed {
             let _ = self.mutate_player_world_local_state_like_cpp(|state| {
-                state.zone_area_authority_complete = false;
+                state.set_zone_area_authority_like_cpp(false);
             });
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }

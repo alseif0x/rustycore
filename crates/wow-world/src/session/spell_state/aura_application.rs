@@ -33,7 +33,7 @@ impl WorldSession {
 
         let Some(is_outdoors) = self
             .player_world_local_state_like_cpp()
-            .and_then(|state| state.is_outdoors)
+            .and_then(|state| state.is_outdoors_like_cpp())
         else {
             return 0;
         };

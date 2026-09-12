@@ -38,7 +38,7 @@ pub(super) fn request(
             orientation: snapshot.position.orientation,
             map_id: snapshot.map_id,
             instance_id: snapshot.instance_id,
-            zone_id: game.world_local.zone_id as u16,
+            zone_id: game.world_local.zone_id_like_cpp() as u16,
         },
         level: snapshot.level,
         xp: snapshot.xp,

@@ -314,15 +314,16 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
         .subsystems_mut()
         .control
         .set_moved_unit(Some(pet_guid));
-    replacement.gameplay_state_mut().world_local = wow_entities::PlayerWorldLocalState {
-        zone_id: 900,
-        area_id: 901,
-        zone_area_authority_complete: true,
-        pvp_hostile: true,
-        pvp_end_timer: Some(123),
-        contested_pvp_timer: 456,
-        is_outdoors: Some(true),
-    };
+    replacement.gameplay_state_mut().world_local =
+        wow_entities::PlayerWorldLocalState::from_represented_parts_like_cpp(
+            900,
+            901,
+            true,
+            true,
+            Some(123),
+            456,
+            Some(true),
+        );
     replacement
         .unit_mut()
         .set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
@@ -524,15 +525,15 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
                 player.unit().pvp_flags_like_cpp(),
             )),
         Some((
-            wow_entities::PlayerWorldLocalState {
-                zone_id: 900,
-                area_id: 901,
-                zone_area_authority_complete: true,
-                pvp_hostile: true,
-                pvp_end_timer: Some(123),
-                contested_pvp_timer: 456,
-                is_outdoors: Some(true),
-            },
+            wow_entities::PlayerWorldLocalState::from_represented_parts_like_cpp(
+                900,
+                901,
+                true,
+                true,
+                Some(123),
+                456,
+                Some(true),
+            ),
             UnitPvpFlags::PVP,
         ))
     );

@@ -116,11 +116,11 @@ impl WorldSession {
         let Some(state) = self.player_world_local_state_like_cpp() else {
             return;
         };
-        let Some(end_timer) = state.pvp_end_timer else {
+        let Some(end_timer) = state.pvp_end_timer_like_cpp() else {
             return;
         };
 
-        if curr_time < end_timer.saturating_add(300) || state.pvp_hostile {
+        if curr_time < end_timer.saturating_add(300) || state.is_pvp_hostile_like_cpp() {
             return;
         }
 
@@ -178,7 +178,7 @@ impl WorldSession {
             if self.player_is_pvp_like_cpp(guid) == Some(false)
                 || self
                     .player_world_local_state_like_cpp()
-                    .is_some_and(|state| state.pvp_end_timer.is_some())
+                    .is_some_and(|state| state.pvp_end_timer_like_cpp().is_some())
             {
                 self.update_player_pvp_like_cpp(true, true);
             }
@@ -201,10 +201,10 @@ impl WorldSession {
             let Some(state) = self.player_world_local_state_like_cpp() else {
                 return;
             };
-            if !state.pvp_hostile && self.player_is_pvp_like_cpp(guid) == Some(true) {
+            if !state.is_pvp_hostile_like_cpp() && self.player_is_pvp_like_cpp(guid) == Some(true) {
                 let now = wow_entities::game_time_secs_like_cpp();
                 let _ = self.mutate_player_world_local_state_like_cpp(|state| {
-                    state.pvp_end_timer = Some(now);
+                    state.set_pvp_end_timer_like_cpp(Some(now));
                 });
             }
         }
@@ -544,7 +544,7 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn set_player_pvp_hostile_like_cpp(&mut self, hostile: bool) {
         let _ = self.mutate_player_world_local_state_like_cpp(|state| {
-            state.pvp_hostile = hostile;
+            state.set_pvp_hostile_like_cpp(hostile);
         });
     }
     #[cfg(test)]
