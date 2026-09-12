@@ -202,6 +202,29 @@ fails immediately and reports the lock path and active owner instead of waiting 
 
 ### Cargo artifacts and disk space
 
+The ordinary local acceptance performance budget is **600 seconds for the complete
+campaign**, including necessary additional checks, with the active cache warm. Measure
+implementation/error-repair time separately. The target does not waive any required
+coverage or declare cold bootstrap, exhaustive audits or live QA complete in ten minutes.
+Record those distinct costs explicitly. A run longer than 600 seconds has not met the
+performance target even if every correctness check passes; a timeout is not a speedup.
+
+Collect Cargo's stable timing reports in the campaign that is already required:
+
+```bash
+./tools/validation-v2 final --base origin/3.4.3 --timings
+```
+
+`--timings` is available for `quick`, `final` and `audit`. It adds Cargo's reporting flag
+to planned check/test/build/run commands, before any program-argument separator, without
+changing their package/target selection or running another build. The manifest records
+the instrumented commands; timestamped reports remain in `target/cargo-timings` under the
+selected Cargo target. See [Cargo timing reports](https://doc.rust-lang.org/cargo/reference/timings.html).
+Keep the runner's total time and the duration of required extra checks; individual crate
+reports do not measure the complete acceptance campaign. Benchmark changes in job count,
+profiles or linking on representative unchanged inputs before adopting them, with exclusive
+validation ownership and measured memory headroom. Avoid an extra warmup merely for timing.
+
 The runner uses `<checkout>/target` by default, matching ordinary Cargo commands in that
 workspace. An explicit nonempty `CARGO_TARGET_DIR` is respected; relative values are resolved
 against the checkout. Keep one target per active worktree rather than sharing a mutable cache
