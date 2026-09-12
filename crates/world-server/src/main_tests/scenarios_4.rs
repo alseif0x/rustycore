@@ -347,12 +347,18 @@ fn session_resources_requires_named_capability_bundles() {
         session_factory_source.contains("resources.core.handler_catalogs.as_ref()"),
         "the outer driver must borrow the process-owned catalogs for dispatch"
     );
+    // #787 moved the phases themselves into the task that owns the session:
+    // the driver no longer calls the update/process pair on its own clock, it
+    // runs the phase the canonical producer asks for. The invariant this
+    // guarded is unchanged — the catalogs are borrowed at the call, never
+    // installed into the session.
     assert!(
-        session_factory_source.contains("process_pending_with_catalogs_like_cpp"),
+        session_factory_source
+            .contains(".run_requested_session_phase_like_cpp(request, handler_catalogs)"),
         "the driver must pass immutable catalogs explicitly instead of installing a session locator"
     );
     assert!(
-        session_factory_source.contains("update_with_catalogs_like_cpp"),
+        !session_factory_source.contains("set_session_handler_catalogs_like_cpp("),
         "the session pass must borrow runtime catalogs instead of retaining them"
     );
     assert_eq!(

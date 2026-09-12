@@ -14,7 +14,7 @@
       "id": "canonical_map_update",
       "source": "crates/world-server/src/runtime/map.rs",
       "entry": "spawn_canonical_map_update_loop",
-      "cpp_anchor": "MapManager::Update -> Map::Update",
+      "cpp_anchor": "World::Update -> UpdateSessions then MapManager::Update -> Map::Update",
       "availability": "production",
       "cadence": "configured map update interval, MissedTickBehavior::Delay",
       "diff_source": "measured elapsed wall clock, clamped to u32, zero-diff ticks skipped",
@@ -22,13 +22,23 @@
         "canonical grid/spawn/respawn phases",
         "area-trigger sweep",
         "canonical game events",
-        "respawn condition scheduling"
+        "respawn condition scheduling",
+        "the world phase of every ready session, before the map tick is admitted (#787)",
+        "the split tick's map-phase session requests and their completion boundary (#787)"
       ],
       "delivers_under_map_guard": false,
-      "delivery_note": "recipients and packets are collected inside the guarded block and delivered after the map lock is released",
+      "delivery_note": "recipients and packets are collected inside the guarded block and delivered after the map lock is released; the #787 split releases every synchronous guard — respawn mutation order, MapManager and spawn metadata — before any phase request is delivered or any completion awaited, and re-takes them only to resume the same tick with the diff saved at the split. Each step issues the world phase first (World.cpp:2704) and admits the map tick only after it is quiescent (World.cpp:2748); a claimed pass whose end cannot be observed abandons the tick instead of resuming over it.",
       "resolution_guard": "canonical Map::Update dispatches no legacy AI/combat side effects; spawn/respawn and synchronization bridges retain their separate ownership contracts",
       "regression_anchors": [
-        "canonical_map_update_visits_creature_with_no_real_ai_combat_effect_like_cpp"
+        "canonical_map_update_visits_creature_with_no_real_ai_combat_effect_like_cpp",
+        "split_tick_runs_the_dynamic_tree_phase_before_the_session_pass_like_cpp",
+        "the_resumed_tick_uses_the_saved_diff_and_runs_the_remaining_phases_once",
+        "a_map_that_disappeared_after_the_split_is_skipped_by_the_resume",
+        "a_second_begin_while_a_tick_is_split_is_refused_without_advancing_the_timer",
+        "a_map_recreated_under_the_same_key_during_the_pass_is_not_resumed_like_cpp",
+        "a_pass_that_never_started_is_revoked_at_the_deadline_and_can_never_run",
+        "a_claimed_pass_is_waited_for_past_the_deadline_instead_of_being_abandoned",
+        "a_claimed_pass_whose_session_disappears_blocks_the_tick"
       ]
     },
     {
@@ -107,8 +117,8 @@
       "entry": "WorldSession update driver",
       "cpp_anchor": "none: C++ has no session-driven creature frame",
       "availability": "diagnostic",
-      "cadence": "driven by the owning session task",
-      "diff_source": "session update diff",
+      "cadence": "driven by the owning session task, which since #787 runs only the phases the canonical producer requests on its phase rail; the task keeps a 50 ms wake solely to re-read the cooperative shutdown gate and runs no session work there",
+      "diff_source": "the producer's step diff, carried in the phase request (#787); the session measures none of its own",
       "owns": [
         "nothing in production"
       ],
@@ -116,7 +126,9 @@
       "resolution_guard": "RuntimeTickOwner::Session; production startup sets GlobalLegacy so this path is inert unless the diagnostic config override selects it",
       "regression_anchors": [
         "two_sessions_sharing_legacy_map_manager_see_same_creature_state",
-        "the_player_melee_phase_is_inert_under_the_session_owner_like_cpp"
+        "the_player_melee_phase_is_inert_under_the_session_owner_like_cpp",
+        "a_coordinated_session_does_not_send_the_time_sync_twice_per_step",
+        "the_map_pass_tail_sends_the_periodic_time_sync_with_the_admitted_diff"
       ]
     }
   ],

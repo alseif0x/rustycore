@@ -476,6 +476,7 @@ where
     pub fn remove_map_object(&mut self, guid: ObjectGuid) -> Option<MapObjectRecord> {
         let record = self.entity_world.remove(&guid)?;
         self.unindex_map_object_record_by_spawn_id_like_cpp(&record);
+        self.unlink_map_reference_like_cpp(guid);
         Some(record)
     }
 

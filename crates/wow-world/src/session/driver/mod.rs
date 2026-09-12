@@ -25,6 +25,9 @@ pub(crate) mod phases;
 
 pub(crate) use budget::MAX_PACKETS_PER_UPDATE;
 pub(super) use callbacks::RenameCallbacks;
+mod phase_consumer;
+mod phase_pass;
+
 use phases::SessionDriverPhaseLikeCpp;
 
 #[cfg(test)]
@@ -185,7 +188,13 @@ impl WorldSession {
         // initial `Player::SendInitialPacketsBeforeAddToMap` sync.
         // The client MUST receive periodic TimeSyncRequests or its
         // internal clock sync state becomes inconsistent → crash.
-        if self.state == SessionState::LoggedIn && self.time_sync_timer_ms > 0 {
+        // C++ sends it on the `!ProcessUnsafe()` branch, i.e. the map filter's
+        // pass (`WorldSession.cpp:488-497`). A coordinated session therefore
+        // sends it from its map pass tail and must not send it again here.
+        if self.state == SessionState::LoggedIn
+            && self.time_sync_timer_ms > 0
+            && !self.is_map_phase_coordinated_like_cpp()
+        {
             self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::TimeSync);
             if diff_ms >= self.time_sync_timer_ms {
                 self.send_time_sync();
@@ -296,18 +305,19 @@ impl WorldSession {
         // on Session if this future is cancelled; never replay the in-flight
         // handler, which may already have produced effects. Phase filtering is
         // still pending and must stop, not skip ahead, at an ineligible head.
-        while let Some(pkt) = self.pending_packets.pop_front() {
-            if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some()
-                && pkt.client_opcode() == Some(ClientOpcodes::RequestCemeteryList)
-            {
-                info!(
-                    account = self.account_id,
-                    state = ?self.state,
-                    "RUST_CEMETERY_TRACE dispatching queued packet"
-                );
-            }
-            self.dispatch_packet(catalogs, pkt).await;
+        if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some()
+            && self
+                .pending_packets
+                .iter()
+                .any(|pkt| pkt.client_opcode() == Some(ClientOpcodes::RequestCemeteryList))
+        {
+            info!(
+                account = self.account_id,
+                state = ?self.state,
+                "RUST_CEMETERY_TRACE dispatching queued packet"
+            );
         }
+        let _world_pass = self.run_world_phase_dispatch_like_cpp(catalogs).await;
 
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::CharacterRenameCallbacks);
         self.process_ready_character_rename_callbacks_like_cpp();

@@ -19,6 +19,7 @@ impl MapManager {
             return false;
         }
         self.maps.remove(&key);
+        self.map_incarnations_like_cpp.remove(&key);
         true
     }
 

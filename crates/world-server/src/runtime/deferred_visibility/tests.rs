@@ -3,8 +3,8 @@
 use super::*;
 use crate::runtime::map::{
     CanonicalRespawnConditionSchedulerLikeCpp, LoadedGridCreatureRespawnCachesLikeCpp,
-    canonical_map_update_tick_set_inactive_like_cpp,
 };
+use crate::runtime::map_tick::canonical_map_update_tick_set_inactive_like_cpp;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use wow_core::{ObjectGuid, Position};
@@ -102,6 +102,7 @@ fn deferred_visibility_routes_effective_tick_before_respawn_timer_and_survives_f
             realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
+            session_phase_tx: wow_world::session::directory::detached_session_phase_rail_like_cpp(),
             durable_creature_runtime_commands_like_cpp: durable.clone(),
             client_visible_guids_like_cpp: Default::default(),
             advanced_combat_logging_enabled_like_cpp: Default::default(),
