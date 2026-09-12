@@ -5,6 +5,17 @@
 
 use super::*;
 
+/// Which of the three Player difficulty preferences a session transition
+/// writes. C++ names them apart with one setter each
+/// (`Player.h:1964-1966`); this enum keeps the same separation at the session
+/// boundary instead of borrowing all three.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::session) enum SessionDifficultyKindLikeCpp {
+    Dungeon,
+    Raid,
+    LegacyRaid,
+}
+
 impl WorldSession {
     pub(crate) fn create_map_difficulty_context_like_cpp(
         &self,
@@ -119,28 +130,42 @@ impl WorldSession {
         }
         canonical
     }
-    pub(in crate::session) fn mutate_player_difficulty_preferences_like_cpp<R>(
+    /// Apply one named canonical difficulty setter, or the handle-less test
+    /// mirror that stands in for it. C++ writes these through
+    /// `Player::SetDungeonDifficultyID` and its two siblings
+    /// (`Player.h:1964-1966`), never through a borrowed field.
+    fn set_player_difficulty_like_cpp(
         &mut self,
-        f: impl FnOnce(&mut u32, &mut u32, &mut u32) -> R,
-    ) -> Option<R> {
+        kind: SessionDifficultyKindLikeCpp,
+        difficulty_id: u32,
+    ) -> bool {
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            return Some(f(
-                &mut self.represented_dungeon_difficulty_id_like_cpp,
-                &mut self.represented_raid_difficulty_id_like_cpp,
-                &mut self.represented_legacy_raid_difficulty_id_like_cpp,
-            ));
+            match kind {
+                SessionDifficultyKindLikeCpp::Dungeon => {
+                    self.represented_dungeon_difficulty_id_like_cpp = difficulty_id;
+                }
+                SessionDifficultyKindLikeCpp::Raid => {
+                    self.represented_raid_difficulty_id_like_cpp = difficulty_id;
+                }
+                SessionDifficultyKindLikeCpp::LegacyRaid => {
+                    self.represented_legacy_raid_difficulty_id_like_cpp = difficulty_id;
+                }
+            }
+            return true;
         }
-        // Player.h:1965-1967: mutate this Player's preferences, not a copied tuple.
-        // Callbacks are synchronous field updates; no owner re-entry or publication.
-        self.with_owned_player_mut_like_cpp(|player| {
-            let state = player.gameplay_state_mut();
-            f(
-                &mut state.dungeon_difficulty_id,
-                &mut state.raid_difficulty_id,
-                &mut state.legacy_raid_difficulty_id,
-            )
+        self.with_owned_player_mut_like_cpp(|player| match kind {
+            SessionDifficultyKindLikeCpp::Dungeon => {
+                player.set_dungeon_difficulty_id_like_cpp(difficulty_id);
+            }
+            SessionDifficultyKindLikeCpp::Raid => {
+                player.set_raid_difficulty_id_like_cpp(difficulty_id);
+            }
+            SessionDifficultyKindLikeCpp::LegacyRaid => {
+                player.set_legacy_raid_difficulty_id_like_cpp(difficulty_id);
+            }
         })
+        .is_some()
     }
     pub(crate) fn resolved_dungeon_difficulty_id_like_cpp(&self) -> Option<u32> {
         self.player_difficulty_preferences_snapshot_like_cpp()
@@ -164,9 +189,8 @@ impl WorldSession {
         &mut self,
         difficulty_id: u32,
     ) {
-        let _ = self.mutate_player_difficulty_preferences_like_cpp(|dungeon, _, _| {
-            *dungeon = difficulty_id;
-        });
+        let _ = self
+            .set_player_difficulty_like_cpp(SessionDifficultyKindLikeCpp::Dungeon, difficulty_id);
     }
     #[cfg(test)]
     pub(crate) fn represented_raid_difficulty_id_like_cpp(&self) -> u32 {
@@ -207,22 +231,18 @@ impl WorldSession {
             return;
         }
 
-        if self
-            .mutate_player_difficulty_preferences_like_cpp(
-                |dungeon, raid, legacy_raid| match kind {
-                    wow_social::group::GroupDifficultyKindLikeCpp::Dungeon => {
-                        *dungeon = difficulty_id;
-                    }
-                    wow_social::group::GroupDifficultyKindLikeCpp::Raid => {
-                        *raid = difficulty_id;
-                    }
-                    wow_social::group::GroupDifficultyKindLikeCpp::LegacyRaid => {
-                        *legacy_raid = difficulty_id;
-                    }
-                },
-            )
-            .is_none()
-        {
+        let session_kind = match kind {
+            wow_social::group::GroupDifficultyKindLikeCpp::Dungeon => {
+                SessionDifficultyKindLikeCpp::Dungeon
+            }
+            wow_social::group::GroupDifficultyKindLikeCpp::Raid => {
+                SessionDifficultyKindLikeCpp::Raid
+            }
+            wow_social::group::GroupDifficultyKindLikeCpp::LegacyRaid => {
+                SessionDifficultyKindLikeCpp::LegacyRaid
+            }
+        };
+        if !self.set_player_difficulty_like_cpp(session_kind, difficulty_id) {
             return;
         }
 
@@ -328,12 +348,10 @@ impl WorldSession {
                 return Vec::new();
             }
 
-            if self
-                .mutate_player_difficulty_preferences_like_cpp(|dungeon, _, _| {
-                    *dungeon = difficulty_id;
-                })
-                .is_none()
-            {
+            if !self.set_player_difficulty_like_cpp(
+                SessionDifficultyKindLikeCpp::Dungeon,
+                difficulty_id,
+            ) {
                 return Vec::new();
             }
             self.send_packet(&DungeonDifficultySet {
@@ -364,16 +382,14 @@ impl WorldSession {
                 return Vec::new();
             }
 
-            if self
-                .mutate_player_difficulty_preferences_like_cpp(|_, raid, legacy_raid| {
-                    if legacy {
-                        *legacy_raid = difficulty_id;
-                    } else {
-                        *raid = difficulty_id;
-                    }
-                })
-                .is_none()
-            {
+            if !self.set_player_difficulty_like_cpp(
+                if legacy {
+                    SessionDifficultyKindLikeCpp::LegacyRaid
+                } else {
+                    SessionDifficultyKindLikeCpp::Raid
+                },
+                difficulty_id,
+            ) {
                 return Vec::new();
             }
 

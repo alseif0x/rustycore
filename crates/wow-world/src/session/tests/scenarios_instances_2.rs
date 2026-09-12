@@ -668,15 +668,7 @@ fn canonical_player_difficulty_and_loot_preferences_follow_detached_and_stale_ow
             .player_residence_like_cpp(old_handle),
         Some(wow_map::PlayerResidenceLikeCpp::Detached)
     );
-    assert!(
-        session
-            .mutate_player_difficulty_preferences_like_cpp(|dungeon, raid, legacy_raid| {
-                *dungeon = 1;
-                *raid = 14;
-                *legacy_raid = 3;
-            })
-            .is_some()
-    );
+    assert!(session.replace_player_difficulty_preferences_like_cpp(1, 14, 3));
     assert!(session.set_pass_on_group_loot_like_cpp(false));
     assert_eq!(
         session.player_difficulty_preferences_snapshot_like_cpp(),

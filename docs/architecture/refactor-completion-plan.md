@@ -561,6 +561,33 @@ delta de inventario revisado (player/mod.rs +80 producción/+158 test;
 session/mod.rs +30 producción/+4 test, crecimiento que es el camino dual
 explícito del ayudante). Sin QA viva ni evidencia de DB/reinicio/relogin.
 
+#### Entrega local aceptada — #773
+
+Undécima macro P2: las tres preferencias de dificultad eran miembros públicos y
+un cierre genérico que entregaba `&mut u32` de las tres.
+
+- Estado e invariantes en el Player: los tres miembros se cierran a
+  `wow-entities` y `crates/wow-entities/src/player/difficulty.rs` recibe los
+  accesores por tipo que C++ mantiene en el Player:
+  `GetDungeonDifficultyID`/`SetDungeonDifficultyID` (`Player.h:1961`/`:1964`),
+  `GetRaidDifficultyID`/`SetRaidDifficultyID` (`:1962`/`:1965`) y
+  `GetLegacyRaidDifficultyID`/`SetLegacyRaidDifficultyID` (`:1963`/`:1966`). La
+  lectura emparejada y la sustitución de carga siguen en `progression.rs`.
+- Los cuatro consumidores de `session/instances/difficulty.rs` nombran qué
+  preferencia escriben a través de un ayudante privado que aplica el setter
+  canónico o el espejo `#[cfg(test)]` sin handle; tres accesos más en
+  `session/directory.rs` y en fixtures de grupo/directorio usan los accesores.
+- El mapeo del tipo de dificultad de grupo y del mapa y el envío de paquetes se
+  quedan en `wow-world`, que es su dueño.
+- Techo físico revisado: `player_tests.rs` pasa de 501 a 502 líneas porque cada
+  módulo de escenario nuevo de estas macros añade una entrada de índice; los
+  cuerpos viven en los módulos, no en el índice.
+
+Aceptación local: cuatro regresiones nuevas de invariantes en
+`player_tests/difficulty.rs`, controles de arquitectura y ownership con delta de
+inventario revisado (player/mod.rs +57 producción/+68 test; session/mod.rs +16
+producción/-8 test). Sin QA viva ni evidencia de DB/reinicio/relogin.
+
 ### 4.3 Residuales P2 y paso a P3/P4
 
 Después de #743 y #735 se retiran los accesos genéricos operación por operación. El

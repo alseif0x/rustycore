@@ -444,6 +444,8 @@ fn can_equip_unique_args<'a>(
 mod collection_state;
 #[path = "player_tests/combat.rs"]
 mod combat;
+#[path = "player_tests/difficulty.rs"]
+mod difficulty;
 #[path = "player_tests/equipment_sets.rs"]
 mod equipment_sets;
 #[path = "player_tests/gameobject.rs"]
