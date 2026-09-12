@@ -3169,6 +3169,81 @@ termination or a request/callback split; `QuestLogRemoveQuest` is the concrete c
 being `Inplace` while mutating before its persistence await and publishing after
 (`handlers/quest/handlers.rs:2094`, `handlers/quest/persistence.rs:601`).
 
+#### Implemented boundaries and measured evidence — 2026-09-12 (later)
+
+The four blockers above are addressed in `5eef0102`. What follows is what the
+code now does and what was actually measured; acceptance is still open and the
+pending list below is part of this record, not an appendix.
+
+**Exactly-once (B4).** `MapTickPlanLikeCpp` is neither `Clone` nor `Copy` and
+`resume_tick_like_cpp` consumes it by value, so a second resumption cannot be
+written. Behind it the manager holds
+`Idle → AwaitingSessions(epoch) → Resuming(epoch) → Idle`; a second `begin`
+answers `Busy` **without** advancing the shared timer, so the refused diff is
+still owed to the next accepted tick. Maps carry an incarnation, so one created
+under a reused `MapKey` during the pass receives neither the phases that follow
+a dynamic-tree phase it never ran nor the removal recorded for its predecessor.
+`abandon_tick_like_cpp` releases an admitted tick without running it.
+
+**Revocation and quiescence (B1).** Each request carries a permit whose single
+atomic transition decides between `Pending → Running` (the session claiming it)
+and `Pending → RevokedBeforeStart` (the coordinator at its deadline). A revoked
+pass provably never runs an effect, so continuing past it is sound. A claimed
+one is waited for, with the delay reported as `stalled_ms`; the deadline is
+diagnostic there and licenses nothing. A claimed pass whose end cannot be
+observed leaves the summary non-quiescent and the tick is **abandoned** rather
+than resumed. Completion is an explicit transition from `Running` only, never a
+destructor, and `InterruptedAfterStart` is a terminal state of its own.
+
+**Admission (B3).** The request freezes coordinator instance, epoch, phase,
+permit, `PlayerRegistration`, `PlayerHandle`, `MapKey`, map incarnation,
+residence revision and the effective diff. The session revalidates all of them
+before its first effect. A→B→A is caught by the revision even when the key
+matches again. The diff feeds the map-pass tail (`WorldSession.cpp:488-497`)
+also when nothing was dispatched.
+
+**Composition (B2).** Phases no longer travel on the command mailbox that a
+pass drains: each session has a phase rail consumed inside the task that owns
+its `WorldSession`. The autonomous per-session clock is gone. The canonical
+producer issues the world phase for every ready session — character screen
+included, through `ActiveWorldSessionRegistry` — and admits the map tick only
+once that phase is quiescent, matching `World.cpp:2704` before `World.cpp:2748`.
+Map→World inside one iteration is no longer expressible. Registration is not
+readiness: the owning task raises that flag when it parks on the rail and lowers
+it when it leaves, and re-reads the cooperative shutdown gate every 50 ms
+without running any session work.
+
+**Measured on this tree** (each run in its own log, judged by the original
+process exit code): `wow-map` 735 passed / 0 failed; `wow-world` 3858 passed /
+0 failed; `world-server` 577 passed / 0 failed. The #787 scenarios inside those
+totals are 12 at session level, 8 at coordinator level and 8 in the map manager.
+No final gate, no live QA and no capture evidence is claimed here; earlier
+evidence in this document predates these changes.
+
+#### Audit: map-eligible handlers that await
+
+Of 397 packet registrations, 148 are eligible in the map phase (125 `Inplace`
+plus 23 `ThreadSafe`). Of those, **54 have a persistence-shaped await inside the
+handler body** (`crates/wow-world/src/**`, matched on a persistence/query/save
+call awaited within the handler; the match is textual and over-inclusive at the
+edges, and it does not follow callees, so it is a floor for the shape, not an
+exact count of blocking operations).
+
+The concrete hazard named by the review is in this set: `QuestLogRemoveQuest`
+is registered `Inplace` (`handlers/quest/handlers.rs:87`), mutates before its
+persistence await and publishes after it
+(`handlers/quest/handlers.rs:2094`, `handlers/quest/persistence.rs:601`).
+Invalidating an epoch while such a handler is suspended neither reverts its
+mutation nor proves a rollback.
+
+What this means for the contract, stated rather than resolved: the permit bounds
+**overlap** — no second session of the map and no later phase runs while one of
+these is live — but it does not bound **progress**. With an operation that can
+wait indefinitely, strict order, absence of overlap and a bounded tick cannot
+all hold. Each of the 54 needs either demonstrated bounded termination or a
+request/callback split before this macro can claim the map phase is safe under
+load. That work is not in this macro's diff.
+
 ### Proportional evidence inside the macro
 
 The [plan's reanalysis checkpoints](modularity-and-ecs-plan.md#reanalysis-checkpoints--evidence-before-replication)

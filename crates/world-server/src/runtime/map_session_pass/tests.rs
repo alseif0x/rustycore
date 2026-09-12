@@ -94,6 +94,21 @@ fn one_map(guids: Vec<ObjectGuid>) -> Vec<CanonicalMapSessionPassMapLikeCpp> {
     }]
 }
 
+/// Wait for the request the coordinator is sending, without assuming how many
+/// polls it needs to get there.
+async fn await_request(
+    rail: &flume::Receiver<SessionPhaseRequestLikeCpp>,
+) -> RunMapPhasePassLikeCppCommand {
+    let request = tokio::time::timeout(Duration::from_secs(5), rail.recv_async())
+        .await
+        .expect("the coordinator sends a map-phase request")
+        .expect("the rail stays open");
+    let SessionPhaseRequestLikeCpp::Map(command) = request else {
+        panic!("expected a map-phase request");
+    };
+    command
+}
+
 fn take_request(
     rail: &flume::Receiver<SessionPhaseRequestLikeCpp>,
 ) -> RunMapPhasePassLikeCppCommand {
@@ -363,5 +378,68 @@ async fn one_map_s_sessions_run_serially_in_the_plan_s_order() {
 
     assert_eq!(pass.completed, 2);
     assert_eq!(pass.dispatched, 2);
+    assert!(pass.quiescent_like_cpp());
+}
+
+#[tokio::test]
+async fn a_pending_db_result_in_one_session_holds_the_next_session_of_the_same_map() {
+    let registry = PlayerRegistry::new();
+    let first = ObjectGuid::create_player(1, 31);
+    let second = ObjectGuid::create_player(1, 32);
+    let first_rail = register(&registry, first);
+    let second_rail = register(&registry, second);
+    let participants = one_map(vec![first, second]);
+
+    let (pass, ()) = tokio::join!(
+        run_map_phase_session_passes_like_cpp(
+            &participants,
+            &registry,
+            COORDINATOR,
+            11,
+            50,
+            Duration::from_millis(20),
+        ),
+        async {
+            tokio::task::yield_now().await;
+            // The first session claims its pass and is waiting on persistence
+            // when the coordinator's deadline expires.
+            let command = await_request(&first_rail).await;
+            assert!(matches!(
+                command.permit.claim_like_cpp(),
+                wow_world::session::mailbox::SessionPhaseClaimLikeCpp::Claimed
+            ));
+            tokio::time::sleep(Duration::from_millis(60)).await;
+            // C++ never has two sessions of one map running together, because
+            // the map thread runs them one after another inside its own update.
+            assert!(
+                second_rail.is_empty(),
+                "the next session of this map must not be asked while the first is still running"
+            );
+            command.permit.complete_like_cpp();
+            let _ = command.response_tx.try_send(RunMapPhasePassResultLikeCpp {
+                tick_epoch: 11,
+                outcome: SessionPhasePassOutcomeLikeCpp::Ran,
+                dispatched: 1,
+                stopped_at_ineligible_head: false,
+                disconnecting: false,
+            });
+            let second = await_request(&second_rail).await;
+            assert!(matches!(
+                second.permit.claim_like_cpp(),
+                wow_world::session::mailbox::SessionPhaseClaimLikeCpp::Claimed
+            ));
+            second.permit.complete_like_cpp();
+            let _ = second.response_tx.try_send(RunMapPhasePassResultLikeCpp {
+                tick_epoch: 11,
+                outcome: SessionPhasePassOutcomeLikeCpp::Ran,
+                dispatched: 1,
+                stopped_at_ineligible_head: false,
+                disconnecting: false,
+            });
+        }
+    );
+
+    assert_eq!(pass.completed, 2);
+    assert!(pass.stalled_ms > 0);
     assert!(pass.quiescent_like_cpp());
 }

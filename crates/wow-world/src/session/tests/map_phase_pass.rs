@@ -344,3 +344,133 @@ async fn a_coordinated_session_does_not_send_the_time_sync_twice_per_step() {
 
     assert_eq!(session.time_sync_timer_ms, 200);
 }
+
+#[tokio::test]
+async fn an_admission_whose_residence_revision_moved_is_refused_like_an_away_and_back_transfer() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 571, 0);
+    register_session_for_phases(&mut session);
+    queued(&mut session, ClientOpcodes::MoveInitActiveMoverComplete);
+
+    let mut admission = session
+        .current_map_phase_admission_for_test_like_cpp(1, 7, 50)
+        .expect("the session can be admitted");
+    // The player left the map and came back to it while no guard was held. The
+    // key matches again, so only the revision distinguishes the two residences.
+    admission.residence_revision = admission.residence_revision.wrapping_add(1);
+
+    let permit = SessionPhasePermitLikeCpp::new_like_cpp();
+    let (response_tx, response_rx) = flume::bounded(1);
+    session
+        .run_requested_session_phase_like_cpp(
+            crate::session::mailbox::SessionPhaseRequestLikeCpp::Map(
+                RunMapPhasePassLikeCppCommand {
+                    admission,
+                    permit,
+                    response_tx,
+                },
+            ),
+            &SessionHandlerCatalogsLikeCpp::default(),
+        )
+        .await;
+
+    let result = response_rx.try_recv().expect("refusal reported");
+    assert_eq!(
+        result.outcome,
+        SessionPhasePassOutcomeLikeCpp::RefusedBeforeStart
+    );
+    assert_eq!(session.pending_packet_count_for_test_like_cpp(), 1);
+}
+
+#[tokio::test]
+async fn an_admission_for_another_incarnation_of_the_same_map_is_refused() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 571, 0);
+    register_session_for_phases(&mut session);
+    queued(&mut session, ClientOpcodes::MoveInitActiveMoverComplete);
+
+    let mut admission = session
+        .current_map_phase_admission_for_test_like_cpp(1, 7, 50)
+        .expect("the session can be admitted");
+    // `MapKey` is reusable: this request was admitted by a tick of the map that
+    // held the key before the current one.
+    admission.map_incarnation = admission.map_incarnation.wrapping_add(1);
+
+    let permit = SessionPhasePermitLikeCpp::new_like_cpp();
+    let (response_tx, response_rx) = flume::bounded(1);
+    session
+        .run_requested_session_phase_like_cpp(
+            crate::session::mailbox::SessionPhaseRequestLikeCpp::Map(
+                RunMapPhasePassLikeCppCommand {
+                    admission,
+                    permit,
+                    response_tx,
+                },
+            ),
+            &SessionHandlerCatalogsLikeCpp::default(),
+        )
+        .await;
+
+    let result = response_rx.try_recv().expect("refusal reported");
+    assert_eq!(
+        result.outcome,
+        SessionPhasePassOutcomeLikeCpp::RefusedBeforeStart
+    );
+    assert_eq!(session.pending_packet_count_for_test_like_cpp(), 1);
+}
+
+#[tokio::test]
+async fn control_traffic_behind_a_map_eligible_head_still_advances_in_the_world_phase() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 571, 0);
+    register_session_for_phases(&mut session);
+    session.state = SessionState::LoggedIn;
+    // A head this phase may not process, which C++ leaves queued rather than
+    // skipping (`LockedQueue.h:82-95`).
+    queued(&mut session, ClientOpcodes::MoveInitActiveMoverComplete);
+
+    // Control does not travel on the packet queue: it has its own rail, so an
+    // ineligible head cannot stall it. Without that separation the world pass
+    // would be unable to answer while the map phase owns the head.
+    let (ack_tx, ack_rx) = flume::bounded(1);
+    session
+        .session_command_tx()
+        .try_send(
+            crate::session::mailbox::SessionCommand::WorldSessionShutdownFlushLikeCpp(
+                crate::session::mailbox::WorldSessionShutdownFlushLikeCppCommand {
+                    diff_ms: 1,
+                    response_tx: ack_tx,
+                },
+            ),
+        )
+        .expect("the control channel accepts the command");
+
+    let permit = SessionPhasePermitLikeCpp::new_like_cpp();
+    let (response_tx, response_rx) = flume::bounded(1);
+    session
+        .run_requested_session_phase_like_cpp(
+            crate::session::mailbox::SessionPhaseRequestLikeCpp::World(
+                crate::session::mailbox::RunWorldPhasePassLikeCppRequest {
+                    coordinator_id: 1,
+                    tick_epoch: 7,
+                    diff_ms: 50,
+                    permit,
+                    response_tx,
+                },
+            ),
+            &SessionHandlerCatalogsLikeCpp::default(),
+        )
+        .await;
+
+    let world = response_rx.try_recv().expect("the world pass reported");
+    assert_eq!(world.outcome, SessionPhasePassOutcomeLikeCpp::Ran);
+    assert!(
+        ack_rx.try_recv().is_ok(),
+        "the control command must be observed even though the packet head is not this phase's"
+    );
+    assert_eq!(
+        session.pending_packet_count_for_test_like_cpp(),
+        1,
+        "the map-eligible head stays queued for the map pass"
+    );
+}

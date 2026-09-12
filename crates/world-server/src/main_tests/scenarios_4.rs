@@ -361,6 +361,18 @@ fn session_resources_requires_named_capability_bundles() {
         !session_factory_source.contains("set_session_handler_catalogs_like_cpp("),
         "the session pass must borrow runtime catalogs instead of retaining them"
     );
+    // A session parked on an idle rail must still observe the cooperative
+    // shutdown gate, which is a flag rather than a wake-up: without this the
+    // drain in app.rs would wait for sessions that never re-read it.
+    assert!(
+        session_factory_source.contains("SHUTDOWN_GATE_RECHECK_INTERVAL_LIKE_CPP"),
+        "the parked phase loop must re-read the shutdown gate on its own"
+    );
+    assert!(
+        !session_factory_source
+            .contains("session\n                .update_with_catalogs_like_cpp("),
+        "the session task must not drive its own update clock beside the producer"
+    );
     assert_eq!(
         session_factory_source
             .matches("install_into_session_like_cpp(&mut session")
