@@ -3396,16 +3396,7 @@
         },
         {
           "name": "represented_equipment_sets_like_cpp",
-          "type": "BTreeMap < u64 , RepresentedEquipmentSetLikeCpp >",
-          "visibility": "private",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_equipment_sets_loaded_like_cpp",
-          "type": "bool",
+          "type": "wow_entities :: PlayerEquipmentSetsLikeCpp",
           "visibility": "private",
           "cfg": [
             "cfg (test)"
@@ -55438,7 +55429,7 @@
           "kind": "method",
           "name": "with_owned_equipment_sets_like_cpp",
           "visibility": "pub (in crate :: session)",
-          "signature": "fn with_owned_equipment_sets_like_cpp < R > (& self , mut f : impl FnMut (& BTreeMap < u64 , RepresentedEquipmentSetLikeCpp > , bool) -> R ,) -> Option < R >",
+          "signature": "fn with_owned_equipment_sets_like_cpp < R > (& self , mut f : impl FnMut (& wow_entities :: PlayerEquipmentSetsLikeCpp) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -55451,7 +55442,7 @@
           "kind": "method",
           "name": "with_owned_equipment_sets_mut_like_cpp",
           "visibility": "pub (in crate :: session)",
-          "signature": "fn with_owned_equipment_sets_mut_like_cpp < R > (& mut self , mut f : impl FnMut (& mut BTreeMap < u64 , RepresentedEquipmentSetLikeCpp > , & mut bool) -> R ,) -> Option < R >",
+          "signature": "fn with_owned_equipment_sets_mut_like_cpp < R > (& mut self , mut f : impl FnMut (& mut wow_entities :: PlayerEquipmentSetsLikeCpp) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -75555,7 +75546,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:0b7be349775b5b50a2173fdbddc6eb23:len=92187|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:418a8d3a57cc33099f45301e2675ee6a:len=92113|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

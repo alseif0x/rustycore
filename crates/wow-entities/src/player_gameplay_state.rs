@@ -1,5 +1,5 @@
 pub use crate::player::PlayerCollectionStateLikeCpp;
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use wow_constants::{Stats, WeaponAttackType};
 use wow_core::{ObjectGuid, Position};
@@ -7,7 +7,7 @@ use wow_core::{ObjectGuid, Position};
 use crate::{
     PlayerAchievementCriteriaRecord, PlayerAchievementRecord, PlayerActionButtonRecord,
     PlayerBattlegroundState, PlayerCufProfile, PlayerCustomizationChoice,
-    PlayerEquipmentSetLikeCpp, PlayerGroupState, PlayerGroupUpdateSequenceLikeCpp,
+    PlayerEquipmentSetsLikeCpp, PlayerGroupState, PlayerGroupUpdateSequenceLikeCpp,
     PlayerGuildState, PlayerMailRecord, PlayerPersistentCapabilityStateLikeCpp,
     PlayerQuestGameplayState, PlayerRestState, PlayerSkillRecord, PlayerSocialState,
     PlayerSpellChargeRecord, PlayerSpellCooldownRecord, PlayerSpellRuntimeState,
@@ -77,8 +77,7 @@ pub struct PlayerGameplayState {
     pub cuf_profiles: Vec<Option<PlayerCufProfile>>,
     pub cuf_profiles_loaded: bool,
     /// C++ `Player::_equipmentSets` plus its coherent Character DB load marker.
-    pub equipment_sets: BTreeMap<u64, PlayerEquipmentSetLikeCpp>,
-    pub equipment_sets_loaded: bool,
+    pub equipment_sets: PlayerEquipmentSetsLikeCpp,
     /// C++ `Player::_voidStorageItems`; normalized to 160 slots by its owner API.
     pub void_storage_items: Vec<Option<PlayerVoidStorageItemLikeCpp>>,
     pub void_storage_loaded: bool,

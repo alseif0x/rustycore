@@ -310,9 +310,9 @@ impl WorldSession {
             None
         };
 
-        let equipment_sets = match self
-            .with_owned_equipment_sets_like_cpp(|sets, loaded| (sets.clone(), loaded))
-        {
+        let equipment_sets = match self.with_owned_equipment_sets_like_cpp(|sets| {
+            (sets.snapshot_like_cpp(), sets.is_loaded_like_cpp())
+        }) {
             Some((sets, true)) => Some(
                 sets.values()
                     .map(|equipment_set| PlayerEquipmentSetSaveLikeCpp {
