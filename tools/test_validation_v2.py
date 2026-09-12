@@ -67,13 +67,14 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
     (repo / "docs").mkdir()
     (repo / "docs" / "guide.md").write_text("fixture\n")
 
-    def invoke(mode: str, manifest: Path, extra: dict[str, str] | None = None):
+    def invoke(mode: str, manifest: Path, extra: dict[str, str] | None = None,
+               flags: list[str] | None = None):
         environment = base_env.copy()
         environment["VALIDATION_V2_MANIFEST"] = str(manifest)
         if extra:
             environment.update(extra)
         return subprocess.run(
-            [str(tools / "validation-v2"), mode, "--base", "HEAD"],
+            [str(tools / "validation-v2"), mode, "--base", "HEAD", *(flags or [])],
             cwd=repo,
             env=environment,
             text=True,
@@ -88,6 +89,13 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
     assert success["schema"] == runner.MANIFEST_SCHEMA
     assert success["runner_signal"] is None
     assert success["resources"]["cargo_jobs"] == runner.DEFAULT_JOBS == 1
+    timed_result = invoke("quick", directory / "timed-docs.json", flags=["--timings"])
+    assert timed_result.returncode == 0, timed_result.stderr
+    timed_docs = json.loads((directory / "timed-docs.json").read_text())
+    assert timed_docs["plan"]["planned_commands"] == success["plan"]["planned_commands"]
+    invalid_timings = invoke("verify", directory / "invalid-timings.json", flags=["--timings"])
+    assert invalid_timings.returncode == runner.USAGE_ERROR
+    assert "--timings is only valid" in invalid_timings.stderr
     assert (
         f"validation-v2: cargo target={repo.resolve() / 'target'} jobs={runner.DEFAULT_JOBS}"
         in result.stdout
@@ -774,7 +782,38 @@ def test_cargo_target_contract(
     assert relative_a != relative_b
 
 
+def test_timing_plan_contract() -> None:
+    commands = [
+        ["cargo", "check", "--locked", "--tests", "-p", "consumer"],
+        ["cargo", "test", "--lib", "-p", "owner", "--", "--exact", "case"],
+        ["cargo", "run", "--release", "--", "--timings"],
+        ["cargo", "build", "--timings"],
+        ["cargo", "fmt", "--all", "--check"],
+        ["python3", "checker.py"],
+    ]
+    originals = [command.copy() for command in commands]
+    plan = {"planned_steps": [
+        {"section": str(index), "argv": command}
+        for index, command in enumerate(commands)
+    ], "planned_commands": [command.copy() for command in commands]}
+    runner.enable_cargo_timings(plan)
+    runner.enable_cargo_timings(plan)  # Idempotent; no duplicate runs or Cargo flags.
+    assert len(plan["planned_steps"]) == len(originals)
+    assert plan["planned_commands"] == [step["argv"] for step in plan["planned_steps"]]
+    for before, after in zip(originals, plan["planned_commands"]):
+        if before[:2] in (["cargo", "check"], ["cargo", "test"], ["cargo", "run"], ["cargo", "build"]):
+            boundary = after.index("--") if "--" in after else len(after)
+            assert after[:boundary].count("--timings") == 1
+            restored = after.copy()
+            if "--timings" not in before[:before.index("--") if "--" in before else len(before)]:
+                restored.pop(restored.index("--timings"))
+            assert restored == before  # Targets/features and program arguments are retained.
+        else:
+            assert after == before
+
+
 def main() -> None:
+    test_timing_plan_contract()
     with tempfile.TemporaryDirectory(prefix="validation-v2-self-test-") as raw_directory:
         directory = Path(raw_directory)
         repo = directory / "repo"

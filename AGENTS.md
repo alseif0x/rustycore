@@ -159,6 +159,15 @@ worker handoff. At final acceptance, fix findings and rerun affected evidence as
 An explicit user request for an earlier diagnostic run remains authoritative.
 Do not claim unexecuted evidence as passing.
 
+The user's ordinary local acceptance budget is ten minutes for the complete campaign,
+including the required additional checks, on this host with the active warm cache.
+Measure coding/error-repair time separately. Use `final --timings` to locate compilation
+cost within that same run; record the full campaign start/end and any checks outside it.
+Exceeding 600 seconds means the performance target is not met. Do not hide the overrun,
+split it into nominally separate ten-minute checks, repeat a failed campaign unchanged,
+or remove acceptance to claim success. Cold bootstrap and exhaustive/live acceptance
+remain explicit separate costs and must not be passed off as the ordinary warm run.
+
 Plan acceptance once for the completed delivery. The commands below are scope-dependent
 examples, not a checklist to run before `quick` and again before `final`. `final` already
 checks affected downstream test targets and runs the changed libraries' complete suites;

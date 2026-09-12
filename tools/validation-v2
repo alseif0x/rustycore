@@ -858,6 +858,20 @@ def build_plan(
     }
 
 
+def enable_cargo_timings(plan: dict[str, object]) -> None:
+    """Instrument the declared commands without adding another compilation."""
+    for step in plan["planned_steps"]:
+        command = step["argv"]
+        if len(command) < 2 or command[0] != "cargo" or command[1] not in {
+            "check", "test", "build", "run",
+        }:
+            continue
+        separator = command.index("--") if "--" in command else len(command)
+        if "--timings" not in command[:separator]:
+            command.insert(separator, "--timings")
+    plan["planned_commands"] = [step["argv"] for step in plan["planned_steps"]]
+
+
 def pinned_protoc_version(repo: Path) -> str:
     try:
         version = (repo / ".protoc-version").read_text(encoding="utf-8").strip()
@@ -1175,9 +1189,15 @@ def main() -> int:
     )
     parser.add_argument("--base", default=DEFAULT_BASE)
     parser.add_argument(
+        "--timings", action="store_true",
+        help="record Cargo timing reports during quick/final/audit without a second build",
+    )
+    parser.add_argument(
         "--manifest", help="manifest for the verify and normalize profiles"
     )
     args = parser.parse_args()
+    if args.timings and args.profile not in {"quick", "final", "audit"}:
+        return fail("--timings is only valid with quick, final or audit")
     if args.profile in {"verify", "normalize"}:
         if not args.manifest:
             return fail(f"{args.profile} requires --manifest")
@@ -1261,6 +1281,8 @@ def main() -> int:
             exit_code = 0 if outcome["status"] == "passed" else failed_exit_code(outcome)
         else:
             plan = build_plan(repo, args.profile, jobs, args.base, environment, timeout)
+            if args.timings:
+                enable_cargo_timings(plan)
             document["plan"] = plan
             steps = plan["planned_steps"]
             assert isinstance(steps, list)
