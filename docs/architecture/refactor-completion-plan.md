@@ -496,6 +496,39 @@ player/mod.rs +177 producción/+307 test) y baseline de ownership actualizado po
 el campo fundido y las dos firmas del préstamo. Sin QA viva ni evidencia de
 DB/reinicio/relogin.
 
+#### Entrega local aceptada — #769
+
+Novena macro P2: el runtime de modificadores de objeto tenía tres miembros
+públicos y un cierre genérico con seis sitios de escritura.
+
+- Estado e invariantes en el Player:
+  `crates/wow-entities/src/player/item_modifiers.rs` posee
+  `PlayerItemModifierRuntimeStateLikeCpp` con los miembros cerrados al módulo
+  Player y las transiciones que C++ hace sobre `Player::ItemSetEff`
+  —`ItemSetEffect` en `Entities/Item/Item.h:41`— mediante `AddItemsSetItem`
+  (`Entities/Item/Item.cpp:57`) y `RemoveItemsSetItem` (`:146`), con el borrado
+  del efecto cuando se va su última pieza equipada (`:192`) como cola propia,
+  porque la retirada de bonus intermedia necesita las filas de catálogo.
+- El propietario impone ahora lo que escribían los seis llamadores: el efecto se
+  crea con la primera pieza, un bonus solo lo sostiene un efecto existente,
+  quitar una pieza de un conjunto sin efecto es el retorno temprano de C++ y no
+  una inserción, y un efecto borrado se lleva sus bonus restantes.
+- Los tres campos espejo `#[cfg(test)]` de la sesión se funden en uno del mismo
+  tipo; el inventario de campos pierde dos.
+- Proyección retenida y registrada: `with_bonuses_mut_like_cpp` presta el
+  registro de bonus a las reglas de encantamiento y equipo de
+  `session_rules/rules_1.rs`, que recorren acciones con forma de catálogo que no
+  pueden entrar en `wow-entities` y que C++ aplica sosteniendo el Player
+  (`Player::_ApplyItemBonuses`, `Player::ApplyEnchantment`). **Condición de
+  salida:** que el contrato de aplicación de encantamiento/equipo pase a una
+  operación con nombre que reciba el efecto resuelto en lugar del registro.
+
+Aceptación local: catorce regresiones nuevas de invariantes en
+`player_tests/item_modifiers.rs`, controles de arquitectura y ownership con
+delta de inventario revisado (player/mod.rs +236 producción/+192 test;
+session/mod.rs -25 producción/-4 test) y baseline de ownership actualizado por
+los campos fundidos. Sin QA viva ni evidencia de DB/reinicio/relogin.
+
 ### 4.3 Residuales P2 y paso a P3/P4
 
 Después de #743 y #735 se retiran los accesos genéricos operación por operación. El
