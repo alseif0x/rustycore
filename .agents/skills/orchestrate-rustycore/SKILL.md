@@ -1,6 +1,6 @@
 ---
 name: orchestrate-rustycore
-description: "Route RustyCore development work between Astra, Luna and Spark when a bounded independent task benefits from delegation. Use for implementation coordination or adapting this workflow, not ordinary factual answers."
+description: "Route RustyCore development work between Astra and Luna when a bounded independent task benefits from delegation. Use for implementation coordination or adapting this workflow, not ordinary factual answers."
 ---
 
 # RustyCore orchestration
@@ -25,12 +25,9 @@ local experimental profile must not replace the main project configuration.
   `codex -c model_reasoning_effort='"high"'` when high-effort parent work is needed.
 - `luna_worker`: `gpt-5.6-luna`, `max`; implement a complete bounded responsibility
   with decided contracts and assigned files, including its tests and consumers.
-  This is the normal implementation collaborator, not just an escalation from Spark.
-- `spark_helper`: `gpt-5.3-codex-spark`, `medium`; choose one explicit mode:
-  targeted read-only exploration, specified mechanical transformation, or execution
-  of the parent's final-check sequence. Small diffs are not automatically mechanical.
-  Moving code is mechanical only after owner, destination, visibility and behavior
-  have been decided. Never ask Spark to redesign Session or establish whole-port parity.
+  Luna also handles focused read-only exploration or the parent's final-check sequence
+  when explicitly assigned that mode. Keep architectural decisions with Astra.
+  Astra and Luna are the only models in the active orchestration workflow.
 
 Use the actual available model/effort and record it in the handoff. Custom TOML roles
 apply only on clients that load them; otherwise pass explicit supported model/effort
@@ -67,19 +64,19 @@ changes, unexecuted tests and concrete blockers. Claims of model use require a s
 spawn trace; a configured role or default is not evidence that it ran.
 The parent inspects the actual diff and consumers, not just the summary. Resolve
 routine uncertainty locally; escalate on evidence, not a fixed attempt counter or
-a compulsory Spark -> Luna -> Astra chain. Preserve useful work when changing owners.
+a compulsory escalation chain. Preserve useful work when changing owners.
 
 ## Acceptance and resumption
 
 Follow AGENTS.md's complete-implementation-first cadence and exclusive validation
-owner. Spark can execute the agreed final sequence; it cannot create another QA
-campaign or repair failures autonomously. The parent interprets findings and assigns
+owner. Luna can execute the agreed final sequence as the exclusive validation executor;
+that assignment does not include another QA campaign or autonomous repairs. The parent interprets findings and assigns
 corrections, then reruns affected evidence on the combined candidate as required.
 Delegate only non-live checks to these roles; authorized live DB/runtime QA stays with
 the parent under AGENTS.md. Do not send a worker a task its role explicitly forbids.
 Freeze inputs while that sequence runs. Reuse valid evidence for unchanged inputs;
 do not rerun successful commands merely because ownership passed between agents.
-Do not delegate a single shell command merely to consume Spark quota.
+Do not delegate a single shell command merely to consume a collaborator's quota.
 
 The parent's diff inspection is required; an additional reviewer agent or automated
 review request is not. Preserve any explicit external contribution/review requirements.
@@ -97,6 +94,6 @@ Configuration shape checked against
 The Astra-orchestrator/Luna-executor topology is also used by
 [donvito's template](https://github.com/donvito/codex-astra-luna-orchestrator);
 this project deliberately omits its broad mandatory-delegation triggers and staged
-tester/reviewer pipeline. Spark is a selective helper, not a required first hop.
+tester/reviewer pipeline.
 New project defaults require a fresh session and a trusted project configuration;
 inspect effective settings rather than assuming files changed an existing session.

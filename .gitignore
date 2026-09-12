@@ -51,7 +51,6 @@ Thumbs.db
 !.codex/agents/
 .codex/agents/*
 !.codex/agents/luna-worker.toml
-!.codex/agents/spark-helper.toml
 !.codex/agents/astra-specialist.toml
 .agent/
 .agents/*
