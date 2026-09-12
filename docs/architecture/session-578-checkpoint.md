@@ -3099,6 +3099,76 @@ split and the resumption; a session that never acknowledges; cancellation during
 session phase; shutdown after admission closes; and exactly-once resumption of the
 remaining phases with the saved diff.
 
+#### Implementation status and open correctness blockers — 2026-09-12
+
+This records the real state of the `787-p3-map-driven-session-pass` branch. It is
+**not** acceptance evidence: the coordinated contract above is not yet satisfied, no
+acceptance campaign has been run against the current tree, and the issue stays open.
+
+Landed locally (inspection-level only):
+
+- `MapManager::begin_tick_like_cpp` / `resume_tick_like_cpp` split the canonical tick
+  into the shared timer gate plus `can_unload`/destroy and the dynamic-tree phase, then
+  the remaining phases replayed with the saved effective diff.
+- `Map::update` split into `update_dynamic_tree_phase_like_cpp` and
+  `update_after_sessions_like_cpp`.
+- `m_mapRefManager` membership order reproduced as `map_reference_order_like_cpp`
+  with `insertFirst` semantics (`MapReference.cpp:22-28`), filtered by `IsInWorld`
+  when the participant list is produced.
+- `runtime/map.rs` restructured to begin under the guards, release all three, run the
+  session phase, and resume; the orchestration lives in `runtime/map_tick.rs` so the
+  recorded ceiling of `runtime/map.rs` is preserved rather than raised.
+- `SessionCommand::RunMapPhasePassLikeCpp` plus a head-only FIFO pass filtered by
+  `PacketProcessing::allows_phase`, stopping at an ineligible head
+  (`LockedQueue.h:82-95`).
+
+Open blockers, each of which invalidates part of the approved contract:
+
+1. **Resumption with a live admitted operation.** The acknowledgement wait only abandons
+   the wait on deadline. The delivered command keeps its owner and may still execute,
+   overlapping the phases that follow or the next session of the same map. What the
+   contract requires is an atomic transition on one shared permit state
+   (`Pending → Running | RevokedBeforeStart`), so that the deadline either provably
+   prevents execution or is diagnostic only and does **not** license continuing.
+2. **No composition boundary.** `session_factory.rs:142-215` still drives each session
+   on its own clock with its own diff and idle sleep. `map_phase_coordinated_like_cpp`
+   only narrows packet selection; it neither orders World before Map nor prevents an
+   autonomous iteration interleaving with the coordinated one. The phase consumer has
+   to live inside the task that already owns the `WorldSession`.
+3. **Admission is not revalidated.** The request carries only `tick_epoch`, `diff_ms`
+   and a reply channel. It must freeze coordinator instance, epoch, phase, permit,
+   session incarnation, `PlayerRegistration` *and* `PlayerHandle`, `MapKey`, residence
+   revision and map incarnation, and the session must claim and validate all of them
+   before any effect. `diff_ms` is currently unused: it must feed the time-sync tail
+   after Map dispatch and before query callbacks (`WorldSession.cpp:488-540`), even
+   when zero packets were dispatched, with the terminal result emitted after the tails.
+4. **Exactly-once is not enforced.** `MapTickPlanLikeCpp` derives `Clone` and
+   `resume_tick_like_cpp` takes it by reference. The plan must become a consumable
+   opaque token taken by value, backed by explicit manager state
+   `Idle → AwaitingSessions(epoch) → Resuming(epoch) → Idle`, with a second `begin`
+   answering `Busy` **without** advancing the shared timer, and `MapKey` reuse during
+   the tick rejected.
+
+Two further findings from the same review, to be closed in this macro:
+
+- With the coordinated command executed from the session-command path, the same
+  `process_pending` iteration can still reach the World dispatch afterwards, i.e. a
+  Map→World order inside one autonomous iteration.
+- Time sync and logout currently run before dispatch, whereas C++ places them in the
+  tail of each pass, split by `ProcessUnsafe()` (`WorldSession.cpp:488-540`).
+
+One premise recorded earlier in this section is corrected: leaving the world does not
+make every Map-phase packet ineligible. `PacketProcessing::Inplace` is eligible in both
+phases regardless of residence, matching C++, so a regression named for out-of-world
+residence only demonstrates the `ThreadSafe` case and is renamed to its real scope.
+
+A limit stated by the review and adopted: with an admitted operation able to wait
+indefinitely, strict order, absence of overlap and bounded tick progress cannot all
+hold at once. Each admitted operation therefore needs either demonstrated bounded
+termination or a request/callback split; `QuestLogRemoveQuest` is the concrete case,
+being `Inplace` while mutating before its persistence await and publishing after
+(`handlers/quest/handlers.rs:2094`, `handlers/quest/persistence.rs:601`).
+
 ### Proportional evidence inside the macro
 
 The [plan's reanalysis checkpoints](modularity-and-ecs-plan.md#reanalysis-checkpoints--evidence-before-replication)
