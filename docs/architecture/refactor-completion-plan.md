@@ -375,6 +375,49 @@ genérico con treinta y ocho sitios de escritura de producción.
   conserva el campo y su lectura; darle escritores pertenece a la operación de
   progreso de objetivos de #41.
 
+#### Entrega local aceptada — #763
+
+Sexta macro P2: el estado de colecciones tenía ocho campos públicos y un cierre
+genérico con veinte sitios de escritura de producción.
+
+- Estado e invariantes en el Player:
+  `crates/wow-entities/src/player/collection_state.rs` posee
+  `PlayerCollectionStateLikeCpp` con los campos cerrados al módulo Player y las
+  transiciones que C++ hace en `CollectionMgr`
+  (`Entities/Player/CollectionMgr.cpp`): `AddToy` (`:102`) sobre
+  `UpdateAccountToys` (`:140`), `ToySetFavorite` (`:145`), `ToyClearFanfare`
+  (`:157`), `AddHeirloom` (`:237`) sobre `UpdateAccountHeirlooms` (`:217`),
+  `UpgradeHeirloom` (`:243`), `CheckHeirloomUpgrades` (`:278`), `AddMount`
+  (`:360`), `MountSetFavorite` (`:395`), los cargadores de cuenta (`:113`,
+  `:174`, `:330`, `:461`, `:874`), `SaveAccountItemAppearances` (`:516`),
+  `AddItemAppearance` (`:732`), `AddTemporaryAppearance` (`:768`),
+  `RemoveTemporaryAppearance` (`:777`) y `SetAppearanceIsFavorite` (`:828`).
+- El propietario impone ahora lo que los llamadores escribían a mano: un juguete,
+  reliquia o montura ya coleccionado no se sobrescribe —`_mounts.insert` de C++
+  tampoco lo hace—, una apariencia permanente elimina los proveedores temporales
+  que sustituye, una apariencia temporal solo se borra con su último proveedor, y
+  el guardado de favoritas pasa `New` a `Unchanged` y borra `Removed` en una sola
+  transición que devuelve sus planes de inserción y borrado.
+- Los consumidores de producción en
+  `session/{lifecycle_ops,player_items,persistence,movement,spell_state}` y la
+  raíz de sesión llaman cada uno a una transición con nombre. El adaptador
+  interno `mutate_player_collection_state_like_cpp` y su lectura conservan el
+  ciclo instantánea/escritura sobre acceso canónico, pero pasan de `pub(crate)` a
+  `pub(in crate::session)` y ya no entregan campos al llamador.
+- Departuras registradas, no introducidas aquí: C++ posee las colecciones en la
+  sesión (`WorldSession::_collectionMgr`, `WorldSession.h:1938`) mientras
+  RustyCore guarda el estado representado en el Player, y el orden del guardado de
+  favoritas es determinista por id de apariencia donde C++ recorre un mapa sin
+  orden. Ambas preceden a esta entrega.
+- Sin API especulativa: las operaciones que solo tenían consumidores de fixture se
+  retiraron y esos fixtures usan las instalaciones de producción.
+
+Aceptación local: diecisiete regresiones nuevas de invariantes en
+`player_tests/collection_state.rs`, controles de arquitectura y ownership con
+delta de inventario revisado (session/mod.rs -68 producción/+7 test;
+player/mod.rs +335 producción/+278 test). Sin QA viva ni evidencia de
+DB/reinicio/relogin.
+
 ### 4.3 Residuales P2 y paso a P3/P4
 
 Después de #743 y #735 se retiran los accesos genéricos operación por operación. El

@@ -31864,7 +31864,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "mutate_player_collection_state_like_cpp",
-          "visibility": "pub (crate)",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn mutate_player_collection_state_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut wow_entities :: PlayerCollectionStateLikeCpp) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
@@ -33109,13 +33109,26 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_collection_state_snapshot_like_cpp",
-          "visibility": "pub (crate)",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn player_collection_state_snapshot_like_cpp (& self ,) -> Option < wow_entities :: PlayerCollectionStateLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_player_collection_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_player_collection_state_like_cpp (& self ,) -> wow_entities :: PlayerCollectionStateLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": []
         },
         {
           "module": "crate::session",

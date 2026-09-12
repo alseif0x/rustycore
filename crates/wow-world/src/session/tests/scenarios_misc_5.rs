@@ -561,26 +561,26 @@ fn canonical_player_collection_authority_follows_detached_and_stale_ownership_li
     assert!(
         session
             .mutate_player_collection_state_like_cpp(|collections| {
-                collections.mounts.insert(100, 1);
-                collections.heirlooms.insert(
+                collections.add_mount_like_cpp(100, 1);
+                collections.add_heirloom_like_cpp(
                     200,
                     wow_entities::PlayerAccountHeirloomDataLikeCpp {
                         flags: 2,
                         bonus_id: 3,
                     },
                 );
-                collections.toys.insert(300, 4);
-                collections.item_appearances.insert(400);
-                collections.item_appearance_blocks.push(5);
+                collections.add_toy_like_cpp(300, 4);
+                collections.install_appearance_collection_like_cpp(
+                    std::collections::HashSet::from([400]),
+                    vec![5],
+                    std::collections::HashMap::from([(
+                        400,
+                        wow_entities::PlayerFavoriteAppearanceStateLikeCpp::New,
+                    )]),
+                );
+                collections.add_temporary_item_appearance_like_cpp(401, temporary_item_guid);
                 collections
-                    .temporary_item_appearances
-                    .entry(401)
-                    .or_default()
-                    .insert(temporary_item_guid);
-                collections
-                    .favorite_item_appearances
-                    .insert(400, wow_entities::PlayerFavoriteAppearanceStateLikeCpp::New);
-                collections.transmog_illusions.insert(500);
+                    .replace_transmog_illusions_like_cpp(std::collections::HashSet::from([500]));
             })
             .is_some()
     );
@@ -596,20 +596,27 @@ fn canonical_player_collection_authority_follows_detached_and_stale_ownership_li
     let detached = session
         .player_collection_state_snapshot_like_cpp()
         .expect("detached canonical collection owner");
-    assert_eq!(detached.mounts.get(&100), Some(&1));
+    assert_eq!(detached.mounts_like_cpp().get(&100), Some(&1));
     assert_eq!(
-        detached.heirlooms.get(&200).map(|data| data.bonus_id),
+        detached
+            .heirlooms_like_cpp()
+            .get(&200)
+            .map(|data| data.bonus_id),
         Some(3)
     );
-    assert_eq!(detached.toys.get(&300), Some(&4));
-    assert!(detached.item_appearances.contains(&400));
-    assert_eq!(detached.item_appearance_blocks, vec![5]);
+    assert_eq!(detached.toys_like_cpp().get(&300), Some(&4));
+    assert!(detached.item_appearances_like_cpp().contains(&400));
+    assert_eq!(detached.item_appearance_blocks_like_cpp(), vec![5]);
     assert_eq!(
-        detached.temporary_item_appearances.get(&401),
+        detached.temporary_item_appearances_like_cpp().get(&401),
         Some(&HashSet::from([temporary_item_guid]))
     );
-    assert!(detached.favorite_item_appearances.contains_key(&400));
-    assert!(detached.transmog_illusions.contains(&500));
+    assert!(
+        detached
+            .favorite_item_appearances_like_cpp()
+            .contains_key(&400)
+    );
+    assert!(detached.transmog_illusions_like_cpp().contains(&500));
 
     let mut replacement = Box::new(Player::new(Some(2), false));
     replacement
@@ -631,7 +638,7 @@ fn canonical_player_collection_authority_follows_detached_and_stale_ownership_li
     assert!(
         session
             .mutate_player_collection_state_like_cpp(|collections| {
-                collections.mounts.insert(999, 0);
+                collections.add_mount_like_cpp(999, 0);
             })
             .is_none(),
         "a stale Session generation must not mutate collection authority"

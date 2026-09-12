@@ -81,7 +81,7 @@ impl WorldSession {
         self.set_player_currencies_like_cpp(currencies)
     }
     pub(crate) fn remove_account_toy_like_cpp(&mut self, item_id: u32) -> bool {
-        self.mutate_player_collection_state_like_cpp(|state| state.toys.remove(&item_id).is_some())
+        self.mutate_player_collection_state_like_cpp(|state| state.remove_toy_like_cpp(item_id))
             .unwrap_or(false)
     }
     pub(crate) fn remove_represented_rest_flag_like_cpp(&mut self, rest_flag: u32) -> bool {

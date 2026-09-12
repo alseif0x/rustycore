@@ -8,7 +8,7 @@ fn known_spell_commands_match_previous_active_and_detached_owner() {
     install_canonical_player_owner_for_test(&mut session, 571, 0);
     session
         .with_owned_player_mut_like_cpp(|p| {
-            p.gameplay_state_mut().collections.mounts.insert(40, 0);
+            p.gameplay_state_mut().collections.add_mount_like_cpp(40, 0);
         })
         .unwrap();
     for detached in [false, true] {

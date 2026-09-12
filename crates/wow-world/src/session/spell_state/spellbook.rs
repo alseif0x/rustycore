@@ -229,9 +229,15 @@ impl WorldSession {
         self.learn_account_mount_spells_like_cpp();
     }
     pub(in crate::session) fn learn_account_mount_spells_like_cpp(&mut self) -> usize {
-        let Some(mut spell_ids) = self
-            .player_collection_state_snapshot_like_cpp()
-            .map(|collections| collections.mounts.into_keys().collect::<Vec<_>>())
+        let Some(mut spell_ids) =
+            self.player_collection_state_snapshot_like_cpp()
+                .map(|collections| {
+                    collections
+                        .mounts_like_cpp()
+                        .keys()
+                        .copied()
+                        .collect::<Vec<_>>()
+                })
         else {
             return 0;
         };

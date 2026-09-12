@@ -25,9 +25,9 @@ impl WorldSession {
         self.player_collection_state_snapshot_like_cpp()
             .map(|collections| {
                 collections
-                    .heirlooms
-                    .into_iter()
-                    .map(|(item_id, data)| (item_id, data.flags))
+                    .heirlooms_like_cpp()
+                    .iter()
+                    .map(|(item_id, data)| (*item_id, data.flags))
                     .collect()
             })
             .unwrap_or_default()
@@ -45,11 +45,11 @@ impl WorldSession {
         self.player_collection_state_snapshot_like_cpp()
             .map(|collections| {
                 collections
-                    .heirlooms
-                    .into_iter()
+                    .heirlooms_like_cpp()
+                    .iter()
                     .filter_map(|(item_id, data)| {
                         Some(AccountHeirloom {
-                            item_id: i32::try_from(item_id).ok()?,
+                            item_id: i32::try_from(*item_id).ok()?,
                             flags: data.flags,
                         })
                     })
@@ -62,9 +62,9 @@ impl WorldSession {
         self.player_collection_state_snapshot_like_cpp()
             .map(|collections| {
                 collections
-                    .heirlooms
-                    .into_iter()
-                    .filter_map(|(item_id, data)| Some((i32::try_from(item_id).ok()?, data.flags)))
+                    .heirlooms_like_cpp()
+                    .iter()
+                    .filter_map(|(item_id, data)| Some((i32::try_from(*item_id).ok()?, data.flags)))
                     .collect()
             })
             .unwrap_or_default()
@@ -85,13 +85,8 @@ impl WorldSession {
     /// C++ `CollectionMgr::AddHeirloom` / `UpdateAccountHeirlooms`.
     pub(crate) fn add_account_heirloom_like_cpp(&mut self, item_id: u32, flags: u32) -> bool {
         self.mutate_player_collection_state_like_cpp(|collections| {
-            if collections.heirlooms.contains_key(&item_id) {
-                return false;
-            }
             collections
-                .heirlooms
-                .insert(item_id, AccountHeirloomDataLikeCpp { flags, bonus_id: 0 });
-            true
+                .add_heirloom_like_cpp(item_id, AccountHeirloomDataLikeCpp { flags, bonus_id: 0 })
         })
         .unwrap_or(false)
     }
@@ -108,7 +103,7 @@ impl WorldSession {
             .clone();
         let current_flags = self
             .player_collection_state_snapshot_like_cpp()?
-            .heirlooms
+            .heirlooms_like_cpp()
             .get(&item_id)?
             .flags;
         let active_item_id = i32::try_from(item_id).ok()?;
@@ -135,10 +130,9 @@ impl WorldSession {
         })??;
 
         self.mutate_player_collection_state_like_cpp(|collections| {
-            let data = collections.heirlooms.get_mut(&item_id)?;
-            data.flags = flags;
-            data.bonus_id = bonus_id;
-            Some(())
+            collections
+                .update_heirloom_like_cpp(item_id, flags, bonus_id)
+                .then_some(())
         })??;
         Some(update)
     }
@@ -150,7 +144,7 @@ impl WorldSession {
         let heirloom_store = Arc::clone(self.heirloom_store.as_ref()?);
         let heirloom = heirloom_store.get_by_item_id_like_cpp(item_id)?;
         self.player_collection_state_snapshot_like_cpp()?
-            .heirlooms
+            .heirlooms_like_cpp()
             .get(&item_id)?;
 
         let mut heirloom_item_id = u32::try_from(heirloom.static_upgraded_item_id).ok()?;
@@ -194,14 +188,7 @@ impl WorldSession {
         })??;
 
         self.mutate_player_collection_state_like_cpp(|collections| {
-            collections.heirlooms.remove(&item_id);
-            collections.heirlooms.insert(
-                new_item_id,
-                AccountHeirloomDataLikeCpp {
-                    flags: 0,
-                    bonus_id: 0,
-                },
-            );
+            collections.replace_heirloom_like_cpp(item_id, new_item_id);
         })?;
         Some(update)
     }
@@ -210,13 +197,13 @@ impl WorldSession {
         self.player_collection_state_snapshot_like_cpp()
             .map(|collections| {
                 collections
-                    .toys
-                    .into_iter()
+                    .toys_like_cpp()
+                    .iter()
                     .map(|(item_id, flags)| {
                         (
-                            item_id,
-                            (flags & TOY_FLAG_FAVORITE_LIKE_CPP) != 0,
-                            (flags & TOY_FLAG_HAS_FANFARE_LIKE_CPP) != 0,
+                            *item_id,
+                            (*flags & TOY_FLAG_FAVORITE_LIKE_CPP) != 0,
+                            (*flags & TOY_FLAG_HAS_FANFARE_LIKE_CPP) != 0,
                         )
                     })
                     .collect()
@@ -228,10 +215,10 @@ impl WorldSession {
         self.player_collection_state_snapshot_like_cpp()
             .map(|collections| {
                 collections
-                    .toys
-                    .into_iter()
+                    .toys_like_cpp()
+                    .iter()
                     .map(|(item_id, flags)| AccountToy {
-                        item_id,
+                        item_id: *item_id,
                         is_favorite: (flags & TOY_FLAG_FAVORITE_LIKE_CPP) != 0,
                         has_fanfare: (flags & TOY_FLAG_HAS_FANFARE_LIKE_CPP) != 0,
                     })
@@ -244,9 +231,9 @@ impl WorldSession {
         self.player_collection_state_snapshot_like_cpp()
             .map(|collections| {
                 collections
-                    .toys
-                    .into_keys()
-                    .filter_map(|item_id| i32::try_from(item_id).ok())
+                    .toys_like_cpp()
+                    .keys()
+                    .filter_map(|item_id| i32::try_from(*item_id).ok())
                     .collect()
             })
             .unwrap_or_default()
@@ -260,7 +247,7 @@ impl WorldSession {
     /// C++ `CollectionMgr::HasToy`.
     pub(crate) fn has_account_toy_like_cpp(&self, item_id: u32) -> bool {
         self.player_collection_state_snapshot_like_cpp()
-            .is_some_and(|collections| collections.toys.contains_key(&item_id))
+            .is_some_and(|collections| collections.toys_like_cpp().contains_key(&item_id))
     }
     /// C++ `CollectionMgr::AddToy` / `UpdateAccountToys`.
     pub(crate) fn add_account_toy_like_cpp(
@@ -277,11 +264,7 @@ impl WorldSession {
             flags |= TOY_FLAG_HAS_FANFARE_LIKE_CPP;
         }
         self.mutate_player_collection_state_like_cpp(|collections| {
-            if collections.toys.contains_key(&item_id) {
-                return false;
-            }
-            collections.toys.insert(item_id, flags);
-            true
+            collections.add_toy_like_cpp(item_id, flags)
         })
         .unwrap_or(false)
     }
@@ -439,7 +422,7 @@ impl WorldSession {
             .map(|mount| (mount.spell_id, mount.flags))
             .collect();
         let _ = self.mutate_player_collection_state_like_cpp(|collections| {
-            collections.mounts = mounts;
+            collections.replace_mounts_like_cpp(mounts);
         });
         self.expand_account_mount_faction_definitions_like_cpp();
         self.learn_account_mount_spells_like_cpp();
@@ -479,20 +462,19 @@ impl WorldSession {
         }
 
         self.mutate_player_collection_state_like_cpp(|collections| {
-            match collections.mounts.entry(spell_id) {
-                std::collections::hash_map::Entry::Vacant(entry) => {
-                    entry.insert(flags);
-                    true
-                }
-                std::collections::hash_map::Entry::Occupied(_) => false,
-            }
+            collections.add_mount_like_cpp(spell_id, flags)
         })
         .unwrap_or(false)
     }
     pub(in crate::session) fn expand_account_mount_faction_definitions_like_cpp(&mut self) {
         let Some(mounts) = self
             .player_collection_state_snapshot_like_cpp()
-            .map(|collections| collections.mounts.into_iter().collect::<Vec<_>>())
+            .map(|collections| {
+                collections
+                    .mounts_snapshot_like_cpp()
+                    .into_iter()
+                    .collect::<Vec<_>>()
+            })
         else {
             return;
         };
@@ -509,9 +491,12 @@ impl WorldSession {
             self.player_collection_state_snapshot_like_cpp()
                 .map(|collections| {
                     collections
-                        .mounts
-                        .into_iter()
-                        .map(|(spell_id, flags)| AccountMount { spell_id, flags })
+                        .mounts_like_cpp()
+                        .iter()
+                        .map(|(spell_id, flags)| AccountMount {
+                            spell_id: *spell_id,
+                            flags: *flags,
+                        })
                         .collect::<Vec<_>>()
                 })
         else {
