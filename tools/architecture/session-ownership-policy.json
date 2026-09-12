@@ -1142,6 +1142,13 @@
           "source_class": "production"
         },
         {
+          "name": "last_phase_authority_like_cpp",
+          "type": "[Option < (u64 , u64) > ; 2]",
+          "visibility": "private",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "last_presented_creature_melee_health_state_revision_like_cpp",
           "type": "u64",
           "visibility": "private",
@@ -1324,6 +1331,13 @@
           "name": "map_manager",
           "type": "Option < crate :: map_manager :: SharedMapManager >",
           "visibility": "pub (crate)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "name": "map_phase_coordinated_like_cpp",
+          "type": "bool",
+          "visibility": "private",
           "cfg": [],
           "source_class": "production"
         },
@@ -3156,15 +3170,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "represented_cinematic_state_like_cpp",
-          "type": "wow_entities :: PlayerCinematicStateLikeCpp",
-          "visibility": "private",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
           "name": "represented_cinematic_end_events_like_cpp",
           "type": "Vec < u32 >",
           "visibility": "private",
@@ -3176,6 +3181,15 @@
         {
           "name": "represented_cinematic_next_camera_events_like_cpp",
           "type": "Vec < u16 >",
+          "visibility": "private",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
+          "name": "represented_cinematic_state_like_cpp",
+          "type": "wow_entities :: PlayerCinematicStateLikeCpp",
           "visibility": "private",
           "cfg": [
             "cfg (test)"
@@ -3678,8 +3692,8 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "represented_item_modifier_runtime_like_cpp",
-          "type": "wow_entities :: PlayerItemModifierRuntimeStateLikeCpp",
+          "name": "represented_item_mod_reapply_events_like_cpp",
+          "type": "Vec < RepresentedItemModsReapplyEventLikeCpp >",
           "visibility": "private",
           "cfg": [
             "cfg (test)"
@@ -3687,8 +3701,8 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "represented_item_mod_reapply_events_like_cpp",
-          "type": "Vec < RepresentedItemModsReapplyEventLikeCpp >",
+          "name": "represented_item_modifier_runtime_like_cpp",
+          "type": "wow_entities :: PlayerItemModifierRuntimeStateLikeCpp",
           "visibility": "private",
           "cfg": [
             "cfg (test)"
@@ -4892,6 +4906,20 @@
         {
           "name": "session_mgr",
           "type": "Option < Arc < SessionManager > >",
+          "visibility": "private",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "name": "session_phase_rx",
+          "type": "flume :: Receiver < crate :: session :: mailbox :: SessionPhaseRequestLikeCpp >",
+          "visibility": "private",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "name": "session_phase_tx",
+          "type": "flume :: Sender < crate :: session :: mailbox :: SessionPhaseRequestLikeCpp >",
           "visibility": "private",
           "cfg": [],
           "source_class": "production"
@@ -20652,6 +20680,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "admission_still_describes_this_session_like_cpp",
+          "visibility": "private",
+          "signature": "fn admission_still_describes_this_session_like_cpp (& self , admission : & MapPhaseAdmissionLikeCpp ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "adopt_registered_canonical_player_fixture_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn adopt_registered_canonical_player_fixture_like_cpp (& mut self) -> bool",
@@ -26166,6 +26205,21 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "current_map_phase_admission_for_test_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn current_map_phase_admission_for_test_like_cpp (& self , coordinator_id : u64 , tick_epoch : u64 , diff_ms : u32 ,) -> Option < MapPhaseAdmissionLikeCpp >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "current_played_time_values_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn current_played_time_values_like_cpp (& self) -> (u32 , u32)",
@@ -29307,6 +29361,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "is_map_phase_coordinated_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn is_map_phase_coordinated_like_cpp (& self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "is_pet_need_be_temporary_unsummoned_like_cpp",
           "visibility": "private",
           "signature": "fn is_pet_need_be_temporary_unsummoned_like_cpp (& self) -> bool",
@@ -31130,6 +31197,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "mark_map_phase_coordinated_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn mark_map_phase_coordinated_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "mark_player_skills_saved_like_cpp",
           "visibility": "private",
           "signature": "fn mark_player_skills_saved_like_cpp (& mut self)",
@@ -31757,17 +31837,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "with_pending_spell_cast_owner_like_cpp",
-          "visibility": "private",
-          "signature": "fn with_pending_spell_cast_owner_like_cpp < R > (& mut self , canonical : impl FnOnce (& mut wow_entities :: Player) -> R , # [cfg (test)] fallback : impl FnOnce (& mut Option < RepresentedPendingSpellCastRequestLikeCpp >) -> R ,) -> Option < R >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "mutate_player_aura_subsystem_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn mutate_player_aura_subsystem_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut wow_entities :: AuraSubsystem) -> R ,) -> Option < R >",
@@ -31794,19 +31863,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "with_player_cinematic_state_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn with_player_cinematic_state_like_cpp < R > (& mut self , mut apply : impl FnMut (& mut wow_entities :: PlayerCinematicStateLikeCpp) -> R ,) -> Option < R >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "mutate_player_collection_state_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn mutate_player_collection_state_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut wow_entities :: PlayerCollectionStateLikeCpp) -> R ,) -> Option < R >",
@@ -31814,19 +31870,6 @@
           "source_class": "production",
           "guards": [
             "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_player_difficulty_like_cpp",
-          "visibility": "private",
-          "signature": "fn set_player_difficulty_like_cpp (& mut self , kind : SessionDifficultyKindLikeCpp , difficulty_id : u32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter"
           ]
         },
         {
@@ -32539,6 +32582,21 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "pending_packet_count_for_test_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn pending_packet_count_for_test_like_cpp (& self) -> usize",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "pending_spell_cast_for_test_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn pending_spell_cast_for_test_like_cpp (& self ,) -> Option < RepresentedPendingSpellCastRequestLikeCpp >",
@@ -32685,6 +32743,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "phase_authority_is_current_like_cpp",
+          "visibility": "private",
+          "signature": "fn phase_authority_is_current_like_cpp (& mut self , phase : PacketUpdatePhase , coordinator_id : u64 , tick_epoch : u64 ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -33060,19 +33129,6 @@
           "guards": [
             "visible"
           ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_player_collection_state_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_player_collection_state_like_cpp (& self ,) -> wow_entities :: PlayerCollectionStateLikeCpp",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": []
         },
         {
           "module": "crate::session",
@@ -33861,6 +33917,19 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "player_packet_residence_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn player_packet_residence_like_cpp (& self) -> PlayerPacketResidence",
+          "cfg": [],
+          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -34873,6 +34942,21 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "push_pending_packet_for_test_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn push_pending_packet_for_test_like_cpp (& mut self , packet : wow_packet :: WorldPacket ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "quarantine_player_money_persistence_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn quarantine_player_money_persistence_like_cpp (& mut self , reason : & 'static str)",
@@ -34944,6 +35028,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "queued_head_allows_phase_like_cpp",
+          "visibility": "private",
+          "signature": "fn queued_head_allows_phase_like_cpp (& self , phase : PacketUpdatePhase , residence : PlayerPacketResidence ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -36468,6 +36563,19 @@
           "name": "refresh_represented_talent_points_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn refresh_represented_talent_points_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "refuse_pending_phase_requests_like_cpp",
+          "visibility": "pub",
+          "signature": "fn refuse_pending_phase_requests_like_cpp (& mut self) -> usize",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -40601,6 +40709,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "represented_player_collection_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_player_collection_state_like_cpp (& self ,) -> wow_entities :: PlayerCollectionStateLikeCpp",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "represented_player_condition_context_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_player_condition_context_like_cpp (& self ,) -> Option < RepresentedPlayerConditionContextLikeCpp >",
@@ -44513,6 +44634,32 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "run_admitted_map_phase_pass_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn run_admitted_map_phase_pass_like_cpp (& mut self , command : RunMapPhasePassLikeCppCommand , catalogs : & SessionHandlerCatalogsLikeCpp ,) -> RunMapPhasePassResultLikeCpp",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "run_admitted_world_phase_pass_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn run_admitted_world_phase_pass_like_cpp (& mut self , request : RunWorldPhasePassLikeCppRequest , catalogs : & SessionHandlerCatalogsLikeCpp ,) -> RunWorldPhasePassResultLikeCpp",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "run_combat_tick",
           "visibility": "pub (crate)",
           "signature": "fn run_combat_tick (& mut self) -> RuntimeOutput",
@@ -44529,6 +44676,71 @@
           "name": "run_creatures_tick",
           "visibility": "pub (crate)",
           "signature": "fn run_creatures_tick (& mut self) -> RuntimeOutput",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "run_logout_timer_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn run_logout_timer_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "run_map_phase_tail_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn run_map_phase_tail_like_cpp (& mut self , diff_ms : u32)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "run_phase_packet_pass_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn run_phase_packet_pass_like_cpp (& mut self , phase : PacketUpdatePhase , catalogs : & SessionHandlerCatalogsLikeCpp ,) -> SessionPhasePassSummaryLikeCpp",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "run_requested_session_phase_like_cpp",
+          "visibility": "pub",
+          "signature": "async fn run_requested_session_phase_like_cpp (& mut self , request : SessionPhaseRequestLikeCpp , catalogs : & SessionHandlerCatalogsLikeCpp ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "run_world_phase_dispatch_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn run_world_phase_dispatch_like_cpp (& mut self , catalogs : & SessionHandlerCatalogsLikeCpp ,) -> SessionPhasePassSummaryLikeCpp",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -46013,6 +46225,32 @@
           "name": "session_mgr",
           "visibility": "pub",
           "signature": "fn session_mgr (& self) -> Option < & Arc < SessionManager > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "session_phase_receiver_like_cpp",
+          "visibility": "pub",
+          "signature": "fn session_phase_receiver_like_cpp (& self) -> flume :: Receiver < SessionPhaseRequestLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "session_phase_sender_like_cpp",
+          "visibility": "pub",
+          "signature": "fn session_phase_sender_like_cpp (& self) -> flume :: Sender < SessionPhaseRequestLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -49228,6 +49466,19 @@
           "guards": [
             "setter",
             "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_player_difficulty_like_cpp",
+          "visibility": "private",
+          "signature": "fn set_player_difficulty_like_cpp (& mut self , kind : SessionDifficultyKindLikeCpp , difficulty_id : u32 ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter"
           ]
         },
         {
@@ -55493,6 +55744,30 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "with_pending_spell_cast_owner_like_cpp",
+          "visibility": "private",
+          "signature": "fn with_pending_spell_cast_owner_like_cpp < R > (& mut self , canonical : impl FnOnce (& mut wow_entities :: Player) -> R , # [cfg (test)] fallback : impl FnOnce (& mut Option < RepresentedPendingSpellCastRequestLikeCpp >) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "with_player_cinematic_state_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn with_player_cinematic_state_like_cpp < R > (& mut self , mut apply : impl FnMut (& mut wow_entities :: PlayerCinematicStateLikeCpp) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "with_player_spell_runtime_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn with_player_spell_runtime_like_cpp < R > (& self , query : impl FnOnce (& wow_entities :: PlayerSpellRuntimeState) -> R ,) -> Option < R >",
@@ -56593,7 +56868,7 @@
         "source_class": "production"
       },
       "signature": "async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)",
-      "body_fingerprint": "fnv1a64x2:175c84fb08bbb1a62a35de77893aef11:len=5704",
+      "body_fingerprint": "fnv1a64x2:e23198108a13393e2526eec3971259ed:len=5819",
       "session_helper_bodies": [
         {
           "module": "crate::session_factory",
@@ -56606,8 +56881,8 @@
         {
           "module": "crate::session_factory",
           "name": "run_world_session_until_disconnect_like_cpp",
-          "signature": "async fn run_world_session_until_disconnect_like_cpp (session : & mut WorldSession , handler_catalogs : & wow_world :: session :: SessionHandlerCatalogsLikeCpp , account_id : u32 , active_session_registry : & ActiveWorldSessionRegistryLikeCpp , cancellation : & ActiveWorldSessionCancellationLikeCpp ,) -> WorldSessionRunOutcomeLikeCpp",
-          "body_fingerprint": "fnv1a64x2:26fba5ab6ef707140cb11caf507dc2bf:len=1852",
+          "signature": "async fn run_world_session_until_disconnect_like_cpp (session : & mut WorldSession , handler_catalogs : & wow_world :: session :: SessionHandlerCatalogsLikeCpp , account_id : u32 , active_session_registry : & ActiveWorldSessionRegistryLikeCpp , cancellation : & ActiveWorldSessionCancellationLikeCpp , ready_for_phases_like_cpp : & AtomicBool ,) -> WorldSessionRunOutcomeLikeCpp",
+          "body_fingerprint": "fnv1a64x2:f4f3b58f66418dd23983802e3eb62b01:len=972",
           "cfg": [],
           "source_class": "production"
         },
@@ -59860,9 +60135,43 @@
       },
       {
         "module": "crate::session",
+        "target": "WorldSession::is_map_phase_coordinated_like_cpp",
+        "kind": "attribute",
+        "fingerprint": "must_use",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session",
+        "target": "WorldSession::pending_packet_count_for_test_like_cpp",
+        "kind": "attribute",
+        "fingerprint": "must_use",
+        "cfg": [
+          "cfg (test)"
+        ],
+        "source_class": "test_fixture"
+      },
+      {
+        "module": "crate::session",
         "target": "WorldSession::record_driver_phase_like_cpp",
         "kind": "attribute",
         "fingerprint": "inline",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session",
+        "target": "WorldSession::session_phase_receiver_like_cpp",
+        "kind": "attribute",
+        "fingerprint": "must_use",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session",
+        "target": "WorldSession::session_phase_sender_like_cpp",
+        "kind": "attribute",
+        "fingerprint": "must_use",
         "cfg": [],
         "source_class": "production"
       },
@@ -61544,6 +61853,19 @@
           "package": "world-server",
           "module": "crate::runtime::map",
           "source": "crates/world-server/src/runtime/map.rs",
+          "enclosing": "fn spawn_canonical_map_update_loop",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "run_map_phase_session_passes_like_cpp",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "player_registry . as_ref ()",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map",
+          "source": "crates/world-server/src/runtime/map.rs",
           "enclosing": "fn spawn_group_ready_check_tick_loop",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
@@ -61590,6 +61912,32 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "get(& group_guid)",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map_session_pass",
+          "source": "crates/world-server/src/runtime/map_session_pass.rs",
+          "enclosing": "fn run_map_phase_session_passes_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "player_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "& PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map_session_pass",
+          "source": "crates/world-server/src/runtime/map_session_pass.rs",
+          "enclosing": "module",
+          "registry": "PlayerRegistry",
+          "operation": "import_alias",
+          "symbol": "PlayerRegistry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "wow_world::session::directory::PlayerRegistry",
           "count": 1
         },
         {
@@ -66110,6 +66458,32 @@
         },
         {
           "package": "wow-world",
+          "module": "crate::session::driver::phase_consumer",
+          "source": "crates/wow-world/src/session/driver/phase_consumer.rs",
+          "enclosing": "impl WorldSession::admission_still_describes_this_session_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::driver::phase_consumer",
+          "source": "crates/wow-world/src/session/driver/phase_consumer.rs",
+          "enclosing": "impl WorldSession::admission_still_describes_this_session_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
           "module": "crate::session::instances::difficulty",
           "source": "crates/wow-world/src/session/instances/difficulty.rs",
           "enclosing": "impl WorldSession::represented_set_difficulty_reset_owner_like_cpp",
@@ -69477,7 +69851,70 @@
           "package": "world-server",
           "module": "crate::runtime::map",
           "path": "crates/world-server/src/runtime/map.rs",
-          "enclosing": "fn::canonical_map_update_tick_set_inactive_like_cpp",
+          "enclosing": "fn::spawn_canonical_map_update_loop",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "SharedCanonicalMapManager",
+              "fingerprint": "fnv1a64x2:8d7dcef49208e0d2cf3f8511772d0fad:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "manager",
+              "fingerprint": "fnv1a64x2:d7b75fb3f93959187612efb8773aa593:len=391",
+              "multiplicity": 8
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "map_manager",
+              "fingerprint": "fnv1a64x2:4857153a8a6631a018e0f1a02ec2557b:len=199",
+              "multiplicity": 4
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "abandon_tick_like_cpp",
+              "fingerprint": "fnv1a64x2:3df7dfe317d92cee41c827aad2f5abf9:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "lock",
+              "fingerprint": "fnv1a64x2:9a4ab981de492fd8e22418538bf2f533:len=199",
+              "multiplicity": 4
+            },
+            {
+              "side": "legacy",
+              "kind": "type_reference",
+              "symbol": "SharedMapManager",
+              "fingerprint": "fnv1a64x2:7d2c912bd3b9f676e6912fae6fbff8e1:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "legacy_map_manager",
+              "fingerprint": "fnv1a64x2:02d7e88f2bd77e543634bf0ec1e6293f:len=99",
+              "multiplicity": 2
+            }
+          ],
+          "fingerprint": "signature=fn spawn_canonical_map_update_loop (map_manager : SharedCanonicalMapManager , legacy_map_manager : SharedMapManager , tick_interval_ms : u32 , respawn_condition_interval_ms : u32 , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , condition_store : Arc < wow_data :: ConditionEntriesByTypeStore > , map_store : Arc < wow_data :: MapStore > , game_event_persistence : Arc < dyn GameEventPersistencePortLikeCpp > , respawn_db_writer_tx : RespawnDbWriterSenderLikeCpp , respawn_db_mutation_order : SharedRespawnDbMutationOrderLikeCpp , respawn_db_producer_stop : SharedRespawnDbProducerStopLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , area_trigger_template_store : Arc < wow_data :: AreaTriggerTemplateStore > , mut game_event_scheduler : CanonicalGameEventSchedulerLikeCpp , player_registry : Arc < PlayerRegistry > , active_session_registry : Arc < crate :: ActiveWorldSessionRegistryLikeCpp > , battlemaster_list_store : Arc < wow_data :: BattlemasterListStore > , world_state_mgr : SharedWorldStateMgrLikeCpp ,) -> tokio :: task :: JoinHandle < () >|body=fnv1a64x2:f377f439d04525e512984044a3dcc88e:len=23435|evidence=fnv1a64x2:caf7adc3f0573341c49b70b3b2f38d64:len=1770",
+          "cfg": [],
+          "multiplicity": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map_tick",
+          "path": "crates/world-server/src/runtime/map_tick.rs",
+          "enclosing": "fn::canonical_map_tick_resume_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
           ],
@@ -69492,16 +69929,65 @@
             {
               "side": "canonical",
               "kind": "value_reference",
-              "symbol": "effective_diff_ms",
-              "fingerprint": "fnv1a64x2:b6897843491591a5d0235c9870cd2742:len=49",
+              "symbol": "manager",
+              "fingerprint": "fnv1a64x2:fcb060b47c655668b3e4665c11f30993:len=97",
+              "multiplicity": 2
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "resumed",
+              "fingerprint": "fnv1a64x2:286e20c23916a3d12d7b00895742ce44:len=48",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "resume_tick_with_pool_update_loaded_grid_records_context",
+              "fingerprint": "fnv1a64x2:c60bfa42d5b05a4df69b0a3b94492454:len=50",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "type_reference",
+              "symbol": "SharedMapManager",
+              "fingerprint": "fnv1a64x2:7d2c912bd3b9f676e6912fae6fbff8e1:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "legacy_manager",
+              "fingerprint": "fnv1a64x2:3d753f351705eafe866eda0900482381:len=49",
+              "multiplicity": 1
+            }
+          ],
+          "fingerprint": "signature=fn canonical_map_tick_resume_like_cpp (manager : & mut wow_map :: MapManager , legacy_manager : Option < & SharedMapManager > , plan : wow_map :: MapTickPlanLikeCpp , scheduler : & mut CanonicalRespawnConditionSchedulerLikeCpp , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , condition_store : & wow_data :: ConditionEntriesByTypeStore , map_store : & wow_data :: MapStore , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp ,) -> Option < CanonicalSpawnGroupConditionTickSummaryLikeCpp >|body=fnv1a64x2:7810ece1750c03f626c97fb724b61cf1:len=856|evidence=fnv1a64x2:ca0cce55b3ece6075f1ff14c8c130f72:len=634",
+          "cfg": [],
+          "multiplicity": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map_tick",
+          "path": "crates/world-server/src/runtime/map_tick.rs",
+          "enclosing": "fn::canonical_map_tick_tail_like_cpp",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "MapManager",
+              "fingerprint": "fnv1a64x2:6a8ff8984c55ee0c2a76565f50e5525f:len=49",
               "multiplicity": 1
             },
             {
               "side": "canonical",
               "kind": "value_reference",
               "symbol": "manager",
-              "fingerprint": "fnv1a64x2:8a0bc1d0e706e1384444128697cc1d93:len=195",
-              "multiplicity": 4
+              "fingerprint": "fnv1a64x2:3157af3d909b7290a752fa79f461dce3:len=146",
+              "multiplicity": 3
             },
             {
               "side": "canonical",
@@ -69515,13 +70001,6 @@
               "kind": "method_call",
               "symbol": "take_player_visibility_refresh_intents_like_cpp",
               "fingerprint": "fnv1a64x2:6eda464cb7ec5abbe468499b1509bbcc:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "update_with_pool_update_loaded_grid_records_context",
-              "fingerprint": "fnv1a64x2:cde7f4c66249bbb9838c33c90fbccd34:len=50",
               "multiplicity": 1
             },
             {
@@ -69539,15 +70018,15 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=fn canonical_map_update_tick_set_inactive_like_cpp (manager : & mut wow_map :: MapManager , legacy_manager : Option < & SharedMapManager > , diff_ms : u32 , scheduler : & mut CanonicalRespawnConditionSchedulerLikeCpp , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , condition_store : & wow_data :: ConditionEntriesByTypeStore , map_store : & wow_data :: MapStore , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp ,) -> Option < CanonicalSpawnGroupConditionTickSummaryLikeCpp >|body=fnv1a64x2:d7e7920e2bffb6d340ef54b14600f86c:len=9827|evidence=fnv1a64x2:9c52b92839db6482214dc1f17d7fdabd:len=1196",
+          "fingerprint": "signature=fn canonical_map_tick_tail_like_cpp (manager : & mut wow_map :: MapManager , legacy_manager : Option < & SharedMapManager > , effective_diff_ms : u32 , scheduler : & mut CanonicalRespawnConditionSchedulerLikeCpp , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , condition_store : & wow_data :: ConditionEntriesByTypeStore , map_store : & wow_data :: MapStore , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp ,) -> Option < CanonicalSpawnGroupConditionTickSummaryLikeCpp >|body=fnv1a64x2:888d82d1bd99e91806c9fc0e7d3b85cb:len=9254|evidence=fnv1a64x2:d8e2bde7ea7b0199a74e67ec08cb9242:len=897",
           "cfg": [],
           "multiplicity": 1
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::map",
-          "path": "crates/world-server/src/runtime/map.rs",
-          "enclosing": "fn::spawn_canonical_map_update_loop",
+          "module": "crate::runtime::map_tick",
+          "path": "crates/world-server/src/runtime/map_tick.rs",
+          "enclosing": "fn::canonical_map_update_tick_set_inactive_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
           ],
@@ -69555,29 +70034,15 @@
             {
               "side": "canonical",
               "kind": "type_reference",
-              "symbol": "SharedCanonicalMapManager",
-              "fingerprint": "fnv1a64x2:8d7dcef49208e0d2cf3f8511772d0fad:len=49",
+              "symbol": "MapManager",
+              "fingerprint": "fnv1a64x2:6a8ff8984c55ee0c2a76565f50e5525f:len=49",
               "multiplicity": 1
             },
             {
               "side": "canonical",
               "kind": "value_reference",
               "symbol": "manager",
-              "fingerprint": "fnv1a64x2:8a0bc1d0e706e1384444128697cc1d93:len=195",
-              "multiplicity": 4
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "map_manager",
-              "fingerprint": "fnv1a64x2:97a3c96ddfd50e5c751feb11dc985227:len=99",
-              "multiplicity": 2
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "lock",
-              "fingerprint": "fnv1a64x2:125122b624d8bdd8b6e6fd58d54da6c3:len=99",
+              "fingerprint": "fnv1a64x2:fcb060b47c655668b3e4665c11f30993:len=97",
               "multiplicity": 2
             },
             {
@@ -69590,12 +70055,12 @@
             {
               "side": "legacy",
               "kind": "value_reference",
-              "symbol": "legacy_map_manager",
-              "fingerprint": "fnv1a64x2:02d7e88f2bd77e543634bf0ec1e6293f:len=99",
-              "multiplicity": 2
+              "symbol": "legacy_manager",
+              "fingerprint": "fnv1a64x2:3d753f351705eafe866eda0900482381:len=49",
+              "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn spawn_canonical_map_update_loop (map_manager : SharedCanonicalMapManager , legacy_map_manager : SharedMapManager , tick_interval_ms : u32 , respawn_condition_interval_ms : u32 , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , condition_store : Arc < wow_data :: ConditionEntriesByTypeStore > , map_store : Arc < wow_data :: MapStore > , game_event_persistence : Arc < dyn GameEventPersistencePortLikeCpp > , respawn_db_writer_tx : RespawnDbWriterSenderLikeCpp , respawn_db_mutation_order : SharedRespawnDbMutationOrderLikeCpp , respawn_db_producer_stop : SharedRespawnDbProducerStopLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , area_trigger_template_store : Arc < wow_data :: AreaTriggerTemplateStore > , mut game_event_scheduler : CanonicalGameEventSchedulerLikeCpp , player_registry : Arc < PlayerRegistry > , battlemaster_list_store : Arc < wow_data :: BattlemasterListStore > , world_state_mgr : SharedWorldStateMgrLikeCpp ,) -> tokio :: task :: JoinHandle < () >|body=fnv1a64x2:b785ae2015cfbc07aa1d5b750ea131de:len=19458|evidence=fnv1a64x2:c37b0b36becd8dbf167ef9e941316818:len=1023",
+          "fingerprint": "signature=fn canonical_map_update_tick_set_inactive_like_cpp (manager : & mut wow_map :: MapManager , legacy_manager : Option < & SharedMapManager > , diff_ms : u32 , scheduler : & mut CanonicalRespawnConditionSchedulerLikeCpp , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , condition_store : & wow_data :: ConditionEntriesByTypeStore , map_store : & wow_data :: MapStore , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp ,) -> Option < CanonicalSpawnGroupConditionTickSummaryLikeCpp >|body=fnv1a64x2:c249de1a13499ed696cbfc6526a18391:len=257|evidence=fnv1a64x2:9decdc309c4a813a31d090881e88ae89:len=423",
           "cfg": [],
           "multiplicity": 1
         },
@@ -69637,7 +70102,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)|body=fnv1a64x2:175c84fb08bbb1a62a35de77893aef11:len=5704|evidence=fnv1a64x2:72f642b85f1867c40b712a59020b9e87:len=367",
+          "fingerprint": "signature=async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)|body=fnv1a64x2:e23198108a13393e2526eec3971259ed:len=5819|evidence=fnv1a64x2:72f642b85f1867c40b712a59020b9e87:len=367",
           "cfg": [],
           "multiplicity": 1
         },
@@ -75499,7 +75964,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:e17e804bb88ce2908e494188d472d07b:len=91769|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:7f3682ab967f8550445472ff5da97383:len=92911|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

@@ -2994,6 +2994,381 @@ Final bounded quick manifest
 format/diff checks pass. This is not clean-HEAD publication, fresh capture or live DB
 evidence. Only this reviewed application extraction and its tests are claimed complete.
 
+### #787 inventory and verifiable contract — 2026-09-12
+
+Bounded source review at Rust `aee29a69` and C++ `a5f8da2e`, reading the exact ranges
+below. Source findings and a contract to satisfy, not timing measurements, live QA or
+an implementation claim. The direction was decided in
+[issue #787](https://github.com/alseif0x/rustycore/issues/787#issuecomment-5646732096).
+
+#### What C++ does, verified
+
+- `World/World.cpp:2704` runs `UpdateSessions(diff)`; `:2748` then runs
+  `sMapMgr->Update(diff)`. The world pass precedes the map pass **inside the same
+  world tick**, and the two carry different diffs: the world diff, and the interval
+  `MapManager::Update` accumulates (`Maps/MapManager.cpp:287-291`).
+- `Server/WorldSession.cpp:488-540` splits the tails by filter:
+  `SendTimeSync` runs only when `!updater.ProcessUnsafe()` — the map pass;
+  `ProcessQueryCallbacks()` runs in **both**; warden, `LogoutPlayer`, socket cleanup
+  and the session-removal return run only under `ProcessUnsafe()` — the world pass.
+  Driving the whole Rust session driver twice would duplicate timers, callbacks,
+  logout and player updates, and is therefore excluded.
+- `common/Threading/LockedQueue.h:82-95`: `next(result, check)` reads the **front**
+  and, when `check.Process` refuses it, returns false **without popping**. Selection
+  is FIFO, head-only, and an ineligible head stops that pass rather than being
+  skipped.
+- `Maps/MapReference.cpp:22-28` inserts each Player reference with `insertFirst`, so
+  `Map::Update`'s `m_mapRefManager` walk (`Maps/Map.cpp:669-680`) visits reverse
+  insertion order. A GUID-sorted plan is a different order and may not be presented
+  as equivalent.
+
+#### What RustyCore has, verified
+
+- `crates/wow-handler/src/lib.rs:38` defines `PacketProcessing`
+  (`Inplace`/`ThreadUnsafe`/`ThreadSafe`) and every `PacketHandlerEntry`
+  registration carries it. `crates/wow-handler/src/processing.rs:41`
+  (`allows_phase`) already implements both C++ filters over that classification plus
+  residence. **The contract exists and is unconsumed**: no caller outside the crate.
+  The earlier plan text claiming there is no `ProcessingPlace` contract is corrected
+  by this section.
+- `crates/world-server/src/session_factory.rs:142-215` is the only session driver:
+  one task per session, its own measured diff, `update_with_catalogs_like_cpp` then
+  `process_pending_with_catalogs_like_cpp`, and a 50 ms sleep when no packet was
+  ingested. Registration happens before async initialization (`:269-277`), so being
+  registered does not mean ready to answer a phase request.
+- `crates/wow-world/src/session/driver/mod.rs:45-318` ingests both channels into
+  `pending_packets` and later dispatches the whole queue without consulting the
+  filter; the dispatch loop already records the rule to honour — select the head,
+  stop at an ineligible head, never replay an in-flight handler.
+- `crates/world-server/src/runtime/map.rs:1596-1634` holds three synchronous mutexes
+  across the whole canonical update: the respawn DB mutation-order gate, the
+  `MapManager` mutex and the canonical spawn metadata mutex.
+- `crates/wow-map/src/manager/state_2.rs:426-518` is the C++ `MapManager::Update`
+  shape: timer gate, `can_unload` and destroy before update, per-map update,
+  `updater.wait()`, retained visibility export, removal of destroyed maps,
+  `delayed_update` for every surviving map, timer reset.
+  `state_2.rs:604-647` shows `MapUpdater::schedule_update*` runs **inline** and
+  `wait()` only counts calls — there is no async barrier to borrow.
+- `crates/wow-world/src/session/mailbox/protocol.rs:163-278` already carries a
+  request/acknowledgement command with a per-request response channel
+  (`WorldSessionShutdownFlushLikeCpp`), used by
+  `crates/world-server/src/shutdown.rs:95-150` with a bounded `try_send`, a
+  `JoinSet` of pending acknowledgements and a timeout. That is the shape the map
+  phase request reuses; its timeout semantics are not reusable unchanged (below).
+
+#### The contract this macro must satisfy
+
+1. **Order.** Within one coordinated step: the world pass runs first for the sessions
+   due, then the map tick begins. No autonomous world dispatch may interleave between
+   the two, and neither pass may run the other's tails.
+2. **Split.** The canonical map tick divides after admission/unload and the dynamic
+   tree, before sessions and object phases. Every synchronous guard — respawn
+   mutation order, `MapManager`, spawn metadata — is released before any request is
+   delivered or any acknowledgement awaited. The respawn persistence fence is
+   preserved by coalescing its statements before the release, as the current comment
+   at `runtime/map.rs:1596-1601` requires.
+3. **Session phase.** Each session runs its admitted map pass in its own task and
+   confirms a defined termination boundary. Sessions of one map run serially; the
+   membership order is justified against `MapReference::insertFirst`, not assumed
+   from sorted GUIDs.
+4. **Resumption.** The remaining phases of that same tick run exactly once, with the
+   effective diff saved at the split, and every map finishes before any
+   `delayed_update`. The full session driver is never invoked twice.
+5. **Selection.** Both passes consume `allows_phase` with canonical registry
+   metadata, FIFO head-only selection, and stop at an ineligible head. The control
+   channel must progress even when the packet head is ineligible.
+6. **Identity.** Admission is identified by tick epoch and session incarnation;
+   player work revalidates its canonical handle and residence at execution. A stale
+   completion neither mutates a replacement nor releases a barrier.
+7. **Failure semantics.** An acknowledgement of receipt is not completion. A timeout
+   does not authorize continuing over a mutation that is still live: the tick records
+   the session as not having run its map pass and continues only what does not depend
+   on it. Cancellation is not a successful barrier acknowledgement.
+8. **Await audit.** Handlers that await DB work must not be able to block a phase,
+   map or session that the barrier itself suspended. The historical rename warning is
+   resolved in current Rust and is not a live blocker; the remaining awaiting
+   handlers are audited case by case.
+9. **Limits kept explicit.** The legacy creature runtime remains a second production
+   writer; #787 neither retires it nor claims full phase parity.
+
+#### Regressions this macro owes
+
+Two sessions on one map with a pending DB result; an ineligible head with control
+traffic behind it; a transfer, a replacement incarnation and an unload between the
+split and the resumption; a session that never acknowledges; cancellation during the
+session phase; shutdown after admission closes; and exactly-once resumption of the
+remaining phases with the saved diff.
+
+#### Implementation status and open correctness blockers — 2026-09-12
+
+This records the real state of the `787-p3-map-driven-session-pass` branch. It is
+**not** acceptance evidence: the coordinated contract above is not yet satisfied, no
+acceptance campaign has been run against the current tree, and the issue stays open.
+
+Landed locally (inspection-level only):
+
+- `MapManager::begin_tick_like_cpp` / `resume_tick_like_cpp` split the canonical tick
+  into the shared timer gate plus `can_unload`/destroy and the dynamic-tree phase, then
+  the remaining phases replayed with the saved effective diff.
+- `Map::update` split into `update_dynamic_tree_phase_like_cpp` and
+  `update_after_sessions_like_cpp`.
+- `m_mapRefManager` membership order reproduced as `map_reference_order_like_cpp`
+  with `insertFirst` semantics (`MapReference.cpp:22-28`), filtered by `IsInWorld`
+  when the participant list is produced.
+- `runtime/map.rs` restructured to begin under the guards, release all three, run the
+  session phase, and resume; the orchestration lives in `runtime/map_tick.rs` so the
+  recorded ceiling of `runtime/map.rs` is preserved rather than raised.
+- `SessionCommand::RunMapPhasePassLikeCpp` plus a head-only FIFO pass filtered by
+  `PacketProcessing::allows_phase`, stopping at an ineligible head
+  (`LockedQueue.h:82-95`).
+
+Open blockers, each of which invalidates part of the approved contract:
+
+1. **Resumption with a live admitted operation.** The acknowledgement wait only abandons
+   the wait on deadline. The delivered command keeps its owner and may still execute,
+   overlapping the phases that follow or the next session of the same map. What the
+   contract requires is an atomic transition on one shared permit state
+   (`Pending → Running | RevokedBeforeStart`), so that the deadline either provably
+   prevents execution or is diagnostic only and does **not** license continuing.
+2. **No composition boundary.** `session_factory.rs:142-215` still drives each session
+   on its own clock with its own diff and idle sleep. `map_phase_coordinated_like_cpp`
+   only narrows packet selection; it neither orders World before Map nor prevents an
+   autonomous iteration interleaving with the coordinated one. The phase consumer has
+   to live inside the task that already owns the `WorldSession`.
+3. **Admission is not revalidated.** The request carries only `tick_epoch`, `diff_ms`
+   and a reply channel. It must freeze coordinator instance, epoch, phase, permit,
+   session incarnation, `PlayerRegistration` *and* `PlayerHandle`, `MapKey`, residence
+   revision and map incarnation, and the session must claim and validate all of them
+   before any effect. `diff_ms` is currently unused: it must feed the time-sync tail
+   after Map dispatch and before query callbacks (`WorldSession.cpp:488-540`), even
+   when zero packets were dispatched, with the terminal result emitted after the tails.
+4. **Exactly-once is not enforced.** `MapTickPlanLikeCpp` derives `Clone` and
+   `resume_tick_like_cpp` takes it by reference. The plan must become a consumable
+   opaque token taken by value, backed by explicit manager state
+   `Idle → AwaitingSessions(epoch) → Resuming(epoch) → Idle`, with a second `begin`
+   answering `Busy` **without** advancing the shared timer, and `MapKey` reuse during
+   the tick rejected.
+
+Two further findings from the same review, to be closed in this macro:
+
+- With the coordinated command executed from the session-command path, the same
+  `process_pending` iteration can still reach the World dispatch afterwards, i.e. a
+  Map→World order inside one autonomous iteration.
+- Time sync and logout currently run before dispatch, whereas C++ places them in the
+  tail of each pass, split by `ProcessUnsafe()` (`WorldSession.cpp:488-540`).
+
+One premise recorded earlier in this section is corrected: leaving the world does not
+make every Map-phase packet ineligible. `PacketProcessing::Inplace` is eligible in both
+phases regardless of residence, matching C++, so a regression named for out-of-world
+residence only demonstrates the `ThreadSafe` case and is renamed to its real scope.
+
+A limit stated by the review and adopted: with an admitted operation able to wait
+indefinitely, strict order, absence of overlap and bounded tick progress cannot all
+hold at once. Each admitted operation therefore needs either demonstrated bounded
+termination or a request/callback split; `QuestLogRemoveQuest` is the concrete case,
+being `Inplace` while mutating before its persistence await and publishing after
+(`handlers/quest/handlers.rs:2094`, `handlers/quest/persistence.rs:601`).
+
+#### Implemented boundaries and measured evidence — 2026-09-12 (later)
+
+The four blockers above are addressed in `5eef0102`. What follows is what the
+code now does and what was actually measured; acceptance is still open and the
+pending list below is part of this record, not an appendix.
+
+**Exactly-once (B4).** `MapTickPlanLikeCpp` is neither `Clone` nor `Copy` and
+`resume_tick_like_cpp` consumes it by value, so a second resumption cannot be
+written. Behind it the manager holds
+`Idle → AwaitingSessions(epoch) → Resuming(epoch) → Idle`; a second `begin`
+answers `Busy` **without** advancing the shared timer, so the refused diff is
+still owed to the next accepted tick. Maps carry an incarnation, so one created
+under a reused `MapKey` during the pass receives neither the phases that follow
+a dynamic-tree phase it never ran nor the removal recorded for its predecessor.
+`abandon_tick_like_cpp` releases an admitted tick without running it.
+
+**Revocation and quiescence (B1).** Each request carries a permit whose single
+atomic transition decides between `Pending → Running` (the session claiming it)
+and `Pending → RevokedBeforeStart` (the coordinator at its deadline). A revoked
+pass provably never runs an effect, so continuing past it is sound. A claimed
+one is waited for, with the delay reported as `stalled_ms`; the deadline is
+diagnostic there and licenses nothing. A claimed pass whose end cannot be
+observed leaves the summary non-quiescent and the tick is **abandoned** rather
+than resumed. Completion is an explicit transition from `Running` only, never a
+destructor, and `InterruptedAfterStart` is a terminal state of its own.
+
+**Admission (B3).** The request freezes coordinator instance, epoch, phase,
+permit, `PlayerRegistration`, `PlayerHandle`, `MapKey`, map incarnation,
+residence revision and the effective diff. The session revalidates all of them
+before its first effect. A→B→A is caught by the revision even when the key
+matches again. The diff feeds the map-pass tail (`WorldSession.cpp:488-497`)
+also when nothing was dispatched.
+
+**Composition (B2).** Phases no longer travel on the command mailbox that a
+pass drains: each session has a phase rail consumed inside the task that owns
+its `WorldSession`. The autonomous per-session clock is gone. The canonical
+producer issues the world phase for every ready session — character screen
+included, through `ActiveWorldSessionRegistry` — and admits the map tick only
+once that phase is quiescent, matching `World.cpp:2704` before `World.cpp:2748`.
+Map→World inside one iteration is no longer expressible. Registration is not
+readiness: the owning task raises that flag when it parks on the rail and lowers
+it when it leaves, and re-reads the cooperative shutdown gate every 50 ms
+without running any session work.
+
+**Measured on this tree** (each run in its own log, judged by the original
+process exit code): `wow-map` 735 passed / 0 failed; `wow-world` 3858 passed /
+0 failed; `world-server` 577 passed / 0 failed. The #787 scenarios inside those
+totals are 12 at session level, 8 at coordinator level and 8 in the map manager.
+No final gate, no live QA and no capture evidence is claimed here; earlier
+evidence in this document predates these changes.
+
+#### Audit: map-eligible handlers that await
+
+Of 397 packet registrations, 148 are eligible in the map phase (125 `Inplace`
+plus 23 `ThreadSafe`). Of those, **54 have a persistence-shaped await inside the
+handler body** (`crates/wow-world/src/**`, matched on a persistence/query/save
+call awaited within the handler; the match is textual and over-inclusive at the
+edges, and it does not follow callees, so it is a floor for the shape, not an
+exact count of blocking operations).
+
+The concrete hazard named by the review is in this set: `QuestLogRemoveQuest`
+is registered `Inplace` (`handlers/quest/handlers.rs:87`), mutates before its
+persistence await and publishes after it
+(`handlers/quest/handlers.rs:2094`, `handlers/quest/persistence.rs:601`).
+Invalidating an epoch while such a handler is suspended neither reverts its
+mutation nor proves a rollback.
+
+What this means for the contract, stated rather than resolved: the permit bounds
+**overlap** — no second session of the map and no later phase runs while one of
+these is live — but it does not bound **progress**. With an operation that can
+wait indefinitely, strict order, absence of overlap and a bounded tick cannot
+all hold.
+
+The 54 are a **candidate inventory, not 54 defects and not 54 rewrites**. The
+distinction that matters is whether a wait can finish on its own: an external
+database or network wait that progresses independently needs an error/stop
+policy and evidence of its impact, not a callback for symmetry. What this macro
+must fix is the narrower set — a wait that needs a session or phase to advance
+while this barrier is holding it, which is a circular dependency the
+coordination itself created. Grouping by the capability actually awaited,
+following transitive callees including world-phase work, is how that set is
+identified; textual matching does not establish it.
+
+C++ is the reference before any asynchrony is imposed: where it does the work
+synchronously, there is no universal prohibition on waiting to import.
+`QuestLogRemoveQuest` is one classified case rather than a template: C++ marks
+the removal and persists it later from `_SaveQuestStatus`
+(`QuestHandler.cpp:439`, `Player.cpp:15575`, `Player.cpp:20138`), with the
+optional tracker queued through the worker pool (`WorkerPool.cpp:533`); Rust
+instead awaits a transaction after mutating. That divergence belongs to its
+existing owner under #41/#584 unless this coordination turns it into a new hard
+blocker, in which case it is resolved here — never by enabling the unsafe path.
+
+Scope note: #787 stays the World/Map coordination delivery. It closes the
+defects it introduced or turned into hard dependencies, reuses the existing
+terminal-failure, shutdown and persistence-fence mechanisms, and adds no generic
+scheduling, recovery or database framework. An acquisition timeout is not a
+bound on a query or COMMIT, and an unknown outcome is not a rollback; no claim
+is made here that every tick is bounded.
+
+#### Advisory review of the corrected diff, and what it changed — 2026-09-12 (later still)
+
+The advisor reviewed `4825f453` against the local C++ checkout and refused to
+recommend acceptance, with five findings. All five are addressed below; the
+review's own scope correction is adopted with them: this macro stays the
+World/Map coordination delivery and closes what the coordination introduced or
+turned into a hard dependency, reusing the existing terminal-failure, shutdown
+and persistence-fence mechanisms rather than adding a scheduling, recovery or
+database framework.
+
+1. **A pass whose effects are unknown now stops more than its own tick.**
+   Previously the coordinator kept walking the remaining participants and the
+   producer moved on to the next step. Now the phase stops at that participant —
+   C++ would still be inside that session's pass — and the permit travels to the
+   producer, which holds a barrier across steps: no phase is issued and no tick
+   admitted while any such permit is neither terminal nor released, so neither
+   respawns nor `DelayedUpdate` run on that uncertainty. Abandoning the plan was
+   never a return to a clean state and is no longer treated as one.
+2. **The handover to shutdown has one owner.** At the shutdown gate the session
+   withdraws its readiness, refuses every phase already on its rail before any
+   effect — answering the producer instead of making it wait out a deadline —
+   and drains its own control mailbox, so `World::KickAll` and the
+   `UpdateSessions(1)` flush are observed even if the producer is gone. A
+   claimed phase is still not cancelled mid-effect: cancellation is honoured at
+   the phase boundary, because interrupting a claimed pass would leave mutations
+   neither finished nor rolled back and a permit that can never resolve. That is
+   a deliberate change from the previous force-cancel behaviour.
+3. **Provenance is validated, not assumed.** The session keeps a per-phase
+   watermark of the producer and step it last served, and refuses an earlier
+   producer, a retired step and a replay of one already served. A fresh permit
+   cannot refuse any of those, and the player's identity does not distinguish
+   them. The watermark is per phase because one step legitimately issues the
+   world phase and then the map phase under the same epoch.
+4. **Logout follows the C++ order.** The decision moves to the end of the world
+   pass, after the packet loop and the query callbacks
+   (`WorldSession.cpp:498-503`), so a `LogoutCancel` queued in the same step is
+   dispatched before it. Warden has no update call on this Rust path; that is
+   recorded as absent rather than claimed.
+5. **Lifetime gaps closed, and one claim narrowed.** `unload_all` clears the map
+   incarnations with the maps. The earlier wording here was too broad: a map
+   recreated under a reused key is excluded from the phases that follow a
+   dynamic-tree phase it never ran and from the removal recorded for its
+   predecessor, but it **does** receive `DelayedUpdate`, as C++ visits every map
+   it holds at that point (`MapManager.cpp:314-317`) and the regression asserts.
+
+Measured after these corrections, each run in its own log and judged by the
+original process exit code: `wow-map` 735 passed / 0 failed; `wow-world` 3865 /
+0; `world-server` 579 / 0; architecture check, self-test and the syntax-only
+ownership ratchet pass with the reviewed baseline and ledger. Still not claimed:
+the final gate, runtime/DB/relogin QA, and composition evidence for a producer
+that dies during shutdown and for finalization after the acknowledgement.
+
+#### Guarded runtime QA of the coordinated build — 2026-09-12
+
+Run through `tools/qa-runtime.sh --allow-runtime-qa … login` with the maintained
+`run_login_save_relog.sh` wrapper, against the dedicated `TESTBOT1@bot.local`
+identity and its sole offline character. The live build was snapshotted and
+restored on every exit path; the final run reports `outcome: passed-restored`
+with the original `c2a3b461…` serving again.
+
+**Result for the candidate** (`0950f4ef…`, built from `306269f4`):
+`bot_status: 0`, `login_save_relog_verified: true`. The bounded gate covers BNet
+auth, world auth, `CMSG_ENUM_CHARACTERS`, `CMSG_PLAYER_LOGIN`, the instance
+socket and `SMSG_RESUME_COMMS`, `SMSG_LOGIN_VERIFY_WORLD`, the known-spell
+frames, the login stream drain, normal logout with `SMSG_LOGOUT_COMPLETE` on the
+realm route, an offline row with a strictly newer `logout_time`, and the
+six-family projection retained across two fresh authentications (207
+`character_reputation` rows among them). That is a full live session driven end
+to end by the coordinated producer: the session no longer runs its own clock, so
+this exercises the world pass, the map pass and their tails in production
+composition.
+
+**One failure was investigated rather than accepted.** The first runs failed the
+projection contract with `login/save changed or removed a pre-existing
+character_reputation row`: `flags` moved `0 → 2` (`AT_WAR`) on a set of factions.
+The sequence that isolated it, without touching the database by hand:
+
+| Build | From | Result |
+| --- | --- | --- |
+| candidate `306269f4` | flags 0 | writes 2, fails the contract |
+| deployed `c2a3b461` (2026-09-07) | flags 2 | writes 0, fails the contract |
+| deployed `c2a3b461` | flags 0 | no change, passes |
+| candidate `306269f4` | flags 0 | writes 2, fails |
+| merge base `aee29a69` (`origin/3.4.3`, no #787) | flags 2 | no change, passes |
+| deployed `c2a3b461` | flags 2 | writes 0, fails |
+| merge base `aee29a69` | flags 0 | **writes 2, fails** |
+| candidate `306269f4` | flags 2 | no change, **passes** |
+
+`origin/3.4.3` without #787 produces exactly the same write as the candidate, so
+the divergence is not introduced by this macro: it is the deployed build that
+differs, and it predates the branch. The branch behaviour is the C++ one —
+`ReputationMgr::LoadFromDB` sets `AtWar` for a hostile rank and leaves
+`needSave` set when the computed flags differ from the row
+(`ReputationMgr.cpp:766-783`) — so the first login after deploying any build
+newer than `c2a3b461` rewrites those rows once and then converges. The gate's
+fixture is what needs re-baselining, not the coordination.
+
+Still not covered by this QA: a producer that dies during shutdown, and
+finalization after the acknowledgement. Both remain open composition evidence.
+
 ### Proportional evidence inside the macro
 
 The [plan's reanalysis checkpoints](modularity-and-ecs-plan.md#reanalysis-checkpoints--evidence-before-replication)

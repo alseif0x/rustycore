@@ -347,13 +347,31 @@ fn session_resources_requires_named_capability_bundles() {
         session_factory_source.contains("resources.core.handler_catalogs.as_ref()"),
         "the outer driver must borrow the process-owned catalogs for dispatch"
     );
+    // #787 moved the phases themselves into the task that owns the session:
+    // the driver no longer calls the update/process pair on its own clock, it
+    // runs the phase the canonical producer asks for. The invariant this
+    // guarded is unchanged — the catalogs are borrowed at the call, never
+    // installed into the session.
     assert!(
-        session_factory_source.contains("process_pending_with_catalogs_like_cpp"),
+        session_factory_source
+            .contains(".run_requested_session_phase_like_cpp(request, handler_catalogs)"),
         "the driver must pass immutable catalogs explicitly instead of installing a session locator"
     );
     assert!(
-        session_factory_source.contains("update_with_catalogs_like_cpp"),
+        !session_factory_source.contains("set_session_handler_catalogs_like_cpp("),
         "the session pass must borrow runtime catalogs instead of retaining them"
+    );
+    // A session parked on an idle rail must still observe the cooperative
+    // shutdown gate, which is a flag rather than a wake-up: without this the
+    // drain in app.rs would wait for sessions that never re-read it.
+    assert!(
+        session_factory_source.contains("SHUTDOWN_GATE_RECHECK_INTERVAL_LIKE_CPP"),
+        "the parked phase loop must re-read the shutdown gate on its own"
+    );
+    assert!(
+        !session_factory_source
+            .contains("session\n                .update_with_catalogs_like_cpp("),
+        "the session task must not drive its own update clock beside the producer"
     );
     assert_eq!(
         session_factory_source

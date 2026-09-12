@@ -216,6 +216,27 @@ impl MapManager {
     /// Compatibility projection for existing optional queries. Inconsistent
     /// backing state fails closed; new admission paths should preserve the errors
     /// from `checked_player_residence_like_cpp` instead of treating None as absence.
+    /// The current incarnation of `guid` and the revision of its residence.
+    ///
+    /// #787 freezes both in an admitted map-phase request so the session can
+    /// reject a replacement incarnation or an away-and-back transfer before it
+    /// runs any effect. A stale generation and a changed revision are distinct
+    /// facts and both invalidate an admission.
+    #[must_use]
+    pub fn current_player_admission_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) -> Option<(PlayerHandle, u64)> {
+        let owner = self.player_owners_like_cpp.get(&guid)?;
+        Some((
+            PlayerHandle {
+                guid,
+                generation: owner.generation,
+            },
+            owner.residence_revision,
+        ))
+    }
+
     pub fn player_residence_like_cpp(
         &self,
         handle: PlayerHandle,

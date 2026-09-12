@@ -5,6 +5,7 @@ use wow_persistence::{
     GameEventPersistencePortLikeCpp,
 };
 
+use super::map_tick::{canonical_map_tick_begin_like_cpp, canonical_map_tick_resume_like_cpp};
 use super::*;
 
 /// Supply the Group owner's loaded-difficulty port from the DB2 store.
@@ -1160,322 +1161,6 @@ pub(crate) fn load_loaded_grid_area_triggers_like_cpp(
     summary
 }
 
-pub(crate) fn canonical_map_update_tick_set_inactive_like_cpp(
-    manager: &mut wow_map::MapManager,
-    legacy_manager: Option<&SharedMapManager>,
-    diff_ms: u32,
-    scheduler: &mut CanonicalRespawnConditionSchedulerLikeCpp,
-    canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
-    condition_store: &wow_data::ConditionEntriesByTypeStore,
-    map_store: &wow_data::MapStore,
-    loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
-) -> Option<CanonicalSpawnGroupConditionTickSummaryLikeCpp> {
-    let Some(effective_diff_ms) = manager.update_with_pool_update_loaded_grid_records_context(
-        diff_ms,
-        canonical_spawn_metadata.spawn_store(),
-        canonical_spawn_metadata.pool_mgr_like_cpp(),
-        |map, object_type, spawn_id| match object_type {
-            wow_map::SpawnObjectType::GameObject => {
-                build_loaded_grid_gameobject_respawn_record_like_cpp(
-                    map,
-                    object_type,
-                    spawn_id,
-                    canonical_spawn_metadata,
-                    loaded_grid_creature_respawn_caches,
-                )
-            }
-            wow_map::SpawnObjectType::Creature | wow_map::SpawnObjectType::AreaTrigger => None,
-        },
-    ) else {
-        return None;
-    };
-    let mut summary = CanonicalSpawnGroupConditionTickSummaryLikeCpp {
-        player_visibility_refresh_intents: manager
-            .take_player_visibility_refresh_intents_like_cpp(),
-        ..Default::default()
-    };
-    manager.do_for_all_maps_mut(|managed_map| {
-        summary.expired_pvp_combat_refs.extend(
-            managed_map
-                .last_expired_pvp_combat_refs_like_cpp()
-                .iter()
-                .map(|(owner, target)| {
-                    (
-                        managed_map.map_id(),
-                        managed_map.instance_id(),
-                        *owner,
-                        *target,
-                    )
-                }),
-        );
-        let map_kind = managed_map.kind();
-        let map_id = managed_map.map_id();
-        let instance_id = managed_map.instance_id();
-        let map_is_instanceable = map_store
-            .get(map_id)
-            .is_some_and(|entry| entry.is_instanceable_like_cpp());
-        for info in managed_map
-            .last_game_objects_update_summary()
-            .respawn_db_saves
-        {
-            match queue_respawn_db_save_like_cpp(
-                map_kind,
-                map_is_instanceable,
-                map_id,
-                instance_id,
-                info,
-            ) {
-                RespawnDbSaveQueueOutcomeLikeCpp::Queued(save) => {
-                    summary.respawn_db_save_queued += 1;
-                    summary.respawn_db_saves.push(save);
-                }
-                RespawnDbSaveQueueOutcomeLikeCpp::SkippedNonWorldMap => {
-                    summary.respawn_db_save_skipped_non_world_map += 1;
-                }
-                RespawnDbSaveQueueOutcomeLikeCpp::SkippedInstanceableMap => {
-                    summary.respawn_db_save_skipped_instanceable_map += 1;
-                }
-                RespawnDbSaveQueueOutcomeLikeCpp::SkippedInvalidMapId => {
-                    summary.respawn_db_save_skipped_invalid_map_id += 1;
-                }
-            }
-        }
-    });
-    if !scheduler.update(effective_diff_ms) {
-        return (!summary.respawn_db_saves.is_empty()
-            || !summary.expired_pvp_combat_refs.is_empty()
-            || !summary.player_visibility_refresh_intents.is_empty())
-        .then_some(summary);
-    }
-
-    // C++ `Map::Update` runs `ProcessRespawns()` immediately before
-    // `UpdateSpawnGroupConditions()` when `_respawnCheckTimer` expires.
-    // This tick executes the safe in-memory ProcessRespawns side effects produced
-    // by represented composite CheckRespawn guards: zero-delete for inactive
-    // spawn-group/live-object blockers, linked-respawn future reschedules, pooled
-    // timer UpdatePool plans, and the safe `DoRespawn` unloaded-grid early-return
-    // branch after timer removal. DB delete/save effects are queued for async
-    // execution after releasing the MapManager lock. Loaded-grid Creature
-    // DB-backed loading is wired through the map-owned seam for supported
-    // fixed-level and variable-level cases, including DB-backed FormationInfo
-    // propagation into the bounded SearchFormation/AddCreatureToGroup seam;
-    // AddToWorld ObjectAccessor/fanout, scripts/AI, vehicle runtime beyond local
-    // evidence, zonescript, formation movement/combat/full CreatureGroup runtime,
-    // dynamic-tree, full GameObject physical-removal lifecycle, AreaTrigger
-    // runtime and full PoolMgr runtime remain gaps.
-    // RustyCore does not yet expose CONFIG_RESPAWN_DYNAMIC_ESCORTNPC
-    // or Creature::IsEscorted ownership here, so the bridge passes false/false.
-    let now_secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |duration| {
-            i64::try_from(duration.as_secs()).unwrap_or(i64::MAX)
-        });
-    manager.do_for_all_maps_mut(|managed_map| {
-        summary.maps_evaluated += 1;
-        let map_kind = managed_map.kind();
-        let map_id = managed_map.map_id();
-        let instance_id = managed_map.instance_id();
-        let map_is_instanceable = map_store
-            .get(map_id)
-            .is_some_and(|entry| entry.is_instanceable_like_cpp());
-        let before_respawn_keys = managed_map
-            .map()
-            .respawn_timer_keys_like_cpp()
-            .collect::<BTreeSet<_>>();
-        let respawn_summary = managed_map
-            .map_mut()
-            .process_due_respawns_composite_loaded_grid_respawns_like_cpp(
-                now_secs,
-                canonical_spawn_metadata.spawn_store(),
-                canonical_spawn_metadata.linked_respawns_like_cpp(),
-                canonical_spawn_metadata.pool_mgr_like_cpp(),
-                5,
-                false,
-                |_, _| false,
-                |_, _| 0.0,
-                |_candidates, count| (0..count).collect(),
-                true,
-                |map, object_type, spawn_id| match object_type {
-                    wow_map::SpawnObjectType::Creature => {
-                        build_loaded_grid_creature_respawn_record_like_cpp(
-                            map,
-                            object_type,
-                            spawn_id,
-                            canonical_spawn_metadata,
-                            loaded_grid_creature_respawn_caches,
-                        )
-                    }
-                    wow_map::SpawnObjectType::GameObject => {
-                        build_loaded_grid_gameobject_respawn_record_like_cpp(
-                            map,
-                            object_type,
-                            spawn_id,
-                            canonical_spawn_metadata,
-                            loaded_grid_creature_respawn_caches,
-                        )
-                    }
-                    wow_map::SpawnObjectType::AreaTrigger => None,
-                },
-            );
-        summary.respawn_deleted_inactive_spawn_group +=
-            respawn_summary.deleted_inactive_spawn_group;
-        summary.respawn_deleted_live_object_blocker += respawn_summary.deleted_live_object_blocker;
-        for rescheduled in respawn_summary.rescheduled_linked_respawns {
-            match queue_respawn_db_save_like_cpp(
-                map_kind,
-                map_is_instanceable,
-                map_id,
-                instance_id,
-                rescheduled,
-            ) {
-                RespawnDbSaveQueueOutcomeLikeCpp::Queued(save) => {
-                    summary.respawn_db_save_queued += 1;
-                    summary.respawn_db_saves.push(save);
-                }
-                RespawnDbSaveQueueOutcomeLikeCpp::SkippedNonWorldMap => {
-                    summary.respawn_db_save_skipped_non_world_map += 1;
-                }
-                RespawnDbSaveQueueOutcomeLikeCpp::SkippedInstanceableMap => {
-                    summary.respawn_db_save_skipped_instanceable_map += 1;
-                }
-                RespawnDbSaveQueueOutcomeLikeCpp::SkippedInvalidMapId => {
-                    summary.respawn_db_save_skipped_invalid_map_id += 1;
-                }
-            }
-        }
-        summary.respawn_processed_pool_timers += respawn_summary.processed_pool_timers;
-        summary.respawn_processed_unloaded_grid_respawns +=
-            respawn_summary.processed_unloaded_grid_respawns;
-        summary.respawn_executed_loaded_grid_respawns +=
-            respawn_summary.executed_loaded_grid_respawns;
-        summary.respawn_legacy_creature_mirrors +=
-            mirror_loaded_grid_primary_records_to_legacy_like_cpp(
-                legacy_manager,
-                canonical_spawn_metadata.waypoint_paths_like_cpp(),
-                &respawn_summary.loaded_grid_primary_records,
-            );
-        summary.respawn_blocked_loaded_grid_respawn_loads +=
-            respawn_summary.blocked_loaded_grid_respawn_loads;
-        summary.respawn_blocked_loaded_grid_respawn_add_to_map +=
-            respawn_summary.blocked_loaded_grid_respawn_add_to_map;
-        summary.respawn_pool_update_plans += respawn_summary.pool_update_plans.len();
-        summary.respawn_blocked_pool_plan_errors += respawn_summary.blocked_pool_plan_errors.len();
-        summary.respawn_blocked_missing_spawn_data += respawn_summary.blocked_missing_spawn_data;
-        summary.respawn_blocked_pool_runtime += respawn_summary.blocked_pool_runtime;
-        summary.respawn_blocked_do_respawn_runtime += respawn_summary.blocked_do_respawn_runtime;
-        summary.respawn_blocked_linked_respawn_non_future +=
-            respawn_summary.blocked_linked_respawn_non_future;
-        summary.respawn_blocked_unsupported_spawn_type +=
-            respawn_summary.blocked_unsupported_spawn_type;
-
-        let outcomes = apply_canonical_spawn_group_condition_update_loaded_grid_records_like_cpp(
-            managed_map,
-            canonical_spawn_metadata,
-            condition_store,
-            loaded_grid_creature_respawn_caches,
-        );
-        summary.outcomes += outcomes.len();
-        summary.applied_set_inactive += outcomes
-            .iter()
-            .filter(|outcome| outcome.applied_change.is_some())
-            .count();
-        summary.planned_spawn += outcomes
-            .iter()
-            .filter(|outcome| {
-                matches!(
-                    outcome.action,
-                    wow_map::map::SpawnGroupConditionActionLikeCpp::Spawn { .. }
-                )
-            })
-            .count();
-        summary.planned_despawn += outcomes
-            .iter()
-            .filter(|outcome| {
-                matches!(
-                    outcome.action,
-                    wow_map::map::SpawnGroupConditionActionLikeCpp::Despawn { .. }
-                )
-            })
-            .count();
-        for spawn in outcomes
-            .iter()
-            .filter_map(|outcome| outcome.spawn_outcome.as_ref())
-        {
-            summary.condition_spawn_executed_loaded_grid_spawns +=
-                spawn.executed_loaded_grid_spawns;
-            summary.condition_spawn_legacy_creature_mirrors +=
-                mirror_loaded_grid_primary_records_to_legacy_like_cpp(
-                    legacy_manager,
-                    canonical_spawn_metadata.waypoint_paths_like_cpp(),
-                    &spawn.loaded_grid_primary_records,
-                );
-            summary.condition_spawn_blocked_loaded_grid_spawn_loads +=
-                spawn.blocked_loaded_grid_spawn_loads;
-            summary.condition_spawn_blocked_loaded_grid_creature_loads +=
-                spawn.blocked_loaded_grid_creature_loads;
-            summary.condition_spawn_blocked_loaded_grid_gameobject_loads +=
-                spawn.blocked_loaded_grid_gameobject_loads;
-            summary.condition_spawn_blocked_loaded_grid_spawn_add_to_map +=
-                spawn.blocked_loaded_grid_spawn_add_to_map;
-            summary.condition_spawn_load_plan_count += spawn.load_plans.len();
-            summary.condition_spawn_unsupported_spawn_types += spawn.unsupported_spawn_types;
-            summary.condition_spawn_skipped_respawn_timer_active +=
-                spawn.skipped_respawn_timer_active;
-            summary.condition_spawn_skipped_live_object_active += spawn.skipped_live_object_active;
-            summary.condition_spawn_skipped_unloaded_grid += spawn.skipped_unloaded_grid;
-            summary.condition_spawn_skipped_difficulty_mismatch +=
-                spawn.skipped_difficulty_mismatch;
-        }
-        for despawn in outcomes
-            .iter()
-            .filter_map(|outcome| outcome.despawn_outcome)
-        {
-            if despawn.blocked_missing_group == 0 && despawn.blocked_system_group == 0 {
-                summary.despawn_executed += 1;
-            }
-            summary.despawn_objects_removed += despawn.objects_removed;
-            summary.despawn_respawn_timers_removed += despawn.respawn_timers_removed;
-            summary.despawn_blocked_missing_group += despawn.blocked_missing_group;
-            summary.despawn_blocked_system_group += despawn.blocked_system_group;
-            summary.despawn_unsupported_live_types += despawn.unsupported_live_despawn_types;
-            summary.despawn_respawn_timer_unsupported_types +=
-                despawn.respawn_timer_unsupported_types;
-            summary.despawn_stale_index_entries += despawn.stale_index_entries;
-            summary.despawn_remove_errors += despawn.remove_errors;
-        }
-        let after_respawn_keys = managed_map
-            .map()
-            .respawn_timer_keys_like_cpp()
-            .collect::<BTreeSet<_>>();
-        for &(object_type, spawn_id) in before_respawn_keys.difference(&after_respawn_keys) {
-            match queue_respawn_db_delete_like_cpp(
-                map_kind,
-                map_is_instanceable,
-                map_id,
-                instance_id,
-                object_type,
-                spawn_id,
-            ) {
-                RespawnDbDeleteQueueOutcomeLikeCpp::Queued(delete) => {
-                    summary.respawn_db_delete_queued += 1;
-                    summary.respawn_db_deletes.push(delete);
-                }
-                RespawnDbDeleteQueueOutcomeLikeCpp::SkippedNonWorldMap => {
-                    summary.respawn_db_delete_skipped_non_world_map += 1;
-                }
-                RespawnDbDeleteQueueOutcomeLikeCpp::SkippedInstanceableMap => {
-                    summary.respawn_db_delete_skipped_instanceable_map += 1;
-                }
-                RespawnDbDeleteQueueOutcomeLikeCpp::SkippedInvalidMapId => {
-                    summary.respawn_db_delete_skipped_invalid_map_id += 1;
-                }
-            }
-        }
-    });
-
-    Some(summary)
-}
-
 /// C++ `Group::UpdateReadyCheck` tick: decrements every active group's
 /// ready-check timer each `tick_interval_ms` and broadcasts
 /// `ReadyCheckCompleted` to connected members when the timer expires.
@@ -1566,6 +1251,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
     area_trigger_template_store: Arc<wow_data::AreaTriggerTemplateStore>,
     mut game_event_scheduler: CanonicalGameEventSchedulerLikeCpp,
     player_registry: Arc<PlayerRegistry>,
+    active_session_registry: Arc<crate::ActiveWorldSessionRegistryLikeCpp>,
     battlemaster_list_store: Arc<wow_data::BattlemasterListStore>,
     world_state_mgr: SharedWorldStateMgrLikeCpp,
 ) -> tokio::task::JoinHandle<()> {
@@ -1575,6 +1261,20 @@ pub(crate) fn spawn_canonical_map_update_loop(
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
         let mut last_tick = Instant::now();
+        // Identifies one split tick, so a completion that arrives after its
+        // tick resumed cannot be counted as this tick's (#787). The coordinator
+        // id distinguishes this loop from any other that could admit a pass, so
+        // a matching epoch from a different coordinator is still refused.
+        let mut tick_epoch: u64 = 0;
+        let coordinator_id = canonical_map_coordinator_id_like_cpp();
+        // Passes whose effects this producer could not account for. While any of
+        // them is unresolved, no phase is issued and no tick is admitted: an
+        // operation of unknown extent is not made safe by starting the next
+        // step over it, and neither respawns nor DelayedUpdate may run on that
+        // uncertainty.
+        let mut unresolved_phase_permits: Vec<
+            std::sync::Arc<wow_world::session::mailbox::SessionPhasePermitLikeCpp>,
+        > = Vec::new();
         let mut respawn_condition_scheduler =
             CanonicalRespawnConditionSchedulerLikeCpp::new(respawn_condition_interval_ms);
         loop {
@@ -1595,7 +1295,63 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 diff_ms = 1;
             }
 
-            let (area_trigger_sweep_summary, tick_summary) = {
+            // The barrier is re-read before anything else: a session that
+            // finally resolved its pass releases it, and nothing else does.
+            unresolved_phase_permits.retain(|permit| {
+                use wow_world::session::mailbox::SessionPhasePermitStateLikeCpp as State;
+                matches!(permit.state_like_cpp(), State::Pending | State::Running)
+            });
+            if !unresolved_phase_permits.is_empty() {
+                tracing::error!(
+                    tick_epoch,
+                    unresolved = unresolved_phase_permits.len(),
+                    "Canonical producer barrier held: admitted passes have not accounted for their effects"
+                );
+                continue;
+            }
+
+            tick_epoch = tick_epoch.wrapping_add(1);
+            let phase_ack_timeout = Duration::from_millis(u64::from(tick_interval_ms.max(1)));
+
+            // C++ `World::Update` runs `UpdateSessions(diff)` (`World.cpp:2704`)
+            // over every session — character screen included — and only then
+            // `MapManager::Update(diff)` (`World.cpp:2748`). The world pass
+            // therefore completes before this step admits a map tick, and no
+            // session drives itself in between.
+            let world_pass_summary = world_session_pass::run_world_phase_session_passes_like_cpp(
+                &active_session_registry.world_phase_participants_like_cpp(),
+                coordinator_id,
+                tick_epoch,
+                diff_ms,
+                phase_ack_timeout,
+            )
+            .await;
+            if !world_pass_summary.quiescent_like_cpp() {
+                // A claimed world pass whose end is unknown may still be
+                // mutating. Admitting a map tick over it would overlap exactly
+                // what C++ serializes, and so would the next step, so the
+                // barrier is retained until those permits resolve.
+                tracing::error!(
+                    tick_epoch,
+                    unresolved_after_start = world_pass_summary.unresolved_after_start,
+                    "Skipping the canonical map tick: a world-phase pass left live effects"
+                );
+                unresolved_phase_permits.extend(world_pass_summary.unresolved_permits);
+                continue;
+            }
+            if world_pass_summary.stalled_ms > 0 || world_pass_summary.send_failed > 0 {
+                debug!(
+                    tick_epoch,
+                    participants = world_pass_summary.participants,
+                    completed = world_pass_summary.completed,
+                    revoked_before_start = world_pass_summary.revoked_before_start,
+                    send_failed = world_pass_summary.send_failed,
+                    stalled_ms = world_pass_summary.stalled_ms,
+                    "The world phase of this step did not run for every session"
+                );
+            }
+
+            let (area_trigger_sweep_summary, session_plan) = {
                 // Canonical and legacy respawn mutations share this ordering
                 // gate. Statements are coalesced before releasing it, so
                 // mailbox replacement order is the same as mutation order even
@@ -1620,10 +1376,95 @@ pub(crate) fn spawn_canonical_map_update_loop(
                     &canonical_spawn_metadata,
                     area_trigger_template_store.as_ref(),
                 );
-                let mut tick_summary = canonical_map_update_tick_set_inactive_like_cpp(
+                let session_plan = canonical_map_tick_begin_like_cpp(&mut manager, diff_ms);
+                drop(canonical_spawn_metadata);
+                drop(manager);
+                (area_trigger_sweep_summary, session_plan)
+            };
+
+            // #787: every synchronous guard of the split is released above,
+            // including the respawn mutation-order gate, before any session
+            // request is delivered or any completion awaited. C++ drives these
+            // sessions inside `Map::Update` (`Maps/Map.cpp:669-680`); RustyCore
+            // asks each admitted session to run that pass in its own task and
+            // waits for its completion boundary here.
+            let session_pass_summary = if let Some(plan) = session_plan.as_ref() {
+                map_session_pass::run_map_phase_session_passes_like_cpp(
+                    &plan.participants,
+                    player_registry.as_ref(),
+                    coordinator_id,
+                    tick_epoch,
+                    plan.plan.effective_diff_ms(),
+                    phase_ack_timeout,
+                )
+                .await
+            } else {
+                map_session_pass::MapSessionPassSummaryLikeCpp::default()
+            };
+            if session_pass_summary.stalled_ms > 0 || session_pass_summary.send_failed > 0 {
+                debug!(
+                    tick_epoch,
+                    participants = session_pass_summary.participants,
+                    completed = session_pass_summary.completed,
+                    revoked_before_start = session_pass_summary.revoked_before_start,
+                    refused_before_start = session_pass_summary.refused_before_start,
+                    send_failed = session_pass_summary.send_failed,
+                    unaddressable = session_pass_summary.unaddressable,
+                    stalled_ms = session_pass_summary.stalled_ms,
+                    "Canonical map tick waited past its deadline for an admitted session pass"
+                );
+            }
+
+            let tick_summary = {
+                let Some(plan) = session_plan else {
+                    continue;
+                };
+                if !session_pass_summary.quiescent_like_cpp() {
+                    unresolved_phase_permits
+                        .extend(session_pass_summary.unresolved_permits.clone());
+                    // An admitted pass was claimed and this tick could not
+                    // observe its end. Its mutations may still be running, so
+                    // the remaining phases of the tick must not run over them:
+                    // the tick is abandoned and the next one re-decides
+                    // admission from a clean state.
+                    tracing::error!(
+                        tick_epoch,
+                        unresolved_after_start = session_pass_summary.unresolved_after_start,
+                        "Abandoning the canonical map tick: an admitted session pass left live effects"
+                    );
+                    let Ok(mut manager) = map_manager.lock() else {
+                        tracing::error!(
+                            "Canonical MapManager mutex poisoned; stopping map update loop"
+                        );
+                        break;
+                    };
+                    manager.abandon_tick_like_cpp(plan.plan);
+                    drop(manager);
+                    continue;
+                }
+                // The persistence fence is re-taken for the half that produces
+                // respawn mutations, and its statements are still coalesced
+                // before it is released, so mailbox replacement order still
+                // matches mutation order.
+                let _respawn_db_mutation_order = respawn_db_mutation_order
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                let Ok(mut manager) = map_manager.lock() else {
+                    tracing::error!(
+                        "Canonical MapManager mutex poisoned; stopping map update loop"
+                    );
+                    break;
+                };
+                let Ok(canonical_spawn_metadata) = canonical_spawn_metadata.lock() else {
+                    tracing::error!(
+                        "CanonicalSpawnMetadataLikeCpp mutex poisoned; stopping map update loop"
+                    );
+                    break;
+                };
+                let mut tick_summary = canonical_map_tick_resume_like_cpp(
                     &mut manager,
                     Some(&legacy_map_manager),
-                    diff_ms,
+                    plan.plan,
                     &mut respawn_condition_scheduler,
                     &canonical_spawn_metadata,
                     condition_store.as_ref(),
@@ -1679,7 +1520,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
                     }
                 }
 
-                (area_trigger_sweep_summary, tick_summary)
+                tick_summary
             };
 
             if let Some(summary) = tick_summary.as_ref() {

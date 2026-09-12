@@ -19,6 +19,7 @@ impl MapManager {
             return false;
         }
         self.maps.remove(&key);
+        self.map_incarnations_like_cpp.remove(&key);
         true
     }
 
@@ -56,6 +57,9 @@ impl MapManager {
             map.unload_all();
         }
         self.maps.clear();
+        // A key with no map has no incarnation either; leaving stale entries
+        // here would let a later tick recognise a map that no longer exists.
+        self.map_incarnations_like_cpp.clear();
         Ok(())
     }
 }

@@ -41,9 +41,9 @@
     },
     {
       "path": "crates/world-server/src/app.rs",
-      "observed_lines": 5651,
-      "ceiling_lines": 5651,
-      "split": "Separate bootstrap catalogs/configuration, dependency construction and task supervision; retain one composition owner and startup order. #703 shortens every catalog and hotfix call site to the grouped module path, a validated reduction from 5652 to 5645 lines; the ceiling is tightened to that figure. #718 adds 6 lines that construct and install the quest-reward durability port, from 5645 to 5651: one required capability, no gameplay authority entering the composition root.",
+      "observed_lines": 5652,
+      "ceiling_lines": 5652,
+      "split": "Separate bootstrap catalogs/configuration, dependency construction and task supervision; retain one composition owner and startup order. #703 shortens every catalog and hotfix call site to the grouped module path, a validated reduction from 5652 to 5645 lines; the ceiling is tightened to that figure. #718 adds 6 lines that construct and install the quest-reward durability port, from 5645 to 5651: one required capability, no gameplay authority entering the composition root. #787 adds one inseparable line: the composition root hands the active-session registry to the canonical producer, which needs it to drive the world phase of every session, character screen included (World.cpp:2704).",
       "review_checkpoint": "584:C4"
     },
     {
@@ -55,16 +55,16 @@
     },
     {
       "path": "crates/world-server/src/lib.rs",
-      "observed_lines": 2109,
-      "ceiling_lines": 2109,
-      "split": "Separate shutdown/session supervision contracts from runtime helper projections and tests; retain the thin main entrypoint.",
+      "observed_lines": 2110,
+      "ceiling_lines": 2110,
+      "split": "Separate shutdown/session supervision contracts from runtime helper projections and tests; retain the thin main entrypoint. #787 adds the phase rail and the readiness flag to the World::m_sessions equivalent, plus the participant query the producer uses; registration alone is not readiness, so both live beside the command rail.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/world-server/src/main_tests.rs",
-      "observed_lines": 1532,
-      "ceiling_lines": 1532,
-      "split": "Separate configuration, composition, shutdown, session supervision and runtime timing suites with narrow fixture builders. #589 adds two inseparable lines: SpellStartPkt and SpellGoPkt now carry the typed SpellCastData payload, so both creature-plan fixtures name the field explicitly instead of relying on the former hardcoded empty sections. No new scenario is added here. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 13042 to 984 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved.",
+      "observed_lines": 1533,
+      "ceiling_lines": 1533,
+      "split": "Separate configuration, composition, shutdown, session supervision and runtime timing suites with narrow fixture builders. #589 adds two inseparable lines: SpellStartPkt and SpellGoPkt now carry the typed SpellCastData payload, so both creature-plan fixtures name the field explicitly instead of relying on the former hardcoded empty sections. No new scenario is added here. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 13042 to 984 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved. #787 adds the import of the detached phase rail used by the registry fixtures.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -510,9 +510,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/group_tests.rs",
-      "observed_lines": 784,
-      "ceiling_lines": 784,
-      "split": "Separate group admission, membership and publication scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 5964 to 782 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved. #743 adds two inseparable lines: the `#[path]` registration of the bounded `reconciliation` scenario module. This root's own split keeps shared helpers and scenario registrations here, so a new scenario module cannot be registered anywhere else.",
+      "observed_lines": 785,
+      "ceiling_lines": 785,
+      "split": "Separate group admission, membership and publication scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 5964 to 782 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved. #743 adds two inseparable lines: the `#[path]` registration of the bounded `reconciliation` scenario module. This root's own split keeps shared helpers and scenario registrations here, so a new scenario module cannot be registered anywhere else. #787 adds the phase-rail field to this file's shared registration fixture.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -538,9 +538,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/loot_tests.rs",
-      "observed_lines": 1735,
-      "ceiling_lines": 1735,
-      "split": "Separate loot admission, claim, race and persistence scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 16393 to 1735 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved.",
+      "observed_lines": 1736,
+      "ceiling_lines": 1736,
+      "split": "Separate loot admission, claim, race and persistence scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 16393 to 1735 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved. #787 adds the phase-rail field to this file's shared registration fixture.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -622,9 +622,9 @@
     },
     {
       "path": "crates/wow-world/src/session/directory.rs",
-      "observed_lines": 2380,
-      "ceiling_lines": 2380,
-      "split": "Separate directory registration/lifetime, recipient queries and fanout; keep it derived rather than gameplay authority. #589 adds sixteen inseparable lines: one PlayerRegistry publication entry point for represented Player spell frames over the existing bounded durable rail, alongside the creature equivalent it mirrors. Relocating a single registry accessor would fragment the registry's own responsibility. #743 adds nine inseparable lines: the `group_state` module declaration, the delivery-obligation field with its Default entry, and the two lifecycle calls that forget an obligation when its incarnation is unregistered. The contract, its API and its documentation live in `directory/group_state.rs`; the field itself cannot leave the struct it belongs to. #756 adds twenty inseparable lines for the same reason: the quest snapshot projection reads through named accessors instead of the retired public fields.",
+      "observed_lines": 2437,
+      "ceiling_lines": 2437,
+      "split": "Separate directory registration/lifetime, recipient queries and fanout; keep it derived rather than gameplay authority. #589 adds sixteen inseparable lines: one PlayerRegistry publication entry point for represented Player spell frames over the existing bounded durable rail, alongside the creature equivalent it mirrors. Relocating a single registry accessor would fragment the registry's own responsibility. #743 adds nine inseparable lines: the `group_state` module declaration, the delivery-obligation field with its Default entry, and the two lifecycle calls that forget an obligation when its incarnation is unregistered. The contract, its API and its documentation live in `directory/group_state.rs`; the field itself cannot leave the struct it belongs to. #756 adds twenty inseparable lines for the same reason: the quest snapshot projection reads through named accessors instead of the retired public fields. #787 adds the session phase rail to the directory: the canonical producer addresses a session's map phase through a generation-checked rail of its own, never through the command mailbox that a phase pass drains. The detached rail helper keeps fixtures and pre-parking registrations addressable without a consumer.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -636,9 +636,9 @@
     },
     {
       "path": "crates/wow-world/src/session_tests.rs",
-      "observed_lines": 5758,
-      "ceiling_lines": 5758,
-      "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. #589 retires the 1015-line player spell-hit source authority suite into session/tests/player_spell_hit_source.rs and registers the bounded player_cast_lifecycle module, a net reduction of 2031 lines below the previous 95703 ceiling; the ceiling is tightened to the validated 94691. New scenarios stay in bounded files. C4 split exit remains. #589 adds 33 inseparable fixture lines: the three spell-click scenarios install a canonical Player on the map and adopt its handle, and the cast lifecycle module registers two more scenarios for the C++ Start/Go flag assembly and the residence fence over server-triggered casts. #626 completes this entry's original instruction: the 1,496 test functions move into 114 bounded session/tests/scenarios_* files grouped by the responsibility they exercise, each within the 1,000-line review budget, and the file drops from 94,725 to 5755 lines with the ceiling tightened to that figure. The 197 shared helpers stay here deliberately: a child module already sees its parent's private items, so relocating them would need re-export plumbing for no boundary, the same conclusion #623 recorded for types. The test count is unchanged at 3,822 and no production line moved. #756 adds three inseparable lines in the shared quest fixture, which now builds its state through the owner's named operations.",
+      "observed_lines": 5761,
+      "ceiling_lines": 5761,
+      "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. #589 retires the 1015-line player spell-hit source authority suite into session/tests/player_spell_hit_source.rs and registers the bounded player_cast_lifecycle module, a net reduction of 2031 lines below the previous 95703 ceiling; the ceiling is tightened to the validated 94691. New scenarios stay in bounded files. C4 split exit remains. #589 adds 33 inseparable fixture lines: the three spell-click scenarios install a canonical Player on the map and adopt its handle, and the cast lifecycle module registers two more scenarios for the C++ Start/Go flag assembly and the residence fence over server-triggered casts. #626 completes this entry's original instruction: the 1,496 test functions move into 114 bounded session/tests/scenarios_* files grouped by the responsibility they exercise, each within the 1,000-line review budget, and the file drops from 94,725 to 5755 lines with the ceiling tightened to that figure. The 197 shared helpers stay here deliberately: a child module already sees its parent's private items, so relocating them would need re-export plumbing for no boundary, the same conclusion #623 recorded for types. The test count is unchanged at 3,822 and no production line moved. #756 adds three inseparable lines in the shared quest fixture, which now builds its state through the owner's named operations. #787 adds the map-phase scenario module index entry, two more lines; the scenarios live in session/tests/map_phase_pass.rs. #787 adds the map-phase scenario module's registration line.",
       "review_checkpoint": "584:C4"
     },
     {

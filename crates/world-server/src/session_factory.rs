@@ -120,6 +120,10 @@ pub(super) enum WorldSessionRunOutcomeLikeCpp {
     ForceCancelled,
 }
 
+/// How often a session parked on an idle phase rail re-reads the cooperative
+/// shutdown gate. It drives no simulation; the producer owns every phase.
+const SHUTDOWN_GATE_RECHECK_INTERVAL_LIKE_CPP: Duration = Duration::from_millis(50);
+
 pub(super) async fn run_world_session_shutdown_finalize_step_like_cpp<F>(
     world_runtime_state: &WorldRuntimeStateLikeCpp,
     step_timeout: Duration,
@@ -145,6 +149,7 @@ pub(super) async fn run_world_session_until_disconnect_like_cpp(
     account_id: u32,
     active_session_registry: &ActiveWorldSessionRegistryLikeCpp,
     cancellation: &ActiveWorldSessionCancellationLikeCpp,
+    ready_for_phases_like_cpp: &AtomicBool,
 ) -> WorldSessionRunOutcomeLikeCpp {
     tokio::select! {
         _ = cancellation.cancelled_like_cpp() => {
@@ -165,7 +170,41 @@ pub(super) async fn run_world_session_until_disconnect_like_cpp(
 
     info!("Session ready for account {account_id}");
 
-    let mut last_session_update = Instant::now();
+    // #787: this task owns the `WorldSession`, so it is also where its phases
+    // are consumed. C++ runs both phases from the one thread that owns the
+    // session at that moment — `World::UpdateSessions` (`World.cpp:2704`) and
+    // then the maps' `Map::Update` (`World.cpp:2748`, `Map.cpp:669-680`) — and
+    // the canonical producer here issues them in that order on this rail.
+    // Announcing readiness only now is what makes the producer's participant
+    // list the set of sessions that can actually answer.
+    let phase_rail = session.session_phase_receiver_like_cpp();
+    ready_for_phases_like_cpp.store(true, Ordering::Release);
+    let outcome = run_world_session_phase_loop_like_cpp(
+        session,
+        handler_catalogs,
+        account_id,
+        active_session_registry,
+        cancellation,
+        &phase_rail,
+        ready_for_phases_like_cpp,
+    )
+    .await;
+    // A session that stops consuming must stop being addressed, or the producer
+    // would wait for a rail nobody reads.
+    ready_for_phases_like_cpp.store(false, Ordering::Release);
+    outcome
+}
+
+/// Park on the phase rail and run exactly the phases the producer asks for.
+async fn run_world_session_phase_loop_like_cpp(
+    session: &mut WorldSession,
+    handler_catalogs: &wow_world::session::SessionHandlerCatalogsLikeCpp,
+    account_id: u32,
+    active_session_registry: &ActiveWorldSessionRegistryLikeCpp,
+    cancellation: &ActiveWorldSessionCancellationLikeCpp,
+    phase_rail: &flume::Receiver<wow_world::session::mailbox::SessionPhaseRequestLikeCpp>,
+    ready_for_phases_like_cpp: &AtomicBool,
+) -> WorldSessionRunOutcomeLikeCpp {
     loop {
         if active_session_registry.should_stop_sessions_like_cpp() {
             info!(
@@ -175,41 +214,70 @@ pub(super) async fn run_world_session_until_disconnect_like_cpp(
             return WorldSessionRunOutcomeLikeCpp::Finished;
         }
 
-        let update = warn_about_sync_queries_scope_like_cpp(async {
-            let now = Instant::now();
-            let diff_ms = now
-                .saturating_duration_since(last_session_update)
-                .as_millis()
-                .min(u128::from(u32::MAX)) as u32;
-            last_session_update = now;
-
-            let count = session
-                .update_with_catalogs_like_cpp(diff_ms, handler_catalogs)
-                .await;
-            session
-                .process_pending_with_catalogs_like_cpp(handler_catalogs)
-                .await;
-            (count, session.is_disconnecting())
-        });
-        let (count, disconnecting) = tokio::select! {
-            _ = cancellation.cancelled_like_cpp() => {
-                return WorldSessionRunOutcomeLikeCpp::ForceCancelled;
+        if active_session_registry.is_shutting_down_like_cpp() {
+            // Handover to shutdown, with one owner throughout: this session stops
+            // serving phases, refuses anything already on its rail before it can
+            // produce an effect, and drains its own control mailbox so C++
+            // `World::KickAll` and the `UpdateSessions(1)` flush are observed
+            // even if the producer is gone. No phase can run beside this drain,
+            // because readiness is withdrawn before it and never raised again.
+            ready_for_phases_like_cpp.store(false, Ordering::Release);
+            session.refuse_pending_phase_requests_like_cpp();
+            let disconnecting = warn_about_sync_queries_scope_like_cpp(async {
+                session
+                    .process_pending_with_catalogs_like_cpp(handler_catalogs)
+                    .await;
+                session.is_disconnecting()
+            })
+            .await;
+            if disconnecting {
+                info!("Session for account {account_id} disconnecting");
+                return WorldSessionRunOutcomeLikeCpp::Finished;
             }
-            result = update => result,
-        };
-
-        if disconnecting {
-            info!("Session for account {account_id} disconnecting");
-            return WorldSessionRunOutcomeLikeCpp::Finished;
-        }
-
-        if count == 0 {
             tokio::select! {
                 _ = cancellation.cancelled_like_cpp() => {
                     return WorldSessionRunOutcomeLikeCpp::ForceCancelled;
                 }
-                _ = tokio::time::sleep(tokio::time::Duration::from_millis(50)) => {}
+                () = tokio::time::sleep(SHUTDOWN_GATE_RECHECK_INTERVAL_LIKE_CPP) => {}
             }
+            continue;
+        }
+
+        let request = tokio::select! {
+            _ = cancellation.cancelled_like_cpp() => {
+                return WorldSessionRunOutcomeLikeCpp::ForceCancelled;
+            }
+            request = phase_rail.recv_async() => Some(request),
+            // The shutdown gate is a flag, not a wake-up, so a session parked
+            // on an idle rail re-reads it periodically. This branch runs no
+            // session work: a phase only ever runs when the producer asks.
+            () = tokio::time::sleep(SHUTDOWN_GATE_RECHECK_INTERVAL_LIKE_CPP) => None,
+        };
+        let Some(request) = request else {
+            continue;
+        };
+        let Ok(request) = request else {
+            // The rail is closed: nothing will ever drive this session again.
+            return WorldSessionRunOutcomeLikeCpp::Finished;
+        };
+
+        // The pass itself is not cancelled from here, and that is deliberate:
+        // cancelling a claimed phase would leave its mutations neither finished
+        // nor rolled back, with the producer holding a permit that can never
+        // resolve. Cancellation is honoured at the phase boundary instead — the
+        // select above wins on the next iteration — so a forced cancellation
+        // ends this session one phase later rather than mid-effect.
+        let disconnecting = warn_about_sync_queries_scope_like_cpp(async {
+            session
+                .run_requested_session_phase_like_cpp(request, handler_catalogs)
+                .await;
+            session.is_disconnecting()
+        })
+        .await;
+
+        if disconnecting {
+            info!("Session for account {account_id} disconnecting");
+            return WorldSessionRunOutcomeLikeCpp::Finished;
         }
     }
 }
@@ -269,8 +337,12 @@ pub(super) async fn create_session(
         send_tx,
     );
     session.set_send_write_fence_like_cpp(send_write_fence_like_cpp);
-    let Some((active_session_id, session_cancellation)) =
-        active_session_registry.try_register(account.id, session.session_command_tx())
+    let Some((active_session_id, session_cancellation, ready_for_phases_like_cpp)) =
+        active_session_registry.try_register(
+            account.id,
+            session.session_command_tx(),
+            session.session_phase_sender_like_cpp(),
+        )
     else {
         info!(
             account_id = account.id,
@@ -353,6 +425,7 @@ pub(super) async fn create_session(
         account_id,
         active_session_registry.as_ref(),
         session_cancellation.as_ref(),
+        ready_for_phases_like_cpp.as_ref(),
     )
     .await
         == WorldSessionRunOutcomeLikeCpp::ForceCancelled

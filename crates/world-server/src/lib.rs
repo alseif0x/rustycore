@@ -755,6 +755,12 @@ impl ActiveWorldSessionCancellationLikeCpp {
 struct ActiveWorldSessionLikeCpp {
     account_id: u32,
     command_tx: flume::Sender<SessionCommand>,
+    /// The session's phase rail (#787). Registration alone does not mean the
+    /// session is consuming it: `ready_for_phases_like_cpp` is set by the task
+    /// that owns the session once it actually parks on the rail, so the
+    /// producer never counts a session that cannot answer.
+    phase_tx: flume::Sender<wow_world::session::mailbox::SessionPhaseRequestLikeCpp>,
+    ready_for_phases_like_cpp: Arc<AtomicBool>,
     cancellation: Arc<ActiveWorldSessionCancellationLikeCpp>,
 }
 
@@ -806,7 +812,12 @@ impl ActiveWorldSessionRegistryLikeCpp {
         &self,
         account_id: u32,
         command_tx: flume::Sender<SessionCommand>,
-    ) -> Option<(u64, Arc<ActiveWorldSessionCancellationLikeCpp>)> {
+        phase_tx: flume::Sender<wow_world::session::mailbox::SessionPhaseRequestLikeCpp>,
+    ) -> Option<(
+        u64,
+        Arc<ActiveWorldSessionCancellationLikeCpp>,
+        Arc<AtomicBool>,
+    )> {
         let mut sessions = self
             .sessions
             .lock()
@@ -819,20 +830,41 @@ impl ActiveWorldSessionRegistryLikeCpp {
             .fetch_add(1, Ordering::Relaxed)
             .saturating_add(1);
         let cancellation = Arc::new(ActiveWorldSessionCancellationLikeCpp::default());
+        let ready_for_phases_like_cpp = Arc::new(AtomicBool::new(false));
         sessions.insert(
             id,
             ActiveWorldSessionLikeCpp {
                 account_id,
                 command_tx,
+                phase_tx,
+                ready_for_phases_like_cpp: Arc::clone(&ready_for_phases_like_cpp),
                 cancellation: Arc::clone(&cancellation),
             },
         );
-        Some((id, cancellation))
+        Some((id, cancellation, ready_for_phases_like_cpp))
+    }
+
+    /// The sessions C++ `World::UpdateSessions` would drive this step: every
+    /// registered session that is actually consuming its phase rail, including
+    /// those still on the character screen (`World.cpp:3394-3420`).
+    fn world_phase_participants_like_cpp(
+        &self,
+    ) -> Vec<flume::Sender<wow_world::session::mailbox::SessionPhaseRequestLikeCpp>> {
+        let sessions = self
+            .sessions
+            .lock()
+            .expect("active world session registry lock poisoned");
+        sessions
+            .values()
+            .filter(|session| session.ready_for_phases_like_cpp.load(Ordering::Acquire))
+            .map(|session| session.phase_tx.clone())
+            .collect()
     }
 
     #[cfg(test)]
     fn register(&self, account_id: u32, command_tx: flume::Sender<SessionCommand>) -> u64 {
-        self.try_register(account_id, command_tx)
+        let (phase_tx, _phase_rx) = flume::bounded(2);
+        self.try_register(account_id, command_tx, phase_tx)
             .expect("test registry must still accept sessions")
             .0
     }

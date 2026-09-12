@@ -5399,6 +5399,18 @@ pub struct WorldSession {
     // Cross-session commands executed by this session's own update loop.
     session_command_tx: flume::Sender<SessionCommand>,
     session_command_rx: flume::Receiver<SessionCommand>,
+    /// The canonical producer's phase rail for this session (#787), separate
+    /// from the command mailbox because a phase pass drains that mailbox.
+    session_phase_tx: flume::Sender<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
+    session_phase_rx: flume::Receiver<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
+    /// The producer and step this session last accepted, per phase (#787).
+    ///
+    /// C++ has one caller and needs no such watermark. Here it is what rejects
+    /// a foreign producer, a retired step and a replay of one already served,
+    /// none of which the identity of the player can distinguish. It is kept per
+    /// phase because one step legitimately issues the world phase and then the
+    /// map phase under the same epoch (`World.cpp:2704` then `World.cpp:2748`).
+    last_phase_authority_like_cpp: [Option<(u64, u64)>; 2],
     durable_creature_runtime_commands_like_cpp:
         Arc<std::sync::Mutex<crate::session::mailbox::DurableCreatureRuntimeCommandsLikeCpp>>,
     visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
@@ -6166,6 +6178,9 @@ pub struct WorldSession {
     /// Generation-checked identity of the one canonical Player value owned by
     /// MapManager. It remains resolvable while detached for a far teleport.
     player_handle_like_cpp: Option<wow_map::PlayerHandle>,
+    /// Set by the first canonical map-phase request (#787). Until then this
+    /// session has no coordinator and keeps draining its own queue.
+    map_phase_coordinated_like_cpp: bool,
     /// Dedicated Detour owner handle. The underlying `MMapManager` remains on
     /// its worker thread because Detour state is not `Send + Sync`.
     mmap_pathfinder_like_cpp: Option<Arc<WorldMMapPathfinderWorkerLikeCpp>>,
@@ -7743,6 +7758,10 @@ impl WorldSession {
         send_tx: flume::Sender<Vec<u8>>,
     ) -> Self {
         let (session_command_tx, session_command_rx) = flume::bounded(256);
+        // One outstanding request per phase at most: the producer waits for the
+        // completion boundary of each pass before issuing the next one, so a
+        // full rail means a producer that did not wait.
+        let (session_phase_tx, session_phase_rx) = flume::bounded(2);
 
         // The instance endpoint keeps the pre-#297 default; the kernel does not
         // hardcode a world-server address of its own.
@@ -7798,6 +7817,9 @@ impl WorldSession {
             connection,
             session_command_tx,
             session_command_rx,
+            session_phase_tx,
+            session_phase_rx,
+            last_phase_authority_like_cpp: [None, None],
             durable_creature_runtime_commands_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Arc::new(AtomicBool::new(false)),
             state: SessionState::Authed,
@@ -8280,6 +8302,7 @@ impl WorldSession {
             map_manager: None,
             canonical_map_manager: None,
             player_handle_like_cpp: None,
+            map_phase_coordinated_like_cpp: false,
             mmap_pathfinder_like_cpp: None,
             #[cfg(test)]
             combat_target: None,
@@ -12398,6 +12421,7 @@ impl WorldSession {
                 send_tx: self.send_tx().clone(),
                 realm_send_tx: self.realm_route_tx().clone(),
                 command_tx: self.session_command_tx.clone(),
+                session_phase_tx: self.session_phase_tx.clone(),
                 durable_creature_runtime_commands_like_cpp: Arc::clone(
                     &self.durable_creature_runtime_commands_like_cpp,
                 ),

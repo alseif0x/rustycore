@@ -92,6 +92,7 @@ fn reader_session_like_cpp() -> (
             realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx: flume::bounded(4).0,
+            session_phase_tx: crate::session::directory::detached_session_phase_rail_like_cpp(),
             durable_creature_runtime_commands_like_cpp: Default::default(),
             client_visible_guids_like_cpp: Default::default(),
             advanced_combat_logging_enabled_like_cpp: Default::default(),

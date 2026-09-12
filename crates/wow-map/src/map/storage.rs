@@ -384,8 +384,12 @@ where
             self.unindex_map_object_record_by_spawn_id_like_cpp(previous_record);
         }
         self.index_map_object_record_by_spawn_id_like_cpp(&record);
+        let is_player = record.kind() == AccessorObjectKind::Player;
         let displaced = self.entity_world.insert(record);
         debug_assert!(displaced.is_none());
+        if is_player {
+            self.link_map_reference_like_cpp(guid);
+        }
         Ok(previous)
     }
 
@@ -1169,6 +1173,32 @@ where
             return None;
         }
         record.conversation().map(read)
+    }
+
+    /// C++ `MapReference::targetObjectBuildLink` (`Maps/MapReference.cpp:22-28`)
+    /// links a Player into `Map::m_mapRefManager` with `insertFirst`, so the
+    /// most recently linked Player is visited first by `Map::Update`
+    /// (`Maps/Map.cpp:669-680`). Re-linking the same Player moves it to the
+    /// front, as unlink-then-link does in C++.
+    fn link_map_reference_like_cpp(&mut self, guid: ObjectGuid) {
+        self.map_reference_order_like_cpp
+            .retain(|linked| *linked != guid);
+        self.map_reference_order_like_cpp.insert(0, guid);
+    }
+
+    /// C++ `MapReference::targetObjectDestroyLink` removing the Player from
+    /// `Map::m_mapRefManager`.
+    pub(super) fn unlink_map_reference_like_cpp(&mut self, guid: ObjectGuid) {
+        self.map_reference_order_like_cpp
+            .retain(|linked| *linked != guid);
+    }
+
+    /// This map's players in C++ `m_mapRefManager` order: most recently linked
+    /// first. This is the order `Map::Update` walks for the session pass; it is
+    /// deliberately not a sorted GUID list.
+    #[must_use]
+    pub fn map_reference_order_like_cpp(&self) -> &[ObjectGuid] {
+        &self.map_reference_order_like_cpp
     }
 
     pub fn get_typed_player(&self, guid: ObjectGuid) -> Option<&Player> {
