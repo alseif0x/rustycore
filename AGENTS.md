@@ -142,10 +142,9 @@ they are not separate frozen architecture snapshots.
   native/Wasm product and does not block an unrelated gameplay macro, while its
   production integration waits for the required core work. The Rust/Wasm/C mixed
   product remains mandatory even though its operator activation is optional.
-  The next recommended core macro is #743 (group-command state delivery), followed by
-  #735 (reputation encapsulation, an ordering preference rather than a hard dependency),
-  then the remaining P2 operations and P3 runtime/lifetime/private-hecs and P4 semantic/
-  physical work under #584. Analyze each responsibility before defining its macro,
+  Select the next prepared responsibility from the current STATE.md and refactor
+  completion plan; this operating guide does not keep a second dated next-issue list.
+  Analyze each responsibility before defining its macro,
   include cross-crate consumers and preserve scoped regression/live acceptance. These
   evidence reviews do not add routine approvals or authorize merge/runtime operations.
 - After playable M6.2/#47, perform the fresh whole-port planning pass before decomposing
@@ -160,6 +159,16 @@ worker handoff. At final acceptance, fix findings and rerun affected evidence as
 An explicit user request for an earlier diagnostic run remains authoritative.
 Do not claim unexecuted evidence as passing.
 
+Plan acceptance once for the completed delivery. The commands below are scope-dependent
+examples, not a checklist to run before `quick` and again before `final`. `final` already
+checks affected downstream test targets and runs the changed libraries' complete suites;
+credit the focused cases actually executed by those suites. Add the required integration,
+ownership, capture or live evidence they do not cover. Do not run a separate workspace
+check or identical library suite just to warm up `final`. After a failure, fix the related
+findings together and rerun the affected acceptance; new code still needs final evidence
+at its committed candidate. Do not use repeated Cargo calls as a search/automatic-edit
+loop for consumers that can be found by inspection. A zero-test filter proves nothing.
+
 The parent owns validation scheduling, or assigns one exclusive validation executor.
 Run heavyweight builds, tests, exhaustive scans and live QA sequentially, including
 across worktrees; no worker starts its own parallel campaign. Check for active work
@@ -167,12 +176,23 @@ and available RAM/disk before launching. On this shared host start Cargo with on
 (`VALIDATION_V2_CARGO_JOBS=1` for the runner); increase only with demonstrated headroom.
 Do not kill unrelated processes to obtain resources. Agent-count limits are not resource locks.
 
+Keep direct Cargo and runner commands on the same per-worktree target directory; the
+runner defaults to `<checkout>/target` and respects explicit `CARGO_TARGET_DIR`. For
+standalone manifests set it to the checkout's absolute `target` too. Do not share one
+target across active worktrees. Follow the disk and long-running-command procedures in
+`docs/operations/validation-v2.md`: preserve the active incremental cache, clean inspected
+inactive build artifacts first, retain real exit codes, and track an existing background
+task instead of launching a duplicate after its foreground wait expires.
+
 Use [validation-v2](docs/operations/validation-v2.md) and
 [local-first development](docs/operations/local-first-development.md) for the actual profiles.
 
 ~~~bash
-PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo check -p world-server
-PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test -p wow-world <focused-test> --lib
+export PROTOC=/home/ubuntu/.local/protoc/bin/protoc
+export CARGO_BUILD_JOBS=1
+export CARGO_TARGET_DIR="$PWD/target"
+cargo check -p world-server
+cargo test -p wow-world <focused-test> --lib
 cargo fmt --all -- --check
 git diff --check
 ./tools/validation-v2 quick --base origin/3.4.3
