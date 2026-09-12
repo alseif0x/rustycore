@@ -337,6 +337,44 @@ Aceptación local: `wow-entities` (760) y `wow-world` (3.842) en verde, quince
 regresiones nuevas de invariantes, controles de arquitectura y ownership con
 delta de inventario revisado. Sin QA viva ni evidencia de DB/reinicio.
 
+#### Entrega local aceptada — #756
+
+Quinta macro P2: el estado de misiones tenía catorce campos públicos y un cierre
+genérico con treinta y ocho sitios de escritura de producción.
+
+- Estado e invariantes en el Player:
+  `crates/wow-entities/src/player/quest_state.rs` posee
+  `PlayerQuestGameplayState` con los campos cerrados al módulo Player y las
+  transiciones que C++ hace sobre `m_QuestStatus` (`Player.h:2947`),
+  `m_RewardedQuests` (`:2951`), `m_DFQuests` (`:2481`) y `m_seasonalquests`
+  (`:2838`). El propietario impone ahora el contador de objetivo que se inserta
+  una vez y luego se actualiza, el reseteo estacional que solo elimina misiones
+  completadas antes del nuevo inicio y borra el evento con su última misión, y la
+  separación entre el conjunto recompensado en memoria y las filas persistidas.
+- Bandera de autoridad: conserva su significado —carga vacía autoritativa frente
+  a propietario no hidratado— y sigue siendo un hecho independiente.
+- Catorce llamadores de una sola transición pasan a operaciones de sesión con
+  nombre en `handlers/quest/{handlers,rewards,state,persistence}.rs`,
+  `session/spell_effects/effects_progress.rs` y `session/mod.rs`.
+- Proyección retenida y registrada: los cinco recorridos de objetivos de
+  `handlers/quest/objectives.rs` y la compactación de huecos de
+  `handlers/quest/state.rs` conservan el préstamo porque sus reglas necesitan
+  plantillas y objetivos de misión que no pueden entrar en `wow-entities`, y C++
+  las aplica sosteniendo el Player (`AdjustQuestObjectiveProgress`,
+  `Player.cpp:15874`). **Condición de salida:** se retiran con el contrato de la
+  operación de progreso de objetivos de #41.
+- Se preserva la transacción representada de recompensa de #718.
+- Distinción registrada: completar una misión estacional marca
+  `seasonal_quest_changed` como C++ `SetSeasonalQuestStatus` (`Player.cpp:24067`),
+  mientras que sembrar una fila almacenada no debe marcarlo o el siguiente guardado
+  trataría estado intacto como sucio. Son dos operaciones con nombre y una regresión
+  las fija.
+- Hallazgo registrado, no reparado aquí: el vector `objective_progress` del estado de
+  misiones no tiene lector ni escritor de producción; el progreso representado circula
+  por `objective_counts` de cada estado y por la cola de eventos de la sesión. Se
+  conserva el campo y su lectura; darle escritores pertenece a la operación de
+  progreso de objetivos de #41.
+
 ### 4.3 Residuales P2 y paso a P3/P4
 
 Después de #743 y #735 se retiran los accesos genéricos operación por operación. El

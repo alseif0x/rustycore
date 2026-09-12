@@ -247,7 +247,11 @@ impl crate::session::WorldSession {
                 Team::Alliance
                     if requirement.quest_done_a != 0
                         && !self.player_quest_gameplay_snapshot_like_cpp().is_some_and(
-                            |state| state.rewarded_quest_ids.contains(&requirement.quest_done_a),
+                            |state| {
+                                state
+                                    .rewarded_quest_ids_like_cpp()
+                                    .contains(&requirement.quest_done_a)
+                            },
                         ) =>
                 {
                     return Some(LFG_LOCKSTATUS_QUEST_NOT_COMPLETED_LIKE_CPP);
@@ -255,7 +259,11 @@ impl crate::session::WorldSession {
                 Team::Horde
                     if requirement.quest_done_h != 0
                         && !self.player_quest_gameplay_snapshot_like_cpp().is_some_and(
-                            |state| state.rewarded_quest_ids.contains(&requirement.quest_done_h),
+                            |state| {
+                                state
+                                    .rewarded_quest_ids_like_cpp()
+                                    .contains(&requirement.quest_done_h)
+                            },
                         ) =>
                 {
                     return Some(LFG_LOCKSTATUS_QUEST_NOT_COMPLETED_LIKE_CPP);
@@ -340,7 +348,7 @@ impl crate::session::WorldSession {
                 is_df = quest.is_df_quest_like_cpp(),
                 df_done = self
                     .player_quest_gameplay_snapshot_like_cpp()
-                    .is_some_and(|state| state.df_quest_ids.contains(&quest.id)),
+                    .is_some_and(|state| state.df_quest_ids_like_cpp().contains(&quest.id)),
                 first_reward = dungeon_info.first_reward,
                 "RUST_LFG_TRACE reward decision"
             );
@@ -392,34 +400,40 @@ impl crate::session::WorldSession {
         };
         if !quest.is_df_quest_like_cpp()
             && !quest.is_turn_in_like_cpp()
-            && recurrence.statuses.get(&quest.id).is_none_or(|status| {
-                status.status != crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
-            })
+            && recurrence
+                .statuses_like_cpp()
+                .get(&quest.id)
+                .is_none_or(|status| {
+                    status.status != crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
+                })
         {
             return false;
         }
         if quest.is_df_quest_like_cpp() {
-            return !recurrence.df_quest_ids.contains(&quest.id);
+            return !recurrence.df_quest_ids_like_cpp().contains(&quest.id);
         }
-        if quest.is_daily_like_cpp() && recurrence.daily_quest_ids.contains(&quest.id) {
+        if quest.is_daily_like_cpp() && recurrence.daily_quest_ids_like_cpp().contains(&quest.id) {
             return false;
         }
-        if quest.is_weekly_like_cpp() && recurrence.weekly_quest_ids.contains(&quest.id) {
+        if quest.is_weekly_like_cpp() && recurrence.weekly_quest_ids_like_cpp().contains(&quest.id)
+        {
             return false;
         }
-        if quest.is_monthly_like_cpp() && recurrence.monthly_quest_ids.contains(&quest.id) {
+        if quest.is_monthly_like_cpp()
+            && recurrence.monthly_quest_ids_like_cpp().contains(&quest.id)
+        {
             return false;
         }
         if quest.is_seasonal_like_cpp()
             && recurrence
-                .seasonal_quests
+                .seasonal_quests_like_cpp()
                 .get(&quest.event_id_for_quest_like_cpp())
                 .is_some_and(|quests| quests.contains_key(&quest.id))
         {
             return false;
         }
 
-        !recurrence.rewarded_quest_ids.contains(&quest.id)
+        !recurrence.rewarded_quest_ids_like_cpp().contains(&quest.id)
     }
 
     pub async fn handle_df_get_join_status(&mut self, mut pkt: wow_packet::WorldPacket) {

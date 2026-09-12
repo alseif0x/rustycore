@@ -1162,17 +1162,22 @@ impl PlayerRegistry {
                     .collect(),
                 active_quest_statuses: state
                     .quests
-                    .statuses
+                    .statuses_like_cpp()
                     .values()
                     .map(|status| (status.quest_id, status.status))
                     .collect(),
                 active_quest_objective_counts: state
                     .quests
-                    .objective_counts_by_quest
+                    .objective_counts_by_quest_like_cpp()
                     .iter()
                     .cloned()
                     .collect(),
-                rewarded_quests: state.quests.rewarded_quest_ids.iter().copied().collect(),
+                rewarded_quests: state
+                    .quests
+                    .rewarded_quest_ids_like_cpp()
+                    .iter()
+                    .copied()
+                    .collect(),
                 inventory_item_counts: player.inventory_item_counts_like_cpp(),
             }
         })
@@ -1384,7 +1389,7 @@ impl PlayerRegistry {
             player
                 .gameplay_state()
                 .quests
-                .statuses
+                .statuses_like_cpp()
                 .get(&quest_id)
                 .map(|status| status.status)
         })
@@ -1436,16 +1441,31 @@ impl PlayerRegistry {
                 instance_id,
                 |player| player.gameplay_state().clone(),
             )?;
-            snapshot.pending_quest_sharing = gameplay.quests.pending_share;
-            snapshot.rewarded_quests = gameplay.quests.rewarded_quest_ids.into_iter().collect();
+            snapshot.pending_quest_sharing = gameplay.quests.pending_share_like_cpp();
+            snapshot.rewarded_quests = gameplay
+                .quests
+                .rewarded_quest_ids_like_cpp()
+                .iter()
+                .copied()
+                .collect();
             snapshot.active_quest_statuses = gameplay
                 .quests
-                .statuses
-                .into_values()
+                .statuses_like_cpp()
+                .values()
                 .map(|status| (status.quest_id, status.status))
                 .collect();
-            snapshot.df_quests = gameplay.quests.df_quest_ids.into_iter().collect();
-            snapshot.daily_quests_completed = gameplay.quests.daily_quest_ids.into_iter().collect();
+            snapshot.df_quests = gameplay
+                .quests
+                .df_quest_ids_like_cpp()
+                .iter()
+                .copied()
+                .collect();
+            snapshot.daily_quests_completed = gameplay
+                .quests
+                .daily_quest_ids_like_cpp()
+                .iter()
+                .copied()
+                .collect();
             snapshot.reputation_standings = with_canonical_player_at_like_cpp(
                 manager,
                 guid,

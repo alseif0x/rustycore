@@ -237,7 +237,7 @@ async fn complete_quest_triggers_visible_spellclick_refresh_like_cpp() {
     assert!(
         session
             .mutate_player_quest_gameplay_like_cpp(|state| {
-                state.statuses.insert(
+                state.insert_status_like_cpp(
                     quest_id,
                     crate::handlers::quest::PlayerQuestStatus {
                         quest_id,

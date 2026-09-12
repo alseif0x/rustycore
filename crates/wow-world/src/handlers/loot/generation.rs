@@ -230,7 +230,7 @@ impl WorldSession {
 
         self.player_quest_gameplay_snapshot_like_cpp()
             .is_some_and(|state| {
-                state.statuses.into_values().any(|status| {
+                state.statuses_like_cpp().values().any(|status| {
                     if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                         return false;
                     }

@@ -6,6 +6,7 @@
 //! Quest reward selection, item/currency granting and required-item removal.
 
 use super::*;
+use crate::session::RepresentedQuestRecurrenceLikeCpp;
 
 use crate::quest::application::QuestRewardDurablePlanLikeCpp;
 
@@ -1586,29 +1587,27 @@ impl WorldSession {
             save_seasonal = true;
         }
 
-        if self
-            .mutate_player_quest_gameplay_like_cpp(|state| {
-                if save_daily {
-                    state.last_daily_quest_time_secs = now;
-                    if quest.is_df_quest_like_cpp() {
-                        state.df_quest_ids.insert(quest.id);
-                    } else {
-                        state.daily_quest_ids.insert(quest.id);
-                    }
-                } else if save_weekly {
-                    state.weekly_quest_ids.insert(quest.id);
-                } else if save_monthly {
-                    state.monthly_quest_ids.insert(quest.id);
-                } else if save_seasonal {
-                    state
-                        .seasonal_quests
-                        .entry(quest.event_id_for_quest_like_cpp())
-                        .or_default()
-                        .insert(quest.id, now.max(0) as u64);
-                    state.seasonal_quest_changed = true;
-                }
+        let recurrence = if save_daily {
+            Some(RepresentedQuestRecurrenceLikeCpp::Daily {
+                quest_id: quest.id,
+                now_secs: now,
+                is_df_quest: quest.is_df_quest_like_cpp(),
             })
-            .is_none()
+        } else if save_weekly {
+            Some(RepresentedQuestRecurrenceLikeCpp::Weekly { quest_id: quest.id })
+        } else if save_monthly {
+            Some(RepresentedQuestRecurrenceLikeCpp::Monthly { quest_id: quest.id })
+        } else if save_seasonal {
+            Some(RepresentedQuestRecurrenceLikeCpp::Seasonal {
+                event_id: quest.event_id_for_quest_like_cpp(),
+                quest_id: quest.id,
+                completed_at: now.max(0) as u64,
+            })
+        } else {
+            None
+        };
+        if let Some(recurrence) = recurrence
+            && !self.record_represented_quest_recurrence_like_cpp(recurrence)
         {
             return;
         }
@@ -1619,29 +1618,37 @@ impl WorldSession {
         };
         let request = if save_daily {
             let mut quest_ids = recurrence
-                .daily_quest_ids
+                .daily_quest_ids_like_cpp()
                 .iter()
                 .copied()
                 .collect::<Vec<_>>();
-            quest_ids.extend(recurrence.df_quest_ids.iter().copied());
+            quest_ids.extend(recurrence.df_quest_ids_like_cpp().iter().copied());
             wow_persistence::PlayerQuestLockoutPersistenceRequestLikeCpp::Daily {
                 owner_guid,
-                completed_time: recurrence.last_daily_quest_time_secs,
+                completed_time: recurrence.last_daily_quest_time_secs_like_cpp(),
                 quest_ids,
             }
         } else if save_weekly {
             wow_persistence::PlayerQuestLockoutPersistenceRequestLikeCpp::Weekly {
                 owner_guid,
-                quest_ids: recurrence.weekly_quest_ids.iter().copied().collect(),
+                quest_ids: recurrence
+                    .weekly_quest_ids_like_cpp()
+                    .iter()
+                    .copied()
+                    .collect(),
             }
         } else if save_monthly {
             wow_persistence::PlayerQuestLockoutPersistenceRequestLikeCpp::Monthly {
                 owner_guid,
-                quest_ids: recurrence.monthly_quest_ids.iter().copied().collect(),
+                quest_ids: recurrence
+                    .monthly_quest_ids_like_cpp()
+                    .iter()
+                    .copied()
+                    .collect(),
             }
         } else if save_seasonal {
             let completions = recurrence
-                .seasonal_quests
+                .seasonal_quests_like_cpp()
                 .iter()
                 .flat_map(|(event_id, quests)| {
                     quests.iter().filter_map(|(quest_id, completed_time)| {
@@ -2067,14 +2074,7 @@ impl WorldSession {
         // failed one until relog; this server keeps the two in step, which is
         // stricter and never weaker.
         self.invalidate_player_quest_status_authority_like_cpp();
-        if self
-            .mutate_player_quest_gameplay_like_cpp(|state| {
-                state.statuses.remove(&quest_id);
-                if !quest.is_repeatable() {
-                    state.rewarded_quest_ids.insert(quest_id);
-                }
-            })
-            .is_none()
+        if self.settle_represented_rewarded_quest_like_cpp(quest_id, quest.is_repeatable()) == false
         {
             self.kick("canonical Player quest owner became unavailable after durable COMMIT");
             return false;

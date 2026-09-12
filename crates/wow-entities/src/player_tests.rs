@@ -476,6 +476,8 @@ mod persistence;
 mod pet;
 #[path = "player_tests/quest.rs"]
 mod quest;
+#[path = "player_tests/quest_state.rs"]
+mod quest_state;
 #[path = "player_tests/reputation.rs"]
 mod reputation;
 #[path = "player_tests/skill.rs"]

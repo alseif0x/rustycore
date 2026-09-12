@@ -142,12 +142,12 @@ impl WorldSession {
     }
     pub(crate) fn record_represented_rewarded_quest_row_like_cpp(&mut self, quest_id: u32) {
         let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.rewarded_quest_rows.insert(quest_id);
+            state.set_rewarded_row_like_cpp(quest_id, true);
         });
     }
     pub(crate) fn complete_player_quest_status_authority_load_like_cpp(&mut self) {
         let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.status_authority_complete = true;
+            state.set_status_authority_complete_like_cpp(true);
         });
     }
     pub(crate) fn represented_player_has_rewarded_quest_like_cpp(
@@ -156,7 +156,7 @@ impl WorldSession {
     ) -> Option<bool> {
         Some(
             self.player_quest_gameplay_snapshot_like_cpp()?
-                .rewarded_quest_ids
+                .rewarded_quest_ids_like_cpp()
                 .contains(&quest_id),
         )
     }
@@ -181,7 +181,7 @@ impl WorldSession {
             return 0;
         };
         let mut quest_ids = quests
-            .rewarded_quest_ids
+            .rewarded_quest_ids_like_cpp()
             .iter()
             .copied()
             .collect::<Vec<_>>();
@@ -471,14 +471,17 @@ impl WorldSession {
 
         if !quest.is_df_quest_like_cpp()
             && !quest.is_turn_in_like_cpp()
-            && !quests.statuses.get(&quest.id).is_some_and(|status| {
-                status.status == crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
-            })
+            && !quests
+                .statuses_like_cpp()
+                .get(&quest.id)
+                .is_some_and(|status| {
+                    status.status == crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
+                })
         {
             return false;
         }
 
-        if quests.rewarded_quest_ids.contains(&quest.id) && !quest.is_repeatable() {
+        if quests.rewarded_quest_ids_like_cpp().contains(&quest.id) && !quest.is_repeatable() {
             return false;
         }
 
@@ -515,9 +518,9 @@ impl WorldSession {
     ) {
         let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
             if completed {
-                state.daily_quest_ids.insert(quest_id);
+                state.set_daily_like_cpp(quest_id, true);
             } else {
-                state.daily_quest_ids.remove(&quest_id);
+                state.set_daily_like_cpp(quest_id, false);
             }
         });
         self.sync_player_registry_state_like_cpp();

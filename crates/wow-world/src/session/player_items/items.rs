@@ -56,7 +56,7 @@ impl WorldSession {
         let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
             return false;
         };
-        quests.statuses.values().any(|status| {
+        quests.statuses_like_cpp().values().any(|status| {
             if status.status != crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                 return false;
             }

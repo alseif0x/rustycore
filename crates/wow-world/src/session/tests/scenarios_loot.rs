@@ -24,7 +24,7 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
     session.player_name = Some("Tester".to_string());
     session.known_spells = vec![12_345];
     session.mutate_player_quest_gameplay_like_cpp(|state| {
-        state.statuses.insert(
+        state.insert_status_like_cpp(
             100,
             wow_entities::PlayerQuestStatusRecord {
                 quest_id: 100,
@@ -36,8 +36,8 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
                 slot: 0,
             },
         );
-        state.objective_counts_by_quest = vec![(100, vec![2, 3])];
-        state.rewarded_quest_ids.insert(200);
+        state.set_objective_counts_for_quest_like_cpp(100, vec![2, 3]);
+        state.set_rewarded_like_cpp(200, true);
     });
     let item_guid = ObjectGuid::create_item(1, 500);
     session.insert_inventory_item_like_cpp(
@@ -101,7 +101,7 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
 
     session.known_spells.push(54_321);
     session.mutate_player_quest_gameplay_like_cpp(|state| {
-        state.statuses.insert(
+        state.insert_status_like_cpp(
             300,
             wow_entities::PlayerQuestStatusRecord {
                 quest_id: 300,
@@ -113,8 +113,8 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
                 slot: 1,
             },
         );
-        state.objective_counts_by_quest.push((300, vec![7]));
-        state.rewarded_quest_ids.insert(400);
+        state.set_objective_counts_for_quest_like_cpp(300, vec![7]);
+        state.set_rewarded_like_cpp(400, true);
     });
     assert!(session.update_inventory_item_object_like_cpp(item_guid, |item| item.set_count(6)));
     session.sync_player_registry_state_like_cpp();

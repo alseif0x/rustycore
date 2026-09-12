@@ -1983,11 +1983,14 @@ fn assert_canonical_quest_status_like_cpp(
         .player_quest_gameplay_snapshot_like_cpp()
         .expect("canonical Player quest state");
     assert_eq!(
-        state.statuses.get(&quest_id).map(|status| status.status),
+        state
+            .statuses_like_cpp()
+            .get(&quest_id)
+            .map(|status| status.status),
         expected_status
     );
     assert_eq!(
-        state.rewarded_quest_ids.contains(&quest_id),
+        state.rewarded_quest_ids_like_cpp().contains(&quest_id),
         expected_rewarded
     );
 }

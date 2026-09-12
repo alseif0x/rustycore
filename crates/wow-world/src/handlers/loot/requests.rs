@@ -622,16 +622,20 @@ impl WorldSession {
                 level: self.player_level_like_cpp(),
                 known_spells: self.known_spells_like_cpp().to_vec(),
                 active_quest_statuses: quests
-                    .statuses
+                    .statuses_like_cpp()
                     .iter()
                     .map(|(quest_id, status)| (*quest_id, status.status))
                     .collect(),
                 active_quest_objective_counts: quests
-                    .statuses
+                    .statuses_like_cpp()
                     .iter()
                     .map(|(quest_id, status)| (*quest_id, status.objective_counts.clone()))
                     .collect(),
-                rewarded_quests: quests.rewarded_quest_ids.into_iter().collect(),
+                rewarded_quests: quests
+                    .rewarded_quest_ids_like_cpp()
+                    .iter()
+                    .copied()
+                    .collect(),
                 inventory_item_counts: self.represented_inventory_item_counts_like_cpp()?,
                 is_current: true,
             });
@@ -671,8 +675,8 @@ impl WorldSession {
         let has_non_none_start_quest_status =
             u32::try_from(start_quest_id).ok().is_some_and(|quest_id| {
                 quest_id != 0
-                    && (quests.statuses.contains_key(&quest_id)
-                        || quests.rewarded_quest_ids.contains(&quest_id))
+                    && (quests.statuses_like_cpp().contains_key(&quest_id)
+                        || quests.rewarded_quest_ids_like_cpp().contains(&quest_id))
             });
         let has_quest_for_item = self.has_incomplete_quest_objective_for_item_like_cpp(item_id)
             || (addon_metadata.quest_log_item_id != 0
@@ -699,7 +703,7 @@ impl WorldSession {
 
         self.player_quest_gameplay_snapshot_like_cpp()
             .is_some_and(|state| {
-                state.statuses.into_values().any(|status| {
+                state.statuses_like_cpp().values().any(|status| {
                     if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                         return false;
                     }
@@ -816,8 +820,8 @@ impl WorldSession {
 
         for status in self
             .player_quest_gameplay_snapshot_like_cpp()?
-            .statuses
-            .into_values()
+            .statuses_like_cpp()
+            .values()
         {
             let Some(quest) = quest_store.get(status.quest_id) else {
                 continue;
@@ -1984,10 +1988,13 @@ impl WorldSession {
                     .player_quest_gameplay_snapshot_like_cpp()
                     .is_some_and(|state| {
                         bound_objective_plan.statuses.iter().all(|planned| {
-                            state.statuses.get(&planned.quest_id).is_some_and(|actual| {
-                                actual.status == planned.status
-                                    && actual.objective_counts == planned.objective_counts
-                            })
+                            state
+                                .statuses_like_cpp()
+                                .get(&planned.quest_id)
+                                .is_some_and(|actual| {
+                                    actual.status == planned.status
+                                        && actual.objective_counts == planned.objective_counts
+                                })
                         })
                     })
             {

@@ -39,7 +39,12 @@ impl WorldSession {
     pub(crate) async fn save_represented_quest_status_like_cpp(&self, quest_id: u32) {
         if let Some(status) = self
             .player_quest_gameplay_snapshot_like_cpp()
-            .and_then(|state| state.statuses.get(&quest_id).map(|status| status.status))
+            .and_then(|state| {
+                state
+                    .statuses_like_cpp()
+                    .get(&quest_id)
+                    .map(|status| status.status)
+            })
         {
             self.save_quest_to_db(quest_id, status).await;
         }
@@ -62,11 +67,11 @@ impl WorldSession {
             return Vec::new();
         };
         let mut quests = state
-            .statuses
+            .statuses_like_cpp()
             .iter()
             .filter_map(|(quest_id, status)| {
                 let store = self.quests.store.as_ref();
-                if state.rewarded_quest_ids.contains(quest_id)
+                if state.rewarded_quest_ids_like_cpp().contains(quest_id)
                     && store
                         .and_then(|store| store.get(*quest_id))
                         .is_some_and(|quest| !quest.is_repeatable())
@@ -104,7 +109,7 @@ impl WorldSession {
 
         if moving_to_bank {
             let new_item_count = i32::try_from(post_move_non_bank_count).unwrap_or(i32::MAX);
-            for current_status in state.statuses.values() {
+            for current_status in state.statuses_like_cpp().values() {
                 let Some(quest) = quest_store.get(current_status.quest_id) else {
                     continue;
                 };
@@ -146,7 +151,7 @@ impl WorldSession {
         }
 
         let mut matching_entry_objectives = Vec::new();
-        'matching_entry: for status in state.statuses.values() {
+        'matching_entry: for status in state.statuses_like_cpp().values() {
             if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                 continue;
             }
@@ -190,7 +195,7 @@ impl WorldSession {
         }
         let added_count = i32::try_from(added_count).unwrap_or(i32::MAX);
 
-        for current_status in state.statuses.values() {
+        for current_status in state.statuses_like_cpp().values() {
             if current_status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                 continue;
             }
@@ -236,7 +241,9 @@ impl WorldSession {
                     break;
                 }
             }
-            let quest_already_rewarded = state.rewarded_quest_ids.contains(&status.quest_id);
+            let quest_already_rewarded = state
+                .rewarded_quest_ids_like_cpp()
+                .contains(&status.quest_id);
             if completed_objective_ids.iter().any(|objective_id| {
                 crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
                     &status,
@@ -267,7 +274,7 @@ impl WorldSession {
         let mut plan = ItemTransferQuestPersistencePlanLikeCpp {
             statuses: self
                 .player_quest_gameplay_snapshot_like_cpp()
-                .map(|state| state.statuses.into_iter().collect())
+                .map(|state| state.statuses_snapshot_like_cpp().into_iter().collect())
                 .unwrap_or_default(),
             changed_quest_ids: Vec::new(),
         };
@@ -307,7 +314,11 @@ impl WorldSession {
         let Some(state) = self.player_quest_gameplay_snapshot_like_cpp() else {
             return false;
         };
-        let rewarded: HashSet<u32> = state.rewarded_quest_ids.into_iter().collect();
+        let rewarded: HashSet<u32> = state
+            .rewarded_quest_ids_like_cpp()
+            .iter()
+            .copied()
+            .collect();
         if let Some((quest_id, _)) =
             crate::handlers::quest_rules::apply_quest_item_added_bound_to_statuses_like_cpp(
                 quest_store.as_ref(),
@@ -433,7 +444,7 @@ impl WorldSession {
             }
 
             for quest_id in &ordered_quest_ids {
-                let Some(current_status) = state.statuses.get(quest_id) else {
+                let Some(current_status) = state.statuses_like_cpp().get(quest_id) else {
                     continue;
                 };
                 if current_status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
@@ -476,7 +487,8 @@ impl WorldSession {
                     }
                     let new_count = current.saturating_add(count_i32).clamp(0, objective.amount);
                     planned_status.objective_counts[storage_index] = new_count;
-                    let quest_already_rewarded = state.rewarded_quest_ids.contains(&quest.id);
+                    let quest_already_rewarded =
+                        state.rewarded_quest_ids_like_cpp().contains(&quest.id);
                     if new_count >= objective.amount
                         && crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
                             &planned_status,
@@ -528,7 +540,7 @@ impl WorldSession {
         let quest_state = self.player_quest_gameplay_snapshot_like_cpp();
         let mut projection = match quest_state
             .as_ref()
-            .and_then(|state| state.statuses.get(&quest_id))
+            .and_then(|state| state.statuses_like_cpp().get(&quest_id))
         {
             Some(saved) => self.represented_quest_status_persistence_like_cpp(saved),
             None if status == QUEST_STATUS_REWARDED_LIKE_CPP => {
@@ -679,7 +691,7 @@ impl WorldSession {
             if status == QUEST_STATUS_REWARDED_LIKE_CPP {
                 // Rewarded (C++ QuestStatus::QUEST_STATUS_REWARDED / m_RewardedQuests).
                 // Non-repeatable quests cannot be re-taken once rewarded.
-                loaded_quests.rewarded_quest_ids.insert(quest_id);
+                loaded_quests.set_rewarded_like_cpp(quest_id, true);
                 stale_rewarded_active_rows.push(quest_id);
             } else if next_active_slot < MAX_QUEST_LOG_SIZE_LIKE_CPP {
                 // Active or complete-but-not-turned-in.
@@ -691,10 +703,10 @@ impl WorldSession {
                 let obj_count = store
                     .and_then(|s| s.get(quest_id))
                     .map_or(0, |q| q.objectives.len());
-                if loaded_quests.statuses.contains_key(&quest_id) {
+                if loaded_quests.statuses_like_cpp().contains_key(&quest_id) {
                     quest_status_rows_coherent_like_cpp = false;
                 }
-                loaded_quests.statuses.insert(
+                loaded_quests.insert_status_like_cpp(
                     quest_id,
                     PlayerQuestStatus {
                         quest_id,
@@ -716,7 +728,7 @@ impl WorldSession {
                     let storage_index = row.storage_index.unwrap_or(0);
                     let data = row.count.unwrap_or(0);
                     if let (Some(status), Some(quest)) = (
-                        loaded_quests.statuses.get_mut(&quest_id),
+                        loaded_quests.status_mut_like_cpp(quest_id),
                         self.quests
                             .store
                             .as_ref()
@@ -757,12 +769,12 @@ impl WorldSession {
                         rewarded_rows_coherent_like_cpp = false;
                         continue;
                     };
-                    loaded_quests.rewarded_quest_rows.insert(quest_id);
+                    loaded_quests.set_rewarded_row_like_cpp(quest_id, true);
                     if self
                         .represented_quest_can_increase_rewarded_counters_like_cpp(quest_id)
                         .is_some_and(|can_increase| can_increase)
                     {
-                        loaded_quests.rewarded_quest_ids.insert(quest_id);
+                        loaded_quests.set_rewarded_like_cpp(quest_id, true);
                     }
                 }
             }
@@ -775,17 +787,10 @@ impl WorldSession {
             }
         }
 
-        loaded_quests.status_authority_complete =
-            quest_status_rows_coherent_like_cpp && rewarded_rows_coherent_like_cpp;
-        if self
-            .mutate_player_quest_gameplay_like_cpp(|state| {
-                state.statuses = loaded_quests.statuses;
-                state.rewarded_quest_ids = loaded_quests.rewarded_quest_ids;
-                state.rewarded_quest_rows = loaded_quests.rewarded_quest_rows;
-                state.status_authority_complete = loaded_quests.status_authority_complete;
-            })
-            .is_none()
-        {
+        loaded_quests.set_status_authority_complete_like_cpp(
+            quest_status_rows_coherent_like_cpp && rewarded_rows_coherent_like_cpp,
+        );
+        if self.install_represented_loaded_quest_statuses_like_cpp(&loaded_quests) == false {
             warn!(
                 account = self.account_id,
                 "Failed to install loaded quest status into canonical Player owner"
@@ -834,11 +839,11 @@ impl WorldSession {
                 );
             }
         }
-        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.df_quest_ids = loaded_df;
-            state.daily_quest_ids = loaded_daily;
-            state.last_daily_quest_time_secs = loaded_last_daily_time;
-        });
+        let _ = self.install_represented_loaded_daily_quests_like_cpp(
+            loaded_df,
+            loaded_daily,
+            loaded_last_daily_time,
+        );
 
         let mut loaded_weekly = std::collections::BTreeSet::new();
         match port.load_weekly_like_cpp(owner_guid).await {
@@ -864,9 +869,7 @@ impl WorldSession {
                 );
             }
         }
-        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.weekly_quest_ids = loaded_weekly;
-        });
+        let _ = self.install_represented_loaded_weekly_quests_like_cpp(loaded_weekly);
 
         let mut loaded_monthly = std::collections::BTreeSet::new();
         match port.load_monthly_like_cpp(owner_guid).await {
@@ -892,9 +895,7 @@ impl WorldSession {
                 );
             }
         }
-        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.monthly_quest_ids = loaded_monthly;
-        });
+        let _ = self.install_represented_loaded_monthly_quests_like_cpp(loaded_monthly);
 
         let seasonal_rows = match port.load_seasonal_like_cpp(owner_guid).await {
             wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Loaded(rows) => rows
@@ -973,22 +974,24 @@ impl WorldSession {
         let recurrence = self.player_quest_gameplay_snapshot_like_cpp();
         info!(
             account = self.account_id,
-            active = recurrence.as_ref().map_or(0, |state| state.statuses.len()),
+            active = recurrence
+                .as_ref()
+                .map_or(0, |state| state.statuses_like_cpp().len()),
             rewarded = recurrence
                 .as_ref()
-                .map_or(0, |state| state.rewarded_quest_ids.len()),
+                .map_or(0, |state| state.rewarded_quest_ids_like_cpp().len()),
             df = recurrence
                 .as_ref()
-                .map_or(0, |state| state.df_quest_ids.len()),
+                .map_or(0, |state| state.df_quest_ids_like_cpp().len()),
             daily = recurrence
                 .as_ref()
-                .map_or(0, |state| state.daily_quest_ids.len()),
+                .map_or(0, |state| state.daily_quest_ids_like_cpp().len()),
             weekly = recurrence
                 .as_ref()
-                .map_or(0, |state| state.weekly_quest_ids.len()),
+                .map_or(0, |state| state.weekly_quest_ids_like_cpp().len()),
             monthly = recurrence
                 .as_ref()
-                .map_or(0, |state| state.monthly_quest_ids.len()),
+                .map_or(0, |state| state.monthly_quest_ids_like_cpp().len()),
             seasonal_inserted = seasonal_outcome.inserted,
             seasonal_replaced = seasonal_outcome.replaced,
             seasonal_completed_bit_set = seasonal_outcome.completed_bit_set,

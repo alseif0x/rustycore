@@ -13,14 +13,11 @@ impl WorldSession {
         quest: &wow_data::quest::QuestTemplate,
     ) -> bool {
         self.invalidate_player_quest_status_authority_like_cpp();
-        let Some(Some(old_status)) = self.mutate_player_quest_gameplay_like_cpp(|state| {
-            let status = state.statuses.get_mut(&quest.id)?;
-            (status.status == QUEST_STATUS_INCOMPLETE_LIKE_CPP).then(|| {
-                let old_status = status.status;
-                status.status = QUEST_STATUS_COMPLETE_LIKE_CPP;
-                old_status
-            })
-        }) else {
+        let Some(old_status) = self.complete_represented_quest_status_like_cpp(
+            quest.id,
+            QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+            QUEST_STATUS_COMPLETE_LIKE_CPP,
+        ) else {
             return false;
         };
         self.record_represented_quest_complete_status_update_like_cpp(
@@ -96,10 +93,10 @@ impl WorldSession {
         let Some(state) = self.player_quest_gameplay_snapshot_like_cpp() else {
             return false;
         };
-        let Some(status) = state.statuses.get(&quest.id) else {
+        let Some(status) = state.statuses_like_cpp().get(&quest.id) else {
             return false;
         };
-        let quest_already_rewarded = state.rewarded_quest_ids.contains(&quest.id);
+        let quest_already_rewarded = state.rewarded_quest_ids_like_cpp().contains(&quest.id);
         if !crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
             status,
             quest,
@@ -156,11 +153,11 @@ impl WorldSession {
             return Vec::new();
         };
         let mut duplicate_quest_ids = state
-            .statuses
+            .statuses_like_cpp()
             .keys()
             .filter(|quest_id| {
                 let store = self.quests.store.as_ref();
-                state.rewarded_quest_ids.contains(quest_id)
+                state.rewarded_quest_ids_like_cpp().contains(quest_id)
                     && store
                         .and_then(|store| store.get(**quest_id))
                         .is_some_and(|quest| !quest.is_repeatable())
@@ -178,16 +175,16 @@ impl WorldSession {
             let duplicate_ids = duplicate_quest_ids.clone();
             let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
                 for quest_id in &duplicate_ids {
-                    state.statuses.remove(quest_id);
+                    state.remove_status_like_cpp(*quest_id);
                 }
                 let mut remaining_slots = state
-                    .statuses
+                    .statuses_like_cpp()
                     .iter()
                     .map(|(quest_id, status)| (*quest_id, status.slot))
                     .collect::<Vec<_>>();
                 remaining_slots.sort_by_key(|(_, slot)| *slot);
                 for (slot, (quest_id, _)) in remaining_slots.into_iter().enumerate() {
-                    if let Some(status) = state.statuses.get_mut(&quest_id) {
+                    if let Some(status) = state.status_mut_like_cpp(quest_id) {
                         status.slot = u8::try_from(slot)
                             .unwrap_or(MAX_QUEST_LOG_SIZE_LIKE_CPP.saturating_sub(1));
                     }
@@ -255,12 +252,7 @@ impl WorldSession {
             objective_counts: vec![0; quest.objectives.len()],
             slot,
         };
-        if self
-            .mutate_player_quest_gameplay_like_cpp(|state| {
-                state.statuses.insert(quest.id, status);
-            })
-            .is_none()
-        {
+        if self.insert_represented_quest_status_like_cpp(quest.id, status) == false {
             return false;
         }
         self.complete_represented_quest_after_add_with_generator_like_cpp(
@@ -274,18 +266,7 @@ impl WorldSession {
     }
 
     pub(super) fn remove_represented_timed_quest_like_cpp(&mut self, quest_id: u32) {
-        let removed = self
-            .mutate_player_quest_gameplay_like_cpp(|state| {
-                let Some(status) = state.statuses.get_mut(&quest_id) else {
-                    return false;
-                };
-                if status.end_time_secs <= 0 {
-                    return false;
-                }
-                status.end_time_secs = 0;
-                true
-            })
-            .unwrap_or(false);
+        let removed = self.clear_represented_quest_end_time_like_cpp(quest_id);
         if removed {
             #[cfg(test)]
             {
@@ -307,7 +288,7 @@ impl WorldSession {
             && self
                 .player_quest_gameplay_snapshot_like_cpp()
                 .is_some_and(|state| {
-                    state.statuses.into_values().any(|status| {
+                    state.statuses_like_cpp().values().any(|status| {
                         status.slot == slot
                             && matches!(
                                 status.status,
@@ -326,7 +307,7 @@ impl WorldSession {
 
         let state = self.player_quest_gameplay_snapshot_like_cpp()?;
         let mut matching_quest_id = None;
-        for status in state.statuses.values().filter(|status| {
+        for status in state.statuses_like_cpp().values().filter(|status| {
             status.slot == slot
                 && matches!(
                     status.status,
@@ -347,7 +328,7 @@ impl WorldSession {
 
     pub(crate) fn find_quest_slot_like_cpp(&self, quest_id: u32) -> Option<u8> {
         self.player_quest_gameplay_snapshot_like_cpp()?
-            .statuses
+            .statuses_like_cpp()
             .get(&quest_id)
             .and_then(|status| {
                 (status.slot < MAX_QUEST_LOG_SIZE_LIKE_CPP
@@ -370,7 +351,7 @@ impl WorldSession {
                 let Some(quest_id) = self.get_quest_slot_quest_id_like_cpp(slot) else {
                     return (0, 0, 0, [0; 24]);
                 };
-                let Some(qs) = state.statuses.get(&quest_id) else {
+                let Some(qs) = state.statuses_like_cpp().get(&quest_id) else {
                     return (0, 0, 0, [0; 24]);
                 };
 

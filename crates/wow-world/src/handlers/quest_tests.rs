@@ -642,7 +642,7 @@ fn add_active_quest_in_slot_with_status(
 ) {
     session
         .mutate_player_quest_gameplay_like_cpp(|quests| {
-            quests.statuses.insert(
+            quests.insert_status_like_cpp(
                 quest_id,
                 PlayerQuestStatus {
                     quest_id,
@@ -661,7 +661,7 @@ fn add_active_quest_in_slot_with_status(
 fn add_rewarded_quest(session: &mut WorldSession, quest_id: u32) {
     session
         .mutate_player_quest_gameplay_like_cpp(|quests| {
-            quests.rewarded_quest_ids.insert(quest_id);
+            quests.set_rewarded_like_cpp(quest_id, true);
         })
         .expect("test Player quest owner");
 }

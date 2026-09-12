@@ -108,13 +108,13 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     assert!(
         session
             .mutate_player_quest_gameplay_like_cpp(|state| {
-                state.daily_quest_ids.insert(100);
-                state.last_daily_quest_time_secs = 10;
-                state.statuses.insert(
+                state.set_daily_like_cpp(100, true);
+                state.set_last_daily_quest_time_secs_like_cpp(10);
+                state.insert_status_like_cpp(
                     200,
                     quest_status(200, crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP),
                 );
-                state.rewarded_quest_ids.insert(300);
+                state.set_rewarded_like_cpp(300, true);
             })
             .is_some()
     );
@@ -143,9 +143,9 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
         session
             .player_quest_gameplay_snapshot_like_cpp()
             .map(|state| (
-                state.daily_quest_ids,
-                state.last_daily_quest_time_secs,
-                state.pending_share,
+                state.daily_quest_ids_like_cpp().clone(),
+                state.last_daily_quest_time_secs_like_cpp(),
+                state.pending_share_like_cpp(),
             )),
         Some((BTreeSet::from([100]), 10, Some((share_sender, 400))))
     );
@@ -218,13 +218,13 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     assert!(
         session
             .mutate_player_quest_gameplay_like_cpp(|state| {
-                state.daily_quest_ids.insert(101);
-                state.last_daily_quest_time_secs = 20;
-                state.statuses.insert(
+                state.set_daily_like_cpp(101, true);
+                state.set_last_daily_quest_time_secs_like_cpp(20);
+                state.insert_status_like_cpp(
                     201,
                     quest_status(201, crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP),
                 );
-                state.rewarded_quest_ids.insert(301);
+                state.set_rewarded_like_cpp(301, true);
             })
             .is_some()
     );
@@ -262,18 +262,22 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     replacement
         .gameplay_state_mut()
         .quests
-        .daily_quest_ids
-        .insert(999);
-    replacement.gameplay_state_mut().quests.statuses.insert(
-        9_999,
-        quest_status(9_999, crate::conditions::QUEST_STATUS_FAILED_LIKE_CPP),
-    );
+        .set_daily_like_cpp(999, true);
     replacement
         .gameplay_state_mut()
         .quests
-        .rewarded_quest_ids
-        .insert(9_998);
-    replacement.gameplay_state_mut().quests.pending_share = Some((share_sender, 999));
+        .insert_status_like_cpp(
+            9_999,
+            quest_status(9_999, crate::conditions::QUEST_STATUS_FAILED_LIKE_CPP),
+        );
+    replacement
+        .gameplay_state_mut()
+        .quests
+        .set_rewarded_like_cpp(9_998, true);
+    replacement
+        .gameplay_state_mut()
+        .quests
+        .set_pending_share_like_cpp(Some((share_sender, 999)));
     replacement.gameplay_state_mut().transport = Some(wow_entities::PlayerTransportState {
         guid: transport_guid,
         x: 10.0,
@@ -413,9 +417,9 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     assert!(
         session
             .mutate_player_quest_gameplay_like_cpp(|state| {
-                state.daily_quest_ids.insert(0xdead);
-                state.statuses.remove(&9_999);
-                state.rewarded_quest_ids.insert(0xbeef);
+                state.set_daily_like_cpp(0xdead, true);
+                state.remove_status_like_cpp(9_999);
+                state.set_rewarded_like_cpp(0xbeef, true);
             })
             .is_none()
     );
@@ -441,10 +445,18 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
                 player.watched_faction_index_like_cpp(),
                 player.quest_completed_block_like_cpp(1),
                 player.explored_zones_block_like_cpp(0),
-                player.gameplay_state().quests.daily_quest_ids.clone(),
-                player.gameplay_state().quests.statuses.clone(),
-                player.gameplay_state().quests.rewarded_quest_ids.clone(),
-                player.gameplay_state().quests.pending_share,
+                player
+                    .gameplay_state()
+                    .quests
+                    .daily_quest_ids_like_cpp()
+                    .clone(),
+                player.gameplay_state().quests.statuses_snapshot_like_cpp(),
+                player
+                    .gameplay_state()
+                    .quests
+                    .rewarded_quest_ids_like_cpp()
+                    .clone(),
+                player.gameplay_state().quests.pending_share_like_cpp(),
                 player.gameplay_state().transport.clone(),
                 player.gameplay_state().currencies.clone(),
             )),

@@ -524,9 +524,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/loot/requests.rs",
-      "observed_lines": 2524,
-      "ceiling_lines": 2524,
-      "split": "Separate loot command admission and persistence outcomes by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
+      "observed_lines": 2531,
+      "ceiling_lines": 2531,
+      "split": "Separate loot command admission and persistence outcomes by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #756 adds seven inseparable lines: the quest reads that used to touch the state's public fields now name the owner's accessors, which wrap onto their own lines.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -622,9 +622,9 @@
     },
     {
       "path": "crates/wow-world/src/session/directory.rs",
-      "observed_lines": 2360,
-      "ceiling_lines": 2360,
-      "split": "Separate directory registration/lifetime, recipient queries and fanout; keep it derived rather than gameplay authority. #589 adds sixteen inseparable lines: one PlayerRegistry publication entry point for represented Player spell frames over the existing bounded durable rail, alongside the creature equivalent it mirrors. Relocating a single registry accessor would fragment the registry's own responsibility. #743 adds nine inseparable lines: the `group_state` module declaration, the delivery-obligation field with its Default entry, and the two lifecycle calls that forget an obligation when its incarnation is unregistered. The contract, its API and its documentation live in `directory/group_state.rs`; the field itself cannot leave the struct it belongs to.",
+      "observed_lines": 2380,
+      "ceiling_lines": 2380,
+      "split": "Separate directory registration/lifetime, recipient queries and fanout; keep it derived rather than gameplay authority. #589 adds sixteen inseparable lines: one PlayerRegistry publication entry point for represented Player spell frames over the existing bounded durable rail, alongside the creature equivalent it mirrors. Relocating a single registry accessor would fragment the registry's own responsibility. #743 adds nine inseparable lines: the `group_state` module declaration, the delivery-obligation field with its Default entry, and the two lifecycle calls that forget an obligation when its incarnation is unregistered. The contract, its API and its documentation live in `directory/group_state.rs`; the field itself cannot leave the struct it belongs to. #756 adds twenty inseparable lines for the same reason: the quest snapshot projection reads through named accessors instead of the retired public fields.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -636,9 +636,9 @@
     },
     {
       "path": "crates/wow-world/src/session_tests.rs",
-      "observed_lines": 5755,
-      "ceiling_lines": 5755,
-      "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. #589 retires the 1015-line player spell-hit source authority suite into session/tests/player_spell_hit_source.rs and registers the bounded player_cast_lifecycle module, a net reduction of 2031 lines below the previous 95703 ceiling; the ceiling is tightened to the validated 94691. New scenarios stay in bounded files. C4 split exit remains. #589 adds 33 inseparable fixture lines: the three spell-click scenarios install a canonical Player on the map and adopt its handle, and the cast lifecycle module registers two more scenarios for the C++ Start/Go flag assembly and the residence fence over server-triggered casts. #626 completes this entry's original instruction: the 1,496 test functions move into 114 bounded session/tests/scenarios_* files grouped by the responsibility they exercise, each within the 1,000-line review budget, and the file drops from 94,725 to 5755 lines with the ceiling tightened to that figure. The 197 shared helpers stay here deliberately: a child module already sees its parent's private items, so relocating them would need re-export plumbing for no boundary, the same conclusion #623 recorded for types. The test count is unchanged at 3,822 and no production line moved.",
+      "observed_lines": 5758,
+      "ceiling_lines": 5758,
+      "split": "Move lifecycle, transfer, spells, quests, inventory, social and runtime scenario suites to their corresponding owners; preserve each test registration. #589 retires the 1015-line player spell-hit source authority suite into session/tests/player_spell_hit_source.rs and registers the bounded player_cast_lifecycle module, a net reduction of 2031 lines below the previous 95703 ceiling; the ceiling is tightened to the validated 94691. New scenarios stay in bounded files. C4 split exit remains. #589 adds 33 inseparable fixture lines: the three spell-click scenarios install a canonical Player on the map and adopt its handle, and the cast lifecycle module registers two more scenarios for the C++ Start/Go flag assembly and the residence fence over server-triggered casts. #626 completes this entry's original instruction: the 1,496 test functions move into 114 bounded session/tests/scenarios_* files grouped by the responsibility they exercise, each within the 1,000-line review budget, and the file drops from 94,725 to 5755 lines with the ceiling tightened to that figure. The 197 shared helpers stay here deliberately: a child module already sees its parent's private items, so relocating them would need re-export plumbing for no boundary, the same conclusion #623 recorded for types. The test count is unchanged at 3,822 and no production line moved. #756 adds three inseparable lines in the shared quest fixture, which now builds its state through the owner's named operations.",
       "review_checkpoint": "584:C4"
     },
     {

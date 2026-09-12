@@ -16,20 +16,20 @@ impl WorldSession {
         event_id: u16,
     ) -> Option<BTreeMap<u32, u64>> {
         self.player_quest_gameplay_snapshot_like_cpp()?
-            .seasonal_quests
+            .seasonal_quests_like_cpp()
             .get(&event_id)
             .cloned()
     }
     #[cfg(test)]
     pub(crate) fn set_seasonal_quest_changed_like_cpp_for_test(&mut self, changed: bool) {
         let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.seasonal_quest_changed = changed;
+            state.set_seasonal_quest_changed_like_cpp(changed);
         });
     }
     #[cfg(test)]
     pub(crate) fn seasonal_quest_changed_like_cpp(&self) -> bool {
         self.player_quest_gameplay_snapshot_like_cpp()
             .expect("test Player quest owner resolves")
-            .seasonal_quest_changed
+            .seasonal_quest_changed_like_cpp()
     }
 }
