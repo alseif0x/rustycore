@@ -18,6 +18,7 @@ mod inventory_runtime;
 pub use inventory_runtime::PlayerInventoryRuntime;
 mod collection_state;
 mod equipment_sets;
+mod item_modifiers;
 mod items;
 mod location;
 mod menu;
@@ -32,6 +33,10 @@ mod talent_runtime;
 mod taxi_state;
 pub use collection_state::PlayerCollectionStateLikeCpp;
 pub use equipment_sets::PlayerEquipmentSetsLikeCpp;
+pub use item_modifiers::{
+    PlayerItemBonusStateLikeCpp, PlayerItemLevelCapsLikeCpp, PlayerItemModifierRuntimeStateLikeCpp,
+    PlayerItemSetEffectLikeCpp,
+};
 pub use progression::PreparedPlayerSpellAcquisitionLikeCpp;
 pub use quest_state::PlayerQuestGameplayState;
 pub use reputation::{

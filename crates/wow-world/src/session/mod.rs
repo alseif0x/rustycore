@@ -5499,8 +5499,6 @@ pub struct WorldSession {
 
     // Player level stats store (race/class/level → base stats)
     player_stats: Option<Arc<PlayerStatsStore>>,
-    #[cfg(test)]
-    represented_item_level_caps_like_cpp: RepresentedItemLevelCapsLikeCpp,
     /// Handle-less compatibility for older tests. Production C++
     /// `Player::_usePvpItemLevels` lives on the canonical Player.
     #[cfg(test)]
@@ -5924,9 +5922,7 @@ pub struct WorldSession {
     #[cfg(test)]
     represented_item_bonus_actions_like_cpp: Vec<RepresentedItemBonusActionLikeCpp>,
     #[cfg(test)]
-    represented_item_bonus_state_like_cpp: RepresentedItemBonusStateLikeCpp,
-    #[cfg(test)]
-    represented_item_set_effects_like_cpp: HashMap<u32, RepresentedItemSetEffectLikeCpp>,
+    represented_item_modifier_runtime_like_cpp: wow_entities::PlayerItemModifierRuntimeStateLikeCpp,
     #[cfg(test)]
     represented_item_set_spell_events_like_cpp: Vec<RepresentedItemSetSpellEventLikeCpp>,
     #[cfg(test)]
@@ -7862,7 +7858,6 @@ impl WorldSession {
             item_price_base_store: None,
             player_stats: None,
             #[cfg(test)]
-            represented_item_level_caps_like_cpp: RepresentedItemLevelCapsLikeCpp::default(),
             #[cfg(test)]
             represented_using_pvp_item_levels_like_cpp: false,
             pvp_item_store: None,
@@ -8138,9 +8133,9 @@ impl WorldSession {
             #[cfg(test)]
             represented_item_bonus_actions_like_cpp: Vec::new(),
             #[cfg(test)]
-            represented_item_bonus_state_like_cpp: RepresentedItemBonusStateLikeCpp::default(),
+            represented_item_modifier_runtime_like_cpp:
+                wow_entities::PlayerItemModifierRuntimeStateLikeCpp::default(),
             #[cfg(test)]
-            represented_item_set_effects_like_cpp: HashMap::new(),
             #[cfg(test)]
             represented_item_set_spell_events_like_cpp: Vec::new(),
             #[cfg(test)]

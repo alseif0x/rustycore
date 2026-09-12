@@ -91,11 +91,7 @@ impl WorldSession {
             .with_owned_player_like_cpp(|player| player.gameplay_state().item_modifiers.clone());
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(wow_entities::PlayerItemModifierRuntimeStateLikeCpp {
-                bonuses: self.represented_item_bonus_state_like_cpp.clone(),
-                item_set_effects: self.represented_item_set_effects_like_cpp.clone(),
-                item_level_caps: self.represented_item_level_caps_like_cpp,
-            });
+            return Some(self.represented_item_modifier_runtime_like_cpp.clone());
         }
         canonical
     }
@@ -111,9 +107,7 @@ impl WorldSession {
                 mutate
                     .take()
                     .expect("test item-modifier mutation executes once")(&mut state);
-            self.represented_item_bonus_state_like_cpp = state.bonuses;
-            self.represented_item_set_effects_like_cpp = state.item_set_effects;
-            self.represented_item_level_caps_like_cpp = state.item_level_caps;
+            self.represented_item_modifier_runtime_like_cpp = state;
             return Some(result);
         }
         self.with_owned_player_mut_like_cpp(|player| {
@@ -360,9 +354,15 @@ impl WorldSession {
     ) -> Vec<RepresentedItemSetAuraRefreshEventLikeCpp> {
         let mut events = Vec::new();
         let primary_spec = self.represented_primary_specialization_id_like_cpp();
-        let Some(active_effects) = self
-            .player_item_modifier_runtime_snapshot_like_cpp()
-            .map(|state| state.item_set_effects.values().cloned().collect::<Vec<_>>())
+        let Some(active_effects) =
+            self.player_item_modifier_runtime_snapshot_like_cpp()
+                .map(|state| {
+                    state
+                        .item_set_effects_like_cpp()
+                        .values()
+                        .cloned()
+                        .collect::<Vec<_>>()
+                })
         else {
             return events;
         };
@@ -560,10 +560,11 @@ impl WorldSession {
         action: ApplyEnchantmentEffectAction,
     ) -> bool {
         self.mutate_player_item_modifier_runtime_like_cpp(|runtime| {
-            crate::session_rules::apply_represented_item_bonus_action_to_state_like_cpp(
-                &mut runtime.bonuses,
-                action,
-            );
+            runtime.with_bonuses_mut_like_cpp(|bonuses| {
+                crate::session_rules::apply_represented_item_bonus_action_to_state_like_cpp(
+                    bonuses, action,
+                );
+            });
         })
         .is_some()
     }
@@ -574,7 +575,7 @@ impl WorldSession {
         #[cfg(test)]
         self.represented_item_bonus_actions_like_cpp.clear();
         let _ = self.mutate_player_item_modifier_runtime_like_cpp(|runtime| {
-            runtime.bonuses = RepresentedItemBonusStateLikeCpp::default();
+            runtime.reset_bonuses_like_cpp();
         });
     }
     pub(in crate::session) fn initial_loaded_item_mods_can_apply_like_cpp(
@@ -662,8 +663,7 @@ impl WorldSession {
         item_set_id: u32,
     ) -> Option<RepresentedItemSetEffectLikeCpp> {
         self.player_item_modifier_runtime_snapshot_like_cpp()?
-            .item_set_effects
-            .get(&item_set_id)
+            .item_set_effect_like_cpp(item_set_id)
             .cloned()
     }
     #[cfg(test)]
@@ -676,7 +676,7 @@ impl WorldSession {
     ) -> Option<RepresentedItemBonusStateLikeCpp> {
         Some(
             self.player_item_modifier_runtime_snapshot_like_cpp()?
-                .bonuses,
+                .bonuses_snapshot_like_cpp(),
         )
     }
 }
