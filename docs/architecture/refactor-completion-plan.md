@@ -668,6 +668,32 @@ inventario revisado (player/mod.rs +235 producción/+188 test; session/mod.rs -8
 producción/+11 test); techo de `player_tests.rs` 506 -> 508. Sin QA viva ni
 evidencia de DB/reinicio/relogin.
 
+#### Entrega local aceptada — #781
+
+Decimoquinta macro P2: el estado local de mundo tenía siete miembros públicos y
+una treintena de accesos directos.
+
+- Estado e invariantes en el Player:
+  `crates/wow-entities/src/player/world_local.rs` posee
+  `PlayerWorldLocalState` con los miembros cerrados y las transiciones que C++
+  hace según se mueve el Player: la zona y el área de `Player::UpdateZone` y
+  `UpdateArea`, el par `pvpInfo.IsHostile`/`pvpInfo.EndTimer` de
+  `Player::UpdatePvPState`, el `m_contestedPvPTimer` de
+  `Player::UpdateContestedPvP` y el resultado de `WorldObject::IsOutdoors()`.
+- El propietario impone la regla que repetían a mano los tres sitios de
+  zona/área: una zona o área distinta de la almacenada deja caer la bandera de
+  autoridad del terreno, porque el par que avalaba ya no es el actual.
+- Registrados como propios de RustyCore: esa bandera de autoridad, que C++ no
+  necesita porque consulta el mapa mientras el Player está en mundo, y el valor
+  de exterior con tres estados, cuyo `None` significa que el terreno no lo ha
+  establecido para la posición actual.
+
+Aceptación local: diez regresiones nuevas de invariantes en
+`player_tests/world_local.rs`, controles de arquitectura y ownership con delta
+de inventario revisado (player/mod.rs +166 producción/+145 test; session/mod.rs
+-4 producción/+3 test); techo de `player_tests.rs` 508 -> 510. Sin QA viva ni
+evidencia de DB/reinicio/relogin.
+
 ### 4.3 Residuales P2 y paso a P3/P4
 
 Después de #743 y #735 se retiran los accesos genéricos operación por operación. El

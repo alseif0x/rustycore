@@ -153,10 +153,10 @@ impl WorldSession {
             let Some(world_local) = self.player_world_local_state_like_cpp() else {
                 return false;
             };
-            if !world_local.zone_area_authority_complete {
+            if !world_local.has_zone_area_authority_like_cpp() {
                 return true;
             }
-            let (zone_id, area_id) = (world_local.zone_id, world_local.area_id);
+            let (zone_id, area_id) = world_local.zone_area_like_cpp();
             if spell_area.area_id != zone_id && spell_area.area_id != area_id {
                 return false;
             }

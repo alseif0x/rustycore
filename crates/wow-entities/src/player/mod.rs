@@ -35,6 +35,7 @@ mod rest;
 mod spell_runtime;
 mod talent_runtime;
 mod taxi_state;
+mod world_local;
 pub use cinematic::PlayerCinematicStateLikeCpp;
 pub use collection_state::PlayerCollectionStateLikeCpp;
 pub use equipment_sets::PlayerEquipmentSetsLikeCpp;
@@ -54,6 +55,7 @@ pub use spell_runtime::{
 };
 pub use talent_runtime::PlayerTalentRuntimeState;
 pub use taxi_state::{PlayerTaxiFlightNodeLikeCpp, PlayerTaxiFlightStateLikeCpp, PlayerTaxiState};
+pub use world_local::PlayerWorldLocalState;
 mod collections_hydration;
 mod composite_state;
 mod group_membership;
@@ -558,25 +560,6 @@ pub struct PlayerTransportState {
     pub time: u32,
     pub prev_time: Option<u32>,
     pub vehicle_id: Option<i32>,
-}
-
-/// C++ `Player` state updated by `UpdateZone`, `UpdateArea`, `UpdatePvPState`
-/// and `UpdateContestedPvP`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct PlayerWorldLocalState {
-    pub zone_id: u32,
-    pub area_id: u32,
-    /// Rust extraction fidelity: true only when terrain produced zone/area.
-    pub zone_area_authority_complete: bool,
-    /// C++ `Player::pvpInfo.IsHostile`.
-    pub pvp_hostile: bool,
-    /// C++ `Player::pvpInfo.EndTimer`; `None` mirrors C++ zero.
-    pub pvp_end_timer: Option<i64>,
-    /// C++ `Player::m_contestedPvPTimer`.
-    pub contested_pvp_timer: u32,
-    /// C++ `WorldObject::IsOutdoors()` result; `None` means terrain/VMAP has
-    /// not established authority for the current position.
-    pub is_outdoors: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
