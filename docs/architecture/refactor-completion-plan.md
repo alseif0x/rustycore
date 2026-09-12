@@ -529,6 +529,38 @@ delta de inventario revisado (player/mod.rs +236 producción/+192 test;
 session/mod.rs -25 producción/-4 test) y baseline de ownership actualizado por
 los campos fundidos. Sin QA viva ni evidencia de DB/reinicio/relogin.
 
+#### Entrega local aceptada — #771
+
+Décima macro P2: la petición de lanzamiento en cola era un campo público y un
+cierre genérico que entregaba `&mut Option<...>` al llamador.
+
+- Estado e invariantes en el Player: `pending_spell_cast` se cierra a
+  `wow-entities` y `crates/wow-entities/src/player/pending_spell_cast.rs` recibe
+  las transiciones que C++ hace sobre `_pendingSpellCastRequest`
+  (`Player.h:3154`): `RequestSpellCast` (`Player.cpp:29078`), que devuelve la
+  petición a la que sustituye porque C++ la cancela en línea en `:29082`;
+  `CancelPendingCastRequest` (`:29091`), que devuelve la petición cuyo cast id y
+  spell id C++ lee para `CastFailed` en `:29098`; y la toma con identidad
+  comprobada de `ExecutePendingSpellCastRequest` (`:29122`).
+- La identidad es el cast id, el spell id y la unidad lanzadora, exactamente lo
+  que C++ vuelve a leer de la petición antes de ejecutarla: una petición llegada
+  después no la consume el plan anterior.
+- El paquete `CastFailed` se queda en la sesión, que posee la conexión, así que
+  cada operación devuelve la petición sobre la que el llamador debe informar en
+  lugar de informar ella misma.
+- Los tres consumidores de producción de `session/player_cast/state.rs` llaman a
+  transiciones con nombre a través de un ayudante privado que aplica la
+  operación canónica del Player o el espejo `#[cfg(test)]` sin handle.
+- Una construcción literal `#[cfg(test)]` de `PlayerGameplayState` en la raíz de
+  sesión pasa a un constructor con nombre para los campos de actualización del
+  jugador activo, porque el campo cerrado invalidaba la actualización funcional.
+
+Aceptación local: diez regresiones nuevas de invariantes en
+`player_tests/pending_spell_cast.rs`, controles de arquitectura y ownership con
+delta de inventario revisado (player/mod.rs +80 producción/+158 test;
+session/mod.rs +30 producción/+4 test, crecimiento que es el camino dual
+explícito del ayudante). Sin QA viva ni evidencia de DB/reinicio/relogin.
+
 ### 4.3 Residuales P2 y paso a P3/P4
 
 Después de #743 y #735 se retiran los accesos genéricos operación por operación. El

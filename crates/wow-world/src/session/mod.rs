@@ -16049,12 +16049,12 @@ impl WorldSession {
     ) -> Option<R> {
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            let mut state = wow_entities::PlayerGameplayState {
-                active_local_flags: self.active_player_local_flags_like_cpp,
-                active_transport_server_time: self.active_player_transport_server_time_like_cpp,
-                multi_action_bars: self.active_player_multi_action_bars_like_cpp,
-                ..Default::default()
-            };
+            let mut state =
+                wow_entities::PlayerGameplayState::with_active_player_update_fields_like_cpp(
+                    self.active_player_local_flags_like_cpp,
+                    self.active_player_transport_server_time_like_cpp,
+                    self.active_player_multi_action_bars_like_cpp,
+                );
             let result = mutate(&mut state);
             self.active_player_local_flags_like_cpp = state.active_local_flags;
             self.active_player_transport_server_time_like_cpp = state.active_transport_server_time;
