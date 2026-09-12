@@ -3369,6 +3369,34 @@ fixture is what needs re-baselining, not the coordination.
 Still not covered by this QA: a producer that dies during shutdown, and
 finalization after the acknowledgement. Both remain open composition evidence.
 
+#### Final acceptance of the resumed coordination — 2026-09-12
+
+The resumed candidate `76369bda` closes those two evidence gaps with the
+production-composition tests in `session_factory/phase_lifecycle_tests.rs` and
+the task-owned finalization path. The clean final campaign passed with one Cargo
+job at manifest
+`target/validation-v2/manifests/20260912T225625.408381Z-3135200-final.json`:
+`wow-map` 735, `wow-world` 3,867 and `world-server` 585 tests passed, with zero
+failures; architecture check, self-test, syntax-only ownership and physical
+ratchets also passed. The manifest reports 1,107.844 seconds and a peak child
+RSS of 6,146,196 KiB on the aarch64 development host.
+
+The renewed guarded live gate used the candidate debug executable
+`5aaaccf1…`, the maintained `run_login_save_relog.sh` wrapper and the isolated
+`TESTBOT1@bot.local` identity. Its report
+`/tmp/rustycore-787-qa-final.json` is `passed-restored` with `bot_status: 0` and
+`login_save_relog_verified: true`: both authentications reached world entry,
+drained the login stream, performed normal realm logout with a newer
+`logout_time`, and retained all six existing projection families (including 207
+reputation rows). The original live binary SHA `c2a3b461…` was restored and is
+serving. The first two guarded attempts expired only because the unoptimized
+candidate needed about 205 seconds to load the full data set; both restoration
+paths completed cleanly.
+
+This closes the #787 acceptance boundary. It does not claim retirement of the
+legacy creature writer, universal bounded tick progress for external database
+waits, or gameplay parity outside this coordination macro.
+
 #### #787 resumption: finalization is inside the World completion boundary — 2026-09-12
 
 Review above `1b38c5f8` found that the second remaining scenario is a correctness

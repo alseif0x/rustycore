@@ -1,6 +1,6 @@
 # RustyCore — Master port and delivery plan
 
-**Reconciled 2026-09-11 under #748 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
+**Reconciled 2026-09-12 under #787 / #748 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
 Source baseline: `3.4.3` at `5d8c079a06b587c060c1c6e1c06bedb73c4339d0`.
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
 bounded planning delivery. Administrative consolidation does not count as implementation.
@@ -11,11 +11,13 @@ intermediate acceptance point, not a smaller replacement target.
 
 ## 1. Direction from here
 
-**#743 (group state application/reconciliation) and #735 (reputation encapsulation) are
-delivered and locally accepted. Next primary implementation: the measured P2/P3/P4
-residuals under #584.** Those two were a priority choice based on demonstrated residuals,
-not a dependency between them. Neither required rebuilding the integrated group or
-Player owners.
+**#743 (group state application/reconciliation), #735 (reputation encapsulation) and
+#787 (World/Map session-phase coordination) are delivered and accepted within their
+recorded scopes.** The next primary implementation is selected from the measured
+P2/P3/P4 residuals under #584: first audit the legacy creature writer and the still
+unrepresented `Map::Update` phases, then choose one finite macro from that evidence.
+No old issue is reopened and no residual is promoted to implementation merely from a
+textual inventory.
 
 Continue the remaining core under #584 by complete operations, execution/lifetime
 boundaries and physical organization. In parallel with safe independent work, prepare
@@ -81,7 +83,7 @@ force unrelated work to wait, or permit a partially completed macro to be closed
 
 | Lane | Preferred work | Entry / exit contract |
 | --- | --- | --- |
-| **A — Core architecture** | Measured P2/P3/P4 residuals under #584; #743 and #735 delivered | One canonical authority and execution owner, complete consumers, explicit lifetime/persistence/publication and terminal physical/dependency dispositions. See §6. |
+| **A — Core architecture** | Measured P2/P3/P4 residuals under #584; #743, #735 and #787 delivered | One canonical authority and execution owner, complete consumers, explicit lifetime/persistence/publication and terminal physical/dependency dispositions. See §6. |
 | **F1 — Character foundations** | #61, #63; relevant #12, #486 and #524 corrections | Equipment reaches effective stats; movement and entry consume the integrated owners. Weather or all vehicles do not block unrelated combat. |
 | **F2 — Combat and recovery** | #29, residual #30, #31; consolidated #43 and #54 | A real fight can reach death, release/recovery and safe logout. Accept numeric combat only with effective stats and the necessary aura/absorb participants. |
 | **F3 — Progression and interaction** | consolidated #41; #55, #56, #13, #36 and #51 | Accept → progress → complete/reward, real loot and GO/item interactions. Shared consumers must compose; queues or recorded requests alone do not pass. |
@@ -172,8 +174,9 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#582](https://github.com/alseif0x/rustycore/issues/582) | B, existing LFG decoders | Resume local branch at `607e9bb4` / code `bef2d707`, reconcile and validate before integration; no matchmaking claim. |
 | [#583](https://github.com/alseif0x/rustycore/issues/583) | X, stateful native/Wasm | Deliver the preserved M0–M4 product after required core; the external login API and laboratory are insufficient. |
 | [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions; select finite complete implementation macros from current consumers. |
-| [#735](https://github.com/alseif0x/rustycore/issues/735) | A, reputation boundary | Encapsulate domain transitions; resolve catalogs and construct packets outside Player; migrate save/load/publication consumers. |
-| [#743](https://github.com/alseif0x/rustycore/issues/743) | A, group consistency | Guarantee application or reconciliation despite saturation, disconnection, replacement and stale commands. |
+| [#735](https://github.com/alseif0x/rustycore/issues/735) | A, reputation boundary | **Closed/delivered.** Player owns reputation state and named transitions; catalogs, packets and persistence consumers remain outside the domain boundary. |
+| [#743](https://github.com/alseif0x/rustycore/issues/743) | A, group consistency | **Closed/delivered.** GroupRegistry remains authoritative and dropped state-bearing commands converge through the session boundary. |
+| [#787](https://github.com/alseif0x/rustycore/issues/787) | A, session-phase coordination | **Accepted at `76369bda`; PR #792 pending merge.** World runs before Map, phase permits remain live through finalization/retirement, and shutdown/replacement barriers are covered by production-linked tests and guarded login/save/relogin QA. |
 
 **Planning delivery:** [#748](https://github.com/alseif0x/rustycore/issues/748) owns
 this documentation/issue reconciliation and its validation. Closing it does not close #49
@@ -181,13 +184,12 @@ or any gameplay acceptance. #42/#58/#59 retain their history and redirects to re
 
 ## 6. Finish architecture without another endless rewrite
 
-### A1 — Group consistency and reputation
+### A1 — Group consistency and reputation (delivered)
 
-#743 is a demonstrated dropped-state-change path. Resolve the bounded group
-command/reader contract and saturated/replaced-target cases, not every mailbox in
-the server. #735 is a domain encapsulation residual, not proven concurrent double
-ownership: the current reconstruction occurs synchronously under canonical Player
-access. Move rules/state transitions, not the packet/catalog-dependent manager wholesale.
+#743 and #735 are closed in their bounded scopes. Their retained contracts are the
+single GroupRegistry authority with convergence for dropped state-bearing commands,
+and Player-owned reputation state with catalog/packet resolution outside the domain.
+Do not reopen either as a generic mailbox rewrite or a whole-manager move.
 
 ### A2 — Remaining application and persistence boundaries
 
@@ -209,8 +211,10 @@ Trace startup and the current Session/map/legacy calls, using the dated
 [clock/phase trace](../architecture/runtime-clock-phase-trace.md) as a starting point.
 The current source still selects GlobalLegacy for its creature path and starts the
 canonical map loop; that is not by itself a demonstrated double tick.
-Reconcile admission, phases/barriers, one resolution, backpressure and
-transfer/detach/unload/shutdown before removing a bridge.
+The #787 coordination contract is accepted. Reconcile admission, phases/barriers,
+one resolution, backpressure and transfer/detach/unload/shutdown before removing
+another bridge. The next analysis must cover the legacy creature writer and
+unrepresented `Map::Update` phases against the same owner/lifetime rules.
 
 Keep the selected private hecs direction and finite V2 conformance evidence.
 Integrate it only with real owners/consumers and the lifetime/reentry contract;
