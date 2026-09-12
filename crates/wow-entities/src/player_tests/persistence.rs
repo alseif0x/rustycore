@@ -107,9 +107,18 @@ fn player_gameplay_apply_load_record_stores_every_major_bucket() {
         player.gameplay_state().quests.statuses,
         state.quests.statuses
     );
+    // The objective progress the Player owns is the per-status counter keyed by
+    // `storage_index`, which is what the stored row carries and what the load
+    // path fills; #790 removed the objective-id shaped duplicate that nothing
+    // wrote.
     assert_eq!(
-        player.gameplay_state().quests.objective_progress,
-        state.quests.objective_progress
+        player
+            .gameplay_state()
+            .quests
+            .statuses
+            .get(&100)
+            .map(|status| status.objective_counts.clone()),
+        Some(vec![4])
     );
     assert_eq!(player.gameplay_state().skills, state.skills);
     assert_eq!(player.gameplay_state().spells, state.spells);

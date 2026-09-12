@@ -478,13 +478,6 @@ pub struct PlayerQuestStatusRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlayerQuestObjectiveProgress {
-    pub quest_id: u32,
-    pub objective_id: u32,
-    pub counter: u32,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerSkillRecord {
     pub skill_line_id: u32,
     pub current_value: u16,

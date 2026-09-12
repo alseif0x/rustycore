@@ -24,12 +24,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use wow_core::ObjectGuid;
 
-use super::{PlayerQuestObjectiveProgress, PlayerQuestStatusRecord};
+use super::PlayerQuestStatusRecord;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PlayerQuestGameplayState {
     pub(super) statuses: BTreeMap<u32, PlayerQuestStatusRecord>,
-    pub(super) objective_progress: Vec<PlayerQuestObjectiveProgress>,
     pub(super) rewarded_quest_ids: BTreeSet<u32>,
     pub(super) daily_quest_ids: BTreeSet<u32>,
     pub(super) weekly_quest_ids: BTreeSet<u32>,
@@ -63,18 +62,6 @@ impl PlayerQuestGameplayState {
     /// `itr->second` after finding it in `m_QuestStatus`.
     pub fn status_mut_like_cpp(&mut self, quest_id: u32) -> Option<&mut PlayerQuestStatusRecord> {
         self.statuses.get_mut(&quest_id)
-    }
-
-    /// Represented per-objective counters.
-    ///
-    /// #756 found this vector has no production reader or writer: represented
-    /// objective progress travels through each status's `objective_counts` and
-    /// the session's objective-progress event queue. The field and this read
-    /// are kept as the recorded state; giving it writers belongs to the
-    /// objective-progress operation of #41, not to this refactor.
-    #[must_use]
-    pub fn objective_progress_like_cpp(&self) -> &[PlayerQuestObjectiveProgress] {
-        &self.objective_progress
     }
 
     /// C++ `Player::m_RewardedQuests`.
