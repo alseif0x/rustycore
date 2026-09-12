@@ -559,12 +559,7 @@ impl WorldSession {
             objective_counts: vec![0; obj_count],
             slot,
         };
-        if self
-            .mutate_player_quest_gameplay_like_cpp(|state| {
-                state.statuses.insert(quest_id, status);
-            })
-            .is_none()
-        {
+        if self.insert_represented_quest_status_like_cpp(quest_id, status) == false {
             return;
         }
 
@@ -578,7 +573,12 @@ impl WorldSession {
         // RewardQuest already removed/rewarded the quest.
         if let Some(status) = self
             .player_quest_gameplay_snapshot_like_cpp()
-            .and_then(|state| state.statuses.get(&quest_id).map(|status| status.status))
+            .and_then(|state| {
+                state
+                    .statuses_like_cpp()
+                    .get(&quest_id)
+                    .map(|status| status.status)
+            })
         {
             self.save_quest_to_db(quest_id, status).await;
         }
@@ -2092,9 +2092,7 @@ impl WorldSession {
         };
 
         self.invalidate_player_quest_status_authority_like_cpp();
-        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.statuses.remove(&qid);
-        });
+        let _ = self.remove_represented_quest_status_like_cpp(qid);
         self.delete_quest_from_db(qid).await;
         self.sync_player_registry_state_like_cpp();
         self.send_represented_quest_log_slot_update_like_cpp(slot);
@@ -2317,8 +2315,8 @@ impl WorldSession {
         let can_complete_now = self
             .player_quest_gameplay_snapshot_like_cpp()
             .and_then(|state| {
-                let rewarded = state.rewarded_quest_ids.contains(&quest_id);
-                state.statuses.get(&quest_id).map(|status| {
+                let rewarded = state.rewarded_quest_ids_like_cpp().contains(&quest_id);
+                state.statuses_like_cpp().get(&quest_id).map(|status| {
                     crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
                         status, &quest, 0, rewarded,
                     )
@@ -2342,7 +2340,7 @@ impl WorldSession {
 
         let is_complete = self
             .player_quest_gameplay_snapshot_like_cpp()
-            .and_then(|state| state.statuses.get(&quest_id).map(|qs| qs.status))
+            .and_then(|state| state.statuses_like_cpp().get(&quest_id).map(|qs| qs.status))
             == Some(QUEST_STATUS_COMPLETE_LIKE_CPP);
 
         if !is_complete {
@@ -2492,7 +2490,7 @@ impl WorldSession {
         // Check if all objectives are done — C++ GetQuestStatus == QUEST_STATUS_COMPLETE.
         let is_complete = self
             .player_quest_gameplay_snapshot_like_cpp()
-            .and_then(|state| state.statuses.get(&quest_id).map(|qs| qs.status))
+            .and_then(|state| state.statuses_like_cpp().get(&quest_id).map(|qs| qs.status))
             == Some(QUEST_STATUS_COMPLETE_LIKE_CPP);
 
         if !is_complete {
@@ -2605,7 +2603,7 @@ impl WorldSession {
         // C++ `Player::CanRewardQuest`: player must have the quest active and COMPLETE.
         let quest_status = self
             .player_quest_gameplay_snapshot_like_cpp()
-            .and_then(|state| state.statuses.get(&quest_id).map(|qs| qs.status));
+            .and_then(|state| state.statuses_like_cpp().get(&quest_id).map(|qs| qs.status));
         match quest_status {
             Some(QUEST_STATUS_COMPLETE_LIKE_CPP) => {}
             Some(QUEST_STATUS_INCOMPLETE_LIKE_CPP) => {

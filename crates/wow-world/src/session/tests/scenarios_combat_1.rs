@@ -146,7 +146,10 @@ async fn player_kill_same_faction_objective_skips_opposite_team_victim_like_cpp(
     let state = session
         .player_quest_gameplay_snapshot_like_cpp()
         .expect("canonical Player quest state");
-    let status = state.statuses.get(&quest_id).expect("quest remains");
+    let status = state
+        .statuses_like_cpp()
+        .get(&quest_id)
+        .expect("quest remains");
     assert_eq!(status.objective_counts, vec![0]);
     assert!(send_rx.try_recv().is_err());
 }

@@ -501,7 +501,7 @@ async fn quest_giver_choose_reward_creature_ender_source_allows_reward_like_cpp(
     session.set_player_gold_like_cpp(5);
     session
         .mutate_player_quest_gameplay_like_cpp(|quests| {
-            quests.statuses.insert(
+            quests.insert_status_like_cpp(
                 9_223,
                 crate::handlers::quest::PlayerQuestStatus {
                     quest_id: 9_223,
@@ -528,8 +528,8 @@ async fn quest_giver_choose_reward_creature_ender_source_allows_reward_like_cpp(
     let quests = session
         .player_quest_gameplay_snapshot_like_cpp()
         .expect("canonical Player quest owner after reward");
-    assert!(!quests.statuses.contains_key(&9_223));
-    assert!(quests.rewarded_quest_ids.contains(&9_223));
+    assert!(!quests.statuses_like_cpp().contains_key(&9_223));
+    assert!(quests.rewarded_quest_ids_like_cpp().contains(&9_223));
     assert_eq!(session.player_gold_like_cpp(), 42);
     assert_eq!(
         drain_server_opcodes(&send_rx),
@@ -656,7 +656,7 @@ fn quest_giver_query_creature_ender_relation_allows_request_items_like_cpp() {
     assert!(
         session
             .mutate_player_quest_gameplay_like_cpp(|quests| {
-                quests.statuses.insert(
+                quests.insert_status_like_cpp(
                     9_203,
                     crate::handlers::quest::PlayerQuestStatus {
                         quest_id: 9_203,

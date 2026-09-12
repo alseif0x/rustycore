@@ -743,7 +743,7 @@ async fn quest_reward_money_crossing_cap_leaves_balance_unchanged_like_cpp() {
     session.set_player_gold_like_cpp(MAX_MONEY_AMOUNT - 1);
     session
         .mutate_player_quest_gameplay_like_cpp(|quests| {
-            quests.statuses.insert(
+            quests.insert_status_like_cpp(
                 quest_id,
                 crate::handlers::quest::PlayerQuestStatus {
                     quest_id,
@@ -771,7 +771,7 @@ async fn quest_reward_money_crossing_cap_leaves_balance_unchanged_like_cpp() {
     assert_eq!(
         session
             .player_quest_gameplay_snapshot_like_cpp()
-            .map(|quests| quests.rewarded_quest_ids.contains(&quest_id)),
+            .map(|quests| quests.rewarded_quest_ids_like_cpp().contains(&quest_id)),
         Some(true)
     );
 }

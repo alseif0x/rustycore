@@ -8,14 +8,14 @@ use super::*;
 impl WorldSession {
     pub(crate) fn begin_player_quest_status_authority_load_like_cpp(&mut self) {
         let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.status_authority_complete = false;
-            state.rewarded_quest_rows.clear();
+            state.set_status_authority_complete_like_cpp(false);
+            state.clear_rewarded_quest_rows_like_cpp();
         });
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
     }
     pub(crate) fn invalidate_player_quest_status_authority_like_cpp(&mut self) {
         let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.status_authority_complete = false;
+            state.set_status_authority_complete_like_cpp(false);
         });
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
     }
@@ -24,18 +24,23 @@ impl WorldSession {
         quest_id: u32,
     ) -> Option<Option<u8>> {
         let state = self.player_quest_gameplay_snapshot_like_cpp()?;
-        Some(state.statuses.get(&quest_id).map(|status| status.status))
+        Some(
+            state
+                .statuses_like_cpp()
+                .get(&quest_id)
+                .map(|status| status.status),
+        )
     }
     pub(in crate::session) fn represented_spell_area_quest_status_like_cpp(
         &self,
         quest_id: u32,
     ) -> Option<u8> {
         let state = self.player_quest_gameplay_snapshot_like_cpp()?;
-        if !state.status_authority_complete {
+        if !state.status_authority_complete_like_cpp() {
             return None;
         }
 
-        if state.rewarded_quest_ids.contains(&quest_id)
+        if state.rewarded_quest_ids_like_cpp().contains(&quest_id)
             && self.represented_quest_can_increase_rewarded_counters_like_cpp(quest_id)?
         {
             return Some(crate::conditions::QUEST_STATUS_REWARDED_LIKE_CPP);
@@ -43,7 +48,7 @@ impl WorldSession {
 
         Some(
             state
-                .statuses
+                .statuses_like_cpp()
                 .get(&quest_id)
                 .map(|quest| quest.status)
                 .unwrap_or(crate::conditions::QUEST_STATUS_NONE_LIKE_CPP),
@@ -116,8 +121,7 @@ impl WorldSession {
         }
 
         let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.seasonal_quests = seasonal_quests;
-            state.seasonal_quest_changed = false;
+            state.replace_seasonal_quests_like_cpp(seasonal_quests, false);
         });
         outcome.seasonal_quest_changed = false;
         outcome
@@ -130,7 +134,7 @@ impl WorldSession {
         // C++ Player::ResetSeasonalQuestStatus: DB data deleted in caller.
         if self
             .mutate_player_quest_gameplay_like_cpp(|state| {
-                state.seasonal_quest_changed = false;
+                state.set_seasonal_quest_changed_like_cpp(false);
             })
             .is_none()
         {
@@ -163,7 +167,7 @@ impl WorldSession {
                 seasonal_quest_changed: false,
             };
         };
-        let Some(bucket) = recurrence.seasonal_quests.get_mut(&event_id) else {
+        let Some(bucket) = recurrence.seasonal_event_quests_like_cpp(event_id) else {
             return ResetSeasonalQuestStatusOutcomeLikeCpp {
                 event_id,
                 event_start_time,
@@ -195,25 +199,12 @@ impl WorldSession {
             };
         }
 
-        let removed_quest_ids: Vec<u32> = bucket
-            .iter()
-            .filter_map(|(quest_id, completed_time)| {
-                (*completed_time < event_start_time).then_some(*quest_id)
-            })
-            .collect();
-
-        for quest_id in &removed_quest_ids {
-            bucket.remove(quest_id);
-        }
-
-        let event_bucket_erased = bucket.is_empty() && !removed_quest_ids.is_empty();
-        if event_bucket_erased {
-            recurrence.seasonal_quests.remove(&event_id);
-        }
-        let seasonal_quests = recurrence.seasonal_quests;
+        let reset = recurrence.reset_seasonal_event_like_cpp(event_id, event_start_time);
+        let removed_quest_ids = reset.removed_quest_ids;
+        let event_bucket_erased = reset.event_bucket_erased;
+        let seasonal_quests = recurrence.seasonal_quests_snapshot_like_cpp();
         let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.seasonal_quests = seasonal_quests;
-            state.seasonal_quest_changed = false;
+            state.replace_seasonal_quests_like_cpp(seasonal_quests, false);
         });
 
         let mut completed_bit_cleared = 0;
@@ -265,11 +256,7 @@ impl WorldSession {
         completed_time: u64,
     ) {
         let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state
-                .seasonal_quests
-                .entry(event_id)
-                .or_default()
-                .insert(quest_id, completed_time);
+            state.seed_seasonal_quest_like_cpp(event_id, quest_id, completed_time);
         });
     }
     pub(crate) fn represented_quest_giver_involved_source_allows_quest_like_cpp(

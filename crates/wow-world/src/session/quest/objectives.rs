@@ -16,7 +16,7 @@ impl WorldSession {
         let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
             return false;
         };
-        quests.statuses.values().any(|status| {
+        quests.statuses_like_cpp().values().any(|status| {
             if status.status != crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                 return false;
             }
@@ -89,7 +89,7 @@ impl WorldSession {
             return;
         };
         let matching: Vec<(u32, usize, i32, u32)> = quests
-            .statuses
+            .statuses_like_cpp()
             .values()
             .filter(|qs| qs.status == crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
             .flat_map(|qs| {
@@ -119,7 +119,7 @@ impl WorldSession {
         for (quest_id, obj_idx, required, objective_id) in matching {
             let Some(current) = self
                 .mutate_player_quest_gameplay_like_cpp(|quests| {
-                    let qs = quests.statuses.get_mut(&quest_id)?;
+                    let qs = quests.status_mut_like_cpp(quest_id)?;
                     if qs.objective_counts.len() <= obj_idx {
                         qs.objective_counts.resize(obj_idx + 1, 0);
                     }
@@ -171,8 +171,9 @@ impl WorldSession {
                     store.get(quest_id),
                     self.player_quest_gameplay_snapshot_like_cpp(),
                 ) {
-                    let quest_already_rewarded = quests.rewarded_quest_ids.contains(&quest_id);
-                    if quests.statuses.get(&quest_id).is_some_and(|status| {
+                    let quest_already_rewarded =
+                        quests.rewarded_quest_ids_like_cpp().contains(&quest_id);
+                    if quests.statuses_like_cpp().get(&quest_id).is_some_and(|status| {
                         crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
                             status,
                             quest,
@@ -230,7 +231,7 @@ impl WorldSession {
             return;
         };
         let matching: Vec<(u32, usize, u32)> = quests
-            .statuses
+            .statuses_like_cpp()
             .values()
             .filter(|qs| qs.status == crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
             .flat_map(|qs| {
@@ -256,7 +257,7 @@ impl WorldSession {
         for (quest_id, obj_idx, objective_id) in matching {
             let Some((objective_was_complete, objective_is_now_complete)) = self
                 .mutate_player_quest_gameplay_like_cpp(|quests| {
-                    let qs = quests.statuses.get_mut(&quest_id)?;
+                    let qs = quests.status_mut_like_cpp(quest_id)?;
                     if qs.objective_counts.len() <= obj_idx {
                         qs.objective_counts.resize(obj_idx + 1, 0);
                     }
@@ -285,8 +286,9 @@ impl WorldSession {
                     store.get(quest_id),
                     self.player_quest_gameplay_snapshot_like_cpp(),
                 ) {
-                    let quest_already_rewarded = quests.rewarded_quest_ids.contains(&quest_id);
-                    if quests.statuses.get(&quest_id).is_some_and(|status| {
+                    let quest_already_rewarded =
+                        quests.rewarded_quest_ids_like_cpp().contains(&quest_id);
+                    if quests.statuses_like_cpp().get(&quest_id).is_some_and(|status| {
                         crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
                             status,
                             quest,
@@ -347,7 +349,7 @@ impl WorldSession {
             return;
         };
         let matching: Vec<(u32, u32, i32, bool, bool)> = quests
-            .statuses
+            .statuses_like_cpp()
             .values()
             .filter(|qs| {
                 qs.status == crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
@@ -398,8 +400,9 @@ impl WorldSession {
                     store.get(quest_id),
                     self.player_quest_gameplay_snapshot_like_cpp(),
                 ) {
-                    let quest_already_rewarded = quests.rewarded_quest_ids.contains(&quest_id);
-                    if quests.statuses.get(&quest_id).is_some_and(|status| {
+                    let quest_already_rewarded =
+                        quests.rewarded_quest_ids_like_cpp().contains(&quest_id);
+                    if quests.statuses_like_cpp().get(&quest_id).is_some_and(|status| {
                         crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
                             status,
                             quest,
@@ -413,7 +416,7 @@ impl WorldSession {
             } else if objective_was_complete {
                 if self
                     .mutate_player_quest_gameplay_like_cpp(|quests| {
-                        let Some(status) = quests.statuses.get_mut(&quest_id) else {
+                        let Some(status) = quests.status_mut_like_cpp(quest_id) else {
                             return false;
                         };
                         if status.status != crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP {
@@ -480,7 +483,7 @@ impl WorldSession {
             return;
         };
         let matching: Vec<(u32, u32, i32, bool, bool)> = quests
-            .statuses
+            .statuses_like_cpp()
             .values()
             .filter(|qs| {
                 qs.status == crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
@@ -534,8 +537,9 @@ impl WorldSession {
                     store.get(quest_id),
                     self.player_quest_gameplay_snapshot_like_cpp(),
                 ) {
-                    let quest_already_rewarded = quests.rewarded_quest_ids.contains(&quest_id);
-                    if quests.statuses.get(&quest_id).is_some_and(|status| {
+                    let quest_already_rewarded =
+                        quests.rewarded_quest_ids_like_cpp().contains(&quest_id);
+                    if quests.statuses_like_cpp().get(&quest_id).is_some_and(|status| {
                         crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
                             status,
                             quest,
@@ -549,7 +553,7 @@ impl WorldSession {
             } else if objective_was_complete {
                 if self
                     .mutate_player_quest_gameplay_like_cpp(|quests| {
-                        let Some(status) = quests.statuses.get_mut(&quest_id) else {
+                        let Some(status) = quests.status_mut_like_cpp(quest_id) else {
                             return false;
                         };
                         if status.status != crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP {
@@ -628,7 +632,7 @@ impl WorldSession {
             return;
         };
         let matching: Vec<(u32, u32, i32, bool, bool)> = quests
-            .statuses
+            .statuses_like_cpp()
             .values()
             .filter(|qs| {
                 qs.status == crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
@@ -687,8 +691,9 @@ impl WorldSession {
                     store.get(quest_id),
                     self.player_quest_gameplay_snapshot_like_cpp(),
                 ) {
-                    let quest_already_rewarded = quests.rewarded_quest_ids.contains(&quest_id);
-                    if quests.statuses.get(&quest_id).is_some_and(|status| {
+                    let quest_already_rewarded =
+                        quests.rewarded_quest_ids_like_cpp().contains(&quest_id);
+                    if quests.statuses_like_cpp().get(&quest_id).is_some_and(|status| {
                         crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
                             status,
                             quest,
@@ -702,7 +707,7 @@ impl WorldSession {
             } else if objective_was_complete {
                 if self
                     .mutate_player_quest_gameplay_like_cpp(|quests| {
-                        let Some(status) = quests.statuses.get_mut(&quest_id) else {
+                        let Some(status) = quests.status_mut_like_cpp(quest_id) else {
                             return false;
                         };
                         if status.status != crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP {
