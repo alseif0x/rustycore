@@ -96,6 +96,9 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
     invalid_timings = invoke("verify", directory / "invalid-timings.json", flags=["--timings"])
     assert invalid_timings.returncode == runner.USAGE_ERROR
     assert "--timings is only valid" in invalid_timings.stderr
+    invalid_architecture = invoke("quick", directory / "invalid-architecture.json", flags=["--architecture"])
+    assert invalid_architecture.returncode == runner.USAGE_ERROR
+    assert "--architecture is only valid" in invalid_architecture.stderr
     assert (
         f"validation-v2: cargo target={repo.resolve() / 'target'} jobs={runner.DEFAULT_JOBS}"
         in result.stdout
@@ -782,6 +785,39 @@ def test_cargo_target_contract(
     assert relative_a != relative_b
 
 
+def test_architecture_plan_contract() -> None:
+    checker = ["python3", "tools/architecture/check_architecture.py"]
+    retained = [
+        ["git", "diff", "--check", "base"],
+        ["cargo", "check", "--tests", "-p", "consumer"],
+        ["cargo", "test", "--lib", "-p", "owner"],
+        [*checker, "physical-files", "--terminal"],
+        ["cargo", "run", "--", "check"],  # Exhaustive/other checks are not waived.
+    ]
+    commands = [*retained, *[[*checker, mode] for mode in (
+        "physical-files", "hotspot-ratchet", "self-test", "check",
+    )]]
+    for original in (commands, []):
+        plan = {"planned_steps": [
+            {"section": str(index), "argv": command.copy()}
+            for index, command in enumerate(original)
+        ], "planned_commands": []}
+        runner.enable_architecture_acceptance(plan, 2)
+        first = [step.copy() for step in plan["planned_steps"]]
+        runner.enable_architecture_acceptance(plan, 2)
+        assert plan["planned_steps"] == first
+        actual = plan["planned_commands"]
+        assert actual == [step["argv"] for step in first]
+        assert actual[0] == [*checker, "check", "--self-test"]
+        assert actual[1] == [
+            "cargo", "run", "--release", "--locked", "--manifest-path", runner.CHECKER_MANIFEST,
+            "--bin", "session-ownership-check", "--jobs", "2", "--", "check", "--syntax-only",
+        ]
+        assert actual[2:] == (retained if original else [])
+        runner.enable_cargo_timings(plan)
+        assert "--timings" in plan["planned_commands"][1]
+
+
 def test_timing_plan_contract() -> None:
     commands = [
         ["cargo", "check", "--locked", "--tests", "-p", "consumer"],
@@ -813,6 +849,7 @@ def test_timing_plan_contract() -> None:
 
 
 def main() -> None:
+    test_architecture_plan_contract()
     test_timing_plan_contract()
     with tempfile.TemporaryDirectory(prefix="validation-v2-self-test-") as raw_directory:
         directory = Path(raw_directory)
