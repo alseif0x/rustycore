@@ -6322,9 +6322,7 @@ pub struct WorldSession {
         Vec<RepresentedTalentRespecCriteriaEventLikeCpp>,
     /// Handle-less test fallback; production C++ `Player::_equipmentSets` lives on canonical Player.
     #[cfg(test)]
-    represented_equipment_sets_like_cpp: BTreeMap<u64, RepresentedEquipmentSetLikeCpp>,
-    #[cfg(test)]
-    represented_equipment_sets_loaded_like_cpp: bool,
+    represented_equipment_sets_like_cpp: wow_entities::PlayerEquipmentSetsLikeCpp,
     /// Handle-less test fallback; production C++ `Player::_voidStorageItems` lives on canonical Player.
     #[cfg(test)]
     represented_void_storage_items_like_cpp: [Option<RepresentedVoidStorageItemLikeCpp>;
@@ -8376,9 +8374,8 @@ impl WorldSession {
             #[cfg(test)]
             represented_talent_respec_criteria_events_like_cpp: Vec::new(),
             #[cfg(test)]
-            represented_equipment_sets_like_cpp: BTreeMap::new(),
-            #[cfg(test)]
-            represented_equipment_sets_loaded_like_cpp: false,
+            represented_equipment_sets_like_cpp: wow_entities::PlayerEquipmentSetsLikeCpp::default(
+            ),
             #[cfg(test)]
             represented_void_storage_items_like_cpp: std::array::from_fn(|_| None),
             #[cfg(test)]
@@ -9335,8 +9332,6 @@ impl WorldSession {
             player.gameplay_state_mut().cuf_profiles_loaded = self.cuf_profiles_loaded_like_cpp;
             player.gameplay_state_mut().equipment_sets =
                 self.represented_equipment_sets_like_cpp.clone();
-            player.gameplay_state_mut().equipment_sets_loaded =
-                self.represented_equipment_sets_loaded_like_cpp;
             player.gameplay_state_mut().void_storage_items =
                 self.represented_void_storage_items_like_cpp.to_vec();
             player.gameplay_state_mut().void_storage_loaded =

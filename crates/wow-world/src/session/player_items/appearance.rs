@@ -38,8 +38,8 @@ impl WorldSession {
             set_icon,
             state: RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
         };
-        self.with_owned_equipment_sets_mut_like_cpp(|sets, _| {
-            sets.insert(guid, equipment_set.clone());
+        self.with_owned_equipment_sets_mut_like_cpp(|sets| {
+            sets.install_loaded_set_like_cpp(equipment_set.clone());
         })
         .is_some()
     }

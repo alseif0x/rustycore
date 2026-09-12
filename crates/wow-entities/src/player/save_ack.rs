@@ -39,7 +39,7 @@ impl Player {
             spells: state.spells.rows.clone(),
             fallback: state.spells.fallback_rows.clone(),
             skills: state.skills.clone(),
-            equipment: state.equipment_sets.clone(),
+            equipment: state.equipment_sets.snapshot_like_cpp(),
             // C++ FactionStateList is keyed by RepListID (ReputationMgr.h:63)
             // and the Player now owns it in that shape, so a shadowed duplicate
             // row can no longer exist to be acknowledged (#735).
@@ -79,8 +79,10 @@ impl Player {
                 }
             }
         }
-        if groups.equipment && state.equipment_sets_loaded {
-            acknowledge_equipment(&mut state.equipment_sets, saved.equipment);
+        if groups.equipment && state.equipment_sets.is_loaded_like_cpp() {
+            state
+                .equipment_sets
+                .acknowledge_saved_sets_like_cpp(saved.equipment);
         }
         if groups.reputations {
             for current in state.reputation.factions_mut_like_cpp() {
@@ -165,42 +167,6 @@ fn acknowledge_spells(
         .filter(|row| row.state != Removed && !row.disabled)
         .map(|row| row.spell_id)
         .collect();
-}
-
-fn acknowledge_equipment(
-    current_sets: &mut BTreeMap<u64, PlayerEquipmentSetLikeCpp>,
-    saved: BTreeMap<u64, PlayerEquipmentSetLikeCpp>,
-) {
-    use PlayerEquipmentSetUpdateStateLikeCpp::*;
-    for (id, row) in saved {
-        match current_sets.get_mut(&id) {
-            Some(current) if *current == row => {
-                if row.state == Deleted {
-                    current_sets.remove(&id);
-                } else {
-                    current.state = Unchanged;
-                }
-            }
-            Some(current) => {
-                current.state = match (row.state, current.state) {
-                    (Deleted, Deleted) => Deleted,
-                    (Deleted, _) => New,
-                    (_, Deleted) => Deleted,
-                    (New | Changed | Unchanged, _) => Changed,
-                };
-            }
-            None if row.state != Deleted => {
-                current_sets.insert(
-                    id,
-                    PlayerEquipmentSetLikeCpp {
-                        state: Deleted,
-                        ..row
-                    },
-                );
-            }
-            None => {}
-        }
-    }
 }
 
 #[cfg(test)]

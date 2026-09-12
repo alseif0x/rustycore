@@ -725,15 +725,20 @@ fn canonical_player_saved_equipment_and_void_storage_follow_handle_generation_li
         .world_mut()
         .object_mut()
         .create(player_guid);
-    replacement.gameplay_state_mut().equipment_sets.insert(
-        701,
-        RepresentedEquipmentSetLikeCpp::equipment(
-            8,
-            0,
-            RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
-        ),
+    let mut stored = RepresentedEquipmentSetLikeCpp::equipment(
+        8,
+        0,
+        RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
     );
-    replacement.gameplay_state_mut().equipment_sets_loaded = true;
+    stored.guid = 701;
+    replacement
+        .gameplay_state_mut()
+        .equipment_sets
+        .install_loaded_set_like_cpp(stored);
+    replacement
+        .gameplay_state_mut()
+        .equipment_sets
+        .mark_loaded_like_cpp();
     replacement.gameplay_state_mut().void_storage_items =
         vec![None; wow_entities::PLAYER_VOID_STORAGE_MAX_SLOTS_LIKE_CPP];
     replacement.gameplay_state_mut().void_storage_items[4] =
@@ -774,7 +779,11 @@ fn canonical_player_saved_equipment_and_void_storage_follow_handle_generation_li
             .lock()
             .unwrap()
             .with_player_like_cpp(replacement_handle, |player| (
-                player.gameplay_state().equipment_sets.contains_key(&701),
+                player
+                    .gameplay_state()
+                    .equipment_sets
+                    .set_like_cpp(701)
+                    .is_some(),
                 player.gameplay_state().void_storage_items[4]
                     .as_ref()
                     .map(|item| item.item_id),

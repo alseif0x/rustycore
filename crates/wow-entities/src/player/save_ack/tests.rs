@@ -19,7 +19,7 @@ fn player() -> Player {
     state.spells.rows_loaded = true;
     state.spells.rows_complete = true;
     state.skills_complete = true;
-    state.equipment_sets_loaded = true;
+    state.equipment_sets.mark_loaded_like_cpp();
     p
 }
 
@@ -146,21 +146,29 @@ fn save_ack_rebases_equipment_new_edit_and_new_remove() {
     use PlayerEquipmentSetUpdateStateLikeCpp::*;
     for removed in [false, true] {
         let mut p = player();
+        let mut stored = PlayerEquipmentSetLikeCpp::equipment(1, 0, New);
+        stored.guid = 1;
         p.gameplay_state_mut()
             .equipment_sets
-            .insert(1, PlayerEquipmentSetLikeCpp::equipment(1, 0, New));
+            .install_loaded_set_like_cpp(stored.clone());
         let receipt = p.capture_save_acknowledgement_like_cpp();
         if removed {
-            p.gameplay_state_mut().equipment_sets.clear();
+            assert!(p.gameplay_state_mut().equipment_sets.delete_set_like_cpp(1));
         } else {
-            p.gameplay_state_mut()
-                .equipment_sets
-                .get_mut(&1)
-                .unwrap()
-                .set_name = "later".into();
+            let mut edited = stored.clone();
+            edited.set_name = "later".into();
+            assert!(
+                p.gameplay_state_mut()
+                    .equipment_sets
+                    .update_set_like_cpp(edited)
+            );
         }
         p.acknowledge_saved_projection_like_cpp(receipt, all());
-        let row = &p.gameplay_state().equipment_sets[&1];
+        let row = p
+            .gameplay_state()
+            .equipment_sets
+            .set_like_cpp(1)
+            .expect("stored equipment set");
         assert_eq!(row.state, if removed { Deleted } else { Changed });
         if !removed {
             assert_eq!(row.set_name, "later");
