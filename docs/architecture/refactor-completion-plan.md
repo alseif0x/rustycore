@@ -640,6 +640,34 @@ Aceptación local: diez regresiones nuevas de invariantes en
 inventario revisado; techo de `player_tests.rs` 504 -> 506. Sin QA viva ni
 evidencia de DB/reinicio/relogin.
 
+#### Entrega local aceptada — #779
+
+Decimocuarta macro P2: el estado de descanso tenía trece miembros públicos y una
+cincuentena de escrituras de campo repartidas por la sesión.
+
+- Estado e invariantes en el Player: `crates/wow-entities/src/player/rest.rs`
+  posee `PlayerRestState` con los miembros cerrados al módulo Player y las
+  transiciones que C++ hace sobre el `RestMgr` que el Player posee
+  (`Entities/Player/RestMgr.h`): `SetRestBonus` (`:67`), `HasRestFlag` (`:70`),
+  `SetRestFlag` (`:71`), `RemoveRestFlag` (`:72`) y `GetInnTriggerID` (`:75`)
+  sobre `_restTime` (`:86`) y `_restFlagMask` (`:89`), con
+  `Player::SetRestState` (`Player.h:2652`).
+- Las transiciones de bandera conservan sus reglas registradas —el reloj arranca
+  con la primera bandera y se detiene con la última, el disparador de taberna se
+  va con su bandera— y el par de publicación diferida, el registro de logout y
+  el reseteo de localización de la carga pasan a operaciones con nombre.
+- Registradas en el módulo como propias de RustyCore, no como miembros C++: la
+  sincronización diferida de bandera, porque la bandera de descanso la publica la
+  sesión que posee la conexión; la contabilidad de logout, que C++ deriva al
+  guardar; y `location_initialized`, que distingue máscara vacía de localización
+  nunca establecida.
+
+Aceptación local: trece regresiones nuevas de invariantes en
+`player_tests/rest.rs`, controles de arquitectura y ownership con delta de
+inventario revisado (player/mod.rs +235 producción/+188 test; session/mod.rs -8
+producción/+11 test); techo de `player_tests.rs` 506 -> 508. Sin QA viva ni
+evidencia de DB/reinicio/relogin.
+
 ### 4.3 Residuales P2 y paso a P3/P4
 
 Después de #743 y #735 se retiran los accesos genéricos operación por operación. El

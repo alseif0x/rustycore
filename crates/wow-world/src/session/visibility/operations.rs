@@ -188,8 +188,8 @@ impl WorldSession {
         // mask and Player flag belong to the same Player. Read them together.
         let canonical = self.with_owned_player_for_rest_like_cpp(|player| {
             let rest = player.rest_state_like_cpp();
-            if rest.location_initialized {
-                rest.rest_flag_mask != 0
+            if rest.is_location_initialized_like_cpp() {
+                rest.is_resting_by_flag_like_cpp()
             } else {
                 (player.data().player_flags & PLAYER_FLAGS_RESTING_LIKE_CPP) != 0
             }
@@ -197,13 +197,13 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             let rest = self.player_rest_state_snapshot_like_cpp()?;
-            if rest.location_initialized {
-                return Some(rest.rest_flag_mask != 0);
+            if rest.is_location_initialized_like_cpp() {
+                return Some(rest.is_resting_by_flag_like_cpp());
             }
             return Some(
                 self.represented_loaded_player_flags_like_cpp
                     .map(|flags| (flags & PLAYER_FLAGS_RESTING_LIKE_CPP) != 0)
-                    .unwrap_or(rest.rest_flag_mask != 0),
+                    .unwrap_or(rest.is_resting_by_flag_like_cpp()),
             );
         }
         canonical

@@ -12,7 +12,10 @@ fn rest_accrual_rejects_stale_and_missing_owner_without_touching_replacement() {
     replacement.unit_mut().world_mut().object_mut().create(guid);
     replacement.set_next_level_xp(72_000);
     replacement.load_xp_rest_bonus_like_cpp(1, 70.0);
-    replacement.gameplay_state_mut().rest.rest_time_secs = 100;
+    replacement
+        .gameplay_state_mut()
+        .rest
+        .set_rest_time_secs_like_cpp(100);
     let expected = replacement.rest_state_like_cpp().clone();
     let handle = manager
         .lock()
@@ -72,7 +75,10 @@ fn rest_accrual_matches_previous_online_and_offline_routes_on_active_and_detache
                     let prepare = |player: &mut Player| {
                         player.set_next_level_xp(72_000);
                         player.load_xp_rest_bonus_like_cpp(REST_STATE_RAF_LINKED_LIKE_CPP, 70.0);
-                        player.gameplay_state_mut().rest.rest_time_secs = start;
+                        player
+                            .gameplay_state_mut()
+                            .rest
+                            .set_rest_time_secs_like_cpp(start);
                         player.clear_data_changes();
                     };
                     let projection = |player: &Player| {
@@ -227,20 +233,22 @@ fn rest_load_resets_transient_location_but_preserves_loaded_flags_and_unrelated_
                     } else {
                         0
                     };
-                let original = wow_entities::PlayerRestState {
-                    rest_xp: 9,
-                    rest_bonus: 12.0,
-                    rest_honor_bonus: 15.0,
-                    rest_state: REST_STATE_RESTED_LIKE_CPP,
-                    rest_flag_mask: REST_FLAG_IN_TAVERN_LIKE_CPP,
-                    location_initialized: true,
-                    defer_flag_sync: true,
-                    deferred_flag_update_dirty: true,
-                    inn_area_trigger_id: 123,
-                    rest_time_secs: 456,
-                    logout_time: Some(789),
-                    logout_was_resting: true,
-                    is_resting_now: true,
+                let original = {
+                    let mut state = wow_entities::PlayerRestState::from_represented_parts_like_cpp(
+                        REST_STATE_RESTED_LIKE_CPP,
+                        12.0,
+                        REST_FLAG_IN_TAVERN_LIKE_CPP,
+                        true,
+                        true,
+                        true,
+                        123,
+                        456,
+                    );
+                    state.set_rest_xp_like_cpp(9);
+                    state.set_rest_honor_bonus_like_cpp(15.0);
+                    state.set_logout_like_cpp(Some(789), true);
+                    state.set_resting_now_like_cpp(true);
+                    state
                 };
                 session
                     .with_owned_player_mut_like_cpp(|player| {
@@ -256,16 +264,11 @@ fn rest_load_resets_transient_location_but_preserves_loaded_flags_and_unrelated_
                 } else {
                     REST_STATE_NORMAL_LIKE_CPP
                 };
-                let expected = wow_entities::PlayerRestState {
-                    rest_bonus: 42.5,
-                    rest_state: normalized,
-                    rest_flag_mask: 0,
-                    location_initialized: false,
-                    defer_flag_sync: false,
-                    deferred_flag_update_dirty: false,
-                    inn_area_trigger_id: 0,
-                    rest_time_secs: 0,
-                    ..original
+                let expected = {
+                    let mut state = original.clone();
+                    state.install_loaded_rest_like_cpp(normalized, 42.5);
+                    state.reset_location_tracking_like_cpp();
+                    state
                 };
                 session
                     .with_owned_player_like_cpp(|player| {
@@ -292,13 +295,16 @@ fn rest_mutation_runs_once_under_active_and_detached_owner_and_matches_old_proje
         }
         for initialized in [false, true] {
             for mask in [0, REST_FLAG_IN_CITY_LIKE_CPP] {
-                let state = wow_entities::PlayerRestState {
-                    location_initialized: initialized,
-                    rest_flag_mask: mask,
-                    rest_bonus: 42.5,
-                    rest_state: REST_STATE_RESTED_LIKE_CPP,
-                    ..Default::default()
-                };
+                let state = wow_entities::PlayerRestState::from_represented_parts_like_cpp(
+                    REST_STATE_RESTED_LIKE_CPP,
+                    42.5,
+                    mask,
+                    initialized,
+                    false,
+                    false,
+                    0,
+                    0,
+                );
                 let prepare = |player: &mut Player| {
                     player.replace_rest_state_like_cpp(Default::default());
                     player.set_xp_rest_info_like_cpp(0, REST_STATE_NORMAL_LIKE_CPP);
@@ -360,12 +366,16 @@ fn rest_queries_preserve_loaded_flags_and_initialized_masks_on_active_and_detach
                         } else {
                             0
                         };
-                    let state = wow_entities::PlayerRestState {
-                        location_initialized: initialized,
-                        rest_flag_mask: mask,
-                        rest_bonus: 42.5,
-                        ..Default::default()
-                    };
+                    let state = wow_entities::PlayerRestState::from_represented_parts_like_cpp(
+                        0,
+                        42.5,
+                        mask,
+                        initialized,
+                        false,
+                        false,
+                        0,
+                        0,
+                    );
                     session
                         .with_owned_player_mut_like_cpp(|player| {
                             player.set_player_flag(flags);

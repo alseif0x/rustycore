@@ -95,54 +95,6 @@ impl PreparedPlayerSpellAcquisitionLikeCpp {
     }
 }
 
-impl PlayerRestState {
-    /// C++ RestMgr::SetRestFlag (RestMgr.cpp:95-109). Read the clock only
-    /// when the first rest flag becomes active, preserving represented timing.
-    pub fn set_flag_like_cpp(
-        &mut self,
-        rest_flag: u32,
-        trigger_id: u32,
-        now: impl FnOnce() -> u64,
-    ) -> bool {
-        let old_mask = self.rest_flag_mask;
-        self.location_initialized = true;
-        self.rest_flag_mask |= rest_flag;
-        let crossed_zero = old_mask == 0 && self.rest_flag_mask != 0;
-        if crossed_zero {
-            self.rest_time_secs = now();
-        }
-        if trigger_id != 0 {
-            self.inn_area_trigger_id = trigger_id;
-        }
-        if crossed_zero && self.defer_flag_sync {
-            self.deferred_flag_update_dirty = true;
-        }
-        crossed_zero
-    }
-
-    /// C++ RestMgr::RemoveRestFlag (RestMgr.cpp:112-122), retaining Rust's
-    /// existing tavern-trigger cleanup and deferred publication bookkeeping.
-    pub fn remove_flag_like_cpp(&mut self, rest_flag: u32) -> bool {
-        let old_mask = self.rest_flag_mask;
-        self.rest_flag_mask &= !rest_flag;
-        if old_mask != self.rest_flag_mask {
-            self.location_initialized = true;
-        }
-        let tavern = 0x1; // C++ RestMgr.h:53 REST_FLAG_IN_TAVERN.
-        if (rest_flag & tavern) != 0 && (self.rest_flag_mask & tavern) == 0 {
-            self.inn_area_trigger_id = 0;
-        }
-        let crossed_zero = old_mask != 0 && self.rest_flag_mask == 0;
-        if crossed_zero {
-            self.rest_time_secs = 0;
-            if self.defer_flag_sync {
-                self.deferred_flag_update_dirty = true;
-            }
-        }
-        crossed_zero
-    }
-}
-
 impl PlayerTalentRuntimeState {
     /// C++ Player::GetNextResetTalentsCost (Player.cpp:3472-3503).
     /// Keep the represented saturating arithmetic for anomalous timestamps/costs;

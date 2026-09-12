@@ -10,13 +10,13 @@ pub(super) fn request(
 ) -> Option<PlayerCharacterSaveRequestLikeCpp> {
     let game = player.gameplay_state();
     let mut player_flags = player.data().player_flags;
-    let visible_resting = if game.rest.location_initialized {
-        if game.rest.rest_flag_mask != 0 {
+    let visible_resting = if game.rest.is_location_initialized_like_cpp() {
+        if game.rest.is_resting_by_flag_like_cpp() {
             player_flags |= crate::session::PLAYER_FLAGS_RESTING_LIKE_CPP;
         } else {
             player_flags &= !crate::session::PLAYER_FLAGS_RESTING_LIKE_CPP;
         }
-        game.rest.rest_flag_mask != 0
+        game.rest.is_resting_by_flag_like_cpp()
     } else {
         player_flags & crate::session::PLAYER_FLAGS_RESTING_LIKE_CPP != 0
     };
@@ -43,9 +43,9 @@ pub(super) fn request(
         level: snapshot.level,
         xp: snapshot.xp,
         money: snapshot.money,
-        rest_state: game.rest.rest_state,
+        rest_state: game.rest.rest_state_like_cpp(),
         player_flags: player_flags,
-        rest_bonus: game.rest.rest_bonus,
+        rest_bonus: game.rest.rest_bonus_like_cpp(),
         logout_time: now_unix_secs.max(0) as u64,
         is_logout_resting: visible_resting,
         health: snapshot.health,
