@@ -13,6 +13,15 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
+**Entrega activa, 2026-09-12: #787 / PR #792**, sobre la integración `aee29a69`.
+La coordinación World/Map está implementada; su aceptación se está completando
+con la corrección que mantiene el ACK World pendiente hasta finalizar y retirar
+la sesión. El contrato y las pruebas pendientes están en el
+[checkpoint de sesión](session-578-checkpoint.md#787-resumption-finalization-is-inside-the-world-completion-boundary--2026-09-12).
+La secuencia del 11 de septiembre que sigue se conserva como contexto fechado;
+no ordena volver a ejecutar entregas ya integradas. La retirada del escritor
+legado de criaturas y las fases de mapa no representadas siguen en #584.
+
 La base revisada de esta entrega es `3.4.3` en
 `5d8c079a06b587c060c1c6e1c06bedb73c4339d0`. #133 se cerró el 2026-09-09. Las
 entregas #578, #585, #587, #588, #589, #716, #718, #722 y #737 están integradas y

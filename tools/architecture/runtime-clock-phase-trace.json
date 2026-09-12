@@ -12,7 +12,7 @@
   "clocks": [
     {
       "id": "canonical_map_update",
-      "source": "crates/world-server/src/runtime/map.rs",
+      "source": "crates/world-server/src/runtime/map/update_loop.rs",
       "entry": "spawn_canonical_map_update_loop",
       "cpp_anchor": "World::Update -> UpdateSessions then MapManager::Update -> Map::Update",
       "availability": "production",
@@ -28,7 +28,7 @@
       ],
       "delivers_under_map_guard": false,
       "delivery_note": "recipients and packets are collected inside the guarded block and delivered after the map lock is released; the #787 split releases every synchronous guard — respawn mutation order, MapManager and spawn metadata — before any phase request is delivered or any completion awaited, and re-takes them only to resume the same tick with the diff saved at the split. Each step issues the world phase first (World.cpp:2704) and admits the map tick only after it is quiescent (World.cpp:2748); a claimed pass whose end cannot be observed abandons the tick instead of resuming over it.",
-      "resolution_guard": "canonical Map::Update dispatches no legacy AI/combat side effects; spawn/respawn and synchronization bridges retain their separate ownership contracts",
+      "resolution_guard": "World disconnect completion includes task-owned finalization and active registration retirement. Unresolved permits, including InterruptedAfterStart, hold the barrier across producer steps. Shutdown pauses ordinary simulation while session tasks drain; the final respawn tick requires an empty active-session registry. Canonical Map::Update dispatches no legacy AI/combat side effects; spawn/respawn and synchronization bridges retain their separate ownership contracts.",
       "regression_anchors": [
         "canonical_map_update_visits_creature_with_no_real_ai_combat_effect_like_cpp",
         "split_tick_runs_the_dynamic_tree_phase_before_the_session_pass_like_cpp",
@@ -38,7 +38,15 @@
         "a_map_recreated_under_the_same_key_during_the_pass_is_not_resumed_like_cpp",
         "a_pass_that_never_started_is_revoked_at_the_deadline_and_can_never_run",
         "a_claimed_pass_is_waited_for_past_the_deadline_instead_of_being_abandoned",
-        "a_claimed_pass_whose_session_disappears_blocks_the_tick"
+        "a_claimed_pass_whose_session_disappears_blocks_the_tick",
+        "interrupted_effects_remain_a_barrier_across_producer_steps",
+        "dropping_a_disconnecting_world_pass_does_not_acknowledge_finalization",
+        "shutdown_refusal_cannot_acknowledge_an_already_running_request",
+        "world_coordinator_waits_for_session_finalization_destruction_and_retirement",
+        "shutdown_drains_kick_and_flush_after_the_phase_producer_disappears",
+        "failed_unknown_and_timed_out_finalization_retain_the_world_reply_and_session",
+        "successful_finalization_replies_once_after_session_destruction",
+        "a_disconnecting_session_refuses_stale_map_work_and_waits_for_world_retirement"
       ]
     },
     {

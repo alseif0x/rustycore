@@ -304,8 +304,8 @@ impl WorldSession {
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DispatchQueuedPackets);
         // C++ LockedQueue::next selects only the head. Keep unselected packets
         // on Session if this future is cancelled; never replay the in-flight
-        // handler, which may already have produced effects. Phase filtering is
-        // still pending and must stop, not skip ahead, at an ineligible head.
+        // handler, which may already have produced effects. A coordinated pass
+        // stops at an ineligible head instead of skipping it.
         if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some()
             && self
                 .pending_packets

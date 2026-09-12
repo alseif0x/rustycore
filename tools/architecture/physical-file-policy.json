@@ -76,9 +76,9 @@
     },
     {
       "path": "crates/world-server/src/runtime/map.rs",
-      "observed_lines": 2063,
-      "ceiling_lines": 2063,
-      "split": "Separate canonical tick orchestration, respawn persistence projections and recipient delivery; no I/O under map guards.",
+      "observed_lines": 1297,
+      "ceiling_lines": 1297,
+      "split": "#787 moves the canonical World/Map producer into the private map/update_loop.rs submodule with its entry re-exported unchanged. Keep the remaining respawn/startup projections and recipient delivery scoped; no I/O under map guards.",
       "review_checkpoint": "584:C4"
     },
     {

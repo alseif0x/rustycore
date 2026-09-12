@@ -151,7 +151,7 @@ async fn an_admitted_map_phase_request_runs_the_pass_and_reports_after_it() {
         .expect("the session can be admitted");
     let permit = SessionPhasePermitLikeCpp::new_like_cpp();
     let (response_tx, response_rx) = flume::bounded(1);
-    session
+    let pending_finalization = session
         .run_requested_session_phase_like_cpp(
             crate::session::mailbox::SessionPhaseRequestLikeCpp::Map(
                 RunMapPhasePassLikeCppCommand {
@@ -163,6 +163,7 @@ async fn an_admitted_map_phase_request_runs_the_pass_and_reports_after_it() {
             &SessionHandlerCatalogsLikeCpp::default(),
         )
         .await;
+    assert!(pending_finalization.is_none());
 
     let result = response_rx.try_recv().expect("completion reported");
     assert_eq!(result.tick_epoch, 7);
@@ -192,7 +193,7 @@ async fn a_revoked_request_runs_no_effect_of_the_pass() {
     // request. Nothing of the pass may run now.
     permit.revoke_before_start_like_cpp();
     let (response_tx, response_rx) = flume::bounded(1);
-    session
+    let pending_finalization = session
         .run_requested_session_phase_like_cpp(
             crate::session::mailbox::SessionPhaseRequestLikeCpp::Map(
                 RunMapPhasePassLikeCppCommand {
@@ -204,6 +205,7 @@ async fn a_revoked_request_runs_no_effect_of_the_pass() {
             &SessionHandlerCatalogsLikeCpp::default(),
         )
         .await;
+    assert!(pending_finalization.is_none());
 
     let result = response_rx.try_recv().expect("refusal reported");
     assert_eq!(
@@ -232,7 +234,7 @@ async fn an_admission_from_before_a_residence_change_is_refused_before_any_effec
 
     let permit = SessionPhasePermitLikeCpp::new_like_cpp();
     let (response_tx, response_rx) = flume::bounded(1);
-    session
+    let pending_finalization = session
         .run_requested_session_phase_like_cpp(
             crate::session::mailbox::SessionPhaseRequestLikeCpp::Map(
                 RunMapPhasePassLikeCppCommand {
@@ -244,6 +246,7 @@ async fn an_admission_from_before_a_residence_change_is_refused_before_any_effec
             &SessionHandlerCatalogsLikeCpp::default(),
         )
         .await;
+    assert!(pending_finalization.is_none());
 
     let result = response_rx.try_recv().expect("refusal reported");
     assert_eq!(
@@ -308,7 +311,7 @@ async fn the_map_pass_tail_sends_the_periodic_time_sync_with_the_admitted_diff()
         .current_map_phase_admission_for_test_like_cpp(1, 7, 50)
         .expect("the session can be admitted");
     let (response_tx, _response_rx) = flume::bounded(1);
-    session
+    let pending_finalization = session
         .run_requested_session_phase_like_cpp(
             crate::session::mailbox::SessionPhaseRequestLikeCpp::Map(
                 RunMapPhasePassLikeCppCommand {
@@ -320,6 +323,7 @@ async fn the_map_pass_tail_sends_the_periodic_time_sync_with_the_admitted_diff()
             &SessionHandlerCatalogsLikeCpp::default(),
         )
         .await;
+    assert!(pending_finalization.is_none());
 
     // C++ decrements this timer on the `!ProcessUnsafe()` branch, i.e. in the
     // map filter's pass, with that pass's diff (`WorldSession.cpp:488-497`).
@@ -361,7 +365,7 @@ async fn an_admission_whose_residence_revision_moved_is_refused_like_an_away_and
 
     let permit = SessionPhasePermitLikeCpp::new_like_cpp();
     let (response_tx, response_rx) = flume::bounded(1);
-    session
+    let pending_finalization = session
         .run_requested_session_phase_like_cpp(
             crate::session::mailbox::SessionPhaseRequestLikeCpp::Map(
                 RunMapPhasePassLikeCppCommand {
@@ -373,6 +377,7 @@ async fn an_admission_whose_residence_revision_moved_is_refused_like_an_away_and
             &SessionHandlerCatalogsLikeCpp::default(),
         )
         .await;
+    assert!(pending_finalization.is_none());
 
     let result = response_rx.try_recv().expect("refusal reported");
     assert_eq!(
@@ -398,7 +403,7 @@ async fn an_admission_for_another_incarnation_of_the_same_map_is_refused() {
 
     let permit = SessionPhasePermitLikeCpp::new_like_cpp();
     let (response_tx, response_rx) = flume::bounded(1);
-    session
+    let pending_finalization = session
         .run_requested_session_phase_like_cpp(
             crate::session::mailbox::SessionPhaseRequestLikeCpp::Map(
                 RunMapPhasePassLikeCppCommand {
@@ -410,6 +415,7 @@ async fn an_admission_for_another_incarnation_of_the_same_map_is_refused() {
             &SessionHandlerCatalogsLikeCpp::default(),
         )
         .await;
+    assert!(pending_finalization.is_none());
 
     let result = response_rx.try_recv().expect("refusal reported");
     assert_eq!(
@@ -447,7 +453,7 @@ async fn control_traffic_behind_a_map_eligible_head_still_advances_in_the_world_
 
     let permit = SessionPhasePermitLikeCpp::new_like_cpp();
     let (response_tx, response_rx) = flume::bounded(1);
-    session
+    let pending_finalization = session
         .run_requested_session_phase_like_cpp(
             crate::session::mailbox::SessionPhaseRequestLikeCpp::World(
                 crate::session::mailbox::RunWorldPhasePassLikeCppRequest {
@@ -461,6 +467,7 @@ async fn control_traffic_behind_a_map_eligible_head_still_advances_in_the_world_
             &SessionHandlerCatalogsLikeCpp::default(),
         )
         .await;
+    assert!(pending_finalization.is_none());
 
     let world = response_rx.try_recv().expect("the world pass reported");
     assert_eq!(world.outcome, SessionPhasePassOutcomeLikeCpp::Ran);
@@ -488,7 +495,7 @@ async fn a_logout_cancel_queued_in_the_same_step_is_seen_before_the_logout_decis
 
     let permit = SessionPhasePermitLikeCpp::new_like_cpp();
     let (response_tx, _response_rx) = flume::bounded(1);
-    session
+    let pending_finalization = session
         .run_requested_session_phase_like_cpp(
             crate::session::mailbox::SessionPhaseRequestLikeCpp::World(
                 crate::session::mailbox::RunWorldPhasePassLikeCppRequest {
@@ -502,6 +509,7 @@ async fn a_logout_cancel_queued_in_the_same_step_is_seen_before_the_logout_decis
             &SessionHandlerCatalogsLikeCpp::default(),
         )
         .await;
+    assert!(pending_finalization.is_none());
 
     // C++ decides the logout after the packet loop and the query callbacks
     // (`WorldSession.cpp:498-503`), so the cancel wins this step.
@@ -527,7 +535,7 @@ async fn a_request_from_a_retired_step_or_a_foreign_producer_is_refused() {
         admission: crate::session::mailbox::MapPhaseAdmissionLikeCpp,
     ) -> SessionPhasePassOutcomeLikeCpp {
         let (response_tx, response_rx) = flume::bounded(1);
-        session
+        let pending_finalization = session
             .run_requested_session_phase_like_cpp(
                 crate::session::mailbox::SessionPhaseRequestLikeCpp::Map(
                     RunMapPhasePassLikeCppCommand {
@@ -539,6 +547,7 @@ async fn a_request_from_a_retired_step_or_a_foreign_producer_is_refused() {
                 &SessionHandlerCatalogsLikeCpp::default(),
             )
             .await;
+        assert!(pending_finalization.is_none());
         response_rx.try_recv().expect("reported").outcome
     }
 
@@ -584,7 +593,7 @@ async fn the_world_and_map_phases_of_one_step_share_an_epoch_without_refusing_ea
     // `World::Update` (World.cpp:2704, World.cpp:2748): one step, both phases.
     let permit = SessionPhasePermitLikeCpp::new_like_cpp();
     let (world_tx, world_rx) = flume::bounded(1);
-    session
+    let pending_finalization = session
         .run_requested_session_phase_like_cpp(
             crate::session::mailbox::SessionPhaseRequestLikeCpp::World(
                 crate::session::mailbox::RunWorldPhasePassLikeCppRequest {
@@ -598,6 +607,7 @@ async fn the_world_and_map_phases_of_one_step_share_an_epoch_without_refusing_ea
             &SessionHandlerCatalogsLikeCpp::default(),
         )
         .await;
+    assert!(pending_finalization.is_none());
     assert_eq!(
         world_rx.try_recv().expect("reported").outcome,
         SessionPhasePassOutcomeLikeCpp::Ran
@@ -607,7 +617,7 @@ async fn the_world_and_map_phases_of_one_step_share_an_epoch_without_refusing_ea
         .current_map_phase_admission_for_test_like_cpp(3, 12, 50)
         .expect("the session can be admitted");
     let (map_tx, map_rx) = flume::bounded(1);
-    session
+    let pending_finalization = session
         .run_requested_session_phase_like_cpp(
             crate::session::mailbox::SessionPhaseRequestLikeCpp::Map(
                 RunMapPhasePassLikeCppCommand {
@@ -619,9 +629,82 @@ async fn the_world_and_map_phases_of_one_step_share_an_epoch_without_refusing_ea
             &SessionHandlerCatalogsLikeCpp::default(),
         )
         .await;
+    assert!(pending_finalization.is_none());
     assert_eq!(
         map_rx.try_recv().expect("reported").outcome,
         SessionPhasePassOutcomeLikeCpp::Ran
+    );
+}
+
+#[tokio::test]
+async fn dropping_a_disconnecting_world_pass_does_not_acknowledge_finalization() {
+    let (mut session, packet_tx, _send_rx) = make_session();
+    drop(packet_tx);
+    let permit = SessionPhasePermitLikeCpp::new_like_cpp();
+    let (response_tx, response_rx) = flume::bounded(1);
+    let pending = session
+        .run_requested_session_phase_like_cpp(
+            crate::session::mailbox::SessionPhaseRequestLikeCpp::World(
+                crate::session::mailbox::RunWorldPhasePassLikeCppRequest {
+                    coordinator_id: 1,
+                    tick_epoch: 1,
+                    diff_ms: 50,
+                    permit: std::sync::Arc::clone(&permit),
+                    response_tx,
+                },
+            ),
+            &SessionHandlerCatalogsLikeCpp::default(),
+        )
+        .await
+        .expect("a disconnected transport leaves finalization with the task owner");
+
+    assert!(session.is_disconnecting());
+    assert_eq!(
+        permit.state_like_cpp(),
+        SessionPhasePermitStateLikeCpp::Running
+    );
+    assert!(matches!(
+        response_rx.try_recv(),
+        Err(flume::TryRecvError::Empty)
+    ));
+    drop(pending);
+    assert!(matches!(
+        response_rx.try_recv(),
+        Err(flume::TryRecvError::Disconnected)
+    ));
+    assert_eq!(
+        permit.state_like_cpp(),
+        SessionPhasePermitStateLikeCpp::Running
+    );
+}
+
+#[test]
+fn shutdown_refusal_cannot_acknowledge_an_already_running_request() {
+    let (mut session, _packet_tx, _send_rx) = make_session();
+    let permit = SessionPhasePermitLikeCpp::new_like_cpp();
+    assert_eq!(
+        permit.claim_like_cpp(),
+        crate::session::mailbox::SessionPhaseClaimLikeCpp::Claimed
+    );
+    let (response_tx, response_rx) = flume::bounded(1);
+    session.refuse_requested_session_phase_like_cpp(
+        crate::session::mailbox::SessionPhaseRequestLikeCpp::World(
+            crate::session::mailbox::RunWorldPhasePassLikeCppRequest {
+                coordinator_id: 1,
+                tick_epoch: 1,
+                diff_ms: 50,
+                permit: std::sync::Arc::clone(&permit),
+                response_tx,
+            },
+        ),
+    );
+    assert_eq!(
+        response_rx.try_recv().unwrap().outcome,
+        SessionPhasePassOutcomeLikeCpp::AlreadyResolved
+    );
+    assert_eq!(
+        permit.state_like_cpp(),
+        SessionPhasePermitStateLikeCpp::Running
     );
 }
 

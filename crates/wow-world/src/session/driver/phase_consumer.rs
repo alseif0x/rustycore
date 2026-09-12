@@ -17,9 +17,9 @@ use wow_handler::PacketUpdatePhase;
 
 use super::super::{SessionHandlerCatalogsLikeCpp, SessionState, WorldSession};
 use crate::session::mailbox::{
-    MapPhaseAdmissionLikeCpp, RunMapPhasePassLikeCppCommand, RunMapPhasePassResultLikeCpp,
-    RunWorldPhasePassLikeCppRequest, RunWorldPhasePassResultLikeCpp, SessionPhaseClaimLikeCpp,
-    SessionPhasePassOutcomeLikeCpp, SessionPhaseRequestLikeCpp,
+    MapPhaseAdmissionLikeCpp, PendingWorldPhaseFinalizationLikeCpp, RunMapPhasePassLikeCppCommand,
+    RunMapPhasePassResultLikeCpp, RunWorldPhasePassLikeCppRequest, RunWorldPhasePassResultLikeCpp,
+    SessionPhaseClaimLikeCpp, SessionPhasePassOutcomeLikeCpp, SessionPhaseRequestLikeCpp,
 };
 
 impl WorldSession {
@@ -259,46 +259,77 @@ impl WorldSession {
         let mut refused = 0;
         while let Ok(request) = self.session_phase_rx.try_recv() {
             refused += 1;
-            match request {
-                SessionPhaseRequestLikeCpp::World(request) => {
-                    request.permit.refuse_before_start_like_cpp();
-                    let _ = request
-                        .response_tx
-                        .try_send(RunWorldPhasePassResultLikeCpp {
-                            coordinator_id: request.coordinator_id,
-                            tick_epoch: request.tick_epoch,
-                            outcome: SessionPhasePassOutcomeLikeCpp::RefusedBeforeStart,
-                            dispatched: 0,
-                            disconnecting: self.is_disconnecting(),
-                        });
-                }
-                SessionPhaseRequestLikeCpp::Map(command) => {
-                    command.permit.refuse_before_start_like_cpp();
-                    let _ = command.response_tx.try_send(RunMapPhasePassResultLikeCpp {
-                        tick_epoch: command.admission.tick_epoch,
-                        outcome: SessionPhasePassOutcomeLikeCpp::RefusedBeforeStart,
-                        dispatched: 0,
-                        stopped_at_ineligible_head: false,
-                        disconnecting: self.is_disconnecting(),
-                    });
-                }
-            }
+            self.refuse_requested_session_phase_like_cpp(request);
         }
         refused
     }
 
-    /// Run one requested phase and report its completion boundary.
+    /// Refuse a request already received when the task observes shutdown.
+    /// The rail drain cannot see a request held by `recv_async`'s caller.
+    pub fn refuse_requested_session_phase_like_cpp(&mut self, request: SessionPhaseRequestLikeCpp) {
+        use crate::session::mailbox::SessionPhasePermitStateLikeCpp as State;
+        let permit = match &request {
+            SessionPhaseRequestLikeCpp::World(request) => &request.permit,
+            SessionPhaseRequestLikeCpp::Map(command) => &command.permit,
+        };
+        let outcome = if permit.refuse_before_start_like_cpp() {
+            SessionPhasePassOutcomeLikeCpp::RefusedBeforeStart
+        } else {
+            match permit.state_like_cpp() {
+                State::RevokedBeforeStart => SessionPhasePassOutcomeLikeCpp::RevokedBeforeStart,
+                State::RefusedBeforeStart => SessionPhasePassOutcomeLikeCpp::RefusedBeforeStart,
+                _ => SessionPhasePassOutcomeLikeCpp::AlreadyResolved,
+            }
+        };
+        match request {
+            SessionPhaseRequestLikeCpp::World(request) => {
+                let _ = request
+                    .response_tx
+                    .try_send(RunWorldPhasePassResultLikeCpp {
+                        coordinator_id: request.coordinator_id,
+                        tick_epoch: request.tick_epoch,
+                        outcome,
+                        dispatched: 0,
+                        disconnecting: self.is_disconnecting(),
+                    });
+            }
+            SessionPhaseRequestLikeCpp::Map(command) => {
+                let _ = command.response_tx.try_send(RunMapPhasePassResultLikeCpp {
+                    tick_epoch: command.admission.tick_epoch,
+                    outcome,
+                    dispatched: 0,
+                    stopped_at_ineligible_head: false,
+                    disconnecting: self.is_disconnecting(),
+                });
+            }
+        }
+    }
+
+    /// Run one requested phase and report its completion boundary. A world
+    /// pass that disconnects returns its outstanding finalization reply to
+    /// the task owner; neither its permit nor its reply completes here.
     pub async fn run_requested_session_phase_like_cpp(
         &mut self,
         request: SessionPhaseRequestLikeCpp,
         catalogs: &SessionHandlerCatalogsLikeCpp,
-    ) {
+    ) -> Option<PendingWorldPhaseFinalizationLikeCpp> {
         match request {
             SessionPhaseRequestLikeCpp::World(request) => {
                 let response_tx = request.response_tx.clone();
+                let permit = std::sync::Arc::clone(&request.permit);
                 let result = self
                     .run_admitted_world_phase_pass_like_cpp(request, catalogs)
                     .await;
+                if result.outcome == SessionPhasePassOutcomeLikeCpp::Ran {
+                    if result.disconnecting {
+                        return Some(PendingWorldPhaseFinalizationLikeCpp {
+                            permit,
+                            response_tx,
+                            result,
+                        });
+                    }
+                    permit.complete_like_cpp();
+                }
                 let _ = response_tx.try_send(result);
             }
             SessionPhaseRequestLikeCpp::Map(command) => {
@@ -309,6 +340,7 @@ impl WorldSession {
                 let _ = response_tx.try_send(result);
             }
         }
+        None
     }
 
     /// Run one admitted world-phase pass: C++ `World::UpdateSessions`
@@ -371,7 +403,6 @@ impl WorldSession {
         // pass is dispatched above and must be seen before the decision.
         self.run_logout_timer_like_cpp();
 
-        request.permit.complete_like_cpp();
         RunWorldPhasePassResultLikeCpp {
             coordinator_id: request.coordinator_id,
             tick_epoch: request.tick_epoch,

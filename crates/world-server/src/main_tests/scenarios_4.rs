@@ -354,7 +354,7 @@ fn session_resources_requires_named_capability_bundles() {
     // installed into the session.
     assert!(
         session_factory_source
-            .contains(".run_requested_session_phase_like_cpp(request, handler_catalogs)"),
+            .contains("session.run_requested_session_phase_like_cpp(request, handler_catalogs)"),
         "the driver must pass immutable catalogs explicitly instead of installing a session locator"
     );
     assert!(
@@ -583,6 +583,7 @@ fn set_tick_owner_has_exactly_one_production_call_site_before_the_loop_spawns() 
         include_str!("../lib.rs"),
         include_str!("../runtime/delivery.rs"),
         include_str!("../runtime/map.rs"),
+        include_str!("../runtime/map/update_loop.rs"),
     ] {
         assert!(
             !source.contains("set_tick_owner("),

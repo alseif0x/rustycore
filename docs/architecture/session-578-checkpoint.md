@@ -3369,6 +3369,46 @@ fixture is what needs re-baselining, not the coordination.
 Still not covered by this QA: a producer that dies during shutdown, and
 finalization after the acknowledgement. Both remain open composition evidence.
 
+#### #787 resumption: finalization is inside the World completion boundary — 2026-09-12
+
+Review above `1b38c5f8` found that the second remaining scenario is a correctness
+gap, not only missing coverage: `phase_consumer.rs` completed the World permit
+and sent its reply before `session_factory.rs` drained rename callbacks, saved,
+retired the Player and dropped the active registration. The producer could then
+advance another session or the map while finalization still had effects pending.
+C++ `World::UpdateSessions` (`World.cpp:3394-3432`, source `a5f8da2e`) erases and
+deletes that session before advancing; `WorldSession::~WorldSession`
+(`WorldSession.cpp:162-167`) runs `LogoutPlayer` when needed.
+
+The corrected boundary keeps one task owner and the existing finalization
+executor. A disconnecting World pass returns a non-cloneable pending reply;
+the shared permit remains Running until whole-operation finalization, session
+destruction and active registration retirement succeed. Destruction also releases
+the battle-pet account attachment's process lease (`battle_pet_account.rs`), so it
+must precede the reply. Dropping the reply is not completion. Failure,
+timeout or unknown persistence keeps the session and its reply under the existing
+fail-stop retention policy. A disconnect observed in Map waits for World or the
+shutdown handover, as `ProcessUnsafe` guards logout (`WorldSession.cpp:498-540`).
+
+Shutdown is rechecked after receiving a request, so the handover can refuse a
+request already taken off the rail. Refusing a previously claimed permit cannot
+report that it never ran. Ordinary canonical simulation pauses during session
+drain; the existing last respawn tick requires the registry to be empty. Between
+steps, InterruptedAfterStart remains an unresolved barrier rather than being
+discarded as a safe terminal state.
+
+The canonical producer is now the private `runtime/map/update_loop.rs` module,
+with the same entry re-exported from `runtime/map.rs`. This is physical movement
+of the same producer, not a second owner or clock. The macro still does not
+converge the legacy creature writer, add a watchdog, or rewrite the inherited
+gameplay persistence waits. The normal live QA above remains evidence for its
+recorded build; this corrected candidate still needs its own final acceptance.
+
+Validation of this resumed candidate is pending. The owning task is adding
+production-composition regressions for producer loss, delayed/failed finalization
+and Map-to-World retirement, followed by one local final campaign and renewed
+guarded save/relogin QA. No new pass or merge is claimed by this entry.
+
 ### Proportional evidence inside the macro
 
 The [plan's reanalysis checkpoints](modularity-and-ecs-plan.md#reanalysis-checkpoints--evidence-before-replication)

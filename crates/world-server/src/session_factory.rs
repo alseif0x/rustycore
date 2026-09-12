@@ -2,6 +2,8 @@
 
 use super::*;
 mod finalization;
+#[cfg(test)]
+mod phase_lifecycle_tests;
 
 pub(super) fn load_realm_info_from_snapshot_like_cpp(
     realm_list: &SharedRealmListLikeCpp,
@@ -114,9 +116,10 @@ pub(super) fn first_ipv4_address_like_cpp(
     })
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug)]
 pub(super) enum WorldSessionRunOutcomeLikeCpp {
     Finished,
+    FinalizeWorldPass(wow_world::session::mailbox::PendingWorldPhaseFinalizationLikeCpp),
     ForceCancelled,
 }
 
@@ -261,24 +264,31 @@ async fn run_world_session_phase_loop_like_cpp(
             return WorldSessionRunOutcomeLikeCpp::Finished;
         };
 
+        // recv_async may have removed this request just as shutdown began.
+        // Refuse it explicitly; the next loop drains the remaining rail/control.
+        if active_session_registry.is_shutting_down_like_cpp() {
+            ready_for_phases_like_cpp.store(false, Ordering::Release);
+            session.refuse_requested_session_phase_like_cpp(request);
+            continue;
+        }
+
         // The pass itself is not cancelled from here, and that is deliberate:
         // cancelling a claimed phase would leave its mutations neither finished
         // nor rolled back, with the producer holding a permit that can never
         // resolve. Cancellation is honoured at the phase boundary instead — the
         // select above wins on the next iteration — so a forced cancellation
         // ends this session one phase later rather than mid-effect.
-        let disconnecting = warn_about_sync_queries_scope_like_cpp(async {
-            session
-                .run_requested_session_phase_like_cpp(request, handler_catalogs)
-                .await;
-            session.is_disconnecting()
-        })
+        let pending_finalization = warn_about_sync_queries_scope_like_cpp(
+            session.run_requested_session_phase_like_cpp(request, handler_catalogs),
+        )
         .await;
 
-        if disconnecting {
-            info!("Session for account {account_id} disconnecting");
-            return WorldSessionRunOutcomeLikeCpp::Finished;
+        if let Some(pending) = pending_finalization {
+            info!("Session for account {account_id} disconnecting in World phase");
+            return WorldSessionRunOutcomeLikeCpp::FinalizeWorldPass(pending);
         }
+        // Map only reports its own completion. C++ ProcessUnsafe guards
+        // retirement; a disconnect observed there waits for World or shutdown.
     }
 }
 
@@ -419,7 +429,7 @@ pub(super) async fn create_session(
     session.set_session_mgr(Arc::clone(&session_mgr));
     session.set_instance_endpoint(connect_ip, instance_port);
 
-    if run_world_session_until_disconnect_like_cpp(
+    let outcome = run_world_session_until_disconnect_like_cpp(
         &mut session,
         resources.core.handler_catalogs.as_ref(),
         account_id,
@@ -427,75 +437,17 @@ pub(super) async fn create_session(
         session_cancellation.as_ref(),
         ready_for_phases_like_cpp.as_ref(),
     )
-    .await
-        == WorldSessionRunOutcomeLikeCpp::ForceCancelled
-    {
-        tracing::error!(
-            account_id,
-            "Force-cancelled world session after shutdown grace period"
-        );
-    }
-    // Retired reads cannot start writes. Join writes already submitted by ready
-    // callbacks before saving/discarding this Session. A timeout is fatal, not an
-    // acknowledgement that a transaction rolled back or a worker stopped.
-    let rename_drain = session.finish_character_rename_callbacks_like_cpp();
-    let rename_finished = if active_session_registry.is_shutting_down_like_cpp() {
-        run_world_session_shutdown_finalize_step_like_cpp(
-            world_runtime_state.as_ref(),
-            WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP,
-            rename_drain,
-        )
-        .await
-            == Some(true)
-    } else {
-        rename_drain.await
-    };
-    if !rename_finished {
-        active_session_registry.begin_shutdown_like_cpp();
-        active_session_registry.request_session_stop_like_cpp();
-        world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
-        tracing::error!(
-            account_id,
-            "Rename writer completion remains owned by session; refusing finalization and release"
-        );
-        finalization::retain_session_until_process_teardown(&mut session).await;
-    }
-    let attempt = if active_session_registry.is_shutting_down_like_cpp() {
-        run_world_session_shutdown_finalize_step_like_cpp(
-            world_runtime_state.as_ref(),
-            WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP,
-            session.finalize_session_with_generator_like_cpp(
-                wow_world::FinalizationMode::Disconnect,
-                resources.core.handler_catalogs.id_generators.item.as_ref(),
-            ),
-        )
-        .await
-    } else {
-        Some(
-            session
-                .finalize_session_with_generator_like_cpp(
-                    wow_world::FinalizationMode::Disconnect,
-                    resources.core.handler_catalogs.id_generators.item.as_ref(),
-                )
-                .await,
-        )
-    };
-    let report = attempt.or_else(|| session.interrupt_finalization_like_cpp());
-    if !finalization::completed_session_finalization(&report) {
-        // Keep this task's Session, exact claim, remaining operation state and
-        // registration alive. Closing admission precedes fail-stop; no other
-        // session can race a still-unproven writer through a released claim.
-        active_session_registry.begin_shutdown_like_cpp();
-        active_session_registry.request_session_stop_like_cpp();
-        world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
-        tracing::error!(
-            account_id,
-            ?report,
-            "Finalization unresolved; retaining task-owned session until process teardown"
-        );
-        finalization::retain_session_until_process_teardown(&mut session).await;
-    }
-    drop(active_session_registration);
+    .await;
+    finalization::finalize_owned_world_session_like_cpp(
+        session,
+        outcome,
+        account_id,
+        active_session_registration,
+        world_runtime_state.as_ref(),
+        resources.core.handler_catalogs.id_generators.item.as_ref(),
+        WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP,
+    )
+    .await;
 }
 
 /// Select the correct realm IP for a client, matching C++ `Realm::GetAddressForClient`.

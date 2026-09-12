@@ -36586,6 +36586,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "refuse_requested_session_phase_like_cpp",
+          "visibility": "pub",
+          "signature": "fn refuse_requested_session_phase_like_cpp (& mut self , request : SessionPhaseRequestLikeCpp)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "register_in_player_registry",
           "visibility": "pub (crate)",
           "signature": "fn register_in_player_registry (& self)",
@@ -44727,7 +44740,7 @@
           "kind": "method",
           "name": "run_requested_session_phase_like_cpp",
           "visibility": "pub",
-          "signature": "async fn run_requested_session_phase_like_cpp (& mut self , request : SessionPhaseRequestLikeCpp , catalogs : & SessionHandlerCatalogsLikeCpp ,)",
+          "signature": "async fn run_requested_session_phase_like_cpp (& mut self , request : SessionPhaseRequestLikeCpp , catalogs : & SessionHandlerCatalogsLikeCpp ,) -> Option < PendingWorldPhaseFinalizationLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -56868,16 +56881,8 @@
         "source_class": "production"
       },
       "signature": "async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)",
-      "body_fingerprint": "fnv1a64x2:e23198108a13393e2526eec3971259ed:len=5819",
+      "body_fingerprint": "fnv1a64x2:2a7fea6dfefa35cbc941c0dec3e8b820:len=4017",
       "session_helper_bodies": [
-        {
-          "module": "crate::session_factory",
-          "name": "run_world_session_shutdown_finalize_step_like_cpp",
-          "signature": "async fn run_world_session_shutdown_finalize_step_like_cpp < F > (world_runtime_state : & WorldRuntimeStateLikeCpp , step_timeout : Duration , step : F ,) -> Option < F :: Output > where F : std :: future :: Future ,",
-          "body_fingerprint": "fnv1a64x2:41b9557c6a06c1a7fbbf851ec6a2f1fe:len=188",
-          "cfg": [],
-          "source_class": "production"
-        },
         {
           "module": "crate::session_factory",
           "name": "run_world_session_until_disconnect_like_cpp",
@@ -56888,9 +56893,9 @@
         },
         {
           "module": "crate::session_factory::finalization",
-          "name": "retain_session_until_process_teardown",
-          "signature": "async fn retain_session_until_process_teardown (session : & mut WorldSession)",
-          "body_fingerprint": "fnv1a64x2:ac7cc3ad075a9207a8fe4d82d1b54574:len=103",
+          "name": "finalize_owned_world_session_like_cpp",
+          "signature": "async fn finalize_owned_world_session_like_cpp (mut session : WorldSession , outcome : WorldSessionRunOutcomeLikeCpp , account_id : u32 , active_session_registration : ActiveWorldSessionRegistrationGuardLikeCpp , world_runtime_state : & WorldRuntimeStateLikeCpp , item_guid_generator : & wow_core :: ObjectGuidGenerator , step_timeout : Duration ,)",
+          "body_fingerprint": "fnv1a64x2:3f26c6cb6872cd58a2a87de133ad87db:len=2235",
           "cfg": [],
           "source_class": "production"
         }
@@ -57162,6 +57167,16 @@
           "argument_count": 10,
           "cfg": [],
           "source_class": "production",
+          "count": 1
+        },
+        {
+          "module": "crate::session_factory::phase_lifecycle_tests::fixtures",
+          "callee": "WorldSession::new",
+          "argument_count": 10,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "count": 1
         },
         {
@@ -61788,84 +61803,6 @@
           "package": "world-server",
           "module": "crate::runtime::map",
           "source": "crates/world-server/src/runtime/map.rs",
-          "enclosing": "fn spawn_canonical_map_update_loop",
-          "registry": "PlayerRegistry",
-          "operation": "type_reference",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "Arc < PlayerRegistry >",
-          "count": 1
-        },
-        {
-          "package": "world-server",
-          "module": "crate::runtime::map",
-          "source": "crates/world-server/src/runtime/map.rs",
-          "enclosing": "fn spawn_canonical_map_update_loop",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
-          "symbol": "Some",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry . as_ref ()",
-          "count": 2
-        },
-        {
-          "package": "world-server",
-          "module": "crate::runtime::map",
-          "source": "crates/world-server/src/runtime/map.rs",
-          "enclosing": "fn spawn_canonical_map_update_loop",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
-          "symbol": "consume_game_event_live_update_side_effects_like_cpp",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "Some (player_registry . as_ref ())",
-          "count": 1
-        },
-        {
-          "package": "world-server",
-          "module": "crate::runtime::map",
-          "source": "crates/world-server/src/runtime/map.rs",
-          "enclosing": "fn spawn_canonical_map_update_loop",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
-          "symbol": "deliver_deferred_player_visibility_like_cpp",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "& player_registry",
-          "count": 1
-        },
-        {
-          "package": "world-server",
-          "module": "crate::runtime::map",
-          "source": "crates/world-server/src/runtime/map.rs",
-          "enclosing": "fn spawn_canonical_map_update_loop",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
-          "symbol": "fanout_reset_event_seasonal_quests_to_player_sessions_after_db_delete_like_cpp",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "Some (player_registry . as_ref ())",
-          "count": 1
-        },
-        {
-          "package": "world-server",
-          "module": "crate::runtime::map",
-          "source": "crates/world-server/src/runtime/map.rs",
-          "enclosing": "fn spawn_canonical_map_update_loop",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
-          "symbol": "run_map_phase_session_passes_like_cpp",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry . as_ref ()",
-          "count": 1
-        },
-        {
-          "package": "world-server",
-          "module": "crate::runtime::map",
-          "source": "crates/world-server/src/runtime/map.rs",
           "enclosing": "fn spawn_group_ready_check_tick_loop",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
@@ -61912,6 +61849,97 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "get(& group_guid)",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map::update_loop",
+          "source": "crates/world-server/src/runtime/map/update_loop.rs",
+          "enclosing": "fn spawn_canonical_map_update_loop",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "player_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "Arc < PlayerRegistry >",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map::update_loop",
+          "source": "crates/world-server/src/runtime/map/update_loop.rs",
+          "enclosing": "fn spawn_canonical_map_update_loop",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "Some",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "player_registry . as_ref ()",
+          "count": 2
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map::update_loop",
+          "source": "crates/world-server/src/runtime/map/update_loop.rs",
+          "enclosing": "fn spawn_canonical_map_update_loop",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "consume_game_event_live_update_side_effects_like_cpp",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "Some (player_registry . as_ref ())",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map::update_loop",
+          "source": "crates/world-server/src/runtime/map/update_loop.rs",
+          "enclosing": "fn spawn_canonical_map_update_loop",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "deliver_deferred_player_visibility_like_cpp",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "& player_registry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map::update_loop",
+          "source": "crates/world-server/src/runtime/map/update_loop.rs",
+          "enclosing": "fn spawn_canonical_map_update_loop",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "fanout_reset_event_seasonal_quests_to_player_sessions_after_db_delete_like_cpp",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "Some (player_registry . as_ref ())",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map::update_loop",
+          "source": "crates/world-server/src/runtime/map/update_loop.rs",
+          "enclosing": "fn spawn_canonical_map_update_loop",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "run_map_phase_session_passes_like_cpp",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "player_registry . as_ref ()",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map::update_loop",
+          "source": "crates/world-server/src/runtime/map/update_loop.rs",
+          "enclosing": "module",
+          "registry": "PlayerRegistry",
+          "operation": "import_alias",
+          "symbol": "PlayerRegistry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "super::{CanonicalGameEventSchedulerLikeCpp,CanonicalRespawnConditionSchedulerLikeCpp,LoadedGridCreatureRespawnCachesLikeCpp,PlayerRegistry,RespawnDbWriterSenderLikeCpp,SharedCanonicalMapManager,SharedCanonicalSpawnMetadataLikeCpp,SharedMapManager,SharedRespawnDbMutationOrderLikeCpp,SharedRespawnDbProducerStopLikeCpp,SharedWorldStateMgrLikeCpp,canonical_map_coordinator_id_like_cpp,canonical_map_tick_begin_like_cpp,canonical_map_tick_resume_like_cpp,consume_game_event_live_update_side_effects_like_cpp,current_unix_time_secs_like_cpp,execute_game_event_seasonal_quest_db_deletes_like_cpp,execute_game_event_world_event_state_db_bridge_like_cpp,fanout_reset_event_seasonal_quests_to_player_sessions_after_db_delete_like_cpp,load_loaded_grid_area_triggers_like_cpp,materialize_game_event_world_event_state_db_bridge_like_cpp,represented_game_event_world_conditions_met_like_cpp,warn_about_sync_queries_scope_like_cpp}",
           "count": 1
         },
         {
@@ -69849,8 +69877,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::map",
-          "path": "crates/world-server/src/runtime/map.rs",
+          "module": "crate::runtime::map::update_loop",
+          "path": "crates/world-server/src/runtime/map/update_loop.rs",
           "enclosing": "fn::spawn_canonical_map_update_loop",
           "direction_markers": [
             "unresolved_dual_side"
@@ -69867,29 +69895,29 @@
               "side": "canonical",
               "kind": "value_reference",
               "symbol": "manager",
-              "fingerprint": "fnv1a64x2:d7b75fb3f93959187612efb8773aa593:len=391",
-              "multiplicity": 8
+              "fingerprint": "fnv1a64x2:b66a0839994af9607f1b6b3334fef0e3:len=440",
+              "multiplicity": 9
             },
             {
               "side": "canonical",
               "kind": "value_reference",
               "symbol": "map_manager",
-              "fingerprint": "fnv1a64x2:4857153a8a6631a018e0f1a02ec2557b:len=199",
-              "multiplicity": 4
+              "fingerprint": "fnv1a64x2:8d96580c91a0c09fa625326801e90d10:len=249",
+              "multiplicity": 5
             },
             {
               "side": "canonical",
               "kind": "method_call",
               "symbol": "abandon_tick_like_cpp",
-              "fingerprint": "fnv1a64x2:3df7dfe317d92cee41c827aad2f5abf9:len=49",
-              "multiplicity": 1
+              "fingerprint": "fnv1a64x2:18557ac561109a7c726db34576407f87:len=99",
+              "multiplicity": 2
             },
             {
               "side": "canonical",
               "kind": "method_call",
               "symbol": "lock",
-              "fingerprint": "fnv1a64x2:9a4ab981de492fd8e22418538bf2f533:len=199",
-              "multiplicity": 4
+              "fingerprint": "fnv1a64x2:9e86e1f6345634d8265495f795b2edcb:len=249",
+              "multiplicity": 5
             },
             {
               "side": "legacy",
@@ -69906,7 +69934,7 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=fn spawn_canonical_map_update_loop (map_manager : SharedCanonicalMapManager , legacy_map_manager : SharedMapManager , tick_interval_ms : u32 , respawn_condition_interval_ms : u32 , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , condition_store : Arc < wow_data :: ConditionEntriesByTypeStore > , map_store : Arc < wow_data :: MapStore > , game_event_persistence : Arc < dyn GameEventPersistencePortLikeCpp > , respawn_db_writer_tx : RespawnDbWriterSenderLikeCpp , respawn_db_mutation_order : SharedRespawnDbMutationOrderLikeCpp , respawn_db_producer_stop : SharedRespawnDbProducerStopLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , area_trigger_template_store : Arc < wow_data :: AreaTriggerTemplateStore > , mut game_event_scheduler : CanonicalGameEventSchedulerLikeCpp , player_registry : Arc < PlayerRegistry > , active_session_registry : Arc < crate :: ActiveWorldSessionRegistryLikeCpp > , battlemaster_list_store : Arc < wow_data :: BattlemasterListStore > , world_state_mgr : SharedWorldStateMgrLikeCpp ,) -> tokio :: task :: JoinHandle < () >|body=fnv1a64x2:f377f439d04525e512984044a3dcc88e:len=23435|evidence=fnv1a64x2:caf7adc3f0573341c49b70b3b2f38d64:len=1770",
+          "fingerprint": "signature=fn spawn_canonical_map_update_loop (map_manager : SharedCanonicalMapManager , legacy_map_manager : SharedMapManager , tick_interval_ms : u32 , respawn_condition_interval_ms : u32 , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , condition_store : Arc < wow_data :: ConditionEntriesByTypeStore > , map_store : Arc < wow_data :: MapStore > , game_event_persistence : Arc < dyn GameEventPersistencePortLikeCpp > , respawn_db_writer_tx : RespawnDbWriterSenderLikeCpp , respawn_db_mutation_order : SharedRespawnDbMutationOrderLikeCpp , respawn_db_producer_stop : SharedRespawnDbProducerStopLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , area_trigger_template_store : Arc < wow_data :: AreaTriggerTemplateStore > , mut game_event_scheduler : CanonicalGameEventSchedulerLikeCpp , player_registry : Arc < PlayerRegistry > , active_session_registry : Arc < crate :: ActiveWorldSessionRegistryLikeCpp > , battlemaster_list_store : Arc < wow_data :: BattlemasterListStore > , world_state_mgr : SharedWorldStateMgrLikeCpp ,) -> tokio :: task :: JoinHandle < () >|body=fnv1a64x2:c9e1db021331e340a786728797d8973b:len=23763|evidence=fnv1a64x2:1da20d1cc6815d2701f269442773e582:len=2108",
           "cfg": [],
           "multiplicity": 1
         },
@@ -70102,7 +70130,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)|body=fnv1a64x2:e23198108a13393e2526eec3971259ed:len=5819|evidence=fnv1a64x2:72f642b85f1867c40b712a59020b9e87:len=367",
+          "fingerprint": "signature=async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)|body=fnv1a64x2:2a7fea6dfefa35cbc941c0dec3e8b820:len=4017|evidence=fnv1a64x2:72f642b85f1867c40b712a59020b9e87:len=367",
           "cfg": [],
           "multiplicity": 1
         },

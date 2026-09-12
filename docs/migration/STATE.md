@@ -1,5 +1,16 @@
 # RustyCore — Honest Current State (single source of truth)
 
+**Active delivery — 2026-09-12, #787 / PR #792, integration base `aee29a69`:**
+World/Map phase coordination is implemented on `787-p3-map-driven-session-pass`.
+The earlier candidate `306269f4` has recorded local and guarded save/relogin QA;
+review of `1b38c5f8` exposed finalization after an already-issued World ACK.
+The resumed correction retains that ACK through task-owned finalization and
+registration retirement, preserves shutdown handover, and keeps interrupted
+effects behind the cross-step barrier. Its new composition tests and acceptance
+are pending. [The session checkpoint](../architecture/session-578-checkpoint.md#787-resumption-finalization-is-inside-the-world-completion-boundary--2026-09-12)
+owns the contract and subsequent evidence. This is the selected #584 delivery;
+older next-issue instructions below are dated history.
+
 **Architecture plan reconciliation — 2026-09-11, #748, base `5d8c079a`:**
 All 46 initially open issues were reviewed and their bodies synchronized with the
 master plan. #42 was consolidated into #43, and #58/#59 into #41, retaining their

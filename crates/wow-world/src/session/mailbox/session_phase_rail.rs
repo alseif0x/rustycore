@@ -70,6 +70,32 @@ pub struct RunWorldPhasePassResultLikeCpp {
     pub disconnecting: bool,
 }
 
+/// A world pass whose disconnect finalization still belongs to the session task.
+///
+/// C++ `World::UpdateSessions` deletes a disconnected session before advancing
+/// to another session or to maps (`World.cpp:3420-3431`). Its destructor runs
+/// `LogoutPlayer` (`WorldSession.cpp:162-167`). Keep the permit running and the
+/// reply owned until the Rust supervisor has completed that same obligation.
+/// Dropping this value does not prove completion and never releases the permit.
+#[derive(Debug)]
+#[must_use = "finish session finalization before acknowledging its world pass"]
+pub struct PendingWorldPhaseFinalizationLikeCpp {
+    pub(crate) permit: Arc<SessionPhasePermitLikeCpp>,
+    pub(crate) response_tx: flume::Sender<RunWorldPhasePassResultLikeCpp>,
+    pub(crate) result: RunWorldPhasePassResultLikeCpp,
+}
+
+impl PendingWorldPhaseFinalizationLikeCpp {
+    /// Called by the task owner only after whole-operation finalization,
+    /// session destruction and registration retirement. An unresolved finalization
+    /// retains this value with its session under the existing fail-stop policy.
+    pub fn complete_like_cpp(self) {
+        if self.permit.complete_like_cpp() {
+            let _ = self.response_tx.try_send(self.result);
+        }
+    }
+}
+
 /// C++ `Map::Update` drives the sessions of the players on that map through
 /// `MapSessionFilter` before respawns and the object updaters
 /// (`Maps/Map.cpp:669-680`). RustyCore sessions own themselves in their own

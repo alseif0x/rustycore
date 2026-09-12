@@ -339,7 +339,7 @@ pub(crate) const REST_STATE_RAF_LINKED_LIKE_CPP: u8 = 6;
 /// handlers. It mirrors C++ ObjectMgr startup stores and contains no database
 /// handle or mutable gameplay state.
 #[derive(Debug, Clone)]
-#[cfg_attr(test, derive(Default))]
+#[cfg_attr(any(test, feature = "test-fixtures"), derive(Default))]
 pub struct ObjectMgrCatalogsLikeCpp {
     pub creature: Arc<wow_data::CreatureQueryCatalogLikeCpp>,
     pub gameobject: Arc<wow_data::GameObjectQueryCatalogLikeCpp>,
@@ -417,7 +417,7 @@ pub struct CreatureSpawnCatalogsLikeCpp {
 /// capability for the operation; it does not own a copy of any catalog or
 /// configuration value.
 #[derive(Clone)]
-#[cfg_attr(test, derive(Default))]
+#[cfg_attr(any(test, feature = "test-fixtures"), derive(Default))]
 pub struct ProgressionCatalogsLikeCpp {
     pub player_xp: Arc<Vec<u32>>,
     pub exploration_base_xp: Arc<ExplorationBaseXpStoreLikeCpp>,
@@ -427,7 +427,7 @@ pub struct ProgressionCatalogsLikeCpp {
     pub no_reset_talent_cost: bool,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl Default for CreatureSpawnCatalogsLikeCpp {
     fn default() -> Self {
         Self {
@@ -561,7 +561,7 @@ impl Default for GroupInvitePolicyLikeCpp {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl Default for ItemValuationCatalogsLikeCpp {
     fn default() -> Self {
         Self {
@@ -579,7 +579,7 @@ impl Default for ItemValuationCatalogsLikeCpp {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl Default for PlayerBootstrapCatalogsLikeCpp {
     fn default() -> Self {
         Self {
@@ -622,7 +622,7 @@ pub struct SessionIdGeneratorsLikeCpp {
     pub void_storage_item: Arc<VoidStorageItemIdGeneratorLikeCpp>,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl Default for SessionIdGeneratorsLikeCpp {
     fn default() -> Self {
         Self {
@@ -634,7 +634,7 @@ impl Default for SessionIdGeneratorsLikeCpp {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl Default for AreaTriggerCatalogsLikeCpp {
     fn default() -> Self {
         Self {
@@ -685,7 +685,7 @@ pub struct SessionHandlerCatalogsLikeCpp {
     pub id_generators: Arc<SessionIdGeneratorsLikeCpp>,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl Default for SessionHandlerCatalogsLikeCpp {
     fn default() -> Self {
         Self {

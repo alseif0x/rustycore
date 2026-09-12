@@ -38,7 +38,7 @@ pub(crate) struct WorldSessionPassSummaryLikeCpp {
     pub(crate) unresolved_after_start: usize,
     pub(crate) stalled_ms: u64,
     /// Permits of passes whose effects were never accounted for; the producer
-    /// holds its barrier until every one reaches a terminal state.
+    /// holds its barrier until each completes or is proven unable to start.
     pub(crate) unresolved_permits: Vec<Arc<SessionPhasePermitLikeCpp>>,
 }
 
@@ -47,6 +47,23 @@ impl WorldSessionPassSummaryLikeCpp {
         self.unresolved_after_start == 0 && self.unresolved_permits.is_empty()
     }
 }
+
+/// Used between producer steps: interruption records uncertainty, not release.
+pub(super) fn retain_unresolved_phase_permits_like_cpp(
+    permits: &mut Vec<Arc<SessionPhasePermitLikeCpp>>,
+) {
+    use wow_world::session::mailbox::SessionPhasePermitStateLikeCpp as State;
+    permits.retain(|permit| {
+        !matches!(
+            permit.state_like_cpp(),
+            State::Completed | State::RevokedBeforeStart | State::RefusedBeforeStart
+        )
+    });
+}
+
+#[cfg(test)]
+#[path = "world_session_pass/barrier_tests.rs"]
+mod barrier_tests;
 
 /// Drive the world phase of every session that can answer, serially.
 ///
