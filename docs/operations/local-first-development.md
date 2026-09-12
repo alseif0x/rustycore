@@ -45,12 +45,19 @@ complete delivery before running its acceptance; delegation adds no per-worker C
 or independent review gate. Run focused tests for affected behavior at that point:
 
 ```bash
-PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test --locked -p wow-world exact_test_name --lib
+CARGO_TARGET_DIR="$PWD/target" CARGO_BUILD_JOBS=1 \
+  PROTOC=/home/ubuntu/.local/protoc/bin/protoc \
+  cargo test --locked -p wow-world exact_test_name --lib
 ```
 
 Validation commands must expose their real exit status. Do not append `| head`, `| grep`,
 `; echo EXIT=$?`, or another pipeline that can turn a failed checker into a reported success. If
 output must be retained, redirect it to a log and check the validator's own exit code.
+
+Choose this focused run when its evidence is missing or a failure needs investigation; do not
+rerun it merely because the same cases ran in `final`'s complete library suite. The runner
+contract owns cache selection, disk cleanup and background-task tracking. Keep direct Cargo
+on that same per-worktree target and preserve the active cache between macros.
 
 Use focused checks within the approved issue or macro; an internal cut does not require a new
 PR, exhaustive run or repeated approval. Before publication, commit the completed local work,

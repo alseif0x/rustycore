@@ -24,6 +24,15 @@ workspace reverse-dependent closure and runs library tests for the directly chan
 packages. A root Cargo, toolchain, protobuf, or build-script change explicitly expands compilation
 to `--workspace --all-targets`; it does not implicitly run every library suite.
 
+These profiles are alternative budgets, not mandatory successive stages. At completed-delivery
+acceptance, plan the missing issue-specific evidence and the committed-candidate `final` once.
+Its downstream check replaces an equivalent manual preflight; its full library suites also
+provide evidence for the focused cases they actually execute. Keep additional integration,
+ownership, capture and live checks whose acceptance is not covered. A changed candidate or a
+failed check needs renewed affected evidence; a new agent, commit message, or handoff does not
+by itself require recompiling unchanged inputs. Do not use repeated compiler runs to discover
+consumers or drive one-field-at-a-time replacements.
+
 A `final` run whose diff touches workspace Rust also enforces the curated hotspot LOC ceilings
 (`check_architecture.py hotspot-ratchet`; timing depends on cached scanner/build state).
 Every nonempty `final` diff also runs the cheap `check_architecture.py physical-files` scan,
@@ -177,19 +186,67 @@ one host. Lock diagnostics identify the active run id, PID, repository, HEAD, pr
 time. `quick` and `final` never acquire this heavyweight lock. For hermetic tests only, its path
 can be overridden with `VALIDATION_V2_HEAVY_LOCK`.
 
-The conservative defaults are two Cargo jobs and a 900-second per-command timeout, except that
+The conservative defaults are one Cargo job and a 900-second per-command timeout, except that
 `audit` defaults to 3600 seconds: its exhaustive persistence inventory alone runs 870-900 seconds
 on a four-core host, so the ordinary budget would kill it - correctly reported as
 `failure_kind: timeout`, but for no useful reason. Controlled
 overrides are validated before execution:
 
 ```bash
-VALIDATION_V2_CARGO_JOBS=4 VALIDATION_V2_TIMEOUT_SECONDS=1200 \
+VALIDATION_V2_CARGO_JOBS=1 VALIDATION_V2_TIMEOUT_SECONDS=1200 \
   ./tools/validation-v2 final
 ```
 
 Cargo jobs must be between 1 and 8; timeout must be between 30 and 3600 seconds. A concurrent run
 fails immediately and reports the lock path and active owner instead of waiting invisibly.
+
+### Cargo artifacts and disk space
+
+The runner uses `<checkout>/target` by default, matching ordinary Cargo commands in that
+workspace. An explicit nonempty `CARGO_TARGET_DIR` is respected; relative values are resolved
+against the checkout. Keep one target per active worktree rather than sharing a mutable cache
+between independent worktrees. Do not change debug, incremental or codegen flags midway through
+acceptance to save space: those changes invalidate reusable compilation and need their own
+measured tradeoff. Both `check` and `test` remain required where routed; they produce different
+artifacts and are not interchangeable evidence.
+
+For direct acceptance involving the standalone checker or bot, run from the checkout root:
+
+```bash
+export CARGO_TARGET_DIR="$PWD/target"
+export CARGO_BUILD_JOBS=1
+export PROTOC=/home/ubuntu/.local/protoc/bin/protoc
+```
+
+The former `target/validation-v2/cargo/<worktree-hash>` is a separate legacy cache. After
+switching a checkout to the new runner, it can be removed only when no process uses it;
+retain `target/validation-v2/manifests` and any required evidence. No automatic cache deletion
+occurs in validation. The first run may need artifacts absent from the selected target.
+
+On the shared development host with a 193 GiB filesystem, aim to retain at least 30 GiB free
+before starting a large Rust acceptance. Use `df -h` and a targeted `du` to measure pressure.
+If space is tight, inspect inactive worktrees' generated targets first. Check active agents,
+Cargo processes and open files before deleting any selected directory; exclude tracked or
+user-authored files, running/deployed executables, rollback builds, databases, captures and
+manifests. Do not delete an entire worktree just to reclaim its generated artifacts. Recheck
+free space after cleanup. Deleting the active incremental cache at each macro is not a
+retention policy and needlessly repeats compilation; if safe cleanup cannot restore headroom,
+pause new builds and report the concrete storage need while continuing safe inspection.
+
+### Visible output and background tasks
+
+Invoke the runner directly so its progress and real exit status remain visible. Never pipe
+validation into `tail`, `head`, or `grep` and treat the consumer's status as success. To retain
+output, redirect to a log, preserve the runner's exit code, then inspect that log separately.
+
+The agent tool's foreground wait is independent of the runner's per-command timeout. When
+Claude or another harness returns a background task ID after a wait expires, keep tracking
+that exact task and its output until it exits. Do not start a replacement or launch a manual
+Cargo warmup while it may still be running. A wait expiry is not a failed validation. `SIGTERM`
+or exit 143 is a real interrupted run: check the manifest, process state, and harness task
+result before retrying once the cause is understood. Do not assume disk pressure or OOM from
+the signal alone, disable permission controls, or detach a job to evade a harness rejection.
+Do not stop unrelated processes or reuse a green manifest from a different candidate.
 
 The base must already exist locally. Validation never fetches it:
 
