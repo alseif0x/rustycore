@@ -134,12 +134,17 @@ impl WorldSession {
         &mut self,
         cinematic_id: Option<u32>,
     ) {
-        let _ =
-            self.mutate_player_cinematic_state_like_cpp(|state| state.cinematic_id = cinematic_id);
+        let _ = self.with_player_cinematic_state_like_cpp(|state| match cinematic_id {
+            Some(cinematic_id) => state.begin_cinematic_like_cpp(cinematic_id, [0; 8]),
+            None => {
+                state.end_cinematic_like_cpp();
+            }
+        });
     }
     #[cfg(test)]
     pub(crate) fn set_represented_movie_like_cpp_for_test(&mut self, movie_id: Option<u32>) {
-        let _ = self.mutate_player_cinematic_state_like_cpp(|state| state.movie_id = movie_id);
+        let _ =
+            self.with_player_cinematic_state_like_cpp(|state| state.set_movie_like_cpp(movie_id));
     }
     #[cfg(test)]
     pub(crate) fn support_feature_policy_for_test_like_cpp(&self) -> SupportFeaturePolicyLikeCpp {

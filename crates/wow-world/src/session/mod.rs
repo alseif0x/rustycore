@@ -6647,17 +6647,11 @@ pub struct WorldSession {
     cinematic_sequences_store: Option<Arc<CinematicSequencesStore>>,
     movie_store: Option<Arc<MovieStore>>,
     #[cfg(test)]
-    represented_cinematic_like_cpp: Option<u32>,
-    #[cfg(test)]
-    represented_cinematic_camera_ids_like_cpp: Option<[u16; 8]>,
-    #[cfg(test)]
-    represented_cinematic_camera_index_like_cpp: i32,
+    represented_cinematic_state_like_cpp: wow_entities::PlayerCinematicStateLikeCpp,
     #[cfg(test)]
     represented_cinematic_next_camera_events_like_cpp: Vec<u16>,
     #[cfg(test)]
     represented_cinematic_end_events_like_cpp: Vec<u32>,
-    #[cfg(test)]
-    represented_movie_like_cpp: Option<u32>,
     #[cfg(test)]
     represented_movie_complete_events_like_cpp: Vec<u32>,
     #[cfg(test)]
@@ -8576,17 +8570,15 @@ impl WorldSession {
             cinematic_sequences_store: None,
             movie_store: None,
             #[cfg(test)]
-            represented_cinematic_like_cpp: None,
+            represented_cinematic_state_like_cpp:
+                wow_entities::PlayerCinematicStateLikeCpp::default(),
             #[cfg(test)]
-            represented_cinematic_camera_ids_like_cpp: None,
             #[cfg(test)]
-            represented_cinematic_camera_index_like_cpp: -1,
             #[cfg(test)]
             represented_cinematic_next_camera_events_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_cinematic_end_events_like_cpp: Vec::new(),
             #[cfg(test)]
-            represented_movie_like_cpp: None,
             #[cfg(test)]
             represented_movie_complete_events_like_cpp: Vec::new(),
             #[cfg(test)]
@@ -11267,12 +11259,7 @@ impl WorldSession {
         }
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            return Some(wow_entities::PlayerCinematicStateLikeCpp {
-                cinematic_id: self.represented_cinematic_like_cpp,
-                camera_ids: self.represented_cinematic_camera_ids_like_cpp,
-                camera_index: self.represented_cinematic_camera_index_like_cpp,
-                movie_id: self.represented_movie_like_cpp,
-            });
+            return Some(self.represented_cinematic_state_like_cpp);
         }
         None
     }
@@ -11299,12 +11286,9 @@ impl WorldSession {
 
     pub(crate) fn complete_represented_cinematic_like_cpp(&mut self) {
         let Some(cinematic_id) = self
-            .mutate_player_cinematic_state_like_cpp(|state| {
-                let cinematic_id = state.cinematic_id.take();
-                state.camera_ids = None;
-                state.camera_index = -1;
-                cinematic_id
-            })
+            .with_player_cinematic_state_like_cpp(
+                wow_entities::PlayerCinematicStateLikeCpp::end_cinematic_like_cpp,
+            )
             .flatten()
         else {
             return;
@@ -11319,18 +11303,12 @@ impl WorldSession {
     }
 
     pub(crate) fn next_represented_cinematic_camera_like_cpp(&mut self) {
-        let Some(Some(camera_id)) = self.mutate_player_cinematic_state_like_cpp(|state| {
-            state.cinematic_id?;
-            let camera_ids = state.camera_ids?;
-            if state.camera_index >= camera_ids.len() as i32 {
-                return None;
-            }
-            state.camera_index += 1;
-            // C++ checks the previous index before pre-incrementing. Rust keeps
-            // the normal flow but refuses the out-of-bounds edge instead of
-            // reproducing undefined behavior.
-            camera_ids.get(state.camera_index as usize).copied()
-        }) else {
+        // The owner keeps the recorded departure: C++ checks the previous index
+        // before pre-incrementing, and RustyCore refuses the out-of-bounds edge
+        // instead of reproducing undefined behavior.
+        let Some(Some(camera_id)) = self.with_player_cinematic_state_like_cpp(
+            wow_entities::PlayerCinematicStateLikeCpp::next_cinematic_camera_like_cpp,
+        ) else {
             return;
         };
         if camera_id == 0 {
@@ -11343,7 +11321,9 @@ impl WorldSession {
 
     pub(crate) fn complete_represented_movie_like_cpp(&mut self) {
         let Some(movie_id) = self
-            .mutate_player_cinematic_state_like_cpp(|state| state.movie_id.take())
+            .with_player_cinematic_state_like_cpp(
+                wow_entities::PlayerCinematicStateLikeCpp::take_movie_like_cpp,
+            )
             .flatten()
         else {
             return;
@@ -11360,13 +11340,13 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_cinematic_like_cpp(&self) -> Option<u32> {
         self.player_cinematic_state_snapshot_like_cpp()
-            .and_then(|state| state.cinematic_id)
+            .and_then(|state| state.cinematic_id_like_cpp())
     }
 
     #[cfg(test)]
     pub(crate) fn represented_cinematic_camera_index_like_cpp(&self) -> i32 {
         self.player_cinematic_state_snapshot_like_cpp()
-            .map_or(-1, |state| state.camera_index)
+            .map_or(-1, |state| state.camera_index_like_cpp())
     }
 
     #[cfg(test)]
@@ -11382,7 +11362,7 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_movie_like_cpp(&self) -> Option<u32> {
         self.player_cinematic_state_snapshot_like_cpp()
-            .and_then(|state| state.movie_id)
+            .and_then(|state| state.movie_id_like_cpp())
     }
 
     #[cfg(test)]

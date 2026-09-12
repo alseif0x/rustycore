@@ -420,12 +420,15 @@ fn canonical_player_cinematic_state_follows_detached_and_stale_handle_ownership_
         .world_mut()
         .object_mut()
         .create(player_guid);
-    replacement.gameplay_state_mut().cinematic = wow_entities::PlayerCinematicStateLikeCpp {
-        cinematic_id: Some(900),
-        camera_ids: Some([1, 2, 3, 0, 0, 0, 0, 0]),
-        camera_index: 1,
-        movie_id: Some(901),
+    let replacement_cinematic = {
+        let cinematic = &mut replacement.gameplay_state_mut().cinematic;
+        cinematic.begin_cinematic_like_cpp(900, [1, 2, 3, 0, 0, 0, 0, 0]);
+        assert_eq!(cinematic.next_cinematic_camera_like_cpp(), Some(1));
+        assert_eq!(cinematic.next_cinematic_camera_like_cpp(), Some(2));
+        cinematic.set_movie_like_cpp(Some(901));
+        *cinematic
     };
+    assert_eq!(replacement_cinematic.camera_index_like_cpp(), 1);
     let replacement_handle = canonical
         .lock()
         .unwrap()
@@ -445,12 +448,7 @@ fn canonical_player_cinematic_state_follows_detached_and_stale_handle_ownership_
             .with_player_like_cpp(replacement_handle, |player| {
                 player.gameplay_state().cinematic
             }),
-        Some(wow_entities::PlayerCinematicStateLikeCpp {
-            cinematic_id: Some(900),
-            camera_ids: Some([1, 2, 3, 0, 0, 0, 0, 0]),
-            camera_index: 1,
-            movie_id: Some(901),
-        })
+        Some(replacement_cinematic)
     );
 }
 #[test]

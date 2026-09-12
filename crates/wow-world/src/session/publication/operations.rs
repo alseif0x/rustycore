@@ -292,10 +292,8 @@ impl WorldSession {
             .and_then(|store| store.get(cinematic_id))
         {
             let camera_ids = sequence.camera;
-            let _ = self.mutate_player_cinematic_state_like_cpp(|state| {
-                state.cinematic_id = Some(cinematic_id);
-                state.camera_ids = Some(camera_ids);
-                state.camera_index = -1;
+            let _ = self.with_player_cinematic_state_like_cpp(|state| {
+                state.begin_cinematic_like_cpp(cinematic_id, camera_ids);
             });
         }
     }

@@ -275,29 +275,23 @@ impl WorldSession {
         })
         .unwrap_or((false, false))
     }
-    pub(in crate::session) fn mutate_player_cinematic_state_like_cpp<R>(
+    /// Apply one named canonical cinematic transition, or the handle-less test
+    /// mirror that stands in for it. C++ performs these on the Player's own
+    /// `CinematicMgr` (`CinematicMgr.h:39`, `CinematicMgr.cpp:46`, `:83`), never
+    /// on a borrowed record.
+    pub(in crate::session) fn with_player_cinematic_state_like_cpp<R>(
         &mut self,
-        mut mutate: impl FnMut(&mut wow_entities::PlayerCinematicStateLikeCpp) -> R,
+        mut apply: impl FnMut(&mut wow_entities::PlayerCinematicStateLikeCpp) -> R,
     ) -> Option<R> {
         let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            mutate(&mut player.gameplay_state_mut().cinematic)
+            apply(&mut player.gameplay_state_mut().cinematic)
         });
         if canonical.is_some() {
             return canonical;
         }
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            let mut state = wow_entities::PlayerCinematicStateLikeCpp {
-                cinematic_id: self.represented_cinematic_like_cpp,
-                camera_ids: self.represented_cinematic_camera_ids_like_cpp,
-                camera_index: self.represented_cinematic_camera_index_like_cpp,
-                movie_id: self.represented_movie_like_cpp,
-            };
-            let result = mutate(&mut state);
-            self.represented_cinematic_like_cpp = state.cinematic_id;
-            self.represented_cinematic_camera_ids_like_cpp = state.camera_ids;
-            self.represented_cinematic_camera_index_like_cpp = state.camera_index;
-            self.represented_movie_like_cpp = state.movie_id;
+            let result = apply(&mut self.represented_cinematic_state_like_cpp);
             return Some(result);
         }
         None

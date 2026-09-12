@@ -77,7 +77,7 @@ impl WorldSession {
         }
 
         if self
-            .mutate_player_cinematic_state_like_cpp(|state| state.movie_id = Some(movie_id))
+            .with_player_cinematic_state_like_cpp(|state| state.set_movie_like_cpp(Some(movie_id)))
             .is_none()
         {
             return;

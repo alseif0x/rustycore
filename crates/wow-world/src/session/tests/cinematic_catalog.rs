@@ -23,9 +23,9 @@ fn cinematic_catalog_wiring_changes_camera_state_not_trigger_admission() {
         assert!(send_rx.try_recv().is_ok());
         assert!(send_rx.try_recv().is_err());
         let state = session.player_cinematic_state_snapshot_like_cpp().unwrap();
-        assert_eq!(state.cinematic_id, present.then_some(444));
+        assert_eq!(state.cinematic_id_like_cpp(), present.then_some(444));
         assert_eq!(
-            state.camera_ids,
+            state.camera_ids_like_cpp(),
             present.then_some([11, 22, 0, 0, 0, 0, 0, 0])
         );
     }

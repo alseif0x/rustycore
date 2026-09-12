@@ -16,6 +16,7 @@ mod deferred_save;
 mod identity;
 mod inventory_runtime;
 pub use inventory_runtime::PlayerInventoryRuntime;
+mod cinematic;
 mod collection_state;
 mod difficulty;
 mod equipment_sets;
@@ -33,6 +34,7 @@ mod reputation;
 mod spell_runtime;
 mod talent_runtime;
 mod taxi_state;
+pub use cinematic::PlayerCinematicStateLikeCpp;
 pub use collection_state::PlayerCollectionStateLikeCpp;
 pub use equipment_sets::PlayerEquipmentSetsLikeCpp;
 pub use item_modifiers::{

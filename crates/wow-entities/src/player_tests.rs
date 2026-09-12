@@ -440,6 +440,8 @@ fn can_equip_unique_args<'a>(
     }
 }
 
+#[path = "player_tests/cinematic.rs"]
+mod cinematic;
 #[path = "player_tests/collection_state.rs"]
 mod collection_state;
 #[path = "player_tests/combat.rs"]
