@@ -442,6 +442,8 @@ fn can_equip_unique_args<'a>(
     }
 }
 
+#[path = "player_tests/collection_state.rs"]
+mod collection_state;
 #[path = "player_tests/combat.rs"]
 mod combat;
 #[path = "player_tests/gameobject.rs"]

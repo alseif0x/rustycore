@@ -220,11 +220,11 @@ impl WorldSession {
         let bnet_account_id = self.battlenet_account_id();
         Some(
             self.player_collection_state_snapshot_like_cpp()?
-                .heirlooms
+                .heirlooms_like_cpp()
                 .into_iter()
                 .map(|(item_id, data)| AccountHeirloomSaveRowLikeCpp {
                     bnet_account_id,
-                    item_id,
+                    item_id: *item_id,
                     flags: data.flags,
                 })
                 .collect(),
@@ -235,13 +235,13 @@ impl WorldSession {
         let bnet_account_id = self.battlenet_account_id();
         Some(
             self.player_collection_state_snapshot_like_cpp()?
-                .toys
+                .toys_like_cpp()
                 .into_iter()
                 .map(|(item_id, flags)| AccountToySaveRowLikeCpp {
                     bnet_account_id,
-                    item_id,
-                    is_favorite: (flags & TOY_FLAG_FAVORITE_LIKE_CPP) != 0,
-                    has_fanfare: (flags & TOY_FLAG_HAS_FANFARE_LIKE_CPP) != 0,
+                    item_id: *item_id,
+                    is_favorite: (*flags & TOY_FLAG_FAVORITE_LIKE_CPP) != 0,
+                    has_fanfare: (*flags & TOY_FLAG_HAS_FANFARE_LIKE_CPP) != 0,
                 })
                 .collect(),
         )
@@ -323,13 +323,13 @@ impl WorldSession {
         let bnet_account_id = self.battlenet_account_id();
         let mut rows = self
             .player_collection_state_snapshot_like_cpp()?
-            .mounts
+            .mounts_like_cpp()
             .into_iter()
             .filter_map(|(spell_id, flags)| {
                 Some(AccountMountSaveRowLikeCpp {
                     bnet_account_id,
-                    mount_spell_id: u32::try_from(spell_id).ok()?,
-                    flags,
+                    mount_spell_id: u32::try_from(*spell_id).ok()?,
+                    flags: *flags,
                 })
             })
             .collect::<Vec<_>>();

@@ -115,8 +115,7 @@ impl WorldSession {
         let flag = 1_u32.checked_shl(bit_index)?;
         let had_temporary = self
             .player_collection_state_snapshot_like_cpp()?
-            .temporary_item_appearances
-            .contains_key(&item_modified_appearance_id);
+            .has_temporary_item_appearance_like_cpp(item_modified_appearance_id);
 
         let result = self.mutate_canonical_player_like_cpp(|player| {
             while player.transmog_blocks_like_cpp().len() <= block_index {
@@ -132,14 +131,7 @@ impl WorldSession {
         })??;
 
         self.mutate_player_collection_state_like_cpp(|collections| {
-            collections
-                .item_appearances
-                .insert(item_modified_appearance_id);
-            if had_temporary {
-                collections
-                    .temporary_item_appearances
-                    .remove(&item_modified_appearance_id);
-            }
+            collections.add_item_appearance_like_cpp(item_modified_appearance_id);
         })?;
         self.update_represented_transmog_criteria_like_cpp(item_modified_appearance_id);
         Some(result)
@@ -338,7 +330,7 @@ impl WorldSession {
         self.player_collection_state_snapshot_like_cpp()
             .is_some_and(|collections| {
                 !collections
-                    .item_appearances
+                    .item_appearances_like_cpp()
                     .contains(&item_modified_appearance_id)
             })
     }
@@ -427,16 +419,13 @@ impl WorldSession {
             return (false, false);
         };
         if collections
-            .item_appearances
+            .item_appearances_like_cpp()
             .contains(&item_modified_appearance_id)
         {
             return (true, false);
         }
 
-        if collections
-            .temporary_item_appearances
-            .contains_key(&item_modified_appearance_id)
-        {
+        if collections.has_temporary_item_appearance_like_cpp(item_modified_appearance_id) {
             return (true, true);
         }
 
@@ -447,8 +436,8 @@ impl WorldSession {
         let Some(collections) = self.player_collection_state_snapshot_like_cpp() else {
             return Vec::new();
         };
-        if !collections.item_appearance_blocks.is_empty() {
-            return collections.item_appearance_blocks;
+        if !collections.item_appearance_blocks_like_cpp().is_empty() {
+            return collections.item_appearance_blocks_snapshot_like_cpp();
         }
 
         if let Some(blocks) = self
@@ -457,12 +446,12 @@ impl WorldSession {
             return blocks;
         }
 
-        let Some(highest_appearance) = collections.item_appearances.iter().max() else {
+        let Some(highest_appearance) = collections.item_appearances_like_cpp().iter().max() else {
             return Vec::new();
         };
 
         let mut blocks = vec![0_u32; (highest_appearance / 32 + 1) as usize];
-        for &item_modified_appearance_id in &collections.item_appearances {
+        for &item_modified_appearance_id in collections.item_appearances_like_cpp() {
             let block_index = (item_modified_appearance_id / 32) as usize;
             let bit_index = item_modified_appearance_id % 32;
             if let Some(flag) = 1_u32.checked_shl(bit_index) {
@@ -519,9 +508,11 @@ impl WorldSession {
             .map(|appearance| (appearance, FavoriteAppearanceStateLikeCpp::Unchanged))
             .collect();
         let _ = self.mutate_player_collection_state_like_cpp(|collections| {
-            collections.item_appearances = item_appearances;
-            collections.item_appearance_blocks = item_appearance_blocks;
-            collections.favorite_item_appearances = favorite_item_appearances;
+            collections.install_appearance_collection_like_cpp(
+                item_appearances,
+                item_appearance_blocks,
+                favorite_item_appearances,
+            );
         });
     }
     /// C++ `CollectionMgr::SaveAccountItemAppearances`.
@@ -530,7 +521,7 @@ impl WorldSession {
     ) -> Option<AccountItemAppearanceSavePlanLikeCpp> {
         let mut collections = self.player_collection_state_snapshot_like_cpp()?;
         let mut blocks = BTreeMap::<u32, u32>::new();
-        for &item_modified_appearance_id in &collections.item_appearances {
+        for &item_modified_appearance_id in collections.item_appearances_like_cpp() {
             let block_index = item_modified_appearance_id / 32;
             let bit_index = item_modified_appearance_id % 32;
             if let Some(flag) = 1_u32.checked_shl(bit_index) {
@@ -538,31 +529,8 @@ impl WorldSession {
             }
         }
 
-        let mut favorite_inserts = Vec::new();
-        let mut favorite_deletes = Vec::new();
-        let favorite_states = collections
-            .favorite_item_appearances
-            .iter()
-            .map(|(&appearance, &state)| (appearance, state))
-            .collect::<BTreeMap<_, _>>();
-        for (item_modified_appearance_id, state) in favorite_states {
-            match state {
-                FavoriteAppearanceStateLikeCpp::New => {
-                    favorite_inserts.push(item_modified_appearance_id);
-                    collections.favorite_item_appearances.insert(
-                        item_modified_appearance_id,
-                        FavoriteAppearanceStateLikeCpp::Unchanged,
-                    );
-                }
-                FavoriteAppearanceStateLikeCpp::Removed => {
-                    favorite_deletes.push(item_modified_appearance_id);
-                    collections
-                        .favorite_item_appearances
-                        .remove(&item_modified_appearance_id);
-                }
-                FavoriteAppearanceStateLikeCpp::Unchanged => {}
-            }
-        }
+        let (favorite_inserts, favorite_deletes) =
+            collections.settle_favorite_item_appearance_saves_like_cpp();
 
         let plan = AccountItemAppearanceSavePlanLikeCpp {
             appearance_blocks: blocks
@@ -588,8 +556,7 @@ impl WorldSession {
             .mutate_player_collection_state_like_cpp(|collections| {
                 if apply {
                     match collections
-                        .favorite_item_appearances
-                        .entry(item_modified_appearance_id)
+                        .favorite_item_appearance_entry_like_cpp(item_modified_appearance_id)
                     {
                         Entry::Vacant(entry) => {
                             entry.insert(New);
@@ -603,8 +570,7 @@ impl WorldSession {
                     }
                 } else {
                     match collections
-                        .favorite_item_appearances
-                        .entry(item_modified_appearance_id)
+                        .favorite_item_appearance_entry_like_cpp(item_modified_appearance_id)
                     {
                         Entry::Occupied(entry) if *entry.get() == New => {
                             entry.remove();
@@ -651,10 +617,10 @@ impl WorldSession {
             return;
         };
         let favorite_appearances = collections
-            .favorite_item_appearances
+            .favorite_item_appearances_like_cpp()
             .into_iter()
             .filter_map(|(appearance, state)| {
-                (state != FavoriteAppearanceStateLikeCpp::Removed).then_some(appearance)
+                (*state != FavoriteAppearanceStateLikeCpp::Removed).then_some(*appearance)
             })
             .collect::<Vec<_>>();
 
@@ -683,7 +649,7 @@ impl WorldSession {
             illusions.insert(illusion_id);
         }
         let _ = self.mutate_player_collection_state_like_cpp(|collections| {
-            collections.transmog_illusions = illusions;
+            collections.replace_transmog_illusions_like_cpp(illusions);
         });
     }
     /// C++ `CollectionMgr::HasTransmogIllusion`.
@@ -692,7 +658,7 @@ impl WorldSession {
         self.player_collection_state_snapshot_like_cpp()
             .is_some_and(|collections| {
                 collections
-                    .transmog_illusions
+                    .transmog_illusions_like_cpp()
                     .contains(&transmog_illusion_id)
             })
     }
@@ -702,7 +668,7 @@ impl WorldSession {
     ) -> Option<AccountTransmogIllusionSavePlanLikeCpp> {
         let mut blocks = BTreeMap::<u32, u32>::new();
         let collections = self.player_collection_state_snapshot_like_cpp()?;
-        for &illusion_id in &collections.transmog_illusions {
+        for &illusion_id in collections.transmog_illusions_like_cpp() {
             let block_index = illusion_id / 32;
             let bit_index = illusion_id % 32;
             if let Some(flag) = 1_u32.checked_shl(bit_index) {
@@ -733,13 +699,8 @@ impl WorldSession {
         item_guid: ObjectGuid,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
         let was_empty = self.mutate_player_collection_state_like_cpp(|collections| {
-            let items = collections
-                .temporary_item_appearances
-                .entry(item_modified_appearance_id)
-                .or_default();
-            let was_empty = items.is_empty();
-            items.insert(item_guid);
-            was_empty
+            collections
+                .add_temporary_item_appearance_like_cpp(item_modified_appearance_id, item_guid)
         })?;
 
         was_empty.then_some(())?;
@@ -755,16 +716,9 @@ impl WorldSession {
         item_guid: ObjectGuid,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
         let removed_last = self.mutate_player_collection_state_like_cpp(|collections| {
-            let items = collections
-                .temporary_item_appearances
-                .get_mut(&item_modified_appearance_id)?;
-            if !items.remove(&item_guid) || !items.is_empty() {
-                return None;
-            }
             collections
-                .temporary_item_appearances
-                .remove(&item_modified_appearance_id);
-            Some(())
+                .remove_temporary_item_appearance_like_cpp(item_modified_appearance_id, item_guid)
+                .then_some(())
         })??;
         let _ = removed_last;
         self.mutate_canonical_player_like_cpp(|player| {
@@ -780,7 +734,7 @@ impl WorldSession {
         self.player_collection_state_snapshot_like_cpp()
             .and_then(|collections| {
                 collections
-                    .temporary_item_appearances
+                    .temporary_item_appearances_like_cpp()
                     .get(&item_modified_appearance_id)
                     .cloned()
             })

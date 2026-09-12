@@ -16,6 +16,7 @@ mod deferred_save;
 mod identity;
 mod inventory_runtime;
 pub use inventory_runtime::PlayerInventoryRuntime;
+mod collection_state;
 mod items;
 mod location;
 mod menu;
@@ -27,8 +28,9 @@ mod quest_state;
 mod reputation;
 mod spell_runtime;
 mod talent_runtime;
+pub use collection_state::PlayerCollectionStateLikeCpp;
 pub use progression::PreparedPlayerSpellAcquisitionLikeCpp;
-pub use quest_state::{PlayerQuestGameplayState, ResetSeasonalEventLikeCpp};
+pub use quest_state::PlayerQuestGameplayState;
 pub use reputation::{
     PlayerFactionStateLikeCpp, PlayerReputationStateLikeCpp, ReputationRankCounterLikeCpp,
     ReputationRankCountersLikeCpp,
