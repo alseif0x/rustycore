@@ -373,7 +373,15 @@ genérico con treinta y ocho sitios de escritura de producción.
   misiones no tiene lector ni escritor de producción; el progreso representado circula
   por `objective_counts` de cada estado y por la cola de eventos de la sesión. Se
   conserva el campo y su lectura; darle escritores pertenece a la operación de
-  progreso de objetivos de #41.
+  progreso de objetivos de #41. **Cerrado por #790 (2026-09-12):** al leer la
+  superficie completa se comprobó que la carga
+  (`SELECT quest, objective, data FROM character_queststatus_objectives`), cada
+  actualización de objetivo y la proyección de guardado usan
+  `objective_counts[storage_index]`, y que la forma indexada por id de objetivo no
+  tenía ningún escritor. Se retira el campo, su lectura y
+  `PlayerQuestObjectiveProgress` en lugar de dejarlos esperando escritores que nunca
+  iban a llegar; la operación de progreso de objetivos de #41 sigue siendo el
+  contrato pendiente.
 
 #### Entrega local aceptada — #763
 

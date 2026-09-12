@@ -121,11 +121,6 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
                     slot: 1,
                 },
             )]),
-            objective_progress: vec![PlayerQuestObjectiveProgress {
-                quest_id: 100,
-                objective_id: 7,
-                counter: 4,
-            }],
             rewarded_quest_ids: BTreeSet::from([90]),
             daily_quest_ids: BTreeSet::from([101]),
             weekly_quest_ids: BTreeSet::from([102]),
