@@ -21,7 +21,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::{PlayerKnownSpellRecord, PlayerTraitConfigState};
+use super::{PlayerKnownSpellRecord, PlayerTraitConfigDetails, PlayerTraitConfigState};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PlayerSpellRuntimeState {
@@ -600,11 +600,48 @@ impl PlayerSpellRuntimeState {
         self.trait_config_rows.insert(config_id, row);
     }
 
-    pub fn trait_config_row_mut_like_cpp(
+    /// Install the loaded detail payload of every trait config at once, as the
+    /// login path hands the Player the configs it read (C++
+    /// `Player::AddTraitConfig`, `Player.h:1836`, with `GetTraitConfig` at
+    /// `:1837` reading them back).
+    ///
+    /// The hydration is refused whole unless it describes exactly the rows this
+    /// owner holds: both row sets must be authoritative, the incoming configs
+    /// must match the stored rows one for one with unique ids, and each stored
+    /// header — config type, specialization and combat flags — must equal the
+    /// incoming one. A partial install would leave details describing rows that
+    /// were never loaded.
+    pub fn install_loaded_trait_config_details_like_cpp(
         &mut self,
-        config_id: i32,
-    ) -> Option<&mut PlayerTraitConfigState> {
-        self.trait_config_rows.get_mut(&config_id)
+        configs: &[(i32, (i32, i32, i32), PlayerTraitConfigDetails)],
+    ) -> bool {
+        if !self.trait_config_rows_complete || !self.trait_entry_rows_complete {
+            return false;
+        }
+        if self.trait_config_rows.len() != configs.len() {
+            return false;
+        }
+        let unique_ids = configs
+            .iter()
+            .map(|(config_id, _, _)| *config_id)
+            .collect::<BTreeSet<_>>();
+        if unique_ids.len() != configs.len() {
+            return false;
+        }
+        if configs.iter().any(|(config_id, header, _)| {
+            self.trait_config_rows
+                .get(config_id)
+                .is_none_or(|state| state.header != *header)
+        }) {
+            return false;
+        }
+        for (config_id, _, details) in configs {
+            let Some(state) = self.trait_config_rows.get_mut(config_id) else {
+                return false;
+            };
+            state.details = Some(details.clone());
+        }
+        true
     }
 
     pub fn set_trait_entry_rows_state_like_cpp(&mut self, complete: bool, empty: bool) {

@@ -588,6 +588,30 @@ Aceptación local: cuatro regresiones nuevas de invariantes en
 inventario revisado (player/mod.rs +57 producción/+68 test; session/mod.rs +16
 producción/-8 test). Sin QA viva ni evidencia de DB/reinicio/relogin.
 
+#### Entrega local aceptada — #775
+
+Duodécima macro P2: la hidratación de detalles de configuración de rasgos
+entregaba `&mut PlayerTraitConfigState` al otro lado del límite de crate.
+
+- Estado e invariantes en el Player: `trait_config_row_mut_like_cpp` se retira y
+  `PlayerSpellRuntimeState` recibe una transición con nombre que instala de una
+  vez el detalle cargado de cada configuración, anclada al camino de login que
+  llena las configuraciones del Player (`Player::AddTraitConfig`,
+  `Player.h:1836`, leídas por `GetTraitConfig`, `:1837`).
+- Las comprobaciones que vivían en el sitio de llamada pasan a ser el invariante
+  del propietario: ambos conjuntos de filas autoritativos, una configuración
+  entrante por fila almacenada, ids únicos y cada cabecera almacenada igual a la
+  entrante. Si algo no cuadra se rechaza la hidratación entera, de modo que un
+  detalle no puede describir filas que no se cargaron.
+- `session/trait_configs.rs` ya solo da forma al contenido del paquete; el orden
+  de la proyección CREATE y las formas de paquete siguen en `wow-world`.
+
+Aceptación local: diez regresiones nuevas de invariantes en
+`player_tests/trait_config_hydration.rs`, controles de arquitectura y ownership
+con delta de inventario revisado. Techo físico de `player_tests.rs` 502 -> 504
+por el módulo de escenario nuevo. Sin QA viva ni evidencia de
+DB/reinicio/relogin.
+
 ### 4.3 Residuales P2 y paso a P3/P4
 
 Después de #743 y #735 se retiran los accesos genéricos operación por operación. El
