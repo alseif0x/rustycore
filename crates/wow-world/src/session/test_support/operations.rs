@@ -211,8 +211,7 @@ impl WorldSession {
         // is the selected port target; the divergence is retained as evidence
         // that matching one C++ tree alone is not proof that behavior is sound.
         let Some(()) = self.mutate_player_rest_state_like_cpp(|state| {
-            state.rest_bonus = rest_bonus;
-            state.rest_state = new_state;
+            state.install_loaded_rest_like_cpp(new_state, rest_bonus);
         }) else {
             return 0;
         };
@@ -275,7 +274,7 @@ impl WorldSession {
     ) -> (f32, u8) {
         let Some(rest_time) = self
             .player_rest_state_snapshot_like_cpp()
-            .map(|state| state.rest_time_secs)
+            .map(|state| state.rest_time_secs_like_cpp())
         else {
             return (0.0, 0);
         };
@@ -290,7 +289,7 @@ impl WorldSession {
         }
 
         if self
-            .mutate_player_rest_state_like_cpp(|state| state.rest_time_secs = now_secs)
+            .mutate_player_rest_state_like_cpp(|state| state.set_rest_time_secs_like_cpp(now_secs))
             .is_none()
         {
             return (0.0, 0);

@@ -11496,18 +11496,18 @@ impl WorldSession {
             self.with_owned_player_for_rest_like_cpp(|player| player.rest_state_like_cpp().clone());
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(wow_entities::PlayerRestState {
-                rest_bonus: self.represented_rest_bonus_xp_like_cpp,
-                rest_state: self.represented_rest_state_xp_like_cpp,
-                rest_flag_mask: self.represented_rest_flag_mask_like_cpp,
-                location_initialized: self.represented_rest_location_initialized_like_cpp,
-                defer_flag_sync: self.represented_defer_rest_flag_sync_like_cpp,
-                deferred_flag_update_dirty: self
-                    .represented_deferred_rest_flag_update_dirty_like_cpp,
-                inn_area_trigger_id: self.represented_inn_area_trigger_id_like_cpp,
-                rest_time_secs: self.represented_rest_time_secs_like_cpp,
-                ..Default::default()
-            });
+            return Some(
+                wow_entities::PlayerRestState::from_represented_parts_like_cpp(
+                    self.represented_rest_state_xp_like_cpp,
+                    self.represented_rest_bonus_xp_like_cpp,
+                    self.represented_rest_flag_mask_like_cpp,
+                    self.represented_rest_location_initialized_like_cpp,
+                    self.represented_defer_rest_flag_sync_like_cpp,
+                    self.represented_deferred_rest_flag_update_dirty_like_cpp,
+                    self.represented_inn_area_trigger_id_like_cpp,
+                    self.represented_rest_time_secs_like_cpp,
+                ),
+            );
         }
         canonical
     }
@@ -11517,11 +11517,11 @@ impl WorldSession {
         let canonical = self
             .with_owned_player_mut_for_rest_like_cpp(|player| {
                 player.set_xp_rest_info_like_cpp(
-                    state.rest_bonus.clamp(0.0, u32::MAX as f32) as u32,
-                    state.rest_state,
+                    state.rest_bonus_like_cpp().clamp(0.0, u32::MAX as f32) as u32,
+                    state.rest_state_like_cpp(),
                 );
-                if state.location_initialized {
-                    if state.rest_flag_mask != 0 {
+                if state.is_location_initialized_like_cpp() {
+                    if state.is_resting_by_flag_like_cpp() {
                         player.set_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
                     } else {
                         player.remove_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
@@ -11532,15 +11532,16 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            self.represented_rest_bonus_xp_like_cpp = state.rest_bonus;
-            self.represented_rest_state_xp_like_cpp = state.rest_state;
-            self.represented_rest_flag_mask_like_cpp = state.rest_flag_mask;
-            self.represented_rest_location_initialized_like_cpp = state.location_initialized;
-            self.represented_defer_rest_flag_sync_like_cpp = state.defer_flag_sync;
+            self.represented_rest_bonus_xp_like_cpp = state.rest_bonus_like_cpp();
+            self.represented_rest_state_xp_like_cpp = state.rest_state_like_cpp();
+            self.represented_rest_flag_mask_like_cpp = state.rest_flag_mask_like_cpp();
+            self.represented_rest_location_initialized_like_cpp =
+                state.is_location_initialized_like_cpp();
+            self.represented_defer_rest_flag_sync_like_cpp = state.defers_flag_sync_like_cpp();
             self.represented_deferred_rest_flag_update_dirty_like_cpp =
-                state.deferred_flag_update_dirty;
-            self.represented_inn_area_trigger_id_like_cpp = state.inn_area_trigger_id;
-            self.represented_rest_time_secs_like_cpp = state.rest_time_secs;
+                state.deferred_flag_update_dirty_like_cpp();
+            self.represented_inn_area_trigger_id_like_cpp = state.inn_trigger_id_like_cpp();
+            self.represented_rest_time_secs_like_cpp = state.rest_time_secs_like_cpp();
             return true;
         }
         canonical
@@ -11686,12 +11687,12 @@ impl WorldSession {
 
     pub(crate) fn resolved_xp_rest_bonus_like_cpp(&self) -> Option<f32> {
         self.player_rest_state_snapshot_like_cpp()
-            .map(|state| state.rest_bonus)
+            .map(|state| state.rest_bonus_like_cpp())
     }
 
     pub(crate) fn resolved_xp_rest_state_like_cpp(&self) -> Option<u8> {
         self.player_rest_state_snapshot_like_cpp()
-            .map(|state| state.rest_state)
+            .map(|state| state.rest_state_like_cpp())
     }
 
     pub(crate) fn resolved_xp_rest_threshold_like_cpp(&self) -> Option<u32> {
@@ -11721,7 +11722,7 @@ impl WorldSession {
 
     pub(crate) fn resolved_is_resting_like_cpp(&self) -> Option<bool> {
         self.player_rest_state_snapshot_like_cpp()
-            .map(|state| state.rest_flag_mask != 0)
+            .map(|state| state.is_resting_by_flag_like_cpp())
     }
 
     #[cfg(test)]
@@ -11822,9 +11823,9 @@ impl WorldSession {
     }
 
     pub(crate) fn take_deferred_rest_flag_update_dirty_like_cpp(&mut self) -> bool {
-        self.mutate_player_rest_state_like_cpp(|state| {
-            std::mem::take(&mut state.deferred_flag_update_dirty)
-        })
+        self.mutate_player_rest_state_like_cpp(
+            wow_entities::PlayerRestState::take_deferred_flag_update_like_cpp,
+        )
         .unwrap_or(false)
     }
 

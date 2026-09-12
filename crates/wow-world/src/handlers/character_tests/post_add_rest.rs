@@ -65,7 +65,7 @@ async fn cancelled_post_add_retains_rest_update_through_reentry() {
         session
             .player_rest_state_snapshot_like_cpp()
             .unwrap()
-            .deferred_flag_update_dirty
+            .deferred_flag_update_dirty_like_cpp()
     );
     let before_resume = drain_server_opcodes(&send_rx);
     assert!(!before_resume.contains(&ServerOpcodes::InitWorldStates));
@@ -101,7 +101,7 @@ async fn cancelled_post_add_retains_rest_update_through_reentry() {
         session
             .player_rest_state_snapshot_like_cpp()
             .unwrap()
-            .deferred_flag_update_dirty
+            .deferred_flag_update_dirty_like_cpp()
     );
     assert!(!session.send_represented_resting_player_flag_update_like_cpp());
     std::fs::remove_dir(terrain_dir).unwrap();

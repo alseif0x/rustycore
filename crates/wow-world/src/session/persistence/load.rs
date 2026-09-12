@@ -318,8 +318,7 @@ impl WorldSession {
         if self.player_handle_like_cpp.is_none() {
             self.clear_represented_rest_flags_for_character_load_like_cpp();
             let _ = self.mutate_player_rest_state_like_cpp(|state| {
-                state.rest_state = rest_state;
-                state.rest_bonus = rest_bonus;
+                state.install_loaded_rest_like_cpp(rest_state, rest_bonus);
             });
             return;
         }
@@ -334,12 +333,7 @@ impl WorldSession {
             .is_some_and(|flags| (flags & PLAYER_FLAGS_RESTING_LIKE_CPP) != 0);
         let _canonical = self.with_owned_player_mut_for_rest_like_cpp(|player| {
             let mut state = player.rest_state_like_cpp().clone();
-            state.rest_flag_mask = 0;
-            state.location_initialized = false;
-            state.defer_flag_sync = false;
-            state.deferred_flag_update_dirty = false;
-            state.inn_area_trigger_id = 0;
-            state.rest_time_secs = 0;
+            state.reset_location_tracking_like_cpp();
             player.replace_rest_state_like_cpp(state);
             if loaded_resting {
                 player.set_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);

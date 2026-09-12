@@ -31,6 +31,7 @@ mod progression;
 mod pvp;
 mod quest_state;
 mod reputation;
+mod rest;
 mod spell_runtime;
 mod talent_runtime;
 mod taxi_state;
@@ -47,6 +48,7 @@ pub use reputation::{
     PlayerFactionStateLikeCpp, PlayerReputationStateLikeCpp, ReputationRankCounterLikeCpp,
     ReputationRankCountersLikeCpp,
 };
+pub use rest::PlayerRestState;
 pub use spell_runtime::{
     ForgottenKnownSpellLikeCpp, PlayerSpellAcquisitionSnapshotLikeCpp, PlayerSpellRuntimeState,
 };
@@ -860,23 +862,6 @@ pub struct PlayerSpellChargeRecord {
     pub consumed_charges: u8,
     pub recharge_started_at: Option<u64>,
     pub recharge_ends_at: Option<u64>,
-}
-
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct PlayerRestState {
-    pub rest_xp: u32,
-    pub rest_bonus: f32,
-    pub rest_honor_bonus: f32,
-    pub rest_state: u8,
-    pub rest_flag_mask: u32,
-    pub location_initialized: bool,
-    pub defer_flag_sync: bool,
-    pub deferred_flag_update_dirty: bool,
-    pub inn_area_trigger_id: u32,
-    pub rest_time_secs: u64,
-    pub logout_time: Option<u64>,
-    pub logout_was_resting: bool,
-    pub is_resting_now: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

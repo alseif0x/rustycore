@@ -270,8 +270,8 @@ impl WorldSession {
         &self,
     ) -> Option<u32> {
         let resolve = |mut player_flags: u32, rest: &wow_entities::PlayerRestState| {
-            if rest.location_initialized {
-                if rest.rest_flag_mask != 0 {
+            if rest.is_location_initialized_like_cpp() {
+                if rest.is_resting_by_flag_like_cpp() {
                     player_flags |= PLAYER_FLAGS_RESTING_LIKE_CPP;
                 } else {
                     player_flags &= !PLAYER_FLAGS_RESTING_LIKE_CPP;
