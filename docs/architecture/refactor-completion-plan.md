@@ -785,9 +785,16 @@ Las diferencias que quedan, y que son el trabajo P3 real:
    (`WorldSession.cpp:64`) admite `PROCESS_INPLACE`, rechaza `PROCESS_THREADUNSAFE` y
    exige `IsInWorld`, dejando el resto para `World::UpdateSessions`
    (`WorldSessionFilter`, `:85`). En RustyCore cada sesión corre en su propia tarea
-   (`session_factory.rs`) con su diff y su espera de 50 ms cuando no hubo paquetes, y
-   **no existe contrato de `ProcessingPlace`** que decida qué puede procesarse dentro
-   de una actualización de mapa.
+   (`session_factory.rs`) con su diff y su espera de 50 ms cuando no hubo paquetes.
+   **Corrección (2026-09-12):** la primera versión de este punto decía que no existe
+   contrato de `ProcessingPlace`. Sí existe: `PacketProcessing`
+   (`crates/wow-handler/src/lib.rs:38`) clasifica cada registro de
+   `PacketHandlerEntry`, y `PacketProcessing::allows_phase`
+   (`crates/wow-handler/src/processing.rs:41`) implementa ambos filtros C++ sobre esa
+   clasificación y la residencia. Lo que falta es **consumirlo**: no tiene llamador
+   fuera de su crate y el driver despacha toda la cola sin consultarlo. El inventario
+   y el contrato verificable de ese consumo están en
+   `session-578-checkpoint.md`, sección «#787 inventory and verifiable contract».
 3. **Las fases de `Map::Update` que siguen sin representarse** están anotadas en el
    propio código (visitas por celda cercana, objetos activos, transportes,
    `SendObjectUpdates` real, scripts, notificaciones de relocalización) y son el paso

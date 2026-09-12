@@ -2994,6 +2994,111 @@ Final bounded quick manifest
 format/diff checks pass. This is not clean-HEAD publication, fresh capture or live DB
 evidence. Only this reviewed application extraction and its tests are claimed complete.
 
+### #787 inventory and verifiable contract — 2026-09-12
+
+Bounded source review at Rust `aee29a69` and C++ `a5f8da2e`, reading the exact ranges
+below. Source findings and a contract to satisfy, not timing measurements, live QA or
+an implementation claim. The direction was decided in
+[issue #787](https://github.com/alseif0x/rustycore/issues/787#issuecomment-5646732096).
+
+#### What C++ does, verified
+
+- `World/World.cpp:2704` runs `UpdateSessions(diff)`; `:2748` then runs
+  `sMapMgr->Update(diff)`. The world pass precedes the map pass **inside the same
+  world tick**, and the two carry different diffs: the world diff, and the interval
+  `MapManager::Update` accumulates (`Maps/MapManager.cpp:287-291`).
+- `Server/WorldSession.cpp:488-540` splits the tails by filter:
+  `SendTimeSync` runs only when `!updater.ProcessUnsafe()` — the map pass;
+  `ProcessQueryCallbacks()` runs in **both**; warden, `LogoutPlayer`, socket cleanup
+  and the session-removal return run only under `ProcessUnsafe()` — the world pass.
+  Driving the whole Rust session driver twice would duplicate timers, callbacks,
+  logout and player updates, and is therefore excluded.
+- `common/Threading/LockedQueue.h:82-95`: `next(result, check)` reads the **front**
+  and, when `check.Process` refuses it, returns false **without popping**. Selection
+  is FIFO, head-only, and an ineligible head stops that pass rather than being
+  skipped.
+- `Maps/MapReference.cpp:22-28` inserts each Player reference with `insertFirst`, so
+  `Map::Update`'s `m_mapRefManager` walk (`Maps/Map.cpp:669-680`) visits reverse
+  insertion order. A GUID-sorted plan is a different order and may not be presented
+  as equivalent.
+
+#### What RustyCore has, verified
+
+- `crates/wow-handler/src/lib.rs:38` defines `PacketProcessing`
+  (`Inplace`/`ThreadUnsafe`/`ThreadSafe`) and every `PacketHandlerEntry`
+  registration carries it. `crates/wow-handler/src/processing.rs:41`
+  (`allows_phase`) already implements both C++ filters over that classification plus
+  residence. **The contract exists and is unconsumed**: no caller outside the crate.
+  The earlier plan text claiming there is no `ProcessingPlace` contract is corrected
+  by this section.
+- `crates/world-server/src/session_factory.rs:142-215` is the only session driver:
+  one task per session, its own measured diff, `update_with_catalogs_like_cpp` then
+  `process_pending_with_catalogs_like_cpp`, and a 50 ms sleep when no packet was
+  ingested. Registration happens before async initialization (`:269-277`), so being
+  registered does not mean ready to answer a phase request.
+- `crates/wow-world/src/session/driver/mod.rs:45-318` ingests both channels into
+  `pending_packets` and later dispatches the whole queue without consulting the
+  filter; the dispatch loop already records the rule to honour — select the head,
+  stop at an ineligible head, never replay an in-flight handler.
+- `crates/world-server/src/runtime/map.rs:1596-1634` holds three synchronous mutexes
+  across the whole canonical update: the respawn DB mutation-order gate, the
+  `MapManager` mutex and the canonical spawn metadata mutex.
+- `crates/wow-map/src/manager/state_2.rs:426-518` is the C++ `MapManager::Update`
+  shape: timer gate, `can_unload` and destroy before update, per-map update,
+  `updater.wait()`, retained visibility export, removal of destroyed maps,
+  `delayed_update` for every surviving map, timer reset.
+  `state_2.rs:604-647` shows `MapUpdater::schedule_update*` runs **inline** and
+  `wait()` only counts calls — there is no async barrier to borrow.
+- `crates/wow-world/src/session/mailbox/protocol.rs:163-278` already carries a
+  request/acknowledgement command with a per-request response channel
+  (`WorldSessionShutdownFlushLikeCpp`), used by
+  `crates/world-server/src/shutdown.rs:95-150` with a bounded `try_send`, a
+  `JoinSet` of pending acknowledgements and a timeout. That is the shape the map
+  phase request reuses; its timeout semantics are not reusable unchanged (below).
+
+#### The contract this macro must satisfy
+
+1. **Order.** Within one coordinated step: the world pass runs first for the sessions
+   due, then the map tick begins. No autonomous world dispatch may interleave between
+   the two, and neither pass may run the other's tails.
+2. **Split.** The canonical map tick divides after admission/unload and the dynamic
+   tree, before sessions and object phases. Every synchronous guard — respawn
+   mutation order, `MapManager`, spawn metadata — is released before any request is
+   delivered or any acknowledgement awaited. The respawn persistence fence is
+   preserved by coalescing its statements before the release, as the current comment
+   at `runtime/map.rs:1596-1601` requires.
+3. **Session phase.** Each session runs its admitted map pass in its own task and
+   confirms a defined termination boundary. Sessions of one map run serially; the
+   membership order is justified against `MapReference::insertFirst`, not assumed
+   from sorted GUIDs.
+4. **Resumption.** The remaining phases of that same tick run exactly once, with the
+   effective diff saved at the split, and every map finishes before any
+   `delayed_update`. The full session driver is never invoked twice.
+5. **Selection.** Both passes consume `allows_phase` with canonical registry
+   metadata, FIFO head-only selection, and stop at an ineligible head. The control
+   channel must progress even when the packet head is ineligible.
+6. **Identity.** Admission is identified by tick epoch and session incarnation;
+   player work revalidates its canonical handle and residence at execution. A stale
+   completion neither mutates a replacement nor releases a barrier.
+7. **Failure semantics.** An acknowledgement of receipt is not completion. A timeout
+   does not authorize continuing over a mutation that is still live: the tick records
+   the session as not having run its map pass and continues only what does not depend
+   on it. Cancellation is not a successful barrier acknowledgement.
+8. **Await audit.** Handlers that await DB work must not be able to block a phase,
+   map or session that the barrier itself suspended. The historical rename warning is
+   resolved in current Rust and is not a live blocker; the remaining awaiting
+   handlers are audited case by case.
+9. **Limits kept explicit.** The legacy creature runtime remains a second production
+   writer; #787 neither retires it nor claims full phase parity.
+
+#### Regressions this macro owes
+
+Two sessions on one map with a pending DB result; an ineligible head with control
+traffic behind it; a transfer, a replacement incarnation and an unload between the
+split and the resumption; a session that never acknowledges; cancellation during the
+session phase; shutdown after admission closes; and exactly-once resumption of the
+remaining phases with the saved diff.
+
 ### Proportional evidence inside the macro
 
 The [plan's reanalysis checkpoints](modularity-and-ecs-plan.md#reanalysis-checkpoints--evidence-before-replication)
