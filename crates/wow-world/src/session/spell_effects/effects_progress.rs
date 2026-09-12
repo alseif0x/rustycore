@@ -239,17 +239,10 @@ impl WorldSession {
         };
 
         let Some((quest_is_in_log, should_send_event_complete)) = self
-            .mutate_player_quest_gameplay_like_cpp(|quests| {
-                let Some(status) = quests.statuses.get_mut(&quest_id) else {
-                    return (false, false);
-                };
-                let should_send = !status.explored
-                    && status.status != crate::conditions::QUEST_STATUS_FAILED_LIKE_CPP;
-                if should_send {
-                    status.explored = true;
-                }
-                (true, should_send)
-            })
+            .mark_represented_quest_explored_like_cpp(
+                quest_id,
+                crate::conditions::QUEST_STATUS_FAILED_LIKE_CPP,
+            )
         else {
             return Ok(());
         };
@@ -264,12 +257,7 @@ impl WorldSession {
             )
             .await;
         } else if (quest.flags & QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP_LOCAL) != 0 {
-            if self
-                .mutate_player_quest_gameplay_like_cpp(|quests| {
-                    quests.rewarded_quest_ids.insert(quest_id)
-                })
-                .is_none()
-            {
+            if self.set_represented_quest_rewarded_like_cpp(quest_id, true) == false {
                 return Ok(());
             }
             let quest_bit = self

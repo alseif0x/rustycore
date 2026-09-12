@@ -72,10 +72,17 @@ to `session::spell_state`. The completeness flags keep their authoritative-empty
 unhydrated meaning. **No live runtime, capture or DB/restart/relogin evidence exists
 for this delivery.**
 
-The remaining P2 operations — taxi, collections, quest gameplay, item equipment sets
-and modifiers, cast state, difficulty, trait configs and the two canonical access
-helpers — then lead into P3 runtime/lifetime/private-hecs and P4 semantic/physical work
-under #584.
+**Quest-state encapsulation is locally accepted — 2026-09-12, #756:** the canonical
+Player owns `PlayerQuestGameplayState` with its fields closed to the Player module and
+the transitions C++ performs on `m_QuestStatus`, `m_RewardedQuests`, `m_DFQuests` and
+`m_seasonalquests`. Fourteen single-transition callers use named session operations; the
+five catalog-driven objective walks and the quest-slot compaction keep the borrow as a
+recorded projection whose exit condition is #41's objective-progress contract. **No live
+runtime, capture or DB/restart/relogin evidence exists for this delivery.**
+
+The remaining P2 operations — taxi, collections, item equipment sets and modifiers, cast
+state, difficulty, trait configs and the two canonical access helpers — then lead into P3
+runtime/lifetime/private-hecs and P4 semantic/physical work under #584.
 
 Finite hecs V2 conformance passed within its recorded laboratory limits. Production `hecs`
 and Wasmtime are not installed in this base. The dated six-clock trace and the 31 oversized

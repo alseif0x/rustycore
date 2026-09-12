@@ -157,7 +157,7 @@ fn quest_giver_query_rewarded_nonrepeatable_complete_ender_is_not_completable_li
     assert!(
         session
             .mutate_player_quest_gameplay_like_cpp(|quests| {
-                quests.statuses.insert(
+                quests.insert_status_like_cpp(
                     9_204,
                     crate::handlers::quest::PlayerQuestStatus {
                         quest_id: 9_204,
@@ -169,7 +169,7 @@ fn quest_giver_query_rewarded_nonrepeatable_complete_ender_is_not_completable_li
                         slot: 0,
                     },
                 );
-                quests.rewarded_quest_ids.insert(9_204);
+                quests.set_rewarded_like_cpp(9_204, true);
             })
             .is_some()
     );

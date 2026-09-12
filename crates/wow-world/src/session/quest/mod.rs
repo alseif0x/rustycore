@@ -10,4 +10,4 @@ mod persistence;
 mod publication;
 mod reset;
 mod rewards;
-mod state;
+pub(in crate::session) mod state;

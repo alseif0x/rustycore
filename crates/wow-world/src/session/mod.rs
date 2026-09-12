@@ -46,6 +46,7 @@ mod player_items;
 mod progression;
 mod publication;
 mod quest;
+pub(crate) use quest::state::RepresentedQuestRecurrenceLikeCpp;
 pub mod registry;
 mod social;
 mod spell_effects;
@@ -9734,7 +9735,7 @@ impl WorldSession {
                 Team::Alliance
                     if access_requirement.quest_done_a != 0
                         && !quests
-                            .rewarded_quest_ids
+                            .rewarded_quest_ids_like_cpp()
                             .contains(&access_requirement.quest_done_a) =>
                 {
                     missing_quest = access_requirement.quest_done_a;
@@ -9742,7 +9743,7 @@ impl WorldSession {
                 Team::Horde
                     if access_requirement.quest_done_h != 0
                         && !quests
-                            .rewarded_quest_ids
+                            .rewarded_quest_ids_like_cpp()
                             .contains(&access_requirement.quest_done_h) =>
                 {
                     missing_quest = access_requirement.quest_done_h;
@@ -9838,7 +9839,7 @@ impl WorldSession {
             return false;
         };
         let object_id = i32::try_from(gameobject_entry).unwrap_or(i32::MAX);
-        quests.statuses.values().any(|status| {
+        quests.statuses_like_cpp().values().any(|status| {
             if status.status != crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                 return false;
             }
@@ -12516,9 +12517,7 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn seed_empty_seasonal_event_bucket_like_cpp(&mut self, event_id: u16) {
-        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.seasonal_quests.entry(event_id).or_default();
-        });
+        let _ = self.ensure_represented_seasonal_event_like_cpp(event_id);
     }
 
     /// Set the list of legitimate characters for this account.
@@ -13685,9 +13684,13 @@ impl WorldSession {
             })
             .collect();
         let quests = self.player_quest_gameplay_snapshot_like_cpp()?;
-        let completed_quests = quests.rewarded_quest_ids.iter().copied().collect();
+        let completed_quests = quests
+            .rewarded_quest_ids_like_cpp()
+            .iter()
+            .copied()
+            .collect();
         let current_quests = quests
-            .statuses
+            .statuses_like_cpp()
             .iter()
             .filter_map(|(&quest_id, status)| {
                 (status.status == crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
@@ -13696,7 +13699,7 @@ impl WorldSession {
             })
             .collect();
         let complete_quests = quests
-            .statuses
+            .statuses_like_cpp()
             .iter()
             .filter_map(|(&quest_id, status)| {
                 (status.status == crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP)
@@ -15777,8 +15780,11 @@ impl WorldSession {
                     quest.allowable_classes,
                     quest.min_level,
                     quest.max_level,
-                    quests.statuses.get(&quest.id).map(|status| status.status),
-                    quests.rewarded_quest_ids.contains(&quest.id),
+                    quests
+                        .statuses_like_cpp()
+                        .get(&quest.id)
+                        .map(|status| status.status),
+                    quests.rewarded_quest_ids_like_cpp().contains(&quest.id),
                 )
             })
             .collect::<Vec<_>>();
@@ -15799,8 +15805,11 @@ impl WorldSession {
                         self.player_level_like_cpp(),
                     ),
                     self.can_take_quest(quest),
-                    quests.statuses.get(&quest.id).map(|status| status.status),
-                    quests.rewarded_quest_ids.contains(&quest.id),
+                    quests
+                        .statuses_like_cpp()
+                        .get(&quest.id)
+                        .map(|status| status.status),
+                    quests.rewarded_quest_ids_like_cpp().contains(&quest.id),
                 )
             })
             .collect::<Vec<_>>();

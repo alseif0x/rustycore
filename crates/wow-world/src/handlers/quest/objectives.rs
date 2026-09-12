@@ -139,7 +139,7 @@ impl WorldSession {
         let Some(state_snapshot) = self.player_quest_gameplay_snapshot_like_cpp() else {
             return Vec::new();
         };
-        'matching_entry: for status in state_snapshot.statuses.values() {
+        'matching_entry: for status in state_snapshot.statuses_like_cpp().values() {
             if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                 continue;
             }
@@ -186,10 +186,11 @@ impl WorldSession {
 
         let Some((changed_quest_ids, quests_to_complete, objective_updates)) = self
             .mutate_player_quest_gameplay_like_cpp(|state| {
+                let rewarded_quest_ids = state.rewarded_quest_ids_like_cpp().clone();
                 let mut changed_quest_ids = Vec::new();
                 let mut quests_to_complete = Vec::new();
                 let mut objective_updates = Vec::new();
-                'quests: for status in state.statuses.values_mut() {
+                'quests: for status in state.statuses_mut_like_cpp() {
                     if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                         continue;
                     }
@@ -241,7 +242,7 @@ impl WorldSession {
                             objective_updates.push((new_count, is_bound));
                         }
                         let quest_already_rewarded =
-                            state.rewarded_quest_ids.contains(&status.quest_id);
+                            rewarded_quest_ids.contains(&status.quest_id);
                         if new_count >= objective.amount
                             && crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
                                 status,
@@ -274,9 +275,12 @@ impl WorldSession {
                     && self
                         .player_quest_gameplay_snapshot_like_cpp()
                         .is_some_and(|state| {
-                            state.statuses.get(&quest_id).is_some_and(|status| {
-                                status.status == QUEST_STATUS_COMPLETE_LIKE_CPP
-                            })
+                            state
+                                .statuses_like_cpp()
+                                .get(&quest_id)
+                                .is_some_and(|status| {
+                                    status.status == QUEST_STATUS_COMPLETE_LIKE_CPP
+                                })
                         })
                 {
                     self.send_packet(&QuestUpdateComplete { quest_id });
@@ -356,7 +360,7 @@ impl WorldSession {
         let new_non_bank_item_count = self.represented_non_bank_item_count_like_cpp(entry_id)?;
         let changed_quest_ids = self.mutate_player_quest_gameplay_like_cpp(|state| {
             let mut statuses = state
-                .statuses
+                .statuses_like_cpp()
                 .iter()
                 .map(|(&id, status)| (id, status.clone()))
                 .collect();
@@ -367,13 +371,21 @@ impl WorldSession {
                     entry_id,
                     new_non_bank_item_count,
                 );
-            state.statuses = statuses.into_iter().collect();
+            state.replace_statuses_like_cpp(
+                statuses.into_iter().collect(),
+                state.status_authority_complete_like_cpp(),
+            );
             changed
         })?;
         let snapshot = self.player_quest_gameplay_snapshot_like_cpp()?;
         let changed_slots = changed_quest_ids
             .iter()
-            .filter_map(|quest_id| snapshot.statuses.get(quest_id).map(|status| status.slot))
+            .filter_map(|quest_id| {
+                snapshot
+                    .statuses_like_cpp()
+                    .get(quest_id)
+                    .map(|status| status.slot)
+            })
             .collect::<Vec<_>>();
         for slot in changed_slots {
             self.send_represented_quest_log_slot_update_like_cpp(slot);
@@ -394,9 +406,13 @@ impl WorldSession {
             return Vec::new();
         };
         self.mutate_player_quest_gameplay_like_cpp(|state| {
-            let rewarded = state.rewarded_quest_ids.iter().copied().collect();
+            let rewarded = state
+                .rewarded_quest_ids_like_cpp()
+                .iter()
+                .copied()
+                .collect();
             let mut statuses = state
-                .statuses
+                .statuses_like_cpp()
                 .iter()
                 .map(|(&id, status)| (id, status.clone()))
                 .collect();
@@ -409,7 +425,10 @@ impl WorldSession {
                     quest_log_item_id,
                     count,
                 );
-            state.statuses = statuses.into_iter().collect();
+            state.replace_statuses_like_cpp(
+                statuses.into_iter().collect(),
+                state.status_authority_complete_like_cpp(),
+            );
             changed
         })
         .unwrap_or_default()
@@ -427,9 +446,13 @@ impl WorldSession {
         };
         let Some(Some((quest_id, new_count))) =
             self.mutate_player_quest_gameplay_like_cpp(|state| {
-                let rewarded = state.rewarded_quest_ids.iter().copied().collect();
+                let rewarded = state
+                    .rewarded_quest_ids_like_cpp()
+                    .iter()
+                    .copied()
+                    .collect();
                 let mut statuses = state
-                    .statuses
+                    .statuses_like_cpp()
                     .iter()
                     .map(|(&id, status)| (id, status.clone()))
                     .collect();
@@ -442,7 +465,10 @@ impl WorldSession {
                         quest_log_item_id,
                         count,
                     );
-                state.statuses = statuses.into_iter().collect();
+                state.replace_statuses_like_cpp(
+                    statuses.into_iter().collect(),
+                    state.status_authority_complete_like_cpp(),
+                );
                 result
             })
         else {
@@ -468,7 +494,12 @@ impl WorldSession {
         };
         let mut changed_slots = changed_quest_ids
             .iter()
-            .filter_map(|quest_id| state.statuses.get(quest_id).map(|status| status.slot))
+            .filter_map(|quest_id| {
+                state
+                    .statuses_like_cpp()
+                    .get(quest_id)
+                    .map(|status| status.slot)
+            })
             .collect::<Vec<_>>();
         changed_slots.sort_unstable();
         changed_slots.dedup();
@@ -477,7 +508,7 @@ impl WorldSession {
         }
         for &quest_id in changed_quest_ids {
             if state
-                .statuses
+                .statuses_like_cpp()
                 .get(&quest_id)
                 .is_some_and(|status| status.status == QUEST_STATUS_COMPLETE_LIKE_CPP)
             {
@@ -496,7 +527,7 @@ impl WorldSession {
         let mut quests = self
             .player_quest_gameplay_snapshot_like_cpp()
             .into_iter()
-            .flat_map(|state| state.statuses.into_values())
+            .flat_map(|state| state.statuses_snapshot_like_cpp().into_values())
             .map(|status| (status.slot, status.quest_id))
             .collect::<Vec<_>>();
         quests.sort_unstable();
@@ -514,10 +545,11 @@ impl WorldSession {
         let ordered_quest_ids = self.quest_bound_item_objective_quest_order_like_cpp();
         let Some((updated_counts, quests_to_complete)) = self
             .mutate_player_quest_gameplay_like_cpp(|state| {
+                let rewarded_quest_ids = state.rewarded_quest_ids_like_cpp().clone();
                 let mut updated_counts = Vec::new();
                 let mut quests_to_complete = Vec::new();
                 'quests: for quest_id in ordered_quest_ids {
-                    let Some(status) = state.statuses.get_mut(&quest_id) else {
+                    let Some(status) = state.status_mut_like_cpp(quest_id) else {
                         continue;
                     };
                     if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
@@ -564,7 +596,7 @@ impl WorldSession {
                         status.objective_counts[storage_index] = new_count;
                         updated_counts.push((status.quest_id, new_count));
                         let quest_already_rewarded =
-                            state.rewarded_quest_ids.contains(&status.quest_id);
+                            rewarded_quest_ids.contains(&status.quest_id);
                         if new_count >= objective.amount
                             && crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
                                 status,
