@@ -592,9 +592,9 @@ impl WorldSession {
                 false,
             );
         };
-        let current_destination = taxi_state.destinations.get(1).copied();
+        let current_destination = taxi_state.taxi_destination_like_cpp();
         if let Some(destination_node_id) = current_destination {
-            let Some(flight) = taxi_state.flight else {
+            let Some(flight) = taxi_state.flight_like_cpp() else {
                 return self.record_move_spline_done_taxi_event_like_cpp(
                     spline_id,
                     MoveSplineDoneTaxiActionLikeCpp::InProgressNoFlightGenerator,
@@ -619,11 +619,9 @@ impl WorldSession {
                 {
                     if self
                         .mutate_player_taxi_state_like_cpp(|taxi| {
-                            taxi.flight = Some(wow_entities::PlayerTaxiFlightStateLikeCpp {
-                                current_node: node,
-                                node_after_teleport: None,
-                            });
+                            taxi.advance_taxi_flight_after_teleport_like_cpp()
                         })
+                        .flatten()
                         .is_none()
                     {
                         return self.record_move_spline_done_taxi_event_like_cpp(
@@ -657,7 +655,7 @@ impl WorldSession {
             );
         }
 
-        if taxi_state.destinations.len() != 1 {
+        if taxi_state.destinations_like_cpp().len() != 1 {
             return self.record_move_spline_done_taxi_event_like_cpp(
                 spline_id,
                 MoveSplineDoneTaxiActionLikeCpp::IgnoredUnexpectedFinalPath,
@@ -670,10 +668,9 @@ impl WorldSession {
 
         if self
             .mutate_player_taxi_state_like_cpp(|taxi| {
-                taxi.destinations.clear();
-                taxi.flight = None;
-                taxi.mounted = false;
-                taxi.unit_flags &= !(UnitFlags::REMOVE_CLIENT_CONTROL | UnitFlags::ON_TAXI).bits();
+                taxi.cleanup_after_taxi_flight_like_cpp(
+                    (UnitFlags::REMOVE_CLIENT_CONTROL | UnitFlags::ON_TAXI).bits(),
+                );
             })
             .is_none()
         {

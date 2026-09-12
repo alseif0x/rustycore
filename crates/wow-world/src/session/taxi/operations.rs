@@ -452,15 +452,15 @@ impl WorldSession {
             self.with_owned_player_like_cpp(|player| player.taxi_state_like_cpp().clone());
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(wow_entities::PlayerTaxiState {
-                destinations: self.taxi_destinations_like_cpp.clone(),
-                flight: self
-                    .taxi_flight_state_like_cpp
-                    .map(canonical_taxi_flight_state_like_cpp),
-                unit_flags: self.taxi_unit_flags_like_cpp.bits(),
-                mounted: self.taxi_mounted_like_cpp,
-                ..Default::default()
-            });
+            return Some(
+                wow_entities::PlayerTaxiState::from_represented_parts_like_cpp(
+                    self.taxi_destinations_like_cpp.clone(),
+                    self.taxi_flight_state_like_cpp
+                        .map(canonical_taxi_flight_state_like_cpp),
+                    self.taxi_unit_flags_like_cpp.bits(),
+                    self.taxi_mounted_like_cpp,
+                ),
+            );
         }
         canonical
     }
@@ -476,11 +476,13 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            self.taxi_destinations_like_cpp = state.destinations;
-            self.taxi_flight_state_like_cpp =
-                state.flight.map(represented_taxi_flight_state_like_cpp);
-            self.taxi_unit_flags_like_cpp = UnitFlags::from_bits_retain(state.unit_flags);
-            self.taxi_mounted_like_cpp = state.mounted;
+            self.taxi_destinations_like_cpp = state.destinations_like_cpp().to_vec();
+            self.taxi_flight_state_like_cpp = state
+                .flight_like_cpp()
+                .map(represented_taxi_flight_state_like_cpp);
+            self.taxi_unit_flags_like_cpp =
+                UnitFlags::from_bits_retain(state.unit_flags_like_cpp());
+            self.taxi_mounted_like_cpp = state.mounted_like_cpp();
             return true;
         }
         canonical
@@ -503,13 +505,13 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn set_taxi_destinations_like_cpp(&mut self, destinations: Vec<u32>) {
         let _ = self.mutate_player_taxi_state_like_cpp(|taxi| {
-            taxi.destinations = destinations;
+            taxi.replace_destinations_like_cpp(destinations);
         });
     }
     #[cfg(test)]
     pub(crate) fn taxi_destinations_like_cpp(&self) -> Vec<u32> {
         self.player_taxi_state_snapshot_like_cpp()
-            .map(|taxi| taxi.destinations)
+            .map(|taxi| taxi.destinations_like_cpp().to_vec())
             .expect("test Player taxi owner must resolve")
     }
     #[cfg_attr(not(test), allow(unused_variables))]
@@ -523,7 +525,7 @@ impl WorldSession {
     }
     pub(crate) fn resolved_is_in_taxi_flight_like_cpp(&self) -> Option<bool> {
         self.player_taxi_state_snapshot_like_cpp()
-            .map(|taxi| taxi.flight.is_some())
+            .map(|taxi| taxi.is_in_flight_like_cpp())
     }
     #[cfg(test)]
     pub(crate) fn is_in_taxi_flight_like_cpp(&self) -> bool {
@@ -537,29 +539,28 @@ impl WorldSession {
         node_after_teleport: Option<RepresentedTaxiFlightNodeLikeCpp>,
     ) {
         let _ = self.mutate_player_taxi_state_like_cpp(|taxi| {
-            taxi.flight = Some(wow_entities::PlayerTaxiFlightStateLikeCpp {
-                current_node: canonical_taxi_flight_node_like_cpp(current_node),
-                node_after_teleport: node_after_teleport.map(canonical_taxi_flight_node_like_cpp),
-            });
+            taxi.begin_taxi_flight_like_cpp(
+                canonical_taxi_flight_node_like_cpp(current_node),
+                node_after_teleport.map(canonical_taxi_flight_node_like_cpp),
+            );
         });
     }
     #[cfg(test)]
     pub(crate) fn set_taxi_cleanup_state_like_cpp(&mut self, unit_flags: UnitFlags, mounted: bool) {
         let _ = self.mutate_player_taxi_state_like_cpp(|taxi| {
-            taxi.unit_flags = unit_flags.bits();
-            taxi.mounted = mounted;
+            taxi.set_taxi_cleanup_state_like_cpp(unit_flags.bits(), mounted);
         });
     }
     #[cfg(test)]
     pub(crate) fn taxi_unit_flags_like_cpp(&self) -> UnitFlags {
         self.player_taxi_state_snapshot_like_cpp()
-            .map(|taxi| UnitFlags::from_bits_retain(taxi.unit_flags))
+            .map(|taxi| UnitFlags::from_bits_retain(taxi.unit_flags_like_cpp()))
             .expect("test Player taxi owner must resolve")
     }
     #[cfg(test)]
     pub(crate) fn taxi_mounted_like_cpp(&self) -> bool {
         self.player_taxi_state_snapshot_like_cpp()
-            .map(|taxi| taxi.mounted)
+            .map(|taxi| taxi.mounted_like_cpp())
             .expect("test Player taxi owner must resolve")
     }
     pub(crate) fn set_player_transport_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
