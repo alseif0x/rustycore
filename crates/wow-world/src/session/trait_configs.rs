@@ -8,56 +8,46 @@ impl WorldSession {
         &mut self,
         configs: &[TraitConfigCreateData],
     ) -> bool {
+        // The owner enforces that this hydration describes exactly the rows it
+        // loaded; the session only shapes the packet payload into the details
+        // it stores.
+        let hydration = configs
+            .iter()
+            .enumerate()
+            .map(|(create_index, config)| {
+                (
+                    config.id,
+                    (
+                        config.config_type,
+                        config.chr_specialization_id,
+                        config.combat_config_flags,
+                    ),
+                    PlayerTraitConfigDetails {
+                        create_index,
+                        local_identifier: config.local_identifier,
+                        skill_line_id: config.skill_line_id,
+                        trait_system_id: config.trait_system_id,
+                        name: config.name.clone(),
+                        entries: config
+                            .entries
+                            .iter()
+                            .map(|entry| PlayerTraitEntry {
+                                trait_node_id: entry.trait_node_id,
+                                trait_node_entry_id: entry.trait_node_entry_id,
+                                rank: entry.rank,
+                                granted_ranks: entry.granted_ranks,
+                            })
+                            .collect(),
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+
         self.with_owned_player_mut_like_cpp(|player| {
-            let runtime = &mut player.gameplay_state_mut().spells;
-            if !runtime.trait_config_rows_complete_like_cpp()
-                || !runtime.trait_entry_rows_complete_like_cpp()
-                || runtime.trait_config_rows_like_cpp().len() != configs.len()
-                || configs
-                    .iter()
-                    .map(|config| config.id)
-                    .collect::<std::collections::BTreeSet<_>>()
-                    .len()
-                    != configs.len()
-                || configs.iter().any(|config| {
-                    runtime
-                        .trait_config_rows_like_cpp()
-                        .get(&config.id)
-                        .is_none_or(|state| {
-                            state.header
-                                != (
-                                    config.config_type,
-                                    config.chr_specialization_id,
-                                    config.combat_config_flags,
-                                )
-                        })
-                })
-            {
-                return false;
-            }
-            for (create_index, config) in configs.iter().enumerate() {
-                runtime
-                    .trait_config_row_mut_like_cpp(config.id)
-                    .expect("checked trait config row")
-                    .details = Some(PlayerTraitConfigDetails {
-                    create_index,
-                    local_identifier: config.local_identifier,
-                    skill_line_id: config.skill_line_id,
-                    trait_system_id: config.trait_system_id,
-                    name: config.name.clone(),
-                    entries: config
-                        .entries
-                        .iter()
-                        .map(|entry| PlayerTraitEntry {
-                            trait_node_id: entry.trait_node_id,
-                            trait_node_entry_id: entry.trait_node_entry_id,
-                            rank: entry.rank,
-                            granted_ranks: entry.granted_ranks,
-                        })
-                        .collect(),
-                });
-            }
-            true
+            player
+                .gameplay_state_mut()
+                .spells
+                .install_loaded_trait_config_details_like_cpp(&hydration)
         })
         .unwrap_or(false)
     }
