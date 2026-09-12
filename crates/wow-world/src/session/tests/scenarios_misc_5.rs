@@ -248,10 +248,10 @@ fn canonical_player_rest_manager_follows_active_detached_and_stale_ownership_lik
     let active = session
         .player_rest_state_snapshot_like_cpp()
         .expect("active rest owner");
-    assert_eq!(active.rest_bonus, 70.0);
-    assert_eq!(active.rest_state, REST_STATE_RESTED_LIKE_CPP);
-    assert_eq!(active.rest_flag_mask, REST_FLAG_IN_CITY_LIKE_CPP);
-    assert!(active.location_initialized);
+    assert_eq!(active.rest_bonus_like_cpp(), 70.0);
+    assert_eq!(active.rest_state_like_cpp(), REST_STATE_RESTED_LIKE_CPP);
+    assert!(active.has_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP));
+    assert!(active.is_location_initialized_like_cpp());
 
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     assert_eq!(
@@ -266,19 +266,20 @@ fn canonical_player_rest_manager_follows_active_detached_and_stale_ownership_lik
     let detached = session
         .player_rest_state_snapshot_like_cpp()
         .expect("detached rest owner");
-    assert_eq!(detached.rest_bonus, 70.0);
-    assert_eq!(detached.rest_flag_mask, REST_FLAG_IN_TAVERN_LIKE_CPP);
-    assert_eq!(detached.inn_area_trigger_id, 77);
+    assert_eq!(detached.rest_bonus_like_cpp(), 70.0);
+    assert!(detached.has_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP));
+    assert_eq!(detached.inn_trigger_id_like_cpp(), 77);
 
-    let replacement_state = wow_entities::PlayerRestState {
-        rest_bonus: 500.0,
-        rest_state: REST_STATE_NORMAL_LIKE_CPP,
-        rest_flag_mask: REST_FLAG_IN_TAVERN_LIKE_CPP,
-        location_initialized: true,
-        inn_area_trigger_id: 77,
-        rest_time_secs: 1234,
-        ..Default::default()
-    };
+    let replacement_state = wow_entities::PlayerRestState::from_represented_parts_like_cpp(
+        REST_STATE_NORMAL_LIKE_CPP,
+        500.0,
+        REST_FLAG_IN_TAVERN_LIKE_CPP,
+        true,
+        false,
+        false,
+        77,
+        1234,
+    );
     let mut replacement = Box::new(Player::new(Some(2), false));
     replacement
         .unit_mut()

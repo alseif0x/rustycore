@@ -1968,7 +1968,7 @@ impl WorldSession {
         // retires it. This is not a client acknowledgement or a restart durability claim.
         if self
             .player_rest_state_snapshot_like_cpp()
-            .is_some_and(|rest| rest.deferred_flag_update_dirty)
+            .is_some_and(|rest| rest.deferred_flag_update_dirty_like_cpp())
             && self.send_represented_resting_player_flag_update_like_cpp()
         {
             self.take_deferred_rest_flag_update_dirty_like_cpp();

@@ -431,12 +431,12 @@ impl WorldSession {
         let Some(rest) = self.player_rest_state_snapshot_like_cpp() else {
             return;
         };
-        if (rest.rest_flag_mask & REST_FLAG_IN_TAVERN_LIKE_CPP) == 0 {
+        if !rest.has_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP) {
             return;
         }
 
         let Some(at_entry) = area_trigger_db2_store
-            .get(rest.inn_area_trigger_id)
+            .get(rest.inn_trigger_id_like_cpp())
             .cloned()
         else {
             if self.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP) {
