@@ -213,6 +213,12 @@ alone do not establish production composition. Record evidence at the actual tes
 
 Ownership/module acceptance commands (select by affected scope, not per helper):
 
+For an acceptance requiring architecture policy, its fixtures and syntax ownership, use
+`./tools/validation-v2 final --base origin/3.4.3 --architecture --timings` to run their
+combined checks inside the same timed manifest. This replaces the three separate commands
+below and final's duplicate physical/hotspot scans; retain any required exhaustive inventory,
+terminal, production-integration and live acceptance that the combined command does not cover.
+
 ~~~bash
 PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo run --release --locked \
   --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
