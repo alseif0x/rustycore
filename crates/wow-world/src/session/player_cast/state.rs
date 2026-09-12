@@ -88,7 +88,11 @@ impl WorldSession {
 
     pub(crate) fn cancel_pending_spell_cast_request_like_cpp(&mut self) -> bool {
         let Some(request) = self
-            .mutate_pending_spell_cast_like_cpp(Option::take)
+            .with_pending_spell_cast_owner_like_cpp(
+                wow_entities::Player::cancel_pending_spell_cast_like_cpp,
+                #[cfg(test)]
+                Option::take,
+            )
             .flatten()
         else {
             return false;
@@ -112,7 +116,7 @@ impl WorldSession {
         if self.player_handle_like_cpp.is_none() {
             return Some(self.represented_pending_spell_cast_request_like_cpp.clone());
         }
-        self.with_owned_player_like_cpp(|player| player.gameplay_state().pending_spell_cast.clone())
+        self.with_owned_player_like_cpp(wow_entities::Player::pending_spell_cast_snapshot_like_cpp)
     }
 
     #[cfg(test)]
@@ -122,17 +126,20 @@ impl WorldSession {
         self.pending_spell_cast_snapshot_like_cpp().flatten()
     }
 
-    pub(in crate::session) fn mutate_pending_spell_cast_like_cpp<R>(
+    /// Apply one named canonical pending-cast transition, or the handle-less
+    /// test fallback that mirrors it.
+    fn with_pending_spell_cast_owner_like_cpp<R>(
         &mut self,
-        f: impl FnOnce(&mut Option<RepresentedPendingSpellCastRequestLikeCpp>) -> R,
+        canonical: impl FnOnce(&mut wow_entities::Player) -> R,
+        #[cfg(test)] fallback: impl FnOnce(&mut Option<RepresentedPendingSpellCastRequestLikeCpp>) -> R,
     ) -> Option<R> {
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            return Some(f(&mut self.represented_pending_spell_cast_request_like_cpp));
+            return Some(fallback(
+                &mut self.represented_pending_spell_cast_request_like_cpp,
+            ));
         }
-        self.with_owned_player_mut_like_cpp(|player| {
-            f(&mut player.gameplay_state_mut().pending_spell_cast)
-        })
+        self.with_owned_player_mut_like_cpp(canonical)
     }
 
     pub(crate) fn remaining_global_cooldown_ms_like_cpp(
@@ -155,7 +162,18 @@ impl WorldSession {
         request: RepresentedPendingSpellCastRequestLikeCpp,
     ) {
         self.cancel_pending_spell_cast_request_like_cpp();
-        let _ = self.mutate_pending_spell_cast_like_cpp(|pending| *pending = Some(request));
+        let _ = self.with_pending_spell_cast_owner_like_cpp(
+            {
+                let request = request.clone();
+                move |player| {
+                    player.request_spell_cast_like_cpp(request);
+                }
+            },
+            #[cfg(test)]
+            move |pending| {
+                *pending = Some(request);
+            },
+        );
     }
 
     pub(crate) async fn tick_pending_spell_cast_request_with_generator_like_cpp(
@@ -197,18 +215,30 @@ impl WorldSession {
             return;
         }
 
+        let (cast_id, spell_id, casting_unit_guid) =
+            (request.cast_id, request.spell_id, request.casting_unit_guid);
         let Some(request) = self
-            .mutate_pending_spell_cast_like_cpp(|pending| {
-                if pending.as_ref().is_some_and(|current| {
-                    current.cast_id == request.cast_id
-                        && current.spell_id == request.spell_id
-                        && current.casting_unit_guid == request.casting_unit_guid
-                }) {
-                    pending.take()
-                } else {
-                    None
-                }
-            })
+            .with_pending_spell_cast_owner_like_cpp(
+                move |player| {
+                    player.take_matching_pending_spell_cast_like_cpp(
+                        cast_id,
+                        spell_id,
+                        casting_unit_guid,
+                    )
+                },
+                #[cfg(test)]
+                move |pending| {
+                    if pending.as_ref().is_some_and(|current| {
+                        current.cast_id == cast_id
+                            && current.spell_id == spell_id
+                            && current.casting_unit_guid == casting_unit_guid
+                    }) {
+                        pending.take()
+                    } else {
+                        None
+                    }
+                },
+            )
             .flatten()
         else {
             return;

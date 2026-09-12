@@ -23,6 +23,7 @@ mod items;
 mod location;
 mod menu;
 mod movement_control;
+mod pending_spell_cast;
 mod pet_lifecycle;
 mod progression;
 mod pvp;
