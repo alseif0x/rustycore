@@ -28,6 +28,8 @@ mod login_auxiliary_persistence;
 mod mailbox_pump;
 #[path = "session/tests/map_entry.rs"]
 mod map_entry;
+#[path = "session/tests/map_phase_pass.rs"]
+mod map_phase_pass;
 #[path = "session/tests/pending_cast_owner.rs"]
 mod pending_cast_owner;
 #[path = "session/tests/player_cast_lifecycle.rs"]
@@ -3778,6 +3780,7 @@ fn broadcast_info_with_command(
         realm_send_tx: send_tx.clone(),
         send_tx,
         command_tx,
+        session_phase_tx: crate::session::directory::detached_session_phase_rail_like_cpp(),
         durable_creature_runtime_commands_like_cpp: Default::default(),
         client_visible_guids_like_cpp: Default::default(),
         advanced_combat_logging_enabled_like_cpp: Default::default(),

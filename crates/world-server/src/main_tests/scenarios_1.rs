@@ -4,6 +4,7 @@
 //! unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use wow_world::session::directory::detached_session_phase_rail_like_cpp;
 
 #[test]
 fn dungeon_encounter_catalog_is_loaded_without_per_session_retention() {
@@ -366,14 +367,18 @@ fn active_world_session_registry_shutdown_gate_rejects_late_registration_like_cp
     let registry = ActiveWorldSessionRegistryLikeCpp::new();
     let (command_tx_a, _command_rx_a) = flume::bounded(1);
     let first_id = registry
-        .try_register(41, command_tx_a)
+        .try_register(41, command_tx_a, detached_session_phase_rail_like_cpp())
         .expect("open registry accepts the existing session")
         .0;
 
     registry.begin_shutdown_like_cpp();
 
     let (command_tx_b, _command_rx_b) = flume::bounded(1);
-    assert!(registry.try_register(42, command_tx_b).is_none());
+    assert!(
+        registry
+            .try_register(42, command_tx_b, detached_session_phase_rail_like_cpp())
+            .is_none()
+    );
     assert!(registry.is_shutting_down_like_cpp());
     assert!(!registry.should_stop_sessions_like_cpp());
     registry.request_session_stop_like_cpp();
@@ -405,8 +410,8 @@ async fn active_world_session_registry_closed_wait_observes_final_unregister_lik
 async fn active_world_session_registry_force_cancel_drops_registration_guard_like_cpp() {
     let registry = Arc::new(ActiveWorldSessionRegistryLikeCpp::new());
     let (command_tx, _command_rx) = flume::bounded(1);
-    let (id, cancellation) = registry
-        .try_register(44, command_tx)
+    let (id, cancellation, _ready_for_phases) = registry
+        .try_register(44, command_tx, detached_session_phase_rail_like_cpp())
         .expect("open registry accepts session");
     let registration = ActiveWorldSessionRegistrationGuardLikeCpp {
         registry: Arc::clone(&registry),

@@ -14,9 +14,13 @@
 mod durable;
 mod protocol;
 mod pump;
+mod session_phase_permit;
+mod session_phase_rail;
 
 pub use durable::*;
 pub use protocol::*;
+pub use session_phase_permit::*;
+pub use session_phase_rail::*;
 
 #[cfg(test)]
 #[path = "tests.rs"]

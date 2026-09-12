@@ -468,6 +468,19 @@ impl ManagedMap {
         );
     }
 
+    /// The first phase of C++ `Map::Update`: `_dynamicTree.update(t_diff)`
+    /// (`Map.cpp:668`), which runs before the world sessions of this map's
+    /// players (`:669-680`).
+    ///
+    /// #787 splits the tick here so the coordinator can release every
+    /// synchronous guard, let each session run its admitted map pass, and
+    /// resume the remaining phases of the same tick with the saved diff.
+    pub(super) fn update_dynamic_tree_phase_like_cpp(&mut self, diff_ms: u32) {
+        self.last_dynamic_tree_update_summary_like_cpp =
+            self.runtime.map.update_dynamic_tree_like_cpp(diff_ms);
+        self.update_calls.push(diff_ms);
+    }
+
     pub(super) fn update_with_optional_pool_update_context<L>(
         &mut self,
         diff_ms: u32,
@@ -482,9 +495,22 @@ impl ManagedMap {
         // tail ScriptMgr/metrics (`Map.cpp:666-668`). Rust exposes only the
         // represented map-owned timer/unbalanced seam here; `update_calls` below
         // remains manager instrumentation, not a C++ phase.
-        self.last_dynamic_tree_update_summary_like_cpp =
-            self.runtime.map.update_dynamic_tree_like_cpp(diff_ms);
-        self.update_calls.push(diff_ms);
+        self.update_dynamic_tree_phase_like_cpp(diff_ms);
+        self.update_after_sessions_like_cpp(diff_ms, pool_update, load_record);
+    }
+
+    /// Every phase C++ `Map::Update` runs after the map's world sessions
+    /// (`Map.cpp:682-815`): respawn-driven object families, transports,
+    /// `SendObjectUpdates`, scripts, weather, personal phase, the move-list
+    /// drains, relocation notifies and the tail hook.
+    pub(super) fn update_after_sessions_like_cpp<L>(
+        &mut self,
+        diff_ms: u32,
+        pool_update: Option<(&SpawnStore, &PoolMgrLikeCpp)>,
+        load_record: Option<&mut L>,
+    ) where
+        L: FnMut(&mut Map, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+    {
         self.last_dynamic_objects_update_summary =
             self.runtime.map.update_dynamic_objects_like_cpp(diff_ms);
         let now_secs = game_time_now_secs_i64();
@@ -801,6 +827,26 @@ pub struct MapManager {
     pub(super) player_owners_like_cpp: BTreeMap<ObjectGuid, player_owner::PlayerOwnershipLikeCpp>,
     pub(super) detached_players_like_cpp: BTreeMap<ObjectGuid, Box<wow_entities::Player>>,
     pub(super) next_player_generation_like_cpp: u64,
+    pub(super) map_incarnations_like_cpp: BTreeMap<MapKey, u64>,
+    pub(super) next_map_incarnation_like_cpp: u64,
+    pub(super) tick_coordination_like_cpp: MapTickCoordinationStateLikeCpp,
+    pub(super) next_tick_epoch_like_cpp: u64,
+}
+
+/// Where one canonical map tick is between its split and its resumption.
+///
+/// #787 releases every synchronous guard between admission and the remaining
+/// phases, so the manager itself has to refuse a second `begin` and an
+/// unmatched `resume` instead of trusting the caller to run the pair once.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MapTickCoordinationStateLikeCpp {
+    /// No tick is split: the next `begin` may consult the shared timer.
+    #[default]
+    Idle,
+    /// A tick was admitted and its sessions are running their map pass.
+    AwaitingSessions(u64),
+    /// The remaining phases of that tick are running.
+    Resuming(u64),
 }
 
 impl fmt::Debug for MapManager {

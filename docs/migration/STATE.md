@@ -1,5 +1,25 @@
 # RustyCore — Honest Current State (single source of truth)
 
+**Active delivery — 2026-09-12, #787 / PR #792, integration base `aee29a69`:**
+World/Map phase coordination is implemented and locally accepted on
+`787-p3-map-driven-session-pass` at `76369bda`. The correction retains the World
+completion acknowledgement through task-owned finalization, session destruction,
+BattlePet attachment release and registration retirement, preserves the shutdown
+handover, and keeps interrupted effects behind the cross-step barrier.
+
+The clean final gate passed at manifest
+`20260912T225625.408381Z-3135200-final.json` (`status: passed`, 1,107.844 s,
+one Cargo job): `wow-map` 735, `wow-world` 3,867 and `world-server` 585 tests,
+with zero failures, plus the architecture and ownership checks. Guarded live
+save/relogin QA also passed with `outcome: passed-restored`, `bot_status: 0` and
+`login_save_relog_verified: true` for `TESTBOT1@bot.local`; the original live
+SHA `c2a3b461…` is serving again. Two earlier attempts exceeded the guard's
+startup timeout because the unoptimized debug candidate needs about 205 s to
+load the full data set; they were restored cleanly and are not functional
+failures. [The session checkpoint](../architecture/session-578-checkpoint.md#787-resumption-finalization-is-inside-the-world-completion-boundary--2026-09-12)
+owns the contract and evidence. This is the selected #584 delivery; older
+next-issue instructions below are dated history.
+
 **Architecture plan reconciliation — 2026-09-11, #748, base `5d8c079a`:**
 All 46 initially open issues were reviewed and their bodies synchronized with the
 master plan. #42 was consolidated into #43, and #58/#59 into #41, retaining their

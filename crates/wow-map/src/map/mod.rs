@@ -2076,6 +2076,13 @@ pub struct Map<Terrain = NoopTerrainGridLoader, Lifecycle = NoopGridLifecycle> {
     gameobjects_by_spawn_id: HashMap<SpawnId, HashSet<ObjectGuid>>,
     area_triggers_by_spawn_id: HashMap<SpawnId, HashSet<ObjectGuid>>,
     entity_world: EntityWorld,
+    /// Map-owned membership order of this map's players, mirroring C++
+    /// `Map::m_mapRefManager`. `MapReference::targetObjectBuildLink`
+    /// (`Maps/MapReference.cpp:22-28`) links each Player with `insertFirst`, so
+    /// `Map::Update`'s session walk (`Maps/Map.cpp:669-680`) visits the most
+    /// recently added player first. A sorted GUID list is a different order and
+    /// is not used for that walk (#787).
+    map_reference_order_like_cpp: Vec<ObjectGuid>,
     /// Map-owned represented C++ `CreatureGroupHolder`, keyed by leader spawn id.
     ///
     /// Source-of-truth remains `entity_world` and the typed spawn-id index. This
@@ -2241,6 +2248,7 @@ where
             gameobjects_by_spawn_id: HashMap::new(),
             area_triggers_by_spawn_id: HashMap::new(),
             entity_world: EntityWorld::default(),
+            map_reference_order_like_cpp: Vec::new(),
             creature_group_holder_like_cpp: HashMap::new(),
             dynamic_tree_model_keys_like_cpp: HashSet::new(),
             dynamic_tree_rebalance_timer_remaining_ms_like_cpp:

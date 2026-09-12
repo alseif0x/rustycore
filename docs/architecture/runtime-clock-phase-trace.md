@@ -11,6 +11,18 @@ does not prove reachability, exact phase order or lock safety.
 
 ## Why a trace before a cut
 
+**#787 composition correction — 2026-09-12:** the canonical producer now owns
+World-before-Map scheduling through each session's phase rail. Its implementation
+is `runtime/map/update_loop.rs`, re-exported from `runtime/map.rs`; this is the
+same task, not another clock. A disconnecting World pass retains its permit and
+reply through task-owned finalization and registration retirement. A Map pass
+does not retire a disconnecting session; the following World pass does that,
+matching `WorldSession.cpp:488-540` and `World.cpp:3394-3432`. Interrupted effects
+remain a barrier across steps. Shutdown suspends ordinary simulation while
+session owners drain; the final respawn tick requires an empty session registry.
+The older trace below remains dated context. The session checkpoint owns the
+current command/SHA evidence and its retained limits.
+
 The [C0/C3 integration constraints](session-578-checkpoint.md#c0c3-integration-constraints--2026-09-06)
 record the bounded `b6faea6f` review of Session callback waits, phase tails, participant
 readiness and shutdown barriers. They refine the upcoming coordination cut; no production

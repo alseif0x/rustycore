@@ -63,6 +63,9 @@ pub struct PlayerSessionRegistrationLikeCpp {
     pub realm_send_tx: flume::Sender<Vec<u8>>,
     /// Channel used for C++-style cross-session state mutations.
     pub command_tx: flume::Sender<SessionCommand>,
+    /// The session's phase rail (#787): the canonical producer addresses its
+    /// map phase here, never through the command mailbox a phase pass drains.
+    pub session_phase_tx: flume::Sender<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
     /// Durable FIFO rail for authoritative creature combat transitions.
     pub durable_creature_runtime_commands_like_cpp:
         Arc<Mutex<DurableCreatureRuntimeCommandsLikeCpp>>,
@@ -173,6 +176,39 @@ impl PlayerControlAddress {
         command: SessionCommand,
     ) -> Result<(), flume::TrySendError<SessionCommand>> {
         self.command_tx.try_send(command)
+    }
+}
+
+/// A phase rail with no consumer, for fixtures and for any registration made
+/// before its owning task parks on the real one.
+///
+/// The receiver is dropped immediately, so every delivery fails instead of
+/// silently queueing for a session that will never answer.
+#[must_use]
+pub fn detached_session_phase_rail_like_cpp()
+-> flume::Sender<crate::session::mailbox::SessionPhaseRequestLikeCpp> {
+    let (tx, _rx) = flume::bounded(1);
+    tx
+}
+
+/// Owned phase-rail address for one session incarnation (#787).
+#[derive(Clone, Debug)]
+pub struct SessionPhaseAddressLikeCpp {
+    registration: PlayerRegistration,
+    session_phase_tx: flume::Sender<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
+}
+
+impl SessionPhaseAddressLikeCpp {
+    #[must_use]
+    pub fn registration(&self) -> PlayerRegistration {
+        self.registration
+    }
+
+    pub fn try_send(
+        &self,
+        request: crate::session::mailbox::SessionPhaseRequestLikeCpp,
+    ) -> Result<(), flume::TrySendError<crate::session::mailbox::SessionPhaseRequestLikeCpp>> {
+        self.session_phase_tx.try_send(request)
     }
 }
 
@@ -462,6 +498,7 @@ struct PlayerRegistryEntry {
     send_tx: flume::Sender<Vec<u8>>,
     realm_send_tx: flume::Sender<Vec<u8>>,
     command_tx: flume::Sender<SessionCommand>,
+    session_phase_tx: flume::Sender<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
     durable_creature_runtime_commands_like_cpp: Arc<Mutex<DurableCreatureRuntimeCommandsLikeCpp>>,
     /// Shared handles read live at resolve time; beside the entry, not in the
     /// projection, so publishing gameplay state cannot replace one (#361).
@@ -557,6 +594,7 @@ impl PlayerRegistry {
             send_tx,
             realm_send_tx,
             command_tx,
+            session_phase_tx,
             durable_creature_runtime_commands_like_cpp,
             client_visible_guids_like_cpp,
             advanced_combat_logging_enabled_like_cpp,
@@ -572,6 +610,7 @@ impl PlayerRegistry {
                 send_tx,
                 realm_send_tx,
                 command_tx,
+                session_phase_tx,
                 durable_creature_runtime_commands_like_cpp,
                 client_visible_guids_like_cpp,
                 advanced_combat_logging_enabled_like_cpp,
@@ -591,6 +630,23 @@ impl PlayerRegistry {
 
     /// Resolve an owned command address for the current incarnation of `guid`.
     #[must_use]
+    /// The phase rail of the current incarnation of `guid`, with the
+    /// registration that rail belonged to when it was resolved (#787).
+    #[must_use]
+    pub fn session_phase_address_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) -> Option<SessionPhaseAddressLikeCpp> {
+        let entry = self.entries.get(&guid)?;
+        Some(SessionPhaseAddressLikeCpp {
+            registration: PlayerRegistration {
+                guid,
+                generation: entry.generation,
+            },
+            session_phase_tx: entry.session_phase_tx.clone(),
+        })
+    }
+
     pub fn control_address(&self, guid: ObjectGuid) -> Option<PlayerControlAddress> {
         let entry = self.entries.get(&guid)?;
         Some(PlayerControlAddress {
@@ -2141,6 +2197,7 @@ mod tests {
             realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
+            session_phase_tx: crate::session::directory::detached_session_phase_rail_like_cpp(),
             durable_creature_runtime_commands_like_cpp: Default::default(),
             client_visible_guids_like_cpp: Default::default(),
             advanced_combat_logging_enabled_like_cpp: Default::default(),

@@ -13,6 +13,15 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
+**Entrega activa, 2026-09-12: #787 / PR #792**, sobre la integración `aee29a69`.
+La coordinación World/Map está implementada y aceptada localmente en
+`76369bda`; la corrección mantiene el ACK World pendiente hasta finalizar y
+retirar la sesión. El contrato y la evidencia están en el
+[checkpoint de sesión](session-578-checkpoint.md#787-resumption-finalization-is-inside-the-world-completion-boundary--2026-09-12).
+La secuencia del 11 de septiembre que sigue se conserva como contexto fechado;
+no ordena volver a ejecutar entregas ya integradas. La retirada del escritor
+legado de criaturas y las fases de mapa no representadas siguen en #584.
+
 La base revisada de esta entrega es `3.4.3` en
 `5d8c079a06b587c060c1c6e1c06bedb73c4339d0`. #133 se cerró el 2026-09-09. Las
 entregas #578, #585, #587, #588, #589, #716, #718, #722 y #737 están integradas y
@@ -32,9 +41,9 @@ desactivado. #583 espera los requisitos de núcleo necesarios para su integraci�
 producción, pero no bloquea cada macro de gameplay independiente. El cierre
 administrativo de #133 no añade una compuerta posterior.
 
-La próxima macro de núcleo recomendada es #743, después #735 como preferencia de
-orden sin dependencia dura, y luego los residuales P2 seguidos por P3 (runtime,
-lifetime y `hecs` privado) y P4 (fronteras semánticas y organización física). Las
+La próxima macro de núcleo se seleccionará bajo #584 después de auditar el escritor
+legado de criaturas y las fases de `Map::Update` aún no representadas. Después siguen
+los residuales P2/P3/P4 por consumidores, el producto #583 y la auditoría #153. Las
 excepciones físicas son individuales y se justifican con la política vigente; no se
 crea una issue por fichero, helper o import.
 
@@ -89,15 +98,15 @@ de microissues:
 | --- | --- | --- |
 | P0 | Herramientas de ownership, imports, bridges y ratchet físico | #716 integrado y cerrado; su evidencia es histórica y no se repite aquí |
 | P1 | Recompensa de misión y contrato durable | #718 integrado y cerrado; no hay evidencia real de DB/restart/relogin |
-| P2 | Fronteras de Player y operaciones completas | #743 primero, #735 después como preferencia sin dependencia dura; luego los residuales por consumidores |
-| P3 | Fases, runtime, lifetime, residencia/incarnation y storage selectivo | #584 C0–C4, después de los contratos P2 que requieran esa frontera |
+| P2 | Fronteras de Player y operaciones completas | #743 y #735 entregados; continúan los residuales por consumidores |
+| P3 | Fases, runtime, lifetime, residencia/incarnation y storage selectivo | #787 entregado; siguiente análisis: escritor legado de criaturas y fases de `Map::Update` no representadas bajo #584 |
 | P4 | Organización física, excepciones y límites semánticos | #584, acompañado por cada operación; la medición de 31 paths permanece histórica |
 | P5 | Producto de módulos M0–M4, nativo/Wasm y Rust/Wasm/C | #583, tras los requisitos core de #584; no bloquea gameplay independiente |
 | P6 | Auditoría terminal y evidencia integrada | #153, después de #584 y #583; no absorbe implementación |
 
-La tabla es un mapa técnico de las responsabilidades de `PORT_PLAN.md`/#49. La
-selección de #743 y #735 es prioridad de trabajo, no una dependencia inventada entre
-issues; C0–C4 permanece en #584 y M0–M4 en el producto #583.
+La tabla es un mapa técnico de las responsabilidades de `PORT_PLAN.md`/#49. #743,
+#735 y #787 ya tienen entregas aceptadas en sus alcances; C0–C4 restante permanece
+en #584 y M0–M4 en el producto #583.
 
 ### 4.1 #743 — entrega y reconciliación de comandos de grupo
 
@@ -785,9 +794,16 @@ Las diferencias que quedan, y que son el trabajo P3 real:
    (`WorldSession.cpp:64`) admite `PROCESS_INPLACE`, rechaza `PROCESS_THREADUNSAFE` y
    exige `IsInWorld`, dejando el resto para `World::UpdateSessions`
    (`WorldSessionFilter`, `:85`). En RustyCore cada sesión corre en su propia tarea
-   (`session_factory.rs`) con su diff y su espera de 50 ms cuando no hubo paquetes, y
-   **no existe contrato de `ProcessingPlace`** que decida qué puede procesarse dentro
-   de una actualización de mapa.
+   (`session_factory.rs`) con su diff y su espera de 50 ms cuando no hubo paquetes.
+   **Corrección (2026-09-12):** la primera versión de este punto decía que no existe
+   contrato de `ProcessingPlace`. Sí existe: `PacketProcessing`
+   (`crates/wow-handler/src/lib.rs:38`) clasifica cada registro de
+   `PacketHandlerEntry`, y `PacketProcessing::allows_phase`
+   (`crates/wow-handler/src/processing.rs:41`) implementa ambos filtros C++ sobre esa
+   clasificación y la residencia. Lo que falta es **consumirlo**: no tiene llamador
+   fuera de su crate y el driver despacha toda la cola sin consultarlo. El inventario
+   y el contrato verificable de ese consumo están en
+   `session-578-checkpoint.md`, sección «#787 inventory and verifiable contract».
 3. **Las fases de `Map::Update` que siguen sin representarse** están anotadas en el
    propio código (visitas por celda cercana, objetos activos, transportes,
    `SendObjectUpdates` real, scripts, notificaciones de relocalización) y son el paso
@@ -804,11 +820,12 @@ entra por `MapManager::update`, y el legado de criaturas—, tres tareas periód
 `world_update` no existe como productor. `RuntimeTickOwner` elige entre `Session` y
 `GlobalLegacy`, con `GlobalLegacy` por defecto en producción.
 
-Macro P3 siguiente derivado de esta versión corregida: **#787**, el contrato de
-`ProcessingPlace` y la colocación de la actualización de sesión, que es una frontera
-nueva y acotada. La convergencia del escritor legado de criaturas (paso 7 del ADR)
-sigue siendo trabajo mayor de #578/#584 y no se redefine aquí. **#785 queda cerrada
-por premisa falsa**, con esta verificación registrada en la issue.
+Macro P3 entregada por esta revisión: **#787**, el contrato de `ProcessingPlace` y
+la colocación de la actualización de sesión. La siguiente selección bajo #584 debe
+partir de una auditoría acotada del escritor legado de criaturas (paso 7 del ADR) y
+de las fases de `Map::Update` aún no representadas; no se crea una issue por puente
+o fichero y no se redefine la convergencia antes de tener ese contrato. **#785 queda
+cerrada por premisa falsa**, con esta verificación registrada en la issue.
 
 P3 debe contrastar composición, fases y lifetime con `Map.cpp:666-813`,
 `MapManager.cpp:287-318` y `WorldSession.cpp:64-108`, contar tareas reales y conservar
