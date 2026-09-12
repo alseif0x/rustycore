@@ -135,7 +135,7 @@ impl WorldSession {
             heirlooms.insert(item_id, AccountHeirloomDataLikeCpp { flags, bonus_id });
         }
         let _ = self.mutate_player_collection_state_like_cpp(|collections| {
-            collections.heirlooms = heirlooms;
+            collections.replace_heirlooms_like_cpp(heirlooms);
         });
     }
     /// C++ `CollectionMgr::LoadAccountToys`.
@@ -155,7 +155,7 @@ impl WorldSession {
             toys.insert(item_id, flags);
         }
         let _ = self.mutate_player_collection_state_like_cpp(|collections| {
-            collections.toys = toys;
+            collections.replace_toys_like_cpp(toys);
         });
     }
     pub(crate) fn load_character_reputation_rows_like_cpp(

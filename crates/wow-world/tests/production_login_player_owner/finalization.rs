@@ -349,17 +349,18 @@ async fn production_each_collection_failure_stops_before_offline_and_retirement(
                     .unwrap()
                     .gameplay_state_mut()
                     .collections;
-                collections.mounts.insert(458, 1);
-                collections.toys.insert(100, 1);
-                collections.heirlooms.insert(
+                collections.add_mount_like_cpp(458, 1);
+                collections.add_toy_like_cpp(100, 1);
+                collections.add_heirloom_like_cpp(
                     101,
                     wow_entities::PlayerAccountHeirloomDataLikeCpp {
                         flags: 1,
                         bonus_id: 0,
                     },
                 );
-                collections.item_appearances.insert(102);
-                collections.transmog_illusions.insert(103);
+                collections.add_item_appearance_like_cpp(102);
+                collections
+                    .replace_transmog_illusions_like_cpp(std::collections::HashSet::from([103]));
             }
             let generator = wow_core::ObjectGuidGenerator::new(wow_core::guid::HighGuid::Item, 1);
             let report = session

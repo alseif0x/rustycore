@@ -219,7 +219,7 @@ impl WorldSession {
         };
         manager.player_residence_like_cpp(handle).is_some()
     }
-    pub(crate) fn mutate_player_collection_state_like_cpp<R>(
+    pub(in crate::session) fn mutate_player_collection_state_like_cpp<R>(
         &mut self,
         mutate: impl FnOnce(&mut wow_entities::PlayerCollectionStateLikeCpp) -> R,
     ) -> Option<R> {

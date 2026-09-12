@@ -9341,20 +9341,8 @@ impl WorldSession {
                 self.represented_void_storage_items_like_cpp.to_vec();
             player.gameplay_state_mut().void_storage_loaded =
                 self.represented_void_storage_loaded_like_cpp;
-            player.gameplay_state_mut().collections = wow_entities::PlayerCollectionStateLikeCpp {
-                mounts: self.account_mounts_like_cpp.clone(),
-                heirlooms: self.represented_account_heirlooms_like_cpp.clone(),
-                toys: self.represented_account_toys_like_cpp.clone(),
-                item_appearances: self.represented_item_appearances_like_cpp.clone(),
-                item_appearance_blocks: self.represented_item_appearance_blocks_like_cpp.clone(),
-                temporary_item_appearances: self
-                    .represented_temporary_item_appearances_like_cpp
-                    .clone(),
-                favorite_item_appearances: self
-                    .represented_favorite_item_appearances_like_cpp
-                    .clone(),
-                transmog_illusions: self.represented_transmog_illusions_like_cpp.clone(),
-            };
+            player.gameplay_state_mut().collections =
+                self.represented_player_collection_state_like_cpp();
         }
         player
             .unit_mut()
@@ -10420,29 +10408,34 @@ impl WorldSession {
         self.shield_block_regular_game_table = Some(table);
     }
 
-    pub(crate) fn player_collection_state_snapshot_like_cpp(
+    pub(in crate::session) fn player_collection_state_snapshot_like_cpp(
         &self,
     ) -> Option<wow_entities::PlayerCollectionStateLikeCpp> {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.gameplay_state().collections.clone());
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(wow_entities::PlayerCollectionStateLikeCpp {
-                mounts: self.account_mounts_like_cpp.clone(),
-                heirlooms: self.represented_account_heirlooms_like_cpp.clone(),
-                toys: self.represented_account_toys_like_cpp.clone(),
-                item_appearances: self.represented_item_appearances_like_cpp.clone(),
-                item_appearance_blocks: self.represented_item_appearance_blocks_like_cpp.clone(),
-                temporary_item_appearances: self
-                    .represented_temporary_item_appearances_like_cpp
-                    .clone(),
-                favorite_item_appearances: self
-                    .represented_favorite_item_appearances_like_cpp
-                    .clone(),
-                transmog_illusions: self.represented_transmog_illusions_like_cpp.clone(),
-            });
+            return Some(self.represented_player_collection_state_like_cpp());
         }
         canonical
+    }
+
+    /// Collect the session's represented collection fields into the canonical
+    /// collection state, as C++ hands the loaded `CollectionMgr` to the Player.
+    #[cfg(test)]
+    fn represented_player_collection_state_like_cpp(
+        &self,
+    ) -> wow_entities::PlayerCollectionStateLikeCpp {
+        wow_entities::PlayerCollectionStateLikeCpp::from_loaded_account_parts_like_cpp(
+            self.account_mounts_like_cpp.clone(),
+            self.represented_account_heirlooms_like_cpp.clone(),
+            self.represented_account_toys_like_cpp.clone(),
+            self.represented_item_appearances_like_cpp.clone(),
+            self.represented_item_appearance_blocks_like_cpp.clone(),
+            self.represented_temporary_item_appearances_like_cpp.clone(),
+            self.represented_favorite_item_appearances_like_cpp.clone(),
+            self.represented_transmog_illusions_like_cpp.clone(),
+        )
     }
 
     fn replace_player_collection_state_like_cpp(
@@ -10456,16 +10449,18 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         {
-            self.account_mounts_like_cpp = state.mounts.clone();
-            self.represented_account_heirlooms_like_cpp = state.heirlooms.clone();
-            self.represented_account_toys_like_cpp = state.toys.clone();
-            self.represented_item_appearances_like_cpp = state.item_appearances.clone();
-            self.represented_item_appearance_blocks_like_cpp = state.item_appearance_blocks.clone();
+            self.account_mounts_like_cpp = state.mounts_like_cpp().clone();
+            self.represented_account_heirlooms_like_cpp = state.heirlooms_like_cpp().clone();
+            self.represented_account_toys_like_cpp = state.toys_like_cpp().clone();
+            self.represented_item_appearances_like_cpp = state.item_appearances_like_cpp().clone();
+            self.represented_item_appearance_blocks_like_cpp =
+                state.item_appearance_blocks_snapshot_like_cpp();
             self.represented_temporary_item_appearances_like_cpp =
-                state.temporary_item_appearances.clone();
+                state.temporary_item_appearances_like_cpp().clone();
             self.represented_favorite_item_appearances_like_cpp =
-                state.favorite_item_appearances.clone();
-            self.represented_transmog_illusions_like_cpp = state.transmog_illusions.clone();
+                state.favorite_item_appearances_like_cpp().clone();
+            self.represented_transmog_illusions_like_cpp =
+                state.transmog_illusions_like_cpp().clone();
             if self.player_handle_like_cpp.is_none() {
                 return true;
             }
@@ -10549,11 +10544,7 @@ impl WorldSession {
     /// C++ `CollectionMgr::ToyClearFanfare`.
     pub(crate) fn toy_clear_fanfare_like_cpp(&mut self, item_id: u32) -> bool {
         self.mutate_player_collection_state_like_cpp(|collections| {
-            let Some(flags) = collections.toys.get_mut(&item_id) else {
-                return false;
-            };
-            *flags &= !TOY_FLAG_HAS_FANFARE_LIKE_CPP;
-            true
+            collections.update_toy_flags_like_cpp(item_id, 0, TOY_FLAG_HAS_FANFARE_LIKE_CPP)
         })
         .unwrap_or(false)
     }
@@ -10561,15 +10552,11 @@ impl WorldSession {
     /// C++ `CollectionMgr::ToySetFavorite`.
     pub(crate) fn toy_set_favorite_like_cpp(&mut self, item_id: u32, favorite: bool) -> bool {
         self.mutate_player_collection_state_like_cpp(|collections| {
-            let Some(flags) = collections.toys.get_mut(&item_id) else {
-                return false;
-            };
             if favorite {
-                *flags |= TOY_FLAG_FAVORITE_LIKE_CPP;
+                collections.update_toy_flags_like_cpp(item_id, TOY_FLAG_FAVORITE_LIKE_CPP, 0)
             } else {
-                *flags &= !TOY_FLAG_FAVORITE_LIKE_CPP;
+                collections.update_toy_flags_like_cpp(item_id, 0, TOY_FLAG_FAVORITE_LIKE_CPP)
             }
-            true
         })
         .unwrap_or(false)
     }
@@ -13353,13 +13340,13 @@ impl WorldSession {
         };
         let Some(updated_flags) = self
             .mutate_player_collection_state_like_cpp(|collections| {
-                let flags = collections.mounts.get_mut(&spell_id)?;
-                if is_favorite {
-                    *flags |= 0x01;
+                let changed = if is_favorite {
+                    collections.update_mount_flags_like_cpp(spell_id, 0x01, 0)
                 } else {
-                    *flags &= !0x01;
-                }
-                Some(*flags)
+                    collections.update_mount_flags_like_cpp(spell_id, 0, 0x01)
+                };
+                changed.then_some(())?;
+                collections.mounts_like_cpp().get(&spell_id).copied()
             })
             .flatten()
         else {
