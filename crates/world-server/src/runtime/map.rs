@@ -1267,6 +1267,14 @@ pub(crate) fn spawn_canonical_map_update_loop(
         // a matching epoch from a different coordinator is still refused.
         let mut tick_epoch: u64 = 0;
         let coordinator_id = canonical_map_coordinator_id_like_cpp();
+        // Passes whose effects this producer could not account for. While any of
+        // them is unresolved, no phase is issued and no tick is admitted: an
+        // operation of unknown extent is not made safe by starting the next
+        // step over it, and neither respawns nor DelayedUpdate may run on that
+        // uncertainty.
+        let mut unresolved_phase_permits: Vec<
+            std::sync::Arc<wow_world::session::mailbox::SessionPhasePermitLikeCpp>,
+        > = Vec::new();
         let mut respawn_condition_scheduler =
             CanonicalRespawnConditionSchedulerLikeCpp::new(respawn_condition_interval_ms);
         loop {
@@ -1285,6 +1293,21 @@ pub(crate) fn spawn_canonical_map_update_loop(
                     continue;
                 }
                 diff_ms = 1;
+            }
+
+            // The barrier is re-read before anything else: a session that
+            // finally resolved its pass releases it, and nothing else does.
+            unresolved_phase_permits.retain(|permit| {
+                use wow_world::session::mailbox::SessionPhasePermitStateLikeCpp as State;
+                matches!(permit.state_like_cpp(), State::Pending | State::Running)
+            });
+            if !unresolved_phase_permits.is_empty() {
+                tracing::error!(
+                    tick_epoch,
+                    unresolved = unresolved_phase_permits.len(),
+                    "Canonical producer barrier held: admitted passes have not accounted for their effects"
+                );
+                continue;
             }
 
             tick_epoch = tick_epoch.wrapping_add(1);
@@ -1306,12 +1329,14 @@ pub(crate) fn spawn_canonical_map_update_loop(
             if !world_pass_summary.quiescent_like_cpp() {
                 // A claimed world pass whose end is unknown may still be
                 // mutating. Admitting a map tick over it would overlap exactly
-                // what C++ serializes.
+                // what C++ serializes, and so would the next step, so the
+                // barrier is retained until those permits resolve.
                 tracing::error!(
                     tick_epoch,
                     unresolved_after_start = world_pass_summary.unresolved_after_start,
                     "Skipping the canonical map tick: a world-phase pass left live effects"
                 );
+                unresolved_phase_permits.extend(world_pass_summary.unresolved_permits);
                 continue;
             }
             if world_pass_summary.stalled_ms > 0 || world_pass_summary.send_failed > 0 {
@@ -1395,6 +1420,8 @@ pub(crate) fn spawn_canonical_map_update_loop(
                     continue;
                 };
                 if !session_pass_summary.quiescent_like_cpp() {
+                    unresolved_phase_permits
+                        .extend(session_pass_summary.unresolved_permits.clone());
                     // An admitted pass was claimed and this tick could not
                     // observe its end. Its mutations may still be running, so
                     // the remaining phases of the tick must not run over them:

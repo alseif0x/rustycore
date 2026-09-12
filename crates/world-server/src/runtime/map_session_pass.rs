@@ -37,7 +37,7 @@ use wow_world::session::mailbox::{
 };
 
 /// What one tick's session phase actually achieved.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct MapSessionPassSummaryLikeCpp {
     /// Sessions the tick intended to drive, in map membership order.
     pub(crate) participants: usize,
@@ -66,14 +66,21 @@ pub(crate) struct MapSessionPassSummaryLikeCpp {
     pub(crate) unresolved_after_start: usize,
     /// How long the coordinator waited past its deadline for a claimed pass.
     pub(crate) stalled_ms: u64,
+    /// The permits of the passes whose effects were never accounted for.
+    ///
+    /// They are carried out of the pass because the producer may not resume,
+    /// may not drive any further session, and may not start another tick until
+    /// every one of them reaches a terminal state: an operation whose effects
+    /// are unknown is not made safe by moving on from it.
+    pub(crate) unresolved_permits: Vec<Arc<SessionPhasePermitLikeCpp>>,
 }
 
 impl MapSessionPassSummaryLikeCpp {
     /// Whether every admitted pass reached a state with no live effect.
     ///
     /// Only then may the remaining phases of the tick run.
-    pub(crate) const fn quiescent_like_cpp(&self) -> bool {
-        self.unresolved_after_start == 0
+    pub(crate) fn quiescent_like_cpp(&self) -> bool {
+        self.unresolved_after_start == 0 && self.unresolved_permits.is_empty()
     }
 }
 
@@ -143,6 +150,22 @@ pub(crate) async fn run_map_phase_session_passes_like_cpp(
                 ack_timeout,
             )
             .await;
+
+            if !summary.quiescent_like_cpp() {
+                // C++ never reaches the next player of a map while the current
+                // one's session is still inside `Map::Update`. With an effect
+                // of unknown extent live, every later participant of this tick
+                // would run beside it, so the pass stops here and the producer
+                // holds the barrier.
+                error!(
+                    map_id = map_key.map_id,
+                    instance_id = map_key.instance_id,
+                    tick_epoch,
+                    remaining_participants = admitted.len(),
+                    "Stopping the map-phase pass: an admitted pass left effects this tick cannot account for"
+                );
+                return summary;
+            }
         }
     }
 
@@ -164,7 +187,7 @@ async fn await_one_admitted_pass_like_cpp(
     loop {
         match tokio::time::timeout(ack_timeout, response_rx.recv_async()).await {
             Ok(Ok(result)) => {
-                record_reported_outcome_like_cpp(summary, tick_epoch, &result);
+                record_reported_outcome_like_cpp(summary, tick_epoch, permit, &result);
                 break;
             }
             Ok(Err(_disconnected)) => {
@@ -180,6 +203,7 @@ async fn await_one_admitted_pass_like_cpp(
                     SessionPhaseRevokeLikeCpp::AlreadyRunning => {
                         summary.unresolved_after_start =
                             summary.unresolved_after_start.saturating_add(1);
+                        summary.unresolved_permits.push(Arc::clone(permit));
                         error!(
                             map_id = map_key.map_id,
                             instance_id = map_key.instance_id,
@@ -188,7 +212,7 @@ async fn await_one_admitted_pass_like_cpp(
                         );
                     }
                     SessionPhaseRevokeLikeCpp::AlreadyResolved(state) => {
-                        record_resolved_state_like_cpp(summary, map_key, tick_epoch, state);
+                        record_resolved_state_like_cpp(summary, map_key, tick_epoch, permit, state);
                     }
                 }
                 break;
@@ -202,21 +226,23 @@ async fn await_one_admitted_pass_like_cpp(
                         break;
                     }
                     SessionPhaseRevokeLikeCpp::AlreadyResolved(state) => {
-                        record_resolved_state_like_cpp(summary, map_key, tick_epoch, state);
+                        record_resolved_state_like_cpp(summary, map_key, tick_epoch, permit, state);
                         break;
                     }
                     SessionPhaseRevokeLikeCpp::AlreadyRunning => {
                         // Diagnostic only: the pass owns the session and is
-                        // mutating. Keep waiting for its real boundary.
-                        if !waited_past_deadline {
-                            waited_past_deadline = true;
-                            warn!(
-                                map_id = map_key.map_id,
-                                instance_id = map_key.instance_id,
-                                tick_epoch,
-                                "A map-phase pass passed its deadline while running; the tick waits for its completion boundary"
-                            );
-                        }
+                        // mutating. Keep waiting for its real boundary, and say
+                        // so on every deadline: a wait that never ends must not
+                        // be visible only as one line at its start.
+                        waited_past_deadline = true;
+                        warn!(
+                            map_id = map_key.map_id,
+                            instance_id = map_key.instance_id,
+                            tick_epoch,
+                            waiting_ms =
+                                u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+                            "A map-phase pass is past its deadline and still running; the tick waits for its completion boundary"
+                        );
                     }
                 }
             }
@@ -234,12 +260,14 @@ async fn await_one_admitted_pass_like_cpp(
 fn record_reported_outcome_like_cpp(
     summary: &mut MapSessionPassSummaryLikeCpp,
     tick_epoch: u64,
+    permit: &Arc<SessionPhasePermitLikeCpp>,
     result: &wow_world::session::mailbox::RunMapPhasePassResultLikeCpp,
 ) {
     if result.tick_epoch != tick_epoch {
         // A report for another tick says nothing about this one, and the
         // request this coordinator sent has not been accounted for.
         summary.unresolved_after_start = summary.unresolved_after_start.saturating_add(1);
+        summary.unresolved_permits.push(Arc::clone(permit));
         return;
     }
     match result.outcome {
@@ -259,6 +287,7 @@ fn record_reported_outcome_like_cpp(
         }
         SessionPhasePassOutcomeLikeCpp::AlreadyResolved => {
             summary.unresolved_after_start = summary.unresolved_after_start.saturating_add(1);
+            summary.unresolved_permits.push(Arc::clone(permit));
         }
     }
 }
@@ -267,6 +296,7 @@ fn record_resolved_state_like_cpp(
     summary: &mut MapSessionPassSummaryLikeCpp,
     map_key: wow_map::MapKey,
     tick_epoch: u64,
+    permit: &Arc<SessionPhasePermitLikeCpp>,
     state: wow_world::session::mailbox::SessionPhasePermitStateLikeCpp,
 ) {
     use wow_world::session::mailbox::SessionPhasePermitStateLikeCpp as State;
@@ -280,6 +310,7 @@ fn record_resolved_state_like_cpp(
         }
         State::InterruptedAfterStart | State::Running | State::Pending => {
             summary.unresolved_after_start = summary.unresolved_after_start.saturating_add(1);
+            summary.unresolved_permits.push(Arc::clone(permit));
             error!(
                 map_id = map_key.map_id,
                 instance_id = map_key.instance_id,

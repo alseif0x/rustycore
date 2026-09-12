@@ -1142,6 +1142,13 @@
           "source_class": "production"
         },
         {
+          "name": "last_phase_authority_like_cpp",
+          "type": "[Option < (u64 , u64) > ; 2]",
+          "visibility": "private",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "last_presented_creature_melee_health_state_revision_like_cpp",
           "type": "u64",
           "visibility": "private",
@@ -32741,6 +32748,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "phase_authority_is_current_like_cpp",
+          "visibility": "private",
+          "signature": "fn phase_authority_is_current_like_cpp (& mut self , phase : PacketUpdatePhase , coordinator_id : u64 , tick_epoch : u64 ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "plan_add_currency_vendor_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn plan_add_currency_vendor_like_cpp (& self , currencies : & mut HashMap < u32 , PlayerCurrency > , currency_id : u32 , amount : u32 ,) -> Result < Option < PlayerCurrencyDelta > , () >",
@@ -36545,6 +36563,19 @@
           "name": "refresh_represented_talent_points_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn refresh_represented_talent_points_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "refuse_pending_phase_requests_like_cpp",
+          "visibility": "pub",
+          "signature": "fn refuse_pending_phase_requests_like_cpp (& mut self) -> usize",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -44645,6 +44676,19 @@
           "name": "run_creatures_tick",
           "visibility": "pub (crate)",
           "signature": "fn run_creatures_tick (& mut self) -> RuntimeOutput",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "run_logout_timer_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn run_logout_timer_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -56838,7 +56882,7 @@
           "module": "crate::session_factory",
           "name": "run_world_session_until_disconnect_like_cpp",
           "signature": "async fn run_world_session_until_disconnect_like_cpp (session : & mut WorldSession , handler_catalogs : & wow_world :: session :: SessionHandlerCatalogsLikeCpp , account_id : u32 , active_session_registry : & ActiveWorldSessionRegistryLikeCpp , cancellation : & ActiveWorldSessionCancellationLikeCpp , ready_for_phases_like_cpp : & AtomicBool ,) -> WorldSessionRunOutcomeLikeCpp",
-          "body_fingerprint": "fnv1a64x2:b9a3d112a9937a7a14e5749a74b375d9:len=944",
+          "body_fingerprint": "fnv1a64x2:f4f3b58f66418dd23983802e3eb62b01:len=972",
           "cfg": [],
           "source_class": "production"
         },
@@ -69862,7 +69906,7 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=fn spawn_canonical_map_update_loop (map_manager : SharedCanonicalMapManager , legacy_map_manager : SharedMapManager , tick_interval_ms : u32 , respawn_condition_interval_ms : u32 , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , condition_store : Arc < wow_data :: ConditionEntriesByTypeStore > , map_store : Arc < wow_data :: MapStore > , game_event_persistence : Arc < dyn GameEventPersistencePortLikeCpp > , respawn_db_writer_tx : RespawnDbWriterSenderLikeCpp , respawn_db_mutation_order : SharedRespawnDbMutationOrderLikeCpp , respawn_db_producer_stop : SharedRespawnDbProducerStopLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , area_trigger_template_store : Arc < wow_data :: AreaTriggerTemplateStore > , mut game_event_scheduler : CanonicalGameEventSchedulerLikeCpp , player_registry : Arc < PlayerRegistry > , active_session_registry : Arc < crate :: ActiveWorldSessionRegistryLikeCpp > , battlemaster_list_store : Arc < wow_data :: BattlemasterListStore > , world_state_mgr : SharedWorldStateMgrLikeCpp ,) -> tokio :: task :: JoinHandle < () >|body=fnv1a64x2:ce2547f44cafded16d69dec61452a640:len=22676|evidence=fnv1a64x2:caf7adc3f0573341c49b70b3b2f38d64:len=1770",
+          "fingerprint": "signature=fn spawn_canonical_map_update_loop (map_manager : SharedCanonicalMapManager , legacy_map_manager : SharedMapManager , tick_interval_ms : u32 , respawn_condition_interval_ms : u32 , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , condition_store : Arc < wow_data :: ConditionEntriesByTypeStore > , map_store : Arc < wow_data :: MapStore > , game_event_persistence : Arc < dyn GameEventPersistencePortLikeCpp > , respawn_db_writer_tx : RespawnDbWriterSenderLikeCpp , respawn_db_mutation_order : SharedRespawnDbMutationOrderLikeCpp , respawn_db_producer_stop : SharedRespawnDbProducerStopLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , area_trigger_template_store : Arc < wow_data :: AreaTriggerTemplateStore > , mut game_event_scheduler : CanonicalGameEventSchedulerLikeCpp , player_registry : Arc < PlayerRegistry > , active_session_registry : Arc < crate :: ActiveWorldSessionRegistryLikeCpp > , battlemaster_list_store : Arc < wow_data :: BattlemasterListStore > , world_state_mgr : SharedWorldStateMgrLikeCpp ,) -> tokio :: task :: JoinHandle < () >|body=fnv1a64x2:f377f439d04525e512984044a3dcc88e:len=23435|evidence=fnv1a64x2:caf7adc3f0573341c49b70b3b2f38d64:len=1770",
           "cfg": [],
           "multiplicity": 1
         },
@@ -75920,7 +75964,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:eb46e6f6732878f5534e5a9f678aa2d4:len=92328|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:7f3682ab967f8550445472ff5da97383:len=92911|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

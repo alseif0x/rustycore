@@ -443,3 +443,50 @@ async fn a_pending_db_result_in_one_session_holds_the_next_session_of_the_same_m
     assert!(pass.stalled_ms > 0);
     assert!(pass.quiescent_like_cpp());
 }
+
+#[tokio::test]
+async fn an_unresolved_pass_stops_the_tick_and_hands_its_permit_to_the_producer() {
+    let registry = PlayerRegistry::new();
+    let first = ObjectGuid::create_player(1, 41);
+    let second = ObjectGuid::create_player(1, 42);
+    let first_rail = register(&registry, first);
+    let second_rail = register(&registry, second);
+    let participants = one_map(vec![first, second]);
+
+    let (pass, ()) = tokio::join!(
+        run_map_phase_session_passes_like_cpp(
+            &participants,
+            &registry,
+            COORDINATOR,
+            13,
+            50,
+            Duration::from_millis(20),
+        ),
+        async {
+            let command = await_request(&first_rail).await;
+            assert!(matches!(
+                command.permit.claim_like_cpp(),
+                wow_world::session::mailbox::SessionPhaseClaimLikeCpp::Claimed
+            ));
+            // The session dies mid-pass: its mutations neither finished nor
+            // rolled back, and nothing will ever report their end.
+            drop(command);
+        }
+    );
+
+    assert_eq!(pass.unresolved_after_start, 1);
+    assert!(!pass.quiescent_like_cpp());
+    // The next player of this map is never asked: C++ would still be inside the
+    // first session's pass.
+    assert!(
+        second_rail.is_empty(),
+        "the pass must stop at the participant whose effects are unknown"
+    );
+    // The producer receives the permit, so its barrier can outlive this tick
+    // and release only when that pass finally resolves.
+    assert_eq!(pass.unresolved_permits.len(), 1);
+    assert_eq!(
+        pass.unresolved_permits[0].state_like_cpp(),
+        SessionPhasePermitStateLikeCpp::Running
+    );
+}

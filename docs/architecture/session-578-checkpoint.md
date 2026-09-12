@@ -3240,9 +3240,86 @@ What this means for the contract, stated rather than resolved: the permit bounds
 **overlap** — no second session of the map and no later phase runs while one of
 these is live — but it does not bound **progress**. With an operation that can
 wait indefinitely, strict order, absence of overlap and a bounded tick cannot
-all hold. Each of the 54 needs either demonstrated bounded termination or a
-request/callback split before this macro can claim the map phase is safe under
-load. That work is not in this macro's diff.
+all hold.
+
+The 54 are a **candidate inventory, not 54 defects and not 54 rewrites**. The
+distinction that matters is whether a wait can finish on its own: an external
+database or network wait that progresses independently needs an error/stop
+policy and evidence of its impact, not a callback for symmetry. What this macro
+must fix is the narrower set — a wait that needs a session or phase to advance
+while this barrier is holding it, which is a circular dependency the
+coordination itself created. Grouping by the capability actually awaited,
+following transitive callees including world-phase work, is how that set is
+identified; textual matching does not establish it.
+
+C++ is the reference before any asynchrony is imposed: where it does the work
+synchronously, there is no universal prohibition on waiting to import.
+`QuestLogRemoveQuest` is one classified case rather than a template: C++ marks
+the removal and persists it later from `_SaveQuestStatus`
+(`QuestHandler.cpp:439`, `Player.cpp:15575`, `Player.cpp:20138`), with the
+optional tracker queued through the worker pool (`WorkerPool.cpp:533`); Rust
+instead awaits a transaction after mutating. That divergence belongs to its
+existing owner under #41/#584 unless this coordination turns it into a new hard
+blocker, in which case it is resolved here — never by enabling the unsafe path.
+
+Scope note: #787 stays the World/Map coordination delivery. It closes the
+defects it introduced or turned into hard dependencies, reuses the existing
+terminal-failure, shutdown and persistence-fence mechanisms, and adds no generic
+scheduling, recovery or database framework. An acquisition timeout is not a
+bound on a query or COMMIT, and an unknown outcome is not a rollback; no claim
+is made here that every tick is bounded.
+
+#### Advisory review of the corrected diff, and what it changed — 2026-09-12 (later still)
+
+The advisor reviewed `4825f453` against the local C++ checkout and refused to
+recommend acceptance, with five findings. All five are addressed below; the
+review's own scope correction is adopted with them: this macro stays the
+World/Map coordination delivery and closes what the coordination introduced or
+turned into a hard dependency, reusing the existing terminal-failure, shutdown
+and persistence-fence mechanisms rather than adding a scheduling, recovery or
+database framework.
+
+1. **A pass whose effects are unknown now stops more than its own tick.**
+   Previously the coordinator kept walking the remaining participants and the
+   producer moved on to the next step. Now the phase stops at that participant —
+   C++ would still be inside that session's pass — and the permit travels to the
+   producer, which holds a barrier across steps: no phase is issued and no tick
+   admitted while any such permit is neither terminal nor released, so neither
+   respawns nor `DelayedUpdate` run on that uncertainty. Abandoning the plan was
+   never a return to a clean state and is no longer treated as one.
+2. **The handover to shutdown has one owner.** At the shutdown gate the session
+   withdraws its readiness, refuses every phase already on its rail before any
+   effect — answering the producer instead of making it wait out a deadline —
+   and drains its own control mailbox, so `World::KickAll` and the
+   `UpdateSessions(1)` flush are observed even if the producer is gone. A
+   claimed phase is still not cancelled mid-effect: cancellation is honoured at
+   the phase boundary, because interrupting a claimed pass would leave mutations
+   neither finished nor rolled back and a permit that can never resolve. That is
+   a deliberate change from the previous force-cancel behaviour.
+3. **Provenance is validated, not assumed.** The session keeps a per-phase
+   watermark of the producer and step it last served, and refuses an earlier
+   producer, a retired step and a replay of one already served. A fresh permit
+   cannot refuse any of those, and the player's identity does not distinguish
+   them. The watermark is per phase because one step legitimately issues the
+   world phase and then the map phase under the same epoch.
+4. **Logout follows the C++ order.** The decision moves to the end of the world
+   pass, after the packet loop and the query callbacks
+   (`WorldSession.cpp:498-503`), so a `LogoutCancel` queued in the same step is
+   dispatched before it. Warden has no update call on this Rust path; that is
+   recorded as absent rather than claimed.
+5. **Lifetime gaps closed, and one claim narrowed.** `unload_all` clears the map
+   incarnations with the maps. The earlier wording here was too broad: a map
+   recreated under a reused key is excluded from the phases that follow a
+   dynamic-tree phase it never ran and from the removal recorded for its
+   predecessor, but it **does** receive `DelayedUpdate`, as C++ visits every map
+   it holds at that point (`MapManager.cpp:314-317`) and the regression asserts.
+
+Measured after these corrections, each run in its own log and judged by the
+original process exit code: `wow-map` 735 passed / 0 failed; `wow-world` 3865 /
+0; `world-server` 579 / 0; architecture check, self-test and the syntax-only
+ownership ratchet pass with the reviewed baseline and ledger. Still not claimed:
+the final gate, runtime/DB/relogin QA, and composition evidence for a producer
+that dies during shutdown and for finalization after the acknowledgement.
 
 ### Proportional evidence inside the macro
 

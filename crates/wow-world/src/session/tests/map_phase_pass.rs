@@ -474,3 +474,192 @@ async fn control_traffic_behind_a_map_eligible_head_still_advances_in_the_world_
         "the map-eligible head stays queued for the map pass"
     );
 }
+
+#[tokio::test]
+async fn a_logout_cancel_queued_in_the_same_step_is_seen_before_the_logout_decision() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 571, 0);
+    register_session_for_phases(&mut session);
+    session.state = SessionState::LoggedIn;
+    // The logout timer is already due when this step begins.
+    session.logout_time = Some(std::time::Instant::now() - std::time::Duration::from_secs(1));
+    // `LogoutCancel` is PROCESS_THREAD_UNSAFE, so it belongs to this same pass.
+    queued(&mut session, ClientOpcodes::LogoutCancel);
+
+    let permit = SessionPhasePermitLikeCpp::new_like_cpp();
+    let (response_tx, _response_rx) = flume::bounded(1);
+    session
+        .run_requested_session_phase_like_cpp(
+            crate::session::mailbox::SessionPhaseRequestLikeCpp::World(
+                crate::session::mailbox::RunWorldPhasePassLikeCppRequest {
+                    coordinator_id: 1,
+                    tick_epoch: 7,
+                    diff_ms: 50,
+                    permit,
+                    response_tx,
+                },
+            ),
+            &SessionHandlerCatalogsLikeCpp::default(),
+        )
+        .await;
+
+    // C++ decides the logout after the packet loop and the query callbacks
+    // (`WorldSession.cpp:498-503`), so the cancel wins this step.
+    assert!(
+        session.logout_time.is_none(),
+        "the queued cancel must be dispatched before the decision"
+    );
+    assert_eq!(session.state, SessionState::LoggedIn);
+}
+
+#[tokio::test]
+async fn a_request_from_a_retired_step_or_a_foreign_producer_is_refused() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 571, 0);
+    register_session_for_phases(&mut session);
+    queued(&mut session, ClientOpcodes::MoveInitActiveMoverComplete);
+
+    let admission = session
+        .current_map_phase_admission_for_test_like_cpp(5, 9, 50)
+        .expect("the session can be admitted");
+    async fn run_map_phase(
+        session: &mut WorldSession,
+        admission: crate::session::mailbox::MapPhaseAdmissionLikeCpp,
+    ) -> SessionPhasePassOutcomeLikeCpp {
+        let (response_tx, response_rx) = flume::bounded(1);
+        session
+            .run_requested_session_phase_like_cpp(
+                crate::session::mailbox::SessionPhaseRequestLikeCpp::Map(
+                    RunMapPhasePassLikeCppCommand {
+                        admission,
+                        permit: SessionPhasePermitLikeCpp::new_like_cpp(),
+                        response_tx,
+                    },
+                ),
+                &SessionHandlerCatalogsLikeCpp::default(),
+            )
+            .await;
+        response_rx.try_recv().expect("reported").outcome
+    }
+
+    assert_eq!(
+        run_map_phase(&mut session, admission).await,
+        SessionPhasePassOutcomeLikeCpp::Ran
+    );
+
+    // The same step again, with a fresh permit: the permit cannot refuse this,
+    // only the watermark can.
+    assert_eq!(
+        run_map_phase(&mut session, admission).await,
+        SessionPhasePassOutcomeLikeCpp::RefusedBeforeStart
+    );
+
+    // An earlier producer, whose steps this session has already moved past.
+    let mut older = admission;
+    older.coordinator_id = 4;
+    older.tick_epoch = 100;
+    assert_eq!(
+        run_map_phase(&mut session, older).await,
+        SessionPhasePassOutcomeLikeCpp::RefusedBeforeStart
+    );
+
+    // A later step of the current producer is served normally.
+    let mut next = admission;
+    next.tick_epoch = 10;
+    queued(&mut session, ClientOpcodes::MoveInitActiveMoverComplete);
+    assert_eq!(
+        run_map_phase(&mut session, next).await,
+        SessionPhasePassOutcomeLikeCpp::Ran
+    );
+}
+
+#[tokio::test]
+async fn the_world_and_map_phases_of_one_step_share_an_epoch_without_refusing_each_other() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 571, 0);
+    register_session_for_phases(&mut session);
+    session.state = SessionState::LoggedIn;
+
+    // C++ runs `UpdateSessions(diff)` and then `MapManager::Update(diff)` in one
+    // `World::Update` (World.cpp:2704, World.cpp:2748): one step, both phases.
+    let permit = SessionPhasePermitLikeCpp::new_like_cpp();
+    let (world_tx, world_rx) = flume::bounded(1);
+    session
+        .run_requested_session_phase_like_cpp(
+            crate::session::mailbox::SessionPhaseRequestLikeCpp::World(
+                crate::session::mailbox::RunWorldPhasePassLikeCppRequest {
+                    coordinator_id: 3,
+                    tick_epoch: 12,
+                    diff_ms: 50,
+                    permit,
+                    response_tx: world_tx,
+                },
+            ),
+            &SessionHandlerCatalogsLikeCpp::default(),
+        )
+        .await;
+    assert_eq!(
+        world_rx.try_recv().expect("reported").outcome,
+        SessionPhasePassOutcomeLikeCpp::Ran
+    );
+
+    let admission = session
+        .current_map_phase_admission_for_test_like_cpp(3, 12, 50)
+        .expect("the session can be admitted");
+    let (map_tx, map_rx) = flume::bounded(1);
+    session
+        .run_requested_session_phase_like_cpp(
+            crate::session::mailbox::SessionPhaseRequestLikeCpp::Map(
+                RunMapPhasePassLikeCppCommand {
+                    admission,
+                    permit: SessionPhasePermitLikeCpp::new_like_cpp(),
+                    response_tx: map_tx,
+                },
+            ),
+            &SessionHandlerCatalogsLikeCpp::default(),
+        )
+        .await;
+    assert_eq!(
+        map_rx.try_recv().expect("reported").outcome,
+        SessionPhasePassOutcomeLikeCpp::Ran
+    );
+}
+
+#[tokio::test]
+async fn the_handover_to_shutdown_refuses_queued_phases_before_any_effect() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    install_canonical_player_owner_for_test(&mut session, 571, 0);
+    register_session_for_phases(&mut session);
+    queued(&mut session, ClientOpcodes::MoveInitActiveMoverComplete);
+
+    let admission = session
+        .current_map_phase_admission_for_test_like_cpp(1, 7, 50)
+        .expect("the session can be admitted");
+    let permit = SessionPhasePermitLikeCpp::new_like_cpp();
+    let (response_tx, response_rx) = flume::bounded(1);
+    // The producer delivered this request just as shutdown began.
+    session
+        .session_phase_sender_like_cpp()
+        .try_send(crate::session::mailbox::SessionPhaseRequestLikeCpp::Map(
+            RunMapPhasePassLikeCppCommand {
+                admission,
+                permit: std::sync::Arc::clone(&permit),
+                response_tx,
+            },
+        ))
+        .expect("the rail accepts the request");
+
+    assert_eq!(session.refuse_pending_phase_requests_like_cpp(), 1);
+
+    // The producer is answered instead of waiting out its deadline, and the
+    // refusal is a state no effect of the pass can have run from.
+    assert_eq!(
+        response_rx.try_recv().expect("refusal reported").outcome,
+        SessionPhasePassOutcomeLikeCpp::RefusedBeforeStart
+    );
+    assert_eq!(
+        permit.state_like_cpp(),
+        SessionPhasePermitStateLikeCpp::RefusedBeforeStart
+    );
+    assert_eq!(session.pending_packet_count_for_test_like_cpp(), 1);
+}

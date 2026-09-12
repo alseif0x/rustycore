@@ -35,7 +35,12 @@ impl WorldSession {
     ) -> RunMapPhasePassResultLikeCpp {
         let admission = command.admission;
 
-        if !self.admission_still_describes_this_session_like_cpp(&admission) {
+        if !self.phase_authority_is_current_like_cpp(
+            PacketUpdatePhase::Map,
+            admission.coordinator_id,
+            admission.tick_epoch,
+        ) || !self.admission_still_describes_this_session_like_cpp(&admission)
+        {
             command.permit.refuse_before_start_like_cpp();
             return RunMapPhasePassResultLikeCpp {
                 tick_epoch: admission.tick_epoch,
@@ -84,6 +89,21 @@ impl WorldSession {
             dispatched: summary.dispatched,
             stopped_at_ineligible_head: summary.stopped_at_ineligible_head,
             disconnecting: self.is_disconnecting(),
+        }
+    }
+
+    /// C++ `WorldSession::Update` logout decision, on the `ProcessUnsafe()`
+    /// branch reserved for the world filter (`WorldSession.cpp:498-503`).
+    pub(crate) fn run_logout_timer_like_cpp(&mut self) {
+        let Some(logout_time) = self.logout_time else {
+            return;
+        };
+        self.record_driver_phase_like_cpp(
+            crate::session::driver::phases::SessionDriverPhaseLikeCpp::LogoutTimer,
+        );
+        if std::time::Instant::now() >= logout_time {
+            self.logout_time = None;
+            self.complete_logout();
         }
     }
 
@@ -200,6 +220,73 @@ impl WorldSession {
         self.session_phase_rx.clone()
     }
 
+    /// Whether a request comes from the authority this session is serving.
+    ///
+    /// A later producer replaces an earlier one, but an earlier producer never
+    /// comes back, and no step of a producer is served twice: the permit is
+    /// new on a replay, so only this watermark can refuse it.
+    fn phase_authority_is_current_like_cpp(
+        &mut self,
+        phase: PacketUpdatePhase,
+        coordinator_id: u64,
+        tick_epoch: u64,
+    ) -> bool {
+        let slot = match phase {
+            PacketUpdatePhase::World => 0,
+            PacketUpdatePhase::Map => 1,
+        };
+        let accepted = match self.last_phase_authority_like_cpp[slot] {
+            Some((last_coordinator, _)) if coordinator_id < last_coordinator => false,
+            Some((last_coordinator, last_epoch))
+                if coordinator_id == last_coordinator && tick_epoch <= last_epoch =>
+            {
+                false
+            }
+            _ => true,
+        };
+        if accepted {
+            self.last_phase_authority_like_cpp[slot] = Some((coordinator_id, tick_epoch));
+        }
+        accepted
+    }
+
+    /// Refuse every phase request already on the rail, before any effect.
+    ///
+    /// Used at the handover to shutdown: from that point this session serves no
+    /// phase, and a refusal is the answer that leaves the producer nothing to
+    /// wait for and nothing half-done. Returns how many were refused.
+    pub fn refuse_pending_phase_requests_like_cpp(&mut self) -> usize {
+        let mut refused = 0;
+        while let Ok(request) = self.session_phase_rx.try_recv() {
+            refused += 1;
+            match request {
+                SessionPhaseRequestLikeCpp::World(request) => {
+                    request.permit.refuse_before_start_like_cpp();
+                    let _ = request
+                        .response_tx
+                        .try_send(RunWorldPhasePassResultLikeCpp {
+                            coordinator_id: request.coordinator_id,
+                            tick_epoch: request.tick_epoch,
+                            outcome: SessionPhasePassOutcomeLikeCpp::RefusedBeforeStart,
+                            dispatched: 0,
+                            disconnecting: self.is_disconnecting(),
+                        });
+                }
+                SessionPhaseRequestLikeCpp::Map(command) => {
+                    command.permit.refuse_before_start_like_cpp();
+                    let _ = command.response_tx.try_send(RunMapPhasePassResultLikeCpp {
+                        tick_epoch: command.admission.tick_epoch,
+                        outcome: SessionPhasePassOutcomeLikeCpp::RefusedBeforeStart,
+                        dispatched: 0,
+                        stopped_at_ineligible_head: false,
+                        disconnecting: self.is_disconnecting(),
+                    });
+                }
+            }
+        }
+        refused
+    }
+
     /// Run one requested phase and report its completion boundary.
     pub async fn run_requested_session_phase_like_cpp(
         &mut self,
@@ -237,6 +324,20 @@ impl WorldSession {
         request: RunWorldPhasePassLikeCppRequest,
         catalogs: &SessionHandlerCatalogsLikeCpp,
     ) -> RunWorldPhasePassResultLikeCpp {
+        if !self.phase_authority_is_current_like_cpp(
+            PacketUpdatePhase::World,
+            request.coordinator_id,
+            request.tick_epoch,
+        ) {
+            request.permit.refuse_before_start_like_cpp();
+            return RunWorldPhasePassResultLikeCpp {
+                coordinator_id: request.coordinator_id,
+                tick_epoch: request.tick_epoch,
+                outcome: SessionPhasePassOutcomeLikeCpp::RefusedBeforeStart,
+                dispatched: 0,
+                disconnecting: self.is_disconnecting(),
+            };
+        }
         match request.permit.claim_like_cpp() {
             SessionPhaseClaimLikeCpp::Claimed => {}
             SessionPhaseClaimLikeCpp::Revoked => {
@@ -264,6 +365,11 @@ impl WorldSession {
             .update_with_catalogs_like_cpp(request.diff_ms, catalogs)
             .await;
         self.process_pending_with_catalogs_like_cpp(catalogs).await;
+        // C++ `WorldSession::Update` decides the logout after the packet loop
+        // and the query callbacks, on the `ProcessUnsafe()` branch
+        // (`WorldSession.cpp:498-503`): a `LogoutCancel` queued in this same
+        // pass is dispatched above and must be seen before the decision.
+        self.run_logout_timer_like_cpp();
 
         request.permit.complete_like_cpp();
         RunWorldPhasePassResultLikeCpp {

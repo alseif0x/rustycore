@@ -5403,6 +5403,14 @@ pub struct WorldSession {
     /// from the command mailbox because a phase pass drains that mailbox.
     session_phase_tx: flume::Sender<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
     session_phase_rx: flume::Receiver<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
+    /// The producer and step this session last accepted, per phase (#787).
+    ///
+    /// C++ has one caller and needs no such watermark. Here it is what rejects
+    /// a foreign producer, a retired step and a replay of one already served,
+    /// none of which the identity of the player can distinguish. It is kept per
+    /// phase because one step legitimately issues the world phase and then the
+    /// map phase under the same epoch (`World.cpp:2704` then `World.cpp:2748`).
+    last_phase_authority_like_cpp: [Option<(u64, u64)>; 2],
     durable_creature_runtime_commands_like_cpp:
         Arc<std::sync::Mutex<crate::session::mailbox::DurableCreatureRuntimeCommandsLikeCpp>>,
     visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
@@ -7811,6 +7819,7 @@ impl WorldSession {
             session_command_rx,
             session_phase_tx,
             session_phase_rx,
+            last_phase_authority_like_cpp: [None, None],
             durable_creature_runtime_commands_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Arc::new(AtomicBool::new(false)),
             state: SessionState::Authed,

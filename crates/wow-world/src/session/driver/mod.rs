@@ -204,12 +204,13 @@ impl WorldSession {
         }
 
         // ── Logout timer ────────────────────────────────────────────
-        if let Some(logout_time) = self.logout_time {
-            self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::LogoutTimer);
-            if Instant::now() >= logout_time {
-                self.logout_time = None;
-                self.complete_logout();
-            }
+        // C++ decides this **after** the packet loop and the query callbacks,
+        // on the `ProcessUnsafe()` branch (`WorldSession.cpp:498-503`), so a
+        // `LogoutCancel` already queued is processed before the decision. A
+        // coordinated session therefore runs it at the end of its world pass,
+        // not here, where its own packets have not been dispatched yet.
+        if !self.is_map_phase_coordinated_like_cpp() {
+            self.run_logout_timer_like_cpp();
         }
 
         processed

@@ -26,7 +26,7 @@ use wow_world::session::mailbox::{
 };
 
 /// What one step's world phase achieved.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct WorldSessionPassSummaryLikeCpp {
     pub(crate) participants: usize,
     pub(crate) completed: usize,
@@ -37,11 +37,14 @@ pub(crate) struct WorldSessionPassSummaryLikeCpp {
     /// continue into the map phase over them.
     pub(crate) unresolved_after_start: usize,
     pub(crate) stalled_ms: u64,
+    /// Permits of passes whose effects were never accounted for; the producer
+    /// holds its barrier until every one reaches a terminal state.
+    pub(crate) unresolved_permits: Vec<Arc<SessionPhasePermitLikeCpp>>,
 }
 
 impl WorldSessionPassSummaryLikeCpp {
-    pub(crate) const fn quiescent_like_cpp(&self) -> bool {
-        self.unresolved_after_start == 0
+    pub(crate) fn quiescent_like_cpp(&self) -> bool {
+        self.unresolved_after_start == 0 && self.unresolved_permits.is_empty()
     }
 }
 
@@ -88,6 +91,17 @@ pub(crate) async fn run_world_phase_session_passes_like_cpp(
             ack_timeout,
         )
         .await;
+
+        if !summary.quiescent_like_cpp() {
+            // The remaining sessions of this step would run beside an effect of
+            // unknown extent. C++ drives them one after another on one thread,
+            // so the step stops here and the producer holds its barrier.
+            error!(
+                tick_epoch,
+                "Stopping the world-phase pass: an admitted pass left effects this step cannot account for"
+            );
+            return summary;
+        }
     }
 
     summary
@@ -110,6 +124,7 @@ async fn await_one_world_pass_like_cpp(
                 if result.coordinator_id != coordinator_id || result.tick_epoch != tick_epoch {
                     summary.unresolved_after_start =
                         summary.unresolved_after_start.saturating_add(1);
+                    summary.unresolved_permits.push(Arc::clone(permit));
                     break;
                 }
                 match result.outcome {
@@ -125,6 +140,7 @@ async fn await_one_world_pass_like_cpp(
                     SessionPhasePassOutcomeLikeCpp::AlreadyResolved => {
                         summary.unresolved_after_start =
                             summary.unresolved_after_start.saturating_add(1);
+                        summary.unresolved_permits.push(Arc::clone(permit));
                     }
                 }
                 break;
@@ -149,6 +165,7 @@ async fn await_one_world_pass_like_cpp(
                             State::InterruptedAfterStart | State::Running | State::Pending => {
                                 summary.unresolved_after_start =
                                     summary.unresolved_after_start.saturating_add(1);
+                                summary.unresolved_permits.push(Arc::clone(permit));
                                 error!(
                                     tick_epoch,
                                     ?state,
@@ -164,19 +181,20 @@ async fn await_one_world_pass_like_cpp(
                             // claimed: nothing will ever report its end.
                             summary.unresolved_after_start =
                                 summary.unresolved_after_start.saturating_add(1);
+                            summary.unresolved_permits.push(Arc::clone(permit));
                             error!(
                                 tick_epoch,
                                 "A claimed world-phase pass ended without reporting"
                             );
                             break;
                         }
-                        if !waited_past_deadline {
-                            waited_past_deadline = true;
-                            warn!(
-                                tick_epoch,
-                                "A world-phase pass passed its deadline while running; the step waits for its completion boundary"
-                            );
-                        }
+                        waited_past_deadline = true;
+                        warn!(
+                            tick_epoch,
+                            waiting_ms =
+                                u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+                            "A world-phase pass is past its deadline and still running; the step waits for its completion boundary"
+                        );
                     }
                 }
             }

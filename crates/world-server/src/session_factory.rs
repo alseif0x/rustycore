@@ -186,6 +186,7 @@ pub(super) async fn run_world_session_until_disconnect_like_cpp(
         active_session_registry,
         cancellation,
         &phase_rail,
+        ready_for_phases_like_cpp,
     )
     .await;
     // A session that stops consuming must stop being addressed, or the producer
@@ -202,6 +203,7 @@ async fn run_world_session_phase_loop_like_cpp(
     active_session_registry: &ActiveWorldSessionRegistryLikeCpp,
     cancellation: &ActiveWorldSessionCancellationLikeCpp,
     phase_rail: &flume::Receiver<wow_world::session::mailbox::SessionPhaseRequestLikeCpp>,
+    ready_for_phases_like_cpp: &AtomicBool,
 ) -> WorldSessionRunOutcomeLikeCpp {
     loop {
         if active_session_registry.should_stop_sessions_like_cpp() {
@@ -210,6 +212,35 @@ async fn run_world_session_phase_loop_like_cpp(
                 "World session observed shutdown gate; disconnecting cooperatively"
             );
             return WorldSessionRunOutcomeLikeCpp::Finished;
+        }
+
+        if active_session_registry.is_shutting_down_like_cpp() {
+            // Handover to shutdown, with one owner throughout: this session stops
+            // serving phases, refuses anything already on its rail before it can
+            // produce an effect, and drains its own control mailbox so C++
+            // `World::KickAll` and the `UpdateSessions(1)` flush are observed
+            // even if the producer is gone. No phase can run beside this drain,
+            // because readiness is withdrawn before it and never raised again.
+            ready_for_phases_like_cpp.store(false, Ordering::Release);
+            session.refuse_pending_phase_requests_like_cpp();
+            let disconnecting = warn_about_sync_queries_scope_like_cpp(async {
+                session
+                    .process_pending_with_catalogs_like_cpp(handler_catalogs)
+                    .await;
+                session.is_disconnecting()
+            })
+            .await;
+            if disconnecting {
+                info!("Session for account {account_id} disconnecting");
+                return WorldSessionRunOutcomeLikeCpp::Finished;
+            }
+            tokio::select! {
+                _ = cancellation.cancelled_like_cpp() => {
+                    return WorldSessionRunOutcomeLikeCpp::ForceCancelled;
+                }
+                () = tokio::time::sleep(SHUTDOWN_GATE_RECHECK_INTERVAL_LIKE_CPP) => {}
+            }
+            continue;
         }
 
         let request = tokio::select! {
@@ -230,9 +261,12 @@ async fn run_world_session_phase_loop_like_cpp(
             return WorldSessionRunOutcomeLikeCpp::Finished;
         };
 
-        // The pass itself is not cancelled from here: a cancelled phase would
-        // leave the producer's permit claimed with no proof of what its
-        // mutations did. The shutdown gate above is the cooperative exit.
+        // The pass itself is not cancelled from here, and that is deliberate:
+        // cancelling a claimed phase would leave its mutations neither finished
+        // nor rolled back, with the producer holding a permit that can never
+        // resolve. Cancellation is honoured at the phase boundary instead — the
+        // select above wins on the next iteration — so a forced cancellation
+        // ends this session one phase later rather than mid-effect.
         let disconnecting = warn_about_sync_queries_scope_like_cpp(async {
             session
                 .run_requested_session_phase_like_cpp(request, handler_catalogs)
