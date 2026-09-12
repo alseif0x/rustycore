@@ -3321,6 +3321,54 @@ ownership ratchet pass with the reviewed baseline and ledger. Still not claimed:
 the final gate, runtime/DB/relogin QA, and composition evidence for a producer
 that dies during shutdown and for finalization after the acknowledgement.
 
+#### Guarded runtime QA of the coordinated build — 2026-09-12
+
+Run through `tools/qa-runtime.sh --allow-runtime-qa … login` with the maintained
+`run_login_save_relog.sh` wrapper, against the dedicated `TESTBOT1@bot.local`
+identity and its sole offline character. The live build was snapshotted and
+restored on every exit path; the final run reports `outcome: passed-restored`
+with the original `c2a3b461…` serving again.
+
+**Result for the candidate** (`0950f4ef…`, built from `306269f4`):
+`bot_status: 0`, `login_save_relog_verified: true`. The bounded gate covers BNet
+auth, world auth, `CMSG_ENUM_CHARACTERS`, `CMSG_PLAYER_LOGIN`, the instance
+socket and `SMSG_RESUME_COMMS`, `SMSG_LOGIN_VERIFY_WORLD`, the known-spell
+frames, the login stream drain, normal logout with `SMSG_LOGOUT_COMPLETE` on the
+realm route, an offline row with a strictly newer `logout_time`, and the
+six-family projection retained across two fresh authentications (207
+`character_reputation` rows among them). That is a full live session driven end
+to end by the coordinated producer: the session no longer runs its own clock, so
+this exercises the world pass, the map pass and their tails in production
+composition.
+
+**One failure was investigated rather than accepted.** The first runs failed the
+projection contract with `login/save changed or removed a pre-existing
+character_reputation row`: `flags` moved `0 → 2` (`AT_WAR`) on a set of factions.
+The sequence that isolated it, without touching the database by hand:
+
+| Build | From | Result |
+| --- | --- | --- |
+| candidate `306269f4` | flags 0 | writes 2, fails the contract |
+| deployed `c2a3b461` (2026-09-07) | flags 2 | writes 0, fails the contract |
+| deployed `c2a3b461` | flags 0 | no change, passes |
+| candidate `306269f4` | flags 0 | writes 2, fails |
+| merge base `aee29a69` (`origin/3.4.3`, no #787) | flags 2 | no change, passes |
+| deployed `c2a3b461` | flags 2 | writes 0, fails |
+| merge base `aee29a69` | flags 0 | **writes 2, fails** |
+| candidate `306269f4` | flags 2 | no change, **passes** |
+
+`origin/3.4.3` without #787 produces exactly the same write as the candidate, so
+the divergence is not introduced by this macro: it is the deployed build that
+differs, and it predates the branch. The branch behaviour is the C++ one —
+`ReputationMgr::LoadFromDB` sets `AtWar` for a hostile rank and leaves
+`needSave` set when the computed flags differ from the row
+(`ReputationMgr.cpp:766-783`) — so the first login after deploying any build
+newer than `c2a3b461` rewrites those rows once and then converges. The gate's
+fixture is what needs re-baselining, not the coordination.
+
+Still not covered by this QA: a producer that dies during shutdown, and
+finalization after the acknowledgement. Both remain open composition evidence.
+
 ### Proportional evidence inside the macro
 
 The [plan's reanalysis checkpoints](modularity-and-ecs-plan.md#reanalysis-checkpoints--evidence-before-replication)
