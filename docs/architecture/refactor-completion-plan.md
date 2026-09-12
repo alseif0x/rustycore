@@ -418,6 +418,41 @@ delta de inventario revisado (session/mod.rs -68 producción/+7 test;
 player/mod.rs +335 producción/+278 test). Sin QA viva ni evidencia de
 DB/reinicio/relogin.
 
+#### Entrega local aceptada — #765
+
+Séptima macro P2: el estado de taxi tenía ocho campos públicos y un cierre
+genérico con cinco sitios de escritura.
+
+- Estado e invariantes en el Player:
+  `crates/wow-entities/src/player/taxi_state.rs` posee `PlayerTaxiState` y sus
+  dos registros de vuelo con los campos cerrados al módulo Player y las
+  transiciones que C++ hace sobre `PlayerTaxi`
+  (`Entities/Player/PlayerTaxi.h`): `IsTaximaskNodeKnown` (`:44`),
+  `SetTaximaskNode` (`:50`), la instalación de ruta tras
+  `LoadTaxiDestinationsFromString` (`:65`), `GetTaxiDestination` (`:70`)
+  derivada de la cola como la deriva C++, y la limpieza de aterrizaje
+  `Player::CleanupAfterTaxiFlight` (`Player.cpp:22019`).
+- La limpieza deja de ser cuatro escrituras de campo en el cierre del llamador:
+  vaciar la ruta, desmontar y quitar `UNIT_FLAG_REMOVE_CLIENT_CONTROL |
+  UNIT_FLAG_ON_TAXI` son una sola transición, y el avance de vuelo tras el
+  teleport tampoco puede aplicarse a medias.
+- Registrado, no inventado: `source_node_id` y `destination_node_id` no tenían
+  lector ni escritor de producción y se retiran, porque C++ los deriva de
+  `m_TaxiDestinations`. La máscara de nodos conserva sus operaciones C++ pero
+  sigue sin llamador de producción. **Condición de salida:** la operación de
+  conocimiento de nodos de taxi que los aprende y publica.
+- No se modelan en el propietario `AddTaxiDestination` (`:68`) ni
+  `NextTaxiDestination` (`:74`): la ruta la construye y consume la ruta de vuelo
+  dirigida por catálogo en `wow-world`.
+- Departuras conservadas y nombradas en el módulo: C++ no guarda registro de
+  vuelo en `PlayerTaxi` y mantiene las banderas de unidad en `Unit`; RustyCore
+  refleja ambas junto a la ruta para que la limpieza siga siendo una transición.
+
+Aceptación local: catorce regresiones nuevas de invariantes en
+`player_tests/taxi_state.rs`, controles de arquitectura y ownership con delta de
+inventario revisado (session/mod.rs -2 producción/+1 test; player/mod.rs +200
+producción/+188 test). Sin QA viva ni evidencia de DB/reinicio/relogin.
+
 ### 4.3 Residuales P2 y paso a P3/P4
 
 Después de #743 y #735 se retiran los accesos genéricos operación por operación. El
