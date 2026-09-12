@@ -33,13 +33,31 @@ failed check needs renewed affected evidence; a new agent, commit message, or ha
 by itself require recompiling unchanged inputs. Do not use repeated compiler runs to discover
 consumers or drive one-field-at-a-time replacements.
 
+When acceptance requires architecture policy checks, their fixtures and syntax ownership,
+use one measured campaign:
+
+```bash
+./tools/validation-v2 final --base origin/3.4.3 --architecture --timings
+```
+
+`--architecture` is exclusive to `final`. It replaces that plan's separate physical,
+hotspot and architecture self-test scans with `check_architecture.py check --self-test`,
+which executes their complete union plus dependency checks in one process. The existing
+in-process inventories are reused, with no persisted scan cache. The runner also executes
+`session-ownership-check check --syntax-only`; both commands and their durations appear in
+the same final manifest. Existing workspace compilation, test targets and test execution
+are unchanged. Do not run those architecture commands separately again for the same inputs.
+The flag also honors an explicit request when there are no changed paths. It does not cover
+exhaustive persistence inventory, terminal physical closeout, production integration or live
+QA when the issue requires those; include their actual additional time in campaign evidence.
+
 A `final` run whose diff touches workspace Rust also enforces the curated hotspot LOC ceilings
 (`check_architecture.py hotspot-ratchet`; timing depends on cached scanner/build state).
 Every nonempty `final` diff also runs the cheap `check_architecture.py physical-files` scan,
 including tooling-only, non-Rust, deletion, policy or generator-input changes. It enforces
 new-file budgets and reviewed per-file migration ceilings without invoking Cargo. The other
 architecture checks and exhaustive
-persistence inventory run in `audit`; `final` alone does not verify renamed or relocated
+persistence inventory run in `audit`; plain `final` does not verify renamed or relocated
 persistence accesses. Run affected ownership/contract checks explicitly during architecture
 work and satisfy the active macro's terminal acceptance before claiming completion. Physical
 migration PASS is not closeout: run `physical-files --terminal` to reject unfinished oversized
