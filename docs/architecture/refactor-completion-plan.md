@@ -694,6 +694,38 @@ de inventario revisado (player/mod.rs +166 producción/+145 test; session/mod.rs
 -4 producción/+3 test); techo de `player_tests.rs` 508 -> 510. Sin QA viva ni
 evidencia de DB/reinicio/relogin.
 
+#### Entrega local aceptada — #783
+
+Decimosexta macro P2 y último subestado del cierre genérico: el estado de campo
+de batalla tenía nueve miembros públicos.
+
+- Estado e invariantes en el Player:
+  `crates/wow-entities/src/player/battleground.rs` posee
+  `PlayerBattlegroundState` con los miembros cerrados y las transiciones de lo
+  que C++ guarda en `Player::m_bgData` (`Player.h:2821`, `BGData` en `:976`),
+  releído por `InBattleground` (`:2335`) y `GetBattlegroundTypeId` (`:2338`),
+  más `Player::SetArenaTeamIdInvited` (`:1956`).
+- El propietario impone las dos reglas que repetían los llamadores: un tipo cero
+  es `BATTLEGROUND_TYPE_NONE` y limpia el campo de batalla, y una ranura de cola
+  sostiene una sola cola, así que instalar la misma ranura dos veces la
+  reemplaza en lugar de añadir otra fila.
+- Registrados como estado representado cuyo propietario vivo sigue siendo el
+  sistema de campos de batalla: el estado (`Battleground::GetStatus()`) y el
+  mapa del campo de batalla. Se retiran con esa propiedad viva, no aquí.
+
+Con esto, lo que queda en la entrada del residual ya no es una superficie de
+estado: los dos ayudantes que prestan el Player entero son la frontera de acceso
+canónico por la que ya pasan todas las transiciones con nombre —resuelven el
+handle con comprobación de generación y sostienen el cerrojo del mapa durante
+una transición—, y su condición de salida es el trabajo P3 de propiedad en
+runtime, no otra macro de encapsulación.
+
+Aceptación local: diez regresiones nuevas de invariantes en
+`player_tests/battleground.rs`, controles de arquitectura y ownership con delta
+de inventario revisado (player/mod.rs +142 producción/+146 test; session/mod.rs
+-7 producción/-1 test); techo de `player_tests.rs` 510 -> 512. Sin QA viva ni
+evidencia de DB/reinicio/relogin.
+
 ### 4.3 Residuales P2 y paso a P3/P4
 
 Después de #743 y #735 se retiran los accesos genéricos operación por operación. El

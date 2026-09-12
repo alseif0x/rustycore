@@ -179,7 +179,7 @@ impl WorldSession {
             .unwrap_or(false);
         let is_in_progress_arena = self
             .player_battleground_state_snapshot_like_cpp()
-            .is_some_and(|state| state.represented_status == Some(3))
+            .is_some_and(|state| state.battleground_status_like_cpp() == Some(3))
             && self
                 .map_store()
                 .and_then(|store| store.get(u32::from(self.player_map_id_like_cpp())))
@@ -548,7 +548,7 @@ impl WorldSession {
             .unwrap_or((false, false));
         let is_in_progress_arena = self
             .player_battleground_state_snapshot_like_cpp()
-            .is_some_and(|state| state.represented_status == Some(3))
+            .is_some_and(|state| state.battleground_status_like_cpp() == Some(3))
             && self
                 .map_store()
                 .and_then(|store| store.get(u32::from(self.player_map_id_like_cpp())))

@@ -397,11 +397,13 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            self.player_battleground_type_id_like_cpp = state.represented_type_id;
-            self.player_battleground_map_id_like_cpp = state.represented_map_id;
-            self.represented_battleground_status_like_cpp = state.represented_status;
-            self.represented_battleground_queue_slots_like_cpp = state.represented_queue_slots;
-            self.represented_arena_team_id_invited_like_cpp = state.arena_team_id_invited;
+            self.player_battleground_type_id_like_cpp = state.battleground_type_id_like_cpp();
+            self.player_battleground_map_id_like_cpp = state.battleground_map_id_like_cpp();
+            self.represented_battleground_status_like_cpp = state.battleground_status_like_cpp();
+            self.represented_battleground_queue_slots_like_cpp =
+                state.queue_slots_like_cpp().to_vec();
+            self.represented_arena_team_id_invited_like_cpp =
+                state.arena_team_id_invited_like_cpp();
             return Some(result);
         }
         canonical.then_some(result)
