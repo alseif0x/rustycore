@@ -14,14 +14,14 @@ fn difficulty_mutation_runs_once_on_active_and_detached_owner_before_save_projec
         assert!(session.replace_player_difficulty_preferences_like_cpp(2, 15, 4));
         let calls = std::cell::Cell::new(0);
         assert_eq!(
-            session.mutate_player_difficulty_preferences_like_cpp(|dungeon, raid, legacy| {
+            session.with_owned_player_mut_like_cpp(|player| {
                 calls.set(calls.get() + 1);
                 assert!(matches!(
                     manager.try_lock(),
                     Err(std::sync::TryLockError::WouldBlock)
                 ));
-                let before = (*dungeon, *raid, *legacy);
-                *raid = 14;
+                let before = player.difficulty_preferences_like_cpp();
+                player.set_raid_difficulty_id_like_cpp(14);
                 before
             }),
             Some((2, 15, 4))
@@ -68,12 +68,12 @@ fn difficulty_mutation_does_not_run_for_stale_or_missing_owner() {
         .install_detached_player_like_cpp(replacement)
         .unwrap();
     assert_eq!(
-        session.mutate_player_difficulty_preferences_like_cpp(|_, _, _| panic!("stale owner")),
+        session.with_owned_player_mut_like_cpp(|_| panic!("stale owner")),
         None::<()>
     );
     session.canonical_map_manager = None;
     assert_eq!(
-        session.mutate_player_difficulty_preferences_like_cpp(|_, _, _| panic!("missing owner")),
+        session.with_owned_player_mut_like_cpp(|_| panic!("missing owner")),
         None::<()>
     );
     assert_eq!(

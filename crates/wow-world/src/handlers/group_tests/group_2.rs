@@ -137,7 +137,7 @@ async fn party_invite_rejects_instance_difficulty_mismatch_like_cpp() {
         .world_mut()
         .object_mut()
         .add_to_world();
-    target_player.gameplay_state_mut().dungeon_difficulty_id = 2;
+    target_player.set_dungeon_difficulty_id_like_cpp(2);
     canonical
         .lock()
         .unwrap()

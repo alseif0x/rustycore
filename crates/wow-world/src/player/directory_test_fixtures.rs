@@ -73,7 +73,7 @@ impl PlayerRegistry {
         player.unit_mut().set_faction(1);
         player.unit_mut().set_max_health(100);
         player.unit_mut().set_health(100);
-        player.gameplay_state_mut().dungeon_difficulty_id = 1;
+        player.set_dungeon_difficulty_id_like_cpp(1);
         map.insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
             .unwrap();
     }

@@ -31847,13 +31847,13 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "mutate_player_difficulty_preferences_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn mutate_player_difficulty_preferences_like_cpp < R > (& mut self , f : impl FnOnce (& mut u32 , & mut u32 , & mut u32) -> R ,) -> Option < R >",
+          "name": "set_player_difficulty_like_cpp",
+          "visibility": "private",
+          "signature": "fn set_player_difficulty_like_cpp (& mut self , kind : SessionDifficultyKindLikeCpp , difficulty_id : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "visible"
+            "setter"
           ]
         },
         {

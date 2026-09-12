@@ -739,7 +739,7 @@ impl PlayerRegistry {
                     player.has_player_flag(crate::session::PLAYER_FLAGS_AFK_LIKE_CPP),
                     player.has_player_flag(crate::session::PLAYER_FLAGS_DND_LIKE_CPP),
                     player.is_game_master_like_cpp(),
-                    player.gameplay_state().dungeon_difficulty_id,
+                    player.dungeon_difficulty_id_like_cpp(),
                 )
             },
         )?;
@@ -2173,7 +2173,7 @@ mod tests {
                 player.unit_mut().world_mut().object_mut().create(guid);
                 player.unit_mut().world_mut().set_map(571, 42).unwrap();
                 player.unit_mut().world_mut().object_mut().add_to_world();
-                player.gameplay_state_mut().dungeon_difficulty_id = 1;
+                player.set_dungeon_difficulty_id_like_cpp(1);
                 map.insert_map_object_record(
                     wow_entities::MapObjectRecord::new_player(player).unwrap(),
                 )
