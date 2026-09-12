@@ -43,7 +43,9 @@ use one measured campaign:
 `--architecture` is exclusive to `final`. It replaces that plan's separate physical,
 hotspot and architecture self-test scans with `check_architecture.py check --self-test`,
 which executes their complete union plus dependency checks in one process. The existing
-in-process inventories are reused, with no persisted scan cache. The runner also executes
+in-process inventories and per-file physical counts are reused, with no persisted scan
+cache. Freeze source inputs for the invocation; the next invocation reads them anew.
+The runner also executes
 `session-ownership-check check --syntax-only`; both commands and their durations appear in
 the same final manifest. Existing workspace compilation, test targets and test execution
 are unchanged. Do not run those architecture commands separately again for the same inputs.

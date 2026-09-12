@@ -2,10 +2,15 @@
 
 from contextlib import ExitStack, redirect_stderr, redirect_stdout
 import io
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
 import check_architecture as checker
+import hotspot_metrics
 import test_physical_files
 
 
@@ -91,6 +96,45 @@ class ArchitectureCommandTests(unittest.TestCase):
                 self.assertEqual(result, 1, output)
                 self.assertIn("architecture check failed", output)
                 self.assertEqual(calls["print_hotspots"].call_count, 0)
+
+
+class HotspotSnapshotTests(unittest.TestCase):
+    def setUp(self):
+        hotspot_metrics.physical_hotspot_row.cache_clear()
+        self.addCleanup(hotspot_metrics.physical_hotspot_row.cache_clear)
+
+    def test_repeated_views_reuse_one_measurement_per_file(self):
+        root = hotspot_metrics.REPO_ROOT
+        a, b = root / "a.rs", root / "b.rs"
+        with patch.object(Path, "read_text", return_value="fn a() {}\n") as read:
+            first = hotspot_metrics.physical_hotspot_row(a)
+            self.assertEqual(first, (1, 1, 0, "a.rs"))
+            self.assertEqual(hotspot_metrics.physical_hotspot_row(a), first)
+            self.assertEqual(hotspot_metrics.physical_hotspot_row(b), (1, 1, 0, "b.rs"))
+            self.assertEqual(read.call_count, 2)
+
+    def test_read_failure_is_not_cached(self):
+        path = hotspot_metrics.REPO_ROOT / "temporarily-missing.rs"
+        with patch.object(Path, "read_text", side_effect=[OSError("missing"), "fn a() {}\n"]):
+            with self.assertRaises(hotspot_metrics.ArchitectureError):
+                hotspot_metrics.physical_hotspot_row(path)
+            self.assertEqual(hotspot_metrics.physical_hotspot_row(path)[:3], (1, 1, 0))
+
+    def test_new_invocation_observes_source_changes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "input.rs"
+            program = (
+                "import sys; from pathlib import Path; "
+                "sys.path.insert(0, sys.argv[1]); import hotspot_metrics as h; "
+                "h.REPO_ROOT=Path(sys.argv[2]); "
+                "print(h.physical_hotspot_row(h.REPO_ROOT/'input.rs')[0])"
+            )
+            for lines in (1, 2):
+                source.write_text("// fixture\n" * lines)
+                output = subprocess.check_output([
+                    sys.executable, "-c", program, str(Path(__file__).parent), directory,
+                ], text=True)
+                self.assertEqual(int(output.strip()), lines)
 
 
 if __name__ == "__main__":

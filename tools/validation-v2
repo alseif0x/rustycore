@@ -681,6 +681,7 @@ def validation_commands(
     if any(path in {
         "tools/architecture/check_architecture.py",
         "tools/architecture/test_check_architecture.py",
+        "tools/architecture/hotspot_metrics.py",
     } for path in all_paths):
         add_command(planned, ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_check_architecture.py"])
     text_suffixes = {".json", ".lock", ".md", ".proto", ".py", ".rs", ".sh", ".toml", ".tsv", ".txt", ".yaml", ".yml"}
