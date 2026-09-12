@@ -27,7 +27,7 @@ USAGE_ERROR = 64
 VERDICT_ERROR = 1
 RUNNER_ERROR = 70
 LOCKED_ERROR = 75
-DEFAULT_JOBS = 2
+DEFAULT_JOBS = 1
 MAX_JOBS = 8
 DEFAULT_TIMEOUT = 900
 # The exhaustive persistence inventory alone runs 870-900s on a four-core host,
@@ -901,14 +901,26 @@ def resolve_protoc(repo: Path, environment: dict[str, str]) -> str | None:
     return None
 
 
+def resolve_cargo_target_dir(repo: Path, configured: str | None = None) -> Path:
+    """Return an absolute target; blank uses the worktree-local default."""
+    repository = repo.resolve()
+    if configured is None or not configured.strip():
+        return (repository / "target").resolve()
+    target = Path(configured)
+    if not target.is_absolute():
+        target = repository / target
+    return target.resolve()
+
+
 def command_environment(repo: Path, jobs: int) -> dict[str, str]:
     environment = os.environ.copy()
-    worktree = hashlib.sha256(str(repo).encode()).hexdigest()[:16]
     environment.update(
         {
             "CARGO_BUILD_JOBS": str(jobs),
             "CARGO_NET_OFFLINE": "true",
-            "CARGO_TARGET_DIR": str(repo / "target" / "validation-v2" / "cargo" / worktree),
+            "CARGO_TARGET_DIR": str(
+                resolve_cargo_target_dir(repo, environment.get("CARGO_TARGET_DIR"))
+            ),
         }
     )
     protoc = resolve_protoc(repo, environment)
@@ -1234,6 +1246,10 @@ def main() -> int:
     exit_code = 0
     try:
         environment = command_environment(repo, jobs)
+        print(
+            f"validation-v2: cargo target={environment['CARGO_TARGET_DIR']} jobs={jobs}",
+            flush=True,
+        )
         if args.profile == "self-test":
             outcome = run_one(
                 repo,
