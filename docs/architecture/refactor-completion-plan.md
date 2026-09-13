@@ -99,7 +99,7 @@ de microissues:
 | P0 | Herramientas de ownership, imports, bridges y ratchet físico | #716 integrado y cerrado; su evidencia es histórica y no se repite aquí |
 | P1 | Recompensa de misión y contrato durable | #718 integrado y cerrado; no hay evidencia real de DB/restart/relogin |
 | P2 | Fronteras de Player y operaciones completas | #743 y #735 entregados; continúan los residuales por consumidores |
-| P3 | Fases, runtime, lifetime, residencia/incarnation y storage selectivo | #787 entregado; P3.1 retiró el escritor Creature canónico descartado, P3.2 publicó `SendObjectUpdates`, y P3.3 corrige el orden de respawn/condiciones antes de los visitantes; el escritor legado y otras fases siguen pendientes bajo #584 |
+| P3 | Fases, runtime, lifetime, residencia/incarnation y storage selectivo | #787 entregado; P3.1 retiró el escritor Creature canónico descartado, P3.2 publicó `SendObjectUpdates`, P3.3 corrigió el orden de respawn/condiciones antes de los visitantes, y P3.4 conecta la selección cercana de `ObjectUpdater` con producción; el escritor legado y otras fases siguen pendientes bajo #584 |
 | P4 | Organización física, excepciones y límites semánticos | #584, acompañado por cada operación; la medición de 31 paths permanece histórica |
 | P5 | Producto de módulos M0–M4, nativo/Wasm y Rust/Wasm/C | #583, tras los requisitos core de #584; no bloquea gameplay independiente |
 | P6 | Auditoría terminal y evidencia integrada | #153, después de #584 y #583; no absorbe implementación |
@@ -747,10 +747,9 @@ evidencia de DB/reinicio/relogin.
 
 Después de #743 y #735 se retiran los accesos genéricos operación por operación. El
 residual de #722 queda registrado como cierres que entregan una submatriz `&mut` al
-cierre llamador; cambiar el nombre del helper no retira la superficie. El residual de
-#737 es el cierre de almacenamiento de items y sus fixtures; no se agrega una
-autoridad de oro, porque `Player::SetMoney`/`ModifyMoney` ya viven en
-`wow-entities/src/player/progression.rs`.
+cierre llamador; cambiar el nombre del helper no retira la superficie. #737 está
+cerrada e integrada; su frontera de inventario queda cubierta por la reconciliación
+de persistencia y no se vuelve a contar como residual arquitectónico.
 
 #### Contraste P3 de composición y fases — revisión acotada 2026-09-12
 
@@ -795,19 +794,20 @@ Las diferencias que quedan, y que son el trabajo P3 real:
    exige `IsInWorld`, dejando el resto para `World::UpdateSessions`
    (`WorldSessionFilter`, `:85`). En RustyCore cada sesión corre en su propia tarea
    (`session_factory.rs`) con su diff y su espera de 50 ms cuando no hubo paquetes.
-   **Corrección (2026-09-12):** la primera versión de este punto decía que no existe
-   contrato de `ProcessingPlace`. Sí existe: `PacketProcessing`
-   (`crates/wow-handler/src/lib.rs:38`) clasifica cada registro de
-   `PacketHandlerEntry`, y `PacketProcessing::allows_phase`
-   (`crates/wow-handler/src/processing.rs:41`) implementa ambos filtros C++ sobre esa
-   clasificación y la residencia. Lo que falta es **consumirlo**: no tiene llamador
-   fuera de su crate y el driver despacha toda la cola sin consultarlo. El inventario
-   y el contrato verificable de ese consumo están en
-   `session-578-checkpoint.md`, sección «#787 inventory and verifiable contract».
-3. **Las fases de `Map::Update` que siguen sin representarse** están anotadas en el
-   propio código (visitas por celda cercana, objetos activos, transportes,
-   `SendObjectUpdates` real, scripts, notificaciones de relocalización) y son el paso
-   8 del ADR.
+   **Corrección (2026-09-13):** el contrato ya tiene consumidor de producción. El
+   driver coordinado selecciona la cabecera FIFO con `MapSessionFilter` o
+   `WorldSessionFilter` mediante `run_phase_packet_pass_like_cpp`; la sesión no
+   procesa dos veces una cabecera y deja la ineligible para la otra fase. #787 lo
+   integró con permisos, incarnación, reemplazo y apagado; la descripción anterior
+   que decía que el driver drenaba toda la cola era obsoleta.
+3. **Las fases de `Map::Update` que siguen incompletas** están anotadas en el código.
+   La visita cercana pura y el plan de objetos ya existen, pero el ciclo de producción
+   todavía llama a consumidores que recorren stores tipados completos. Por tanto aún
+   no reproduce la selección de `ObjectUpdater` por celdas activas, viewpoint,
+   combate lejano, casters de aura, summons y objetos activos. Transportes conservan
+   su bucle separado; scripts, fanout real y notificaciones de relocalización siguen
+   teniendo huecos propios. Este es el siguiente corte P3.4, no una orden de crear un
+   crate o una issue por cada familia.
 
 #### Selección P3.1 bajo #584 — retirada del escritor sombra de Creature
 
@@ -859,15 +859,16 @@ entra por `MapManager::update`, y el legado de criaturas—, tres tareas periód
 `GlobalLegacy`, con `GlobalLegacy` por defecto en producción.
 
 Macro P3 entregada por esta revisión: **#787**, el contrato de `ProcessingPlace` y
-la colocación de la actualización de sesión. P3.1 y P3.2 son entregas acotadas
-integradas bajo #584. La selección actual es **P3.3 — orden de respawn y condiciones**:
-ejecutar `ProcessRespawns`/`UpdateSpawnGroupConditions` después del paso de sesiones
-admitidas y antes de `ObjectUpdater`, con la misma clave/incarnation del plan para
-impedir que una sustitución de mapa herede trabajo. El contrato y sus límites están
-en `session-578-checkpoint.md`. El escritor legado de criaturas, la visita por
-celda cercana y las demás fases no representadas siguen requiriendo auditorías
-posteriores; no se crea una issue por puente o fichero. **#785 queda cerrada por
-premisa falsa**, con esta verificación registrada en la issue.
+la colocación de la actualización de sesión. P3.1, P3.2 y P3.3 son entregas acotadas
+integradas bajo #584. P3.3 ejecuta `ProcessRespawns`/`UpdateSpawnGroupConditions`
+después del paso de sesiones admitidas y antes de `ObjectUpdater`, con la misma
+clave/incarnation del plan para impedir que una sustitución de mapa herede trabajo.
+La selección actual es **P3.4 — selección cercana de ObjectUpdater**: conectar el
+plan ya existente con el camino de producción, usar consumidores por GUID solo para
+objetos en-world seleccionados y conservar el owner externo de Creature, el bucle de
+transportes y la entrega sin guardas. El contrato, las fuentes y los límites deben
+quedar en `session-578-checkpoint.md`; no se crea una issue por puente o fichero.
+**#785 queda cerrada por premisa falsa**, con esta verificación registrada en la issue.
 
 P3 debe contrastar composición, fases y lifetime con `Map.cpp:666-813`,
 `MapManager.cpp:287-318` y `WorldSession.cpp:64-108`, contar tareas reales y conservar

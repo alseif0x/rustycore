@@ -89,7 +89,7 @@ completion of #584.
 
 ## P3.3 canonical respawn/condition phase order — 2026-09-13
 
-The next finite #584 macro restores the order of the represented spawn phase in
+The finite #584 macro restored the order of the represented spawn phase in
 the split map tick. TrinityCore's `Map::Update` calls `ProcessRespawns()` and
 `UpdateSpawnGroupConditions()` after the map session walk and before
 `resetMarkedCells`/`ObjectUpdater` (`Maps/Map.cpp:666-695`); the map manager then
@@ -115,6 +115,51 @@ regression pass, together with `cargo check -p world-server`, architecture check
 formatting and diff checks. Validation-v2 `quick` passed with one Cargo job in 7m03s;
 manifest: `target/validation-v2/manifests/20260913T042148.632508Z-3355103-quick.json`.
 The integrated delivery does not include live client, capture or DB/restart/relogin QA.
+
+## P3.4 selected — connect nearby-cell ObjectUpdater selection to production — 2026-09-13
+
+The post-P3.3 source audit found a concrete phase mismatch that is finite enough for
+the next #584 macro. TrinityCore's `Map::Update` constructs one
+`Trinity::ObjectUpdater` (`Maps/Map.cpp:695-699`), then calls
+`VisitNearbyCellsOf` for every in-world map player, optional viewpoint, far combat
+creatures, out-of-range aura casters, summons and every active non-player source
+(`Maps/Map.cpp:701-754`). `ObjectUpdater::Visit<T>` updates only in-world objects in
+those visited cells (`Grids/Notifiers/GridNotifiers.cpp:258-264`); Players and Corpses
+are excluded by the visitor overload, while transports retain their separate full
+`_transports` loop (`Maps/Map.cpp:756-764`).
+
+RustyCore already has the pure building blocks:
+`Map::map_update_visit_plan_like_cpp` (`wow-map/src/map/mod.rs:3350-3417`),
+`visit_nearby_cells_of_like_cpp` (`wow-map/src/map/visibility.rs:45-96`) and
+`object_update_plan_for_nearby_like_cpp` (`wow-map/src/map/visibility.rs:99-129`).
+The production map path does not consume them. Instead,
+`ManagedMap::update_after_sessions_with_creature_owner_like_cpp`
+(`wow-map/src/manager/state_1.rs:545-718`) calls typed family visitors that scan
+whole canonical stores. Relocation uses a nearby plan, but that does not constrain
+the preceding ObjectUpdater phase. This means current production can update an
+in-world typed object outside active cells, while failing to express the C++ source
+selection contract; the issue is independent of the already explicit external
+Creature AI/combat owner.
+
+### P3.4 implementation contract
+
+The implementation must carry canonical player/viewpoint, represented far-combat,
+aura-caster and summon sources, plus active non-player sources, into one
+incarnation-scoped nearby plan. It must deduplicate cell/object visits, filter
+missing, invalid and out-of-world records, invoke existing per-object consumers by
+selected GUID only, keep C++ family order and the all-transport loop, and preserve
+the `ExternalRuntime` Creature owner without creating a shadow writer. Map/entity
+guards must be released before packet delivery, I/O or an awaited session action.
+
+Acceptance is production-linked: positive and negative cases prove that nearby,
+far-source and active-source objects are selected once, out-of-cell objects are not
+updated, invalid/missing sources are skipped, and replacement incarnations cannot
+inherit a predecessor's plan. Existing per-family behavior tests remain required;
+the map tick order, `SendObjectUpdates` publication and delayed-update barrier must
+remain intact. This selection does not migrate Creature AI/combat, scripts, real
+transport passengers, relocation fanout or client/DB/restart parity. Those remain
+separate boundaries under #584. No new issue or crate is created for an individual
+object family.
 
 ### Bounded #578 closeout inventory
 
