@@ -13,8 +13,8 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza integrada, 2026-09-13: PR #824**, en `3.4.3` como
-`7bb9a911c8d3cf235a9c8c7435e6f46c1bd41071`. #787 / PR #792 (`d14a9a67`) y
+**Cabeza integrada, 2026-09-13: PR #826**, en `3.4.3` como
+`d934451a0222edc22494d3e92ee0eded2a05c8b0`. #787 / PR #792 (`d14a9a67`) y
 #584 P2 item-bonus y P3.1–P3.9 están integrados dentro de esta cabeza. La coordinación World/Map está
 implementada y aceptada localmente en `76369bda`; la corrección mantiene el ACK World pendiente hasta finalizar y
 retirar la sesión. El contrato y la evidencia están en el
@@ -69,13 +69,14 @@ crea una issue por fichero, helper o import.
 
 #582 queda cerrado tras su entrega de decodificadores sin matchmaking. #524 conserva
 su corrección de orden de consultas integrada por PR #803 y la secuencia WDC4/SQL
-table-granular integrada por PR #822 y el ajuste #824 (`7bb9a911`): `SkillLineAbility` termina antes
+table-granular integrada por PR #822/#824 (`7bb9a911`) y los overlays de
+`SkillLineXTraitTree` por PR #826 (`d934451a`): `SkillLineAbility` termina antes
 de que se carguen `TraitTree`/`SkillLineXTraitTree`, y `SkillRaceClassInfo` queda en
 su etapa posterior con consultas official/custom independientes. La proyección de
 `SkillLineXTraitTree` y su consumidor de hidratación de Player están implementados en
 `0f65d677`, con validación de enlaces y cierre seguro ante una profesión sin árbol;
-siguen pendientes la cobertura hotfix de ese vínculo, los índices/consumidores completos
-de `TraitMgr` y la aceptación final. #486 conserva
+siguen pendientes la eliminación por `TableHash`, los índices/consumidores completos de
+`TraitMgr` y la aceptación final. #486 conserva
 la implementación integrada por PR #807 y solo sus gates de captura/QA viva y
 mutaciones administrativas no representadas. Estas son líneas funcionales separadas:
 no se convierten en trabajo oculto de #584 ni se usan para reabrir macros cerradas.
