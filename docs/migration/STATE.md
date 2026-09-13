@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-13:** `3.4.3` is at
-`1143ed416c41af1219f8c76cb35e85f35c4e8f97` (PR #832). The entries below preserve
+`4e3ad8f010176a6d500cf45c84ea752f179a47cf` (PR #834). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -238,7 +238,7 @@ checks and validation-v2 quick in 8.53 s with one Cargo job
 No live runtime, capture, DB/restart/relogin or full item-stat parity claim is made.
 
 **#524 skill catalog and TraitMgr projection — 2026-09-13, sequence implementation
-`0192bac3` plus hotspot follow-up `de4e114e`, TraitTree overlay `9cca8f2b`, final-removal delivery `68fe676d`, generic TraitMgr index `eee72efd` and combat/class index `4ee7391e`, integration `1143ed416`:** the production bootstrap now keeps the C++ table stages independently observable: `SkillLine` → WDC4/official/custom `SkillLineAbility` → WDC4/official/custom `SkillRaceClassInfo` → WDC4 `TraitTree` plus WDC4/official/custom `SkillLineXTraitTree` projection. Official-then-custom order and fail-before-publication behavior remain explicit. The link store retains its WDC4 table hash and applies final table-scoped `RecordRemoved` statuses before projection. PR #830 adds the immutable `TraitSystemID -> TraitTreeID` projection and Generic config validation; PR #832 adds the C++ `ChrSpecialization -> ClassID -> _skillLinesByClass` combat projection and moves TraitMgr construction after effective `SkillRaceClassInfo` composition. Focused `wow-data`, `wow-world` and `world-server` regressions plus the physical architecture check pass. This remains a bounded startup correction, not complete TraitMgr parity: node/cost/condition/loadout consumers, final cross-store orchestration and startup/live evidence remain open.
+`0192bac3` plus hotspot follow-up `de4e114e`, TraitTree overlay `9cca8f2b`, final-removal delivery `68fe676d`, generic TraitMgr index `eee72efd`, combat/class index `4ee7391e` and persisted-entry validation `c09a1f42`, integration `4e3ad8f0`:** the production bootstrap now keeps the C++ table stages independently observable: `SkillLine` → WDC4/official/custom `SkillLineAbility` → WDC4/official/custom `SkillRaceClassInfo` → WDC4 `TraitTree` plus WDC4/official/custom `SkillLineXTraitTree` projection. Official-then-custom order and fail-before-publication behavior remain explicit. The link store retains its WDC4 table hash and applies final table-scoped `RecordRemoved` statuses before projection. PR #830 adds the immutable `TraitSystemID -> TraitTreeID` projection and Generic config validation; PR #832 adds the C++ `ChrSpecialization -> ClassID -> _skillLinesByClass` combat projection and moves TraitMgr construction after effective `SkillRaceClassInfo` composition; PR #834 rejects missing or over-ranked persisted node entries at the existing Session authority boundary. Focused `wow-data`, `wow-world` and `world-server` regressions plus the physical architecture check pass. This remains a bounded startup correction, not complete TraitMgr parity: node topology, cost/condition/loadout consumers, final cross-store orchestration and startup/live evidence remain open.
 
 **Group state application is integrated — 2026-09-11, #743 / PR #750,
 `77df8194` (implementation `9e6767bb`):**
