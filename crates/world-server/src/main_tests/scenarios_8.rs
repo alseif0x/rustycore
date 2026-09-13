@@ -172,6 +172,7 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
             identity: PlayerDirectoryIdentityLikeCpp {
                 player_name: "SeasonalTester".to_string(),
                 account_id: 1,
+                battlenet_account_id: 0,
                 recruiter_id: 0,
                 race: 1,
                 class: 1,

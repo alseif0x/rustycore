@@ -354,6 +354,7 @@ fn broadcast_info_with_command_tx(
         identity: crate::session::directory::PlayerDirectoryIdentityLikeCpp {
             player_name: format!("Player{}", guid.counter()),
             account_id: guid.counter() as u32,
+            battlenet_account_id: 0,
             recruiter_id: 0,
             race: 1,
             class: 1,

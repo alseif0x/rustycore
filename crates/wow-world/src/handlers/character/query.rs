@@ -371,10 +371,57 @@ impl WorldSession {
                 }
             };
 
-            // Build account GUIDs (simplified — just use account_id)
-            let account_id_val = self.account_id as i64;
-            let account_guid = ObjectGuid::new((HighGuid::WowAccount as i64) << 58, account_id_val);
-            let bnet_guid = ObjectGuid::new((HighGuid::BNetAccount as i64) << 58, account_id_val);
+            // C++ first requires CharacterCache presence, then overlays live
+            // PlayerGuidLookupData for a connected target. The target's
+            // account relation comes from the cache, never from the querying
+            // session.
+            let connected = self
+                .player_registry()
+                .and_then(|registry| registry.player_name_query_snapshot_like_cpp(*guid))
+                .or_else(|| {
+                    (self.player_guid() == Some(*guid)).then(|| {
+                        crate::session::directory::PlayerNameQuerySnapshotLikeCpp {
+                            guid: *guid,
+                            name: self.player_name_like_cpp().unwrap_or_default().to_string(),
+                            account_id: self.account_id,
+                            battlenet_account_id: self.battlenet_account_id(),
+                            race: self.player_race_like_cpp(),
+                            class: self.player_class_like_cpp(),
+                            sex: self.player_gender_like_cpp(),
+                            level: self.player_level_like_cpp(),
+                        }
+                    })
+                });
+            let (name, race, sex, class, level, account_id, battlenet_account_id, is_deleted) =
+                if let Some(connected) = connected {
+                    (
+                        connected.name,
+                        connected.race,
+                        connected.sex,
+                        connected.class,
+                        connected.level,
+                        connected.account_id,
+                        connected.battlenet_account_id,
+                        false,
+                    )
+                } else {
+                    (
+                        row.name,
+                        row.race,
+                        row.sex,
+                        row.class,
+                        row.level,
+                        row.account_id,
+                        row.battlenet_account_id,
+                        row.is_deleted,
+                    )
+                };
+            let account_guid =
+                ObjectGuid::new((HighGuid::WowAccount as i64) << 58, account_id as i64);
+            let bnet_guid = ObjectGuid::new(
+                (HighGuid::BNetAccount as i64) << 58,
+                battlenet_account_id as i64,
+            );
 
             // Use the session VRA (region << 24 | battlegroup << 16 | realmId)
             // to match what every other packet sends. The wrong formula caused
@@ -385,15 +432,16 @@ impl WorldSession {
                 player: *guid,
                 result: 0, // Success
                 data: Some(PlayerGuidLookupData {
-                    name: row.name,
-                    race: row.race,
-                    sex: row.sex,
-                    class: row.class,
-                    level: row.level,
+                    name,
+                    race,
+                    sex,
+                    class,
+                    level,
                     guid_actual: *guid,
                     account_id: account_guid,
                     bnet_account_id: bnet_guid,
                     virtual_realm_address: vra,
+                    is_deleted,
                     ..Default::default()
                 }),
             });

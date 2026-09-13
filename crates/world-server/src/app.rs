@@ -4437,6 +4437,10 @@ async fn run_inner(
     // The Player lifecycle port is composed here, before any session is
     // accepted, so a build that cannot persist lifecycle state fails at
     // startup rather than silently dropping offline marks at logout (#200).
+    let (character_identity_cache, player_name_query_persistence_port) =
+        wow_database::build_player_name_query_port_like_cpp(Arc::clone(&char_db), &login_db)
+            .await
+            .context("Failed to load C++ character identity cache")?;
     let player_lifecycle_port: Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp> = Arc::new(
         wow_database::player::lifecycle_adapter::MariaDbPlayerLifecycleAdapterLikeCpp::new(
             Arc::clone(&char_db),
@@ -4450,6 +4454,7 @@ async fn run_inner(
         wow_database::MariaDbCharacterAdministrationPersistenceAdapterLikeCpp::new(
             Arc::clone(&char_db),
             Arc::clone(&world_db),
+            Arc::clone(&character_identity_cache),
         ),
     );
     let character_enumeration_persistence_port: Arc<
@@ -4488,11 +4493,6 @@ async fn run_inner(
     let gossip_catalog_persistence_port: Arc<
         dyn wow_persistence::GossipCatalogPersistencePortLikeCpp,
     > = gossip_catalog_adapter.clone();
-    let player_name_query_persistence_port: Arc<
-        dyn wow_persistence::PlayerNameQueryPersistencePortLikeCpp,
-    > = Arc::new(
-        wow_database::MariaDbPlayerNameQueryPersistenceAdapterLikeCpp::new(Arc::clone(&char_db)),
-    );
     let session_account_state_port: Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp> =
         Arc::new(
             wow_database::session_account_state_adapter::MariaDbSessionAccountStateAdapterLikeCpp::new(

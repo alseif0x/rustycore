@@ -115,6 +115,8 @@ pub enum LoginStatements {
     UPD_BNET_ACCOUNT_LOCK,
     UPD_BNET_ACCOUNT_LOCK_CONTRY,
     SEL_BNET_ACCOUNT_ID_BY_GAME_ACCOUNT,
+    /// C++ Battle.net account-manager startup projection for game accounts.
+    SEL_BNET_GAME_ACCOUNT_IDS,
     UPD_BNET_GAME_ACCOUNT_LINK,
     SEL_BNET_MAX_ACCOUNT_INDEX,
     SEL_BNET_GAME_ACCOUNT_LIST_SMALL,
@@ -422,6 +424,7 @@ impl StatementDef for LoginStatements {
             Self::SEL_BNET_ACCOUNT_ID_BY_GAME_ACCOUNT => {
                 "SELECT battlenet_account FROM account WHERE id = ?"
             }
+            Self::SEL_BNET_GAME_ACCOUNT_IDS => "SELECT id, battlenet_account FROM account",
             Self::UPD_BNET_GAME_ACCOUNT_LINK => {
                 "UPDATE account SET battlenet_account = ?, battlenet_index = ? WHERE id = ?"
             }

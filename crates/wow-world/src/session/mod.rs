@@ -12400,9 +12400,10 @@ impl WorldSession {
         reg.register_or_replace(
             guid,
             PlayerSessionRegistrationLikeCpp {
-                identity: crate::session::directory::PlayerDirectoryIdentityLikeCpp::new(
+                identity: crate::session::directory::PlayerDirectoryIdentityLikeCpp::new_with_bnet(
                     name,
                     self.account_id,
+                    self.battlenet_account_id(),
                     self.recruiter_id_like_cpp,
                     race,
                     class,

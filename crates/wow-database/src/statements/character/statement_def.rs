@@ -195,6 +195,9 @@ impl StatementDef for CharStatements {
                  personalTabardBorderStyle, personalTabardBorderColor, personalTabardBackgroundColor \
                  FROM characters c LEFT JOIN character_fishingsteps cfs ON c.guid = cfs.guid WHERE c.guid = ?"
             }
+            Self::SEL_CHARACTER_IDENTITY_CACHE => {
+                "SELECT guid, name, account, race, gender, class, level, deleteDate FROM characters"
+            }
             Self::SEL_CHARACTER_CUSTOMIZATIONS => {
                 "SELECT chrCustomizationOptionID, chrCustomizationChoiceID FROM character_customizations WHERE guid = ? ORDER BY chrCustomizationOptionID"
             }

@@ -11,17 +11,24 @@ use wow_persistence::{
 };
 
 use crate::{CharStatements, CharacterDatabase, SqlTransaction, WorldDatabase, WorldStatements};
+use crate::{CharacterIdentityCacheEntryLikeCpp, CharacterIdentityCacheLikeCpp};
 
 pub struct MariaDbCharacterAdministrationPersistenceAdapterLikeCpp {
     character_db: Arc<CharacterDatabase>,
     world_db: Arc<WorldDatabase>,
+    identity_cache: Arc<CharacterIdentityCacheLikeCpp>,
 }
 
 impl MariaDbCharacterAdministrationPersistenceAdapterLikeCpp {
-    pub fn new(character_db: Arc<CharacterDatabase>, world_db: Arc<WorldDatabase>) -> Self {
+    pub fn new(
+        character_db: Arc<CharacterDatabase>,
+        world_db: Arc<WorldDatabase>,
+        identity_cache: Arc<CharacterIdentityCacheLikeCpp>,
+    ) -> Self {
         Self {
             character_db,
             world_db,
+            identity_cache,
         }
     }
 }
@@ -175,6 +182,17 @@ impl CharacterAdministrationPersistencePortLikeCpp
                     }
                 }
             }
+            self.identity_cache
+                .upsert(CharacterIdentityCacheEntryLikeCpp {
+                    guid_low: request.guid,
+                    name: request.name,
+                    account_id: request.account_id,
+                    race: request.race,
+                    class: request.class,
+                    sex: request.sex,
+                    level: 1,
+                    is_deleted: false,
+                });
             MutationOutcome::Applied
         })
     }
@@ -200,7 +218,10 @@ impl CharacterAdministrationPersistencePortLikeCpp
             let mut statement = self.character_db.prepare(CharStatements::DEL_CHARACTER);
             statement.set_u32(0, guid as u32);
             match self.character_db.execute(&statement).await {
-                Ok(_) => MutationOutcome::Applied,
+                Ok(_) => {
+                    self.identity_cache.remove(guid);
+                    MutationOutcome::Applied
+                }
                 Err(error) => MutationOutcome::Failed {
                     reason: error.to_string(),
                 },
@@ -253,7 +274,10 @@ impl CharacterAdministrationPersistencePortLikeCpp
             delete.set_u64(0, guid);
             transaction.append(delete);
             match self.character_db.commit_transaction(transaction).await {
-                Ok(_) => MutationOutcome::Applied,
+                Ok(_) => {
+                    self.identity_cache.update_name(guid, &new_name);
+                    MutationOutcome::Applied
+                }
                 Err(error) => MutationOutcome::Failed {
                     reason: error.to_string(),
                 },
@@ -323,7 +347,10 @@ impl CharacterAdministrationPersistencePortLikeCpp
             delete_declined.set_u64(0, guid);
             transaction.append(delete_declined);
             match self.character_db.commit_transaction(transaction).await {
-                Ok(_) => MutationOutcome::Applied,
+                Ok(_) => {
+                    self.identity_cache.update_name(guid, &name);
+                    MutationOutcome::Applied
+                }
                 Err(error) => MutationOutcome::Failed {
                     reason: error.to_string(),
                 },

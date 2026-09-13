@@ -1,5 +1,22 @@
 # RustyCore — Honest Current State (single source of truth)
 
+**#486 target-account identity correction — implementation `3eafa4b8` (2026-09-13):**
+`CMSG_QUERY_PLAYER_NAMES` now reads a startup-warmed `CharacterCache` projection
+(`CharacterCache.cpp:69+`) containing the target game-account, race, gender, class,
+level and delete state, plus the login `account.battlenet_account` relation. The
+handler no longer constructs account GUIDs from the querying session. It preserves
+the C++ cache-presence gate and overlays the connected target's PlayerDirectory
+identity when available. Character create/delete/rename/customize commits update the
+same projection after their database result, so no second mutable Player owner or
+packet-time full `CHAR_SEL_CHARACTER` query exists. The three focused query cases
+(offline/mixed result, missing/failure ordering and connected override) and the two
+cache projection tests pass; `cargo check --locked -p wow-database -p wow-persistence
+-p wow-world -p world-server`, formatting/diff checks and architecture check/self-test
+pass on aarch64 with one Cargo job. Declined-name fields and live undelete/barber
+cache updates remain outside the currently represented Rust administration surface;
+the issue remains open until this commit is integrated and the required action-specific
+capture/live acceptance is completed.
+
 **Integrated delivery — 2026-09-12, #787 / PR #792, integration SHA
 `d14a9a67194e8013241e5dc837d9e72589aabac0`:** World/Map phase coordination is
 implemented and locally accepted on `787-p3-map-driven-session-pass` at `76369bda`.

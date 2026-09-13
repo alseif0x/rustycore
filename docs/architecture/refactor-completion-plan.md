@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748 — 2026-09-11.** Este documento detalla los
+**Sincronización de la entrega #748 — 2026-09-11; actualización #486 — 2026-09-13.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -40,6 +40,14 @@ El producto Rust/Wasm/C mixto es obligatorio aunque el operador pueda dejar Wasm
 desactivado. #583 espera los requisitos de núcleo necesarios para su integración de
 producción, pero no bloquea cada macro de gameplay independiente. El cierre
 administrativo de #133 no añade una compuerta posterior.
+
+La entrega funcional #486 ya tiene implementación local `3eafa4b8`: la consulta de
+identidad de jugador usa la proyección global equivalente a `CharacterCache`, resuelve
+la cuenta objetivo y superpone la identidad conectada desde `PlayerRegistry`; la
+composición calienta esa proyección antes de aceptar sesiones y las mutaciones de
+administración actualizan el mismo owner después de COMMIT. Sus límites son los
+declined names y las mutaciones de undelete/barber aún no representadas. La aceptación
+de bytes/captura y la integración remota siguen siendo gates de la issue.
 
 La próxima macro de núcleo se seleccionará bajo #584 después de auditar el escritor
 legado de criaturas y las fases de `Map::Update` aún no representadas. Después siguen

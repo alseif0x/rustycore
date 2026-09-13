@@ -89,39 +89,6 @@ pub struct PlayerSessionRegistrationLikeCpp {
     pub visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
 }
 
-#[derive(Clone, Debug)]
-pub struct PlayerDirectoryIdentityLikeCpp {
-    pub player_name: String,
-    pub account_id: u32,
-    pub recruiter_id: u32,
-    pub race: u8,
-    pub class: u8,
-    pub sex: u8,
-    pub active_expansion: u8,
-}
-
-impl PlayerDirectoryIdentityLikeCpp {
-    pub fn new(
-        player_name: impl Into<String>,
-        account_id: u32,
-        recruiter_id: u32,
-        race: u8,
-        class: u8,
-        sex: u8,
-        active_expansion: u8,
-    ) -> Self {
-        Self {
-            player_name: player_name.into(),
-            account_id,
-            recruiter_id,
-            race,
-            class,
-            sex,
-            active_expansion,
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug)]
 pub struct PlayerDirectoryPlacementLikeCpp {
     pub map_id: u16,
@@ -516,6 +483,12 @@ struct PlayerRegistryEntry {
 
 #[path = "directory/group_state.rs"]
 mod group_state;
+#[path = "directory/identity.rs"]
+mod identity;
+#[path = "directory/name_query.rs"]
+mod name_query;
+pub use identity::PlayerDirectoryIdentityLikeCpp;
+pub use name_query::PlayerNameQuerySnapshotLikeCpp;
 
 /// Thread-safe directory of active player sessions, keyed by player GUID.
 ///
