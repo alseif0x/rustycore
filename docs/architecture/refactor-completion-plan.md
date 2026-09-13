@@ -13,9 +13,9 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza integrada, 2026-09-13: PR #811**, en `3.4.3` como
-`a96ee54863b4fb9c46dabcf6d01839e5a96529f8`. #787 / PR #792 (`d14a9a67`) y
-#584 P3.1–P3.6 están integrados dentro de esta cabeza. La coordinación World/Map está
+**Cabeza integrada, 2026-09-13: PR #814**, en `3.4.3` como
+`a3e970635c2df891f284fa6ac0b083b4c2659473`. #787 / PR #792 (`d14a9a67`) y
+#584 P3.1–P3.7 están integrados dentro de esta cabeza. La coordinación World/Map está
 implementada y aceptada localmente en `76369bda`; la corrección mantiene el ACK World pendiente hasta finalizar y
 retirar la sesión. El contrato y la evidencia están en el
 [checkpoint de sesión](session-578-checkpoint.md#787-resumption-finalization-is-inside-the-world-completion-boundary--2026-09-12).
@@ -24,7 +24,7 @@ no ordena volver a ejecutar entregas ya integradas. La retirada del escritor
 legado de criaturas y las fases de mapa no representadas siguen en #584.
 
 La base revisada de esta entrega es `3.4.3` en
-`a96ee54863b4fb9c46dabcf6d01839e5a96529f8`. #133 se cerró el 2026-09-09. Las
+`a3e970635c2df891f284fa6ac0b083b4c2659473`. #133 se cerró el 2026-09-09. Las
 entregas #578, #585, #587, #588, #589, #716, #718, #722 y #737 están integradas y
 cerradas dentro de sus alcances acotados. No se debe esperar otro cierre de #133 ni
 reabrir esas entregas por una preferencia de nombres o por una frontera pendiente.
@@ -52,11 +52,11 @@ declined names y las mutaciones de undelete/barber aún no representadas. La ace
 de bytes/captura y la QA viva siguen siendo gates de la issue; la integración remota ya
 está satisfecha.
 
-La siguiente macro de núcleo bajo #584 es **P3.7, fanout de visibilidad de
-`CreatureRelocationNotifier`**. La entrega conecta los planes de relocalización de
-criaturas ya calculados con la única vía de publicación de sesiones, reutiliza las
-fuentes lejanas de `ObjectUpdater` y aplica el radio de activación por fuente. Después
-siguen
+La macro P3.7 de núcleo bajo #584 quedó integrada: conecta los planes de
+relocalización de criaturas ya calculados con la única vía de publicación de sesiones,
+reutiliza las fuentes lejanas de `ObjectUpdater` y aplica el radio de activación por
+fuente. La próxima macro se seleccionará después de auditar el escritor legado de
+criaturas y las fases de `Map::Update` aún no representadas. Después siguen
 los residuales P2/P3/P4 por consumidores, el producto #583 y la auditoría #153. Las
 excepciones físicas son individuales y se justifican con la política vigente; no se
 crea una issue por fichero, helper o import.

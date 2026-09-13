@@ -2,7 +2,7 @@
 
 **Reconciled 2026-09-13 under #584 / #787 / #748 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
 Source baseline for this reconciliation: `3.4.3` at
-`a96ee54863b4fb9c46dabcf6d01839e5a96529f8` (PR #811; the earlier `76a05081`,
+`a3e970635c2df891f284fa6ac0b083b4c2659473` (PR #814; the earlier `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -16,11 +16,11 @@ intermediate acceptance point, not a smaller replacement target.
 
 **#743 (group state application/reconciliation), #735 (reputation encapsulation) and
 #787 (World/Map session-phase coordination) are delivered and accepted within their
-recorded scopes.** The next primary implementation is **P3.7 under #584**: close the
-measured Creature relocation visibility fanout gap after P3.1–P3.6. P3.1 retired the discarded canonical Creature writer,
+recorded scopes.** P3.7 under #584 is now integrated: it closes the measured Creature
+relocation visibility fanout gap after P3.1–P3.6. P3.1 retired the discarded canonical Creature writer,
 P3.2 delivered canonical `Map::SendObjectUpdates` publication, and P3.3 now moves
 `ProcessRespawns`/`UpdateSpawnGroupConditions` before object visitation while retaining
-the legacy Creature owner. P3.3 is integrated and P3.4 is now implemented: the
+the legacy Creature owner. P3.3 and P3.4 are integrated: the
 production map tick consumes one nearby-cell/source plan for the represented
 `ObjectUpdater` families instead of scanning whole typed stores. The legacy Creature
 writer and its complete effect consumer remain outside that structural cut. P3.5 now
@@ -28,7 +28,9 @@ uses each source's C++ activation radius, including Creature/Pet `m_SightDistanc
 for inactive sources; P3.6 now applies the Player cinematic instance-distance override
 once its represented camera cursor is active. P3.7 is the bounded fanout delivery from
 `CreatureRelocationVisibilityPlan.player_visibility_updates` into the existing deferred
-Player-session rail; it does not migrate the legacy Creature owner.
+Player-session rail; it does not migrate the legacy Creature owner. The next primary
+implementation is selected after a fresh audit of the remaining measured P2/P3/P4
+residuals; no historical queue is implied.
 No old issue is reopened and no residual is promoted to implementation merely from a
 textual inventory.
 
