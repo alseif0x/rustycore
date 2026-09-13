@@ -166,9 +166,10 @@ impl SkillCatalogHotfixPersistencePortLikeCpp
         Box::pin(async move {
             let loaded = async {
                 let mut ability_batches = [Vec::new(), Vec::new()];
-                let mut race_class_batches = [Vec::new(), Vec::new()];
-                // Preserve the pre-#523 Rust query/failure order. C++ finishes
-                // official/custom per table; that behavior correction is #524.
+                // C++ completes each DB2 table before advancing to the next one:
+                // official/custom SkillLineAbility, then official/custom
+                // SkillRaceClassInfo. Keep the query and failure order aligned
+                // with DB2StorageBase::LoadFromDB and DB2DatabaseLoader.
                 for (batch_index, official) in OFFICIAL_THEN_CUSTOM_LIKE_CPP.into_iter().enumerate()
                 {
                     let mut statement = self
@@ -185,7 +186,11 @@ impl SkillCatalogHotfixPersistencePortLikeCpp
                             }
                         }
                     }
+                }
 
+                let mut race_class_batches = [Vec::new(), Vec::new()];
+                for (batch_index, official) in OFFICIAL_THEN_CUSTOM_LIKE_CPP.into_iter().enumerate()
+                {
                     let mut statement = self
                         .hotfix_db
                         .prepare(HotfixStatements::SEL_SKILL_RACE_CLASS_INFO);
@@ -291,6 +296,36 @@ mod tests {
                 "MinLevel, SkillTierID FROM skill_race_class_info ",
                 "WHERE (`VerifiedBuild` > 0) = ?"
             )
+        );
+    }
+
+    #[test]
+    fn relation_query_order_finishes_each_table_before_the_next_like_cpp() {
+        let source = include_str!("skill_catalog_adapter.rs");
+        let loader = source
+            .find("fn load_skill_relation_hotfix_rows_like_cpp")
+            .expect("skill relation loader must remain present");
+        let body_end = source[loader..]
+            .find("\n#[cfg(test)]")
+            .map(|offset| loader + offset)
+            .expect("skill relation loader must precede adapter tests");
+        let body = &source[loader..body_end];
+        let abilities = body
+            .find("SEL_SKILL_LINE_ABILITY")
+            .expect("ability query must remain in the relation loader");
+        let race_class_batches = body
+            .find("let mut race_class_batches")
+            .expect("race-class batches must remain a separate table stage");
+        let race_class = body[race_class_batches..]
+            .find("SEL_SKILL_RACE_CLASS_INFO")
+            .expect("race-class query must remain in the relation loader")
+            + race_class_batches;
+
+        assert!(abilities < race_class_batches);
+        assert!(race_class_batches < race_class);
+        assert!(
+            !body[race_class_batches..].contains("SEL_SKILL_LINE_ABILITY"),
+            "ability queries must finish before the race-class table begins"
         );
     }
 

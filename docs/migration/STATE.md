@@ -122,6 +122,18 @@ regression remains green. This is a finite phase-fidelity correction; it does no
 claim the still-unmodeled Player cinematic activation override or any live client,
 capture, DB/restart/relogin or Creature AI/combat acceptance.
 
+**#524 relation query-order correction — 2026-09-13, implementation `020163dc`:**
+`MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp` now completes the official and
+custom `SkillLineAbility` queries before beginning the official and custom
+`SkillRaceClassInfo` queries. This matches `DB2StorageBase::LoadFromDB`
+(`DB2Store.cpp:127-133`) and `DB2DatabaseLoader`'s official-then-custom bind
+(`DB2DatabaseLoader.cpp:32,190`), so a query or decode failure is observed at the
+same table-granular boundary. The adapter's three focused tests, `cargo check
+--locked -p world-server`, formatting and diff checks pass. The complete #524
+startup family remains open: Rust has a `SkillLineXTraitTreeStore` reader, but the
+production bootstrap does not yet load and consume it as `TraitMgr` does
+(`TraitMgr.cpp:212-228`); no absent authority was fabricated by this slice.
+
 **Group state application is locally accepted — 2026-09-11, #743, `9e6767bb`:**
 `GroupRegistry` stays the single authority and every state-bearing group command now
 either reaches its member or records a delivery obligation that the member converges

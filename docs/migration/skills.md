@@ -204,6 +204,7 @@ Note: in WoLK 3.4.3 most skill state propagation goes through **player update-fi
 
 **Files in `/home/server/rustycore`:**
 - `crates/wow-data/src/skill.rs` — `SkillStore` reader for `SkillLineAbility.db2` + `SkillRaceClassInfo.db2`, C++ range/default/load normalization, and `LearnSkillRewardedSpells` selection.
+- `crates/wow-data/src/skill_talent.rs` — `SkillLineXTraitTreeStore` has a WDC4 reader, but the production bootstrap has not yet composed or consumed that store through a `TraitMgr`-equivalent authority.
 - `crates/wow-world/src/handlers/character.rs` / `session.rs` — login-time represented player skill records, `SkillInfo` projection, `character_skills` load/full-rewrite save, and login rewarded-spell application.
 - (no skill discovery / extra item / perfect item tables)
 - (runtime skill-gain handlers remain incomplete beyond the login path)
@@ -215,6 +216,7 @@ Note: in WoLK 3.4.3 most skill state propagation goes through **player update-fi
 
 **What's missing vs C++:**
 - Full per-player skill state (`mSkillStatus` NEW/CHANGED/DELETED tracking + exact update-field slot reuse).
+- Production loading and `TraitMgr`-equivalent indexing of `SkillLineXTraitTree.db2`.
 - `SetSkill`, `UpdateSkill`, `UpdateCraftSkill`, `UpdateGatherSkill`, `UpdateWeaponSkill`, `UpdateFishingSkill`.
 - `GetSkillValue` / `GetMaxSkillValue` / `GetPureSkillValue` / `HasSkill` / `ModifySkillBonus`.
 - Broader `skill_tiers` consumers beyond the issue-#62 default/login path.
