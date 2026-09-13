@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-13:** `3.4.3` is at
-`a96ee54863b4fb9c46dabcf6d01839e5a96529f8` (PR #811). The entries below preserve
+`a3e970635c2df891f284fa6ac0b083b4c2659473` (PR #814). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -165,6 +165,24 @@ scripts, fanout and relocation notification effects remain separate #584 work.
 The integration candidate passed `VALIDATION_V2_CARGO_JOBS=1 ./tools/validation-v2
 quick --base origin/3.4.3` with one Cargo job in 11.519 seconds; manifest:
 `target/validation-v2/manifests/20260913T061658.691366Z-3417098-quick.json`.
+
+**P3.7 Creature relocation visibility fanout — 2026-09-13, #584 / PR #814,
+integration `a3e970635c2df891f284fa6ac0b083b4c2659473` (implementation
+`a130d9da`):** the canonical map now reuses the same Player source construction for
+`ObjectUpdater` and `ProcessRelocationNotifies`, including viewpoints, far PvE
+combat creatures, aura casters and summons. Relocation marking resolves each center
+through `grid_activation_range_for_guid_like_cpp`, preserving the C++ source-specific
+radius. `MapManager` consumes `CreatureRelocationVisibilityPlan.player_visibility_updates`
+and coalesces one `PlayerVisibilityRefreshIntentLikeCpp` per affected Player before
+the existing deferred Session rail. Residence revision, incarnation, viewpoint,
+backpressure and delivery outside the map guard remain enforced by the existing
+owner/Session path. The focused manager, map and relocation suites plus
+`validation-v2 quick` passed on the aarch64 host in 36.36 seconds with one Cargo job
+(`target/validation-v2/manifests/20260913T094251.016189Z-3544489-quick.json`). The
+architecture check's physical ratchet passes, while the unchanged hotspot ceilings
+still report their pre-existing drift; no baseline was regenerated. This slice does
+not claim directed creature CREATE/DESTROY packets, AI/combat, scripts, FlyByCamera,
+live client capture or DB/restart/relogin evidence.
 
 **#524 skill catalog and TraitMgr projection — 2026-09-13, relation implementation
 `020163dc`, projection implementation `0f65d677`, physical reconciliation `a96ee548`:**
