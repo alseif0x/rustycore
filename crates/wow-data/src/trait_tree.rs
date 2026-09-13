@@ -200,6 +200,18 @@ pub struct TraitTreeLoadoutEntryEntry {
     pub order_index: i32,
 }
 
+/// Immutable selection from `TraitTreeLoadoutEntry.db2`, retained in the
+/// process-owned TraitMgr projection.  The runtime does not expose DB2 rows
+/// directly to Player state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TraitTreeLoadoutSelectionLikeCpp {
+    pub trait_tree_id: u32,
+    pub selected_trait_node_id: i32,
+    pub selected_trait_node_entry_id: i32,
+    pub num_points: i32,
+    pub order_index: i32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TraitTreeXTraitCostEntry {
     pub id: u32,
@@ -282,6 +294,19 @@ pub struct TraitTreeSkillLineIndexLikeCpp {
     trees_by_skill_line: BTreeMap<u32, Vec<u32>>,
     trees_by_trait_system: BTreeMap<u32, Vec<u32>>,
     skill_line_by_class: BTreeMap<u8, u32>,
+    nodes_by_tree: BTreeMap<u32, Vec<u32>>,
+    entries_by_node: BTreeMap<u32, Vec<u32>>,
+    groups_by_node: BTreeMap<u32, Vec<u32>>,
+    parents_by_node: BTreeMap<u32, Vec<(u32, i32)>>,
+    tree_costs: BTreeMap<u32, Vec<u32>>,
+    node_costs: BTreeMap<u32, Vec<u32>>,
+    group_costs: BTreeMap<u32, Vec<u32>>,
+    entry_costs: BTreeMap<u32, Vec<u32>>,
+    node_conditions: BTreeMap<u32, Vec<u32>>,
+    group_conditions: BTreeMap<u32, Vec<u32>>,
+    entry_conditions: BTreeMap<u32, Vec<u32>>,
+    loadouts_by_specialization: BTreeMap<i32, Vec<TraitTreeLoadoutSelectionLikeCpp>>,
+    graph_loaded: bool,
 }
 
 impl TraitTreeSkillLineIndexLikeCpp {
@@ -350,7 +375,390 @@ impl TraitTreeSkillLineIndexLikeCpp {
                 .collect(),
             trees_by_trait_system,
             skill_line_by_class,
+            nodes_by_tree: BTreeMap::new(),
+            entries_by_node: BTreeMap::new(),
+            groups_by_node: BTreeMap::new(),
+            parents_by_node: BTreeMap::new(),
+            tree_costs: BTreeMap::new(),
+            node_costs: BTreeMap::new(),
+            group_costs: BTreeMap::new(),
+            entry_costs: BTreeMap::new(),
+            node_conditions: BTreeMap::new(),
+            group_conditions: BTreeMap::new(),
+            entry_conditions: BTreeMap::new(),
+            loadouts_by_specialization: BTreeMap::new(),
+            graph_loaded: false,
         }
+    }
+
+    /// Extend the skill-line projection with the immutable graph assembled by
+    /// C++ `TraitMgr::Load`.  Relation rows are accepted only when both sides
+    /// resolve in the effective stores; this preserves C++'s fail-closed
+    /// lookup behaviour while giving production consumers one canonical index.
+    #[allow(clippy::too_many_arguments)]
+    pub fn with_trait_graph_like_cpp(
+        mut self,
+        trees: &TraitTreeStore,
+        nodes: &TraitNodeStore,
+        node_entries: &TraitNodeEntryStore,
+        node_entry_conditions: &TraitNodeEntryXTraitCondStore,
+        node_entry_costs: &TraitNodeEntryXTraitCostStore,
+        groups: &TraitNodeGroupStore,
+        group_conditions: &TraitNodeGroupXTraitCondStore,
+        group_costs: &TraitNodeGroupXTraitCostStore,
+        group_nodes: &TraitNodeGroupXTraitNodeStore,
+        node_conditions: &TraitNodeXTraitCondStore,
+        node_costs: &TraitNodeXTraitCostStore,
+        node_entries_by_node: &TraitNodeXTraitNodeEntryStore,
+        edges: &TraitEdgeStore,
+        costs: &TraitCostStore,
+        conditions: &TraitCondStore,
+        loadouts: &TraitTreeLoadoutStore,
+        loadout_entries: &TraitTreeLoadoutEntryStore,
+        tree_costs: &TraitTreeXTraitCostStore,
+    ) -> Self {
+        self.graph_loaded = true;
+
+        for node in nodes
+            .iter()
+            .filter(|node| node.trait_tree_id != 0 && trees.get(node.trait_tree_id).is_some())
+        {
+            self.nodes_by_tree
+                .entry(node.trait_tree_id)
+                .or_default()
+                .push(node.id);
+        }
+        for ids in self.nodes_by_tree.values_mut() {
+            ids.sort_unstable();
+            ids.dedup();
+        }
+
+        let mut node_entry_links = node_entries_by_node.iter().collect::<Vec<_>>();
+        node_entry_links.sort_unstable_by_key(|row| row.id);
+        for link in node_entry_links {
+            let Some(entry_id) = u32::try_from(link.trait_node_entry_id).ok() else {
+                continue;
+            };
+            if nodes.get(link.trait_node_id).is_some() && node_entries.get(entry_id).is_some() {
+                self.entries_by_node
+                    .entry(link.trait_node_id)
+                    .or_default()
+                    .push(entry_id);
+            }
+        }
+        for ids in self.entries_by_node.values_mut() {
+            ids.sort_unstable();
+            ids.dedup();
+        }
+
+        let mut group_node_links = group_nodes.iter().collect::<Vec<_>>();
+        group_node_links.sort_unstable_by_key(|row| row.id);
+        for link in group_node_links {
+            let Some(node_id) = u32::try_from(link.trait_node_id).ok() else {
+                continue;
+            };
+            let Some(group) = groups.get(link.trait_node_group_id) else {
+                continue;
+            };
+            if nodes.get(node_id).is_none() {
+                continue;
+            }
+            self.groups_by_node
+                .entry(node_id)
+                .or_default()
+                .push(group.id);
+        }
+        for ids in self.groups_by_node.values_mut() {
+            ids.sort_unstable();
+            ids.dedup();
+        }
+
+        let mut edge_rows = edges.iter().collect::<Vec<_>>();
+        edge_rows.sort_unstable_by_key(|row| row.id);
+        for edge in edge_rows {
+            let Some(right) = u32::try_from(edge.right_trait_node_id).ok() else {
+                continue;
+            };
+            if nodes.get(edge.left_trait_node_id).is_some() && nodes.get(right).is_some() {
+                self.parents_by_node
+                    .entry(right)
+                    .or_default()
+                    .push((edge.left_trait_node_id, edge.edge_type));
+            }
+        }
+
+        let add_cost = |target: &mut BTreeMap<u32, Vec<u32>>, owner: u32, cost_id: i32| {
+            let Some(cost_id) = u32::try_from(cost_id).ok() else {
+                return;
+            };
+            if costs.get(cost_id).is_some() {
+                target.entry(owner).or_default().push(cost_id);
+            }
+        };
+        let mut tree_cost_rows = tree_costs.iter().collect::<Vec<_>>();
+        tree_cost_rows.sort_unstable_by_key(|row| row.id);
+        for row in tree_cost_rows {
+            if trees.get(row.trait_tree_id).is_some() {
+                add_cost(&mut self.tree_costs, row.trait_tree_id, row.trait_cost_id);
+            }
+        }
+        let mut node_cost_rows = node_costs.iter().collect::<Vec<_>>();
+        node_cost_rows.sort_unstable_by_key(|row| row.id);
+        for row in node_cost_rows {
+            if nodes.get(row.trait_node_id).is_some() {
+                add_cost(&mut self.node_costs, row.trait_node_id, row.trait_cost_id);
+            }
+        }
+        let mut group_cost_rows = group_costs.iter().collect::<Vec<_>>();
+        group_cost_rows.sort_unstable_by_key(|row| row.id);
+        for row in group_cost_rows {
+            if groups.get(row.trait_node_group_id).is_some() {
+                add_cost(
+                    &mut self.group_costs,
+                    row.trait_node_group_id,
+                    row.trait_cost_id,
+                );
+            }
+        }
+        let mut entry_cost_rows = node_entry_costs.iter().collect::<Vec<_>>();
+        entry_cost_rows.sort_unstable_by_key(|row| row.id);
+        for row in entry_cost_rows {
+            if node_entries.get(row.trait_node_entry_id).is_some() {
+                add_cost(
+                    &mut self.entry_costs,
+                    row.trait_node_entry_id,
+                    row.trait_cost_id,
+                );
+            }
+        }
+        for costs in [
+            &mut self.tree_costs,
+            &mut self.node_costs,
+            &mut self.group_costs,
+            &mut self.entry_costs,
+        ] {
+            for ids in costs.values_mut() {
+                ids.sort_unstable();
+                ids.dedup();
+            }
+        }
+
+        let add_condition =
+            |target: &mut BTreeMap<u32, Vec<u32>>, owner: u32, condition_id: i32| {
+                let Some(condition_id) = u32::try_from(condition_id).ok() else {
+                    return;
+                };
+                if conditions.get(condition_id).is_some() {
+                    target.entry(owner).or_default().push(condition_id);
+                }
+            };
+        let mut entry_condition_rows = node_entry_conditions.iter().collect::<Vec<_>>();
+        entry_condition_rows.sort_unstable_by_key(|row| row.id);
+        for row in entry_condition_rows {
+            if node_entries.get(row.trait_node_entry_id).is_some() {
+                add_condition(
+                    &mut self.entry_conditions,
+                    row.trait_node_entry_id,
+                    row.trait_cond_id,
+                );
+            }
+        }
+        let mut node_condition_rows = node_conditions.iter().collect::<Vec<_>>();
+        node_condition_rows.sort_unstable_by_key(|row| row.id);
+        for row in node_condition_rows {
+            if nodes.get(row.trait_node_id).is_some() {
+                add_condition(
+                    &mut self.node_conditions,
+                    row.trait_node_id,
+                    row.trait_cond_id,
+                );
+            }
+        }
+        let mut group_condition_rows = group_conditions.iter().collect::<Vec<_>>();
+        group_condition_rows.sort_unstable_by_key(|row| row.id);
+        for row in group_condition_rows {
+            if groups.get(row.trait_node_group_id).is_some() {
+                add_condition(
+                    &mut self.group_conditions,
+                    row.trait_node_group_id,
+                    row.trait_cond_id,
+                );
+            }
+        }
+        for conditions in [
+            &mut self.entry_conditions,
+            &mut self.node_conditions,
+            &mut self.group_conditions,
+        ] {
+            for ids in conditions.values_mut() {
+                ids.sort_unstable();
+                ids.dedup();
+            }
+        }
+
+        let mut loadout_rows = loadouts.iter().collect::<Vec<_>>();
+        loadout_rows.sort_unstable_by_key(|row| row.id);
+        for loadout in loadout_rows {
+            let mut entries = loadout_entries
+                .iter()
+                .filter(|entry| entry.trait_tree_loadout_id == loadout.id)
+                .map(|entry| {
+                    (
+                        entry.order_index,
+                        entry.id,
+                        TraitTreeLoadoutSelectionLikeCpp {
+                            trait_tree_id: loadout.trait_tree_id,
+                            selected_trait_node_id: entry.selected_trait_node_id,
+                            selected_trait_node_entry_id: entry.selected_trait_node_entry_id,
+                            num_points: entry.num_points,
+                            order_index: entry.order_index,
+                        },
+                    )
+                })
+                .collect::<Vec<_>>();
+            entries.sort_unstable_by_key(|(order, id, _)| (*order, *id));
+            if !entries.is_empty() {
+                self.loadouts_by_specialization.insert(
+                    loadout.chr_specialization_id,
+                    entries.into_iter().map(|(_, _, entry)| entry).collect(),
+                );
+            }
+        }
+
+        self
+    }
+
+    pub fn graph_loaded_like_cpp(&self) -> bool {
+        self.graph_loaded
+    }
+
+    pub fn nodes_for_tree_like_cpp(&self, tree_id: u32) -> &[u32] {
+        self.nodes_by_tree
+            .get(&tree_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn entries_for_node_like_cpp(&self, node_id: u32) -> &[u32] {
+        self.entries_by_node
+            .get(&node_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn groups_for_node_like_cpp(&self, node_id: u32) -> &[u32] {
+        self.groups_by_node
+            .get(&node_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn parent_nodes_for_node_like_cpp(&self, node_id: u32) -> &[(u32, i32)] {
+        self.parents_by_node
+            .get(&node_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn cost_ids_for_tree_like_cpp(&self, tree_id: u32) -> &[u32] {
+        self.tree_costs
+            .get(&tree_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn cost_ids_for_node_like_cpp(&self, node_id: u32) -> &[u32] {
+        self.node_costs
+            .get(&node_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn cost_ids_for_group_like_cpp(&self, group_id: u32) -> &[u32] {
+        self.group_costs
+            .get(&group_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn cost_ids_for_entry_like_cpp(&self, entry_id: u32) -> &[u32] {
+        self.entry_costs
+            .get(&entry_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn condition_ids_for_node_like_cpp(&self, node_id: u32) -> &[u32] {
+        self.node_conditions
+            .get(&node_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn condition_ids_for_group_like_cpp(&self, group_id: u32) -> &[u32] {
+        self.group_conditions
+            .get(&group_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn condition_ids_for_entry_like_cpp(&self, entry_id: u32) -> &[u32] {
+        self.entry_conditions
+            .get(&entry_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn loadout_for_specialization_like_cpp(
+        &self,
+        specialization_id: i32,
+    ) -> &[TraitTreeLoadoutSelectionLikeCpp] {
+        self.loadouts_by_specialization
+            .get(&specialization_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    /// Validate a starter-build selection before it is copied into a Player
+    /// config.  C++ retains the raw loadout rows at startup and resolves the
+    /// node/entry later; Rust keeps the same raw projection but exposes the
+    /// fail-closed check at the publication boundary.
+    pub fn loadout_selection_is_valid_like_cpp(
+        &self,
+        selection: &TraitTreeLoadoutSelectionLikeCpp,
+    ) -> bool {
+        let Some(node_id) = u32::try_from(selection.selected_trait_node_id).ok() else {
+            return false;
+        };
+        if !self
+            .nodes_by_tree
+            .get(&selection.trait_tree_id)
+            .is_some_and(|nodes| nodes.contains(&node_id))
+        {
+            return false;
+        }
+        if selection.selected_trait_node_entry_id == 0 {
+            return !self.entries_for_node_like_cpp(node_id).is_empty();
+        }
+        let Some(entry_id) = u32::try_from(selection.selected_trait_node_entry_id).ok() else {
+            return false;
+        };
+        self.entries_for_node_like_cpp(node_id).contains(&entry_id)
+    }
+
+    /// Validate the two IDs persisted by C++ `TraitEntry` against the selected
+    /// tree set.  This is the production fail-closed boundary; cost and
+    /// condition rows remain immutable inputs for later spending checks.
+    pub fn entry_belongs_to_tree_set_like_cpp(
+        &self,
+        tree_ids: &[u32],
+        node_id: u32,
+        entry_id: u32,
+    ) -> bool {
+        tree_ids.iter().any(|tree_id| {
+            self.nodes_for_tree_like_cpp(*tree_id).contains(&node_id)
+                && self.entries_for_node_like_cpp(node_id).contains(&entry_id)
+        })
     }
 
     /// C++ `TraitMgr` profession lookup used by Player trait-config loading.
@@ -951,6 +1359,156 @@ mod tests {
         assert_eq!(index.trees_for_trait_system_like_cpp(7), &[10, 20]);
         assert!(index.has_trait_system_like_cpp(7));
         assert!(!index.has_trait_system_like_cpp(30));
+    }
+
+    #[test]
+    fn trait_mgr_graph_indexes_nodes_relations_costs_conditions_edges_and_loadouts() {
+        let links = SkillLineXTraitTreeStore::from_entries([]);
+        let trees = TraitTreeStore::from_entries([TraitTreeEntry {
+            id: 10,
+            trait_system_id: 7,
+            unused1000_1: 0,
+            first_trait_node_id: 100,
+            player_condition_id: 0,
+            flags: 0,
+            unused1000_2: 0.0,
+            unused1000_3: 0.0,
+        }]);
+        let nodes = TraitNodeStore::from_entries([
+            TraitNodeEntry {
+                id: 100,
+                trait_tree_id: 10,
+                pos_x: 0,
+                pos_y: 0,
+                node_type: 0,
+                flags: 0,
+            },
+            TraitNodeEntry {
+                id: 101,
+                trait_tree_id: 10,
+                pos_x: 1,
+                pos_y: 0,
+                node_type: 0,
+                flags: 0,
+            },
+        ]);
+        let node_entries = TraitNodeEntryStore::from_entries([TraitNodeEntryEntry {
+            id: 1000,
+            trait_definition_id: 5,
+            max_ranks: 2,
+            node_entry_type: 0,
+        }]);
+        let groups = TraitNodeGroupStore::from_entries([TraitNodeGroupEntry {
+            id: 200,
+            trait_tree_id: 10,
+            flags: 0,
+        }]);
+        let costs = TraitCostStore::from_entries([TraitCostEntry {
+            id: 300,
+            internal_name: "cost".into(),
+            amount: 1,
+            trait_currency_id: 4,
+        }]);
+        let conditions = TraitCondStore::from_entries([TraitCondEntry {
+            id: 400,
+            cond_type: 1,
+            trait_tree_id: 10,
+            granted_ranks: 1,
+            quest_id: 0,
+            achievement_id: 0,
+            spec_set_id: 0,
+            trait_node_group_id: 0,
+            trait_node_id: 0,
+            trait_currency_id: 0,
+            spent_amount_required: 0,
+            flags: 0,
+            required_level: 0,
+            free_shared_string_id: 0,
+            spend_more_shared_string_id: 0,
+        }]);
+        let index = TraitTreeSkillLineIndexLikeCpp::from_effective_stores_like_cpp(
+            &links,
+            &trees,
+            |_| false,
+            |_| Vec::new(),
+        )
+        .with_trait_graph_like_cpp(
+            &trees,
+            &nodes,
+            &node_entries,
+            &TraitNodeEntryXTraitCondStore::from_entries([TraitNodeEntryXTraitCondEntry {
+                id: 500,
+                trait_cond_id: 400,
+                trait_node_entry_id: 1000,
+            }]),
+            &TraitNodeEntryXTraitCostStore::from_entries([TraitNodeEntryXTraitCostEntry {
+                id: 501,
+                trait_node_entry_id: 1000,
+                trait_cost_id: 300,
+            }]),
+            &groups,
+            &TraitNodeGroupXTraitCondStore::from_entries([]),
+            &TraitNodeGroupXTraitCostStore::from_entries([]),
+            &TraitNodeGroupXTraitNodeStore::from_entries([TraitNodeGroupXTraitNodeEntry {
+                id: 600,
+                trait_node_group_id: 200,
+                trait_node_id: 100,
+                index: 0,
+            }]),
+            &TraitNodeXTraitCondStore::from_entries([]),
+            &TraitNodeXTraitCostStore::from_entries([]),
+            &TraitNodeXTraitNodeEntryStore::from_entries([TraitNodeXTraitNodeEntryEntry {
+                id: 601,
+                trait_node_id: 100,
+                trait_node_entry_id: 1000,
+                index: 0,
+            }]),
+            &TraitEdgeStore::from_entries([TraitEdgeEntry {
+                id: 700,
+                visual_style: 0,
+                left_trait_node_id: 100,
+                right_trait_node_id: 101,
+                edge_type: 2,
+            }]),
+            &costs,
+            &conditions,
+            &TraitTreeLoadoutStore::from_entries([TraitTreeLoadoutEntry {
+                id: 800,
+                trait_tree_id: 10,
+                chr_specialization_id: 71,
+            }]),
+            &TraitTreeLoadoutEntryStore::from_entries([TraitTreeLoadoutEntryEntry {
+                id: 801,
+                trait_tree_loadout_id: 800,
+                selected_trait_node_id: 100,
+                selected_trait_node_entry_id: 1000,
+                num_points: 1,
+                order_index: 0,
+            }]),
+            &TraitTreeXTraitCostStore::from_entries([TraitTreeXTraitCostEntry {
+                id: 900,
+                trait_tree_id: 10,
+                trait_cost_id: 300,
+            }]),
+        );
+
+        assert!(index.graph_loaded_like_cpp());
+        assert_eq!(index.nodes_for_tree_like_cpp(10), &[100, 101]);
+        assert_eq!(index.entries_for_node_like_cpp(100), &[1000]);
+        assert_eq!(index.groups_for_node_like_cpp(100), &[200]);
+        assert_eq!(index.parent_nodes_for_node_like_cpp(101), &[(100, 2)]);
+        assert_eq!(index.cost_ids_for_tree_like_cpp(10), &[300]);
+        assert_eq!(index.cost_ids_for_entry_like_cpp(1000), &[300]);
+        assert_eq!(index.condition_ids_for_entry_like_cpp(1000), &[400]);
+        assert_eq!(
+            index.loadout_for_specialization_like_cpp(71)[0].num_points,
+            1
+        );
+        assert!(index.loadout_selection_is_valid_like_cpp(
+            &index.loadout_for_specialization_like_cpp(71)[0]
+        ));
+        assert!(index.entry_belongs_to_tree_set_like_cpp(&[10], 100, 1000));
+        assert!(!index.entry_belongs_to_tree_set_like_cpp(&[10], 101, 1000));
     }
 
     #[test]

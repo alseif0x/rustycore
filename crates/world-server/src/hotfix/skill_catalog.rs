@@ -165,6 +165,12 @@ pub(crate) fn compose_skill_store_like_cpp(
 pub(crate) struct SkillCatalogStagesLikeCpp {
     pub skill_store_outcome: wow_data::SkillStoreEffectiveLoadOutcomeLikeCpp,
     pub trait_tree_skill_line_index: Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>,
+    pub trait_node_entry_store: Arc<wow_data::trait_tree::TraitNodeEntryStore>,
+}
+
+struct TraitMgrCatalogLikeCpp {
+    index: Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>,
+    trait_node_entry_store: Arc<wow_data::trait_tree::TraitNodeEntryStore>,
 }
 
 /// Load the relation catalog in the exact C++ table order. Keeping this
@@ -199,7 +205,7 @@ pub(crate) async fn load_skill_catalog_stages_like_cpp(
     );
     // C++ calls TraitMgr::Load after all DB2 stores are loaded and effective;
     // build the combat class projection only once SkillRaceClassInfo is ready.
-    let trait_tree_skill_line_index = load_trait_index_like_cpp(
+    let trait_mgr_catalog = load_trait_index_like_cpp(
         data_dir,
         locale,
         persistence,
@@ -210,20 +216,66 @@ pub(crate) async fn load_skill_catalog_stages_like_cpp(
     .await?;
     Ok(SkillCatalogStagesLikeCpp {
         skill_store_outcome,
-        trait_tree_skill_line_index,
+        trait_tree_skill_line_index: trait_mgr_catalog.index,
+        trait_node_entry_store: trait_mgr_catalog.trait_node_entry_store,
     })
 }
 
-pub(crate) async fn load_trait_index_like_cpp(
+async fn load_trait_index_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn SkillCatalogHotfixPersistencePortLikeCpp,
     removals: &wow_data::Db2HotfixRemovalStoreLikeCpp,
     skill_line_store: &wow_data::SkillLineStore,
     skill_store: &wow_data::SkillStore,
-) -> Result<Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>> {
+) -> Result<TraitMgrCatalogLikeCpp> {
     let trait_tree_store = wow_data::trait_tree::TraitTreeStore::load(data_dir, locale)
         .context("Failed to load TraitTree.db2")?;
+    let trait_node_store = wow_data::trait_tree::TraitNodeStore::load(data_dir, locale)
+        .context("Failed to load TraitNode.db2")?;
+    let trait_node_entry_store = wow_data::trait_tree::TraitNodeEntryStore::load(data_dir, locale)
+        .context("Failed to load TraitNodeEntry.db2")?;
+    let trait_node_entry_x_trait_cond_store =
+        wow_data::trait_tree::TraitNodeEntryXTraitCondStore::load(data_dir, locale)
+            .context("Failed to load TraitNodeEntryXTraitCond.db2")?;
+    let trait_node_entry_x_trait_cost_store =
+        wow_data::trait_tree::TraitNodeEntryXTraitCostStore::load(data_dir, locale)
+            .context("Failed to load TraitNodeEntryXTraitCost.db2")?;
+    let trait_node_group_store = wow_data::trait_tree::TraitNodeGroupStore::load(data_dir, locale)
+        .context("Failed to load TraitNodeGroup.db2")?;
+    let trait_node_group_x_trait_cond_store =
+        wow_data::trait_tree::TraitNodeGroupXTraitCondStore::load(data_dir, locale)
+            .context("Failed to load TraitNodeGroupXTraitCond.db2")?;
+    let trait_node_group_x_trait_cost_store =
+        wow_data::trait_tree::TraitNodeGroupXTraitCostStore::load(data_dir, locale)
+            .context("Failed to load TraitNodeGroupXTraitCost.db2")?;
+    let trait_node_group_x_trait_node_store =
+        wow_data::trait_tree::TraitNodeGroupXTraitNodeStore::load(data_dir, locale)
+            .context("Failed to load TraitNodeGroupXTraitNode.db2")?;
+    let trait_node_x_trait_cond_store =
+        wow_data::trait_tree::TraitNodeXTraitCondStore::load(data_dir, locale)
+            .context("Failed to load TraitNodeXTraitCond.db2")?;
+    let trait_node_x_trait_cost_store =
+        wow_data::trait_tree::TraitNodeXTraitCostStore::load(data_dir, locale)
+            .context("Failed to load TraitNodeXTraitCost.db2")?;
+    let trait_node_x_trait_node_entry_store =
+        wow_data::trait_tree::TraitNodeXTraitNodeEntryStore::load(data_dir, locale)
+            .context("Failed to load TraitNodeXTraitNodeEntry.db2")?;
+    let trait_edge_store = wow_data::trait_tree::TraitEdgeStore::load(data_dir, locale)
+        .context("Failed to load TraitEdge.db2")?;
+    let trait_cost_store = wow_data::trait_tree::TraitCostStore::load(data_dir, locale)
+        .context("Failed to load TraitCost.db2")?;
+    let trait_cond_store = wow_data::trait_tree::TraitCondStore::load(data_dir, locale)
+        .context("Failed to load TraitCond.db2")?;
+    let trait_tree_loadout_store =
+        wow_data::trait_tree::TraitTreeLoadoutStore::load(data_dir, locale)
+            .context("Failed to load TraitTreeLoadout.db2")?;
+    let trait_tree_loadout_entry_store =
+        wow_data::trait_tree::TraitTreeLoadoutEntryStore::load(data_dir, locale)
+            .context("Failed to load TraitTreeLoadoutEntry.db2")?;
+    let trait_tree_x_trait_cost_store =
+        wow_data::trait_tree::TraitTreeXTraitCostStore::load(data_dir, locale)
+            .context("Failed to load TraitTreeXTraitCost.db2")?;
     let skill_line_x_trait_tree_store = wow_data::SkillLineXTraitTreeStore::load(data_dir, locale)
         .context("Failed to load SkillLineXTraitTree.db2")?;
     let hotfix_rows = match persistence
@@ -260,13 +312,39 @@ pub(crate) async fn load_trait_index_like_cpp(
                 }
                 skill_store.class_ids_for_skill_line_like_cpp(skill_line_id)
             },
+        )
+        .with_trait_graph_like_cpp(
+            &trait_tree_store,
+            &trait_node_store,
+            &trait_node_entry_store,
+            &trait_node_entry_x_trait_cond_store,
+            &trait_node_entry_x_trait_cost_store,
+            &trait_node_group_store,
+            &trait_node_group_x_trait_cond_store,
+            &trait_node_group_x_trait_cost_store,
+            &trait_node_group_x_trait_node_store,
+            &trait_node_x_trait_cond_store,
+            &trait_node_x_trait_cost_store,
+            &trait_node_x_trait_node_entry_store,
+            &trait_edge_store,
+            &trait_cost_store,
+            &trait_cond_store,
+            &trait_tree_loadout_store,
+            &trait_tree_loadout_entry_store,
+            &trait_tree_x_trait_cost_store,
         ),
     );
     info!(
         trait_tree_links = index.len(),
-        "Loaded C++ TraitMgr SkillLineXTraitTree skill-line/combat index"
+        trait_graph_nodes = trait_node_store.len(),
+        trait_graph_groups = trait_node_group_store.len(),
+        trait_graph_loadouts = trait_tree_loadout_store.len(),
+        "Loaded C++ TraitMgr skill-line/combat and node graph index"
     );
-    Ok(index)
+    Ok(TraitMgrCatalogLikeCpp {
+        index,
+        trait_node_entry_store: Arc::new(trait_node_entry_store),
+    })
 }
 
 #[cfg(test)]
