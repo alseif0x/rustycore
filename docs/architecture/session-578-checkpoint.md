@@ -165,7 +165,7 @@ family.
 
 ### P3.4 implementation evidence — 2026-09-13
 
-Implementation commit: `c70863ff`; production integration is wired in
+Implementation commit: `4fb73438`; production integration is wired in
 `crates/world-server/src/runtime/map_tick.rs` with `NearbyCells`. The dedicated
 `crates/wow-map/src/map/object_update_selection.rs` module keeps the reviewed
 family files under their physical ceilings. `cargo check --locked -p wow-map`,
