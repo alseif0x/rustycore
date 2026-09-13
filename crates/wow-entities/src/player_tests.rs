@@ -445,6 +445,8 @@ mod collection_state;
 mod combat;
 #[path = "player_tests/difficulty.rs"]
 mod difficulty;
+#[path = "player_tests/effective_stats.rs"]
+mod effective_stats;
 #[path = "player_tests/equipment_sets.rs"]
 mod equipment_sets;
 #[path = "player_tests/gameobject.rs"]

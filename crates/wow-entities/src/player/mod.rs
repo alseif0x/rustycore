@@ -20,6 +20,7 @@ mod battleground;
 mod cinematic;
 mod collection_state;
 mod difficulty;
+mod effective_stats;
 mod equipment_sets;
 mod item_modifiers;
 mod items;
@@ -40,6 +41,7 @@ mod world_local;
 pub use battleground::PlayerBattlegroundState;
 pub use cinematic::PlayerCinematicStateLikeCpp;
 pub use collection_state::PlayerCollectionStateLikeCpp;
+pub use effective_stats::PlayerEffectiveCombatStatsLikeCpp;
 pub use equipment_sets::PlayerEquipmentSetsLikeCpp;
 pub use item_modifiers::{
     PlayerItemBonusStateLikeCpp, PlayerItemLevelCapsLikeCpp, PlayerItemModifierRuntimeStateLikeCpp,
@@ -3508,6 +3510,10 @@ pub struct Player {
     inventory: Box<PlayerInventoryStorage>,
     inventory_runtime: Box<PlayerInventoryRuntime>,
     gameplay_state: PlayerGameplayState,
+    /// C++ `Player::UpdateAllStats` derived snapshot shared by combat and
+    /// update-field publication. It is rebuilt from current inputs and is not
+    /// persisted as gameplay state.
+    effective_combat_stats: PlayerEffectiveCombatStatsLikeCpp,
     deferred_save: deferred_save::DeferredPlayerSave,
     player_xp_table_like_cpp: Option<Arc<Vec<u32>>>,
     player_data_changes: UpdateMask,
@@ -3551,6 +3557,7 @@ impl Player {
             inventory: Box::default(),
             inventory_runtime: Box::default(),
             gameplay_state,
+            effective_combat_stats: PlayerEffectiveCombatStatsLikeCpp::default(),
             deferred_save: deferred_save::DeferredPlayerSave::default(),
             player_xp_table_like_cpp: None,
             player_data_changes: UpdateMask::new(PLAYER_DATA_BITS),
@@ -3709,6 +3716,7 @@ impl Player {
         self.replace_all_player_flags_ex(record.player_flags_ex);
         self.extra_flags = record.extra_flags;
         self.lifecycle_metadata = record.metadata;
+        self.clear_effective_combat_stats_like_cpp();
 
         self.unit.set_display_power(record.display_power);
         if let Some(faction_template) = record.faction_template {

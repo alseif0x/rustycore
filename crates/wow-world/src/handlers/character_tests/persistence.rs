@@ -546,8 +546,12 @@ fn login_stat_update_derives_and_syncs_loaded_enchantment_bonuses_like_cpp() {
             },
             wow_data::SpellItemEnchantmentEntry {
                 id: 921,
-                effect_arg: [wow_constants::ItemModType::ManaRegeneration as u32, 0, 0],
-                effect_points_min: [25, 0, 0],
+                effect_arg: [
+                    wow_constants::ItemModType::ManaRegeneration as u32,
+                    wow_constants::spell::SpellSchools::Fire as u32,
+                    0,
+                ],
+                effect_points_min: [25, 9, 0],
                 item_visual: 0,
                 flags: wow_constants::SpellItemEnchantmentFlags::empty(),
                 required_skill_id: 0,
@@ -556,7 +560,7 @@ fn login_stat_update_derives_and_syncs_loaded_enchantment_bonuses_like_cpp() {
                 charges: 0,
                 effect: [
                     wow_constants::ItemEnchantmentType::Stat as u8,
-                    wow_constants::ItemEnchantmentType::None as u8,
+                    wow_constants::ItemEnchantmentType::Resistance as u8,
                     wow_constants::ItemEnchantmentType::None as u8,
                 ],
                 condition_id: 0,
@@ -621,6 +625,13 @@ fn login_stat_update_derives_and_syncs_loaded_enchantment_bonuses_like_cpp() {
         session.canonical_player_power_snapshot_like_cpp(PowerType::Mana),
         Some((777, 1324))
     );
+    let effective = session
+        .canonical_player_effective_combat_stats_like_cpp()
+        .expect("effective combat stats are owned by the canonical Player");
+    assert_eq!(effective.stats, [12, 10, 13, 40, 30]);
+    assert_eq!(effective.max_mana, 1324);
+    assert_eq!(effective.combat_ratings, [0; 32]);
+    assert_eq!(effective.resistances, [20, 0, 9, 0, 0, 0, 0]);
 
     let spell_id = 90_084;
     session.set_spell_store(Arc::new(total_stat_percentage_spell_store_like_cpp(

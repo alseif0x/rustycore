@@ -2621,6 +2621,7 @@ impl WorldSession {
     ) -> Option<(PlayerCombatStats, i32, i32)> {
         let gear = self.represented_player_gear_stats_like_cpp(true)?;
         let projection = self.player_stat_system_projection_like_cpp(race, class, level, &gear)?;
+        self.publish_player_effective_combat_stats_like_cpp(projection, &gear);
         let ap_f = projection.total_attack_power as f32;
         let base_dmg = ap_f / 14.0 * 2.0;
         let min_damage = (base_dmg + 1.0).max(1.0);
@@ -2632,7 +2633,6 @@ impl WorldSession {
         } else {
             (0.0, 0.0)
         };
-
         let combat = PlayerCombatStats {
             health: restored_saved_health_like_cpp(saved_health, projection.max_health),
             max_health: projection.max_health,
