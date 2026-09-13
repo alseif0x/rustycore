@@ -16,8 +16,10 @@ intermediate acceptance point, not a smaller replacement target.
 
 **#743 (group state application/reconciliation), #735 (reputation encapsulation) and
 #787 (World/Map session-phase coordination) are delivered and accepted within their
-recorded scopes.** P3.7 under #584 is now integrated: it closes the measured Creature
-relocation visibility fanout gap after P3.1–P3.6. P3.1 retired the discarded canonical Creature writer,
+recorded scopes.** P3.8 under #584 is now integrated as the next bounded visibility
+recipient correction after P3.1–P3.7. P3.7 closes the measured Creature relocation
+fanout gap, while P3.8 marks recipients for object admission/removal through the same
+deferred Player-session rail. P3.1 retired the discarded canonical Creature writer,
 P3.2 delivered canonical `Map::SendObjectUpdates` publication, and P3.3 now moves
 `ProcessRespawns`/`UpdateSpawnGroupConditions` before object visitation while retaining
 the legacy Creature owner. P3.3 and P3.4 are integrated: the
@@ -28,7 +30,9 @@ uses each source's C++ activation radius, including Creature/Pet `m_SightDistanc
 for inactive sources; P3.6 now applies the Player cinematic instance-distance override
 once its represented camera cursor is active. P3.7 is the bounded fanout delivery from
 `CreatureRelocationVisibilityPlan.player_visibility_updates` into the existing deferred
-Player-session rail; it does not migrate the legacy Creature owner. The next primary
+Player-session rail; P3.8 extends that rail to `Map::AddToMap`/`RemoveFromMap` lifecycle
+recipient marking without delivering under a map mutation. Neither slice migrates the
+legacy Creature owner. The next primary
 implementation is selected after a fresh audit of the remaining measured P2/P3/P4
 residuals; no historical queue is implied.
 No old issue is reopened and no residual is promoted to implementation merely from a
@@ -201,7 +205,7 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#524](https://github.com/alseif0x/rustycore/issues/524) | F1, skill startup order | PR #803 fixed the relation-query order. Commit `0f65d677` loads `SkillLineXTraitTree.db2`, builds an immutable validated skill-line index and installs it in production sessions; profession trait-config hydration now fails closed when no linked tree exists. Keep the issue open for the remaining table-granular WDC4 sequence (`SkillLineAbility` → `SkillLineXTraitTree` → `SkillRaceClassInfo`), complete `TraitMgr` indexes/consumers and final failure/acceptance evidence. |
 | [#582](https://github.com/alseif0x/rustycore/issues/582) | B, existing LFG decoders | **Closed/integrated as `21686375` (PR #797).** Six C++-faithful client decoders; no handler, queue or matchmaking claim. |
 | [#583](https://github.com/alseif0x/rustycore/issues/583) | X, stateful native/Wasm | Deliver the preserved M0–M4 product after required core; the external login API and laboratory are insufficient. |
-| [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions. PR #816 integrates the P2 item-bonus writer retirement: resolved state application is a named Player-owned operation and the generic `&mut PlayerItemBonusStateLikeCpp` bridge is gone. P3.4–P3.7 are integrated in the current delivery: route nearby-cell/source plans into production `ObjectUpdater` and relocation selection, honor per-source activation radii and the Player cinematic instance override, and publish Creature relocation visibility through the deferred Player-session rail. The legacy Creature writer, AI/combat, scripts and FlyByCamera remain explicit later boundaries. |
+| [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions. PR #816 integrates the P2 item-bonus writer retirement: resolved state application is a named Player-owned operation and the generic `&mut PlayerItemBonusStateLikeCpp` bridge is gone. P3.4–P3.8 are integrated in the current delivery: route nearby-cell/source plans into production `ObjectUpdater` and relocation selection, honor per-source activation radii and the Player cinematic instance override, publish Creature relocation visibility through the deferred Player-session rail, and mark nearby recipients for map-object admission/removal. The legacy Creature writer, AI/combat, scripts, FlyByCamera and exact directed packet/capture gates remain explicit later boundaries. |
 | [#735](https://github.com/alseif0x/rustycore/issues/735) | A, reputation boundary | **Closed/delivered.** Player owns reputation state and named transitions; catalogs, packets and persistence consumers remain outside the domain boundary. |
 | [#743](https://github.com/alseif0x/rustycore/issues/743) | A, group consistency | **Closed/delivered.** GroupRegistry remains authoritative and dropped state-bearing commands converge through the session boundary. |
 | [#787](https://github.com/alseif0x/rustycore/issues/787) | A, session-phase coordination | **Integrated as `d14a9a67` (PR #792; accepted at `76369bda`).** World runs before Map, phase permits remain live through finalization/retirement, and shutdown/replacement barriers are covered by production-linked tests and guarded login/save/relogin QA. |
@@ -260,7 +264,12 @@ selector still does not own FlyByCamera lookup or cinematic movement. P3.7 reuse
 same source list and per-source activation radius for relocation marking, then turns
 affected Players from `CreatureRelocationVisibilityPlan.player_visibility_updates`
 into one coalesced deferred visibility intent per Player. The legacy Creature writer
-and its complete effect consumer remain a separate migration boundary.
+and its complete effect consumer remain a separate migration boundary. P3.8 now marks
+nearby in-world Players from `Map::AddToMap` and `Map::RemoveFromMap` before/while the
+source is attached, reusing the same deferred intent rail; this supplies recipient
+selection without packet delivery under a map mutation. Exact per-object directed
+CREATE/DESTROY bytes, transport fanout and live capture remain separate acceptance
+gates.
 
 Keep the selected private hecs direction and finite V2 conformance evidence.
 Integrate it only with real owners/consumers and the lifetime/reentry contract;

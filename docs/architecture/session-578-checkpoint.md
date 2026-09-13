@@ -1,4 +1,4 @@
-# Session convergence checkpoint — updated 2026-09-06
+# Session convergence checkpoint — updated 2026-09-13
 
 **Closed predecessor, 2026-09-07:** PR #579 merged into `3.4.3` as `59f5bced`;
 #578 is closed. The user explicitly accepted integration with action-specific
@@ -27,6 +27,37 @@ This section supersedes older statements below requiring all C0–C4 inside #578
 Those contracts and historical evidence remain valid inputs to #584; none is marked
 completed by the scope transfer. #583 waits for the required core macrodeliverables
 in #584; #153 remains an independent auditor, not the owner of unfinished work.
+
+## P3.8 selected — map object lifecycle visibility intents — 2026-09-13
+
+The next finite residual after P3.7 is the visibility side of object admission and
+removal. TrinityCore's `Map::AddToMap` and `Map::RemoveFromMap` walk nearby Players
+through `UpdateObjectVisibilityOnCreate/Destroy` while the source is attached
+(`Maps/Map.cpp:530-610,933-951`; `Entities/Object/Object.h:703-704`). RustyCore had
+the canonical deferred Player-session rail, but these lifecycle paths did not mark
+its recipients, so an object added or removed between normal movement notifications
+could remain absent from the next exact visibility diff.
+
+The bounded implementation keeps `Map` as the sole source of truth. After each
+typed/generic add path, and before an in-world removal erases the source, the map
+resolves the nearby world Players using the source position and map visibility range
+plus combat reach, sorts/deduplicates them and sets only
+`ObjectNotifyFlags::VISIBILITY_CHANGED`. The existing map tick consumes those flags,
+`MapManager` coalesces residence/incarnation-checked intents and the Session
+recomputes its real client ledger after all map guards are released. No packet or
+await is introduced under a map borrow, and no second object or client-GUID writer is
+created. A Player source is excluded from its own nearby-recipient walk, matching
+`Player::UpdateVisibilityOf`.
+
+Acceptance is the pair of map tests
+`add_to_map_marks_nearby_players_for_deferred_visibility_like_cpp` and
+`remove_from_map_marks_nearby_players_for_deferred_visibility_like_cpp`, which prove
+positive nearby selection, canonical Player mutation and source removal. This closes
+the unmarked-recipient gap only. Exact per-object CREATE/DESTROY packet bytes,
+transport-specific fanout, client capture and live/relogin evidence remain separate
+gates under #584; the existing outcome fields that describe the synchronous C++
+visibility call continue to report that direct call as a runtime gap because Rust
+delivers the equivalent refresh through the deferred phase.
 
 ## Persistence inventory reconciliation — 2026-09-13, after #584 P3.1
 

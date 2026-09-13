@@ -88,6 +88,78 @@ where
         result
     }
 
+    /// Mark the canonical Players that may observe a map-owned source so the
+    /// existing delayed relocation/session rail recomputes their exact
+    /// visibility on the next map phase.
+    ///
+    /// C++ `Map::AddToMap`/`Map::RemoveFromMap` eventually call
+    /// `UpdateObjectVisibilityOnCreate/Destroy` (`Map.cpp:530-610,933-951`,
+    /// `Object.h:703-704`).  Those routines may walk nearby players, but Rust
+    /// must not deliver packets while the map owner is mutating storage.  The
+    /// canonical equivalent is to set `NOTIFY_VISIBILITY_CHANGED` on each
+    /// nearby in-world Player; `process_live_relocation_notifies_like_cpp`
+    /// consumes that flag and hands an owned refresh intent to the session
+    /// outside the map borrow.
+    pub(super) fn mark_nearby_players_for_visibility_like_cpp(
+        &mut self,
+        source_guid: ObjectGuid,
+    ) -> usize {
+        let Some((position, combat_reach, is_in_world)) =
+            self.map_object_record(source_guid).map(|record| {
+                let object = record.object();
+                (
+                    object.position(),
+                    object.combat_reach(),
+                    object.object().is_in_world(),
+                )
+            })
+        else {
+            return 0;
+        };
+        if !is_in_world || !is_valid_map_coord_2d(position.x, position.y) {
+            return 0;
+        }
+
+        let mut players: Vec<_> = self
+            .nearby_cell_guids_like_cpp(
+                position.x,
+                position.y,
+                self.visibility_range() + combat_reach,
+            )
+            .world
+            .players
+            .iter()
+            .copied()
+            .collect();
+        players.sort();
+        players.dedup();
+
+        let mut marked = 0;
+        for player_guid in players {
+            // C++ `Player::UpdateVisibilityOf` does not send a self-create via
+            // the nearby-player walk; the player's own viewpoint is handled by
+            // its normal world-entry path.
+            if player_guid == source_guid {
+                continue;
+            }
+            let player_in_world = self
+                .map_object_record(player_guid)
+                .is_some_and(|record| record.object().object().is_in_world());
+            if !player_in_world {
+                continue;
+            }
+            if let Some(player) = self.get_typed_player_mut(player_guid) {
+                player
+                    .unit_mut()
+                    .world_mut()
+                    .object_mut()
+                    .add_to_notify(ObjectNotifyFlags::VISIBILITY_CHANGED);
+                marked += 1;
+            }
+        }
+        marked
+    }
+
     pub fn visit_nearby_cells_of_like_cpp(
         &self,
         centers: impl IntoIterator<Item = NearbyCellVisitCenter>,

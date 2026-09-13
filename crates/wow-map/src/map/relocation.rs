@@ -1041,6 +1041,13 @@ where
             let remove_from_map_was_in_world = self
                 .map_object_record(guid)
                 .is_some_and(|record| record.object().object().is_in_world());
+            if remove_from_map_was_in_world {
+                // C++ `Map::RemoveFromMap` performs the destroy visibility walk
+                // while the source is still attached. Mark recipients for the
+                // deferred session rail before erasing the canonical record;
+                // packet delivery remains outside this map mutation.
+                self.mark_nearby_players_for_visibility_like_cpp(guid);
+            }
             let creature_zone_script_remove = self
                 .map_object_record(guid)
                 .filter(|record| record.kind() == AccessorObjectKind::Creature)

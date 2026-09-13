@@ -17,6 +17,90 @@ fn world_object_visibility_range_reads_map_visible_distance_like_cpp() {
 }
 
 #[test]
+fn add_to_map_marks_nearby_players_for_deferred_visibility_like_cpp() {
+    let mut map = test_map();
+
+    let mut player = test_player_for_viewpoint(4510101);
+    player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .remove_from_world();
+    let player_guid = player.guid();
+    map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_player(player).unwrap())
+        .unwrap();
+
+    let mut creature = test_creature_for_spawn(45101, 4510102, true);
+    creature
+        .unit_mut()
+        .world_mut()
+        .relocate(Position::xyz(10.5, 20.5, 30.0));
+    creature
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .remove_from_world();
+    let creature_guid = creature.guid();
+    map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_creature(creature).unwrap())
+        .unwrap();
+
+    assert!(
+        map.map_object(player_guid)
+            .unwrap()
+            .object()
+            .is_need_notify(ObjectNotifyFlags::VISIBILITY_CHANGED),
+        "a nearby Player must be selected for the deferred visibility rail"
+    );
+    assert!(map.map_object(creature_guid).is_some());
+}
+
+#[test]
+fn remove_from_map_marks_nearby_players_for_deferred_visibility_like_cpp() {
+    let mut map = test_map();
+
+    let mut player = test_player_for_viewpoint(4510201);
+    player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .remove_from_world();
+    let player_guid = player.guid();
+    map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_player(player).unwrap())
+        .unwrap();
+
+    let mut creature = test_creature_for_spawn(45102, 4510202, true);
+    creature
+        .unit_mut()
+        .world_mut()
+        .relocate(Position::xyz(10.5, 20.5, 30.0));
+    creature
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .remove_from_world();
+    let creature_guid = creature.guid();
+    map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_creature(creature).unwrap())
+        .unwrap();
+    map.get_typed_player_mut(player_guid)
+        .unwrap()
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .reset_all_notifies();
+
+    map.remove_from_map_like_cpp(creature_guid, true).unwrap();
+
+    assert!(
+        map.map_object(player_guid)
+            .unwrap()
+            .object()
+            .is_need_notify(ObjectNotifyFlags::VISIBILITY_CHANGED),
+        "a nearby Player must be selected before the source is erased"
+    );
+    assert!(map.map_object(creature_guid).is_none());
+}
+
+#[test]
 fn grid_activation_range_uses_creature_sight_for_inactive_sources_like_cpp() {
     let mut map = test_map();
     let creature = test_creature_for_spawn(1234, 1234001, true);
