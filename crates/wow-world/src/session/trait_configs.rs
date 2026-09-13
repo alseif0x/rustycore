@@ -13,6 +13,14 @@ impl WorldSession {
     ) -> bool {
         let complete = self.trait_tree_skill_line_index().is_none_or(|index| {
             configs.iter().all(|config| match config.config_type {
+                1 => u32::try_from(config.chr_specialization_id)
+                    .ok()
+                    .and_then(|specialization_id| {
+                        self.chr_specialization_store()
+                            .and_then(|store| store.get(specialization_id))
+                            .map(|specialization| specialization.class_id)
+                    })
+                    .is_some_and(|class_id| index.has_class_like_cpp(class_id)),
                 2 => u32::try_from(config.skill_line_id)
                     .ok()
                     .is_some_and(|skill_line_id| index.has_skill_line_like_cpp(skill_line_id)),
@@ -27,7 +35,7 @@ impl WorldSession {
         if !complete {
             warn!(
                 player_guid = player_guid.counter(),
-                "Keeping profession trait-config authority incomplete: no linked TraitMgr tree"
+                "Keeping trait-config authority incomplete: no linked TraitMgr tree"
             );
         }
         complete
@@ -171,6 +179,7 @@ mod tests {
                 unused1000_3: 0.0,
             }]),
             |_| false,
+            |_| Vec::new(),
         );
         session.set_trait_tree_skill_line_index(Arc::new(index));
 
@@ -188,5 +197,71 @@ mod tests {
         let player = ObjectGuid::create_player(1, 1);
         assert!(session.trait_authority_complete_like_cpp(&[config(7)], player));
         assert!(!session.trait_authority_complete_like_cpp(&[config(8)], player));
+    }
+
+    #[test]
+    fn combat_trait_configs_resolve_specialization_class_like_cpp() {
+        let (_packet_tx, packet_rx) = flume::unbounded();
+        let (send_tx, _send_rx) = flume::unbounded();
+        let mut session = WorldSession::new(
+            1,
+            "combat-traits".into(),
+            0,
+            2,
+            2,
+            12340,
+            vec![],
+            "enUS".into(),
+            packet_rx,
+            send_tx,
+        );
+        session.set_chr_specialization_store(Arc::new(
+            wow_data::ChrSpecializationStore::from_entries([wow_data::ChrSpecializationEntry {
+                id: 42,
+                class_id: 3,
+                order_index: 0,
+                role: 0,
+            }]),
+        ));
+        let index = TraitTreeSkillLineIndexLikeCpp::from_effective_stores_like_cpp(
+            &SkillLineXTraitTreeStore::from_entries([wow_data::SkillLineXTraitTreeEntry {
+                id: 100,
+                skill_line_id: 164,
+                trait_tree_id: 10,
+                order_index: 0,
+            }]),
+            &TraitTreeStore::from_entries([TraitTreeEntry {
+                id: 10,
+                trait_system_id: 0,
+                unused1000_1: 0,
+                first_trait_node_id: 0,
+                player_condition_id: 0,
+                flags: 0,
+                unused1000_2: 0.0,
+                unused1000_3: 0.0,
+            }]),
+            |_| true,
+            |skill_line_id| {
+                (skill_line_id == 164)
+                    .then_some(vec![3])
+                    .unwrap_or_default()
+            },
+        );
+        session.set_trait_tree_skill_line_index(Arc::new(index));
+
+        let config = |specialization_id| TraitConfigCreateData {
+            id: 1,
+            config_type: 1,
+            chr_specialization_id: specialization_id,
+            combat_config_flags: 0,
+            local_identifier: 0,
+            skill_line_id: 0,
+            trait_system_id: 0,
+            name: "combat".into(),
+            entries: vec![],
+        };
+        let player = ObjectGuid::create_player(1, 1);
+        assert!(session.trait_authority_complete_like_cpp(&[config(42)], player));
+        assert!(!session.trait_authority_complete_like_cpp(&[config(43)], player));
     }
 }

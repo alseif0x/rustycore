@@ -754,4 +754,36 @@ impl SkillStore {
             })
             .collect()
     }
+
+    /// C++ `TraitMgr::Load` projection of `_skillLinesByClass` for one
+    /// class-skill line. The C++ loop uses every effective
+    /// `SkillRaceClassInfo` row's class mask and does not filter by race or
+    /// availability at this stage; malformed rows remain fail-closed through
+    /// the existing coverage diagnostics.
+    pub fn class_ids_for_skill_line_like_cpp(&self, skill_line_id: u32) -> Vec<u8> {
+        let Ok(skill_id) = u16::try_from(skill_line_id) else {
+            return Vec::new();
+        };
+        let Some(rows) = self.race_class_by_skill.get(&skill_id) else {
+            return Vec::new();
+        };
+        if self
+            .invalid_race_class_by_skill_like_cpp
+            .contains_key(&skill_id)
+        {
+            return Vec::new();
+        }
+
+        let mut class_ids = Vec::new();
+        for row in rows {
+            for class_id in CLASS_WARRIOR_LIKE_CPP..MAX_CLASSES_LIKE_CPP {
+                if row.class_mask & (1_i32 << (class_id - 1)) != 0 && !class_ids.contains(&class_id)
+                {
+                    class_ids.push(class_id);
+                }
+            }
+        }
+        class_ids.sort_unstable();
+        class_ids
+    }
 }

@@ -202,4 +202,41 @@ mod tests {
         assert!(store.loaded_race_class_info_like_cpp(45, 10, 3).is_none());
         assert!(store.loaded_race_class_info_like_cpp(46, 10, 3).is_none());
     }
+
+    #[test]
+    fn trait_mgr_class_projection_uses_class_masks_and_fails_closed_on_diagnostics() {
+        let rows = [
+            SkillRaceClassInfoRecord {
+                id: 1,
+                race_mask: 0,
+                skill_id: 164,
+                class_mask: 0b0101,
+                flags: 0,
+                availability: 0,
+                min_level: 0,
+                skill_tier_id: 0,
+            },
+            SkillRaceClassInfoRecord {
+                id: 2,
+                race_mask: 0,
+                skill_id: 164,
+                class_mask: 0b0100,
+                flags: 0,
+                availability: 1,
+                min_level: 0,
+                skill_tier_id: 0,
+            },
+        ];
+        let mut store = SkillStore::from_skill_line_abilities_and_race_class_like_cpp([], rows);
+        assert_eq!(store.class_ids_for_skill_line_like_cpp(164), vec![1, 3]);
+
+        store.invalid_race_class_by_skill_like_cpp.insert(
+            164,
+            vec![SkillStoreLoadDiagnosticLikeCpp::MissingEffectiveSkillLine {
+                record_id: 1,
+                skill_id: 164,
+            }],
+        );
+        assert!(store.class_ids_for_skill_line_like_cpp(164).is_empty());
+    }
 }

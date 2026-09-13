@@ -183,9 +183,6 @@ pub(crate) async fn load_skill_catalog_stages_like_cpp(
     let ability_rows = load_skill_line_ability_hotfix_rows_like_cpp(persistence)
         .await
         .context("Failed to load SkillLineAbility hotfix rows")?;
-    let trait_tree_skill_line_index =
-        load_trait_index_like_cpp(data_dir, locale, persistence, removals, skill_line_store)
-            .await?;
     let race_class_info_base =
         wow_data::SkillStore::load_wdc4_skill_race_class_info_base_like_cpp(data_dir, locale)
             .context("Failed to load SkillRaceClassInfo.db2")?;
@@ -200,6 +197,17 @@ pub(crate) async fn load_skill_catalog_stages_like_cpp(
         removals,
         skill_line_store,
     );
+    // C++ calls TraitMgr::Load after all DB2 stores are loaded and effective;
+    // build the combat class projection only once SkillRaceClassInfo is ready.
+    let trait_tree_skill_line_index = load_trait_index_like_cpp(
+        data_dir,
+        locale,
+        persistence,
+        removals,
+        skill_line_store,
+        &skill_store_outcome.store,
+    )
+    .await?;
     Ok(SkillCatalogStagesLikeCpp {
         skill_store_outcome,
         trait_tree_skill_line_index,
@@ -212,6 +220,7 @@ pub(crate) async fn load_trait_index_like_cpp(
     persistence: &dyn SkillCatalogHotfixPersistencePortLikeCpp,
     removals: &wow_data::Db2HotfixRemovalStoreLikeCpp,
     skill_line_store: &wow_data::SkillLineStore,
+    skill_store: &wow_data::SkillStore,
 ) -> Result<Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>> {
     let trait_tree_store = wow_data::trait_tree::TraitTreeStore::load(data_dir, locale)
         .context("Failed to load TraitTree.db2")?;
@@ -242,11 +251,20 @@ pub(crate) async fn load_trait_index_like_cpp(
             &skill_line_x_trait_tree_store,
             &trait_tree_store,
             |skill_line_id| skill_line_store.contains_effective_record_like_cpp(skill_line_id),
+            |skill_line_id| {
+                let Some(skill_line) = skill_line_store.get(skill_line_id) else {
+                    return Vec::new();
+                };
+                if skill_line.category_id != wow_data::SKILL_CATEGORY_CLASS_LIKE_CPP {
+                    return Vec::new();
+                }
+                skill_store.class_ids_for_skill_line_like_cpp(skill_line_id)
+            },
         ),
     );
     info!(
         trait_tree_links = index.len(),
-        "Loaded C++ TraitMgr SkillLineXTraitTree profession index"
+        "Loaded C++ TraitMgr SkillLineXTraitTree skill-line/combat index"
     );
     Ok(index)
 }
@@ -311,7 +329,7 @@ mod tests {
     }
 
     #[test]
-    fn catalog_preserves_skill_line_ability_trait_tree_race_class_order() {
+    fn catalog_loads_all_skill_inputs_before_trait_mgr_projection() {
         let source = include_str!("skill_catalog.rs");
         let loader = source
             .find("fn load_skill_catalog_stages_like_cpp")
@@ -334,9 +352,9 @@ mod tests {
             .expect("SkillRaceClassInfo hotfix stage must remain explicit");
         assert!(
             ability < ability_hotfix
-                && ability_hotfix < trait_tree
-                && trait_tree < race_class
+                && ability_hotfix < race_class
                 && race_class < race_class_hotfix
+                && race_class_hotfix < trait_tree
         );
     }
 
@@ -351,6 +369,7 @@ mod tests {
         assert!(body.contains("SkillLineXTraitTreeStore::load"));
         assert!(body.contains("load_skill_line_x_trait_tree_hotfix_rows_like_cpp"));
         assert!(body.contains("apply_hotfix_overlays_and_removals_like_cpp"));
+        assert!(body.contains("class_ids_for_skill_line_like_cpp"));
         assert!(body.contains("removals"));
     }
 }

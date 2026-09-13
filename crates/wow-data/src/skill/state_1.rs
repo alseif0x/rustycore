@@ -41,6 +41,9 @@ pub const SKILL_RIDING_LIKE_CPP: u16 = 762;
 
 pub const SKILL_CATEGORY_ARMOR_LIKE_CPP: i8 = 8;
 
+/// C++ `SKILL_CATEGORY_CLASS`, used by `TraitMgr` to build `_skillLinesByClass`.
+pub const SKILL_CATEGORY_CLASS_LIKE_CPP: i8 = 7;
+
 pub const SKILL_CATEGORY_LANGUAGES_LIKE_CPP: i8 = 10;
 
 pub const SKILL_CATEGORY_SECONDARY_LIKE_CPP: i8 = 9;
