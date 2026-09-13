@@ -1,7 +1,7 @@
 # Automatic Dungeon Finder 3.4.3 — bounded audit and proposed ownership
 
 Date: 2026-09-13. Historical design audit at `13c984a6`; bounded decoder delivery
-revalidated on current `3.4.3` at `115eb699`/`60c11527` (aarch64 development host).
+revalidated on current `3.4.3` at `115eb699`/`fbf5664b` (aarch64 development host).
 Status: protocol decoder slice implemented and ready for integration; this remains
 not full LFG parity or client acceptance.
 C++ root for relative anchors below: `/home/server/woltk-trinity-legacy/src/server/game`.
@@ -155,11 +155,12 @@ increment, not LFG runtime parity. All ten focused tests and the full 734-test w
 suite pass on the aarch64 host. The preliminary quick gate also passed; final validation is
 recorded separately from these focused checks.
 
-Current revalidation on `60c11527` passed with one Cargo job: the ten focused decoder tests and
+Current revalidation on `fbf5664b` passed with one Cargo job: the ten focused decoder tests and
 the full `wow-packet` library suite (738 tests, zero failures), plus `cargo fmt --all -- --check`
 and `git diff --check`. The applicable validation-v2 quick gate is run for the publication
-candidate and recorded with its manifest in the issue and PR. This evidence is source-anchored
-wire decoding, not capture-diff equivalence.
+candidate and passed in 28.2s with manifest
+`target/validation-v2/manifests/20260913T034550.555683Z-3329863-quick.json`. This evidence is
+source-anchored wire decoding, not capture-diff equivalence.
 
 No handlers are registered and no packets are emitted by production: queue ownership, server
 responses, bot two-socket routing/group proof, runtime clocks, group creation, teleport execution,
