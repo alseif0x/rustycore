@@ -11,12 +11,14 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current integration head is `886e13ad8b7b957b430928eb1e05dfdfbd12405b`.
+The current integration head is `76a050814ab0c5641a09892cd369ce2eca24839e`.
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
-mutations. #524's relation-query order correction is integrated by PR #803, while
-its `SkillLineXTraitTree`/`TraitMgr` production authority remains a separate functional
-residual. Neither functional issue changes the #584 → #583 → #153 architecture gate.
+mutations. #524's relation-query order correction is integrated by PR #803, and PR #810 now
+installs the bounded immutable `SkillLineXTraitTree` profession projection through the
+production session capability boundary. The table-granular WDC4 sequence and complete
+`TraitMgr` authority remain separate functional residuals. Neither functional issue
+changes the #584 → #583 → #153 architecture gate.
 
 The finite hecs V2 conformance proof has passed within its recorded laboratory limits.
 That evidence does not install production `hecs` or Wasmtime, prove production storage
@@ -41,7 +43,7 @@ semantic, storage and extension contracts; neither document turns a pending task
 an accepted result.
 
 The architecture repair program is reviewed against integrated `3.4.3` at
-`886e13ad8b7b957b430928eb1e05dfdfbd12405b`. #587/#588/#589 and the subsequent
+`76a050814ab0c5641a09892cd369ce2eca24839e`. #587/#588/#589 and the subsequent
 #716/#718/#722/#737 deliveries are integrated and closed in their bounded scopes.
 Their checkpoints retain scoped runtime/capture evidence; they are not reopened by
 the remaining core work or by naming preferences.
