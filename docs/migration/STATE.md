@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-13:** `3.4.3` is at
-`886e13ad8b7b957b430928eb1e05dfdfbd12405b` (PR #808). The entries below preserve
+`76a050814ab0c5641a09892cd369ce2eca24839e` (PR #810). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and

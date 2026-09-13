@@ -2,8 +2,8 @@
 
 **Reconciled 2026-09-13 under #584 / #787 / #748 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
 Source baseline for this reconciliation: `3.4.3` at
-`886e13ad8b7b957b430928eb1e05dfdfbd12405b` (PR #808; the earlier `5d8c079a`
-and `ebc3b3eb` references remain historical evidence for the issue inventory).
+`76a050814ab0c5641a09892cd369ce2eca24839e` (PR #810; the earlier `886e13ad`,
+`5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
 bounded planning delivery. Administrative consolidation does not count as implementation.
 
