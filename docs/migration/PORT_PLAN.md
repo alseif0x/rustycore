@@ -2,7 +2,7 @@
 
 **Reconciled 2026-09-13 under #584 / #787 / #748 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
 Source baseline for this reconciliation: `3.4.3` at
-`62c1369f4e49200b6f6d7605b0bc7de5caeace7c` (PR #820; the earlier `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`16303cc7f7e8c9b15fb391146506be4566b1d38f` (PR #822; the earlier `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -50,10 +50,12 @@ Continue the remaining core under #584 by complete operations, execution/lifetim
 boundaries and physical organization. #582 is closed after its decoder-only delivery;
 #486 has its implementation integrated by PR #807 and remains open only for the
 action-specific capture/live gate and administration mutations not represented by the
-current Rust surface. #524 has its relation-query order correction integrated by PR
-#803. The bounded `SkillLineXTraitTree` projection and production Player consumer are
-implemented in `0f65d677` and physically reconciled by PR #811, but the issue remains open for table-granular WDC4 startup
-sequencing and complete `TraitMgr` authority acceptance. In parallel with safe independent work, prepare
+current Rust surface. #524's relation-query order correction is integrated by PR #803;
+PR #822 now makes the production WDC4/SQL sequence table-granular through
+`SkillLineAbility`, `SkillLineXTraitTree` and `SkillRaceClassInfo`. The bounded
+projection and production Player consumer are implemented in `0f65d677` and physically
+reconciled by PR #811, but the issue remains open for complete `TraitMgr` authority
+acceptance, remaining hotfix/cross-store coverage and startup/live evidence. In parallel with safe independent work, prepare
 a playable circuit: effective equipment/stats → combat and death/recovery →
 quests/loot/interactions → complete class kit, travel and durable services → soak.
 
@@ -203,7 +205,7 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#351](https://github.com/alseif0x/rustycore/issues/351) | O, guarded loot QA | Reconcile current runtime/capture orchestration and chest fixture ownership; preserve restore guarantees and prove the actual smoke. |
 | [#352](https://github.com/alseif0x/rustycore/issues/352) | O, realm address operations | Revalidate configured DNS/IP and restart diagnostics. No silent fallback or code change inferred from the historical incident. |
 | [#486](https://github.com/alseif0x/rustycore/issues/486) | F1, target identity query | **Implementation integrated by PR #807 (`86a0eb97`).** The canonical cache/connected-target path returns target game/BNet identities; keep open for action-specific packet/live evidence and unrepresented undelete/barber mutation coverage. |
-| [#524](https://github.com/alseif0x/rustycore/issues/524) | F1, skill startup order | PR #803 fixed the relation-query order. Commit `0f65d677` loads `SkillLineXTraitTree.db2`, builds an immutable validated skill-line index and installs it in production sessions; profession trait-config hydration now fails closed when no linked tree exists. Keep the issue open for the remaining table-granular WDC4 sequence (`SkillLineAbility` → `SkillLineXTraitTree` → `SkillRaceClassInfo`), complete `TraitMgr` indexes/consumers and final failure/acceptance evidence. |
+| [#524](https://github.com/alseif0x/rustycore/issues/524) | F1, skill startup order | PR #803 fixed the relation-query order; PR #822 (`16303cc7`) now separates the WDC4/SQL stages and production order `SkillLine` → `SkillLineAbility` → `SkillLineXTraitTree` → `SkillRaceClassInfo`, preserving official/custom and fail-before-publication boundaries. The bounded `SkillLineXTraitTree` projection from PR #810 remains installed in production sessions and profession hydration fails closed without a linked tree. Keep the issue open for SkillLineXTraitTree hotfix coverage, complete `TraitMgr` indexes/consumers, final cross-store/removal orchestration and startup/live evidence. |
 | [#582](https://github.com/alseif0x/rustycore/issues/582) | B, existing LFG decoders | **Closed/integrated as `21686375` (PR #797).** Six C++-faithful client decoders; no handler, queue or matchmaking claim. |
 | [#583](https://github.com/alseif0x/rustycore/issues/583) | X, stateful native/Wasm | Deliver the preserved M0–M4 product after required core; the external login API and laboratory are insufficient. |
 | [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions. PR #816 integrates the P2 item-bonus writer retirement: resolved state application is a named Player-owned operation and the generic `&mut PlayerItemBonusStateLikeCpp` bridge is gone. P3.4–P3.9 are integrated in the current delivery, including directed ordinary Creature DESTROY after map removal with map-incarnation/`HaveAtClient` fences (PR #820, `62c1369f`). The legacy Creature writer, AI/combat, scripts, FlyByCamera, CREATE/Pet/corpse/transport parity and exact capture/live gates remain explicit later boundaries. |
