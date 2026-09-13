@@ -1009,6 +1009,30 @@ async fn run_inner(
         skill_store_report.skill_race_class_info_removed_rows,
     );
     let skill_store = Arc::new(skill_store_outcome.store);
+    // This bounded TraitMgr slice consumes SkillLineXTraitTree after the
+    // effective skill catalog and before exposing profession trait-config
+    // lookups. Keep the projection immutable and fail closed for missing
+    // cross-store references. The table-granular WDC4 sequencing residual is
+    // tracked on #524; this projection does not claim that gate is complete.
+    let trait_tree_store = Arc::new(
+        wow_data::trait_tree::TraitTreeStore::load(&data_dir, &locale)
+            .context("Failed to load TraitTree.db2")?,
+    );
+    let skill_line_x_trait_tree_store = Arc::new(
+        wow_data::SkillLineXTraitTreeStore::load(&data_dir, &locale)
+            .context("Failed to load SkillLineXTraitTree.db2")?,
+    );
+    let trait_tree_skill_line_index = Arc::new(
+        wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp::from_effective_stores_like_cpp(
+            &skill_line_x_trait_tree_store,
+            &trait_tree_store,
+            |skill_line_id| skill_line_store.contains_effective_record_like_cpp(skill_line_id),
+        ),
+    );
+    info!(
+        trait_tree_links = trait_tree_skill_line_index.len(),
+        "Loaded C++ TraitMgr SkillLineXTraitTree profession index"
+    );
     let trait_definition_store = Arc::new(
         wow_data::trait_tree::TraitDefinitionStore::load(&data_dir, &locale)
             .context("Failed to load TraitDefinition.db2")?,
@@ -4922,6 +4946,7 @@ async fn run_inner(
             gem_properties_store: Arc::clone(&gem_properties_store),
             skill_store: Arc::clone(&skill_store),
             trait_definition_store: Arc::clone(&trait_definition_store),
+            trait_tree_skill_line_index: Arc::clone(&trait_tree_skill_line_index),
             skill_line_store: Arc::clone(&skill_line_store),
             skill_tiers_store: Arc::clone(&skill_tiers_store),
             talent_store: Arc::clone(&talent_store),
