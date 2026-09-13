@@ -276,6 +276,13 @@ impl WorldSession {
         })
         .unwrap_or((false, false))
     }
+
+    /// Read the canonical Player's last derived equipment/stat projection.
+    pub(crate) fn canonical_player_effective_combat_stats_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerEffectiveCombatStatsLikeCpp> {
+        self.canonical_player_snapshot_like_cpp(|player| *player.effective_combat_stats_like_cpp())
+    }
     /// Apply one named canonical cinematic transition, or the handle-less test
     /// mirror that stands in for it. C++ performs these on the Player's own
     /// `CinematicMgr` (`CinematicMgr.h:39`, `CinematicMgr.cpp:46`, `:83`), never

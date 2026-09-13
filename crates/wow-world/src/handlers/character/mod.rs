@@ -18,6 +18,7 @@ mod items;
 mod lifecycle;
 mod query;
 mod session_state;
+mod stats;
 mod vendor;
 mod visibility;
 mod world_entry;
@@ -27,6 +28,7 @@ use std::f32::consts::PI;
 use std::sync::Arc;
 
 use rand::Rng;
+pub(crate) use stats::RepresentedPlayerGearStatsLikeCpp;
 use tracing::{debug, info, trace, warn};
 use wow_constants::movement::MovementFlag;
 use wow_constants::unit::{
@@ -57,10 +59,11 @@ use wow_entities::{
     GAMEOBJECT_TYPE_QUESTGIVER, GameObjectTemplateData, INVENTORY_DEFAULT_SIZE,
     INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
     INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MovementGeneratorType, NULL_BAG, NULL_SLOT,
-    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText,
-    SendNewItemInstancePlan, SendNewItemModifier, SendNewItemPlan, SocketedGem,
-    SwapItemPreflightResult, WorldObject, is_bank_pos, is_child_equipment_pos, is_equipment_pos,
-    is_inventory_pos, item_can_go_into_bag, normalize_creature_chase_movement_type_like_cpp,
+    PlayerEffectiveCombatStatsLikeCpp, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START,
+    SendNewItemDelivery, SendNewItemDisplayText, SendNewItemInstancePlan, SendNewItemModifier,
+    SendNewItemPlan, SocketedGem, SwapItemPreflightResult, WorldObject, is_bank_pos,
+    is_child_equipment_pos, is_equipment_pos, is_inventory_pos, item_can_go_into_bag,
+    normalize_creature_chase_movement_type_like_cpp,
     normalize_creature_random_movement_type_like_cpp,
 };
 use wow_handler::{PacketProcessing, SessionStatus};
@@ -451,21 +454,6 @@ fn primary_max_power_for_class_like_cpp(class_id: u8, max_mana: i64) -> i32 {
         4 => 100,
         _ => max_mana.max(0).min(i64::from(i32::MAX)) as i32,
     }
-}
-
-#[derive(Debug, Clone, Default)]
-struct RepresentedPlayerGearStatsLikeCpp {
-    stats: [i32; 5],
-    attack_power: i32,
-    ranged_attack_power: i32,
-    health: i32,
-    mana: i32,
-    combat_ratings: [i32; 32],
-    spell_power: i32,
-    armor: i32,
-    mana_regen_bonus: i32,
-    shield_block_base_mod: i32,
-    shield_block_value: u32,
 }
 
 fn loaded_inventory_slot_count_with_legacy_rust_compat(saved_slots: u8) -> u8 {
