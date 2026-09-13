@@ -78,11 +78,14 @@ scripts, transport movement and the rest of `Map::Update` are outside this macro
 The focused `wow-map` `send_object_updates` tests (six tests, including the
 MapManager ordering case) and the world-server scenario
 `canonical_map_object_values_delivery_uses_committed_visibility_and_phase_like_cpp`
-pass with one Cargo job. The implementation commit SHA and the final architecture,
-format, diff and quick-validation results are recorded here when the branch is
-integrated. This delivery is a live production path with local queue/visibility
-evidence; it does not claim client capture parity, manual-client QA, durable DB
-proof or completion of #584.
+pass with one Cargo job. Implementation commit: `0290ba79`. Final local evidence
+at that commit: architecture `check` PASS, architecture `self-test` PASS (20 tests),
+`cargo fmt --all -- --check` PASS, `git diff --check` PASS, and validation-v2
+`quick` PASS with manifest
+`target/validation-v2/manifests/20260913T032906.489145Z-3320295-quick.json`.
+This delivery is a live production path with local queue/visibility evidence; it
+does not claim client capture parity, manual-client QA, durable DB proof or
+completion of #584.
 
 ### Bounded #578 closeout inventory
 
