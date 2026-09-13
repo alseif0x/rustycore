@@ -4,7 +4,6 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Remaining per-session character state and its helpers.
-
 // Explicit database imports: this module reaches its parent through
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
@@ -1626,33 +1625,8 @@ impl WorldSession {
                 Vec::new()
             }
         };
-
-        // C++ `TraitMgr::GetTreesForConfig` requires every persisted
-        // profession config to resolve through `_traitTreesBySkillLine`.
-        // Combat and generic indexes are outside this bounded startup slice;
-        // when the production projection is installed, an unresolved
-        // profession link keeps the represented trait authority incomplete
-        // instead of authorizing spells from an unbound config.
         let profession_tree_authority_complete_like_cpp =
-            self.trait_tree_skill_line_index().is_none_or(|index| {
-                configs
-                    .iter()
-                    .filter(|config| config.config_type == 2)
-                    .all(|config| {
-                        u32::try_from(config.skill_line_id)
-                            .ok()
-                            .is_some_and(|skill_line_id| {
-                                index.has_skill_line_like_cpp(skill_line_id)
-                            })
-                    })
-            });
-        if !profession_tree_authority_complete_like_cpp {
-            warn!(
-                player_guid = guid.counter(),
-                "Keeping profession trait-config authority incomplete: no linked TraitMgr tree"
-            );
-        }
-
+            self.trait_authority_complete_like_cpp(&configs, guid);
         let trait_query_authority_complete_like_cpp = entries_complete_like_cpp
             && configs_complete_like_cpp
             && profession_tree_authority_complete_like_cpp

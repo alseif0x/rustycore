@@ -1,9 +1,35 @@
 //! Login hydration and CREATE projection share one Player-owned configuration map.
 use super::WorldSession;
+use tracing::warn;
+use wow_core::ObjectGuid;
 use wow_entities::{PlayerTraitConfigDetails, PlayerTraitEntry};
 use wow_packet::packets::update::{TraitConfigCreateData, TraitEntryCreateData};
 
 impl WorldSession {
+    pub(crate) fn trait_authority_complete_like_cpp(
+        &self,
+        configs: &[TraitConfigCreateData],
+        player_guid: ObjectGuid,
+    ) -> bool {
+        let complete = self.trait_tree_skill_line_index().is_none_or(|index| {
+            configs
+                .iter()
+                .filter(|config| config.config_type == 2)
+                .all(|config| {
+                    u32::try_from(config.skill_line_id)
+                        .ok()
+                        .is_some_and(|skill_line_id| index.has_skill_line_like_cpp(skill_line_id))
+                })
+        });
+        if !complete {
+            warn!(
+                player_guid = player_guid.counter(),
+                "Keeping profession trait-config authority incomplete: no linked TraitMgr tree"
+            );
+        }
+        complete
+    }
+
     pub(crate) fn retain_loaded_trait_configs_like_cpp(
         &mut self,
         configs: &[TraitConfigCreateData],
