@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748 — 2026-09-13; actualización #524 — 2026-09-13.** Este documento detalla los
+**Sincronización de la entrega #748 — 2026-09-13; actualización #524 y P2 item-bonus — 2026-09-13.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -13,9 +13,9 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza integrada, 2026-09-13: PR #814**, en `3.4.3` como
-`a3e970635c2df891f284fa6ac0b083b4c2659473`. #787 / PR #792 (`d14a9a67`) y
-#584 P3.1–P3.7 están integrados dentro de esta cabeza. La coordinación World/Map está
+**Cabeza integrada, 2026-09-13: PR #816**, en `3.4.3` como
+`db1250767090a5c951dae96ad6c2a2d5b24873ff`. #787 / PR #792 (`d14a9a67`) y
+#584 P2 item-bonus y P3.1–P3.7 están integrados dentro de esta cabeza. La coordinación World/Map está
 implementada y aceptada localmente en `76369bda`; la corrección mantiene el ACK World pendiente hasta finalizar y
 retirar la sesión. El contrato y la evidencia están en el
 [checkpoint de sesión](session-578-checkpoint.md#787-resumption-finalization-is-inside-the-world-completion-boundary--2026-09-12).
@@ -24,7 +24,7 @@ no ordena volver a ejecutar entregas ya integradas. La retirada del escritor
 legado de criaturas y las fases de mapa no representadas siguen en #584.
 
 La base revisada de esta entrega es `3.4.3` en
-`a3e970635c2df891f284fa6ac0b083b4c2659473`. #133 se cerró el 2026-09-09. Las
+`db1250767090a5c951dae96ad6c2a2d5b24873ff`. #133 se cerró el 2026-09-09. Las
 entregas #578, #585, #587, #588, #589, #716, #718, #722 y #737 están integradas y
 cerradas dentro de sus alcances acotados. No se debe esperar otro cierre de #133 ni
 reabrir esas entregas por una preferencia de nombres o por una frontera pendiente.
@@ -55,7 +55,10 @@ está satisfecha.
 La macro P3.7 de núcleo bajo #584 quedó integrada: conecta los planes de
 relocalización de criaturas ya calculados con la única vía de publicación de sesiones,
 reutiliza las fuentes lejanas de `ObjectUpdater` y aplica el radio de activación por
-fuente. La próxima macro se seleccionará después de auditar el escritor legado de
+fuente. La macro P2 del último escritor genérico de bonos de objeto también quedó
+integrada por PR #816: el estado resuelto se aplica mediante una operación nominal
+del runtime propiedad del Player y se retiró el cierre `&mut` de Session. La próxima
+macro se seleccionará después de auditar el escritor legado de
 criaturas y las fases de `Map::Update` aún no representadas. Después siguen
 los residuales P2/P3/P4 por consumidores, el producto #583 y la auditoría #153. Las
 excepciones físicas son individuales y se justifican con la política vigente; no se
@@ -774,6 +777,45 @@ residual de #722 queda registrado como cierres que entregan una submatriz `&mut`
 cierre llamador; cambiar el nombre del helper no retira la superficie. #737 está
 cerrada e integrada; su frontera de inventario queda cubierta por la reconciliación
 de persistencia y no se vuelve a contar como residual arquitectónico.
+
+#### Entrega P2 bajo #584 — operación nominal del runtime de modificadores de objeto
+
+La última superficie genérica concreta era `with_bonuses_mut_like_cpp`, que prestaba
+`&mut PlayerItemBonusStateLikeCpp` desde `WorldSession` para que el llamador aplicara
+reglas de equipo y encantamiento. En TrinityCore esas mutaciones son parte del Player:
+`Player::_ApplyItemBonuses` (`Player.cpp:7688-7975`) y el tramo de estado de
+`Player::ApplyEnchantment` (`Player.cpp:13058-13389`).
+
+PR #816 (`db1250767090a5c951dae96ad6c2a2d5b24873ff`) mueve ese tramo resuelto a
+`PlayerItemModifierRuntimeStateLikeCpp::apply_enchantment_effect_action_like_cpp`
+en `crates/wow-entities/src/player/item_modifiers.rs`. La operación acepta una
+acción tipada y aplica solo el estado que el owner puede resolver: modificadores de
+unidad, ratings, regeneración, penetración, bloque, daño/tiempo de arma y las marcas
+de actualización. La consulta de catálogos, la admisión del objeto, los hechizos de
+equipo/uso, auras, valores de actualización y paquetes permanecen en
+`crates/wow-world/src/session/player_items`. Las variantes diferidas, desconocidas o
+que requieren esos servicios se conservan como explícitamente no aplicadas; no se
+inventó una dependencia inversa ni un segundo espejo mutable.
+
+Se retiraron los helpers equivalentes de `session_rules/rules_1.rs` y los consumidores
+de producción y fixtures migraron a la operación nominal. El test de owner comprueba escritura y
+snapshot independiente; la composición de `wow-world` mantiene los caminos de
+modificadores, daño y almacenamiento. La aceptación ejecutada en la rama candidata
+incluye 14 tests de `wow-entities`, 16 de entidades de mundo, 129 de Player-items,
+`cargo check --locked --tests -p wow-world`, formato/diff y
+`VALIDATION_V2_CARGO_JOBS=1 ./tools/validation-v2 quick --base origin/3.4.3` en
+8.53 s con un job (`target/validation-v2/manifests/20260913T100604.990747Z-3562620-quick.json`).
+El ratchet físico pasa; el ratchet lógico conserva únicamente el drift histórico de
+`session/mod.rs`, `wow-map/src/map/mod.rs`, `handlers/character/mod.rs` y
+`world-server/src/lib.rs`, sin regenerar sus baselines. El ledger mueve el techo
+lógico agregado de `player/mod.rs` a 15.468 líneas de producción y 13.122 de tests,
+con la deuda C4 de separación física todavía abierta.
+
+Este corte no afirma paridad completa de estadísticas/auras, paquetes CREATE/DESTROY,
+cliente/captura, DB/reinicio/relogin ni cierra #584. El siguiente trabajo debe
+seleccionarse por consumidores restantes: catálogos y efectos de item que aún carecen
+de comportamiento, otras superficies P2 medidas, o una entrega P3 con contrato de
+runtime; no se crea otra macro solo para renombrar este owner.
 
 #### Contraste P3 de composición y fases — revisión acotada 2026-09-12
 
