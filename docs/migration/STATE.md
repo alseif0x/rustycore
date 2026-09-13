@@ -1,16 +1,17 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-13:** `3.4.3` is at
-`ef82beebf3c5a22142ed05ec3d8be67eea324c60` (PR #838). The entries below preserve
+`cc0559980a4232ab5743affaaa2babfedffdfcf3` (PR #839, following PR #838). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
-**Current architecture selection — 2026-09-13, commit `ecc67603` on
-`584-next-audit`:** a fresh audit of the integrated head selected the remaining P2
-item-modifier owner closure. The previous generic
+**Latest bounded architecture delivery — 2026-09-13, PR #839, merge
+`cc0559980a4232ab5743affaaa2babfedffdfcf3` (implementation `ecc67603`):** a fresh
+audit of the integrated head selected and delivered the remaining P2 item-modifier
+owner closure. The previous generic
 `mutate_player_item_modifier_runtime_like_cpp` Session surface is retired from
 production; named Player operations now own item-set transitions, level caps, bonus
 reset and resolved enchantment actions. Consumers and fixtures were migrated without
@@ -20,9 +21,9 @@ regression pass; `cargo check -p wow-world` with one job plus format/diff and th
 ownership-policy check pass. `validation-v2 final` then passed on 2026-09-13; the
 manifest is `target/validation-v2/manifests/20260913T165720.613650Z-3851477-final.json`
 and the `wow-entities`/`wow-world` suite completed 3875 tests with zero failures
-(one ignored). Publication is pending and #584 remains open. This evidence does not
-claim #61 effective statistics, TraitMgr consumers (#524), Creature migration, live
-QA or DB durability.
+(one ignored). The delivery is integrated; #584 remains open for its remaining
+boundaries. This evidence does not claim #61 effective statistics, TraitMgr consumers
+(#524), Creature migration, live QA or DB durability.
 
 The next functional macro after this bounded closure is #524's remaining TraitMgr
 authority: currency ownership/spending, condition evaluation, starter-build

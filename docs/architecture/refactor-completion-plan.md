@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748 — 2026-09-13; actualización #524 genérico y P2/P3.9/item-object — 2026-09-13.** Este documento detalla los
+**Sincronización de la entrega #748 — 2026-09-13; actualización #524 genérico y P2/P3.9/item-object/item-modifier — 2026-09-13.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -13,12 +13,11 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza integrada, 2026-09-13: PR #838**, en `3.4.3` como
-`ef82beebf3c5a22142ed05ec3d8be67eea324c60`. #787 / PR #792 (`d14a9a67`) y
+**Cabeza integrada, 2026-09-13: PR #839**, en `3.4.3` como
+`cc0559980a4232ab5743affaaa2babfedffdfcf3`. #787 / PR #792 (`d14a9a67`) y
 #584 P2 item-bonus, P2 item-object y P3.1–P3.9 están integrados dentro de esta cabeza.
-La siguiente entrega de ownership está en la rama local `584-next-audit`, commit
-`ecc67603`, y retira la superficie mutante genérica restante del runtime de
-modificadores de objetos. La coordinación World/Map está
+La entrega de ownership de modificadores de objetos está integrada mediante PR #839
+(implementación `ecc67603`) y retira la superficie mutante genérica restante. La coordinación World/Map está
 implementada y aceptada localmente en `76369bda`; la corrección mantiene el ACK World pendiente hasta finalizar y
 retirar la sesión. El contrato y la evidencia están en el
 [checkpoint de sesión](session-578-checkpoint.md#787-resumption-finalization-is-inside-the-world-completion-boundary--2026-09-12).
@@ -27,7 +26,7 @@ no ordena volver a ejecutar entregas ya integradas. La retirada del escritor
 legado de criaturas y las fases de mapa no representadas siguen en #584.
 
 La base revisada de la entrega anterior fue `3.4.3` en
-`db1250767090a5c951dae96ad6c2a2d5b24873ff`; la base vigente es la cabeza de PR #838
+`db1250767090a5c951dae96ad6c2a2d5b24873ff`; la base vigente es la cabeza de PR #839
 indicada arriba. #133 se cerró el 2026-09-09. Las
 entregas #578, #585, #587, #588, #589, #716, #718, #722 y #737 están integradas y
 cerradas dentro de sus alcances acotados. No se debe esperar otro cierre de #133 ni
@@ -861,15 +860,15 @@ se sincroniza con la nueva operación, el campo `trait_tree_skill_line_index`, e
 mirror, lock, task, reloj ni dependencia entre crates. La aceptación local de esta entrega
 incluye `cargo check --locked --tests -p wow-entities -p wow-world`, los tests focalizados
 de `wow-entities` (24) y `wow-world` (5), formato, diff y los checks de arquitectura y
-ownership con un solo job de Cargo; la validación-v2 final y la publicación son gates
-posteriores de la rama.
+ownership con un solo job de Cargo; la validación-v2 final y la publicación quedaron
+registradas para la entrega integrada.
 
 Este cierre retira la superficie arquitectónica genérica de #737, pero no declara paridad
 completa de item use/effects, estadísticas, auras, bytes de cliente ni durabilidad real
 con DB/reinicio/relogin. Las funciones de gameplay o datos que aún falten se asignan a su
 macro funcional; no se reabre #737 ni se crea una issue por cada variante del comando.
 
-#### Siguiente entrega seleccionada por auditoría — runtime de modificadores del Player
+#### Entrega seleccionada por auditoría e integrada — runtime de modificadores del Player
 
 La auditoría de `origin/3.4.3` en `ef82beeb` encontró un residual P2 distinto del
 item-object ya integrado: `WorldSession::mutate_player_item_modifier_runtime_like_cpp`
@@ -878,7 +877,8 @@ PlayerItemModifierRuntimeStateLikeCpp)` a ocho consumidores de item-set, encanta
 valoración. El estado ya tiene como propietario semántico al `Player`; la superficie
 genérica era el último acceso que permitía que el llamador mutara el contenedor completo.
 
-La entrega `ecc67603` añade operaciones nominales en `wow-entities::Player` para snapshot,
+La entrega `ecc67603`, integrada por PR #839 como `cc0559980a4232ab5743affaaa2babfedffdfcf3`,
+añade operaciones nominales en `wow-entities::Player` para snapshot,
 añadir/quitar piezas y bonus de conjuntos, eliminar efectos vacíos, instalar caps de nivel,
 reiniciar bonuses y aplicar una acción de encantamiento. Los consumidores de
 `session/player_items/{items,modifiers,valuation}.rs` y sus fixtures llaman esas
@@ -897,11 +897,10 @@ con un job y los dos tests focalizados de `wow-world` pasan; el test de owner de
 `wow-entities` se ejecuta junto con la suite del crate. El baseline de
 `session-ownership-check` se actualiza solo por las operaciones nuevas y la retirada del
 helper genérico, con el delta revisado. La validación final `validation-v2 final` pasó
-el 2026-09-13 sobre este candidato; su manifiesto es
+el 2026-09-13 sobre el candidato que originó PR #839; su manifiesto es
 `target/validation-v2/manifests/20260913T165720.613650Z-3851477-final.json` y la suite
 de `wow-entities`/`wow-world` terminó con 3875 tests correctos, uno ignorado y cero
-fallos. Solo queda la publicación de esta rama; la evidencia no amplía el alcance
-funcional descrito abajo.
+fallos. La evidencia no amplía el alcance funcional descrito abajo.
 
 Este macro no incluye TraitMgr funcional (#524), escritor Creature legado, AI/combat,
 auras, estadísticas, DB/reinicio/relogin ni módulos #583. #524 queda como la siguiente
