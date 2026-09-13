@@ -32,12 +32,13 @@ in #584; #153 remains an independent auditor, not the owner of unfinished work.
 
 ## P2 item-modifier owner closure — final local validation, 2026-09-13
 
-The candidate `ecc67603` on `584-next-audit` passed `validation-v2 final` on
-2026-09-13. The manifest is
+The candidate `ecc67603` passed `validation-v2 final` on 2026-09-13 and was
+integrated through PR #839 into `3.4.3` as
+`cc0559980a4232ab5743affaaa2babfedffdfcf3`. The manifest is
 `target/validation-v2/manifests/20260913T165720.613650Z-3851477-final.json`;
 the release profile completed the workspace checks and the `wow-entities`/`wow-world`
 library suites with 3875 passing tests, one ignored and zero failures. The delivery
-still awaits publication and does not close #584 or claim TraitMgr gameplay, Creature
+is integrated but does not close #584 or claim TraitMgr gameplay, Creature
 writer migration, live client QA or DB/relogin durability.
 
 ## P3.8 delivered — map object lifecycle visibility intents — 2026-09-13
@@ -134,7 +135,7 @@ item-object tests, 5 focused `wow-world` wrapped-gift tests, formatting/diff che
 `check_architecture.py check` and Session ownership syntax-only. The ownership ledger and
 physical policy are synchronized with the current tree; the syntax baseline was regenerated
 from the checker and reviewed for current fields, commands, registry rows and associated
-items. Final validation and publication remain gates on the candidate branch.
+items. Final validation and publication for that delivery are recorded above.
 
 This closes the generic item-object residual of #737 inside #584. It does not claim complete
 item-use/effect or statistics parity, packet capture, or DB/restart/relogin durability. No
@@ -170,8 +171,8 @@ The source contract is `AddItemsSetItem`/`RemoveItemsSetItem`
 (`Player.cpp:7688-7975`) and the state portion of `ApplyEnchantment`
 (`Player.cpp:13058-13389`). This delivery does not claim effective-stat calculations,
 auras, packet capture, live QA, DB/restart/relogin durability or completion of #61, #524,
-the Creature writer or #583. Final validation and publication remain gates before recording
-the merge SHA; #584 remains open.
+the Creature writer or #583. Final validation passed before PR #839 recorded merge
+`cc0559980a4232ab5743affaaa2babfedffdfcf3`; #584 remains open.
 
 ## Persistence inventory reconciliation — 2026-09-13, after #584 P3.1
 
