@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-13:** `3.4.3` is at
-`62c1369f4e49200b6f6d7605b0bc7de5caeace7c` (PR #820). The entries below preserve
+`16303cc7f7e8c9b15fb391146506be4566b1d38f` (PR #822). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -237,25 +237,19 @@ checks and validation-v2 quick in 8.53 s with one Cargo job
 (`target/validation-v2/manifests/20260913T100604.990747Z-3562620-quick.json`).
 No live runtime, capture, DB/restart/relogin or full item-stat parity claim is made.
 
-**#524 skill catalog and TraitMgr projection — 2026-09-13, relation implementation
-`020163dc`, projection implementation `0f65d677`, physical reconciliation `a96ee548`:**
-`MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp` now completes the official and
-custom `SkillLineAbility` queries before beginning the official and custom
-`SkillRaceClassInfo` queries. This matches `DB2StorageBase::LoadFromDB`
-(`DB2Store.cpp:127-133`) and `DB2DatabaseLoader`'s official-then-custom bind
-(`DB2DatabaseLoader.cpp:32,190`), so a query or decode failure is observed at the
-same table-granular boundary. The adapter's three focused tests, `cargo check
---locked -p world-server`, formatting and diff checks pass. The projection delivery
-now loads `SkillLineXTraitTree.db2` during world startup, validates links against the
-effective `SkillLine`/`TraitTree` stores, publishes an immutable skill-line index to
-sessions and makes profession trait-config hydration fail closed when no linked tree
-exists. Focused `wow-data`, `wow-world` login and `world-server` composition tests pass.
-PR #811 moved the composition and validation into their owning submodules without
-raising the reviewed physical ceilings; `check_architecture.py physical-files` passes.
-The complete #524 startup family remains open: the current combined relation loader
-still does not prove the table-granular WDC4 sequence
-`SkillLineAbility` → `SkillLineXTraitTree` → `SkillRaceClassInfo`, and full
-`TraitMgr` indexes/consumers plus final failure/live evidence remain outstanding.
+**#524 skill catalog and TraitMgr projection — 2026-09-13, sequence implementation
+`0192bac3`, integration `16303cc7`:** the production bootstrap now keeps the C++
+table stages independently observable: `SkillLine` → WDC4/official/custom
+`SkillLineAbility` → WDC4 `TraitTree`/`SkillLineXTraitTree` projection →
+WDC4/official/custom `SkillRaceClassInfo`. The persistence contract and MariaDB
+adapter expose separate ability and race/class operations, and the WDC4 reader no
+longer opens both relation files in one stage. Official-then-custom order and
+fail-before-publication behavior remain explicit. Focused adapter and world-server
+ordering tests pass, as does `PROTOC=/home/ubuntu/.local/protoc/bin/protoc
+CARGO_BUILD_JOBS=1 cargo check --locked -p world-server`; formatting and diff checks
+pass. This is a bounded startup correction, not complete TraitMgr parity: hotfix
+coverage for `SkillLineXTraitTree`, the broader TraitMgr indexes/consumers, final
+cross-store/removal orchestration and live/startup evidence remain open.
 
 **Group state application is integrated — 2026-09-11, #743 / PR #750,
 `77df8194` (implementation `9e6767bb`):**
