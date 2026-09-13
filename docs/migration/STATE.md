@@ -1,14 +1,27 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-13:** `3.4.3` is at
-`93fa95a9f4c803ff04c68253910766738f3b31be` (PR #846, following PR #844 and PR #842). The entries below preserve
+`179fd5d40491e4ded2a8c25b3261263330855cd5` (PR #848, following PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
-**Latest bounded data delivery — 2026-09-13, PR #846, merge
+**Latest bounded data delivery — 2026-09-13, PR #848, merge
+`179fd5d40491e4ded2a8c25b3261263330855cd5` (implementation `95274da1`):** the
+effective Trait catalog now composes the C++ locale projections for
+`TraitDefinition` and `TraitCurrencySource` after their effective base stores. The
+adapter uses the exact locale SQL statements, official-then-custom precedence and
+the same fail-before-publication field validation as the base hotfix set. Locale
+entries are retained in the immutable Player catalog capability group for future
+packet/runtime consumers. Focused locale composition and production batch tests pass;
+this does not claim a live MariaDB startup/restart/relogin run, cross-store failure
+coverage beyond the exercised batches, a production consumer for
+`TraitDefinitionEffectPoints`, or later spending, mutation and starter-build
+behavior. #524 remains open for those explicit gates.
+
+**Previous bounded data delivery — 2026-09-13, PR #846, merge
 `93fa95a9f4c803ff04c68253910766738f3b31be` (implementation `57116f75`):** the
 effective Trait catalog now composes all 24 C++-projected base hotfix tables,
 including `SpecSetMember`, in official-then-custom order before publication. Each
@@ -55,10 +68,12 @@ validation and deterministic login fallback**, integrated by PR #842 as
 projection now evaluates C++-aligned conditions, costs, parent/rank rules and granted
 entries before publishing Player state, using canonical Player facts. PR #846 now
 composes the effective base Trait/`SpecSetMember` SQL hotfix set with WDC4-hash-scoped
-removals and fail-before-publication semantics. The issue remains open for the two
-locale-specific overlays, complete cross-store fail-before-publication coverage and
-startup/live DB/relogin evidence; real spending, mutation persistence, starter-build
-application and effect-point behavior are later functional gates. The
+removals and fail-before-publication semantics. PR #848 now adds the two locale
+overlays (`trait_definition_locale` and `trait_currency_source_locale`) with the
+same official/custom composition and immutable capability retention. The issue
+remains open for explicit cross-store fail-before-publication coverage,
+startup/live DB/relogin evidence, production consumers for locale/effect-point data,
+and later spending, mutation persistence and starter-build application. The
 legacy Creature writer remains deferred until all AI, combat, movement, script,
 persistence and visibility consumers have one owner.
 
