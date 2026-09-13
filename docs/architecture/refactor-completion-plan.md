@@ -41,13 +41,15 @@ desactivado. #583 espera los requisitos de núcleo necesarios para su integraci�
 producción, pero no bloquea cada macro de gameplay independiente. El cierre
 administrativo de #133 no añade una compuerta posterior.
 
-La entrega funcional #486 ya tiene implementación local `3eafa4b8`: la consulta de
+La entrega funcional #486 está integrada por PR #807 en `86a0eb97` (implementación
+`3eafa4b8`): la consulta de
 identidad de jugador usa la proyección global equivalente a `CharacterCache`, resuelve
 la cuenta objetivo y superpone la identidad conectada desde `PlayerRegistry`; la
 composición calienta esa proyección antes de aceptar sesiones y las mutaciones de
 administración actualizan el mismo owner después de COMMIT. Sus límites son los
 declined names y las mutaciones de undelete/barber aún no representadas. La aceptación
-de bytes/captura y la integración remota siguen siendo gates de la issue.
+de bytes/captura y la QA viva siguen siendo gates de la issue; la integración remota ya
+está satisfecha.
 
 La próxima macro de núcleo se seleccionará bajo #584 después de auditar el escritor
 legado de criaturas y las fases de `Map::Update` aún no representadas. Después siguen
