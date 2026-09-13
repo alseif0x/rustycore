@@ -2,8 +2,9 @@
 
 Date: 2026-09-13. Historical design audit at `13c984a6`; bounded decoder delivery
 revalidated on current `3.4.3` at `115eb699`/`fbf5664b` (aarch64 development host).
-Status: protocol decoder slice implemented and ready for integration; this remains
-not full LFG parity or client acceptance.
+Status: the protocol decoder slice is integrated in `3.4.3` by PR #797 at
+`21686375d1fae81876b91f662069a25781ef10b2`; this remains neither full LFG parity
+nor client acceptance.
 C++ root for relative anchors below: `/home/server/woltk-trinity-legacy/src/server/game`.
 
 ## Verdict and scope
@@ -12,7 +13,7 @@ Automatic Dungeon Finder has substantial C++ machinery but no complete live Rust
 Rust already has immutable catalogs, informational packets and partial LFG group state; do not
 replace those with duplicate stores. Manual LFG List is a separate incomplete feature.
 The user prioritized this audit after the repaired login smoke. It does not close #578,
-supersede the entire port plan, or authorize publishing the current branch.
+supersede the entire port plan, or claim matchmaking, handlers or live acceptance.
 
 ## Evidence and acceptance gaps
 
@@ -132,13 +133,15 @@ source audits; their presence elsewhere in Rust is not proof of complete LFG int
 Validation performed here: read-only source/manifest/issue inspection and documentation diff check.
 No server restart, bot traffic, fresh capture-diff, gameplay implementation or issue closeout.
 
-## First implementation follow-up — issue #582
+## First implementation follow-up — issue #582 (integrated)
 
 The user authorized continuation into the protocol boundary. Branch
 `582-lfg-client-packet-decoders` was rebased from its original `80b9e682` base onto current
-`3.4.3` `6311d48e`; the rebased implementation commit is `115eb699` and the evidence commit
-is `60c11527`. It contains no unpushed #578 gameplay changes. The original audit above remains
-a snapshot of `13c984a6`, not a claim of full LFG parity.
+`3.4.3` `6311d48e`; the implementation/evidence commits were `115eb699`, `60c11527`,
+`fbf5664b` and `d857473c`. The resulting delivery is integrated by PR #797 at
+`21686375d1fae81876b91f662069a25781ef10b2`, and issue #582 is closed. It contains no #578
+gameplay changes. The original audit above remains a snapshot of `13c984a6`, not a claim of
+full LFG parity.
 
 `crates/wow-packet/src/packets/misc/lfg_client.rs` adds six ClientPacket decoders: DFJoin,
 DFLeave, DFProposalResponse, DFSetRoles, DFBootPlayerVote and DFTeleport. Existing packet types
@@ -151,14 +154,13 @@ timestamp. Eligibility, selected-role sanitization and ticket ownership are not 
 Ten focused tests cover each truncated byte prefix, independent flags and optional PartyIndex branches,
 zero/50/51/u32::MAX counts, typed dungeon entries, signed 64-bit ticket time, proposal alignment,
 and every possible byte for the MSB-only vote/teleport flags. This is a represented wire-decoding
-increment, not LFG runtime parity. All ten focused tests and the full 734-test wow-packet library
+increment, not LFG runtime parity. All ten focused tests and the full 738-test wow-packet library
 suite pass on the aarch64 host. The preliminary quick gate also passed; final validation is
 recorded separately from these focused checks.
 
 Current revalidation on `fbf5664b` passed with one Cargo job: the ten focused decoder tests and
 the full `wow-packet` library suite (738 tests, zero failures), plus `cargo fmt --all -- --check`
-and `git diff --check`. The applicable validation-v2 quick gate is run for the publication
-candidate and passed in 28.2s with manifest
+and `git diff --check`. The applicable validation-v2 quick gate passed in 28.2s with manifest
 `target/validation-v2/manifests/20260913T034550.555683Z-3329863-quick.json`. This evidence is
 source-anchored wire decoding, not capture-diff equivalence.
 

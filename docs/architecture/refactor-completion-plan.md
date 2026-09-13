@@ -99,7 +99,7 @@ de microissues:
 | P0 | Herramientas de ownership, imports, bridges y ratchet físico | #716 integrado y cerrado; su evidencia es histórica y no se repite aquí |
 | P1 | Recompensa de misión y contrato durable | #718 integrado y cerrado; no hay evidencia real de DB/restart/relogin |
 | P2 | Fronteras de Player y operaciones completas | #743 y #735 entregados; continúan los residuales por consumidores |
-| P3 | Fases, runtime, lifetime, residencia/incarnation y storage selectivo | #787 entregado; siguiente análisis: escritor legado de criaturas y fases de `Map::Update` no representadas bajo #584 |
+| P3 | Fases, runtime, lifetime, residencia/incarnation y storage selectivo | #787 entregado; P3.1 retiró el escritor Creature canónico descartado, P3.2 publicó `SendObjectUpdates`, y P3.3 corrige el orden de respawn/condiciones antes de los visitantes; el escritor legado y otras fases siguen pendientes bajo #584 |
 | P4 | Organización física, excepciones y límites semánticos | #584, acompañado por cada operación; la medición de 31 paths permanece histórica |
 | P5 | Producto de módulos M0–M4, nativo/Wasm y Rust/Wasm/C | #583, tras los requisitos core de #584; no bloquea gameplay independiente |
 | P6 | Auditoría terminal y evidencia integrada | #153, después de #584 y #583; no absorbe implementación |
@@ -859,11 +859,15 @@ entra por `MapManager::update`, y el legado de criaturas—, tres tareas periód
 `GlobalLegacy`, con `GlobalLegacy` por defecto en producción.
 
 Macro P3 entregada por esta revisión: **#787**, el contrato de `ProcessingPlace` y
-la colocación de la actualización de sesión. La siguiente selección bajo #584 debe
-partir de una auditoría acotada del escritor legado de criaturas (paso 7 del ADR) y
-de las fases de `Map::Update` aún no representadas; no se crea una issue por puente
-o fichero y no se redefine la convergencia antes de tener ese contrato. **#785 queda
-cerrada por premisa falsa**, con esta verificación registrada en la issue.
+la colocación de la actualización de sesión. P3.1 y P3.2 son entregas acotadas
+integradas bajo #584. La selección actual es **P3.3 — orden de respawn y condiciones**:
+ejecutar `ProcessRespawns`/`UpdateSpawnGroupConditions` después del paso de sesiones
+admitidas y antes de `ObjectUpdater`, con la misma clave/incarnation del plan para
+impedir que una sustitución de mapa herede trabajo. El contrato y sus límites están
+en `session-578-checkpoint.md`. El escritor legado de criaturas, la visita por
+celda cercana y las demás fases no representadas siguen requiriendo auditorías
+posteriores; no se crea una issue por puente o fichero. **#785 queda cerrada por
+premisa falsa**, con esta verificación registrada en la issue.
 
 P3 debe contrastar composición, fases y lifetime con `Map.cpp:666-813`,
 `MapManager.cpp:287-318` y `WorldSession.cpp:64-108`, contar tareas reales y conservar

@@ -87,6 +87,34 @@ This delivery is a live production path with local queue/visibility evidence; it
 does not claim client capture parity, manual-client QA, durable DB proof or
 completion of #584.
 
+## P3.3 canonical respawn/condition phase order — 2026-09-13
+
+The next finite #584 macro restores the order of the represented spawn phase in
+the split map tick. TrinityCore's `Map::Update` calls `ProcessRespawns()` and
+`UpdateSpawnGroupConditions()` after the map session walk and before
+`resetMarkedCells`/`ObjectUpdater` (`Maps/Map.cpp:666-695`); the map manager then
+performs its delayed pass after every map update (`Maps/MapManager.cpp:287-318`).
+
+The candidate at `c7daa069` moves the existing respawn timers, loaded-grid
+conditions, DB-save/delete queueing and legacy Creature mirror into
+`canonical_map_tick_respawn_phase_like_cpp` in
+`crates/world-server/src/runtime/map_tick.rs`. It runs only for the admitted
+`MapTickParticipantLikeCpp` key/incarnation list through
+`crates/wow-map/src/manager/state_2.rs::for_admitted_maps_mut_like_cpp`. The
+session pass still occurs with manager guards released; if a map is destroyed and
+recreated under the same key, the replacement is skipped for the predecessor's
+remaining phases. The subsequent canonical map resume retains the explicit
+`ExternalRuntime` Creature owner, object publication and guard-free delivery.
+
+This is a phase-order and lifetime correction. It does not migrate the legacy
+Creature AI/combat writer, implement nearby-cell visitation, add scripts or
+transport phases, or claim client/capture/live DB parity. Existing six
+spawn-condition world-server tests and the new replacement-incarnation map-manager
+regression pass, together with `cargo check -p world-server`, architecture checks,
+formatting and diff checks. Validation-v2 `quick` passed with one Cargo job in 7m03s;
+manifest: `target/validation-v2/manifests/20260913T042148.632508Z-3355103-quick.json`.
+This candidate still requires the PR publication gate and does not include live QA.
+
 ### Bounded #578 closeout inventory
 
 | Delivered result | Evidence boundary |
