@@ -1,12 +1,177 @@
 //! Login hydration and CREATE projection share one Player-owned configuration map.
 use super::WorldSession;
+use std::collections::{BTreeMap, BTreeSet};
 use tracing::warn;
 use wow_core::ObjectGuid;
-use wow_data::trait_tree::TraitNodeEntryStore;
+use wow_data::trait_tree::{
+    TraitConfigEntryLikeCpp, TraitConfigValidationResultLikeCpp, TraitNodeEntryStore,
+    TraitPlayerFactsLikeCpp,
+};
 use wow_entities::{PlayerTraitConfigDetails, PlayerTraitEntry};
 use wow_packet::packets::update::{TraitConfigCreateData, TraitEntryCreateData};
 
 impl WorldSession {
+    fn trait_tree_ids_for_config_like_cpp(
+        &self,
+        config: &TraitConfigCreateData,
+    ) -> Option<Vec<u32>> {
+        let index = self.trait_tree_skill_line_index()?.as_ref();
+        let tree_ids = match config.config_type {
+            1 => {
+                let specialization_id = u32::try_from(config.chr_specialization_id).ok()?;
+                let specialization = self.chr_specialization_store()?.get(specialization_id)?;
+                if !index.has_class_like_cpp(specialization.class_id) {
+                    return None;
+                }
+                index.trees_for_class_like_cpp(specialization.class_id)
+            }
+            2 => {
+                let skill_line_id = u32::try_from(config.skill_line_id).ok()?;
+                if !index.has_skill_line_like_cpp(skill_line_id) {
+                    return None;
+                }
+                index.trees_for_skill_line_like_cpp(skill_line_id)
+            }
+            3 => {
+                let trait_system_id = u32::try_from(config.trait_system_id).ok()?;
+                if !index.has_trait_system_like_cpp(trait_system_id) {
+                    return None;
+                }
+                index.trees_for_trait_system_like_cpp(trait_system_id)
+            }
+            _ => return None,
+        };
+        (!tree_ids.is_empty()).then(|| tree_ids.to_vec())
+    }
+
+    /// Snapshot only canonical Player facts while the Player handle is held,
+    /// then run the immutable TraitMgr semantic operation without lending any
+    /// mutable Player state to the catalog.
+    fn trait_player_facts_like_cpp(
+        &self,
+    ) -> Option<(
+        i32,
+        u32,
+        u64,
+        BTreeMap<u32, i32>,
+        BTreeSet<u32>,
+        BTreeSet<u32>,
+    )> {
+        self.with_owned_player_like_cpp(|player| {
+            let currencies = player
+                .gameplay_state()
+                .currencies
+                .iter()
+                .map(|(&currency_id, currency)| (currency_id, currency.quantity as i32))
+                .collect();
+            let rewarded_quests = player
+                .gameplay_state()
+                .quests
+                .rewarded_quest_ids_like_cpp()
+                .clone();
+            let achievements = player
+                .gameplay_state()
+                .achievements
+                .iter()
+                .map(|record| record.achievement_id)
+                .collect();
+            (
+                player.unit().data().level,
+                player.primary_specialization_id_like_cpp(),
+                player.money(),
+                currencies,
+                rewarded_quests,
+                achievements,
+            )
+        })
+    }
+
+    /// Apply C++ `ValidateConfig` and replace invalid persisted entries with
+    /// `GetGrantedTraitEntriesForConfig` before Player publication.
+    pub(crate) fn normalize_trait_configs_like_cpp(
+        &self,
+        configs: &[TraitConfigCreateData],
+    ) -> Option<Vec<TraitConfigCreateData>> {
+        let index = self.trait_tree_skill_line_index()?.as_ref();
+        if !index.graph_loaded_like_cpp() {
+            return None;
+        }
+        let (
+            level,
+            primary_specialization_id,
+            money,
+            currency_quantities,
+            rewarded_quest_ids,
+            achievement_ids,
+        ) = self.trait_player_facts_like_cpp()?;
+        let facts = TraitPlayerFactsLikeCpp {
+            level,
+            primary_specialization_id,
+            money,
+            currency_quantities: &currency_quantities,
+            rewarded_quest_ids: &rewarded_quest_ids,
+            achievement_ids: &achievement_ids,
+        };
+        configs
+            .iter()
+            .map(|config| {
+                let entries = config
+                    .entries
+                    .iter()
+                    .filter_map(|entry| {
+                        let candidate = TraitConfigEntryLikeCpp {
+                            trait_node_id: entry.trait_node_id,
+                            trait_node_entry_id: entry.trait_node_entry_id,
+                            rank: entry.rank,
+                            granted_ranks: entry.granted_ranks,
+                        };
+                        index
+                            .is_valid_entry_like_cpp(&candidate)
+                            .then_some(candidate)
+                    })
+                    .collect::<Vec<_>>();
+                let Some(tree_ids) = self.trait_tree_ids_for_config_like_cpp(config) else {
+                    let mut normalized = config.clone();
+                    // C++ `ValidateConfig` returns `Unknown` when no tree
+                    // resolves for the config, and its subsequent granted
+                    // lookup also returns an empty vector. Do not retain
+                    // individually valid rows for an unknown config scope.
+                    normalized.entries = Vec::new();
+                    return Some(normalized);
+                };
+                let result = index.validate_config_like_cpp(
+                    &tree_ids,
+                    config.config_type,
+                    config.chr_specialization_id,
+                    &entries,
+                    &facts,
+                );
+                let effective_entries = if result == TraitConfigValidationResultLikeCpp::Ok {
+                    entries
+                } else {
+                    index.granted_entries_for_config_like_cpp(
+                        &tree_ids,
+                        config.config_type,
+                        config.chr_specialization_id,
+                        &entries,
+                        &facts,
+                    )
+                };
+                let mut normalized = config.clone();
+                normalized.entries = effective_entries
+                    .into_iter()
+                    .map(|entry| TraitEntryCreateData {
+                        trait_node_id: entry.trait_node_id,
+                        trait_node_entry_id: entry.trait_node_entry_id,
+                        rank: entry.rank,
+                        granted_ranks: entry.granted_ranks,
+                    })
+                    .collect();
+                Some(normalized)
+            })
+            .collect()
+    }
+
     pub(crate) fn trait_authority_complete_like_cpp(
         &self,
         configs: &[TraitConfigCreateData],

@@ -265,6 +265,11 @@ async fn load_trait_index_like_cpp(
         .context("Failed to load TraitEdge.db2")?;
     let trait_cost_store = wow_data::trait_tree::TraitCostStore::load(data_dir, locale)
         .context("Failed to load TraitCost.db2")?;
+    let trait_currency_store = wow_data::trait_tree::TraitCurrencyStore::load(data_dir, locale)
+        .context("Failed to load TraitCurrency.db2")?;
+    let trait_currency_source_store =
+        wow_data::trait_tree::TraitCurrencySourceStore::load(data_dir, locale)
+            .context("Failed to load TraitCurrencySource.db2")?;
     let trait_cond_store = wow_data::trait_tree::TraitCondStore::load(data_dir, locale)
         .context("Failed to load TraitCond.db2")?;
     let trait_tree_loadout_store =
@@ -276,6 +281,11 @@ async fn load_trait_index_like_cpp(
     let trait_tree_x_trait_cost_store =
         wow_data::trait_tree::TraitTreeXTraitCostStore::load(data_dir, locale)
             .context("Failed to load TraitTreeXTraitCost.db2")?;
+    let trait_tree_x_trait_currency_store =
+        wow_data::trait_tree::TraitTreeXTraitCurrencyStore::load(data_dir, locale)
+            .context("Failed to load TraitTreeXTraitCurrency.db2")?;
+    let spec_set_member_store = wow_data::SpecSetMemberStore::load(data_dir, locale)
+        .context("Failed to load SpecSetMember.db2")?;
     let skill_line_x_trait_tree_store = wow_data::SkillLineXTraitTreeStore::load(data_dir, locale)
         .context("Failed to load SkillLineXTraitTree.db2")?;
     let hotfix_rows = match persistence
@@ -332,6 +342,12 @@ async fn load_trait_index_like_cpp(
             &trait_tree_loadout_store,
             &trait_tree_loadout_entry_store,
             &trait_tree_x_trait_cost_store,
+        )
+        .with_trait_currency_data_like_cpp(
+            &trait_currency_store,
+            &trait_currency_source_store,
+            &trait_tree_x_trait_currency_store,
+            &spec_set_member_store,
         ),
     );
     info!(
