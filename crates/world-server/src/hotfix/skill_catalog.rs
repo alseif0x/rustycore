@@ -212,4 +212,15 @@ mod tests {
             .expect("independent World skill tiers stage must remain composed");
         assert!(skill_line < relations && relations < trait_tree && trait_tree < tiers);
     }
+
+    #[test]
+    fn trait_index_loader_owns_both_wdc4_stages() {
+        let source = include_str!("skill_catalog.rs");
+        let loader = source
+            .find("fn load_trait_index_like_cpp")
+            .expect("TraitMgr index loader must remain explicit");
+        let body = &source[loader..];
+        assert!(body.contains("TraitTreeStore::load"));
+        assert!(body.contains("SkillLineXTraitTreeStore::load"));
+    }
 }
