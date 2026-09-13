@@ -7,6 +7,7 @@ use wow_persistence::{
     PersistenceFutureLikeCpp, SkillCatalogHotfixLoadOutcomeLikeCpp,
     SkillCatalogHotfixPersistencePortLikeCpp, SkillLineAbilityHotfixRowLikeCpp,
     SkillLineAbilityHotfixRowsLikeCpp, SkillLineHotfixRowLikeCpp, SkillLineHotfixRowsLikeCpp,
+    SkillLineXTraitTreeHotfixRowLikeCpp, SkillLineXTraitTreeHotfixRowsLikeCpp,
     SkillRaceClassInfoHotfixRowLikeCpp, SkillRaceClassInfoHotfixRowsLikeCpp,
 };
 
@@ -107,6 +108,17 @@ fn skill_race_class_info_values_like_cpp(
     })
 }
 
+fn skill_line_x_trait_tree_values_like_cpp(
+    values: [i128; 4],
+) -> Result<SkillLineXTraitTreeHotfixRowLikeCpp> {
+    Ok(SkillLineXTraitTreeHotfixRowLikeCpp {
+        id: id_like_cpp(values[0], "SkillLineXTraitTree.ID")?,
+        skill_line_id: id_like_cpp(values[1], "SkillLineXTraitTree.SkillLineID")?,
+        trait_tree_id: values[2],
+        order_index: values[3],
+    })
+}
+
 pub struct MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp {
     hotfix_db: Arc<HotfixDatabase>,
 }
@@ -186,6 +198,61 @@ impl SkillCatalogHotfixPersistencePortLikeCpp
 
                 let [official, custom] = ability_batches;
                 Ok::<_, anyhow::Error>(SkillLineAbilityHotfixRowsLikeCpp { official, custom })
+            }
+            .await;
+            match loaded {
+                Ok(rows) => SkillCatalogHotfixLoadOutcomeLikeCpp::Loaded(rows),
+                Err(error) => SkillCatalogHotfixLoadOutcomeLikeCpp::Failed {
+                    reason: error.to_string(),
+                },
+            }
+        })
+    }
+
+    fn load_skill_line_x_trait_tree_hotfix_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SkillCatalogHotfixLoadOutcomeLikeCpp<SkillLineXTraitTreeHotfixRowsLikeCpp>,
+    > {
+        Box::pin(async move {
+            let loaded = async {
+                let mut batches = [Vec::new(), Vec::new()];
+                for (batch_index, official) in OFFICIAL_THEN_CUSTOM_LIKE_CPP.into_iter().enumerate()
+                {
+                    let mut statement = self
+                        .hotfix_db
+                        .prepare(HotfixStatements::SEL_SKILL_LINE_X_TRAIT_TREE);
+                    statement.set_bool(0, official);
+                    let mut rows = self.hotfix_db.query(&statement).await?;
+                    if !rows.is_empty() {
+                        loop {
+                            batches[batch_index].push(skill_line_x_trait_tree_values_like_cpp([
+                                read_integer_checked_like_cpp(&rows, 0, "SkillLineXTraitTree.ID")?,
+                                read_integer_checked_like_cpp(
+                                    &rows,
+                                    1,
+                                    "SkillLineXTraitTree.SkillLineID",
+                                )?,
+                                read_integer_checked_like_cpp(
+                                    &rows,
+                                    2,
+                                    "SkillLineXTraitTree.TraitTreeID",
+                                )?,
+                                read_integer_checked_like_cpp(
+                                    &rows,
+                                    3,
+                                    "SkillLineXTraitTree.OrderIndex",
+                                )?,
+                            ])?);
+                            if !rows.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                }
+                let [official, custom] = batches;
+                Ok::<_, anyhow::Error>(SkillLineXTraitTreeHotfixRowsLikeCpp { official, custom })
             }
             .await;
             match loaded {
@@ -301,6 +368,13 @@ mod tests {
             )
         );
         assert_eq!(
+            HotfixStatements::SEL_SKILL_LINE_X_TRAIT_TREE.sql(),
+            concat!(
+                "SELECT ID, SkillLineID, TraitTreeID, OrderIndex FROM skill_line_x_trait_tree ",
+                "WHERE (`VerifiedBuild` > 0) = ?"
+            )
+        );
+        assert_eq!(
             HotfixStatements::SEL_SKILL_RACE_CLASS_INFO.sql(),
             concat!(
                 "SELECT ID, RaceMask, SkillID, ClassMask, Flags, Availability, ",
@@ -367,5 +441,10 @@ mod tests {
         assert_eq!(race_class.id, 1);
         assert_eq!(race_class.skill_id, -3);
         assert_eq!(race_class.skill_tier_id, -8);
+        let trait_link = skill_line_x_trait_tree_values_like_cpp([9, 10, -11, 12]).unwrap();
+        assert_eq!(trait_link.id, 9);
+        assert_eq!(trait_link.skill_line_id, 10);
+        assert_eq!(trait_link.trait_tree_id, -11);
+        assert_eq!(trait_link.order_index, 12);
     }
 }

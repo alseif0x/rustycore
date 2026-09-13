@@ -275,9 +275,60 @@ db2_store!(PvpTalentStore, PvpTalentEntry);
 db2_store!(PvpTalentCategoryStore, PvpTalentCategoryEntry);
 db2_store!(PvpTalentSlotUnlockStore, PvpTalentSlotUnlockEntry);
 db2_store!(PvpTierStore, PvpTierEntry);
-db2_store!(SkillLineXTraitTreeStore, SkillLineXTraitTreeEntry);
 db2_store!(TalentStore, TalentEntry);
 db2_store!(TalentTabStore, TalentTabEntry);
+
+/// Effective `SkillLineXTraitTree` records used by the represented `TraitMgr`
+/// projection. This store keeps its WDC4/official/custom layers explicit while
+/// final table-hash removal accounting remains a later #524 gate.
+pub struct SkillLineXTraitTreeStore {
+    entries: HashMap<u32, SkillLineXTraitTreeEntry>,
+}
+
+impl SkillLineXTraitTreeStore {
+    pub fn from_entries(entries: impl IntoIterator<Item = SkillLineXTraitTreeEntry>) -> Self {
+        Self {
+            entries: entries.into_iter().map(|entry| (entry.id, entry)).collect(),
+        }
+    }
+
+    pub fn get(&self, id: u32) -> Option<&SkillLineXTraitTreeEntry> {
+        self.entries.get(&id)
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// Apply official and custom SQL overlays in C++ precedence order.
+    pub fn apply_hotfix_overlays_like_cpp(
+        mut self,
+        official: impl IntoIterator<Item = SkillLineXTraitTreeEntry>,
+        custom: impl IntoIterator<Item = SkillLineXTraitTreeEntry>,
+    ) -> Self {
+        for entry in official {
+            self.entries.insert(entry.id, entry);
+        }
+        for entry in custom {
+            self.entries.insert(entry.id, entry);
+        }
+        self
+    }
+}
+
+impl FromEntries<SkillLineXTraitTreeEntry> for SkillLineXTraitTreeStore {
+    fn from_entries(entries: impl IntoIterator<Item = SkillLineXTraitTreeEntry>) -> Self {
+        Self::from_entries(entries)
+    }
+
+    fn len(&self) -> usize {
+        self.len()
+    }
+}
 
 /// Hydrated WDC4 SkillLine payload plus the exact identities and
 /// authorization fields visible through C++ `sSkillLineStore.LookupEntry`.
@@ -986,7 +1037,6 @@ impl_from_entries!(PvpTalentStore, PvpTalentEntry);
 impl_from_entries!(PvpTalentCategoryStore, PvpTalentCategoryEntry);
 impl_from_entries!(PvpTalentSlotUnlockStore, PvpTalentSlotUnlockEntry);
 impl_from_entries!(PvpTierStore, PvpTierEntry);
-impl_from_entries!(SkillLineXTraitTreeStore, SkillLineXTraitTreeEntry);
 impl_from_entries!(TalentStore, TalentEntry);
 impl_from_entries!(TalentTabStore, TalentTabEntry);
 

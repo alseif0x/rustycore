@@ -52,6 +52,8 @@ pub enum HotfixStatements {
     SEL_SKILL_LINE,
     /// C++ `HOTFIX_SEL_SKILL_LINE_ABILITY`.
     SEL_SKILL_LINE_ABILITY,
+    /// C++ `HOTFIX_SEL_SKILL_LINE_X_TRAIT_TREE`.
+    SEL_SKILL_LINE_X_TRAIT_TREE,
     /// C++ `HOTFIX_SEL_SKILL_RACE_CLASS_INFO`.
     SEL_SKILL_RACE_CLASS_INFO,
     /// `DB2Manager::LoadHotfixData`.
@@ -157,6 +159,7 @@ impl HotfixStatements {
                 | Self::SEL_DIFFICULTY
                 | Self::SEL_SKILL_LINE
                 | Self::SEL_SKILL_LINE_ABILITY
+                | Self::SEL_SKILL_LINE_X_TRAIT_TREE
                 | Self::SEL_SKILL_RACE_CLASS_INFO
                 | Self::SEL_PHASE
                 | Self::SEL_PHASE_X_PHASE_GROUP
@@ -298,6 +301,10 @@ impl StatementDef for HotfixStatements {
                 "TrivialSkillLineRankLow, Flags, NumSkillUps, UniqueBit, ",
                 "TradeSkillCategoryID, SkillupSkillLineID, CharacterPoints1, ",
                 "CharacterPoints2 FROM skill_line_ability WHERE (`VerifiedBuild` > 0) = ?"
+            ),
+            Self::SEL_SKILL_LINE_X_TRAIT_TREE => concat!(
+                "SELECT ID, SkillLineID, TraitTreeID, OrderIndex FROM skill_line_x_trait_tree ",
+                "WHERE (`VerifiedBuild` > 0) = ?"
             ),
             Self::SEL_SKILL_RACE_CLASS_INFO => concat!(
                 "SELECT ID, RaceMask, SkillID, ClassMask, Flags, Availability, ",
@@ -480,6 +487,7 @@ mod tests {
         assert!(HotfixStatements::SEL_CHR_SPECIALIZATION.is_selected_overlay_like_cpp());
         assert!(HotfixStatements::SEL_SKILL_LINE.is_selected_overlay_like_cpp());
         assert!(HotfixStatements::SEL_SKILL_LINE_ABILITY.is_selected_overlay_like_cpp());
+        assert!(HotfixStatements::SEL_SKILL_LINE_X_TRAIT_TREE.is_selected_overlay_like_cpp());
         assert!(HotfixStatements::SEL_SKILL_RACE_CLASS_INFO.is_selected_overlay_like_cpp());
         assert!(HotfixStatements::SEL_SPELL_INTERRUPTS.is_selected_overlay_like_cpp());
         assert!(HotfixStatements::SEL_SPELL_NAME.is_selected_overlay_like_cpp());
