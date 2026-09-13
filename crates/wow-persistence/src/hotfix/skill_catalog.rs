@@ -8,11 +8,13 @@ use crate::PersistenceFutureLikeCpp;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TraitCatalogHotfixTableLikeCpp {
     SpecSetMember,
+    TraitCurrencySourceLocale,
     TraitCond,
     TraitCost,
     TraitCurrency,
     TraitCurrencySource,
     TraitDefinition,
+    TraitDefinitionLocale,
     TraitDefinitionEffectPoints,
     TraitEdge,
     TraitNode,
@@ -51,6 +53,22 @@ pub struct TraitCatalogHotfixRowLikeCpp {
 pub struct TraitCatalogHotfixRowsLikeCpp {
     pub official: Vec<TraitCatalogHotfixRowLikeCpp>,
     pub custom: Vec<TraitCatalogHotfixRowLikeCpp>,
+}
+
+/// A locale-specific C++ `PREPARE_LOCALE_STMT` row. The table identity and
+/// locale remain explicit so a localized row cannot be applied to a base store
+/// or a different client locale by accident.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TraitCatalogLocaleHotfixRowLikeCpp {
+    pub table: TraitCatalogHotfixTableLikeCpp,
+    pub locale: String,
+    pub values: Vec<TraitCatalogHotfixValueLikeCpp>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct TraitCatalogLocaleHotfixRowsLikeCpp {
+    pub official: Vec<TraitCatalogLocaleHotfixRowLikeCpp>,
+    pub custom: Vec<TraitCatalogLocaleHotfixRowLikeCpp>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -141,6 +159,23 @@ pub trait SkillCatalogHotfixPersistencePortLikeCpp: Send + Sync {
         '_,
         SkillCatalogHotfixLoadOutcomeLikeCpp<TraitCatalogHotfixRowsLikeCpp>,
     >;
+
+    /// Load the locale statements emitted by C++ `PREPARE_LOCALE_STMT` for the
+    /// requested database locale. Implementors without locale SQL support may
+    /// return an empty set; production MariaDB supplies the concrete rows.
+    fn load_trait_catalog_locale_hotfix_rows_like_cpp(
+        &self,
+        _locale: &str,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SkillCatalogHotfixLoadOutcomeLikeCpp<TraitCatalogLocaleHotfixRowsLikeCpp>,
+    > {
+        Box::pin(async {
+            SkillCatalogHotfixLoadOutcomeLikeCpp::Loaded(
+                TraitCatalogLocaleHotfixRowsLikeCpp::default(),
+            )
+        })
+    }
 
     fn load_skill_line_hotfix_rows_like_cpp(
         &self,

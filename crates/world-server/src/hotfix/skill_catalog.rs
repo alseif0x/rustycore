@@ -11,6 +11,7 @@ use wow_persistence::{
     SkillLineXTraitTreeHotfixRowLikeCpp, SkillRaceClassInfoHotfixRowLikeCpp,
     SkillRaceClassInfoHotfixRowsLikeCpp, TraitCatalogHotfixRowLikeCpp,
     TraitCatalogHotfixRowsLikeCpp, TraitCatalogHotfixTableLikeCpp, TraitCatalogHotfixValueLikeCpp,
+    TraitCatalogLocaleHotfixRowLikeCpp, TraitCatalogLocaleHotfixRowsLikeCpp,
 };
 
 type TraitOverlayBatchesLikeCpp = HashMap<
@@ -21,17 +22,27 @@ type TraitOverlayBatchesLikeCpp = HashMap<
     ),
 >;
 
+type TraitLocaleOverlayBatchesLikeCpp = HashMap<
+    wow_data::trait_tree::TraitCatalogOverlayTableLikeCpp,
+    (
+        Vec<wow_data::trait_tree::TraitCatalogLocaleOverlayRowLikeCpp>,
+        Vec<wow_data::trait_tree::TraitCatalogLocaleOverlayRowLikeCpp>,
+    ),
+>;
+
 fn trait_overlay_table_like_cpp(
     table: TraitCatalogHotfixTableLikeCpp,
 ) -> wow_data::trait_tree::TraitCatalogOverlayTableLikeCpp {
     use wow_data::trait_tree::TraitCatalogOverlayTableLikeCpp as T;
     match table {
         TraitCatalogHotfixTableLikeCpp::SpecSetMember => T::SpecSetMember,
+        TraitCatalogHotfixTableLikeCpp::TraitCurrencySourceLocale => T::TraitCurrencySourceLocale,
         TraitCatalogHotfixTableLikeCpp::TraitCond => T::TraitCond,
         TraitCatalogHotfixTableLikeCpp::TraitCost => T::TraitCost,
         TraitCatalogHotfixTableLikeCpp::TraitCurrency => T::TraitCurrency,
         TraitCatalogHotfixTableLikeCpp::TraitCurrencySource => T::TraitCurrencySource,
         TraitCatalogHotfixTableLikeCpp::TraitDefinition => T::TraitDefinition,
+        TraitCatalogHotfixTableLikeCpp::TraitDefinitionLocale => T::TraitDefinitionLocale,
         TraitCatalogHotfixTableLikeCpp::TraitDefinitionEffectPoints => {
             T::TraitDefinitionEffectPoints
         }
@@ -93,6 +104,38 @@ fn trait_overlay_batches_like_cpp(
                 0 => batch.0.push(row),
                 1 => batch.1.push(row),
                 _ => unreachable!("Trait hotfix source index is fixed to official/custom"),
+            }
+        }
+    }
+    batches
+}
+
+fn trait_locale_overlay_row_like_cpp(
+    row: TraitCatalogLocaleHotfixRowLikeCpp,
+) -> wow_data::trait_tree::TraitCatalogLocaleOverlayRowLikeCpp {
+    wow_data::trait_tree::TraitCatalogLocaleOverlayRowLikeCpp {
+        table: trait_overlay_table_like_cpp(row.table),
+        locale: row.locale,
+        values: row
+            .values
+            .into_iter()
+            .map(trait_overlay_value_like_cpp)
+            .collect(),
+    }
+}
+
+fn trait_locale_overlay_batches_like_cpp(
+    rows: TraitCatalogLocaleHotfixRowsLikeCpp,
+) -> TraitLocaleOverlayBatchesLikeCpp {
+    let mut batches = TraitLocaleOverlayBatchesLikeCpp::new();
+    for (index, source) in [rows.official, rows.custom].into_iter().enumerate() {
+        for row in source {
+            let row = trait_locale_overlay_row_like_cpp(row);
+            let batch = batches.entry(row.table).or_default();
+            match index {
+                0 => batch.0.push(row),
+                1 => batch.1.push(row),
+                _ => unreachable!("Trait locale hotfix source index is fixed to official/custom"),
             }
         }
     }
@@ -256,12 +299,17 @@ pub(crate) struct SkillCatalogStagesLikeCpp {
     pub trait_tree_skill_line_index: Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>,
     pub trait_node_entry_store: Arc<wow_data::trait_tree::TraitNodeEntryStore>,
     pub trait_definition_store: Arc<wow_data::trait_tree::TraitDefinitionStore>,
+    pub trait_definition_locale_store: Arc<wow_data::trait_tree::TraitDefinitionLocaleStore>,
+    pub trait_currency_source_locale_store:
+        Arc<wow_data::trait_tree::TraitCurrencySourceLocaleStore>,
 }
 
 struct TraitMgrCatalogLikeCpp {
     index: Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>,
     trait_node_entry_store: Arc<wow_data::trait_tree::TraitNodeEntryStore>,
     trait_definition_store: Arc<wow_data::trait_tree::TraitDefinitionStore>,
+    trait_definition_locale_store: Arc<wow_data::trait_tree::TraitDefinitionLocaleStore>,
+    trait_currency_source_locale_store: Arc<wow_data::trait_tree::TraitCurrencySourceLocaleStore>,
 }
 
 /// Load the relation catalog in the exact C++ table order. Keeping this
@@ -310,6 +358,8 @@ pub(crate) async fn load_skill_catalog_stages_like_cpp(
         trait_tree_skill_line_index: trait_mgr_catalog.index,
         trait_node_entry_store: trait_mgr_catalog.trait_node_entry_store,
         trait_definition_store: trait_mgr_catalog.trait_definition_store,
+        trait_definition_locale_store: trait_mgr_catalog.trait_definition_locale_store,
+        trait_currency_source_locale_store: trait_mgr_catalog.trait_currency_source_locale_store,
     })
 }
 
@@ -326,8 +376,21 @@ async fn load_trait_index_like_cpp(
         SkillCatalogHotfixLoadOutcomeLikeCpp::Failed { reason } => bail!(reason),
     };
     let mut hotfix_batches = trait_overlay_batches_like_cpp(hotfix_rows);
+    let locale_hotfix_rows = match persistence
+        .load_trait_catalog_locale_hotfix_rows_like_cpp(locale)
+        .await
+    {
+        SkillCatalogHotfixLoadOutcomeLikeCpp::Loaded(rows) => rows,
+        SkillCatalogHotfixLoadOutcomeLikeCpp::Failed { reason } => bail!(reason),
+    };
+    let mut locale_batches = trait_locale_overlay_batches_like_cpp(locale_hotfix_rows);
     let take_hotfix =
         |batches: &mut TraitOverlayBatchesLikeCpp,
+         table: wow_data::trait_tree::TraitCatalogOverlayTableLikeCpp| {
+            batches.remove(&table).unwrap_or_default()
+        };
+    let take_locale =
+        |batches: &mut TraitLocaleOverlayBatchesLikeCpp,
          table: wow_data::trait_tree::TraitCatalogOverlayTableLikeCpp| {
             batches.remove(&table).unwrap_or_default()
         };
@@ -435,6 +498,32 @@ async fn load_trait_index_like_cpp(
         wow_data::trait_tree::TraitDefinitionStore,
         "TraitDefinition.db2",
         TraitDefinition
+    );
+    let (trait_definition_locale_official, trait_definition_locale_custom) = take_locale(
+        &mut locale_batches,
+        wow_data::trait_tree::TraitCatalogOverlayTableLikeCpp::TraitDefinitionLocale,
+    );
+    let trait_definition_locale_store = Arc::new(
+        wow_data::trait_tree::compose_trait_definition_locale_like_cpp(
+            &trait_definition_store,
+            locale,
+            trait_definition_locale_official,
+            trait_definition_locale_custom,
+        )
+        .context("Failed to apply TraitDefinition locale hotfix overlays")?,
+    );
+    let (trait_currency_source_locale_official, trait_currency_source_locale_custom) = take_locale(
+        &mut locale_batches,
+        wow_data::trait_tree::TraitCatalogOverlayTableLikeCpp::TraitCurrencySourceLocale,
+    );
+    let trait_currency_source_locale_store = Arc::new(
+        wow_data::trait_tree::compose_trait_currency_source_locale_like_cpp(
+            &trait_currency_source_store,
+            locale,
+            trait_currency_source_locale_official,
+            trait_currency_source_locale_custom,
+        )
+        .context("Failed to apply TraitCurrencySource locale hotfix overlays")?,
     );
     let _trait_definition_effect_points_store = trait_store!(
         wow_data::trait_tree::TraitDefinitionEffectPointsStore,
@@ -547,6 +636,8 @@ async fn load_trait_index_like_cpp(
         index,
         trait_node_entry_store: Arc::new(trait_node_entry_store),
         trait_definition_store: Arc::new(trait_definition_store),
+        trait_definition_locale_store,
+        trait_currency_source_locale_store,
     })
 }
 
@@ -652,5 +743,33 @@ mod tests {
         assert!(body.contains("apply_hotfix_overlays_and_removals_like_cpp"));
         assert!(body.contains("class_ids_for_skill_line_like_cpp"));
         assert!(body.contains("removals"));
+    }
+
+    #[test]
+    fn locale_batches_preserve_table_locale_and_source_order() {
+        let rows = TraitCatalogLocaleHotfixRowsLikeCpp {
+            official: vec![TraitCatalogLocaleHotfixRowLikeCpp {
+                table: TraitCatalogHotfixTableLikeCpp::TraitDefinitionLocale,
+                locale: "deDE".into(),
+                values: vec![TraitCatalogHotfixValueLikeCpp::Integer(7)],
+            }],
+            custom: vec![TraitCatalogLocaleHotfixRowLikeCpp {
+                table: TraitCatalogHotfixTableLikeCpp::TraitCurrencySourceLocale,
+                locale: "deDE".into(),
+                values: vec![TraitCatalogHotfixValueLikeCpp::Integer(3)],
+            }],
+        };
+        let batches = trait_locale_overlay_batches_like_cpp(rows);
+        let definition = batches
+            .get(&wow_data::trait_tree::TraitCatalogOverlayTableLikeCpp::TraitDefinitionLocale)
+            .expect("definition locale table is grouped");
+        assert_eq!(definition.0.len(), 1);
+        assert!(definition.1.is_empty());
+        assert_eq!(definition.0[0].locale, "deDE");
+        let currency = batches
+            .get(&wow_data::trait_tree::TraitCatalogOverlayTableLikeCpp::TraitCurrencySourceLocale)
+            .expect("currency source locale table is grouped");
+        assert!(currency.0.is_empty());
+        assert_eq!(currency.1.len(), 1);
     }
 }
