@@ -104,7 +104,6 @@ db2_store!(SceneScriptGlobalTextStore, SceneScriptTextEntry);
 db2_store!(SceneScriptTextStore, SceneScriptTextEntry);
 db2_store!(ServerMessagesStore, ServerMessagesEntry);
 db2_store!(SoundKitStore, SoundKitEntry);
-db2_store!(SpecSetMemberStore, SpecSetMemberEntry);
 db2_store!(SpecializationSpellsStore, SpecializationSpellsEntry);
 db2_store!(SummonPropertiesStore, SummonPropertiesEntry);
 db2_store!(TactKeyStore, TactKeyEntry);

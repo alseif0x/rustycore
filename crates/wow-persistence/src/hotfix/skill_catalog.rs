@@ -2,6 +2,57 @@
 
 use crate::PersistenceFutureLikeCpp;
 
+/// Trait DB2 tables mirrored by the C++ hotfix loader.  The table identity is
+/// carried with every row so composition cannot accidentally apply a row to a
+/// different store.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TraitCatalogHotfixTableLikeCpp {
+    SpecSetMember,
+    TraitCond,
+    TraitCost,
+    TraitCurrency,
+    TraitCurrencySource,
+    TraitDefinition,
+    TraitDefinitionEffectPoints,
+    TraitEdge,
+    TraitNode,
+    TraitNodeEntry,
+    TraitNodeEntryXTraitCond,
+    TraitNodeEntryXTraitCost,
+    TraitNodeGroup,
+    TraitNodeGroupXTraitCond,
+    TraitNodeGroupXTraitCost,
+    TraitNodeGroupXTraitNode,
+    TraitNodeXTraitCond,
+    TraitNodeXTraitCost,
+    TraitNodeXTraitNodeEntry,
+    TraitTree,
+    TraitTreeLoadout,
+    TraitTreeLoadoutEntry,
+    TraitTreeXTraitCost,
+    TraitTreeXTraitCurrency,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TraitCatalogHotfixValueLikeCpp {
+    Integer(i128),
+    Real(f64),
+    Text(String),
+    Null,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TraitCatalogHotfixRowLikeCpp {
+    pub table: TraitCatalogHotfixTableLikeCpp,
+    pub values: Vec<TraitCatalogHotfixValueLikeCpp>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct TraitCatalogHotfixRowsLikeCpp {
+    pub official: Vec<TraitCatalogHotfixRowLikeCpp>,
+    pub custom: Vec<TraitCatalogHotfixRowLikeCpp>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SkillLineHotfixRowLikeCpp {
     pub id: u32,
@@ -84,6 +135,13 @@ pub enum SkillCatalogHotfixLoadOutcomeLikeCpp<T> {
 /// validated and published, and each relation table remains independently
 /// observable so its C++ order and failure boundary are preserved.
 pub trait SkillCatalogHotfixPersistencePortLikeCpp: Send + Sync {
+    fn load_trait_catalog_hotfix_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SkillCatalogHotfixLoadOutcomeLikeCpp<TraitCatalogHotfixRowsLikeCpp>,
+    >;
+
     fn load_skill_line_hotfix_rows_like_cpp(
         &self,
     ) -> PersistenceFutureLikeCpp<

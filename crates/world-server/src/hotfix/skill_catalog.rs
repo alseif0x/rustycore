@@ -1,14 +1,103 @@
 //! Composition boundary for the effective C++ skill catalog.
 
 use anyhow::{Context, Result, bail};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::info;
+use wow_data::trait_tree::TraitCatalogOverlayValueLikeCpp;
 use wow_persistence::{
     SkillCatalogHotfixLoadOutcomeLikeCpp, SkillCatalogHotfixPersistencePortLikeCpp,
     SkillLineAbilityHotfixRowLikeCpp, SkillLineAbilityHotfixRowsLikeCpp, SkillLineHotfixRowLikeCpp,
     SkillLineXTraitTreeHotfixRowLikeCpp, SkillRaceClassInfoHotfixRowLikeCpp,
-    SkillRaceClassInfoHotfixRowsLikeCpp,
+    SkillRaceClassInfoHotfixRowsLikeCpp, TraitCatalogHotfixRowLikeCpp,
+    TraitCatalogHotfixRowsLikeCpp, TraitCatalogHotfixTableLikeCpp, TraitCatalogHotfixValueLikeCpp,
 };
+
+type TraitOverlayBatchesLikeCpp = HashMap<
+    wow_data::trait_tree::TraitCatalogOverlayTableLikeCpp,
+    (
+        Vec<wow_data::trait_tree::TraitCatalogOverlayRowLikeCpp>,
+        Vec<wow_data::trait_tree::TraitCatalogOverlayRowLikeCpp>,
+    ),
+>;
+
+fn trait_overlay_table_like_cpp(
+    table: TraitCatalogHotfixTableLikeCpp,
+) -> wow_data::trait_tree::TraitCatalogOverlayTableLikeCpp {
+    use wow_data::trait_tree::TraitCatalogOverlayTableLikeCpp as T;
+    match table {
+        TraitCatalogHotfixTableLikeCpp::SpecSetMember => T::SpecSetMember,
+        TraitCatalogHotfixTableLikeCpp::TraitCond => T::TraitCond,
+        TraitCatalogHotfixTableLikeCpp::TraitCost => T::TraitCost,
+        TraitCatalogHotfixTableLikeCpp::TraitCurrency => T::TraitCurrency,
+        TraitCatalogHotfixTableLikeCpp::TraitCurrencySource => T::TraitCurrencySource,
+        TraitCatalogHotfixTableLikeCpp::TraitDefinition => T::TraitDefinition,
+        TraitCatalogHotfixTableLikeCpp::TraitDefinitionEffectPoints => {
+            T::TraitDefinitionEffectPoints
+        }
+        TraitCatalogHotfixTableLikeCpp::TraitEdge => T::TraitEdge,
+        TraitCatalogHotfixTableLikeCpp::TraitNode => T::TraitNode,
+        TraitCatalogHotfixTableLikeCpp::TraitNodeEntry => T::TraitNodeEntry,
+        TraitCatalogHotfixTableLikeCpp::TraitNodeEntryXTraitCond => T::TraitNodeEntryXTraitCond,
+        TraitCatalogHotfixTableLikeCpp::TraitNodeEntryXTraitCost => T::TraitNodeEntryXTraitCost,
+        TraitCatalogHotfixTableLikeCpp::TraitNodeGroup => T::TraitNodeGroup,
+        TraitCatalogHotfixTableLikeCpp::TraitNodeGroupXTraitCond => T::TraitNodeGroupXTraitCond,
+        TraitCatalogHotfixTableLikeCpp::TraitNodeGroupXTraitCost => T::TraitNodeGroupXTraitCost,
+        TraitCatalogHotfixTableLikeCpp::TraitNodeGroupXTraitNode => T::TraitNodeGroupXTraitNode,
+        TraitCatalogHotfixTableLikeCpp::TraitNodeXTraitCond => T::TraitNodeXTraitCond,
+        TraitCatalogHotfixTableLikeCpp::TraitNodeXTraitCost => T::TraitNodeXTraitCost,
+        TraitCatalogHotfixTableLikeCpp::TraitNodeXTraitNodeEntry => T::TraitNodeXTraitNodeEntry,
+        TraitCatalogHotfixTableLikeCpp::TraitTree => T::TraitTree,
+        TraitCatalogHotfixTableLikeCpp::TraitTreeLoadout => T::TraitTreeLoadout,
+        TraitCatalogHotfixTableLikeCpp::TraitTreeLoadoutEntry => T::TraitTreeLoadoutEntry,
+        TraitCatalogHotfixTableLikeCpp::TraitTreeXTraitCost => T::TraitTreeXTraitCost,
+        TraitCatalogHotfixTableLikeCpp::TraitTreeXTraitCurrency => T::TraitTreeXTraitCurrency,
+    }
+}
+
+fn trait_overlay_value_like_cpp(
+    value: TraitCatalogHotfixValueLikeCpp,
+) -> TraitCatalogOverlayValueLikeCpp {
+    match value {
+        TraitCatalogHotfixValueLikeCpp::Integer(value) => {
+            TraitCatalogOverlayValueLikeCpp::Integer(value)
+        }
+        TraitCatalogHotfixValueLikeCpp::Real(value) => TraitCatalogOverlayValueLikeCpp::Real(value),
+        TraitCatalogHotfixValueLikeCpp::Text(value) => TraitCatalogOverlayValueLikeCpp::Text(value),
+        TraitCatalogHotfixValueLikeCpp::Null => TraitCatalogOverlayValueLikeCpp::Null,
+    }
+}
+
+fn trait_overlay_row_like_cpp(
+    row: TraitCatalogHotfixRowLikeCpp,
+) -> wow_data::trait_tree::TraitCatalogOverlayRowLikeCpp {
+    wow_data::trait_tree::TraitCatalogOverlayRowLikeCpp {
+        table: trait_overlay_table_like_cpp(row.table),
+        values: row
+            .values
+            .into_iter()
+            .map(trait_overlay_value_like_cpp)
+            .collect(),
+    }
+}
+
+fn trait_overlay_batches_like_cpp(
+    rows: TraitCatalogHotfixRowsLikeCpp,
+) -> TraitOverlayBatchesLikeCpp {
+    let mut batches = TraitOverlayBatchesLikeCpp::new();
+    for (index, source) in [rows.official, rows.custom].into_iter().enumerate() {
+        for row in source {
+            let row = trait_overlay_row_like_cpp(row);
+            let batch = batches.entry(row.table).or_default();
+            match index {
+                0 => batch.0.push(row),
+                1 => batch.1.push(row),
+                _ => unreachable!("Trait hotfix source index is fixed to official/custom"),
+            }
+        }
+    }
+    batches
+}
 
 fn skill_line_overlay_like_cpp(
     row: SkillLineHotfixRowLikeCpp,
@@ -166,11 +255,13 @@ pub(crate) struct SkillCatalogStagesLikeCpp {
     pub skill_store_outcome: wow_data::SkillStoreEffectiveLoadOutcomeLikeCpp,
     pub trait_tree_skill_line_index: Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>,
     pub trait_node_entry_store: Arc<wow_data::trait_tree::TraitNodeEntryStore>,
+    pub trait_definition_store: Arc<wow_data::trait_tree::TraitDefinitionStore>,
 }
 
 struct TraitMgrCatalogLikeCpp {
     index: Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>,
     trait_node_entry_store: Arc<wow_data::trait_tree::TraitNodeEntryStore>,
+    trait_definition_store: Arc<wow_data::trait_tree::TraitDefinitionStore>,
 }
 
 /// Load the relation catalog in the exact C++ table order. Keeping this
@@ -218,6 +309,7 @@ pub(crate) async fn load_skill_catalog_stages_like_cpp(
         skill_store_outcome,
         trait_tree_skill_line_index: trait_mgr_catalog.index,
         trait_node_entry_store: trait_mgr_catalog.trait_node_entry_store,
+        trait_definition_store: trait_mgr_catalog.trait_definition_store,
     })
 }
 
@@ -229,63 +321,157 @@ async fn load_trait_index_like_cpp(
     skill_line_store: &wow_data::SkillLineStore,
     skill_store: &wow_data::SkillStore,
 ) -> Result<TraitMgrCatalogLikeCpp> {
-    let trait_tree_store = wow_data::trait_tree::TraitTreeStore::load(data_dir, locale)
-        .context("Failed to load TraitTree.db2")?;
-    let trait_node_store = wow_data::trait_tree::TraitNodeStore::load(data_dir, locale)
-        .context("Failed to load TraitNode.db2")?;
-    let trait_node_entry_store = wow_data::trait_tree::TraitNodeEntryStore::load(data_dir, locale)
-        .context("Failed to load TraitNodeEntry.db2")?;
-    let trait_node_entry_x_trait_cond_store =
-        wow_data::trait_tree::TraitNodeEntryXTraitCondStore::load(data_dir, locale)
-            .context("Failed to load TraitNodeEntryXTraitCond.db2")?;
-    let trait_node_entry_x_trait_cost_store =
-        wow_data::trait_tree::TraitNodeEntryXTraitCostStore::load(data_dir, locale)
-            .context("Failed to load TraitNodeEntryXTraitCost.db2")?;
-    let trait_node_group_store = wow_data::trait_tree::TraitNodeGroupStore::load(data_dir, locale)
-        .context("Failed to load TraitNodeGroup.db2")?;
-    let trait_node_group_x_trait_cond_store =
-        wow_data::trait_tree::TraitNodeGroupXTraitCondStore::load(data_dir, locale)
-            .context("Failed to load TraitNodeGroupXTraitCond.db2")?;
-    let trait_node_group_x_trait_cost_store =
-        wow_data::trait_tree::TraitNodeGroupXTraitCostStore::load(data_dir, locale)
-            .context("Failed to load TraitNodeGroupXTraitCost.db2")?;
-    let trait_node_group_x_trait_node_store =
-        wow_data::trait_tree::TraitNodeGroupXTraitNodeStore::load(data_dir, locale)
-            .context("Failed to load TraitNodeGroupXTraitNode.db2")?;
-    let trait_node_x_trait_cond_store =
-        wow_data::trait_tree::TraitNodeXTraitCondStore::load(data_dir, locale)
-            .context("Failed to load TraitNodeXTraitCond.db2")?;
-    let trait_node_x_trait_cost_store =
-        wow_data::trait_tree::TraitNodeXTraitCostStore::load(data_dir, locale)
-            .context("Failed to load TraitNodeXTraitCost.db2")?;
-    let trait_node_x_trait_node_entry_store =
-        wow_data::trait_tree::TraitNodeXTraitNodeEntryStore::load(data_dir, locale)
-            .context("Failed to load TraitNodeXTraitNodeEntry.db2")?;
-    let trait_edge_store = wow_data::trait_tree::TraitEdgeStore::load(data_dir, locale)
-        .context("Failed to load TraitEdge.db2")?;
-    let trait_cost_store = wow_data::trait_tree::TraitCostStore::load(data_dir, locale)
-        .context("Failed to load TraitCost.db2")?;
-    let trait_currency_store = wow_data::trait_tree::TraitCurrencyStore::load(data_dir, locale)
-        .context("Failed to load TraitCurrency.db2")?;
-    let trait_currency_source_store =
-        wow_data::trait_tree::TraitCurrencySourceStore::load(data_dir, locale)
-            .context("Failed to load TraitCurrencySource.db2")?;
-    let trait_cond_store = wow_data::trait_tree::TraitCondStore::load(data_dir, locale)
-        .context("Failed to load TraitCond.db2")?;
-    let trait_tree_loadout_store =
-        wow_data::trait_tree::TraitTreeLoadoutStore::load(data_dir, locale)
-            .context("Failed to load TraitTreeLoadout.db2")?;
-    let trait_tree_loadout_entry_store =
-        wow_data::trait_tree::TraitTreeLoadoutEntryStore::load(data_dir, locale)
-            .context("Failed to load TraitTreeLoadoutEntry.db2")?;
-    let trait_tree_x_trait_cost_store =
-        wow_data::trait_tree::TraitTreeXTraitCostStore::load(data_dir, locale)
-            .context("Failed to load TraitTreeXTraitCost.db2")?;
-    let trait_tree_x_trait_currency_store =
-        wow_data::trait_tree::TraitTreeXTraitCurrencyStore::load(data_dir, locale)
-            .context("Failed to load TraitTreeXTraitCurrency.db2")?;
-    let spec_set_member_store = wow_data::SpecSetMemberStore::load(data_dir, locale)
-        .context("Failed to load SpecSetMember.db2")?;
+    let hotfix_rows = match persistence.load_trait_catalog_hotfix_rows_like_cpp().await {
+        SkillCatalogHotfixLoadOutcomeLikeCpp::Loaded(rows) => rows,
+        SkillCatalogHotfixLoadOutcomeLikeCpp::Failed { reason } => bail!(reason),
+    };
+    let mut hotfix_batches = trait_overlay_batches_like_cpp(hotfix_rows);
+    let take_hotfix =
+        |batches: &mut TraitOverlayBatchesLikeCpp,
+         table: wow_data::trait_tree::TraitCatalogOverlayTableLikeCpp| {
+            batches.remove(&table).unwrap_or_default()
+        };
+
+    macro_rules! trait_store {
+        ($store:ty, $file:literal, $table:ident) => {{
+            let store = <$store>::load(data_dir, locale)
+                .with_context(|| format!("Failed to load {}", $file))?;
+            let (official, custom) = take_hotfix(
+                &mut hotfix_batches,
+                wow_data::trait_tree::TraitCatalogOverlayTableLikeCpp::$table,
+            );
+            store
+                .apply_trait_catalog_hotfix_like_cpp(official, custom, removals)
+                .with_context(|| format!("Failed to apply {} hotfix overlays", $file))?
+        }};
+    }
+
+    let trait_tree_store = trait_store!(
+        wow_data::trait_tree::TraitTreeStore,
+        "TraitTree.db2",
+        TraitTree
+    );
+    let trait_node_store = trait_store!(
+        wow_data::trait_tree::TraitNodeStore,
+        "TraitNode.db2",
+        TraitNode
+    );
+    let trait_node_entry_store = trait_store!(
+        wow_data::trait_tree::TraitNodeEntryStore,
+        "TraitNodeEntry.db2",
+        TraitNodeEntry
+    );
+    let trait_node_entry_x_trait_cond_store = trait_store!(
+        wow_data::trait_tree::TraitNodeEntryXTraitCondStore,
+        "TraitNodeEntryXTraitCond.db2",
+        TraitNodeEntryXTraitCond
+    );
+    let trait_node_entry_x_trait_cost_store = trait_store!(
+        wow_data::trait_tree::TraitNodeEntryXTraitCostStore,
+        "TraitNodeEntryXTraitCost.db2",
+        TraitNodeEntryXTraitCost
+    );
+    let trait_node_group_store = trait_store!(
+        wow_data::trait_tree::TraitNodeGroupStore,
+        "TraitNodeGroup.db2",
+        TraitNodeGroup
+    );
+    let trait_node_group_x_trait_cond_store = trait_store!(
+        wow_data::trait_tree::TraitNodeGroupXTraitCondStore,
+        "TraitNodeGroupXTraitCond.db2",
+        TraitNodeGroupXTraitCond
+    );
+    let trait_node_group_x_trait_cost_store = trait_store!(
+        wow_data::trait_tree::TraitNodeGroupXTraitCostStore,
+        "TraitNodeGroupXTraitCost.db2",
+        TraitNodeGroupXTraitCost
+    );
+    let trait_node_group_x_trait_node_store = trait_store!(
+        wow_data::trait_tree::TraitNodeGroupXTraitNodeStore,
+        "TraitNodeGroupXTraitNode.db2",
+        TraitNodeGroupXTraitNode
+    );
+    let trait_node_x_trait_cond_store = trait_store!(
+        wow_data::trait_tree::TraitNodeXTraitCondStore,
+        "TraitNodeXTraitCond.db2",
+        TraitNodeXTraitCond
+    );
+    let trait_node_x_trait_cost_store = trait_store!(
+        wow_data::trait_tree::TraitNodeXTraitCostStore,
+        "TraitNodeXTraitCost.db2",
+        TraitNodeXTraitCost
+    );
+    let trait_node_x_trait_node_entry_store = trait_store!(
+        wow_data::trait_tree::TraitNodeXTraitNodeEntryStore,
+        "TraitNodeXTraitNodeEntry.db2",
+        TraitNodeXTraitNodeEntry
+    );
+    let trait_edge_store = trait_store!(
+        wow_data::trait_tree::TraitEdgeStore,
+        "TraitEdge.db2",
+        TraitEdge
+    );
+    let trait_cost_store = trait_store!(
+        wow_data::trait_tree::TraitCostStore,
+        "TraitCost.db2",
+        TraitCost
+    );
+    let trait_currency_store = trait_store!(
+        wow_data::trait_tree::TraitCurrencyStore,
+        "TraitCurrency.db2",
+        TraitCurrency
+    );
+    let trait_currency_source_store = trait_store!(
+        wow_data::trait_tree::TraitCurrencySourceStore,
+        "TraitCurrencySource.db2",
+        TraitCurrencySource
+    );
+    let trait_cond_store = trait_store!(
+        wow_data::trait_tree::TraitCondStore,
+        "TraitCond.db2",
+        TraitCond
+    );
+    let trait_definition_store = trait_store!(
+        wow_data::trait_tree::TraitDefinitionStore,
+        "TraitDefinition.db2",
+        TraitDefinition
+    );
+    let _trait_definition_effect_points_store = trait_store!(
+        wow_data::trait_tree::TraitDefinitionEffectPointsStore,
+        "TraitDefinitionEffectPoints.db2",
+        TraitDefinitionEffectPoints
+    );
+    let trait_tree_loadout_store = trait_store!(
+        wow_data::trait_tree::TraitTreeLoadoutStore,
+        "TraitTreeLoadout.db2",
+        TraitTreeLoadout
+    );
+    let trait_tree_loadout_entry_store = trait_store!(
+        wow_data::trait_tree::TraitTreeLoadoutEntryStore,
+        "TraitTreeLoadoutEntry.db2",
+        TraitTreeLoadoutEntry
+    );
+    let trait_tree_x_trait_cost_store = trait_store!(
+        wow_data::trait_tree::TraitTreeXTraitCostStore,
+        "TraitTreeXTraitCost.db2",
+        TraitTreeXTraitCost
+    );
+    let trait_tree_x_trait_currency_store = trait_store!(
+        wow_data::trait_tree::TraitTreeXTraitCurrencyStore,
+        "TraitTreeXTraitCurrency.db2",
+        TraitTreeXTraitCurrency
+    );
+    let spec_set_member_store = {
+        let store = wow_data::SpecSetMemberStore::load(data_dir, locale)
+            .context("Failed to load SpecSetMember.db2")?;
+        let (official, custom) = take_hotfix(
+            &mut hotfix_batches,
+            wow_data::trait_tree::TraitCatalogOverlayTableLikeCpp::SpecSetMember,
+        );
+        store
+            .apply_trait_catalog_hotfix_like_cpp(official, custom, removals)
+            .context("Failed to apply SpecSetMember hotfix overlays")?
+    };
     let skill_line_x_trait_tree_store = wow_data::SkillLineXTraitTreeStore::load(data_dir, locale)
         .context("Failed to load SkillLineXTraitTree.db2")?;
     let hotfix_rows = match persistence
@@ -360,6 +546,7 @@ async fn load_trait_index_like_cpp(
     Ok(TraitMgrCatalogLikeCpp {
         index,
         trait_node_entry_store: Arc::new(trait_node_entry_store),
+        trait_definition_store: Arc::new(trait_definition_store),
     })
 }
 
