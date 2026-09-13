@@ -1,6 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**#486 target-account identity correction — implementation `3eafa4b8` (2026-09-13):**
+**#486 target-account identity correction — merged in PR #807, integration
+`86a0eb97` (2026-09-13):**
 `CMSG_QUERY_PLAYER_NAMES` now reads a startup-warmed `CharacterCache` projection
 (`CharacterCache.cpp:69+`) containing the target game-account, race, gender, class,
 level and delete state, plus the login `account.battlenet_account` relation. The
@@ -14,8 +15,8 @@ cache projection tests pass; `cargo check --locked -p wow-database -p wow-persis
 -p wow-world -p world-server`, formatting/diff checks and architecture check/self-test
 pass on aarch64 with one Cargo job. Declined-name fields and live undelete/barber
 cache updates remain outside the currently represented Rust administration surface;
-the issue remains open until this commit is integrated and the required action-specific
-capture/live acceptance is completed.
+the implementation is integrated, while the issue remains open until the required
+action-specific capture/live acceptance is completed.
 
 **Integrated delivery — 2026-09-12, #787 / PR #792, integration SHA
 `d14a9a67194e8013241e5dc837d9e72589aabac0`:** World/Map phase coordination is
