@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-13:** `3.4.3` is at
-`db1250767090a5c951dae96ad6c2a2d5b24873ff` (PR #816). The entries below preserve
+`62c1369f4e49200b6f6d7605b0bc7de5caeace7c` (PR #820). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -203,8 +203,8 @@ DB/restart/relogin acceptance remain separate #584 gates. The outcome telemetry
 still names the direct synchronous C++ visibility call as a runtime gap because the
 Rust equivalent is intentionally deferred through the existing phase boundary.
 
-**P3.9 directed Creature DESTROY — 2026-09-13, #584 / PR #820, implementation
-`8ab62574` (integration pending):** an ordinary
+**P3.9 directed Creature DESTROY — 2026-09-13, #584 / PR #820, integration
+`62c1369f4e49200b6f6d7605b0bc7de5caeace7c` (implementation `8ab62574`):** an ordinary
 Creature removed from an active map now produces a typed directed-destroy result
 while it is still attached. The canonical map captures nearby in-world Players,
 excludes the direct charmer and binds the result to the map incarnation; the
