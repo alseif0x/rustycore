@@ -1,6 +1,12 @@
 # Session convergence checkpoint — updated 2026-09-13
 
-**Integrated head after PR #844:** `6f42782fedb1eb77d7896fd139c195fbfbb9c43b`.
+**Integrated head after PR #849:** `4a3accf4459abe5421c4a24057057788fb213863`.
+
+PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
+outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
+`trait_definition_locale`/`trait_currency_source_locale` overlays are integrated.
+Their cross-store, live MariaDB/restart/relogin and functional-consumer gates remain
+owned by #524, not by this core coordinator checkpoint.
 
 **Closed predecessor, 2026-09-07:** PR #579 merged into `3.4.3` as `59f5bced`;
 #578 is closed. The user explicitly accepted integration with action-specific
