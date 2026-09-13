@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-13:** `3.4.3` is at
-`16303cc7f7e8c9b15fb391146506be4566b1d38f` (PR #822). The entries below preserve
+`7bb9a911c8d3cf235a9c8c7435e6f46c1bd41071` (PR #824). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -238,7 +238,7 @@ checks and validation-v2 quick in 8.53 s with one Cargo job
 No live runtime, capture, DB/restart/relogin or full item-stat parity claim is made.
 
 **#524 skill catalog and TraitMgr projection — 2026-09-13, sequence implementation
-`0192bac3`, integration `16303cc7`:** the production bootstrap now keeps the C++
+`0192bac3` plus hotspot follow-up `de4e114e`, integration `7bb9a911`:** the production bootstrap now keeps the C++
 table stages independently observable: `SkillLine` → WDC4/official/custom
 `SkillLineAbility` → WDC4 `TraitTree`/`SkillLineXTraitTree` projection →
 WDC4/official/custom `SkillRaceClassInfo`. The persistence contract and MariaDB
