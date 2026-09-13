@@ -5,8 +5,8 @@ use std::sync::Arc;
 use tracing::info;
 use wow_persistence::{
     SkillCatalogHotfixLoadOutcomeLikeCpp, SkillCatalogHotfixPersistencePortLikeCpp,
-    SkillLineAbilityHotfixRowLikeCpp, SkillLineHotfixRowLikeCpp,
-    SkillRaceClassInfoHotfixRowLikeCpp,
+    SkillLineAbilityHotfixRowLikeCpp, SkillLineAbilityHotfixRowsLikeCpp, SkillLineHotfixRowLikeCpp,
+    SkillRaceClassInfoHotfixRowLikeCpp, SkillRaceClassInfoHotfixRowsLikeCpp,
 };
 
 fn skill_line_overlay_like_cpp(
@@ -89,37 +89,62 @@ pub(crate) async fn load_skill_line_store_like_cpp(
     )
 }
 
-pub(crate) async fn load_skill_store_like_cpp(
-    data_dir: &str,
-    locale: &str,
+pub(crate) async fn load_skill_line_ability_hotfix_rows_like_cpp(
     persistence: &dyn SkillCatalogHotfixPersistencePortLikeCpp,
-    removals: &wow_data::Db2HotfixRemovalStoreLikeCpp,
-    skill_line_store: &wow_data::SkillLineStore,
-) -> Result<wow_data::SkillStoreEffectiveLoadOutcomeLikeCpp> {
-    let base = wow_data::SkillStore::load_wdc4_base_like_cpp(data_dir, locale)?;
-    let rows = match persistence.load_skill_relation_hotfix_rows_like_cpp().await {
+) -> Result<SkillLineAbilityHotfixRowsLikeCpp> {
+    let rows = match persistence
+        .load_skill_line_ability_hotfix_rows_like_cpp()
+        .await
+    {
         SkillCatalogHotfixLoadOutcomeLikeCpp::Loaded(rows) => rows,
         SkillCatalogHotfixLoadOutcomeLikeCpp::Failed { reason } => bail!(reason),
     };
+    Ok(rows)
+}
+
+pub(crate) async fn load_skill_race_class_info_hotfix_rows_like_cpp(
+    persistence: &dyn SkillCatalogHotfixPersistencePortLikeCpp,
+) -> Result<SkillRaceClassInfoHotfixRowsLikeCpp> {
+    let rows = match persistence
+        .load_skill_race_class_info_hotfix_rows_like_cpp()
+        .await
+    {
+        SkillCatalogHotfixLoadOutcomeLikeCpp::Loaded(rows) => rows,
+        SkillCatalogHotfixLoadOutcomeLikeCpp::Failed { reason } => bail!(reason),
+    };
+    Ok(rows)
+}
+
+pub(crate) fn compose_skill_store_like_cpp(
+    ability_base: wow_data::SkillStoreWdc4AbilityBaseLikeCpp,
+    race_class_info_base: wow_data::SkillStoreWdc4RaceClassInfoBaseLikeCpp,
+    ability_rows: SkillLineAbilityHotfixRowsLikeCpp,
+    race_class_info_rows: SkillRaceClassInfoHotfixRowsLikeCpp,
+    removals: &wow_data::Db2HotfixRemovalStoreLikeCpp,
+    skill_line_store: &wow_data::SkillLineStore,
+) -> wow_data::SkillStoreEffectiveLoadOutcomeLikeCpp {
     use wow_data::SkillStoreLoadSourceLikeCpp::{CustomSql, OfficialSql};
-    Ok(
-        wow_data::SkillStore::compose_effective_from_hotfix_overlays_like_cpp(
-            base,
-            rows.official_abilities
-                .into_iter()
-                .map(|row| skill_line_ability_source_like_cpp(row, OfficialSql)),
-            rows.custom_abilities
-                .into_iter()
-                .map(|row| skill_line_ability_source_like_cpp(row, CustomSql)),
-            rows.official_race_class_infos
-                .into_iter()
-                .map(|row| skill_race_class_info_source_like_cpp(row, OfficialSql)),
-            rows.custom_race_class_infos
-                .into_iter()
-                .map(|row| skill_race_class_info_source_like_cpp(row, CustomSql)),
-            removals,
-            skill_line_store,
-        ),
+    wow_data::SkillStore::compose_effective_from_hotfix_overlays_like_cpp(
+        ability_base,
+        race_class_info_base,
+        ability_rows
+            .official
+            .into_iter()
+            .map(|row| skill_line_ability_source_like_cpp(row, OfficialSql)),
+        ability_rows
+            .custom
+            .into_iter()
+            .map(|row| skill_line_ability_source_like_cpp(row, CustomSql)),
+        race_class_info_rows
+            .official
+            .into_iter()
+            .map(|row| skill_race_class_info_source_like_cpp(row, OfficialSql)),
+        race_class_info_rows
+            .custom
+            .into_iter()
+            .map(|row| skill_race_class_info_source_like_cpp(row, CustomSql)),
+        removals,
+        skill_line_store,
     )
 }
 
@@ -196,21 +221,37 @@ mod tests {
     }
 
     #[test]
-    fn app_preserves_skill_line_relations_trait_tree_then_world_tiers_order() {
+    fn app_preserves_skill_line_ability_trait_tree_race_class_then_world_tiers_order() {
         let source = include_str!("../app.rs");
         let skill_line = source
             .find("load_skill_line_store_like_cpp")
             .expect("SkillLine catalog stage must remain composed");
-        let relations = source
-            .find("load_skill_store_like_cpp")
-            .expect("skill relation catalog stage must remain composed");
+        let ability = source
+            .find("load_wdc4_skill_line_ability_base_like_cpp")
+            .expect("SkillLineAbility WDC4 stage must remain explicit");
+        let ability_hotfix = source
+            .find("load_skill_line_ability_hotfix_rows_like_cpp")
+            .expect("SkillLineAbility hotfix stage must remain explicit");
         let trait_tree = source
             .rfind("load_trait_index_like_cpp")
             .expect("TraitMgr SkillLineXTraitTree stage must remain composed");
+        let race_class = source
+            .find("load_wdc4_skill_race_class_info_base_like_cpp")
+            .expect("SkillRaceClassInfo WDC4 stage must remain explicit");
+        let race_class_hotfix = source
+            .find("load_skill_race_class_info_hotfix_rows_like_cpp")
+            .expect("SkillRaceClassInfo hotfix stage must remain explicit");
         let tiers = source
             .find("load_skill_tiers_store_like_cpp")
             .expect("independent World skill tiers stage must remain composed");
-        assert!(skill_line < relations && relations < trait_tree && trait_tree < tiers);
+        assert!(
+            skill_line < ability
+                && ability < ability_hotfix
+                && ability_hotfix < trait_tree
+                && trait_tree < race_class
+                && race_class < race_class_hotfix
+                && race_class_hotfix < tiers
+        );
     }
 
     #[test]

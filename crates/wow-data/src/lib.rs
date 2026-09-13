@@ -406,8 +406,8 @@ pub use skill::{
     SkillRaceClassInfoSourceRecordLikeCpp, SkillRangeTypeLikeCpp, SkillRewardedSpellChangesLikeCpp,
     SkillStore, SkillStoreEffectiveLoadOutcomeLikeCpp, SkillStoreEffectiveLoadReportLikeCpp,
     SkillStoreLoadDiagnosticLikeCpp, SkillStoreLoadSourceLikeCpp, SkillStoreTableLikeCpp,
-    SkillStoreWdc4BaseLikeCpp, SkillTiersEntryLikeCpp, SkillTiersRowLikeCpp,
-    SkillTiersStoreLikeCpp,
+    SkillStoreWdc4AbilityBaseLikeCpp, SkillStoreWdc4RaceClassInfoBaseLikeCpp,
+    SkillTiersEntryLikeCpp, SkillTiersRowLikeCpp, SkillTiersStoreLikeCpp,
 };
 pub use skill_talent::{
     GlyphBindableSpellEntry, GlyphBindableSpellStore, GlyphPropertiesEntry, GlyphPropertiesStore,

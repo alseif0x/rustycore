@@ -6,8 +6,8 @@ use anyhow::{Context, Result};
 use wow_persistence::{
     PersistenceFutureLikeCpp, SkillCatalogHotfixLoadOutcomeLikeCpp,
     SkillCatalogHotfixPersistencePortLikeCpp, SkillLineAbilityHotfixRowLikeCpp,
-    SkillLineHotfixRowLikeCpp, SkillLineHotfixRowsLikeCpp, SkillRaceClassInfoHotfixRowLikeCpp,
-    SkillRelationHotfixRowsLikeCpp,
+    SkillLineAbilityHotfixRowsLikeCpp, SkillLineHotfixRowLikeCpp, SkillLineHotfixRowsLikeCpp,
+    SkillRaceClassInfoHotfixRowLikeCpp, SkillRaceClassInfoHotfixRowsLikeCpp,
 };
 
 use crate::{HotfixDatabase, HotfixStatements, SqlResult};
@@ -157,19 +157,15 @@ impl SkillCatalogHotfixPersistencePortLikeCpp
         })
     }
 
-    fn load_skill_relation_hotfix_rows_like_cpp(
+    fn load_skill_line_ability_hotfix_rows_like_cpp(
         &self,
     ) -> PersistenceFutureLikeCpp<
         '_,
-        SkillCatalogHotfixLoadOutcomeLikeCpp<SkillRelationHotfixRowsLikeCpp>,
+        SkillCatalogHotfixLoadOutcomeLikeCpp<SkillLineAbilityHotfixRowsLikeCpp>,
     > {
         Box::pin(async move {
             let loaded = async {
                 let mut ability_batches = [Vec::new(), Vec::new()];
-                // C++ completes each DB2 table before advancing to the next one:
-                // official/custom SkillLineAbility, then official/custom
-                // SkillRaceClassInfo. Keep the query and failure order aligned
-                // with DB2StorageBase::LoadFromDB and DB2DatabaseLoader.
                 for (batch_index, official) in OFFICIAL_THEN_CUSTOM_LIKE_CPP.into_iter().enumerate()
                 {
                     let mut statement = self
@@ -188,6 +184,27 @@ impl SkillCatalogHotfixPersistencePortLikeCpp
                     }
                 }
 
+                let [official, custom] = ability_batches;
+                Ok::<_, anyhow::Error>(SkillLineAbilityHotfixRowsLikeCpp { official, custom })
+            }
+            .await;
+            match loaded {
+                Ok(rows) => SkillCatalogHotfixLoadOutcomeLikeCpp::Loaded(rows),
+                Err(error) => SkillCatalogHotfixLoadOutcomeLikeCpp::Failed {
+                    reason: error.to_string(),
+                },
+            }
+        })
+    }
+
+    fn load_skill_race_class_info_hotfix_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SkillCatalogHotfixLoadOutcomeLikeCpp<SkillRaceClassInfoHotfixRowsLikeCpp>,
+    > {
+        Box::pin(async move {
+            let loaded = async {
                 let mut race_class_batches = [Vec::new(), Vec::new()];
                 for (batch_index, official) in OFFICIAL_THEN_CUSTOM_LIKE_CPP.into_iter().enumerate()
                 {
@@ -244,14 +261,8 @@ impl SkillCatalogHotfixPersistencePortLikeCpp
                         }
                     }
                 }
-                let [official_abilities, custom_abilities] = ability_batches;
-                let [official_race_class_infos, custom_race_class_infos] = race_class_batches;
-                Ok::<_, anyhow::Error>(SkillRelationHotfixRowsLikeCpp {
-                    official_abilities,
-                    official_race_class_infos,
-                    custom_abilities,
-                    custom_race_class_infos,
-                })
+                let [official, custom] = race_class_batches;
+                Ok::<_, anyhow::Error>(SkillRaceClassInfoHotfixRowsLikeCpp { official, custom })
             }
             .await;
             match loaded {
@@ -300,33 +311,32 @@ mod tests {
     }
 
     #[test]
-    fn relation_query_order_finishes_each_table_before_the_next_like_cpp() {
+    fn ability_loader_queries_official_then_custom_like_cpp() {
         let source = include_str!("skill_catalog_adapter.rs");
         let loader = source
-            .find("fn load_skill_relation_hotfix_rows_like_cpp")
-            .expect("skill relation loader must remain present");
+            .find("fn load_skill_line_ability_hotfix_rows_like_cpp")
+            .expect("SkillLineAbility loader must remain present");
         let body_end = source[loader..]
-            .find("\n#[cfg(test)]")
+            .find("\n    fn load_skill_race_class_info_hotfix_rows_like_cpp")
             .map(|offset| loader + offset)
-            .expect("skill relation loader must precede adapter tests");
+            .expect("ability loader must precede race-class loader");
         let body = &source[loader..body_end];
-        let abilities = body
-            .find("SEL_SKILL_LINE_ABILITY")
-            .expect("ability query must remain in the relation loader");
-        let race_class_batches = body
-            .find("let mut race_class_batches")
-            .expect("race-class batches must remain a separate table stage");
-        let race_class = body[race_class_batches..]
-            .find("SEL_SKILL_RACE_CLASS_INFO")
-            .expect("race-class query must remain in the relation loader")
-            + race_class_batches;
+        assert!(body.contains("SEL_SKILL_LINE_ABILITY"));
+        assert!(!body.contains("SEL_SKILL_RACE_CLASS_INFO"));
+    }
 
-        assert!(abilities < race_class_batches);
-        assert!(race_class_batches < race_class);
-        assert!(
-            !body[race_class_batches..].contains("SEL_SKILL_LINE_ABILITY"),
-            "ability queries must finish before the race-class table begins"
-        );
+    #[test]
+    fn race_class_loader_is_a_distinct_official_then_custom_stage_like_cpp() {
+        let source = include_str!("skill_catalog_adapter.rs");
+        let loader = source
+            .find("fn load_skill_race_class_info_hotfix_rows_like_cpp")
+            .expect("SkillRaceClassInfo loader must remain present");
+        let body_end = source[loader..]
+            .find("\n}\n\n#[cfg(test)]")
+            .map(|offset| loader + offset);
+        let body = &source[loader..body_end.unwrap_or(source.len())];
+        assert!(body.contains("SEL_SKILL_RACE_CLASS_INFO"));
+        assert!(!body.contains("SEL_SKILL_LINE_ABILITY"));
     }
 
     #[test]

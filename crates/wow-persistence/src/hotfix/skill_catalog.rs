@@ -46,11 +46,15 @@ pub struct SkillRaceClassInfoHotfixRowLikeCpp {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct SkillRelationHotfixRowsLikeCpp {
-    pub official_abilities: Vec<SkillLineAbilityHotfixRowLikeCpp>,
-    pub official_race_class_infos: Vec<SkillRaceClassInfoHotfixRowLikeCpp>,
-    pub custom_abilities: Vec<SkillLineAbilityHotfixRowLikeCpp>,
-    pub custom_race_class_infos: Vec<SkillRaceClassInfoHotfixRowLikeCpp>,
+pub struct SkillLineAbilityHotfixRowsLikeCpp {
+    pub official: Vec<SkillLineAbilityHotfixRowLikeCpp>,
+    pub custom: Vec<SkillLineAbilityHotfixRowLikeCpp>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SkillRaceClassInfoHotfixRowsLikeCpp {
+    pub official: Vec<SkillRaceClassInfoHotfixRowLikeCpp>,
+    pub custom: Vec<SkillRaceClassInfoHotfixRowLikeCpp>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,11 +63,12 @@ pub enum SkillCatalogHotfixLoadOutcomeLikeCpp<T> {
     Failed { reason: String },
 }
 
-/// One Hotfix capability for the cross-indexed C++ skill catalog.
+/// Hotfix capabilities for the cross-indexed C++ skill catalog.
 ///
-/// The two operations are startup stages rather than table CRUD: the final
-/// `SkillLine` identity set must exist before the ability/race-class authority
-/// can be validated and published.
+/// These operations are startup stages rather than table CRUD: the final
+/// `SkillLine` identity set must exist before the relation authorities can be
+/// validated and published, and the two relation tables remain independently
+/// observable so their C++ order and failure boundaries are preserved.
 pub trait SkillCatalogHotfixPersistencePortLikeCpp: Send + Sync {
     fn load_skill_line_hotfix_rows_like_cpp(
         &self,
@@ -72,10 +77,17 @@ pub trait SkillCatalogHotfixPersistencePortLikeCpp: Send + Sync {
         SkillCatalogHotfixLoadOutcomeLikeCpp<SkillLineHotfixRowsLikeCpp>,
     >;
 
-    fn load_skill_relation_hotfix_rows_like_cpp(
+    fn load_skill_line_ability_hotfix_rows_like_cpp(
         &self,
     ) -> PersistenceFutureLikeCpp<
         '_,
-        SkillCatalogHotfixLoadOutcomeLikeCpp<SkillRelationHotfixRowsLikeCpp>,
+        SkillCatalogHotfixLoadOutcomeLikeCpp<SkillLineAbilityHotfixRowsLikeCpp>,
+    >;
+
+    fn load_skill_race_class_info_hotfix_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SkillCatalogHotfixLoadOutcomeLikeCpp<SkillRaceClassInfoHotfixRowsLikeCpp>,
     >;
 }
