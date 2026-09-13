@@ -189,8 +189,7 @@ in `wow-map/src/map/visibility.rs::grid_activation_range_for_guid_like_cpp` befo
 calling `visit_nearby_cells_of_like_cpp`. Missing or unsupported records return a
 zero radius and remain subject to the existing missing/invalid/in-world filters; no
 second owner or map-wide fallback is introduced. The Player cinematic activation
-override is still unmodeled because the current Player runtime has no canonical
-cinematic manager state.
+override is handled by the follow-up P3.6 slice below.
 
 Implementation `7214fb68` adds the focused regression for inactive Creature versus
 active-object activation and reruns the P3.4 nearby-selection regression. This is a
@@ -199,6 +198,29 @@ client, capture, DB/restart/relogin evidence. The affected `wow-map` checks,
 formatting, diff and JSON validation pass; validation-v2 `quick` completed in
 15.961 seconds with one Cargo job at manifest
 `target/validation-v2/manifests/20260913T054921.385905Z-3397552-quick.json`.
+
+## P3.6 Player cinematic activation radius — 2026-09-13
+
+The source audit found one finite mismatch left in the P3.5 selector. TrinityCore's
+`WorldObject::GetGridActivationRange` (`Entities/Object/Object.cpp:1433-1450`)
+returns `max(DEFAULT_VISIBILITY_INSTANCE, Map::GetVisibilityRange())` for a Player
+whose `CinematicMgr::IsOnCinematic()` is true. `IsOnCinematic()` observes an active
+camera pointer (`Entities/Player/CinematicMgr.h:38-45`), so merely beginning a
+sequence does not widen the radius; selecting its first camera does.
+
+`wow-map/src/map/visibility.rs::grid_activation_range_for_guid_like_cpp` now reads
+the canonical Player-owned `PlayerCinematicStateLikeCpp` cursor. A cursor before its
+first camera and a completed cinematic use the map visibility range; an active camera
+uses the instance floor. This fixes the activation selection only. The Rust state
+does not yet own a FlyByCamera store or cinematic movement/fanout, so those remain
+outside this macro and are not represented by the selector.
+
+Implementation and regression are on the #584 P3.6 branch. The test
+`grid_activation_range_uses_instance_distance_for_active_player_cinematic_like_cpp`
+covers pre-camera, active-camera and ended states, and the inactive Creature branch
+regression remains green. No live client, capture or DB/restart/relogin evidence is
+claimed; Creature AI/combat, scripts, fanout and relocation side effects remain
+separate measured boundaries.
 
 ### Bounded #578 closeout inventory
 

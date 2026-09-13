@@ -99,7 +99,7 @@ de microissues:
 | P0 | Herramientas de ownership, imports, bridges y ratchet físico | #716 integrado y cerrado; su evidencia es histórica y no se repite aquí |
 | P1 | Recompensa de misión y contrato durable | #718 integrado y cerrado; no hay evidencia real de DB/restart/relogin |
 | P2 | Fronteras de Player y operaciones completas | #743 y #735 entregados; continúan los residuales por consumidores |
-| P3 | Fases, runtime, lifetime, residencia/incarnation y storage selectivo | #787 entregado; P3.1 retiró el escritor Creature canónico descartado, P3.2 publicó `SendObjectUpdates`, P3.3 corrigió el orden de respawn/condiciones antes de los visitantes, P3.4 conectó la selección cercana de `ObjectUpdater` con producción y P3.5 corrigió el radio de activación por fuente; el escritor legado y otras fases siguen pendientes bajo #584 |
+| P3 | Fases, runtime, lifetime, residencia/incarnation y storage selectivo | #787 entregado; P3.1 retiró el escritor Creature canónico descartado, P3.2 publicó `SendObjectUpdates`, P3.3 corrigió el orden de respawn/condiciones antes de los visitantes, P3.4 conectó la selección cercana de `ObjectUpdater` con producción, P3.5 corrigió el radio de activación por fuente y P3.6 añadió el override de cinemática del Player; el escritor legado y otras fases siguen pendientes bajo #584 |
 | P4 | Organización física, excepciones y límites semánticos | #584, acompañado por cada operación; la medición de 31 paths permanece histórica |
 | P5 | Producto de módulos M0–M4, nativo/Wasm y Rust/Wasm/C | #583, tras los requisitos core de #584; no bloquea gameplay independiente |
 | P6 | Auditoría terminal y evidencia integrada | #153, después de #584 y #583; no absorbe implementación |
@@ -805,7 +805,9 @@ Las diferencias que quedan, y que son el trabajo P3 real:
    `ObjectUpdater` recibe solo GUIDs in-world seleccionados desde Players, viewpoints,
    referencias lejanas y objetos activos. Transportes conservan su bucle separado;
    P3.5 ya aplica la distancia de activación específica de Creature/Pet para fuentes
-   inactivas mediante `m_SightDistance`; el override de cinemática del Player, scripts,
+   inactivas mediante `m_SightDistance`, y P3.6 aplica el override de cinemática del
+   Player mediante `max(DEFAULT_VISIBILITY_INSTANCE, Map::GetVisibilityRange())` cuando
+   el cursor de cámara representado está activo. La consulta de FlyByCamera, scripts,
    fanout real y notificaciones de relocalización siguen teniendo huecos propios. El siguiente
    corte debe salir de esos límites medidos, no crear un crate o una issue por cada
    familia.
@@ -868,7 +870,9 @@ P3.4 conecta ese plan con producción, usa consumidores por GUID solo para objet
 in-world seleccionados y conserva el owner externo de Creature, el bucle de
 transportes y la entrega sin guardas. P3.5 resuelve por fuente
 `WorldObject::GetGridActivationRange`, con `m_SightDistance` para Creature/Pet
-inactivos y visibilidad de mapa para Players/objetos activos. Su evidencia, límites y
+inactivos y visibilidad de mapa para Players/objetos activos. P3.6 añade el radio de
+instancia del Player durante una cinemática activa según el cursor canónico; no mueve
+el owner de cinemáticas ni crea una búsqueda de FlyByCamera. Su evidencia, límites y
 siguiente residuo medido quedan en `session-578-checkpoint.md`; no se crea una issue
 por puente o fichero.
 **#785 queda cerrada por premisa falsa**, con esta verificación registrada en la issue.

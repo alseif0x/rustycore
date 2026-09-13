@@ -36,6 +36,77 @@ fn grid_activation_range_uses_creature_sight_for_inactive_sources_like_cpp() {
 }
 
 #[test]
+fn grid_activation_range_uses_instance_distance_for_active_player_cinematic_like_cpp() {
+    let mut map = test_map();
+    let mut player = test_player_for_viewpoint(1235);
+    let guid = player.guid();
+
+    player
+        .gameplay_state_mut()
+        .cinematic
+        .begin_cinematic_like_cpp(444, [11, 0, 0, 0, 0, 0, 0, 0]);
+    map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_player(player).unwrap())
+        .unwrap();
+
+    // Beginning a sequence is not enough: C++ `IsOnCinematic()` observes the
+    // camera pointer, which is set only after the first camera is selected.
+    assert_eq!(
+        map.grid_activation_range_for_guid_like_cpp(guid),
+        map.visibility_range()
+    );
+
+    map.get_typed_player_mut(guid)
+        .unwrap()
+        .gameplay_state_mut()
+        .cinematic
+        .next_cinematic_camera_like_cpp();
+    assert_eq!(
+        map.grid_activation_range_for_guid_like_cpp(guid),
+        wow_entities::DEFAULT_VISIBILITY_INSTANCE
+    );
+
+    map.get_typed_player_mut(guid)
+        .unwrap()
+        .gameplay_state_mut()
+        .cinematic
+        .end_cinematic_like_cpp();
+    assert_eq!(
+        map.grid_activation_range_for_guid_like_cpp(guid),
+        map.visibility_range()
+    );
+
+    // The override is a floor, so a map already wider than the instance
+    // distance keeps its configured visibility range.
+    let mut wide_map = Map::with_hooks(
+        571,
+        7,
+        1,
+        1000,
+        true,
+        220.0,
+        RecordingWorldObjectTerrain::new(true, INVALID_HEIGHT, INVALID_HEIGHT),
+        RecordingLifecycle::default(),
+    );
+    let mut wide_player = test_player_for_viewpoint(1236);
+    let wide_guid = wide_player.guid();
+    wide_player
+        .gameplay_state_mut()
+        .cinematic
+        .begin_cinematic_like_cpp(444, [11, 0, 0, 0, 0, 0, 0, 0]);
+    wide_player
+        .gameplay_state_mut()
+        .cinematic
+        .next_cinematic_camera_like_cpp();
+    wide_map
+        .add_map_object_record_to_map_like_cpp(MapObjectRecord::new_player(wide_player).unwrap())
+        .unwrap();
+    assert_eq!(
+        wide_map.grid_activation_range_for_guid_like_cpp(wide_guid),
+        220.0
+    );
+}
+
+#[test]
 fn personal_phase_tracker_update_enqueues_expired_canonical_object_like_cpp() {
     let mut map = test_map();
     let owner = ObjectGuid::create_player(1, 44001);

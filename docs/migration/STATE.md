@@ -122,6 +122,20 @@ regression remains green. This is a finite phase-fidelity correction; it does no
 claim the still-unmodeled Player cinematic activation override or any live client,
 capture, DB/restart/relogin or Creature AI/combat acceptance.
 
+**P3.6 Player cinematic activation radius — 2026-09-13, #584:** the nearby-cell
+selector now matches `WorldObject::GetGridActivationRange` for an active Player
+cinematic: after the represented camera cursor is selected, it uses
+`max(DEFAULT_VISIBILITY_INSTANCE, Map::GetVisibilityRange)`; beginning a sequence
+before its first camera and ending it retain the map range. This follows
+`Entities/Object/Object.cpp:1433-1450` and `Entities/Player/CinematicMgr.h:38-45`.
+The implementation reads the canonical Player-owned cinematic state and does not
+create a second owner or clock. The current Rust state has no FlyByCamera store, so
+camera-row lookup and cinematic movement remain outside this selector. The focused
+positive/negative regression is `grid_activation_range_uses_instance_distance_for_active_player_cinematic_like_cpp`;
+the existing inactive Creature/active-object regression remains green. No live
+client, capture or DB/restart/relogin evidence is claimed, and Creature AI/combat,
+scripts, fanout and relocation notification effects remain separate #584 work.
+
 **#524 relation query-order correction — 2026-09-13, implementation `020163dc`:**
 `MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp` now completes the official and
 custom `SkillLineAbility` queries before beginning the official and custom

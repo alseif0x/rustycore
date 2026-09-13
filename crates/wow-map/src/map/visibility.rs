@@ -20,17 +20,32 @@ where
     /// `WorldObject::GetGridActivationRange` for a map-owned source.
     ///
     /// C++ (`Entities/Object/Object.cpp:1433-1450`) gives active objects and
-    /// Players the map visibility range, while an ordinary Creature uses its
+    /// Players the map visibility range (with the `CinematicMgr::IsOnCinematic`
+    /// instance-distance override), while an ordinary Creature uses its
     /// canonical `m_SightDistance`. Pets follow the Creature branch through
     /// their embedded Creature. Unsupported or missing records are fail-closed
     /// with a zero radius; callers still validate the source position before
-    /// visiting cells.
+    /// visiting cells. The represented cinematic state has the same active
+    /// camera cursor as C++; resolving a FlyByCamera row is still outside this
+    /// map-owned selector.
     pub(crate) fn grid_activation_range_for_guid_like_cpp(&self, guid: ObjectGuid) -> f32 {
         let Some(record) = self.map_object_record(guid) else {
             return 0.0;
         };
 
-        if record.kind() == AccessorObjectKind::Player || record.object().is_active() {
+        if record.kind() == AccessorObjectKind::Player {
+            let cinematic_active = record.player().is_some_and(|player| {
+                player.gameplay_state().cinematic.camera_index_like_cpp() >= 0
+            });
+            if cinematic_active {
+                return self
+                    .visible_distance
+                    .max(wow_entities::DEFAULT_VISIBILITY_INSTANCE);
+            }
+            return self.visible_distance;
+        }
+
+        if record.object().is_active() {
             return self.visible_distance;
         }
 

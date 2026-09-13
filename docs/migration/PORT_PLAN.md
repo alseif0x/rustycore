@@ -2,7 +2,7 @@
 
 **Reconciled 2026-09-13 under #584 / #787 / #748 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
 Source baseline for this reconciliation: `3.4.3` at
-`21686375d1fae81876b91f662069a25781ef10b2` (the earlier `5d8c079a` references
+`ebc3b3ebafbb009a1d315745ca290482258c738b` (the earlier `5d8c079a` references
 remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
 bounded planning delivery. Administrative consolidation does not count as implementation.
@@ -25,7 +25,8 @@ production map tick consumes one nearby-cell/source plan for the represented
 writer and its complete effect consumer remain outside that structural cut. P3.5 now
 uses each source's C++ activation radius, including Creature/Pet `m_SightDistance`
 for inactive sources; the next selection must come from the remaining measured P3
-runtime boundary under #584.
+runtime boundary under #584. P3.6 now applies the Player cinematic
+instance-distance override once its represented camera cursor is active.
 No old issue is reopened and no residual is promoted to implementation merely from a
 textual inventory.
 
@@ -183,7 +184,7 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#524](https://github.com/alseif0x/rustycore/issues/524) | F1, skill startup order | The relation adapter now uses C++ table-granular official/custom order (`SkillLineAbility` fully before `SkillRaceClassInfo`) with fail-before-publication semantics. Keep the issue open for the remaining `SkillLineXTraitTree` startup load/`TraitMgr`-equivalent consumer and final family acceptance. |
 | [#582](https://github.com/alseif0x/rustycore/issues/582) | B, existing LFG decoders | **Closed/integrated as `21686375` (PR #797).** Six C++-faithful client decoders; no handler, queue or matchmaking claim. |
 | [#583](https://github.com/alseif0x/rustycore/issues/583) | X, stateful native/Wasm | Deliver the preserved M0–M4 product after required core; the external login API and laboratory are insufficient. |
-| [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions. P3.4 and P3.5 are integrated: route the nearby-cell/source plan into production `ObjectUpdater` selection and honor per-source activation radii, with typed consumers, exact owner boundaries and legacy Creature effects explicit. |
+| [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions. P3.4–P3.6 are integrated: route the nearby-cell/source plan into production `ObjectUpdater` selection, honor per-source activation radii and the Player cinematic instance override, with typed consumers, exact owner boundaries and legacy Creature effects explicit. |
 | [#735](https://github.com/alseif0x/rustycore/issues/735) | A, reputation boundary | **Closed/delivered.** Player owns reputation state and named transitions; catalogs, packets and persistence consumers remain outside the domain boundary. |
 | [#743](https://github.com/alseif0x/rustycore/issues/743) | A, group consistency | **Closed/delivered.** GroupRegistry remains authoritative and dropped state-bearing commands converge through the session boundary. |
 | [#787](https://github.com/alseif0x/rustycore/issues/787) | A, session-phase coordination | **Integrated as `d14a9a67` (PR #792; accepted at `76369bda`).** World runs before Map, phase permits remain live through finalization/retirement, and shutdown/replacement barriers are covered by production-linked tests and guarded login/save/relogin QA. |
@@ -232,9 +233,11 @@ selection, invokes existing per-object consumers only for selected in-world obje
 preserves the all-transport loop and C++ ordering, and keeps delivery outside map
 guards. P3.5 resolves `WorldObject::GetGridActivationRange` from the canonical source:
 Players and active objects use the map visibility range, inactive Creatures/Pets use
-their `m_SightDistance`, and unsupported or missing records fail closed. The Player
-cinematic activation override remains unmodeled. The legacy Creature writer and its
-complete effect consumer remain a separate migration boundary.
+their `m_SightDistance`, and unsupported or missing records fail closed. P3.6 adds
+the Player cinematic override as `max(DEFAULT_VISIBILITY_INSTANCE,
+Map::GetVisibilityRange())` once the represented camera cursor is active. The Rust
+selector still does not own FlyByCamera lookup or cinematic movement. The legacy
+Creature writer and its complete effect consumer remain a separate migration boundary.
 
 Keep the selected private hecs direction and finite V2 conformance evidence.
 Integrate it only with real owners/consumers and the lifetime/reentry contract;
@@ -248,8 +251,10 @@ Creature AI migration: it retires the map-wide typed-store scans in the producti
 path, covers nearby inclusion and out-of-cell exclusion, and leaves a measurable
 retirement path for the remaining unrepresented C++ sources. P3.5 closes the
 source-specific Creature/Pet activation-radius mismatch without moving the AI owner.
-Define later migration contracts from traced consumers under #584, never as a
-speculative issue per bridge or crate.
+P3.6 is a selection correction only; it does not promote cinematic movement, script
+dispatch, relocation fanout or Creature AI into the current macro. Define later
+migration contracts from traced consumers under #584, never as a speculative issue
+per bridge or crate.
 
 ### A4 — Physical and dependency closeout
 
