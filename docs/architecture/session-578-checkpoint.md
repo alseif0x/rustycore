@@ -97,6 +97,40 @@ CREATE, Pet, corpse/transport, shared vision, packet capture and live DB/restart
 relogin QA remain separate gates. The next #584 macro must be chosen from a fresh
 audit; no P3.10 issue is implied by this delivery.
 
+## P2 item-object ownership closure — 2026-09-13
+
+The corrected #737 inventory identified one remaining production boundary: the generic
+`item_objects_mut()` helper handed `&mut Item` to a caller closure. Item-slot insert and
+remove had already been retired by #740; this was the last item-object closure. The
+relevant TrinityCore owner operations are `Player::_StoreItem` (`Player.cpp:11246`),
+`Player::VisualizeItem` (`:11510`), `Player::RemoveItem` (`:11553`) and
+`Player::QuickEquipItem` (`:11476`), where slot movement carries object fields, state and
+the later publication together.
+
+Candidate commit `23a7fe16d9e1a349912bf70708065354d6f9355a` moves this boundary into
+`wow_entities::PlayerInventoryRuntime`. Its closed `ItemObjectUpdateLikeCpp` command set
+covers the production mutations (container and slot, count, durability, flags, binding,
+gems, enchantments, state, replacement and bag-exchange relocation). The owner resolves
+the item map and never lends `&mut Item`; wrapped-gift opening is a named owner operation
+that returns the prior durability needed by persistence. All production callers in
+inventory, vendor, loot, quest rewards, durability, spell and void-storage paths now pass
+commands. The former closure and direct map access remain only in `cfg(test)` fixture
+adapters.
+
+The owner tests cover command application and missing-GUID rejection; the wrapped-gift
+test proves durability is preserved for its persistence projection. Local evidence is
+`cargo check --locked --tests -p wow-entities -p wow-world`, 24 focused `wow-entities`
+item-object tests, 5 focused `wow-world` wrapped-gift tests, formatting/diff checks,
+`check_architecture.py check` and Session ownership syntax-only. The ownership ledger and
+physical policy are synchronized with the current tree; the syntax baseline was regenerated
+from the checker and reviewed for current fields, commands, registry rows and associated
+items. Final validation and publication remain gates on the candidate branch.
+
+This closes the generic item-object residual of #737 inside #584. It does not claim complete
+item-use/effect or statistics parity, packet capture, or DB/restart/relogin durability. No
+new issue is created for individual command variants; missing functional behavior remains
+allocated to the appropriate gameplay/data macro.
+
 ## Persistence inventory reconciliation — 2026-09-13, after #584 P3.1
 
 The first remote Rust check after P3.1 exposed two stale architecture inputs that had

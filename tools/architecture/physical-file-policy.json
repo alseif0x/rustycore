@@ -454,16 +454,16 @@
     },
     {
       "path": "crates/wow-world/src/handlers/character/items.rs",
-      "observed_lines": 3874,
-      "ceiling_lines": 3874,
-      "split": "Separate item move/use operations by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
+      "observed_lines": 3900,
+      "ceiling_lines": 3900,
+      "split": "Separate item move/use operations by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #584 P2 replaces the production item-object mutation closure with the closed Player-owned command set; the validated conversion adds 26 physical lines while removing every production `&mut Item` handoff. The ceiling is ratcheted to this measured delivery; the remaining C4 split stays open.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/character/mod.rs",
-      "observed_lines": 2728,
-      "ceiling_lines": 2728,
-      "split": "Separate character admission and lifecycle dispatch by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
+      "observed_lines": 2729,
+      "ceiling_lines": 2729,
+      "split": "Separate character admission and lifecycle dispatch by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #584 P2 keeps the bag-exchange fixture helper explicitly test-only; the one-line cfg boundary is recorded in the measured ceiling and does not add production behavior.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -559,9 +559,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/quest/rewards.rs",
-      "observed_lines": 2140,
-      "ceiling_lines": 2140,
-      "split": "Separate quest reward transaction/application by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #718 makes the reward one character transaction and moves its durable close - commit, ambiguous-COMMIT reconciliation and the memory half that may only follow a known COMMIT - into the quest application module, a validated reduction from 2232 to 2140 lines; the ceiling is tightened to that figure. The remaining file plans the grants and still owes the split above.",
+      "split": "Separate quest reward transaction/application by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #718 makes the reward one character transaction and moves its durable close - commit, ambiguous-COMMIT reconciliation and the memory half that may only follow a known COMMIT - into the quest application module, a validated reduction from 2232 to 2140 lines; #584 P2 replaces the production item-object mutation closures with data commands, adding eight measured lines while preserving reward transaction order. The ceiling is ratcheted to that validated delivery; the remaining file plans the grants and still owes the split above.",
+      "observed_lines": 2148,
+      "ceiling_lines": 2148,
       "review_checkpoint": "584:C4"
     },
     {
