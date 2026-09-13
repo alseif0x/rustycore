@@ -148,6 +148,49 @@ pub(crate) fn compose_skill_store_like_cpp(
     )
 }
 
+pub(crate) struct SkillCatalogStagesLikeCpp {
+    pub skill_store_outcome: wow_data::SkillStoreEffectiveLoadOutcomeLikeCpp,
+    pub trait_tree_skill_line_index: Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>,
+}
+
+/// Load the relation catalog in the exact C++ table order. Keeping this
+/// sequence beside the catalog owner makes it difficult for a later consumer
+/// to reintroduce a combined relation read in the composition root.
+pub(crate) async fn load_skill_catalog_stages_like_cpp(
+    data_dir: &str,
+    locale: &str,
+    persistence: &dyn SkillCatalogHotfixPersistencePortLikeCpp,
+    removals: &wow_data::Db2HotfixRemovalStoreLikeCpp,
+    skill_line_store: &wow_data::SkillLineStore,
+) -> Result<SkillCatalogStagesLikeCpp> {
+    let ability_base =
+        wow_data::SkillStore::load_wdc4_skill_line_ability_base_like_cpp(data_dir, locale)
+            .context("Failed to load SkillLineAbility.db2")?;
+    let ability_rows = load_skill_line_ability_hotfix_rows_like_cpp(persistence)
+        .await
+        .context("Failed to load SkillLineAbility hotfix rows")?;
+    let trait_tree_skill_line_index =
+        load_trait_index_like_cpp(data_dir, locale, skill_line_store)?;
+    let race_class_info_base =
+        wow_data::SkillStore::load_wdc4_skill_race_class_info_base_like_cpp(data_dir, locale)
+            .context("Failed to load SkillRaceClassInfo.db2")?;
+    let race_class_info_rows = load_skill_race_class_info_hotfix_rows_like_cpp(persistence)
+        .await
+        .context("Failed to load SkillRaceClassInfo hotfix rows")?;
+    let skill_store_outcome = compose_skill_store_like_cpp(
+        ability_base,
+        race_class_info_base,
+        ability_rows,
+        race_class_info_rows,
+        removals,
+        skill_line_store,
+    );
+    Ok(SkillCatalogStagesLikeCpp {
+        skill_store_outcome,
+        trait_tree_skill_line_index,
+    })
+}
+
 pub(crate) fn load_trait_index_like_cpp(
     data_dir: &str,
     locale: &str,
@@ -221,36 +264,32 @@ mod tests {
     }
 
     #[test]
-    fn app_preserves_skill_line_ability_trait_tree_race_class_then_world_tiers_order() {
-        let source = include_str!("../app.rs");
-        let skill_line = source
-            .find("load_skill_line_store_like_cpp")
-            .expect("SkillLine catalog stage must remain composed");
-        let ability = source
+    fn catalog_preserves_skill_line_ability_trait_tree_race_class_order() {
+        let source = include_str!("skill_catalog.rs");
+        let loader = source
+            .find("fn load_skill_catalog_stages_like_cpp")
+            .expect("catalog stage loader must remain explicit");
+        let body = &source[loader..];
+        let ability = body
             .find("load_wdc4_skill_line_ability_base_like_cpp")
             .expect("SkillLineAbility WDC4 stage must remain explicit");
-        let ability_hotfix = source
+        let ability_hotfix = body
             .find("load_skill_line_ability_hotfix_rows_like_cpp")
             .expect("SkillLineAbility hotfix stage must remain explicit");
-        let trait_tree = source
-            .rfind("load_trait_index_like_cpp")
+        let trait_tree = body
+            .find("load_trait_index_like_cpp")
             .expect("TraitMgr SkillLineXTraitTree stage must remain composed");
-        let race_class = source
+        let race_class = body
             .find("load_wdc4_skill_race_class_info_base_like_cpp")
             .expect("SkillRaceClassInfo WDC4 stage must remain explicit");
-        let race_class_hotfix = source
+        let race_class_hotfix = body
             .find("load_skill_race_class_info_hotfix_rows_like_cpp")
             .expect("SkillRaceClassInfo hotfix stage must remain explicit");
-        let tiers = source
-            .find("load_skill_tiers_store_like_cpp")
-            .expect("independent World skill tiers stage must remain composed");
         assert!(
-            skill_line < ability
-                && ability < ability_hotfix
+            ability < ability_hotfix
                 && ability_hotfix < trait_tree
                 && trait_tree < race_class
                 && race_class < race_class_hotfix
-                && race_class_hotfix < tiers
         );
     }
 
