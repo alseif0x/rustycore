@@ -350,6 +350,15 @@ impl PlayerGameplayState {
     }
 
     pub fn is_empty(&self) -> bool {
-        self == &Self::default()
+        // `Player::new` preallocates the fixed C++ void-storage capacity. An
+        // all-`None` capacity carries no gameplay state and must remain empty
+        // for callers that use this predicate as a load-presence check.
+        if self.void_storage_loaded || self.void_storage_items.iter().any(Option::is_some) {
+            return false;
+        }
+
+        let mut normalized = self.clone();
+        normalized.void_storage_items.clear();
+        normalized == Self::default()
     }
 }
