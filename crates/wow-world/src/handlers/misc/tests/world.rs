@@ -327,6 +327,7 @@ pub(super) fn broadcast_info_with_command_tx(
         identity: PlayerDirectoryIdentityLikeCpp {
             player_name: "TestPlayer".to_string(),
             account_id: 1,
+            battlenet_account_id: 0,
             recruiter_id: 0,
             race: 1,
             class: 1,

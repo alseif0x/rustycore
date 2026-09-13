@@ -158,6 +158,11 @@ pub enum CharStatements {
     /// C++ `CHAR_SEL_CHARACTER` full character load row.
     SEL_CHARACTER,
 
+    /// C++ `CharacterCache::LoadCharacterCacheStorage` target identity
+    /// projection. This is intentionally separate from the full character
+    /// load used during Player login.
+    SEL_CHARACTER_IDENTITY_CACHE,
+
     /// SELECT chrCustomizationOptionID, chrCustomizationChoiceID FROM character_customizations WHERE guid = ? ORDER BY chrCustomizationOptionID
     SEL_CHARACTER_CUSTOMIZATIONS,
 

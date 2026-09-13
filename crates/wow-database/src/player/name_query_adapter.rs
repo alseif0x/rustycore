@@ -1,4 +1,9 @@
-//! MariaDB adapter for Rust's transitional on-demand player-name query.
+//! MariaDB adapter for CMSG_QUERY_PLAYER_NAMES.
+//!
+//! TrinityCore answers this request from `CharacterCache`, which is warmed
+//! before sessions are accepted. The adapter therefore owns only the startup
+//! projection and never performs a packet-time full character-row query or
+//! substitutes the requesting session's account.
 
 use std::sync::Arc;
 
@@ -7,21 +12,97 @@ use wow_persistence::{
     PlayerNameQueryRequestLikeCpp, PlayerNameQueryRowLikeCpp,
 };
 
-use crate::{CharStatements, CharacterDatabase, PreparedStatement};
+use crate::{
+    CharStatements, CharacterDatabase, CharacterIdentityCacheEntryLikeCpp,
+    CharacterIdentityCacheLikeCpp, LoginDatabase, LoginStatements,
+};
 
-fn statement_like_cpp(player_guid_counter: u64) -> PreparedStatement {
-    let mut statement = PreparedStatement::for_statement(CharStatements::SEL_CHARACTER);
-    statement.set_u64(0, player_guid_counter);
-    statement
-}
-
+/// MariaDB-backed C++ `CharacterCache` projection.
 pub struct MariaDbPlayerNameQueryPersistenceAdapterLikeCpp {
     character_db: Arc<CharacterDatabase>,
+    identity_cache: Arc<CharacterIdentityCacheLikeCpp>,
+}
+
+pub async fn build_player_name_query_port_like_cpp(
+    character_db: Arc<CharacterDatabase>,
+    login_db: &LoginDatabase,
+) -> Result<
+    (
+        Arc<CharacterIdentityCacheLikeCpp>,
+        Arc<dyn PlayerNameQueryPersistencePortLikeCpp>,
+    ),
+    crate::DatabaseError,
+> {
+    let identity_cache = Arc::new(CharacterIdentityCacheLikeCpp::default());
+    let adapter = Arc::new(MariaDbPlayerNameQueryPersistenceAdapterLikeCpp::new(
+        character_db,
+        Arc::clone(&identity_cache),
+    ));
+    adapter
+        .load_character_identity_cache_like_cpp(login_db)
+        .await?;
+    Ok((identity_cache, adapter))
 }
 
 impl MariaDbPlayerNameQueryPersistenceAdapterLikeCpp {
-    pub fn new(character_db: Arc<CharacterDatabase>) -> Self {
-        Self { character_db }
+    pub fn new(
+        character_db: Arc<CharacterDatabase>,
+        identity_cache: Arc<CharacterIdentityCacheLikeCpp>,
+    ) -> Self {
+        Self {
+            character_db,
+            identity_cache,
+        }
+    }
+
+    /// Load the same minimal identity projection as C++ `CharacterCache`.
+    /// If either query fails, world-server startup fails rather than accepting
+    /// sessions with an incomplete authority.
+    pub async fn load_character_identity_cache_like_cpp(
+        &self,
+        login_db: &LoginDatabase,
+    ) -> Result<usize, crate::DatabaseError> {
+        let character_statement = self
+            .character_db
+            .prepare(CharStatements::SEL_CHARACTER_IDENTITY_CACHE);
+        let mut characters = self.character_db.query(&character_statement).await?;
+        let mut entries = Vec::with_capacity(characters.count());
+        if !characters.is_empty() {
+            loop {
+                entries.push(CharacterIdentityCacheEntryLikeCpp {
+                    guid_low: characters.read::<u64>(0),
+                    name: characters.read_string(1),
+                    account_id: characters.read::<u32>(2),
+                    race: characters.read::<u8>(3),
+                    sex: characters.read::<u8>(4),
+                    class: characters.read::<u8>(5),
+                    level: characters.read::<u8>(6),
+                    is_deleted: characters.try_read::<u64>(7).unwrap_or(0) != 0,
+                });
+                if !characters.next_row() {
+                    break;
+                }
+            }
+        }
+
+        let account_statement = login_db.prepare(LoginStatements::SEL_BNET_GAME_ACCOUNT_IDS);
+        let mut accounts = login_db.query(&account_statement).await?;
+        let mut bnet_by_game_account = Vec::with_capacity(accounts.count());
+        if !accounts.is_empty() {
+            loop {
+                bnet_by_game_account.push((
+                    accounts.read::<u32>(0),
+                    accounts.try_read::<u32>(1).unwrap_or(0),
+                ));
+                if !accounts.next_row() {
+                    break;
+                }
+            }
+        }
+
+        Ok(self
+            .identity_cache
+            .replace_all(entries, bnet_by_game_account))
     }
 }
 
@@ -31,29 +112,18 @@ impl PlayerNameQueryPersistencePortLikeCpp for MariaDbPlayerNameQueryPersistence
         request: PlayerNameQueryRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PlayerNameQueryOutcomeLikeCpp> {
         Box::pin(async move {
-            let result = match self
-                .character_db
-                .query(&statement_like_cpp(request.player_guid_counter))
-                .await
-            {
-                Ok(result) => result,
-                Err(error) => {
-                    return PlayerNameQueryOutcomeLikeCpp::Failed {
-                        reason: error.to_string(),
-                    };
-                }
-            };
-
-            if result.is_empty() {
+            let Some(entry) = self.identity_cache.get(request.player_guid_counter) else {
                 return PlayerNameQueryOutcomeLikeCpp::Missing;
-            }
-
+            };
             PlayerNameQueryOutcomeLikeCpp::Found(PlayerNameQueryRowLikeCpp {
-                name: result.read_string(2),
-                race: result.read(3),
-                class: result.read(4),
-                sex: result.read(5),
-                level: result.read(6),
+                name: entry.name,
+                race: entry.race,
+                class: entry.class,
+                sex: entry.sex,
+                level: entry.level,
+                account_id: entry.account_id,
+                battlenet_account_id: self.identity_cache.battlenet_account_id(entry.account_id),
+                is_deleted: entry.is_deleted,
             })
         })
     }
@@ -62,12 +132,45 @@ impl PlayerNameQueryPersistencePortLikeCpp for MariaDbPlayerNameQueryPersistence
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{SqlParam, StatementDef};
+    use crate::{PreparedStatement, StatementDef};
 
     #[test]
-    fn player_name_statement_preserves_identity_and_guid_bind() {
-        let statement = statement_like_cpp(0x0102_0304_0506_0708);
-        assert_eq!(statement.sql(), CharStatements::SEL_CHARACTER.sql());
-        assert_eq!(statement.params(), [SqlParam::U64(0x0102_0304_0506_0708)]);
+    fn cache_statements_are_global_projections_without_packet_bindings() {
+        assert_eq!(
+            CharStatements::SEL_CHARACTER_IDENTITY_CACHE.sql(),
+            "SELECT guid, name, account, race, gender, class, level, deleteDate FROM characters"
+        );
+        assert_eq!(
+            LoginStatements::SEL_BNET_GAME_ACCOUNT_IDS.sql(),
+            "SELECT id, battlenet_account FROM account"
+        );
+        assert!(
+            PreparedStatement::for_statement(CharStatements::SEL_CHARACTER_IDENTITY_CACHE)
+                .params()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn cache_maps_target_account_and_deleted_projection() {
+        let cache = CharacterIdentityCacheLikeCpp::default();
+        let count = cache.replace_all(
+            [CharacterIdentityCacheEntryLikeCpp {
+                guid_low: 41,
+                name: "Target".into(),
+                account_id: 22,
+                race: 10,
+                class: 3,
+                sex: 1,
+                level: 80,
+                is_deleted: true,
+            }],
+            [(22, 77)],
+        );
+        assert_eq!(count, 1);
+        let entry = cache.get(41).expect("cached target");
+        assert_eq!(entry.account_id, 22);
+        assert_eq!(cache.battlenet_account_id(22), 77);
+        assert!(entry.is_deleted);
     }
 }

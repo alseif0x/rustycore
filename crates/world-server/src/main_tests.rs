@@ -6,7 +6,6 @@
 //! Dedenting by one level lets rustfmt collapse some argument lists onto a single
 //! line, which drops their trailing commas; that is the only difference from the
 //! original text.
-
 #![cfg(test)]
 
 use super::{
@@ -189,6 +188,7 @@ fn player_registration_fixture_like_cpp(
         identity: PlayerDirectoryIdentityLikeCpp {
             player_name: player_name.to_string(),
             account_id: 1,
+            battlenet_account_id: 0,
             recruiter_id: 0,
             race: 1,
             class: 1,

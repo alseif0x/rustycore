@@ -74,6 +74,7 @@ fn reader_session_like_cpp() -> (
             identity: PlayerDirectoryIdentityLikeCpp {
                 player_name: "TapOwner".into(),
                 account_id: 1,
+                battlenet_account_id: 0,
                 recruiter_id: 0,
                 race: 1,
                 class: 1,

@@ -4,6 +4,7 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use crate::session::SessionPlayerController;
 
 #[tokio::test]
 async fn tact_key_db_query_bulk_miss_returns_invalid_like_cpp_client_cache_fallback() {
@@ -245,6 +246,9 @@ async fn query_player_names_uses_typed_port_and_preserves_exact_mixed_packet_lik
             class: 3,
             sex: 1,
             level: 80,
+            account_id: 22,
+            battlenet_account_id: 77,
+            is_deleted: true,
         }),
         PlayerNameQueryOutcomeLikeCpp::Missing,
         PlayerNameQueryOutcomeLikeCpp::Failed {
@@ -276,8 +280,8 @@ async fn query_player_names_uses_typed_port_and_preserves_exact_mixed_packet_lik
     );
     assert!(instance_rx.try_recv().is_err());
 
-    let account_id = ObjectGuid::new((HighGuid::WowAccount as i64) << 58, 1);
-    let bnet_account_id = ObjectGuid::new((HighGuid::BNetAccount as i64) << 58, 1);
+    let account_id = ObjectGuid::new((HighGuid::WowAccount as i64) << 58, 22);
+    let bnet_account_id = ObjectGuid::new((HighGuid::BNetAccount as i64) << 58, 77);
     assert_eq!(
         realm_rx.try_recv().unwrap(),
         QueryPlayerNamesResponse {
@@ -295,6 +299,7 @@ async fn query_player_names_uses_typed_port_and_preserves_exact_mixed_packet_lik
                         account_id,
                         bnet_account_id,
                         virtual_realm_address: session.virtual_realm_address(),
+                        is_deleted: true,
                         ..Default::default()
                     }),
                 },
@@ -309,6 +314,68 @@ async fn query_player_names_uses_typed_port_and_preserves_exact_mixed_packet_lik
                     data: None,
                 },
             ],
+        }
+        .to_bytes()
+    );
+}
+
+#[tokio::test]
+async fn query_player_names_connected_target_overlays_live_identity_like_cpp() {
+    let found = ObjectGuid::create_player(1, 41);
+    let port = PlayerNameQueryPortFixtureLikeCpp::new([PlayerNameQueryOutcomeLikeCpp::Found(
+        PlayerNameQueryRowLikeCpp {
+            name: "Cached".to_owned(),
+            race: 10,
+            class: 3,
+            sex: 1,
+            level: 80,
+            account_id: 22,
+            battlenet_account_id: 77,
+            is_deleted: true,
+        },
+    )]);
+    let (mut session, instance_rx, realm_rx) = make_session_with_realm_send_capacity(1);
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        found,
+        "Connected".to_owned(),
+        Position::ZERO,
+        571,
+        2,
+        8,
+        55,
+        0,
+    ));
+    session.set_battlenet_account_id(88);
+    session.set_player_name_query_persistence_port_like_cpp(port);
+
+    session
+        .handle_query_player_names(QueryPlayerNames {
+            players: vec![found],
+        })
+        .await;
+
+    let account_id = ObjectGuid::new((HighGuid::WowAccount as i64) << 58, 1);
+    let bnet_account_id = ObjectGuid::new((HighGuid::BNetAccount as i64) << 58, 88);
+    assert!(instance_rx.try_recv().is_err());
+    assert_eq!(
+        realm_rx.try_recv().unwrap(),
+        QueryPlayerNamesResponse {
+            players: vec![NameCacheLookupResult {
+                player: found,
+                result: 0,
+                data: Some(PlayerGuidLookupData {
+                    name: "Connected".to_owned(),
+                    race: 2,
+                    sex: 0,
+                    class: 8,
+                    level: 55,
+                    guid_actual: found,
+                    account_id,
+                    bnet_account_id,
+                    virtual_realm_address: session.virtual_realm_address(),
+                    ..Default::default()
+                }),
+            }],
         }
         .to_bytes()
     );
