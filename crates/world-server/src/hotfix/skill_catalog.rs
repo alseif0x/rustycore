@@ -6,6 +6,7 @@ use tracing::info;
 use wow_persistence::{
     SkillCatalogHotfixLoadOutcomeLikeCpp, SkillCatalogHotfixPersistencePortLikeCpp,
     SkillLineAbilityHotfixRowLikeCpp, SkillLineAbilityHotfixRowsLikeCpp, SkillLineHotfixRowLikeCpp,
+    SkillLineXTraitTreeHotfixRowLikeCpp, SkillLineXTraitTreeHotfixRowsLikeCpp,
     SkillRaceClassInfoHotfixRowLikeCpp, SkillRaceClassInfoHotfixRowsLikeCpp,
 };
 
@@ -57,6 +58,19 @@ fn skill_race_class_info_source_like_cpp(
         min_level: row.min_level,
         skill_tier_id: row.skill_tier_id,
     }
+}
+
+fn skill_line_x_trait_tree_entry_like_cpp(
+    row: SkillLineXTraitTreeHotfixRowLikeCpp,
+) -> Result<wow_data::SkillLineXTraitTreeEntry> {
+    Ok(wow_data::SkillLineXTraitTreeEntry {
+        id: row.id,
+        skill_line_id: row.skill_line_id,
+        trait_tree_id: i32::try_from(row.trait_tree_id)
+            .context("SkillLineXTraitTree.TraitTreeID is not i32")?,
+        order_index: i32::try_from(row.order_index)
+            .context("SkillLineXTraitTree.OrderIndex is not i32")?,
+    })
 }
 
 fn apply_skill_line_hotfix_outcome_like_cpp(
@@ -170,7 +184,7 @@ pub(crate) async fn load_skill_catalog_stages_like_cpp(
         .await
         .context("Failed to load SkillLineAbility hotfix rows")?;
     let trait_tree_skill_line_index =
-        load_trait_index_like_cpp(data_dir, locale, skill_line_store)?;
+        load_trait_index_like_cpp(data_dir, locale, persistence, skill_line_store).await?;
     let race_class_info_base =
         wow_data::SkillStore::load_wdc4_skill_race_class_info_base_like_cpp(data_dir, locale)
             .context("Failed to load SkillRaceClassInfo.db2")?;
@@ -191,15 +205,35 @@ pub(crate) async fn load_skill_catalog_stages_like_cpp(
     })
 }
 
-pub(crate) fn load_trait_index_like_cpp(
+pub(crate) async fn load_trait_index_like_cpp(
     data_dir: &str,
     locale: &str,
+    persistence: &dyn SkillCatalogHotfixPersistencePortLikeCpp,
     skill_line_store: &wow_data::SkillLineStore,
 ) -> Result<Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>> {
     let trait_tree_store = wow_data::trait_tree::TraitTreeStore::load(data_dir, locale)
         .context("Failed to load TraitTree.db2")?;
     let skill_line_x_trait_tree_store = wow_data::SkillLineXTraitTreeStore::load(data_dir, locale)
         .context("Failed to load SkillLineXTraitTree.db2")?;
+    let hotfix_rows = match persistence
+        .load_skill_line_x_trait_tree_hotfix_rows_like_cpp()
+        .await
+    {
+        SkillCatalogHotfixLoadOutcomeLikeCpp::Loaded(rows) => rows,
+        SkillCatalogHotfixLoadOutcomeLikeCpp::Failed { reason } => bail!(reason),
+    };
+    let official_links = hotfix_rows
+        .official
+        .into_iter()
+        .map(skill_line_x_trait_tree_entry_like_cpp)
+        .collect::<Result<Vec<_>>>()?;
+    let custom_links = hotfix_rows
+        .custom
+        .into_iter()
+        .map(skill_line_x_trait_tree_entry_like_cpp)
+        .collect::<Result<Vec<_>>>()?;
+    let skill_line_x_trait_tree_store =
+        skill_line_x_trait_tree_store.apply_hotfix_overlays_like_cpp(official_links, custom_links);
     let index = Arc::new(
         wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp::from_effective_stores_like_cpp(
             &skill_line_x_trait_tree_store,
@@ -245,6 +279,16 @@ mod tests {
             source.source,
             wow_data::SkillStoreLoadSourceLikeCpp::CustomSql
         );
+        let trait_link =
+            skill_line_x_trait_tree_entry_like_cpp(SkillLineXTraitTreeHotfixRowLikeCpp {
+                id: 2,
+                skill_line_id: 171,
+                trait_tree_id: -3,
+                order_index: 4,
+            })
+            .unwrap();
+        assert_eq!(trait_link.trait_tree_id, -3);
+        assert_eq!(trait_link.order_index, 4);
     }
 
     #[test]
@@ -302,5 +346,7 @@ mod tests {
         let body = &source[loader..];
         assert!(body.contains("TraitTreeStore::load"));
         assert!(body.contains("SkillLineXTraitTreeStore::load"));
+        assert!(body.contains("load_skill_line_x_trait_tree_hotfix_rows_like_cpp"));
+        assert!(body.contains("apply_hotfix_overlays_like_cpp"));
     }
 }

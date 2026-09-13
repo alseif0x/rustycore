@@ -180,7 +180,8 @@ pub use hotfix::{
 pub use hotfix::{
     SkillCatalogHotfixLoadOutcomeLikeCpp, SkillCatalogHotfixPersistencePortLikeCpp,
     SkillLineAbilityHotfixRowLikeCpp, SkillLineAbilityHotfixRowsLikeCpp, SkillLineHotfixRowLikeCpp,
-    SkillLineHotfixRowsLikeCpp, SkillRaceClassInfoHotfixRowLikeCpp,
+    SkillLineHotfixRowsLikeCpp, SkillLineXTraitTreeHotfixRowLikeCpp,
+    SkillLineXTraitTreeHotfixRowsLikeCpp, SkillRaceClassInfoHotfixRowLikeCpp,
     SkillRaceClassInfoHotfixRowsLikeCpp,
 };
 pub use hotfix_delivery_metadata::{

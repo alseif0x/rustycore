@@ -57,6 +57,20 @@ pub struct SkillRaceClassInfoHotfixRowsLikeCpp {
     pub custom: Vec<SkillRaceClassInfoHotfixRowLikeCpp>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SkillLineXTraitTreeHotfixRowLikeCpp {
+    pub id: u32,
+    pub skill_line_id: u32,
+    pub trait_tree_id: i128,
+    pub order_index: i128,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SkillLineXTraitTreeHotfixRowsLikeCpp {
+    pub official: Vec<SkillLineXTraitTreeHotfixRowLikeCpp>,
+    pub custom: Vec<SkillLineXTraitTreeHotfixRowLikeCpp>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SkillCatalogHotfixLoadOutcomeLikeCpp<T> {
     Loaded(T),
@@ -67,8 +81,8 @@ pub enum SkillCatalogHotfixLoadOutcomeLikeCpp<T> {
 ///
 /// These operations are startup stages rather than table CRUD: the final
 /// `SkillLine` identity set must exist before the relation authorities can be
-/// validated and published, and the two relation tables remain independently
-/// observable so their C++ order and failure boundaries are preserved.
+/// validated and published, and each relation table remains independently
+/// observable so its C++ order and failure boundary are preserved.
 pub trait SkillCatalogHotfixPersistencePortLikeCpp: Send + Sync {
     fn load_skill_line_hotfix_rows_like_cpp(
         &self,
@@ -82,6 +96,13 @@ pub trait SkillCatalogHotfixPersistencePortLikeCpp: Send + Sync {
     ) -> PersistenceFutureLikeCpp<
         '_,
         SkillCatalogHotfixLoadOutcomeLikeCpp<SkillLineAbilityHotfixRowsLikeCpp>,
+    >;
+
+    fn load_skill_line_x_trait_tree_hotfix_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SkillCatalogHotfixLoadOutcomeLikeCpp<SkillLineXTraitTreeHotfixRowsLikeCpp>,
     >;
 
     fn load_skill_race_class_info_hotfix_rows_like_cpp(

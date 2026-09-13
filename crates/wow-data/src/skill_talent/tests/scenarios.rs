@@ -36,6 +36,34 @@ fn profession_skill_for_exp_matches_cpp_parent_child_rules() {
 }
 
 #[test]
+fn skill_line_x_trait_tree_overlays_use_custom_after_official_precedence_like_cpp() {
+    let store = SkillLineXTraitTreeStore::from_entries([SkillLineXTraitTreeEntry {
+        id: 7,
+        skill_line_id: 171,
+        trait_tree_id: 100,
+        order_index: 0,
+    }])
+    .apply_hotfix_overlays_like_cpp(
+        [SkillLineXTraitTreeEntry {
+            id: 7,
+            skill_line_id: 171,
+            trait_tree_id: 200,
+            order_index: 1,
+        }],
+        [SkillLineXTraitTreeEntry {
+            id: 8,
+            skill_line_id: 164,
+            trait_tree_id: 300,
+            order_index: 0,
+        }],
+    );
+
+    assert_eq!(store.get(7).unwrap().trait_tree_id, 200);
+    assert_eq!(store.get(8).unwrap().trait_tree_id, 300);
+    assert_eq!(store.len(), 2);
+}
+
+#[test]
 fn profession_skill_for_negative_expansion_uses_current_expansion_like_cpp() {
     let store =
         SkillLineStore::from_entries([skill_line(356, 9, 0, 0), skill_line(1_002, 9, 356, 6)]);
