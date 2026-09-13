@@ -59,8 +59,11 @@ excepciones físicas son individuales y se justifican con la política vigente; 
 crea una issue por fichero, helper o import.
 
 #582 queda cerrado tras su entrega de decodificadores sin matchmaking. #524 conserva
-su corrección de orden de consultas integrada por PR #803, pero requiere todavía la
-carga y el consumidor de `SkillLineXTraitTree` equivalente a `TraitMgr`; #486 conserva
+su corrección de orden de consultas integrada por PR #803. La proyección de
+`SkillLineXTraitTree` y su consumidor de hidratación de Player están implementados en
+`0f65d677`, con validación de enlaces y cierre seguro ante una profesión sin árbol;
+siguen pendientes la secuencia WDC4 por tabla, los índices/consumidores completos de
+`TraitMgr` y la aceptación final. #486 conserva
 la implementación integrada por PR #807 y solo sus gates de captura/QA viva y
 mutaciones administrativas no representadas. Estas son líneas funcionales separadas:
 no se convierten en trabajo oculto de #584 ni se usan para reabrir macros cerradas.
