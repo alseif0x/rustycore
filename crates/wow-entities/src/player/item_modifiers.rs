@@ -20,6 +20,10 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
+use super::{
+    ApplyEnchantmentBaseMod, ApplyEnchantmentCombatRating, ApplyEnchantmentEffectAction,
+    ApplyEnchantmentUnitMod, ApplyEnchantmentUnitModifier,
+};
 use wow_constants::{Stats, WeaponAttackType};
 use wow_core::ObjectGuid;
 
@@ -213,19 +217,180 @@ impl PlayerItemModifierRuntimeStateLikeCpp {
         self.bonuses = PlayerItemBonusStateLikeCpp::default();
     }
 
-    /// Retained projection: lend the bonus record to the enchantment and
-    /// equipment rules that write it.
+    /// Apply one resolved enchantment/equipment effect to the Player-owned
+    /// bonus state.
     ///
-    /// C++ applies those rules while holding the Player
-    /// (`Player::_ApplyItemBonuses`, `Player::ApplyEnchantment`), and RustyCore
-    /// keeps them in `wow-world` because they walk catalog-shaped actions that
-    /// may not enter `wow-entities`. **Exit condition:** the borrow retires when
-    /// the enchantment/equipment application contract moves behind a named
-    /// operation that takes the resolved effect instead of the record.
-    pub fn with_bonuses_mut_like_cpp<R>(
+    /// This is the state-only tail of C++ `Player::_ApplyItemBonuses` and
+    /// `Player::ApplyEnchantment` (`Player.cpp:7688-7975`,
+    /// `Player.cpp:13058-13389`). Catalog lookup, spell casts and aura
+    /// publication remain session concerns; unsupported action variants are
+    /// deliberately ignored here.
+    pub fn apply_enchantment_effect_action_like_cpp(
         &mut self,
-        apply: impl FnOnce(&mut PlayerItemBonusStateLikeCpp) -> R,
-    ) -> R {
-        apply(&mut self.bonuses)
+        action: ApplyEnchantmentEffectAction,
+    ) {
+        apply_enchantment_effect_action_to_bonus_state_like_cpp(&mut self.bonuses, action);
+    }
+}
+
+fn apply_enchantment_effect_action_to_bonus_state_like_cpp(
+    state: &mut PlayerItemBonusStateLikeCpp,
+    action: ApplyEnchantmentEffectAction,
+) {
+    match action {
+        ApplyEnchantmentEffectAction::UnitModifier {
+            unit_mod,
+            modifier,
+            amount,
+            apply,
+        } => apply_unit_modifier_like_cpp(state, unit_mod, modifier, amount, apply),
+        ApplyEnchantmentEffectAction::UpdateStatBuffMod(stat) => state.stat_buff_updates.push(stat),
+        ApplyEnchantmentEffectAction::RatingModifier {
+            rating,
+            amount,
+            apply,
+        } => {
+            if let Some(index) = combat_rating_index_like_cpp(rating) {
+                apply_i32_delta_like_cpp(&mut state.combat_ratings[index], amount, apply);
+            }
+        }
+        ApplyEnchantmentEffectAction::ManaRegenBonus { amount, apply } => {
+            apply_i32_delta_like_cpp(&mut state.mana_regen_bonus, amount, apply)
+        }
+        ApplyEnchantmentEffectAction::SpellPowerBonus { amount, apply } => {
+            apply_i32_delta_like_cpp(&mut state.spell_power_bonus, amount, apply)
+        }
+        ApplyEnchantmentEffectAction::HealthRegenBonus { amount, apply } => {
+            apply_i32_delta_like_cpp(&mut state.health_regen_bonus, amount, apply)
+        }
+        ApplyEnchantmentEffectAction::SpellPenetrationBonus { amount, apply } => {
+            apply_i32_delta_like_cpp(&mut state.spell_penetration_bonus, amount, apply)
+        }
+        ApplyEnchantmentEffectAction::BaseModFlatValue {
+            base_mod: ApplyEnchantmentBaseMod::ShieldBlockValue,
+            amount,
+            apply,
+        } => apply_i32_delta_like_cpp(&mut state.shield_block_base_mod, amount, apply),
+        ApplyEnchantmentEffectAction::SetShieldBlockValue { amount } => {
+            state.shield_block_value = amount
+        }
+        ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+            attack_type,
+            bound,
+            amount_bits,
+        } => {
+            let attack = attack_type as usize;
+            if attack < state.weapon_damage.len() {
+                let bound = match bound {
+                    super::WeaponDamageBoundLikeCpp::Min => 0,
+                    super::WeaponDamageBoundLikeCpp::Max => 1,
+                };
+                state.weapon_damage[attack][bound] = f32::from_bits(amount_bits);
+            }
+        }
+        ApplyEnchantmentEffectAction::SetBaseAttackTime {
+            attack_type,
+            time_ms,
+        } => {
+            let attack = attack_type as usize;
+            if attack < state.base_attack_time.len() {
+                state.base_attack_time[attack] = time_ms;
+            }
+        }
+        ApplyEnchantmentEffectAction::UpdateDamagePhysical { attack_type } => {
+            state.damage_physical_updates.push(attack_type)
+        }
+        ApplyEnchantmentEffectAction::Noop
+        | ApplyEnchantmentEffectAction::DeferredCombatSpell
+        | ApplyEnchantmentEffectAction::DeferredUseSpell
+        | ApplyEnchantmentEffectAction::UpdateDamageDoneMods { .. }
+        | ApplyEnchantmentEffectAction::CastEquipSpell { .. }
+        | ApplyEnchantmentEffectAction::RemoveEquipSpellAura { .. }
+        | ApplyEnchantmentEffectAction::UnhandledStatModifier { .. }
+        | ApplyEnchantmentEffectAction::MissingItemTemplateForAttack { .. }
+        | ApplyEnchantmentEffectAction::Unknown { .. } => {}
+    }
+}
+
+fn apply_unit_modifier_like_cpp(
+    state: &mut PlayerItemBonusStateLikeCpp,
+    unit_mod: ApplyEnchantmentUnitMod,
+    modifier: ApplyEnchantmentUnitModifier,
+    amount: u32,
+    apply: bool,
+) {
+    match (unit_mod, modifier) {
+        (ApplyEnchantmentUnitMod::Mana, ApplyEnchantmentUnitModifier::BaseValue) => {
+            apply_i32_delta_like_cpp(&mut state.mana_base, amount, apply)
+        }
+        (ApplyEnchantmentUnitMod::Health, ApplyEnchantmentUnitModifier::BaseValue) => {
+            apply_i32_delta_like_cpp(&mut state.health_base, amount, apply)
+        }
+        (ApplyEnchantmentUnitMod::Armor, ApplyEnchantmentUnitModifier::BaseValue) => {
+            apply_i32_delta_like_cpp(&mut state.armor_base, amount, apply)
+        }
+        (ApplyEnchantmentUnitMod::Armor, ApplyEnchantmentUnitModifier::TotalValue) => {
+            apply_i32_delta_like_cpp(&mut state.armor_total, amount, apply)
+        }
+        (ApplyEnchantmentUnitMod::AttackPower, ApplyEnchantmentUnitModifier::TotalValue) => {
+            apply_i32_delta_like_cpp(&mut state.attack_power_total, amount, apply)
+        }
+        (ApplyEnchantmentUnitMod::AttackPowerRanged, ApplyEnchantmentUnitModifier::TotalValue) => {
+            apply_i32_delta_like_cpp(&mut state.ranged_attack_power_total, amount, apply)
+        }
+        (ApplyEnchantmentUnitMod::Resistance(school), _) => {
+            let school = school as usize;
+            if school < state.resistances_base.len() {
+                apply_i32_delta_like_cpp(&mut state.resistances_base[school], amount, apply);
+            }
+        }
+        (
+            unit_mod,
+            ApplyEnchantmentUnitModifier::BaseValue | ApplyEnchantmentUnitModifier::TotalValue,
+        ) => {
+            if let Some(index) = unit_mod_stat_index_like_cpp(unit_mod) {
+                apply_i32_delta_like_cpp(&mut state.stats_base[index], amount, apply);
+            }
+        }
+    }
+}
+
+fn apply_i32_delta_like_cpp(target: &mut i32, amount: u32, apply: bool) {
+    let amount = i32::try_from(amount).unwrap_or(i32::MAX);
+    if apply {
+        *target = target.saturating_add(amount);
+    } else {
+        *target = target.saturating_sub(amount);
+    }
+}
+
+fn unit_mod_stat_index_like_cpp(unit_mod: ApplyEnchantmentUnitMod) -> Option<usize> {
+    match unit_mod {
+        ApplyEnchantmentUnitMod::StatStrength => Some(Stats::Strength as usize),
+        ApplyEnchantmentUnitMod::StatAgility => Some(Stats::Agility as usize),
+        ApplyEnchantmentUnitMod::StatStamina => Some(Stats::Stamina as usize),
+        ApplyEnchantmentUnitMod::StatIntellect => Some(Stats::Intellect as usize),
+        ApplyEnchantmentUnitMod::StatSpirit => Some(Stats::Spirit as usize),
+        _ => None,
+    }
+}
+
+fn combat_rating_index_like_cpp(rating: ApplyEnchantmentCombatRating) -> Option<usize> {
+    match rating {
+        ApplyEnchantmentCombatRating::DefenseSkill => Some(1),
+        ApplyEnchantmentCombatRating::Dodge => Some(2),
+        ApplyEnchantmentCombatRating::Parry => Some(3),
+        ApplyEnchantmentCombatRating::Block => Some(4),
+        ApplyEnchantmentCombatRating::HitMelee => Some(5),
+        ApplyEnchantmentCombatRating::HitRanged => Some(6),
+        ApplyEnchantmentCombatRating::HitSpell => Some(7),
+        ApplyEnchantmentCombatRating::CritMelee => Some(8),
+        ApplyEnchantmentCombatRating::CritRanged => Some(9),
+        ApplyEnchantmentCombatRating::CritSpell => Some(10),
+        ApplyEnchantmentCombatRating::HasteMelee => Some(17),
+        ApplyEnchantmentCombatRating::HasteRanged => Some(18),
+        ApplyEnchantmentCombatRating::HasteSpell => Some(19),
+        ApplyEnchantmentCombatRating::Expertise => Some(23),
+        ApplyEnchantmentCombatRating::ArmorPenetration => Some(24),
     }
 }

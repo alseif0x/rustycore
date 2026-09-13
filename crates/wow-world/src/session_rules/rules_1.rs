@@ -17,7 +17,6 @@ use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 use wow_constants::InventoryType;
 use wow_constants::ServerOpcodes;
-use wow_constants::Stats;
 use wow_constants::item::EnchantmentSlot;
 use wow_constants::unit::UnitStandStateType;
 use wow_core::ObjectGuid;
@@ -104,155 +103,10 @@ pub(crate) fn apply_player_session_visibility_detection_like_cpp(
         .set_seer_can_never_see_target_like_cpp(seer_can_never_see_target);
 }
 
-pub(crate) fn apply_represented_item_bonus_action_to_state_like_cpp(
-    state: &mut RepresentedItemBonusStateLikeCpp,
-    action: ApplyEnchantmentEffectAction,
-) {
-    match action {
-        ApplyEnchantmentEffectAction::UnitModifier {
-            unit_mod,
-            modifier,
-            amount,
-            apply,
-        } => crate::session_rules::apply_represented_unit_modifier_like_cpp(
-            state, unit_mod, modifier, amount, apply,
-        ),
-        ApplyEnchantmentEffectAction::UpdateStatBuffMod(stat) => state.stat_buff_updates.push(stat),
-        ApplyEnchantmentEffectAction::RatingModifier {
-            rating,
-            amount,
-            apply,
-        } => {
-            if let Some(index) = represented_combat_rating_index_like_cpp(rating) {
-                apply_represented_i32_delta_like_cpp(
-                    &mut state.combat_ratings[index],
-                    amount,
-                    apply,
-                );
-            }
-        }
-        ApplyEnchantmentEffectAction::ManaRegenBonus { amount, apply } => {
-            apply_represented_i32_delta_like_cpp(&mut state.mana_regen_bonus, amount, apply);
-        }
-        ApplyEnchantmentEffectAction::SpellPowerBonus { amount, apply } => {
-            apply_represented_i32_delta_like_cpp(&mut state.spell_power_bonus, amount, apply);
-        }
-        ApplyEnchantmentEffectAction::HealthRegenBonus { amount, apply } => {
-            apply_represented_i32_delta_like_cpp(&mut state.health_regen_bonus, amount, apply);
-        }
-        ApplyEnchantmentEffectAction::SpellPenetrationBonus { amount, apply } => {
-            apply_represented_i32_delta_like_cpp(&mut state.spell_penetration_bonus, amount, apply);
-        }
-        ApplyEnchantmentEffectAction::BaseModFlatValue {
-            base_mod: wow_entities::ApplyEnchantmentBaseMod::ShieldBlockValue,
-            amount,
-            apply,
-        } => {
-            apply_represented_i32_delta_like_cpp(&mut state.shield_block_base_mod, amount, apply);
-        }
-        ApplyEnchantmentEffectAction::SetShieldBlockValue { amount } => {
-            state.shield_block_value = amount;
-        }
-        ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
-            attack_type,
-            bound,
-            amount_bits,
-        } => {
-            let attack = attack_type as usize;
-            if attack < state.weapon_damage.len() {
-                let bound = match bound {
-                    wow_entities::WeaponDamageBoundLikeCpp::Min => 0,
-                    wow_entities::WeaponDamageBoundLikeCpp::Max => 1,
-                };
-                state.weapon_damage[attack][bound] = f32::from_bits(amount_bits);
-            }
-        }
-        ApplyEnchantmentEffectAction::SetBaseAttackTime {
-            attack_type,
-            time_ms,
-        } => {
-            let attack = attack_type as usize;
-            if attack < state.base_attack_time.len() {
-                state.base_attack_time[attack] = time_ms;
-            }
-        }
-        ApplyEnchantmentEffectAction::UpdateDamagePhysical { attack_type } => {
-            state.damage_physical_updates.push(attack_type)
-        }
-        ApplyEnchantmentEffectAction::Noop
-        | ApplyEnchantmentEffectAction::DeferredCombatSpell
-        | ApplyEnchantmentEffectAction::DeferredUseSpell
-        | ApplyEnchantmentEffectAction::UpdateDamageDoneMods { .. }
-        | ApplyEnchantmentEffectAction::CastEquipSpell { .. }
-        | ApplyEnchantmentEffectAction::RemoveEquipSpellAura { .. }
-        | ApplyEnchantmentEffectAction::UnhandledStatModifier { .. }
-        | ApplyEnchantmentEffectAction::MissingItemTemplateForAttack { .. }
-        | ApplyEnchantmentEffectAction::Unknown { .. } => {}
-    }
-}
-
 #[cfg(test)]
 pub(crate) fn apply_represented_pct_modifier_to_u32_like_cpp(value: u32, pct: i32) -> u32 {
     let adjusted = i64::from(value) + (i64::from(value) * i64::from(pct)) / 100;
     adjusted.clamp(0, i64::from(u32::MAX)) as u32
-}
-
-pub(crate) fn apply_represented_unit_modifier_like_cpp(
-    state: &mut RepresentedItemBonusStateLikeCpp,
-    unit_mod: wow_entities::ApplyEnchantmentUnitMod,
-    modifier: wow_entities::ApplyEnchantmentUnitModifier,
-    amount: u32,
-    apply: bool,
-) {
-    match (unit_mod, modifier) {
-        (
-            wow_entities::ApplyEnchantmentUnitMod::Mana,
-            wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
-        ) => apply_represented_i32_delta_like_cpp(&mut state.mana_base, amount, apply),
-        (
-            wow_entities::ApplyEnchantmentUnitMod::Health,
-            wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
-        ) => apply_represented_i32_delta_like_cpp(&mut state.health_base, amount, apply),
-        (
-            wow_entities::ApplyEnchantmentUnitMod::Armor,
-            wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
-        ) => apply_represented_i32_delta_like_cpp(&mut state.armor_base, amount, apply),
-        (
-            wow_entities::ApplyEnchantmentUnitMod::Armor,
-            wow_entities::ApplyEnchantmentUnitModifier::TotalValue,
-        ) => apply_represented_i32_delta_like_cpp(&mut state.armor_total, amount, apply),
-        (
-            wow_entities::ApplyEnchantmentUnitMod::AttackPower,
-            wow_entities::ApplyEnchantmentUnitModifier::TotalValue,
-        ) => apply_represented_i32_delta_like_cpp(&mut state.attack_power_total, amount, apply),
-        (
-            wow_entities::ApplyEnchantmentUnitMod::AttackPowerRanged,
-            wow_entities::ApplyEnchantmentUnitModifier::TotalValue,
-        ) => apply_represented_i32_delta_like_cpp(
-            &mut state.ranged_attack_power_total,
-            amount,
-            apply,
-        ),
-        (wow_entities::ApplyEnchantmentUnitMod::Resistance(school), _) => {
-            let school = school as usize;
-            if school < state.resistances_base.len() {
-                apply_represented_i32_delta_like_cpp(
-                    &mut state.resistances_base[school],
-                    amount,
-                    apply,
-                );
-            }
-        }
-        (
-            unit_mod,
-            wow_entities::ApplyEnchantmentUnitModifier::BaseValue
-            | wow_entities::ApplyEnchantmentUnitModifier::TotalValue,
-        ) => {
-            if let Some(index) = represented_unit_mod_stat_index_like_cpp(unit_mod) {
-                apply_represented_i32_delta_like_cpp(&mut state.stats_base[index], amount, apply);
-            }
-        }
-    }
 }
 
 pub(crate) fn bind_area_id_like_cpp(effect_misc_value: i32, current_area_id: u32) -> u32 {
@@ -505,52 +359,6 @@ pub(crate) fn loaded_enchantment_effect_action_is_unrepresented_like_cpp(
             | ApplyEnchantmentEffectAction::MissingItemTemplateForAttack { .. }
             | ApplyEnchantmentEffectAction::Unknown { .. }
     )
-}
-
-pub(crate) fn apply_represented_i32_delta_like_cpp(target: &mut i32, amount: u32, apply: bool) {
-    let amount = i32::try_from(amount).unwrap_or(i32::MAX);
-    if apply {
-        *target = target.saturating_add(amount);
-    } else {
-        *target = target.saturating_sub(amount);
-    }
-}
-
-pub(crate) fn represented_unit_mod_stat_index_like_cpp(
-    unit_mod: wow_entities::ApplyEnchantmentUnitMod,
-) -> Option<usize> {
-    match unit_mod {
-        wow_entities::ApplyEnchantmentUnitMod::StatStrength => Some(Stats::Strength as usize),
-        wow_entities::ApplyEnchantmentUnitMod::StatAgility => Some(Stats::Agility as usize),
-        wow_entities::ApplyEnchantmentUnitMod::StatStamina => Some(Stats::Stamina as usize),
-        wow_entities::ApplyEnchantmentUnitMod::StatIntellect => Some(Stats::Intellect as usize),
-        wow_entities::ApplyEnchantmentUnitMod::StatSpirit => Some(Stats::Spirit as usize),
-        _ => None,
-    }
-}
-
-pub(crate) fn represented_combat_rating_index_like_cpp(
-    rating: wow_entities::ApplyEnchantmentCombatRating,
-) -> Option<usize> {
-    match rating {
-        wow_entities::ApplyEnchantmentCombatRating::DefenseSkill => Some(1),
-        wow_entities::ApplyEnchantmentCombatRating::Dodge => Some(2),
-        wow_entities::ApplyEnchantmentCombatRating::Parry => Some(3),
-        wow_entities::ApplyEnchantmentCombatRating::Block => Some(4),
-        wow_entities::ApplyEnchantmentCombatRating::HitMelee => Some(5),
-        wow_entities::ApplyEnchantmentCombatRating::HitRanged => Some(6),
-        wow_entities::ApplyEnchantmentCombatRating::HitSpell => Some(7),
-        wow_entities::ApplyEnchantmentCombatRating::CritMelee => Some(8),
-        wow_entities::ApplyEnchantmentCombatRating::CritRanged => Some(9),
-        wow_entities::ApplyEnchantmentCombatRating::CritSpell => Some(10),
-        wow_entities::ApplyEnchantmentCombatRating::HasteMelee => Some(17),
-        wow_entities::ApplyEnchantmentCombatRating::HasteRanged => Some(18),
-        wow_entities::ApplyEnchantmentCombatRating::HasteSpell => Some(19),
-        wow_entities::ApplyEnchantmentCombatRating::Expertise => Some(23),
-        wow_entities::ApplyEnchantmentCombatRating::ArmorPenetration => {
-            Some(CR_ARMOR_PENETRATION_LIKE_CPP as usize)
-        }
-    }
 }
 
 pub(crate) fn position_is_in_dist_strict_3d_like_cpp(
