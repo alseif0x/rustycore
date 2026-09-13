@@ -6,8 +6,8 @@ use tracing::info;
 use wow_persistence::{
     SkillCatalogHotfixLoadOutcomeLikeCpp, SkillCatalogHotfixPersistencePortLikeCpp,
     SkillLineAbilityHotfixRowLikeCpp, SkillLineAbilityHotfixRowsLikeCpp, SkillLineHotfixRowLikeCpp,
-    SkillLineXTraitTreeHotfixRowLikeCpp, SkillLineXTraitTreeHotfixRowsLikeCpp,
-    SkillRaceClassInfoHotfixRowLikeCpp, SkillRaceClassInfoHotfixRowsLikeCpp,
+    SkillLineXTraitTreeHotfixRowLikeCpp, SkillRaceClassInfoHotfixRowLikeCpp,
+    SkillRaceClassInfoHotfixRowsLikeCpp,
 };
 
 fn skill_line_overlay_like_cpp(
@@ -184,7 +184,8 @@ pub(crate) async fn load_skill_catalog_stages_like_cpp(
         .await
         .context("Failed to load SkillLineAbility hotfix rows")?;
     let trait_tree_skill_line_index =
-        load_trait_index_like_cpp(data_dir, locale, persistence, skill_line_store).await?;
+        load_trait_index_like_cpp(data_dir, locale, persistence, removals, skill_line_store)
+            .await?;
     let race_class_info_base =
         wow_data::SkillStore::load_wdc4_skill_race_class_info_base_like_cpp(data_dir, locale)
             .context("Failed to load SkillRaceClassInfo.db2")?;
@@ -209,6 +210,7 @@ pub(crate) async fn load_trait_index_like_cpp(
     data_dir: &str,
     locale: &str,
     persistence: &dyn SkillCatalogHotfixPersistencePortLikeCpp,
+    removals: &wow_data::Db2HotfixRemovalStoreLikeCpp,
     skill_line_store: &wow_data::SkillLineStore,
 ) -> Result<Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>> {
     let trait_tree_store = wow_data::trait_tree::TraitTreeStore::load(data_dir, locale)
@@ -232,8 +234,9 @@ pub(crate) async fn load_trait_index_like_cpp(
         .into_iter()
         .map(skill_line_x_trait_tree_entry_like_cpp)
         .collect::<Result<Vec<_>>>()?;
-    let skill_line_x_trait_tree_store =
-        skill_line_x_trait_tree_store.apply_hotfix_overlays_like_cpp(official_links, custom_links);
+    let skill_line_x_trait_tree_store = skill_line_x_trait_tree_store
+        .apply_hotfix_overlays_and_removals_like_cpp(official_links, custom_links, removals)
+        .context("Failed to apply SkillLineXTraitTree hotfix removals")?;
     let index = Arc::new(
         wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp::from_effective_stores_like_cpp(
             &skill_line_x_trait_tree_store,
@@ -347,6 +350,7 @@ mod tests {
         assert!(body.contains("TraitTreeStore::load"));
         assert!(body.contains("SkillLineXTraitTreeStore::load"));
         assert!(body.contains("load_skill_line_x_trait_tree_hotfix_rows_like_cpp"));
-        assert!(body.contains("apply_hotfix_overlays_like_cpp"));
+        assert!(body.contains("apply_hotfix_overlays_and_removals_like_cpp"));
+        assert!(body.contains("removals"));
     }
 }

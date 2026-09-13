@@ -279,17 +279,56 @@ db2_store!(TalentStore, TalentEntry);
 db2_store!(TalentTabStore, TalentTabEntry);
 
 /// Effective `SkillLineXTraitTree` records used by the represented `TraitMgr`
-/// projection. This store keeps its WDC4/official/custom layers explicit while
-/// final table-hash removal accounting remains a later #524 gate.
+/// projection. The WDC4 table hash is retained so C++ `RecordRemoved`
+/// tombstones cannot be applied to a different DB2 store accidentally.
 pub struct SkillLineXTraitTreeStore {
     entries: HashMap<u32, SkillLineXTraitTreeEntry>,
+    table_hash_like_cpp: Option<u32>,
 }
 
 impl SkillLineXTraitTreeStore {
     pub fn from_entries(entries: impl IntoIterator<Item = SkillLineXTraitTreeEntry>) -> Self {
+        Self::from_entries_with_table_hash_like_cpp(entries, None)
+    }
+
+    fn from_entries_with_table_hash_like_cpp(
+        entries: impl IntoIterator<Item = SkillLineXTraitTreeEntry>,
+        table_hash: Option<u32>,
+    ) -> Self {
         Self {
             entries: entries.into_iter().map(|entry| (entry.id, entry)).collect(),
+            table_hash_like_cpp: table_hash,
         }
+    }
+
+    pub fn table_hash_like_cpp(&self) -> Option<u32> {
+        self.table_hash_like_cpp
+    }
+
+    /// Load the WDC4 base and retain its C++ `DB2StorageBase::GetTableHash`.
+    pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
+        let path = Path::new(data_dir)
+            .join("dbc")
+            .join(locale)
+            .join("SkillLineXTraitTree.db2");
+        let reader = Wdc4Reader::open(&path)
+            .with_context(|| format!("failed to open {}", path.display()))?;
+        let table_hash = reader.table_hash();
+        let entries = reader
+            .iter_records()
+            .map(|(id, idx)| SkillLineXTraitTreeEntry {
+                id,
+                skill_line_id: reader.get_field_u32(idx, 1),
+                trait_tree_id: reader.get_field_i32(idx, 2),
+                order_index: reader.get_field_i32(idx, 3),
+            })
+            .collect::<Vec<_>>();
+        let store = Self::from_entries_with_table_hash_like_cpp(entries, Some(table_hash));
+        info!(
+            rows = store.len(),
+            table_hash, "Loaded SkillLineXTraitTree.db2"
+        );
+        Ok(store)
     }
 
     pub fn get(&self, id: u32) -> Option<&SkillLineXTraitTreeEntry> {
@@ -317,6 +356,25 @@ impl SkillLineXTraitTreeStore {
             self.entries.insert(entry.id, entry);
         }
         self
+    }
+
+    /// Apply SQL overlays and the final C++ `RecordRemoved` pass.
+    pub fn apply_hotfix_overlays_and_removals_like_cpp(
+        mut self,
+        official: impl IntoIterator<Item = SkillLineXTraitTreeEntry>,
+        custom: impl IntoIterator<Item = SkillLineXTraitTreeEntry>,
+        removals: &Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        self = self.apply_hotfix_overlays_like_cpp(official, custom);
+        let table_hash = self
+            .table_hash_like_cpp
+            .context("SkillLineXTraitTree.db2 is missing its WDC4 table hash")?;
+        self.entries.retain(|record_id, _| {
+            i32::try_from(*record_id)
+                .map(|id| !removals.contains_like_cpp(table_hash, id))
+                .unwrap_or(true)
+        });
+        Ok(self)
     }
 }
 
@@ -799,17 +857,6 @@ impl SkillLineStore {
 impl SkillLineXTraitTreeStore {
     pub fn iter(&self) -> impl Iterator<Item = &SkillLineXTraitTreeEntry> {
         self.entries.values()
-    }
-
-    pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
-        load_store(data_dir, locale, "SkillLineXTraitTree.db2", |id, idx, r| {
-            SkillLineXTraitTreeEntry {
-                id,
-                skill_line_id: r.get_relationship_id(idx).unwrap_or(0),
-                trait_tree_id: r.get_field_i32(idx, 1),
-                order_index: r.get_field_i32(idx, 2),
-            }
-        })
     }
 }
 

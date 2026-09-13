@@ -64,6 +64,76 @@ fn skill_line_x_trait_tree_overlays_use_custom_after_official_precedence_like_cp
 }
 
 #[test]
+fn skill_line_x_trait_tree_removals_use_table_hash_and_final_status_like_cpp() {
+    const TABLE_HASH: u32 = 0xB2E9_968F;
+    let removals = Db2HotfixRemovalStoreLikeCpp::from_status_rows_like_cpp([
+        (TABLE_HASH, 7, 2),
+        (TABLE_HASH, 7, 1),
+        (TABLE_HASH, 8, 2),
+        (0xAABB_CCDD, 9, 2),
+    ]);
+    let mut base = SkillLineXTraitTreeStore::from_entries([
+        SkillLineXTraitTreeEntry {
+            id: 7,
+            skill_line_id: 171,
+            trait_tree_id: 100,
+            order_index: 0,
+        },
+        SkillLineXTraitTreeEntry {
+            id: 8,
+            skill_line_id: 171,
+            trait_tree_id: 200,
+            order_index: 1,
+        },
+    ]);
+    base.table_hash_like_cpp = Some(TABLE_HASH);
+
+    let store = base
+        .apply_hotfix_overlays_and_removals_like_cpp(
+            [SkillLineXTraitTreeEntry {
+                id: 8,
+                skill_line_id: 171,
+                trait_tree_id: 300,
+                order_index: 2,
+            }],
+            [SkillLineXTraitTreeEntry {
+                id: 9,
+                skill_line_id: 171,
+                trait_tree_id: 400,
+                order_index: 3,
+            }],
+            &removals,
+        )
+        .unwrap();
+
+    assert_eq!(store.table_hash_like_cpp(), Some(TABLE_HASH));
+    assert!(
+        store.get(7).is_some(),
+        "a later valid status cancels removal"
+    );
+    assert!(store.get(8).is_none(), "final removal erases SQL overlays");
+    assert!(
+        store.get(9).is_some(),
+        "another table hash must not erase a link"
+    );
+}
+
+#[test]
+fn skill_line_x_trait_tree_removals_fail_without_wdc4_table_hash() {
+    let result = SkillLineXTraitTreeStore::from_entries([])
+        .apply_hotfix_overlays_and_removals_like_cpp(
+            [],
+            [],
+            &Db2HotfixRemovalStoreLikeCpp::default(),
+        );
+    let error = match result {
+        Ok(_) => panic!("production removal application requires the WDC4 table hash"),
+        Err(error) => error,
+    };
+    assert!(error.to_string().contains("missing its WDC4 table hash"));
+}
+
+#[test]
 fn profession_skill_for_negative_expansion_uses_current_expansion_like_cpp() {
     let store =
         SkillLineStore::from_entries([skill_line(356, 9, 0, 0), skill_line(1_002, 9, 356, 6)]);
