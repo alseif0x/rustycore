@@ -13,8 +13,8 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza integrada, 2026-09-13: PR #832**, en `3.4.3` como
-`1143ed416c41af1219f8c76cb35e85f35c4e8f97`. #787 / PR #792 (`d14a9a67`) y
+**Cabeza integrada, 2026-09-13: PR #834**, en `3.4.3` como
+`4e3ad8f010176a6d500cf45c84ea752f179a47cf`. #787 / PR #792 (`d14a9a67`) y
 #584 P2 item-bonus y P3.1–P3.9 están integrados dentro de esta cabeza. La coordinación World/Map está
 implementada y aceptada localmente en `76369bda`; la corrección mantiene el ACK World pendiente hasta finalizar y
 retirar la sesión. El contrato y la evidencia están en el
@@ -71,14 +71,17 @@ crea una issue por fichero, helper o import.
 su corrección de orden de consultas integrada por PR #803 y la secuencia WDC4/SQL
 table-granular integrada por PR #822/#824 (`7bb9a911`), los overlays de
 `SkillLineXTraitTree` por PR #826 (`d934451a`), las eliminaciones por hash por PR
-#828 (`276e3981`), el índice genérico de `TraitMgr` por PR #830 (`a9623787`) y la
-proyección combat/class por PR #832 (`1143ed41`): `SkillLineAbility` termina antes
+#828 (`276e3981`), el índice genérico de `TraitMgr` por PR #830 (`a9623787`), la
+proyección combat/class por PR #832 (`1143ed41`) y la validación de entradas por PR
+#834 (`4e3ad8f0`): `SkillLineAbility` termina antes
 de `SkillRaceClassInfo`, y TraitMgr construye después la proyección de
 `TraitTree`/`SkillLineXTraitTree` con consultas official/custom independientes. La
 proyección de `SkillLineXTraitTree` y sus consumidores de hidratación de Player están
 implementados con validación de enlaces; profesión, Generic y Combat fallan cerrado
-sin árbol enlazado o especialización/clase válida. Siguen pendientes los
-índices/consumidores completos de `TraitMgr` más allá de `TraitSystemID` y
+sin árbol enlazado o especialización/clase válida, y las entradas persistidas fallan
+cerrado si no existen o exceden `MaxRanks`. Siguen pendientes los índices/consumidores
+completos de `TraitMgr` más allá de `TraitSystemID`, `_skillLinesByClass` y esta
+validación de rango, el cierre
 `_skillLinesByClass`, el cierre
 cross-store y la aceptación final. #486 conserva
 la implementación integrada por PR #807 y solo sus gates de captura/QA viva y
