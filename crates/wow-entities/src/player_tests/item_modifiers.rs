@@ -8,7 +8,7 @@
 //! deleting an effect once its last equipped item is gone (`:192`).
 
 use crate::{
-    ApplyEnchantmentEffectAction, ApplyEnchantmentUnitMod, ApplyEnchantmentUnitModifier,
+    ApplyEnchantmentEffectAction, ApplyEnchantmentUnitMod, ApplyEnchantmentUnitModifier, Player,
     PlayerItemLevelCapsLikeCpp, PlayerItemModifierRuntimeStateLikeCpp,
 };
 
@@ -198,4 +198,32 @@ fn the_named_bonus_operation_writes_the_owner_and_the_snapshot_copies_it() {
     snapshot.attack_power_total = 99;
     assert_eq!(runtime.bonuses_like_cpp().attack_power_total, 10);
     assert_eq!(runtime.bonuses_like_cpp().stats_base[1], 4);
+}
+
+#[test]
+fn player_named_item_modifier_operations_keep_the_player_as_owner() {
+    let mut player = Player::new(None, false);
+    let guid = item(99);
+
+    assert_eq!(player.add_item_set_item_like_cpp(700, guid), 1);
+    assert!(player.add_item_set_bonus_like_cpp(700, 35));
+    assert_eq!(
+        player
+            .item_modifier_runtime_snapshot_like_cpp()
+            .item_set_effect_like_cpp(700)
+            .map(|effect| effect.set_bonuses.clone()),
+        Some(std::collections::BTreeSet::from([35]))
+    );
+    player.apply_item_modifier_action_like_cpp(ApplyEnchantmentEffectAction::SetShieldBlockValue {
+        amount: 17,
+    });
+    assert_eq!(
+        player
+            .item_modifier_runtime_snapshot_like_cpp()
+            .bonuses_like_cpp()
+            .shield_block_value,
+        17
+    );
+    assert_eq!(player.remove_item_set_item_like_cpp(700, guid), Some(0));
+    assert!(player.drop_empty_item_set_effect_like_cpp(700));
 }

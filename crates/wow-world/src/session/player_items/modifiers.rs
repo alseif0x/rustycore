@@ -88,35 +88,135 @@ impl WorldSession {
         &self,
     ) -> Option<wow_entities::PlayerItemModifierRuntimeStateLikeCpp> {
         let canonical = self
-            .with_owned_player_like_cpp(|player| player.gameplay_state().item_modifiers.clone());
+            .with_owned_player_like_cpp(|player| player.item_modifier_runtime_snapshot_like_cpp());
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(self.represented_item_modifier_runtime_like_cpp.clone());
         }
         canonical
     }
-    pub(in crate::session) fn mutate_player_item_modifier_runtime_like_cpp<R>(
+
+    pub(in crate::session) fn add_player_item_set_item_like_cpp(
         &mut self,
-        mutate: impl FnOnce(&mut wow_entities::PlayerItemModifierRuntimeStateLikeCpp) -> R,
-    ) -> Option<R> {
-        let mut mutate = Some(mutate);
+        item_set_id: u32,
+        item_guid: ObjectGuid,
+    ) -> Option<usize> {
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            player.add_item_set_item_like_cpp(item_set_id, item_guid)
+        });
+        if canonical.is_some() {
+            return canonical;
+        }
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            let mut state = self.player_item_modifier_runtime_snapshot_like_cpp()?;
-            let result =
-                mutate
-                    .take()
-                    .expect("test item-modifier mutation executes once")(&mut state);
-            self.represented_item_modifier_runtime_like_cpp = state;
-            return Some(result);
+            return Some(
+                self.represented_item_modifier_runtime_like_cpp
+                    .add_item_set_item_like_cpp(item_set_id, item_guid),
+            );
         }
-        self.with_owned_player_mut_like_cpp(|player| {
-            mutate
-                .take()
-                .expect("Player item-modifier mutation executes once")(
-                &mut player.gameplay_state_mut().item_modifiers,
-            )
-        })
+        None
+    }
+
+    pub(in crate::session) fn add_player_item_set_bonus_like_cpp(
+        &mut self,
+        item_set_id: u32,
+        spell_entry_id: u32,
+    ) -> Option<bool> {
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            player.add_item_set_bonus_like_cpp(item_set_id, spell_entry_id)
+        });
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some(
+                self.represented_item_modifier_runtime_like_cpp
+                    .add_item_set_bonus_like_cpp(item_set_id, spell_entry_id),
+            );
+        }
+        None
+    }
+
+    pub(in crate::session) fn remove_player_item_set_item_like_cpp(
+        &mut self,
+        item_set_id: u32,
+        item_guid: ObjectGuid,
+    ) -> Option<Option<usize>> {
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            player.remove_item_set_item_like_cpp(item_set_id, item_guid)
+        });
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some(
+                self.represented_item_modifier_runtime_like_cpp
+                    .remove_item_set_item_like_cpp(item_set_id, item_guid),
+            );
+        }
+        None
+    }
+
+    pub(in crate::session) fn remove_player_item_set_bonus_like_cpp(
+        &mut self,
+        item_set_id: u32,
+        spell_entry_id: u32,
+    ) -> Option<bool> {
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            player.remove_item_set_bonus_like_cpp(item_set_id, spell_entry_id)
+        });
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some(
+                self.represented_item_modifier_runtime_like_cpp
+                    .remove_item_set_bonus_like_cpp(item_set_id, spell_entry_id),
+            );
+        }
+        None
+    }
+
+    pub(in crate::session) fn drop_player_empty_item_set_effect_like_cpp(
+        &mut self,
+        item_set_id: u32,
+    ) -> Option<bool> {
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            player.drop_empty_item_set_effect_like_cpp(item_set_id)
+        });
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return Some(
+                self.represented_item_modifier_runtime_like_cpp
+                    .drop_empty_item_set_effect_like_cpp(item_set_id),
+            );
+        }
+        None
+    }
+
+    pub(in crate::session) fn set_player_item_level_caps_like_cpp(
+        &mut self,
+        caps: wow_entities::PlayerItemLevelCapsLikeCpp,
+    ) -> bool {
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            player.set_item_level_caps_like_cpp(caps);
+        });
+        if canonical.is_some() {
+            return true;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_item_modifier_runtime_like_cpp
+                .set_item_level_caps_like_cpp(caps);
+            return true;
+        }
+        false
     }
     pub(in crate::session) fn record_represented_all_item_mods_like_cpp(
         &mut self,
@@ -559,10 +659,19 @@ impl WorldSession {
         &mut self,
         action: ApplyEnchantmentEffectAction,
     ) -> bool {
-        self.mutate_player_item_modifier_runtime_like_cpp(|runtime| {
-            runtime.apply_enchantment_effect_action_like_cpp(action);
-        })
-        .is_some()
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            player.apply_item_modifier_action_like_cpp(action);
+        });
+        if canonical.is_some() {
+            return true;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_item_modifier_runtime_like_cpp
+                .apply_enchantment_effect_action_like_cpp(action);
+            return true;
+        }
+        false
     }
     pub(in crate::session) fn reset_represented_item_bonus_runtime_like_cpp(&mut self) {
         // C++ WorldSession::HandlePlayerLogin constructs a fresh Player, so
@@ -570,9 +679,18 @@ impl WorldSession {
         // next login on the same session.
         #[cfg(test)]
         self.represented_item_bonus_actions_like_cpp.clear();
-        let _ = self.mutate_player_item_modifier_runtime_like_cpp(|runtime| {
-            runtime.reset_bonuses_like_cpp();
-        });
+        let canonical_missing = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.reset_item_modifier_bonuses_like_cpp();
+            })
+            .is_none();
+        #[cfg(not(test))]
+        let _ = canonical_missing;
+        #[cfg(test)]
+        if canonical_missing && self.player_handle_like_cpp.is_none() {
+            self.represented_item_modifier_runtime_like_cpp
+                .reset_bonuses_like_cpp();
+        }
     }
     pub(in crate::session) fn initial_loaded_item_mods_can_apply_like_cpp(
         &self,
