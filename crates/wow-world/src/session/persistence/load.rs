@@ -7,7 +7,16 @@ use super::*;
 
 impl WorldSession {
     pub(crate) fn mark_represented_void_storage_loaded_like_cpp(&mut self) {
-        let _ = self.with_owned_void_storage_mut_like_cpp(|_, loaded| *loaded = true);
+        if self
+            .with_owned_player_mut_like_cpp(|player| player.mark_void_storage_loaded_like_cpp())
+            .is_some()
+        {
+            return;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_void_storage_loaded_like_cpp = true;
+        }
     }
     /// Match C++ `Player::LoadFromDB`: locked characters do not consume the
     /// prepared void-storage result, but still own a coherent empty vault that
@@ -25,28 +34,45 @@ impl WorldSession {
         slot: u8,
         item: RepresentedVoidStorageItemLikeCpp,
     ) -> bool {
-        let slot = usize::from(slot);
+        let slot_index = usize::from(slot);
         if item.item_id == 0
-            || slot >= wow_packet::packets::void_storage::VOID_STORAGE_MAX_SLOT_LIKE_CPP
+            || slot_index >= wow_packet::packets::void_storage::VOID_STORAGE_MAX_SLOT_LIKE_CPP
             || self.item_storage_template(item.item_entry).is_none()
         {
             return false;
         }
         let item_entry = item.item_entry;
-        let inserted = self
-            .with_owned_void_storage_mut_like_cpp(|items, _| {
-                if items[slot].is_some()
-                    || items
-                        .iter()
-                        .flatten()
-                        .any(|loaded| loaded.item_id == item.item_id)
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            player.load_void_storage_item_like_cpp(slot, item.clone())
+        });
+        let inserted = match canonical {
+            Some(inserted) => inserted,
+            None => {
+                #[cfg(test)]
                 {
-                    return false;
+                    if self.player_handle_like_cpp.is_none() {
+                        let items = &mut self.represented_void_storage_items_like_cpp;
+                        if items[slot_index].is_none()
+                            && !items
+                                .iter()
+                                .flatten()
+                                .any(|loaded| loaded.item_id == item.item_id)
+                        {
+                            items[slot_index] = Some(item.clone());
+                            true
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
                 }
-                items[slot] = Some(item.clone());
-                true
-            })
-            .unwrap_or(false);
+                #[cfg(not(test))]
+                {
+                    false
+                }
+            }
+        };
         if !inserted {
             return false;
         }

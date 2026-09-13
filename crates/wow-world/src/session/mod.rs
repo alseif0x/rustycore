@@ -8892,8 +8892,10 @@ impl WorldSession {
         mut f: impl FnMut(&[Option<RepresentedVoidStorageItemLikeCpp>], bool) -> R,
     ) -> Option<R> {
         let canonical = self.with_owned_player_like_cpp(|player| {
-            let state = player.gameplay_state();
-            f(&state.void_storage_items, state.void_storage_loaded)
+            f(
+                player.void_storage_items_like_cpp(),
+                player.void_storage_loaded_like_cpp(),
+            )
         });
         if canonical.is_some() {
             return canonical;
@@ -8908,46 +8910,18 @@ impl WorldSession {
         None
     }
 
-    fn with_owned_void_storage_mut_like_cpp<R>(
-        &mut self,
-        mut f: impl FnMut(&mut Vec<Option<RepresentedVoidStorageItemLikeCpp>>, &mut bool) -> R,
-    ) -> Option<R> {
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            let state = player.gameplay_state_mut();
-            if state.void_storage_items.len()
-                != wow_entities::PLAYER_VOID_STORAGE_MAX_SLOTS_LIKE_CPP
-            {
-                state.void_storage_items =
-                    vec![None; wow_entities::PLAYER_VOID_STORAGE_MAX_SLOTS_LIKE_CPP];
-            }
-            f(
-                &mut state.void_storage_items,
-                &mut state.void_storage_loaded,
-            )
-        });
-        if canonical.is_some() {
-            return canonical;
+    pub(crate) fn clear_represented_void_storage_like_cpp(&mut self) {
+        if self
+            .with_owned_player_mut_like_cpp(|player| player.clear_void_storage_like_cpp())
+            .is_some()
+        {
+            return;
         }
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            let mut fixture = self.represented_void_storage_items_like_cpp.to_vec();
-            let result = f(
-                &mut fixture,
-                &mut self.represented_void_storage_loaded_like_cpp,
-            );
-            self.represented_void_storage_items_like_cpp = fixture
-                .try_into()
-                .expect("void-storage fixture preserves its fixed slot count");
-            return Some(result);
+            self.represented_void_storage_items_like_cpp.fill(None);
+            self.represented_void_storage_loaded_like_cpp = false;
         }
-        None
-    }
-
-    pub(crate) fn clear_represented_void_storage_like_cpp(&mut self) {
-        let _ = self.with_owned_void_storage_mut_like_cpp(|items, loaded| {
-            items.fill(None);
-            *loaded = false;
-        });
     }
 
     pub(crate) fn represented_void_storage_free_slots_like_cpp(&self) -> Option<usize> {
@@ -8995,20 +8969,37 @@ impl WorldSession {
         &mut self,
         item: RepresentedVoidStorageItemLikeCpp,
     ) -> Option<u8> {
-        let slot = self.represented_void_storage_next_free_slot_like_cpp()?;
-        self.with_owned_void_storage_mut_like_cpp(|items, _| {
-            items[usize::from(slot)] = Some(item.clone());
-        })?;
-        Some(slot)
+        if let Some(slot) = self.with_owned_player_mut_like_cpp(|player| {
+            player.add_void_storage_item_like_cpp(item.clone())
+        }) {
+            return slot;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            let slot = self.represented_void_storage_next_free_slot_like_cpp()?;
+            self.represented_void_storage_items_like_cpp[usize::from(slot)] = Some(item);
+            return Some(slot);
+        }
+        None
     }
 
     pub(crate) fn delete_represented_void_storage_item_like_cpp(
         &mut self,
         slot: u8,
     ) -> Option<RepresentedVoidStorageItemLikeCpp> {
-        self.with_owned_void_storage_mut_like_cpp(|items, _| {
-            items.get_mut(usize::from(slot)).and_then(Option::take)
-        })?
+        if let Some(item) = self
+            .with_owned_player_mut_like_cpp(|player| player.delete_void_storage_item_like_cpp(slot))
+        {
+            return item;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self
+                .represented_void_storage_items_like_cpp
+                .get_mut(usize::from(slot))
+                .and_then(Option::take);
+        }
+        None
     }
 
     pub(crate) fn swap_represented_void_storage_item_like_cpp(
@@ -9016,18 +9007,26 @@ impl WorldSession {
         old_slot: u8,
         new_slot: u8,
     ) -> bool {
-        let old_slot = usize::from(old_slot);
-        let new_slot = usize::from(new_slot);
-        if old_slot >= wow_packet::packets::void_storage::VOID_STORAGE_MAX_SLOT_LIKE_CPP
-            || new_slot >= wow_packet::packets::void_storage::VOID_STORAGE_MAX_SLOT_LIKE_CPP
+        if usize::from(old_slot)
+            >= wow_packet::packets::void_storage::VOID_STORAGE_MAX_SLOT_LIKE_CPP
+            || usize::from(new_slot)
+                >= wow_packet::packets::void_storage::VOID_STORAGE_MAX_SLOT_LIKE_CPP
             || old_slot == new_slot
         {
             return false;
         }
-        self.with_owned_void_storage_mut_like_cpp(|items, _| {
-            items.swap(old_slot, new_slot);
-        })
-        .is_some()
+        if let Some(swapped) = self.with_owned_player_mut_like_cpp(|player| {
+            player.swap_void_storage_item_like_cpp(old_slot, new_slot)
+        }) {
+            return swapped;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_void_storage_items_like_cpp
+                .swap(usize::from(old_slot), usize::from(new_slot));
+            return true;
+        }
+        false
     }
 
     pub(crate) fn next_represented_void_storage_item_id_with_generator_like_cpp(
