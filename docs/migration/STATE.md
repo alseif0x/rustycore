@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-13:** `3.4.3` is at
-`76a050814ab0c5641a09892cd369ce2eca24839e` (PR #810). The entries below preserve
+`a96ee54863b4fb9c46dabcf6d01839e5a96529f8` (PR #811). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -167,7 +167,7 @@ quick --base origin/3.4.3` with one Cargo job in 11.519 seconds; manifest:
 `target/validation-v2/manifests/20260913T061658.691366Z-3417098-quick.json`.
 
 **#524 skill catalog and TraitMgr projection — 2026-09-13, relation implementation
-`020163dc`, projection implementation `0f65d677`:**
+`020163dc`, projection implementation `0f65d677`, physical reconciliation `a96ee548`:**
 `MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp` now completes the official and
 custom `SkillLineAbility` queries before beginning the official and custom
 `SkillRaceClassInfo` queries. This matches `DB2StorageBase::LoadFromDB`
@@ -179,6 +179,8 @@ now loads `SkillLineXTraitTree.db2` during world startup, validates links agains
 effective `SkillLine`/`TraitTree` stores, publishes an immutable skill-line index to
 sessions and makes profession trait-config hydration fail closed when no linked tree
 exists. Focused `wow-data`, `wow-world` login and `world-server` composition tests pass.
+PR #811 moved the composition and validation into their owning submodules without
+raising the reviewed physical ceilings; `check_architecture.py physical-files` passes.
 The complete #524 startup family remains open: the current combined relation loader
 still does not prove the table-granular WDC4 sequence
 `SkillLineAbility` → `SkillLineXTraitTree` → `SkillRaceClassInfo`, and full
