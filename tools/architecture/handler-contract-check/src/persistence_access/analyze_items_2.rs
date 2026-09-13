@@ -492,6 +492,41 @@ pub(super) fn analyze_module_items(
                     errors,
                 );
             }
+            Item::Mod(ItemMod {
+                attrs,
+                ident,
+                vis,
+                content: None,
+                ..
+            }) => {
+                // An out-of-line module is mounted and analysed as its own
+                // source by the workspace inventory. The declaration itself
+                // carries only the module boundary/attributes; treating it as
+                // an unsupported item would reject valid `pub(crate) mod`
+                // declarations before the child source can be visited.
+                if !source_class_allows(
+                    context.source_class,
+                    &cfg,
+                    attrs,
+                    errors,
+                    "out-of-line module",
+                ) {
+                    continue;
+                }
+                let child_module = format!("{}::{}", context.module, normalized_ident(ident));
+                let module_cfg = item_cfg(&cfg, attrs);
+                add_attribute_records(
+                    accumulator,
+                    &context,
+                    &symbols,
+                    attrs,
+                    AttributeRecordContext {
+                        enclosing: &child_module,
+                        visibility: &normalized_visibility(vis),
+                        cfg: &module_cfg,
+                    },
+                );
+            }
             unsupported => {
                 if syntax_mentions_persistence(unsupported, &symbols) {
                     errors.push(format!(

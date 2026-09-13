@@ -43,6 +43,19 @@ though operator activation is optional. No new micro-issues are planned:
 each macro includes its consumers and validation, with file-specific exceptions allowed by
 the module policy.
 
+**Persistence ratchet reconciled — 2026-09-13, #584 follow-up:** the first remote check
+after P3.1 found a valid out-of-line module declaration unsupported by the inventory
+parser and stale snapshot/workflow paths left behind by the #695/#703/#718 file moves.
+The parser now mounts such declarations as child source boundaries, with a focused
+regression. A fresh inventory of the current `3.4.3` tree records 9,837 exact rows
+(7,619 production and 2,218 fixtures), 1,024 production workflows and 1,027 semantic
+groups. The reconciliation preserves 986 reviewed workflow contracts under their new
+paths, explicitly annotates 38 current identities (including all six #718 quest-reward
+adapter identities), and removes 40 obsolete pre-split identities. The full
+`session-ownership-check check`, the checked snapshot/policy consistency test and
+architecture `check --self-test` pass. This is architecture evidence maintenance only;
+it does not claim gameplay progress or close any core gate.
+
 **Group state application is locally accepted — 2026-09-11, #743, `9e6767bb`:**
 `GroupRegistry` stays the single authority and every state-bearing group command now
 either reaches its member or records a delivery obligation that the member converges

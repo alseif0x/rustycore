@@ -28,6 +28,31 @@ Those contracts and historical evidence remain valid inputs to #584; none is mar
 completed by the scope transfer. #583 waits for the required core macrodeliverables
 in #584; #153 remains an independent auditor, not the owner of unfinished work.
 
+## Persistence inventory reconciliation — 2026-09-13, after #584 P3.1
+
+The first remote Rust check after P3.1 exposed two stale architecture inputs that had
+accumulated since the persistence-crate moves in #695/#703/#718: the parser rejected
+valid out-of-line `pub(crate) mod` declarations, and the checked persistence snapshot
+and workflow annotations still named pre-refactor paths. This was ratchet drift in the
+architecture evidence, not a new gameplay failure or a reason to weaken the check.
+
+The persistence inventory parser now treats an out-of-line module declaration as a
+source boundary and scans its child file independently. The regression
+`persistence_inventory_accepts_out_of_line_module_declarations` covers that grammar.
+The checked snapshot and reviewed workflow annotations were then reconciled from the
+current `3.4.3` tree using the tracked file lineage: 986 workflows retain their prior
+semantic contract under a new path/module, 38 current identities receive explicit
+annotations (including the six #718 quest-reward adapter workflows), and 40 obsolete
+pre-split identities are removed. No SQL target, transaction order, owner or runtime
+behavior was changed by this reconciliation.
+
+At the resulting code candidate, `session-ownership-check check` passes with 7,619
+production and 2,218 test-fixture persistence rows (9,837 total), 1,024 production
+workflow identities and 1,027 exact semantic groups. The policy rendered from the
+checked snapshot is byte-consistent, and architecture `check --self-test` passes.
+This is a correction of the evidence ratchet; it does not close #584 or replace the
+remaining C++ parity, runtime and live acceptance gates.
+
 ### Bounded #578 closeout inventory
 
 | Delivered result | Evidence boundary |
