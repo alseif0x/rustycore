@@ -3,8 +3,10 @@ use crate::{
     DEFAULT_VISIBILITY_NOTIFY_PERIOD, GridStateKind, MIN_GRID_DELAY_MS, PeriodicTimer,
     compute_grid_coord,
 };
+use wow_constants::DeathState;
 use wow_core::Position;
-use wow_entities::{MapObjectRecord, ObjectNotifyFlags, Player};
+use wow_core::{ObjectGuid, guid::HighGuid};
+use wow_entities::{Creature, MapObjectRecord, ObjectNotifyFlags, Player};
 
 const KEY: MapKey = MapKey::new(1, 0);
 
@@ -84,6 +86,34 @@ fn notify(manager: &mut MapManager, handle: PlayerHandle) {
     set_grid(manager, GridStateKind::Active, 0);
 }
 
+fn add_notified_creature(manager: &mut MapManager, counter: i64) -> ObjectGuid {
+    let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 1, 0, 100, counter);
+    let mut creature = Creature::new(false);
+    creature.unit_mut().world_mut().object_mut().create(guid);
+    creature.unit_mut().world_mut().set_map(1, 0).unwrap();
+    creature.unit_mut().world_mut().relocate(position());
+    creature.unit_mut().set_death_state(DeathState::Alive);
+    creature.unit_mut().set_max_health(100);
+    creature.unit_mut().set_health(100);
+    manager
+        .find_map_mut(KEY.map_id, KEY.instance_id)
+        .unwrap()
+        .map_mut()
+        .add_map_object_record_to_map_like_cpp(MapObjectRecord::new_creature(creature).unwrap())
+        .unwrap();
+    manager
+        .find_map_mut(KEY.map_id, KEY.instance_id)
+        .unwrap()
+        .map_mut()
+        .get_typed_creature_mut(guid)
+        .unwrap()
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .add_to_notify(ObjectNotifyFlags::VISIBILITY_CHANGED);
+    guid
+}
+
 fn selected(
     manager: &mut MapManager,
     handle: PlayerHandle,
@@ -133,6 +163,26 @@ fn map_tail_exports_current_selection_once_after_notify_reset() {
                 .is_empty()
         );
     }
+}
+
+#[test]
+fn creature_relocation_exports_one_coalesced_refresh_for_each_affected_player() {
+    let (mut manager, handle) = installed();
+    let first = add_notified_creature(&mut manager, 588_101);
+    let second = add_notified_creature(&mut manager, 588_102);
+    assert_ne!(first, second);
+    set_grid(&mut manager, GridStateKind::Active, 0);
+
+    assert_eq!(
+        manager.update(DEFAULT_VISIBILITY_NOTIFY_PERIOD as u32),
+        Some(DEFAULT_VISIBILITY_NOTIFY_PERIOD as u32)
+    );
+
+    let intents = manager.take_player_visibility_refresh_intents_like_cpp();
+    assert_eq!(intents.len(), 1);
+    assert_eq!(intents[0].handle(), handle);
+    assert_eq!(intents[0].map_key(), KEY);
+    assert_eq!(intents[0].viewpoint_guid(), handle.guid());
 }
 
 #[test]

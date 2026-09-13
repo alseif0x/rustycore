@@ -115,7 +115,7 @@ impl MapManager {
             };
             // Do not copy the plan's candidate GUID sets: they are neither
             // detection-filtered nor based on the Session's real client ledger.
-            let selected: Vec<_> = map
+            let mut selected: Vec<_> = map
                 .last_process_relocation_notifies_outcome_like_cpp
                 .visibility_plans
                 .player_plans
@@ -135,7 +135,25 @@ impl MapManager {
                             .map(|guid| (guid, None)),
                     )
                 })
+                .chain(
+                    map.last_process_relocation_notifies_outcome_like_cpp
+                        .visibility_plans
+                        .creature_plans
+                        .iter()
+                        .flat_map(|plan| {
+                            plan.visibility_plan
+                                .player_visibility_updates
+                                .iter()
+                                .copied()
+                                .map(|guid| (guid, None))
+                        }),
+                )
                 .collect();
+            // A player may be selected by its own notifier, by a reciprocal
+            // player visit and by several creature notifiers in the same map
+            // tick. One coalesced intent per player is the delivery contract.
+            selected.sort_by_key(|(guid, viewpoint)| (*guid, viewpoint.is_none()));
+            selected.dedup_by_key(|(guid, _)| *guid);
             for (guid, selected_viewpoint) in selected {
                 let Some(owner) = self.player_owners_like_cpp.get(&guid) else {
                     continue;
