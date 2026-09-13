@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-13:** `3.4.3` is at
-`a3e970635c2df891f284fa6ac0b083b4c2659473` (PR #814). The entries below preserve
+`db1250767090a5c951dae96ad6c2a2d5b24873ff` (PR #816). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -184,6 +184,25 @@ still report their pre-existing drift; no baseline was regenerated. This slice d
 not claim directed creature CREATE/DESTROY packets, AI/combat, scripts, FlyByCamera,
 live client capture or DB/restart/relogin evidence.
 
+**P2 item-bonus writer retirement — 2026-09-13, #584 / PR #816, integration
+`db1250767090a5c951dae96ad6c2a2d5b24873ff` (implementation `948b7ea9`, ledger
+ratchet `d5d21a60`):** the last generic `with_bonuses_mut_like_cpp` closure no
+longer exposes `&mut PlayerItemBonusStateLikeCpp` from Session. The state-only
+resolved-effect tail of TrinityCore `Player::_ApplyItemBonuses`
+(`Player.cpp:7688-7975`) and `Player::ApplyEnchantment`
+(`Player.cpp:13058-13389`) is now
+`PlayerItemModifierRuntimeStateLikeCpp::apply_enchantment_effect_action_like_cpp`
+in `wow-entities`. Catalog lookup, item admission, spell casts, aura publication
+and packets remain in `wow-world`; unsupported/deferred actions remain explicit
+and are not falsely claimed as applied by the owner. The Player hotspot ceiling was
+updated to the reviewed live aggregate (`15468` production, `13122` test lines);
+the physical ratchet passes and the four unrelated logical hotspot drifts remain
+unchanged. Evidence: 14 `wow-entities` modifier tests, 16 world-entity tests, 129
+player-item tests, `cargo check --locked --tests -p wow-world`, formatting/diff
+checks and validation-v2 quick in 8.53 s with one Cargo job
+(`target/validation-v2/manifests/20260913T100604.990747Z-3562620-quick.json`).
+No live runtime, capture, DB/restart/relogin or full item-stat parity claim is made.
+
 **#524 skill catalog and TraitMgr projection — 2026-09-13, relation implementation
 `020163dc`, projection implementation `0f65d677`, physical reconciliation `a96ee548`:**
 `MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp` now completes the official and
@@ -264,9 +283,11 @@ five catalog-driven objective walks and the quest-slot compaction keep the borro
 recorded projection whose exit condition is #41's objective-progress contract. **No live
 runtime, capture or DB/restart/relogin evidence exists for this delivery.**
 
-The remaining P2 operations — taxi, collections, item equipment sets and modifiers, cast
-state, difficulty, trait configs and the two canonical access helpers — then lead into P3
-runtime/lifetime/private-hecs and P4 semantic/physical work under #584.
+The remaining P2 operations — taxi, collections, item equipment sets, cast state,
+difficulty, trait configs and the two canonical access helpers — then lead into P3
+runtime/lifetime/private-hecs and P4 semantic/physical work under #584. Item-modifier
+state ownership is delivered; remaining item work is limited to its catalog/effect
+consumers and any separately reproduced gameplay gap.
 
 Finite hecs V2 conformance passed within its recorded laboratory limits. Production `hecs`
 and Wasmtime are not installed in this base. The dated six-clock trace and the 31 oversized
