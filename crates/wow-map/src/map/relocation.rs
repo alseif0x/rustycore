@@ -1321,39 +1321,18 @@ where
     /// Live represented C++ `Map::Update` source selection for
     /// `ProcessRelocationNotifies(t_diff)` (`Map.cpp:692-717,797-805,830-905`).
     ///
-    /// Source of truth stays map-owned canonical `entity_world`: typed in-world
-    /// Players become player sources, typed in-world active non-Players become
-    /// active object sources, and the existing visit/relocation helpers consume
-    /// marked cells and reset notify flags. Unsupported far combat/aura/summon
-    /// source ownership remains a gap and is represented by empty source lists;
-    /// no session, ObjectAccessor, packet, AI, dynamic-tree, or fanout side
-    /// effects are claimed here.
+    /// Source of truth stays map-owned canonical `entity_world`: the same typed
+    /// player sources used by `ObjectUpdater` include viewpoints, far combat
+    /// creatures, aura casters and summons. Active non-Players remain separate
+    /// sources. The existing visit/relocation helpers consume marked cells and
+    /// reset notify flags; packet, ObjectAccessor and AI side effects remain
+    /// outside this map phase.
     pub fn process_live_relocation_notifies_like_cpp(
         &mut self,
         diff_ms: u32,
         visibility_notify_period_ms: i64,
     ) -> ProcessRelocationNotifiesOutcome {
-        let mut player_sources = Vec::new();
-
-        for (guid, record) in self.entity_world.iter() {
-            let object = record.object();
-            if !object.object().is_in_world() || record.kind() != AccessorObjectKind::Player {
-                continue;
-            }
-
-            let viewpoint_guid = record.player().and_then(|player| {
-                let farsight = player.active_data().farsight_object;
-                (!farsight.is_empty()).then_some(farsight)
-            });
-            player_sources.push(MapUpdatePlayerSources {
-                player_guid: *guid,
-                viewpoint_guid,
-                far_combat_unit_guids: Vec::new(),
-                far_aura_caster_guids: Vec::new(),
-                far_summon_guids: Vec::new(),
-            });
-        }
-
+        let mut player_sources = self.map_update_player_sources_for_current_tick_like_cpp();
         let active_non_player_guids = self.represented_active_non_player_sources_like_cpp();
         player_sources.sort_by_key(|source| source.player_guid);
         player_sources.dedup_by_key(|source| source.player_guid);
@@ -1374,7 +1353,7 @@ where
                 .into_iter()
                 .map(|guid| NearbyCellVisitCenter {
                     guid,
-                    activation_radius: MAX_VISIBILITY_DISTANCE,
+                    activation_radius: self.grid_activation_range_for_guid_like_cpp(guid),
                 });
         let nearby_plan = self.visit_nearby_cells_of_like_cpp(centers);
         self.process_relocation_notifies_like_cpp(

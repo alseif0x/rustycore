@@ -176,17 +176,14 @@ where
         }
     }
 
-    /// Build the production `ObjectUpdater` selection for the current map
-    /// incarnation. This keeps source discovery and nearby-cell marking on the
-    /// canonical map owner; the caller may then consume the owned GUID plan
-    /// without retaining any map borrow across delivery or I/O.
-    ///
-    /// C++ source categories are taken from `Map.cpp:701-754`: in-world
-    /// players, viewpoints, far PvE combat creatures, out-of-range aura
-    /// casters, summons and active non-Players. Unsupported runtime references
-    /// remain absent rather than being fabricated. Players and Corpses are not
-    /// included in the resulting ObjectUpdater GUID set.
-    pub fn object_update_plan_for_current_tick_like_cpp(&self, diff_ms: u32) -> ObjectUpdatePlan {
+    /// Build the production `ObjectUpdater` player source selection for this
+    /// map incarnation. C++ source categories are taken from `Map.cpp:701-754`:
+    /// in-world players, viewpoints, far PvE combat creatures, out-of-range
+    /// aura casters and summons. Unsupported runtime references remain absent
+    /// rather than being fabricated.
+    pub(super) fn map_update_player_sources_for_current_tick_like_cpp(
+        &self,
+    ) -> Vec<MapUpdatePlayerSources> {
         let mut sources = Vec::new();
         for (guid, record) in self.entity_world.iter() {
             if record.kind() != AccessorObjectKind::Player
@@ -269,6 +266,21 @@ where
                 far_summon_guids,
             });
         }
+
+        sources
+    }
+
+    /// Build the production `ObjectUpdater` selection for the current map
+    /// incarnation. This keeps source discovery and nearby-cell marking on the
+    /// canonical map owner; the caller may then consume the owned GUID plan
+    /// without retaining any map borrow across delivery or I/O.
+    ///
+    /// C++ source categories are taken from `Map.cpp:701-754`: in-world
+    /// players, viewpoints, far PvE combat creatures, out-of-range aura
+    /// casters, summons and active non-Players. Players and Corpses are not
+    /// included in the resulting ObjectUpdater GUID set.
+    pub fn object_update_plan_for_current_tick_like_cpp(&self, diff_ms: u32) -> ObjectUpdatePlan {
+        let sources = self.map_update_player_sources_for_current_tick_like_cpp();
 
         let visit_plan = self.map_update_visit_plan_like_cpp(
             sources,

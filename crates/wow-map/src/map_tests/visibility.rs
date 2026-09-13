@@ -637,6 +637,56 @@ fn object_update_plan_for_current_tick_visits_only_nearby_map_objects_like_cpp()
 }
 
 #[test]
+fn relocation_reuses_object_updater_far_player_sources_like_cpp() {
+    let mut map = test_map();
+    let mut player = test_player_for_viewpoint(4440451);
+    player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .remove_from_world();
+    let player_guid = player.guid();
+
+    let mut far_creature = test_creature_for_spawn(44405, 4440452, true);
+    far_creature
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .remove_from_world();
+    far_creature
+        .unit_mut()
+        .world_mut()
+        .relocate(Position::xyz(180.0, 20.0, 30.0));
+    let far_creature_guid = far_creature.guid();
+
+    map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_player(player).unwrap())
+        .unwrap();
+    map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_creature(far_creature).unwrap())
+        .unwrap();
+    map.get_typed_player_mut(player_guid)
+        .unwrap()
+        .unit_mut()
+        .subsystems_mut()
+        .combat
+        .set_in_combat_with(far_creature_guid, false, false);
+
+    let sources = map.map_update_player_sources_for_current_tick_like_cpp();
+    let source = sources
+        .iter()
+        .find(|source| source.player_guid == player_guid)
+        .expect("in-world player source");
+    assert_eq!(source.far_combat_unit_guids, vec![far_creature_guid]);
+
+    let visit =
+        map.map_update_visit_plan_like_cpp(sources, std::iter::empty(), std::iter::empty(), 1);
+    assert!(visit.nearby_visit_centers.contains(&far_creature_guid));
+    assert_eq!(
+        map.grid_activation_range_for_guid_like_cpp(far_creature_guid),
+        wow_entities::DEFAULT_MONSTER_SIGHT_DISTANCE
+    );
+}
+
+#[test]
 fn delayed_unit_relocation_visibility_plans_use_cpp_max_visibility_visits() {
     let mut map = test_map();
     let source_creature = world_object_with_counter(HighGuid::Creature, 1, 571, 7, false);
