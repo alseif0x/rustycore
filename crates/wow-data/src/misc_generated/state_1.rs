@@ -682,6 +682,51 @@ pub struct SpecSetMemberEntry {
     pub spec_set_id: u32,
 }
 
+/// Effective SpecSetMember store.  This relation is part of TraitMgr's
+/// startup graph, so it retains the WDC4 table hash for hotfix tombstones.
+pub struct SpecSetMemberStore {
+    pub(crate) entries: HashMap<u32, SpecSetMemberEntry>,
+    pub(crate) table_hash_like_cpp: Option<u32>,
+}
+
+impl SpecSetMemberStore {
+    pub fn from_entries(entries: impl IntoIterator<Item = SpecSetMemberEntry>) -> Self {
+        Self {
+            entries: entries.into_iter().map(|entry| (entry.id, entry)).collect(),
+            table_hash_like_cpp: None,
+        }
+    }
+
+    pub(crate) fn from_entries_with_table_hash_like_cpp(
+        entries: impl IntoIterator<Item = SpecSetMemberEntry>,
+        table_hash: u32,
+    ) -> Self {
+        let mut store = Self::from_entries(entries);
+        store.table_hash_like_cpp = Some(table_hash);
+        store
+    }
+
+    pub fn get(&self, id: u32) -> Option<&SpecSetMemberEntry> {
+        self.entries.get(&id)
+    }
+
+    pub fn entries(&self) -> impl Iterator<Item = &SpecSetMemberEntry> {
+        self.entries.values()
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    pub fn table_hash_like_cpp(&self) -> Option<u32> {
+        self.table_hash_like_cpp
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpecializationSpellsEntry {
     pub id: u32,

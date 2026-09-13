@@ -231,13 +231,29 @@ macro_rules! db2_store {
     ($store:ident, $entry:ty) => {
         pub struct $store {
             entries: HashMap<u32, $entry>,
+            table_hash_like_cpp: Option<u32>,
         }
 
         impl $store {
             pub fn from_entries(entries: impl IntoIterator<Item = $entry>) -> Self {
                 Self {
                     entries: entries.into_iter().map(|entry| (entry.id, entry)).collect(),
+                    table_hash_like_cpp: None,
                 }
+            }
+
+            fn from_entries_with_table_hash_like_cpp(
+                entries: impl IntoIterator<Item = $entry>,
+                table_hash: u32,
+            ) -> Self {
+                Self {
+                    entries: entries.into_iter().map(|entry| (entry.id, entry)).collect(),
+                    table_hash_like_cpp: Some(table_hash),
+                }
+            }
+
+            pub fn table_hash_like_cpp(&self) -> Option<u32> {
+                self.table_hash_like_cpp
             }
 
             pub fn get(&self, id: u32) -> Option<&$entry> {
@@ -286,8 +302,13 @@ db2_store!(TraitTreeLoadoutEntryStore, TraitTreeLoadoutEntryEntry);
 db2_store!(TraitTreeXTraitCostStore, TraitTreeXTraitCostEntry);
 db2_store!(TraitTreeXTraitCurrencyStore, TraitTreeXTraitCurrencyEntry);
 
+#[path = "trait_tree_hotfix.rs"]
+mod trait_tree_hotfix;
 #[path = "trait_tree_semantics.rs"]
 mod trait_tree_semantics;
+pub use trait_tree_hotfix::{
+    TraitCatalogOverlayRowLikeCpp, TraitCatalogOverlayTableLikeCpp, TraitCatalogOverlayValueLikeCpp,
+};
 pub use trait_tree_semantics::{
     TraitConfigEntryLikeCpp, TraitConfigValidationResultLikeCpp, TraitPlayerFactsLikeCpp,
 };
@@ -1211,7 +1232,7 @@ where
         entries.push(read(id, idx, &reader));
     }
 
-    let store = S::from_entries(entries);
+    let store = S::from_entries_with_table_hash_like_cpp(entries, reader.table_hash());
     info!("Loaded {} rows from {}", store.len(), path.display());
     Ok(store)
 }
@@ -1222,6 +1243,10 @@ fn f32_field(reader: &Wdc4Reader, record_idx: usize, field: usize) -> f32 {
 
 trait FromEntries<T> {
     fn from_entries(entries: impl IntoIterator<Item = T>) -> Self;
+    fn from_entries_with_table_hash_like_cpp(
+        entries: impl IntoIterator<Item = T>,
+        table_hash: u32,
+    ) -> Self;
     fn len(&self) -> usize;
 }
 
@@ -1230,6 +1255,13 @@ macro_rules! impl_from_entries {
         impl FromEntries<$entry> for $store {
             fn from_entries(entries: impl IntoIterator<Item = $entry>) -> Self {
                 Self::from_entries(entries)
+            }
+
+            fn from_entries_with_table_hash_like_cpp(
+                entries: impl IntoIterator<Item = $entry>,
+                table_hash: u32,
+            ) -> Self {
+                Self::from_entries_with_table_hash_like_cpp(entries, table_hash)
             }
 
             fn len(&self) -> usize {

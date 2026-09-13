@@ -654,13 +654,21 @@ impl SoundKitStore {
 
 impl SpecSetMemberStore {
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
-        load_store(data_dir, locale, "SpecSetMember.db2", |id, idx, r| {
-            SpecSetMemberEntry {
-                id,
-                chr_specialization_id: r.get_field_i32(idx, 0),
-                spec_set_id: r.get_relationship_id(idx).unwrap_or(0),
-            }
-        })
+        let path = Path::new(data_dir)
+            .join("dbc")
+            .join(locale)
+            .join("SpecSetMember.db2");
+        let reader = Wdc4Reader::open(&path)
+            .with_context(|| format!("failed to open {}", path.display()))?;
+        let table_hash = reader.table_hash();
+        let entries = reader.iter_records().map(|(id, idx)| SpecSetMemberEntry {
+            id,
+            chr_specialization_id: reader.get_field_i32(idx, 0),
+            spec_set_id: reader.get_relationship_id(idx).unwrap_or(0),
+        });
+        let store = SpecSetMemberStore::from_entries_with_table_hash_like_cpp(entries, table_hash);
+        info!(rows = store.len(), table_hash, "Loaded SpecSetMember.db2");
+        Ok(store)
     }
 }
 

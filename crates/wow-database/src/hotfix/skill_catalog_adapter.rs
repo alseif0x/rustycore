@@ -2,18 +2,147 @@
 
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use wow_persistence::{
     PersistenceFutureLikeCpp, SkillCatalogHotfixLoadOutcomeLikeCpp,
     SkillCatalogHotfixPersistencePortLikeCpp, SkillLineAbilityHotfixRowLikeCpp,
     SkillLineAbilityHotfixRowsLikeCpp, SkillLineHotfixRowLikeCpp, SkillLineHotfixRowsLikeCpp,
     SkillLineXTraitTreeHotfixRowLikeCpp, SkillLineXTraitTreeHotfixRowsLikeCpp,
     SkillRaceClassInfoHotfixRowLikeCpp, SkillRaceClassInfoHotfixRowsLikeCpp,
+    TraitCatalogHotfixRowLikeCpp, TraitCatalogHotfixRowsLikeCpp, TraitCatalogHotfixTableLikeCpp,
+    TraitCatalogHotfixValueLikeCpp,
 };
 
 use crate::{HotfixDatabase, HotfixStatements, SqlResult};
 
 const OFFICIAL_THEN_CUSTOM_LIKE_CPP: [bool; 2] = [true, false];
+
+const TRAIT_CATALOG_TABLES_LIKE_CPP: &[(
+    TraitCatalogHotfixTableLikeCpp,
+    HotfixStatements,
+    usize,
+)] = &[
+    (
+        TraitCatalogHotfixTableLikeCpp::SpecSetMember,
+        HotfixStatements::SEL_SPEC_SET_MEMBER,
+        3,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitCond,
+        HotfixStatements::SEL_TRAIT_COND,
+        15,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitCost,
+        HotfixStatements::SEL_TRAIT_COST,
+        4,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitCurrency,
+        HotfixStatements::SEL_TRAIT_CURRENCY,
+        5,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitCurrencySource,
+        HotfixStatements::SEL_TRAIT_CURRENCY_SOURCE,
+        9,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitDefinition,
+        HotfixStatements::SEL_TRAIT_DEFINITION,
+        8,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitDefinitionEffectPoints,
+        HotfixStatements::SEL_TRAIT_DEFINITION_EFFECT_POINTS,
+        5,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitEdge,
+        HotfixStatements::SEL_TRAIT_EDGE,
+        5,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitNode,
+        HotfixStatements::SEL_TRAIT_NODE,
+        6,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitNodeEntry,
+        HotfixStatements::SEL_TRAIT_NODE_ENTRY,
+        4,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitNodeEntryXTraitCond,
+        HotfixStatements::SEL_TRAIT_NODE_ENTRY_X_TRAIT_COND,
+        3,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitNodeEntryXTraitCost,
+        HotfixStatements::SEL_TRAIT_NODE_ENTRY_X_TRAIT_COST,
+        3,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitNodeGroup,
+        HotfixStatements::SEL_TRAIT_NODE_GROUP,
+        3,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitNodeGroupXTraitCond,
+        HotfixStatements::SEL_TRAIT_NODE_GROUP_X_TRAIT_COND,
+        3,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitNodeGroupXTraitCost,
+        HotfixStatements::SEL_TRAIT_NODE_GROUP_X_TRAIT_COST,
+        3,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitNodeGroupXTraitNode,
+        HotfixStatements::SEL_TRAIT_NODE_GROUP_X_TRAIT_NODE,
+        4,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitNodeXTraitCond,
+        HotfixStatements::SEL_TRAIT_NODE_X_TRAIT_COND,
+        3,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitNodeXTraitCost,
+        HotfixStatements::SEL_TRAIT_NODE_X_TRAIT_COST,
+        3,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitNodeXTraitNodeEntry,
+        HotfixStatements::SEL_TRAIT_NODE_X_TRAIT_NODE_ENTRY,
+        4,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitTree,
+        HotfixStatements::SEL_TRAIT_TREE,
+        8,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitTreeLoadout,
+        HotfixStatements::SEL_TRAIT_TREE_LOADOUT,
+        3,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitTreeLoadoutEntry,
+        HotfixStatements::SEL_TRAIT_TREE_LOADOUT_ENTRY,
+        6,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitTreeXTraitCost,
+        HotfixStatements::SEL_TRAIT_TREE_X_TRAIT_COST,
+        3,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitTreeXTraitCurrency,
+        HotfixStatements::SEL_TRAIT_TREE_X_TRAIT_CURRENCY,
+        4,
+    ),
+];
 
 fn read_integer_checked_like_cpp(
     result: &SqlResult,
@@ -35,6 +164,33 @@ fn read_integer_checked_like_cpp(
 
 fn id_like_cpp(value: i128, field: &'static str) -> Result<u32> {
     u32::try_from(value).with_context(|| format!("{field} SQL value {value} is not u32"))
+}
+
+fn trait_catalog_value_like_cpp(
+    result: &SqlResult,
+    column: usize,
+) -> Result<TraitCatalogHotfixValueLikeCpp> {
+    if result.is_null(column) {
+        return Ok(TraitCatalogHotfixValueLikeCpp::Null);
+    }
+    if let Some(value) = result.try_read::<i64>(column) {
+        return Ok(TraitCatalogHotfixValueLikeCpp::Integer(i128::from(value)));
+    }
+    if let Some(value) = result.try_read::<u64>(column) {
+        return Ok(TraitCatalogHotfixValueLikeCpp::Integer(i128::from(value)));
+    }
+    if let Some(value) = result.try_read::<f64>(column) {
+        return Ok(TraitCatalogHotfixValueLikeCpp::Real(value));
+    }
+    if let Some(value) = result.try_read::<String>(column) {
+        return Ok(TraitCatalogHotfixValueLikeCpp::Text(value));
+    }
+    if let Some(value) = result.try_read::<Vec<u8>>(column) {
+        return Ok(TraitCatalogHotfixValueLikeCpp::Text(
+            String::from_utf8_lossy(&value).into_owned(),
+        ));
+    }
+    bail!("unsupported Trait catalog SQL value at column {column}")
 }
 
 fn skill_line_values_like_cpp(values: [i128; 4]) -> Result<SkillLineHotfixRowLikeCpp> {
@@ -132,6 +288,53 @@ impl MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp {
 impl SkillCatalogHotfixPersistencePortLikeCpp
     for MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp
 {
+    fn load_trait_catalog_hotfix_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SkillCatalogHotfixLoadOutcomeLikeCpp<TraitCatalogHotfixRowsLikeCpp>,
+    > {
+        Box::pin(async move {
+            let loaded = async {
+                let mut batches = [Vec::new(), Vec::new()];
+                for (table, statement_kind, expected_columns) in TRAIT_CATALOG_TABLES_LIKE_CPP {
+                    for (batch_index, official) in OFFICIAL_THEN_CUSTOM_LIKE_CPP.into_iter().enumerate() {
+                        let mut statement = self.hotfix_db.prepare(*statement_kind);
+                        statement.set_bool(0, official);
+                        let mut rows = self.hotfix_db.query(&statement).await?;
+                        if rows.is_empty() {
+                            continue;
+                        }
+                        loop {
+                            if rows.field_count() != *expected_columns {
+                                bail!("Trait catalog statement for {table:?} returned {} columns, expected {expected_columns}", rows.field_count());
+                            }
+                            let values = (0..*expected_columns)
+                                .map(|column| trait_catalog_value_like_cpp(&rows, column))
+                                .collect::<Result<Vec<_>>>()?;
+                            batches[batch_index].push(TraitCatalogHotfixRowLikeCpp {
+                                table: *table,
+                                values,
+                            });
+                            if !rows.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                }
+                let [official, custom] = batches;
+                Ok::<_, anyhow::Error>(TraitCatalogHotfixRowsLikeCpp { official, custom })
+            }
+            .await;
+            match loaded {
+                Ok(rows) => SkillCatalogHotfixLoadOutcomeLikeCpp::Loaded(rows),
+                Err(error) => SkillCatalogHotfixLoadOutcomeLikeCpp::Failed {
+                    reason: error.to_string(),
+                },
+            }
+        })
+    }
+
     fn load_skill_line_hotfix_rows_like_cpp(
         &self,
     ) -> PersistenceFutureLikeCpp<

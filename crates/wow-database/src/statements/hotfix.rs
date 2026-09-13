@@ -133,6 +133,82 @@ fn hotfix_base_table_like_cpp(sql: &str) -> &str {
 }
 
 impl HotfixStatements {
+    // C++ HOTFIX_SEL_* statements for the TraitMgr catalog.  They are kept as
+    // generated identities so the shared statement trace remains keyed by the
+    // table and projection shape while preserving the exact SQL text.
+    pub const SEL_SPEC_SET_MEMBER: Self = Self::GENERATED_BASE {
+        sql: "SELECT ID, ChrSpecializationID, SpecSetID FROM spec_set_member WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_COND: Self = Self::GENERATED_BASE {
+        sql: "SELECT ID, CondType, TraitTreeID, GrantedRanks, QuestID, AchievementID, SpecSetID, TraitNodeGroupID, TraitNodeID, TraitCurrencyID, SpentAmountRequired, Flags, RequiredLevel, FreeSharedStringID, SpendMoreSharedStringID FROM trait_cond WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_COST: Self = Self::GENERATED_BASE {
+        sql: "SELECT InternalName, ID, Amount, TraitCurrencyID FROM trait_cost WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_CURRENCY: Self = Self::GENERATED_BASE {
+        sql: "SELECT ID, Type, CurrencyTypesID, Flags, Icon FROM trait_currency WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_CURRENCY_SOURCE: Self = Self::GENERATED_BASE {
+        sql: "SELECT Requirement, ID, TraitCurrencyID, Amount, QuestID, AchievementID, PlayerLevel, TraitNodeEntryID, OrderIndex FROM trait_currency_source WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_DEFINITION: Self = Self::GENERATED_BASE {
+        sql: "SELECT OverrideName, OverrideSubtext, OverrideDescription, ID, SpellID, OverrideIcon, OverridesSpellID, VisibleSpellID FROM trait_definition WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_DEFINITION_EFFECT_POINTS: Self = Self::GENERATED_BASE {
+        sql: "SELECT ID, TraitDefinitionID, EffectIndex, OperationType, CurveID FROM trait_definition_effect_points WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_EDGE: Self = Self::GENERATED_BASE {
+        sql: "SELECT ID, VisualStyle, LeftTraitNodeID, RightTraitNodeID, Type FROM trait_edge WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_NODE: Self = Self::GENERATED_BASE {
+        sql: "SELECT ID, TraitTreeID, PosX, PosY, Type, Flags FROM trait_node WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_NODE_ENTRY: Self = Self::GENERATED_BASE {
+        sql: "SELECT ID, TraitDefinitionID, MaxRanks, NodeEntryType FROM trait_node_entry WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_NODE_ENTRY_X_TRAIT_COND: Self = Self::GENERATED_BASE {
+        sql: "SELECT ID, TraitCondID, TraitNodeEntryID FROM trait_node_entry_x_trait_cond WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_NODE_ENTRY_X_TRAIT_COST: Self = Self::GENERATED_BASE {
+        sql: "SELECT ID, TraitNodeEntryID, TraitCostID FROM trait_node_entry_x_trait_cost WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_NODE_GROUP: Self = Self::GENERATED_BASE {
+        sql: "SELECT ID, TraitTreeID, Flags FROM trait_node_group WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_NODE_GROUP_X_TRAIT_COND: Self = Self::GENERATED_BASE {
+        sql: "SELECT ID, TraitCondID, TraitNodeGroupID FROM trait_node_group_x_trait_cond WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_NODE_GROUP_X_TRAIT_COST: Self = Self::GENERATED_BASE {
+        sql: "SELECT ID, TraitNodeGroupID, TraitCostID FROM trait_node_group_x_trait_cost WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_NODE_GROUP_X_TRAIT_NODE: Self = Self::GENERATED_BASE {
+        sql: "SELECT ID, TraitNodeGroupID, TraitNodeID, `Index` FROM trait_node_group_x_trait_node WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_NODE_X_TRAIT_COND: Self = Self::GENERATED_BASE {
+        sql: "SELECT ID, TraitCondID, TraitNodeID FROM trait_node_x_trait_cond WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_NODE_X_TRAIT_COST: Self = Self::GENERATED_BASE {
+        sql: "SELECT ID, TraitNodeID, TraitCostID FROM trait_node_x_trait_cost WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_NODE_X_TRAIT_NODE_ENTRY: Self = Self::GENERATED_BASE {
+        sql: "SELECT ID, TraitNodeID, TraitNodeEntryID, `Index` FROM trait_node_x_trait_node_entry WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_TREE: Self = Self::GENERATED_BASE {
+        sql: "SELECT ID, TraitSystemID, Unused1000_1, FirstTraitNodeID, PlayerConditionID, Flags, Unused1000_2, Unused1000_3 FROM trait_tree WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_TREE_LOADOUT: Self = Self::GENERATED_BASE {
+        sql: "SELECT ID, TraitTreeID, ChrSpecializationID FROM trait_tree_loadout WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_TREE_LOADOUT_ENTRY: Self = Self::GENERATED_BASE {
+        sql: "SELECT ID, TraitTreeLoadoutID, SelectedTraitNodeID, SelectedTraitNodeEntryID, NumPoints, OrderIndex FROM trait_tree_loadout_entry WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_TREE_X_TRAIT_COST: Self = Self::GENERATED_BASE {
+        sql: "SELECT ID, TraitTreeID, TraitCostID FROM trait_tree_x_trait_cost WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_TREE_X_TRAIT_CURRENCY: Self = Self::GENERATED_BASE {
+        sql: "SELECT ID, `Index`, TraitTreeID, TraitCurrencyID FROM trait_tree_x_trait_currency WHERE (`VerifiedBuild` > 0) = ?",
+    };
+
     /// Whether this statement backs C++ `DB2Manager::LoadHotfix*`.
     pub const fn is_control_table_like_cpp(self) -> bool {
         matches!(
@@ -510,6 +586,26 @@ mod tests {
         assert_eq!(
             HotfixStatements::SEL_SPELL_NAME.sql(),
             "SELECT ID, Name FROM spell_name WHERE (`VerifiedBuild` > 0) = ?"
+        );
+    }
+
+    #[test]
+    fn trait_catalog_statements_match_cpp_columns() {
+        assert_eq!(
+            HotfixStatements::SEL_SPEC_SET_MEMBER.sql(),
+            "SELECT ID, ChrSpecializationID, SpecSetID FROM spec_set_member WHERE (`VerifiedBuild` > 0) = ?"
+        );
+        assert_eq!(
+            HotfixStatements::SEL_TRAIT_COND.sql(),
+            "SELECT ID, CondType, TraitTreeID, GrantedRanks, QuestID, AchievementID, SpecSetID, TraitNodeGroupID, TraitNodeID, TraitCurrencyID, SpentAmountRequired, Flags, RequiredLevel, FreeSharedStringID, SpendMoreSharedStringID FROM trait_cond WHERE (`VerifiedBuild` > 0) = ?"
+        );
+        assert_eq!(
+            HotfixStatements::SEL_TRAIT_DEFINITION.sql(),
+            "SELECT OverrideName, OverrideSubtext, OverrideDescription, ID, SpellID, OverrideIcon, OverridesSpellID, VisibleSpellID FROM trait_definition WHERE (`VerifiedBuild` > 0) = ?"
+        );
+        assert_eq!(
+            HotfixStatements::SEL_TRAIT_TREE_X_TRAIT_CURRENCY.sql(),
+            "SELECT ID, `Index`, TraitTreeID, TraitCurrencyID FROM trait_tree_x_trait_currency WHERE (`VerifiedBuild` > 0) = ?"
         );
     }
 
