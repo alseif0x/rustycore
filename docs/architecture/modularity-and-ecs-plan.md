@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current integration head is `4e3ad8f010176a6d500cf45c84ea752f179a47cf` (PR #834).
+The current code integration head is `cc0559980a4232ab5743affaaa2babfedffdfcf3` (PR #839).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
 mutations. #524's relation-query order correction is integrated by PR #803; PR #822/#824/#826/#828 now
@@ -23,8 +23,10 @@ boundary. PR #830 also installs the immutable generic `TraitSystemID -> TraitTre
 projection and fail-closed Generic config validation through that boundary. PR #832
 adds the immutable `ChrSpecialization -> ClassID -> _skillLinesByClass` combat
 projection and fail-closed Combat config validation through the same boundary. PR #834
-also rejects missing or over-ranked persisted `TraitNodeEntry` rows at login. Complete
-`TraitMgr` authority remains a separate functional residual. Neither issue
+also rejects missing or over-ranked persisted `TraitNodeEntry` rows at login. The next
+bounded #524 macro is semantic configuration validation and deterministic granted-entry
+fallback before login publication; complete `TraitMgr` authority remains a separate
+functional residual. Neither issue
 changes the #584 → #583 → #153 architecture gate.
 
 The finite hecs V2 conformance proof has passed within its recorded laboratory limits.
