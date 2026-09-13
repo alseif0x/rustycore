@@ -2,7 +2,7 @@
 
 **Reconciled 2026-09-13 under #584 / #787 / #748 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
 Source baseline for this reconciliation: `3.4.3` at
-`4e3ad8f010176a6d500cf45c84ea752f179a47cf` (PR #834; the earlier `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`c97153a2ea480be2ac49577a4a29843f3f1216c9` (PR #837; the earlier `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -43,8 +43,12 @@ The P2 item-modifier writer residual is also integrated by PR #816: the generic
 `&mut PlayerItemBonusStateLikeCpp` closure is retired behind a named
 Player-owned resolved-effect operation. Catalog/effect consumers remain in
 `wow-world`, and the remaining item work is gameplay or data acceptance rather than
-another generic ownership cut. #584 remains open for its other measured C0-C4
-residuals; this delivery does not activate #583 or close the core gate.
+another generic ownership cut. The follow-up P2 item-object residual is now implemented
+in candidate `23a7fe16`: `PlayerInventoryRuntime` owns a closed
+`ItemObjectUpdateLikeCpp` command set, every production caller describes updates without
+receiving `&mut Item`, and wrapped-gift transformation is an owner operation. The old
+closure remains only behind `cfg(test)` for fixtures. #584 remains open for its other
+measured C0-C4 residuals; this delivery does not activate #583 or close the core gate.
 
 Continue the remaining core under #584 by complete operations, execution/lifetime
 boundaries and physical organization. #582 is closed after its decoder-only delivery;
@@ -216,7 +220,7 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#524](https://github.com/alseif0x/rustycore/issues/524) | F1, skill startup order | PR #803 fixed the relation-query order; PR #822/#824 (`7bb9a911`) separates the WDC4/SQL stages, PR #826 (`d934451a`) applies official/custom `SkillLineXTraitTree` overlays, PR #828 (`276e3981`) retains the WDC4 table hash and applies final table-scoped removals, PR #830 (`a9623787`) indexes `TraitSystemID` trees and validates Generic configs, PR #832 (`1143ed41`) indexes `ChrSpecialization` class masks and validates Combat configs, and PR #834 (`4e3ad8f0`) rejects missing or over-ranked persisted node entries, all in production order `SkillLine` → `SkillLineAbility` → `SkillRaceClassInfo` → `TraitTree`/`SkillLineXTraitTree`, preserving fail-before-publication boundaries. The bounded projections remain installed in production sessions; profession, Generic and Combat hydration fail closed without a linked tree or valid node-entry rank. Keep the issue open for complete node topology, cost/condition/loadout consumers, final cross-store orchestration and startup/live evidence. |
 | [#582](https://github.com/alseif0x/rustycore/issues/582) | B, existing LFG decoders | **Closed/integrated as `21686375` (PR #797).** Six C++-faithful client decoders; no handler, queue or matchmaking claim. |
 | [#583](https://github.com/alseif0x/rustycore/issues/583) | X, stateful native/Wasm | Deliver the preserved M0–M4 product after required core; the external login API and laboratory are insufficient. |
-| [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions. PR #816 integrates the P2 item-bonus writer retirement: resolved state application is a named Player-owned operation and the generic `&mut PlayerItemBonusStateLikeCpp` bridge is gone. P3.4–P3.9 are integrated in the current delivery, including directed ordinary Creature DESTROY after map removal with map-incarnation/`HaveAtClient` fences (PR #820, `62c1369f`). The legacy Creature writer, AI/combat, scripts, FlyByCamera, CREATE/Pet/corpse/transport parity and exact capture/live gates remain explicit later boundaries. |
+| [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions. PR #816 integrates the P2 item-bonus writer retirement: resolved state application is a named Player-owned operation and the generic `&mut PlayerItemBonusStateLikeCpp` bridge is gone. Candidate `23a7fe16` adds the item-object P2 closure retirement: all production item-object mutations use the Player-owned closed command set, with fixture-only closure access retained. P3.4–P3.9 are integrated in the current delivery, including directed ordinary Creature DESTROY after map removal with map-incarnation/`HaveAtClient` fences (PR #820, `62c1369f`). The legacy Creature writer, AI/combat, scripts, FlyByCamera, CREATE/Pet/corpse/transport parity and exact capture/live gates remain explicit later boundaries. |
 | [#735](https://github.com/alseif0x/rustycore/issues/735) | A, reputation boundary | **Closed/delivered.** Player owns reputation state and named transitions; catalogs, packets and persistence consumers remain outside the domain boundary. |
 | [#743](https://github.com/alseif0x/rustycore/issues/743) | A, group consistency | **Closed/delivered.** GroupRegistry remains authoritative and dropped state-bearing commands converge through the session boundary. |
 | [#787](https://github.com/alseif0x/rustycore/issues/787) | A, session-phase coordination | **Integrated as `d14a9a67` (PR #792; accepted at `76369bda`).** World runs before Map, phase permits remain live through finalization/retirement, and shutdown/replacement barriers are covered by production-linked tests and guarded login/save/relogin QA. |
@@ -257,7 +261,9 @@ canonical map loop; that is not by itself a demonstrated double tick.
 The #787 coordination contract is accepted. The P2 item-modifier writer is also
 closed as an ownership residual: `PlayerItemModifierRuntimeStateLikeCpp` applies
 resolved state through a named operation and Session no longer lends its bonus
-record to a generic closure. Reconcile admission, phases/barriers,
+record to a generic closure. The item-object residual is likewise closed in candidate
+`23a7fe16`: `PlayerInventoryRuntime::apply_item_object_updates_like_cpp` is the only
+production mutation entry and receives data commands rather than lending an item. Reconcile admission, phases/barriers,
 one resolution, backpressure and transfer/detach/unload/shutdown before removing
 another bridge. P3.3 integrated the finite phase correction: after the admitted map
 session pass, run `ProcessRespawns` and `UpdateSpawnGroupConditions` before object

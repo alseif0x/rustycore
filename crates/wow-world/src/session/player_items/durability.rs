@@ -277,9 +277,12 @@ impl WorldSession {
         let was_broken = item_object.is_broken();
         let equipped_slot = top_level_slot
             .filter(|slot| is_equipment_packed_pos(make_item_pos(INVENTORY_SLOT_BAG_0, *slot)));
-        let updated = self.update_inventory_item_object_like_cpp(item_guid, |item| {
-            item.set_durability(max_durability);
-        });
+        let updated = self.apply_inventory_item_object_updates_like_cpp(
+            item_guid,
+            &[wow_entities::ItemObjectUpdateLikeCpp::SetDurability(
+                max_durability,
+            )],
+        );
         if updated {
             if let Some(item) = self.resolved_inventory_item_object_like_cpp(item_guid) {
                 let mut item_data_mask = UpdateMask::new(ITEM_DATA_BITS);

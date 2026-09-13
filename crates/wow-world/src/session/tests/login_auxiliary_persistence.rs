@@ -748,6 +748,14 @@ async fn trait_config_load_borrows_catalog_and_preserves_fail_closed_active_and_
 
 #[tokio::test]
 async fn trait_config_loads_preserve_cpp_entry_then_config_order_and_raw_values() {
+    let nodes = wow_data::trait_tree::TraitNodeEntryStore::from_entries([
+        wow_data::trait_tree::TraitNodeEntryEntry {
+            id: 300,
+            trait_definition_id: 0,
+            max_ranks: 3,
+            node_entry_type: 0,
+        },
+    ]);
     let port = AuxiliaryLoadPortLikeCpp::new([
         PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
             PlayerLoginAuxiliaryLoadedLikeCpp::TraitEntries(vec![PlayerTraitEntryLoadRowLikeCpp {
@@ -780,10 +788,7 @@ async fn trait_config_loads_preserve_cpp_entry_then_config_order_and_raw_values(
     install_canonical_player_owner_for_test(&mut session, 0, 0);
 
     let configs = session
-        .load_active_player_trait_configs_like_cpp(
-            &wow_data::trait_tree::TraitNodeEntryStore::from_entries([]),
-            guid,
-        )
+        .load_active_player_trait_configs_like_cpp(&nodes, guid)
         .await;
 
     assert_eq!(configs.len(), 1);

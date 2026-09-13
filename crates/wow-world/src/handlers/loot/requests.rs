@@ -6,6 +6,7 @@
 //! Loot window open/close requests and the represented loot cache.
 
 use super::*;
+use wow_entities::ItemObjectUpdateLikeCpp;
 
 impl WorldSession {
     /// Refresh the session-local window from the object-owned source of truth.
@@ -1472,14 +1473,13 @@ impl WorldSession {
         }
 
         for stack in &planned_existing_stacks {
-            self.update_inventory_item_object_like_cpp(stack.item_guid, |item| {
-                item.set_count(stack.new_count);
-                if stack.flags_changed {
-                    item.replace_all_item_flags(ItemFieldFlags::from_bits_retain(
-                        stack.dynamic_flags,
-                    ));
-                }
-            });
+            let mut updates = vec![ItemObjectUpdateLikeCpp::SetCount(stack.new_count)];
+            if stack.flags_changed {
+                updates.push(ItemObjectUpdateLikeCpp::ReplaceAllItemFlags(
+                    ItemFieldFlags::from_bits_retain(stack.dynamic_flags),
+                ));
+            }
+            let _ = self.apply_inventory_item_object_updates_like_cpp(stack.item_guid, &updates);
         }
 
         let mut collection_updates = Vec::new();
@@ -2278,14 +2278,13 @@ impl WorldSession {
         }
 
         for stack in &planned_existing_counts {
-            self.update_inventory_item_object_like_cpp(stack.item_guid, |item| {
-                item.set_count(stack.new_count);
-                if stack.flags_changed {
-                    item.replace_all_item_flags(ItemFieldFlags::from_bits_retain(
-                        stack.dynamic_flags,
-                    ));
-                }
-            });
+            let mut updates = vec![ItemObjectUpdateLikeCpp::SetCount(stack.new_count)];
+            if stack.flags_changed {
+                updates.push(ItemObjectUpdateLikeCpp::ReplaceAllItemFlags(
+                    ItemFieldFlags::from_bits_retain(stack.dynamic_flags),
+                ));
+            }
+            let _ = self.apply_inventory_item_object_updates_like_cpp(stack.item_guid, &updates);
         }
 
         let mut collection_updates = Vec::new();

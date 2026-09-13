@@ -5,6 +5,7 @@
 
 use super::*;
 use crate::session_rules::CR_ARMOR_PENETRATION_LIKE_CPP;
+use wow_entities::ItemObjectUpdateLikeCpp;
 
 impl WorldSession {
     pub(crate) fn move_represented_direct_inventory_item_like_cpp(
@@ -24,17 +25,23 @@ impl WorldSession {
 
         self.insert_inventory_item_like_cpp(dst, src_item.clone());
         let player_guid = self.player_guid().unwrap_or(ObjectGuid::EMPTY);
-        self.update_inventory_item_object_like_cpp(src_item.guid, |item| {
-            item.set_contained_in(player_guid);
-            item.set_slot(dst);
-        });
+        let _ = self.apply_inventory_item_object_updates_like_cpp(
+            src_item.guid,
+            &[
+                ItemObjectUpdateLikeCpp::SetContainedIn(player_guid),
+                ItemObjectUpdateLikeCpp::SetSlot(dst),
+            ],
+        );
 
         if let Some(dst_item) = dst_item {
             self.insert_inventory_item_like_cpp(src, dst_item.clone());
-            self.update_inventory_item_object_like_cpp(dst_item.guid, |item| {
-                item.set_contained_in(player_guid);
-                item.set_slot(src);
-            });
+            let _ = self.apply_inventory_item_object_updates_like_cpp(
+                dst_item.guid,
+                &[
+                    ItemObjectUpdateLikeCpp::SetContainedIn(player_guid),
+                    ItemObjectUpdateLikeCpp::SetSlot(src),
+                ],
+            );
         } else {
             self.remove_inventory_item_like_cpp(src);
         }
@@ -238,6 +245,29 @@ impl WorldSession {
         })
         .flatten()
     }
+    pub(crate) fn apply_inventory_item_object_updates_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        updates: &[ItemObjectUpdateLikeCpp],
+    ) -> bool {
+        self.mutate_player_inventory_runtime_like_cpp(|inventory| {
+            inventory.apply_item_object_updates_like_cpp(item_guid, updates)
+        })
+        .unwrap_or(false)
+    }
+    pub(crate) fn transform_inventory_wrapped_gift_item_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        entry: u32,
+        flags: u32,
+        max_durability: u32,
+    ) -> Option<u32> {
+        self.mutate_player_inventory_runtime_like_cpp(|inventory| {
+            inventory.transform_wrapped_gift_item_like_cpp(item_guid, entry, flags, max_durability)
+        })
+        .flatten()
+    }
+    #[cfg(test)]
     pub(crate) fn update_inventory_item_object_like_cpp(
         &mut self,
         item_guid: ObjectGuid,
@@ -254,6 +284,46 @@ impl WorldSession {
             true
         })
         .unwrap_or(false)
+    }
+    pub(crate) fn restore_inventory_item_enchantment_durations_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        durations: &[wow_entities::PlayerEnchantDuration],
+    ) -> bool {
+        let updates = durations
+            .iter()
+            .map(
+                |duration| wow_entities::ItemObjectUpdateLikeCpp::SetEnchantmentDuration {
+                    slot: duration.slot,
+                    duration: duration.left_duration_ms,
+                },
+            )
+            .collect::<Vec<_>>();
+        self.apply_inventory_item_object_updates_like_cpp(item_guid, &updates)
+    }
+    pub(crate) fn clear_inventory_item_equipped_state_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        cleared_enchantments: &[EnchantmentSlot],
+    ) -> bool {
+        let mut updates = vec![ItemObjectUpdateLikeCpp::SetEquipped(false)];
+        updates.extend(
+            cleared_enchantments
+                .iter()
+                .copied()
+                .map(ItemObjectUpdateLikeCpp::ClearEnchantment),
+        );
+        self.apply_inventory_item_object_updates_like_cpp(item_guid, &updates)
+    }
+    pub(crate) fn set_inventory_item_equipped_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        equipped: bool,
+    ) -> bool {
+        self.apply_inventory_item_object_updates_like_cpp(
+            item_guid,
+            &[ItemObjectUpdateLikeCpp::SetEquipped(equipped)],
+        )
     }
     pub(crate) fn remove_inventory_item_object(&mut self, item_guid: ObjectGuid) -> Option<Item> {
         self.mutate_player_inventory_runtime_like_cpp(|inventory| {
@@ -429,11 +499,10 @@ impl WorldSession {
             return;
         }
 
-        let _ = self.update_inventory_item_object_like_cpp(item_guid, |stored_item| {
-            for duration in removed_enchantments {
-                stored_item.set_enchantment_duration(duration.slot, duration.left_duration_ms);
-            }
-        });
+        let _ = self.restore_inventory_item_enchantment_durations_like_cpp(
+            item_guid,
+            &removed_enchantments,
+        );
     }
     pub(crate) fn remove_inventory_tradeable_item_like_cpp(&mut self, item_guid: ObjectGuid) {
         let Some(item) = self.resolved_inventory_item_object_like_cpp(item_guid) else {
@@ -555,12 +624,8 @@ impl WorldSession {
         let _ = self.record_direct_inventory_item_set_remove_like_cpp(bag, slot, item_guid);
         let item_mods_changed =
             self.record_destroyed_inventory_item_mod_remove_like_cpp(bag, slot, item_guid);
-        self.update_inventory_item_object_like_cpp(item_guid, |item| {
-            item.remove_item_flag2(ItemFieldFlags2::EQUIPPED);
-            for enchantment_slot in cleared_mainhand_enchantments {
-                item.clear_enchantment(*enchantment_slot);
-            }
-        });
+        let _ = self
+            .clear_inventory_item_equipped_state_like_cpp(item_guid, cleared_mainhand_enchantments);
 
         if slot < PROFESSION_SLOT_END {
             self.record_inventory_item_combat_stat_recalculations_like_cpp(slot);
@@ -580,9 +645,7 @@ impl WorldSession {
             return false;
         }
 
-        self.update_inventory_item_object_like_cpp(item_guid, |item| {
-            item.set_item_flag2(ItemFieldFlags2::EQUIPPED);
-        });
+        let _ = self.set_inventory_item_equipped_like_cpp(item_guid, true);
         let _ = self.record_represented_items_set_item_like_cpp(item_guid, true);
         let item_mods_changed = if self
             .resolved_inventory_item_object_like_cpp(item_guid)

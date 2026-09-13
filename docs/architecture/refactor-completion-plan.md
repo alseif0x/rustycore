@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748 — 2026-09-13; actualización #524 genérico y P2/P3.9 — 2026-09-13.** Este documento detalla los
+**Sincronización de la entrega #748 — 2026-09-13; actualización #524 genérico y P2/P3.9/item-object — 2026-09-13.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -13,9 +13,11 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza integrada, 2026-09-13: PR #834**, en `3.4.3` como
-`4e3ad8f010176a6d500cf45c84ea752f179a47cf`. #787 / PR #792 (`d14a9a67`) y
-#584 P2 item-bonus y P3.1–P3.9 están integrados dentro de esta cabeza. La coordinación World/Map está
+**Cabeza integrada, 2026-09-13: PR #837**, en `3.4.3` como
+`c97153a2ea480be2ac49577a4a29843f3f1216c9`. #787 / PR #792 (`d14a9a67`) y
+#584 P2 item-bonus y P3.1–P3.9 están integrados dentro de esta cabeza. La entrega
+candidata `23a7fe16` añade el cierre P2 del runtime de objetos de inventario y se
+publicará contra esta base. La coordinación World/Map está
 implementada y aceptada localmente en `76369bda`; la corrección mantiene el ACK World pendiente hasta finalizar y
 retirar la sesión. El contrato y la evidencia están en el
 [checkpoint de sesión](session-578-checkpoint.md#787-resumption-finalization-is-inside-the-world-completion-boundary--2026-09-12).
@@ -23,8 +25,9 @@ La secuencia del 11 de septiembre que sigue se conserva como contexto fechado;
 no ordena volver a ejecutar entregas ya integradas. La retirada del escritor
 legado de criaturas y las fases de mapa no representadas siguen en #584.
 
-La base revisada de esta entrega es `3.4.3` en
-`db1250767090a5c951dae96ad6c2a2d5b24873ff`. #133 se cerró el 2026-09-09. Las
+La base revisada de la entrega anterior fue `3.4.3` en
+`db1250767090a5c951dae96ad6c2a2d5b24873ff`; la base vigente es la cabeza de PR #837
+indicada arriba. #133 se cerró el 2026-09-09. Las
 entregas #578, #585, #587, #588, #589, #716, #718, #722 y #737 están integradas y
 cerradas dentro de sus alcances acotados. No se debe esperar otro cierre de #133 ni
 reabrir esas entregas por una preferencia de nombres o por una frontera pendiente.
@@ -830,6 +833,41 @@ cliente/captura, DB/reinicio/relogin ni cierra #584. El siguiente trabajo debe
 seleccionarse por consumidores restantes: catálogos y efectos de item que aún carecen
 de comportamiento, otras superficies P2 medidas, o una entrega P3 con contrato de
 runtime; no se crea otra macro solo para renombrar este owner.
+
+#### Entrega P2 bajo #584 — cierre del runtime de objetos de inventario
+
+La auditoría corregida de #737 dejó un único residual de acceso genérico en producción:
+`item_objects_mut()` prestaba un `&mut Item` a un cierre llamador. Los insert/remove
+concretos ya habían sido retirados por #740; el residual afectaba a los consumidores de
+inventario, vendor, loot, recompensas, durabilidad, hechizos y void storage. Los anclajes
+de propiedad de TrinityCore son `Player::_StoreItem` (`Player.cpp:11246`),
+`Player::VisualizeItem` (`:11510`), `Player::RemoveItem` (`:11553`) y
+`Player::QuickEquipItem` (`:11476`): el cambio de slot lleva consigo los campos del
+objeto, su estado y la publicación posterior.
+
+La entrega candidata `23a7fe16` concentra esa mutación en
+`wow_entities::PlayerInventoryRuntime`. `ItemObjectUpdateLikeCpp` es un conjunto cerrado
+de comandos para contenedor, slot, cantidad, durabilidad, flags, binding, gemas,
+encantamientos, estado, reemplazo y relocalización de bolsa; el owner resuelve el
+`HashMap` y nunca expone `&mut Item`. La apertura de regalo envuelto es una operación
+nominal que conserva la durabilidad previa para su proyección de persistencia. Todos los
+consumidores de producción usan estas operaciones; el helper de cierre y los accesos
+directos al mapa quedan bajo `cfg(test)` para fixtures existentes.
+
+La prueba del owner verifica aplicación y rechazo de GUID inexistente; la prueba de
+regalo verifica que la durabilidad se conserva para persistencia. El catálogo de ownership
+se sincroniza con la nueva operación, el campo `trait_tree_skill_line_index`, el comando
+`DestroyVisibleCreatureLikeCpp` ya integrado y las métricas actuales. No se añade campo,
+mirror, lock, task, reloj ni dependencia entre crates. La aceptación local de esta entrega
+incluye `cargo check --locked --tests -p wow-entities -p wow-world`, los tests focalizados
+de `wow-entities` (24) y `wow-world` (5), formato, diff y los checks de arquitectura y
+ownership con un solo job de Cargo; la validación-v2 final y la publicación son gates
+posteriores de la rama.
+
+Este cierre retira la superficie arquitectónica genérica de #737, pero no declara paridad
+completa de item use/effects, estadísticas, auras, bytes de cliente ni durabilidad real
+con DB/reinicio/relogin. Las funciones de gameplay o datos que aún falten se asignan a su
+macro funcional; no se reabre #737 ni se crea una issue por cada variante del comando.
 
 #### Contraste P3 de composición y fases — revisión acotada 2026-09-12
 

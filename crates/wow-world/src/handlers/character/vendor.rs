@@ -1049,9 +1049,10 @@ impl WorldSession {
             return;
         }
         for &(_, item_guid, _, new_count) in &existing_updates {
-            self.update_inventory_item_object_like_cpp(item_guid, |item| {
-                item.set_count(new_count);
-            });
+            let _ = self.apply_inventory_item_object_updates_like_cpp(
+                item_guid,
+                &[wow_entities::ItemObjectUpdateLikeCpp::SetCount(new_count)],
+            );
         }
 
         let inv_type = self.item_template_inventory_type(buy.item_id as u32);
@@ -1469,9 +1470,10 @@ impl WorldSession {
         }
 
         for &(_, item_guid, new_count) in &existing_updates {
-            self.update_inventory_item_object_like_cpp(item_guid, |item| {
-                item.set_count(new_count);
-            });
+            let _ = self.apply_inventory_item_object_updates_like_cpp(
+                item_guid,
+                &[wow_entities::ItemObjectUpdateLikeCpp::SetCount(new_count)],
+            );
         }
 
         let mut inv_slot_changes = vec![(buyback_slot, ObjectGuid::EMPTY)];
@@ -1486,9 +1488,10 @@ impl WorldSession {
                 },
             );
             self.set_inventory_item_object_slot(buyback_item.guid, slot);
-            self.update_inventory_item_object_like_cpp(buyback_item.guid, |item_object| {
-                item_object.set_count(moved_count);
-            });
+            let _ = self.apply_inventory_item_object_updates_like_cpp(
+                buyback_item.guid,
+                &[wow_entities::ItemObjectUpdateLikeCpp::SetCount(moved_count)],
+            );
             inv_slot_changes.push((slot, buyback_item.guid));
         } else {
             self.remove_inventory_item_object(buyback_item.guid);
@@ -1807,9 +1810,10 @@ impl WorldSession {
             let stack_count = cloned_item.count();
             let durability = cloned_item.data().durability;
             let max_durability = cloned_item.data().max_durability;
-            self.update_inventory_item_object_like_cpp(item.guid, |item_object| {
-                item_object.set_count(remaining);
-            });
+            let _ = self.apply_inventory_item_object_updates_like_cpp(
+                item.guid,
+                &[wow_entities::ItemObjectUpdateLikeCpp::SetCount(remaining)],
+            );
             stack_update = Some((item.guid, remaining));
             self.insert_buyback_item_like_cpp(
                 buyback_slot,
@@ -1986,9 +1990,10 @@ impl WorldSession {
                 return;
             }
 
-            self.update_inventory_item_object_like_cpp(refund.item_guid, |item| {
-                item.set_not_refundable();
-            });
+            let _ = self.apply_inventory_item_object_updates_like_cpp(
+                refund.item_guid,
+                &[wow_entities::ItemObjectUpdateLikeCpp::SetNotRefundable],
+            );
             self.send_packet(&ItemExpirePurchaseRefund {
                 item_guid: refund.item_guid,
             });
@@ -2323,9 +2328,10 @@ impl WorldSession {
         self.remove_inventory_item_object(refund.item_guid);
 
         for &(item_guid, _, new_count) in planned_existing_counts.values() {
-            self.update_inventory_item_object_like_cpp(item_guid, |item| {
-                item.set_count(new_count);
-            });
+            let _ = self.apply_inventory_item_object_updates_like_cpp(
+                item_guid,
+                &[wow_entities::ItemObjectUpdateLikeCpp::SetCount(new_count)],
+            );
         }
 
         for (stack, db_guid, item_guid) in &created_new_stacks {

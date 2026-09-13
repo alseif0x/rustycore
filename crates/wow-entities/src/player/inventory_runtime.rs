@@ -8,8 +8,12 @@
 //! Moved out of the Player root so the slot map has one visible owner with its
 //! own file. Behaviour is unchanged by the move itself.
 
-use super::{BUYBACK_SLOT_COUNT, BUYBACK_SLOT_START, PlayerInventoryItem};
+use super::{
+    BUYBACK_SLOT_COUNT, BUYBACK_SLOT_START, EnchantmentSlot, ItemBondingType, ItemFieldFlags,
+    ItemFieldFlags2, ItemUpdateState, PlayerInventoryItem,
+};
 use crate::Item;
+use crate::SocketedGem;
 use std::collections::HashMap;
 use wow_core::ObjectGuid;
 
@@ -29,6 +33,53 @@ pub struct PlayerInventoryRuntime {
     buyback_timestamp: [i64; BUYBACK_SLOT_COUNT],
     current_buyback_slot: u8,
     item_objects: HashMap<ObjectGuid, Item>,
+}
+
+/// A closed set of item-object mutations owned by the canonical Player.
+///
+/// Session code may describe an operation, but it never receives an `&mut
+/// Item`. Keeping the command set here makes every production item-object
+/// writer visible at the owner boundary while allowing tests to use their
+/// existing fixture adapter.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ItemObjectUpdateLikeCpp {
+    SetContainedIn(ObjectGuid),
+    SetContainerGuid(ObjectGuid),
+    SetContainerGuidAndSlot(ObjectGuid, u8),
+    SetSlot(u8),
+    SetCount(u32),
+    SetDurability(u32),
+    SetMaxDurability(u32),
+    SetExpiration(u32),
+    SetLootGenerated(bool),
+    SetBinding(bool),
+    SetBonding(ItemBondingType),
+    BindIfStored(bool),
+    SetNotRefundable,
+    ReplaceAllItemFlags(ItemFieldFlags),
+    SetEquipped(bool),
+    ClearEnchantment(EnchantmentSlot),
+    SetEnchantmentDuration {
+        slot: EnchantmentSlot,
+        duration: u32,
+    },
+    SetEnchantment {
+        slot: EnchantmentSlot,
+        id: i32,
+        duration: u32,
+        charges: i16,
+    },
+    SetCreator(ObjectGuid),
+    SetChildFlag,
+    SetGiftCreator(ObjectGuid),
+    SetSoulboundTradeable(Vec<ObjectGuid>),
+    SetGems(Vec<SocketedGem>),
+    SetState(ItemUpdateState),
+    Replace(Box<Item>),
+    RelocateBagExchangeChild {
+        destination_bag_guid: ObjectGuid,
+        destination_slot: u8,
+    },
 }
 
 impl PlayerInventoryRuntime {
@@ -231,6 +282,111 @@ impl PlayerInventoryRuntime {
     pub fn item_objects_mut(&mut self) -> &mut HashMap<ObjectGuid, Item> {
         &mut self.item_objects
     }
+
+    /// Apply one complete, owner-defined sequence of item-object mutations.
+    /// The caller supplies data only; the item borrow never leaves this owner.
+    pub fn apply_item_object_updates_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        updates: &[ItemObjectUpdateLikeCpp],
+    ) -> bool {
+        let Some(item) = self.item_objects.get_mut(&item_guid) else {
+            return false;
+        };
+        for update in updates {
+            match update {
+                ItemObjectUpdateLikeCpp::SetContainedIn(guid) => item.set_contained_in(*guid),
+                ItemObjectUpdateLikeCpp::SetContainerGuid(guid) => item.set_container_guid(*guid),
+                ItemObjectUpdateLikeCpp::SetContainerGuidAndSlot(guid, slot) => {
+                    item.set_container_guid_and_slot(*guid, *slot)
+                }
+                ItemObjectUpdateLikeCpp::SetSlot(slot) => item.set_slot(*slot),
+                ItemObjectUpdateLikeCpp::SetCount(count) => item.set_count(*count),
+                ItemObjectUpdateLikeCpp::SetDurability(durability) => {
+                    item.set_durability(*durability)
+                }
+                ItemObjectUpdateLikeCpp::SetMaxDurability(max_durability) => {
+                    item.set_max_durability(*max_durability)
+                }
+                ItemObjectUpdateLikeCpp::SetExpiration(expiration) => {
+                    item.set_expiration(*expiration)
+                }
+                ItemObjectUpdateLikeCpp::SetLootGenerated(loot_generated) => {
+                    item.set_loot_generated(*loot_generated)
+                }
+                ItemObjectUpdateLikeCpp::SetBinding(binding) => item.set_binding(*binding),
+                ItemObjectUpdateLikeCpp::SetBonding(bonding) => item.set_bonding(*bonding),
+                ItemObjectUpdateLikeCpp::BindIfStored(is_bag_pos) => {
+                    item.bind_if_stored(*is_bag_pos)
+                }
+                ItemObjectUpdateLikeCpp::SetNotRefundable => item.set_not_refundable(),
+                ItemObjectUpdateLikeCpp::ReplaceAllItemFlags(flags) => {
+                    item.replace_all_item_flags(*flags)
+                }
+                ItemObjectUpdateLikeCpp::SetEquipped(equipped) => {
+                    if *equipped {
+                        item.set_item_flag2(ItemFieldFlags2::EQUIPPED);
+                    } else {
+                        item.remove_item_flag2(ItemFieldFlags2::EQUIPPED);
+                    }
+                }
+                ItemObjectUpdateLikeCpp::ClearEnchantment(slot) => item.clear_enchantment(*slot),
+                ItemObjectUpdateLikeCpp::SetEnchantmentDuration { slot, duration } => {
+                    item.set_enchantment_duration(*slot, *duration)
+                }
+                ItemObjectUpdateLikeCpp::SetEnchantment {
+                    slot,
+                    id,
+                    duration,
+                    charges,
+                } => item.set_enchantment(*slot, *id, *duration, *charges),
+                ItemObjectUpdateLikeCpp::SetCreator(guid) => item.set_creator(*guid),
+                ItemObjectUpdateLikeCpp::SetChildFlag => item.set_item_flag(ItemFieldFlags::CHILD),
+                ItemObjectUpdateLikeCpp::SetGiftCreator(guid) => item.set_gift_creator(*guid),
+                ItemObjectUpdateLikeCpp::SetSoulboundTradeable(allowed_looters) => {
+                    item.set_soulbound_tradeable(allowed_looters.iter().copied())
+                }
+                ItemObjectUpdateLikeCpp::SetGems(gems) => item.set_gems(gems.clone()),
+                ItemObjectUpdateLikeCpp::SetState(state) => {
+                    let _ = item.set_state(*state);
+                }
+                ItemObjectUpdateLikeCpp::Replace(replacement) => {
+                    *item = replacement.as_ref().clone();
+                }
+                ItemObjectUpdateLikeCpp::RelocateBagExchangeChild {
+                    destination_bag_guid,
+                    destination_slot,
+                } => {
+                    item.set_container_guid(*destination_bag_guid);
+                    item.set_contained_in(*destination_bag_guid);
+                    item.set_slot(*destination_slot);
+                }
+            }
+        }
+        true
+    }
+
+    /// Apply the C++ wrapped-gift transformation and return its previous
+    /// durability for the persistence projection.
+    pub fn transform_wrapped_gift_item_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        entry: u32,
+        flags: u32,
+        max_durability: u32,
+    ) -> Option<u32> {
+        let item = self.item_objects.get_mut(&item_guid)?;
+        if !item.is_wrapped() || item.object().guid() != item_guid {
+            return None;
+        }
+        let durability = item.data().durability;
+        item.set_gift_creator(ObjectGuid::EMPTY);
+        item.object_mut().set_entry(entry);
+        item.replace_all_item_flags(ItemFieldFlags::from_bits_retain(flags));
+        item.set_max_durability(max_durability);
+        let _ = item.set_state(ItemUpdateState::Changed);
+        Some(durability)
+    }
 }
 
 impl Default for PlayerInventoryRuntime {
@@ -244,5 +400,82 @@ impl Default for PlayerInventoryRuntime {
             current_buyback_slot: BUYBACK_SLOT_START,
             item_objects: HashMap::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ItemCreateInfo;
+    use wow_constants::ItemContext;
+
+    #[test]
+    fn item_object_commands_apply_inside_the_player_owner() {
+        let guid = ObjectGuid::create_item(1, 700);
+        let owner = ObjectGuid::create_player(1, 42);
+        let mut item = Item::default();
+        item.initialize_created_state(ItemCreateInfo {
+            guid,
+            item_id: 100,
+            context: ItemContext::None,
+            owner: Some(owner),
+            max_durability: 40,
+            expiration: 0,
+            spell_charges: [0; 5],
+        });
+
+        let mut runtime = PlayerInventoryRuntime::default();
+        assert!(runtime.store_item_object_like_cpp(item).is_none());
+        assert!(runtime.apply_item_object_updates_like_cpp(
+            guid,
+            &[
+                ItemObjectUpdateLikeCpp::SetCount(4),
+                ItemObjectUpdateLikeCpp::SetContainedIn(owner),
+                ItemObjectUpdateLikeCpp::SetSlot(7),
+            ],
+        ));
+        let stored = &runtime.item_objects()[&guid];
+        assert_eq!(stored.count(), 4);
+        assert_eq!(stored.slot(), 7);
+        assert_eq!(stored.data().contained_in, owner);
+        assert!(!runtime.apply_item_object_updates_like_cpp(
+            ObjectGuid::create_item(1, 701),
+            &[ItemObjectUpdateLikeCpp::SetCount(9)],
+        ));
+    }
+
+    #[test]
+    fn wrapped_gift_command_preserves_durability_for_persistence() {
+        let guid = ObjectGuid::create_item(1, 702);
+        let mut item = Item::default();
+        item.initialize_created_state(ItemCreateInfo {
+            guid,
+            item_id: 101,
+            context: ItemContext::None,
+            owner: None,
+            max_durability: 40,
+            expiration: 0,
+            spell_charges: [0; 5],
+        });
+        item.force_state(ItemUpdateState::Unchanged);
+        item.set_durability(17);
+        item.set_item_flag(ItemFieldFlags::WRAPPED);
+
+        let mut runtime = PlayerInventoryRuntime::default();
+        runtime.store_item_object_like_cpp(item);
+        assert_eq!(
+            runtime.transform_wrapped_gift_item_like_cpp(
+                guid,
+                202,
+                ItemFieldFlags::SOULBOUND.bits(),
+                80,
+            ),
+            Some(17)
+        );
+        let stored = &runtime.item_objects()[&guid];
+        assert_eq!(stored.object().entry(), 202);
+        assert_eq!(stored.data().max_durability, 80);
+        assert!(!stored.is_wrapped());
+        assert_eq!(stored.update_state(), ItemUpdateState::Changed);
     }
 }

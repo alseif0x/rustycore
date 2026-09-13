@@ -127,11 +127,14 @@ impl WorldSession {
             self.remove_inventory_item_like_cpp(EQUIPMENT_SLOT_OFFHAND);
             self.sync_canonical_direct_inventory_remove_like_cpp(EQUIPMENT_SLOT_OFFHAND);
             self.send_auto_unequip_offhand_values_update_like_cpp(None, offhand_item.guid);
-            self.update_inventory_item_object_like_cpp(offhand_item.guid, |item| {
-                item.set_contained_in(ObjectGuid::EMPTY);
-                item.set_container_guid(ObjectGuid::EMPTY);
-                item.set_slot(NULL_SLOT);
-            });
+            let _ = self.apply_inventory_item_object_updates_like_cpp(
+                offhand_item.guid,
+                &[
+                    wow_entities::ItemObjectUpdateLikeCpp::SetContainedIn(ObjectGuid::EMPTY),
+                    wow_entities::ItemObjectUpdateLikeCpp::SetContainerGuid(ObjectGuid::EMPTY),
+                    wow_entities::ItemObjectUpdateLikeCpp::SetSlot(NULL_SLOT),
+                ],
+            );
             self.send_item_contained_in_values_update_like_cpp(offhand_item.guid);
             if item_mods_changed {
                 self.send_represented_item_bonus_player_stat_update_like_cpp();
@@ -153,9 +156,10 @@ impl WorldSession {
         true
     }
     fn clear_represented_offhand_equipped_flag_like_cpp(&mut self, item_guid: ObjectGuid) {
-        self.update_inventory_item_object_like_cpp(item_guid, |item| {
-            item.remove_item_flag2(ItemFieldFlags2::EQUIPPED);
-        });
+        let _ = self.apply_inventory_item_object_updates_like_cpp(
+            item_guid,
+            &[wow_entities::ItemObjectUpdateLikeCpp::SetEquipped(false)],
+        );
     }
     fn send_auto_unequip_offhand_values_update_like_cpp(
         &self,

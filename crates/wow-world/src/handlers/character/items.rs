@@ -667,15 +667,19 @@ impl WorldSession {
 
         let map_id = self.player_map_id_like_cpp();
         for (item_guid, _, _) in &binding_updates {
-            self.update_inventory_item_object_like_cpp(*item_guid, |item| {
-                item.set_binding(true);
-            });
+            let _ = self.apply_inventory_item_object_updates_like_cpp(
+                *item_guid,
+                &[wow_entities::ItemObjectUpdateLikeCpp::SetBinding(true)],
+            );
             self.send_item_dynamic_flags_values_update_like_cpp(*item_guid);
         }
         for update in &plan.existing_updates {
-            self.update_inventory_item_object_like_cpp(update.item.guid, |item| {
-                item.set_count(update.new_count);
-            });
+            let _ = self.apply_inventory_item_object_updates_like_cpp(
+                update.item.guid,
+                &[wow_entities::ItemObjectUpdateLikeCpp::SetCount(
+                    update.new_count,
+                )],
+            );
             self.send_packet(&UpdateObject::item_stack_count_update(
                 update.item.guid,
                 map_id,
@@ -723,9 +727,10 @@ impl WorldSession {
         }
         if let Some((destination_bag, destination_slot, moved_count)) = plan.moved_destination {
             if source_stays_in_place {
-                self.update_inventory_item_object_like_cpp(plan.source.guid, |item| {
-                    item.set_count(moved_count);
-                });
+                let _ = self.apply_inventory_item_object_updates_like_cpp(
+                    plan.source.guid,
+                    &[wow_entities::ItemObjectUpdateLikeCpp::SetCount(moved_count)],
+                );
                 self.add_inventory_item_duration_refs_like_cpp(plan.source.guid);
                 self.send_packet(&UpdateObject::item_stack_count_update(
                     plan.source.guid,
@@ -1238,9 +1243,10 @@ impl WorldSession {
                     new_count,
                     ..
                 } => {
-                    self.update_inventory_item_object_like_cpp(item_guid, |item| {
-                        item.set_count(new_count);
-                    });
+                    let _ = self.apply_inventory_item_object_updates_like_cpp(
+                        item_guid,
+                        &[wow_entities::ItemObjectUpdateLikeCpp::SetCount(new_count)],
+                    );
                     self.send_packet(&UpdateObject::item_stack_count_update(
                         item_guid, map_id, new_count,
                     ));
@@ -2114,11 +2120,12 @@ impl WorldSession {
             runtime_item.count(),
         );
         debug_assert!(relocated);
-        self.update_inventory_item_object_like_cpp(source.guid, |item| {
-            item.replace_all_item_flags(ItemFieldFlags::from_bits_retain(
-                planned_item.item_flags_bits(),
-            ));
-        });
+        let _ = self.apply_inventory_item_object_updates_like_cpp(
+            source.guid,
+            &[wow_entities::ItemObjectUpdateLikeCpp::ReplaceAllItemFlags(
+                ItemFieldFlags::from_bits_retain(planned_item.item_flags_bits()),
+            )],
+        );
         let added_mods = self.apply_inventory_item_store_side_effects_like_cpp(
             destination_bag,
             destination_slot,
@@ -2306,21 +2313,28 @@ impl WorldSession {
             return;
         }
 
-        self.update_inventory_item_object_like_cpp(destination.guid, |item| {
-            item.set_count(destination_count);
-        });
+        let _ = self.apply_inventory_item_object_updates_like_cpp(
+            destination.guid,
+            &[wow_entities::ItemObjectUpdateLikeCpp::SetCount(
+                destination_count,
+            )],
+        );
         self.send_packet(&UpdateObject::item_stack_count_update(
             destination.guid,
             self.player_map_id_like_cpp(),
             destination_count,
         ));
         if source_count > 0 {
-            self.update_inventory_item_object_like_cpp(source.guid, |item| {
-                item.set_count(source_count);
-                for slot in &source_cleared {
-                    item.clear_enchantment(*slot);
-                }
-            });
+            let mut updates = vec![wow_entities::ItemObjectUpdateLikeCpp::SetCount(
+                source_count,
+            )];
+            updates.extend(
+                source_cleared
+                    .iter()
+                    .copied()
+                    .map(wow_entities::ItemObjectUpdateLikeCpp::ClearEnchantment),
+            );
+            let _ = self.apply_inventory_item_object_updates_like_cpp(source.guid, &updates);
             self.send_packet(&UpdateObject::item_stack_count_update(
                 source.guid,
                 self.player_map_id_like_cpp(),
@@ -2668,9 +2682,15 @@ impl WorldSession {
             &destination_cleared,
         );
         for (child_guid, _, _, empty_guid, _, _, to_slot) in &child_moves {
-            self.update_inventory_item_object_like_cpp(*child_guid, |item| {
-                relocate_bag_exchange_child_like_cpp(item, *empty_guid, *to_slot);
-            });
+            let _ = self.apply_inventory_item_object_updates_like_cpp(
+                *child_guid,
+                &[
+                    wow_entities::ItemObjectUpdateLikeCpp::RelocateBagExchangeChild {
+                        destination_bag_guid: *empty_guid,
+                        destination_slot: *to_slot,
+                    },
+                ],
+            );
         }
         let swapped = self.apply_committed_inventory_item_swap_like_cpp(
             source_bag,
@@ -2679,16 +2699,18 @@ impl WorldSession {
             destination_slot,
         );
         debug_assert!(swapped);
-        self.update_inventory_item_object_like_cpp(source.guid, |item| {
-            item.replace_all_item_flags(ItemFieldFlags::from_bits_retain(
-                planned_source.item_flags_bits(),
-            ));
-        });
-        self.update_inventory_item_object_like_cpp(destination.guid, |item| {
-            item.replace_all_item_flags(ItemFieldFlags::from_bits_retain(
-                planned_destination.item_flags_bits(),
-            ));
-        });
+        let _ = self.apply_inventory_item_object_updates_like_cpp(
+            source.guid,
+            &[wow_entities::ItemObjectUpdateLikeCpp::ReplaceAllItemFlags(
+                ItemFieldFlags::from_bits_retain(planned_source.item_flags_bits()),
+            )],
+        );
+        let _ = self.apply_inventory_item_object_updates_like_cpp(
+            destination.guid,
+            &[wow_entities::ItemObjectUpdateLikeCpp::ReplaceAllItemFlags(
+                ItemFieldFlags::from_bits_retain(planned_destination.item_flags_bits()),
+            )],
+        );
         let added_source_mods = self.apply_inventory_item_store_side_effects_like_cpp(
             destination_bag,
             destination_slot,
@@ -3325,9 +3347,10 @@ impl WorldSession {
                 return;
             }
 
-            self.update_inventory_item_object_like_cpp(item.guid, |item_object| {
-                item_object.set_count(new_count);
-            });
+            let _ = self.apply_inventory_item_object_updates_like_cpp(
+                item.guid,
+                &[wow_entities::ItemObjectUpdateLikeCpp::SetCount(new_count)],
+            );
             let Some(changed_quest_ids) = self.apply_quest_item_removed_like_cpp(item.entry_id)
             else {
                 return;
@@ -3429,9 +3452,12 @@ impl WorldSession {
             EnchantmentSlot::EnhancementTemporary,
             wow_entities::ApplyEnchantmentArgs::remove(),
         );
-        self.update_inventory_item_object_like_cpp(item.guid, |item| {
-            item.clear_enchantment(EnchantmentSlot::EnhancementTemporary);
-        });
+        let _ = self.apply_inventory_item_object_updates_like_cpp(
+            item.guid,
+            &[wow_entities::ItemObjectUpdateLikeCpp::ClearEnchantment(
+                EnchantmentSlot::EnhancementTemporary,
+            )],
+        );
     }
 
     /// C++ `Player::DestroyItem(bag, slot, update=true)` for a full-stack item.

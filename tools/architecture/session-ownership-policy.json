@@ -5215,6 +5215,13 @@
           "source_class": "production"
         },
         {
+          "name": "trait_tree_skill_line_index",
+          "type": "Option < Arc < wow_data :: trait_tree :: TraitTreeSkillLineIndexLikeCpp > >",
+          "visibility": "private",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "transmog_set_item_store",
           "type": "Option < Arc < TransmogSetItemStore > >",
           "visibility": "private",
@@ -21542,6 +21549,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "apply_inventory_item_object_updates_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn apply_inventory_item_object_updates_like_cpp (& mut self , item_guid : ObjectGuid , updates : & [ItemObjectUpdateLikeCpp] ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "apply_inventory_item_obtain_spells_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn apply_inventory_item_obtain_spells_like_cpp (& mut self , item_entry : u32 ,) -> Vec < i32 >",
@@ -25068,6 +25088,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "clear_inventory_item_equipped_state_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn clear_inventory_item_equipped_state_like_cpp (& mut self , item_guid : ObjectGuid , cleared_enchantments : & [EnchantmentSlot] ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "clear_inventory_items_and_objects_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn clear_inventory_items_and_objects_like_cpp (& mut self)",
@@ -28124,6 +28157,19 @@
           "name": "handle_can_duel_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn handle_can_duel_like_cpp (& mut self , target_guid : ObjectGuid , to_the_death : bool)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_destroy_visible_creature_like_cpp_command_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn handle_destroy_visible_creature_like_cpp_command_like_cpp (& mut self , command : DestroyVisibleCreatureLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -44467,6 +44513,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "restore_inventory_item_enchantment_durations_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn restore_inventory_item_enchantment_durations_like_cpp (& mut self , item_guid : ObjectGuid , durations : & [wow_entities :: PlayerEnchantDuration] ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "restore_realm_channels",
           "visibility": "pub (crate)",
           "signature": "fn restore_realm_channels (& mut self)",
@@ -48002,6 +48061,20 @@
           "name": "set_instance_lock_persistence_port_like_cpp",
           "visibility": "pub",
           "signature": "fn set_instance_lock_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: InstanceLockPersistencePortLikeCpp > ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_inventory_item_equipped_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn set_inventory_item_equipped_like_cpp (& mut self , item_guid : ObjectGuid , equipped : bool ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -52533,6 +52606,20 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "set_trait_tree_skill_line_index",
+          "visibility": "pub",
+          "signature": "fn set_trait_tree_skill_line_index (& mut self , index : Arc < wow_data :: trait_tree :: TraitTreeSkillLineIndexLikeCpp > ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "set_transmog_set_item_store",
           "visibility": "pub",
           "signature": "fn set_transmog_set_item_store (& mut self , store : Arc < TransmogSetItemStore >)",
@@ -54278,9 +54365,48 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "trait_authority_complete_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn trait_authority_complete_like_cpp (& self , configs : & [TraitConfigCreateData] , node_entries : & TraitNodeEntryStore , player_guid : ObjectGuid ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "trait_definition_store",
           "visibility": "pub (crate)",
           "signature": "fn trait_definition_store (& self) -> Option < & Arc < TraitDefinitionStore > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "trait_tree_skill_line_index",
+          "visibility": "pub (crate)",
+          "signature": "fn trait_tree_skill_line_index (& self ,) -> Option < & Arc < wow_data :: trait_tree :: TraitTreeSkillLineIndexLikeCpp > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "transform_inventory_wrapped_gift_item_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn transform_inventory_wrapped_gift_item_like_cpp (& mut self , item_guid : ObjectGuid , entry : u32 , flags : u32 , max_durability : u32 ,) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -54630,8 +54756,10 @@
           "name": "update_inventory_item_object_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn update_inventory_item_object_like_cpp (& mut self , item_guid : ObjectGuid , update : impl FnOnce (& mut Item) ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -57162,6 +57290,16 @@
           "count": 1
         },
         {
+          "module": "crate::session::trait_configs::tests",
+          "callee": "WorldSession::new",
+          "argument_count": 10,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "count": 4
+        },
+        {
           "module": "crate::session_factory",
           "callee": "WorldSession::new",
           "argument_count": 10,
@@ -57529,6 +57667,21 @@
             {
               "name": "0",
               "type": "CreatureAttackStopLikeCppCommand",
+              "visibility": "private",
+              "cfg": [],
+              "source_class": "production"
+            }
+          ],
+          "discriminant": null,
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "name": "DestroyVisibleCreatureLikeCpp",
+          "fields": [
+            {
+              "name": "0",
+              "type": "DestroyVisibleCreatureLikeCppCommand",
               "visibility": "private",
               "cfg": [],
               "source_class": "production"
@@ -58711,6 +58864,48 @@
           {
             "name": "victim_guid",
             "type": "ObjectGuid",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          }
+        ],
+        "variants": [],
+        "alias": null
+      },
+      {
+        "definition": {
+          "module": "crate::session::mailbox::protocol",
+          "name": "DestroyVisibleCreatureLikeCppCommand",
+          "visibility": "pub",
+          "cfg": [],
+          "source_class": "production"
+        },
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "creature_guid",
+            "type": "ObjectGuid",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "instance_id",
+            "type": "u32",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "map_id",
+            "type": "u16",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "map_incarnation",
+            "type": "u64",
             "visibility": "pub",
             "cfg": [],
             "source_class": "production"
@@ -60272,6 +60467,14 @@
       },
       {
         "module": "crate::session::mailbox::protocol",
+        "target": "DestroyVisibleCreatureLikeCppCommand",
+        "kind": "derive",
+        "fingerprint": "derive (Clone , Debug , PartialEq , Eq)",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session::mailbox::protocol",
         "target": "KickLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -60891,6 +61094,19 @@
         },
         {
           "package": "world-server",
+          "module": "crate::runtime::deferred_visibility",
+          "source": "crates/world-server/src/runtime/deferred_visibility.rs",
+          "enclosing": "fn deliver_directed_creature_destroy_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "& wow_world :: session :: directory :: PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
           "module": "crate::runtime::delivery",
           "source": "crates/world-server/src/runtime/delivery.rs",
           "enclosing": "fn build_tap_group_index_like_cpp",
@@ -60946,6 +61162,19 @@
           "module": "crate::runtime::delivery",
           "source": "crates/world-server/src/runtime/delivery.rs",
           "enclosing": "fn collect_player_melee_attackers_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "& wow_world :: session :: directory :: PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::delivery",
+          "source": "crates/world-server/src/runtime/delivery.rs",
+          "enclosing": "fn deliver_canonical_map_object_values_updates_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
           "symbol": "registry",
@@ -61897,7 +62126,33 @@
           "enclosing": "fn spawn_canonical_map_update_loop",
           "registry": "PlayerRegistry",
           "operation": "argument_escape",
+          "symbol": "deliver_canonical_map_object_values_updates_like_cpp",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "& player_registry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map::update_loop",
+          "source": "crates/world-server/src/runtime/map/update_loop.rs",
+          "enclosing": "fn spawn_canonical_map_update_loop",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
           "symbol": "deliver_deferred_player_visibility_like_cpp",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "& player_registry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map::update_loop",
+          "source": "crates/world-server/src/runtime/map/update_loop.rs",
+          "enclosing": "fn spawn_canonical_map_update_loop",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "deliver_directed_creature_destroy_like_cpp",
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "& player_registry",
@@ -62382,6 +62637,32 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "& GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::character::query",
+          "source": "crates/wow-world/src/handlers/character/query.rs",
+          "enclosing": "impl WorldSession::handle_query_player_names",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::character::query",
+          "source": "crates/wow-world/src/handlers/character/query.rs",
+          "enclosing": "impl WorldSession::handle_query_player_names",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "connected",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "connected:PlayerRegistry",
           "count": 1
         },
         {
@@ -69934,7 +70215,56 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=fn spawn_canonical_map_update_loop (map_manager : SharedCanonicalMapManager , legacy_map_manager : SharedMapManager , tick_interval_ms : u32 , respawn_condition_interval_ms : u32 , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , condition_store : Arc < wow_data :: ConditionEntriesByTypeStore > , map_store : Arc < wow_data :: MapStore > , game_event_persistence : Arc < dyn GameEventPersistencePortLikeCpp > , respawn_db_writer_tx : RespawnDbWriterSenderLikeCpp , respawn_db_mutation_order : SharedRespawnDbMutationOrderLikeCpp , respawn_db_producer_stop : SharedRespawnDbProducerStopLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , area_trigger_template_store : Arc < wow_data :: AreaTriggerTemplateStore > , mut game_event_scheduler : CanonicalGameEventSchedulerLikeCpp , player_registry : Arc < PlayerRegistry > , active_session_registry : Arc < crate :: ActiveWorldSessionRegistryLikeCpp > , battlemaster_list_store : Arc < wow_data :: BattlemasterListStore > , world_state_mgr : SharedWorldStateMgrLikeCpp ,) -> tokio :: task :: JoinHandle < () >|body=fnv1a64x2:c9e1db021331e340a786728797d8973b:len=23763|evidence=fnv1a64x2:1da20d1cc6815d2701f269442773e582:len=2108",
+          "fingerprint": "signature=fn spawn_canonical_map_update_loop (map_manager : SharedCanonicalMapManager , legacy_map_manager : SharedMapManager , tick_interval_ms : u32 , respawn_condition_interval_ms : u32 , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , condition_store : Arc < wow_data :: ConditionEntriesByTypeStore > , map_store : Arc < wow_data :: MapStore > , game_event_persistence : Arc < dyn GameEventPersistencePortLikeCpp > , respawn_db_writer_tx : RespawnDbWriterSenderLikeCpp , respawn_db_mutation_order : SharedRespawnDbMutationOrderLikeCpp , respawn_db_producer_stop : SharedRespawnDbProducerStopLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , area_trigger_template_store : Arc < wow_data :: AreaTriggerTemplateStore > , mut game_event_scheduler : CanonicalGameEventSchedulerLikeCpp , player_registry : Arc < PlayerRegistry > , active_session_registry : Arc < crate :: ActiveWorldSessionRegistryLikeCpp > , battlemaster_list_store : Arc < wow_data :: BattlemasterListStore > , world_state_mgr : SharedWorldStateMgrLikeCpp ,) -> tokio :: task :: JoinHandle < () >|body=fnv1a64x2:002382f0c353591baf2bb9d130559290:len=24875|evidence=fnv1a64x2:1da20d1cc6815d2701f269442773e582:len=2108",
+          "cfg": [],
+          "multiplicity": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::map_tick",
+          "path": "crates/world-server/src/runtime/map_tick.rs",
+          "enclosing": "fn::canonical_map_tick_respawn_phase_like_cpp",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "MapManager",
+              "fingerprint": "fnv1a64x2:6a8ff8984c55ee0c2a76565f50e5525f:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "manager",
+              "fingerprint": "fnv1a64x2:4e67829db448c020520a29115e4640e3:len=48",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "for_admitted_maps_mut_like_cpp",
+              "fingerprint": "fnv1a64x2:58b092cc44414e1636ebb2828b2463e5:len=51",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "type_reference",
+              "symbol": "SharedMapManager",
+              "fingerprint": "fnv1a64x2:7d2c912bd3b9f676e6912fae6fbff8e1:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "legacy_manager",
+              "fingerprint": "fnv1a64x2:5548fa74d2dc3a541b0378b742b93f3f:len=99",
+              "multiplicity": 2
+            }
+          ],
+          "fingerprint": "signature=fn canonical_map_tick_respawn_phase_like_cpp (manager : & mut wow_map :: MapManager , admitted_maps : & [wow_map :: MapTickParticipantLikeCpp] , legacy_manager : Option < & SharedMapManager > , effective_diff_ms : u32 , scheduler : & mut CanonicalRespawnConditionSchedulerLikeCpp , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , condition_store : & wow_data :: ConditionEntriesByTypeStore , map_store : & wow_data :: MapStore , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp ,) -> CanonicalSpawnGroupConditionTickSummaryLikeCpp|body=fnv1a64x2:673de35abfb2d83559bbdac6a4688cf6:len=7771|evidence=fnv1a64x2:e1bb3875a44ce501da0dcb65bb5e68f0:len=532",
           "cfg": [],
           "multiplicity": 1
         },
@@ -69958,8 +70288,8 @@
               "side": "canonical",
               "kind": "value_reference",
               "symbol": "manager",
-              "fingerprint": "fnv1a64x2:fcb060b47c655668b3e4665c11f30993:len=97",
-              "multiplicity": 2
+              "fingerprint": "fnv1a64x2:8a0bc1d0e706e1384444128697cc1d93:len=195",
+              "multiplicity": 4
             },
             {
               "side": "canonical",
@@ -69971,8 +70301,15 @@
             {
               "side": "canonical",
               "kind": "method_call",
-              "symbol": "resume_tick_with_pool_update_loaded_grid_records_context_and_owner_like_cpp",
-              "fingerprint": "fnv1a64x2:ee0d2b1c76f7f1d1349606b1afa55d7c:len=50",
+              "symbol": "resume_tick_with_pool_update_loaded_grid_records_context_owner_and_selection_like_cpp",
+              "fingerprint": "fnv1a64x2:b46f99ab6c3d0f1b602f515fe93c8176:len=50",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "tick_coordination_like_cpp",
+              "fingerprint": "fnv1a64x2:ac8c34a4829ec2156eb1591e5f3701c6:len=49",
               "multiplicity": 1
             },
             {
@@ -69990,63 +70327,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn canonical_map_tick_resume_like_cpp (manager : & mut wow_map :: MapManager , legacy_manager : Option < & SharedMapManager > , plan : wow_map :: MapTickPlanLikeCpp , scheduler : & mut CanonicalRespawnConditionSchedulerLikeCpp , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , condition_store : & wow_data :: ConditionEntriesByTypeStore , map_store : & wow_data :: MapStore , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp ,) -> Option < CanonicalSpawnGroupConditionTickSummaryLikeCpp >|body=fnv1a64x2:33d2604adc9e201acb19f4f18a990a21:len=937|evidence=fnv1a64x2:4de12ec0a0d544735e58cd725c166228:len=653",
-          "cfg": [],
-          "multiplicity": 1
-        },
-        {
-          "package": "world-server",
-          "module": "crate::runtime::map_tick",
-          "path": "crates/world-server/src/runtime/map_tick.rs",
-          "enclosing": "fn::canonical_map_tick_tail_like_cpp",
-          "direction_markers": [
-            "unresolved_dual_side"
-          ],
-          "evidence": [
-            {
-              "side": "canonical",
-              "kind": "type_reference",
-              "symbol": "MapManager",
-              "fingerprint": "fnv1a64x2:6a8ff8984c55ee0c2a76565f50e5525f:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "manager",
-              "fingerprint": "fnv1a64x2:3157af3d909b7290a752fa79f461dce3:len=146",
-              "multiplicity": 3
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "do_for_all_maps_mut",
-              "fingerprint": "fnv1a64x2:3aa70f2c7ffedb4036eca739891384d3:len=103",
-              "multiplicity": 2
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "take_player_visibility_refresh_intents_like_cpp",
-              "fingerprint": "fnv1a64x2:6eda464cb7ec5abbe468499b1509bbcc:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "type_reference",
-              "symbol": "SharedMapManager",
-              "fingerprint": "fnv1a64x2:7d2c912bd3b9f676e6912fae6fbff8e1:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
-              "symbol": "legacy_manager",
-              "fingerprint": "fnv1a64x2:5548fa74d2dc3a541b0378b742b93f3f:len=99",
-              "multiplicity": 2
-            }
-          ],
-          "fingerprint": "signature=fn canonical_map_tick_tail_like_cpp (manager : & mut wow_map :: MapManager , legacy_manager : Option < & SharedMapManager > , effective_diff_ms : u32 , scheduler : & mut CanonicalRespawnConditionSchedulerLikeCpp , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , condition_store : & wow_data :: ConditionEntriesByTypeStore , map_store : & wow_data :: MapStore , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp ,) -> Option < CanonicalSpawnGroupConditionTickSummaryLikeCpp >|body=fnv1a64x2:888d82d1bd99e91806c9fc0e7d3b85cb:len=9254|evidence=fnv1a64x2:d8e2bde7ea7b0199a74e67ec08cb9242:len=897",
+          "fingerprint": "signature=fn canonical_map_tick_resume_like_cpp (manager : & mut wow_map :: MapManager , legacy_manager : Option < & SharedMapManager > , plan : wow_map :: MapTickPlanLikeCpp , scheduler : & mut CanonicalRespawnConditionSchedulerLikeCpp , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , condition_store : & wow_data :: ConditionEntriesByTypeStore , map_store : & wow_data :: MapStore , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp ,) -> Option < CanonicalSpawnGroupConditionTickSummaryLikeCpp >|body=fnv1a64x2:1021f6ce02487d70efd748d71dd970d3:len=1301|evidence=fnv1a64x2:529e03fd9ff504a1b11a8a2ded96dd9a:len=925",
           "cfg": [],
           "multiplicity": 1
         },
@@ -75992,7 +76273,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:7f3682ab967f8550445472ff5da97383:len=92911|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:9248ab6add87a53afecce4fa6a59f3d9:len=93019|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
