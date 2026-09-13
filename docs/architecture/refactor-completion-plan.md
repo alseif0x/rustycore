@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748 — 2026-09-11; actualización #486 — 2026-09-13.** Este documento detalla los
+**Sincronización de la entrega #748 — 2026-09-13; actualización #486 — 2026-09-13.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -13,8 +13,9 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Entrega integrada, 2026-09-12: #787 / PR #792**, en `3.4.3` como
-`d14a9a67194e8013241e5dc837d9e72589aabac0`. La coordinación World/Map está
+**Cabeza integrada, 2026-09-13: PR #808**, en `3.4.3` como
+`886e13ad8b7b957b430928eb1e05dfdfbd12405b`. #787 / PR #792 (`d14a9a67`) y
+#584 P3.1–P3.6 están integrados dentro de esta cabeza. La coordinación World/Map está
 implementada y aceptada localmente en `76369bda`; la corrección mantiene el ACK World pendiente hasta finalizar y
 retirar la sesión. El contrato y la evidencia están en el
 [checkpoint de sesión](session-578-checkpoint.md#787-resumption-finalization-is-inside-the-world-completion-boundary--2026-09-12).
@@ -23,7 +24,7 @@ no ordena volver a ejecutar entregas ya integradas. La retirada del escritor
 legado de criaturas y las fases de mapa no representadas siguen en #584.
 
 La base revisada de esta entrega es `3.4.3` en
-`5d8c079a06b587c060c1c6e1c06bedb73c4339d0`. #133 se cerró el 2026-09-09. Las
+`886e13ad8b7b957b430928eb1e05dfdfbd12405b`. #133 se cerró el 2026-09-09. Las
 entregas #578, #585, #587, #588, #589, #716, #718, #722 y #737 están integradas y
 cerradas dentro de sus alcances acotados. No se debe esperar otro cierre de #133 ni
 reabrir esas entregas por una preferencia de nombres o por una frontera pendiente.
@@ -56,6 +57,13 @@ legado de criaturas y las fases de `Map::Update` aún no representadas. Después
 los residuales P2/P3/P4 por consumidores, el producto #583 y la auditoría #153. Las
 excepciones físicas son individuales y se justifican con la política vigente; no se
 crea una issue por fichero, helper o import.
+
+#582 queda cerrado tras su entrega de decodificadores sin matchmaking. #524 conserva
+su corrección de orden de consultas integrada por PR #803, pero requiere todavía la
+carga y el consumidor de `SkillLineXTraitTree` equivalente a `TraitMgr`; #486 conserva
+la implementación integrada por PR #807 y solo sus gates de captura/QA viva y
+mutaciones administrativas no representadas. Estas son líneas funcionales separadas:
+no se convierten en trabajo oculto de #584 ni se usan para reabrir macros cerradas.
 
 ## 2. Evidencia y límites actuales
 

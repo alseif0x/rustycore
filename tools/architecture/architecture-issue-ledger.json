@@ -2415,7 +2415,7 @@
     },
     {
       "number": 743,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.CORE] Guarantee application or reconciliation of remote group state changes",
       "kind": "slice",
       "parents": [
@@ -2427,7 +2427,7 @@
     },
     {
       "number": 735,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.CORE] Encapsulate Player reputation transitions without whole-state write-back",
       "kind": "slice",
       "parents": [
