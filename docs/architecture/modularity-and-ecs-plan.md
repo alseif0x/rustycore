@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-13 (#848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-13 (#851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `179fd5d40491e4ded2a8c25b3261263330855cd5` (PR #848).
+The current code integration head is `b26ce713b844f1146a7b2952aade4dd532f1a16e` (PR #851).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
 mutations. #524's relation-query order correction is integrated by PR #803; PR #822/#824/#826/#828 now
@@ -57,6 +57,12 @@ the canonical `Player`. Session retains template admission, persistence orchestr
 packet publication, with detached fixtures limited to `cfg(test)`. The owner invariants
 and 29 Void Storage world tests pass; this does not claim DB/restart/relogin durability or
 activate the #583 module product.
+
+PR #851 applies the same boundary policy to the first #61 equipment/stat projection:
+`handlers/character/stats.rs` is a private derivation module and `Player` owns the single
+runtime-only effective-stat snapshot. The packet adapter remains a consumer, not a second
+mutable authority. This is a bounded F1 delivery; combat consumers, complete aura/regen
+math, reversible equipment lifecycle and live/capture acceptance remain in #61.
 
 ## Architecture program state — 2026-09-13
 

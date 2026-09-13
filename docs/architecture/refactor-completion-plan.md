@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748 — 2026-09-13; actualización #524 genérico, SQL hotfix, locale y P2/P3.9/item-object/item-modifier/void-storage — 2026-09-13.** Este documento detalla los
+**Sincronización de la entrega #748 y F1/#61 — 2026-09-13; actualización #524 genérico, SQL hotfix, locale y P2/P3.9/item-object/item-modifier/void-storage — 2026-09-13.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -13,8 +13,8 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza integrada, 2026-09-13: PR #848**, en `3.4.3` como
-`179fd5d40491e4ded2a8c25b3261263330855cd5`. #787 / PR #792 (`d14a9a67`) y
+**Cabeza integrada, 2026-09-13: PR #851**, en `3.4.3` como
+`b26ce713b844f1146a7b2952aade4dd532f1a16e`. #787 / PR #792 (`d14a9a67`) y
 #584 P2 item-bonus, P2 item-object y P3.1–P3.9 están integrados dentro de esta cabeza.
 La entrega de ownership de modificadores de objetos está integrada mediante PR #839
 (implementación `ecc67603`) y retira la superficie mutante genérica restante. La coordinación World/Map está
@@ -26,7 +26,7 @@ no ordena volver a ejecutar entregas ya integradas. La retirada del escritor
 legado de criaturas y las fases de mapa no representadas siguen en #584.
 
 La base revisada de la entrega anterior fue `3.4.3` en
-`db1250767090a5c951dae96ad6c2a2d5b24873ff`; la base vigente es la cabeza de PR #839
+`db1250767090a5c951dae96ad6c2a2d5b24873ff`; la base vigente es la cabeza de PR #851
 indicada arriba. #133 se cerró el 2026-09-09. Las
 entregas #578, #585, #587, #588, #589, #716, #718, #722 y #737 están integradas y
 cerradas dentro de sus alcances acotados. No se debe esperar otro cierre de #133 ni
@@ -66,7 +66,11 @@ integrada por PR #816: el estado resuelto se aplica mediante una operación nomi
 del runtime propiedad del Player y se retiró el cierre `&mut` de Session. La siguiente
 macro incorporada por la auditoría es el cierre nominal de Void Storage descrito en
 §4.4; no mezcla estadísticas efectivas ni auras
-de #61. Después siguen los residuales P2/P3/P4 por consumidores, el producto #583 y
+de #61. La proyección F1 de #61 quedó integrada por PR #851: `Player` posee ahora
+un snapshot runtime de estadísticas efectivas y `handlers/character/stats.rs` concentra
+la derivación de equipo; la issue sigue abierta para consumidores de combate y la
+aceptación reversible/captura/QA descrita en `PORT_PLAN.md`. Después siguen los
+residuales P2/P3/P4 por consumidores, el producto #583 y
 la auditoría #153. Las
 excepciones físicas son individuales y se justifican con la política vigente; no se
 crea una issue por fichero, helper o import.
