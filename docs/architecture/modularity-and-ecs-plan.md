@@ -11,13 +11,13 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current integration head is `d934451a0222edc22494d3e92ee0eded2a05c8b0` (PR #826).
+The current integration head is `276e39810e03c5257ab630aedb1cfb80409b8d6c` (PR #828).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
-mutations. #524's relation-query order correction is integrated by PR #803; PR #822/#824/#826 now
+mutations. #524's relation-query order correction is integrated by PR #803; PR #822/#824/#826/#828 now
 installs the bounded table-granular `SkillLineAbility` → `SkillLineXTraitTree` →
 `SkillRaceClassInfo` WDC4/SQL startup sequence, including official/custom
-`SkillLineXTraitTree` hotfix overlays, and PR #810 installs the immutable
+`SkillLineXTraitTree` hotfix overlays plus table-hash-scoped final removals, and PR #810 installs the immutable
 `SkillLineXTraitTree` profession projection through the production session capability
 boundary. Complete `TraitMgr` authority remains a separate functional residual. Neither issue
 changes the #584 → #583 → #153 architecture gate.
