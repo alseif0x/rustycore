@@ -1,5 +1,7 @@
 # Session convergence checkpoint — updated 2026-09-13
 
+**Integrated head after PR #844:** `6f42782fedb1eb77d7896fd139c195fbfbb9c43b`.
+
 **Closed predecessor, 2026-09-07:** PR #579 merged into `3.4.3` as `59f5bced`;
 #578 is closed. The user explicitly accepted integration with action-specific
 live QA deferred, not passed. #585 now owns the represented finalization delivery
@@ -40,6 +42,19 @@ the release profile completed the workspace checks and the `wow-entities`/`wow-w
 library suites with 3875 passing tests, one ignored and zero failures. The delivery
 is integrated but does not close #584 or claim TraitMgr gameplay, Creature
 writer migration, live client QA or DB/relogin durability.
+
+## P2 Void Storage owner closure — integrated PR #844, 2026-09-13
+
+PR #844 (`6f42782f`, implementation `77e2c4b2`) moves the fixed 160-slot
+`Player::_voidStorageItems` representation and its clear/load/mark, lookup,
+free-slot, add, delete and swap transitions onto the canonical `Player`. The C++
+anchors are `Player.cpp:18334`, `20002` and `28025-28098`. Session retains item
+template admission, persistence ordering, appearance application and packet
+encoding; detached mirrors are test-only fixtures.
+
+The owner invariant tests, all 29 Void Storage world tests, one-job test
+compilation and architecture checks pass. This is a structural P2 slice: it does
+not claim durable DB/restart/relogin evidence, live QA or closure of #584.
 
 ## P3.8 delivered — map object lifecycle visibility intents — 2026-09-13
 

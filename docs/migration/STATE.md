@@ -1,14 +1,24 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-13:** `3.4.3` is at
-`995cd77fb48566b972741520986bc41d106470ea` (PR #842, following PR #839). The entries below preserve
+`6f42782fedb1eb77d7896fd139c195fbfbb9c43b` (PR #844, following PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
-**Latest bounded architecture delivery — 2026-09-13, PR #839, merge
+**Latest bounded architecture delivery — 2026-09-13, PR #844, merge
+`6f42782fedb1eb77d7896fd139c195fbfbb9c43b` (implementation `77e2c4b2`):** the
+fixed `Player::_voidStorageItems` state and its clear/load/mark/free-slot/lookup/
+add/delete/swap transitions now have one canonical owner in `wow-entities::Player`.
+Session keeps item-template admission, persistence orchestration, packet encoding and
+detached test fixtures. The C++ anchors are `Player.cpp:18334`, `20002` and
+`28025-28098`; no second production authority, lock or clock was added. The focused
+owner invariants and all 29 existing Void Storage world tests pass. This slice does
+not claim durable DB/restart/relogin evidence or close #584.
+
+**Previous bounded architecture delivery — 2026-09-13, PR #839, merge
 `cc0559980a4232ab5743affaaa2babfedffdfcf3` (implementation `ecc67603`):** a fresh
 audit of the integrated head selected and delivered the remaining P2 item-modifier
 owner closure. The previous generic
