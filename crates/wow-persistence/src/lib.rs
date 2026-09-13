@@ -184,6 +184,7 @@ pub use hotfix::{
     SkillLineXTraitTreeHotfixRowsLikeCpp, SkillRaceClassInfoHotfixRowLikeCpp,
     SkillRaceClassInfoHotfixRowsLikeCpp, TraitCatalogHotfixRowLikeCpp,
     TraitCatalogHotfixRowsLikeCpp, TraitCatalogHotfixTableLikeCpp, TraitCatalogHotfixValueLikeCpp,
+    TraitCatalogLocaleHotfixRowLikeCpp, TraitCatalogLocaleHotfixRowsLikeCpp,
 };
 pub use hotfix_delivery_metadata::{
     HotfixBlobPersistenceRowLikeCpp, HotfixDataPersistenceRowLikeCpp,

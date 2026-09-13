@@ -200,9 +200,8 @@ pub struct TraitTreeLoadoutEntryEntry {
     pub order_index: i32,
 }
 
-/// Immutable selection from `TraitTreeLoadoutEntry.db2`, retained in the
-/// process-owned TraitMgr projection.  The runtime does not expose DB2 rows
-/// directly to Player state.
+/// Immutable selection from `TraitTreeLoadoutEntry.db2`, retained in the process-owned
+/// TraitMgr projection. The runtime does not expose DB2 rows directly to Player state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TraitTreeLoadoutSelectionLikeCpp {
     pub trait_tree_id: u32,
@@ -304,18 +303,25 @@ db2_store!(TraitTreeXTraitCurrencyStore, TraitTreeXTraitCurrencyEntry);
 
 #[path = "trait_tree_hotfix.rs"]
 mod trait_tree_hotfix;
+#[path = "trait_tree_locale.rs"]
+mod trait_tree_locale;
 #[path = "trait_tree_semantics.rs"]
 mod trait_tree_semantics;
 pub use trait_tree_hotfix::{
-    TraitCatalogOverlayRowLikeCpp, TraitCatalogOverlayTableLikeCpp, TraitCatalogOverlayValueLikeCpp,
+    TraitCatalogLocaleOverlayRowLikeCpp, TraitCatalogOverlayRowLikeCpp,
+    TraitCatalogOverlayTableLikeCpp, TraitCatalogOverlayValueLikeCpp,
+    compose_trait_currency_source_locale_like_cpp, compose_trait_definition_locale_like_cpp,
+};
+pub use trait_tree_locale::{
+    TraitCurrencySourceLocaleEntry, TraitCurrencySourceLocaleStore, TraitDefinitionLocaleEntry,
+    TraitDefinitionLocaleStore,
 };
 pub use trait_tree_semantics::{
     TraitConfigEntryLikeCpp, TraitConfigValidationResultLikeCpp, TraitPlayerFactsLikeCpp,
 };
 
-/// The startup projection built by C++ `TraitMgr::Load` from
-/// `SkillLineXTraitTree`. It deliberately stores only validated immutable IDs;
-/// trait rules, costs and conditions remain owned by their respective stores.
+/// The startup projection built by C++ `TraitMgr::Load` from `SkillLineXTraitTree`.
+/// It deliberately stores only validated immutable IDs; trait rules, costs and conditions remain owned by their respective stores.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct TraitTreeSkillLineIndexLikeCpp {
     trees_by_skill_line: BTreeMap<u32, Vec<u32>>,
@@ -436,10 +442,8 @@ impl TraitTreeSkillLineIndexLikeCpp {
         }
     }
 
-    /// Extend the skill-line projection with the immutable graph assembled by
-    /// C++ `TraitMgr::Load`.  Relation rows are accepted only when both sides
-    /// resolve in the effective stores; this preserves C++'s fail-closed
-    /// lookup behaviour while giving production consumers one canonical index.
+    /// Extend the skill-line projection with the immutable graph assembled by C++ `TraitMgr::Load`.
+    /// Relation rows are accepted only when both sides resolve in the effective stores; this preserves C++'s fail-closed lookup behaviour while giving production consumers one canonical index.
     #[allow(clippy::too_many_arguments)]
     pub fn with_trait_graph_like_cpp(
         mut self,

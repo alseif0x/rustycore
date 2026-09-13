@@ -13,11 +13,13 @@ use crate::Db2HotfixRemovalStoreLikeCpp;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TraitCatalogOverlayTableLikeCpp {
     SpecSetMember,
+    TraitCurrencySourceLocale,
     TraitCond,
     TraitCost,
     TraitCurrency,
     TraitCurrencySource,
     TraitDefinition,
+    TraitDefinitionLocale,
     TraitDefinitionEffectPoints,
     TraitEdge,
     TraitNode,
@@ -52,6 +54,21 @@ pub struct TraitCatalogOverlayRowLikeCpp {
     pub values: Vec<TraitCatalogOverlayValueLikeCpp>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct TraitCatalogLocaleOverlayRowLikeCpp {
+    pub table: TraitCatalogOverlayTableLikeCpp,
+    pub locale: String,
+    pub values: Vec<TraitCatalogOverlayValueLikeCpp>,
+}
+
+impl TraitCatalogLocaleOverlayRowLikeCpp {
+    fn value(&self, index: usize) -> Result<&TraitCatalogOverlayValueLikeCpp> {
+        self.values
+            .get(index)
+            .with_context(|| format!("missing Trait locale SQL column {index}"))
+    }
+}
+
 impl TraitCatalogOverlayRowLikeCpp {
     fn value(&self, index: usize) -> Result<&TraitCatalogOverlayValueLikeCpp> {
         self.values
@@ -84,6 +101,29 @@ fn text(row: &TraitCatalogOverlayRowLikeCpp, index: usize) -> Result<String> {
     }
 }
 
+fn locale_text(row: &TraitCatalogLocaleOverlayRowLikeCpp, index: usize) -> Result<String> {
+    match row.value(index)? {
+        TraitCatalogOverlayValueLikeCpp::Text(value) => Ok(value.clone()),
+        TraitCatalogOverlayValueLikeCpp::Null => Ok(String::new()),
+        other => bail!("Trait locale SQL column {index} is not text: {other:?}"),
+    }
+}
+
+fn locale_u32(row: &TraitCatalogLocaleOverlayRowLikeCpp, index: usize) -> Result<u32> {
+    match row.value(index)? {
+        TraitCatalogOverlayValueLikeCpp::Integer(value) => u32::try_from(*value)
+            .with_context(|| format!("Trait locale SQL column {index} is not u32")),
+        TraitCatalogOverlayValueLikeCpp::Real(value) => {
+            if *value >= 0.0 && *value <= u32::MAX as f64 && value.fract() == 0.0 {
+                Ok(*value as u32)
+            } else {
+                bail!("Trait locale SQL column {index} is not u32")
+            }
+        }
+        other => bail!("Trait locale SQL column {index} is not integer: {other:?}"),
+    }
+}
+
 fn u32_value(row: &TraitCatalogOverlayRowLikeCpp, index: usize) -> Result<u32> {
     u32::try_from(integer(row, index)?)
         .with_context(|| format!("Trait catalog column {index} is not u32"))
@@ -97,6 +137,71 @@ fn i32_value(row: &TraitCatalogOverlayRowLikeCpp, index: usize) -> Result<i32> {
 fn u8_value(row: &TraitCatalogOverlayRowLikeCpp, index: usize) -> Result<u8> {
     u8::try_from(integer(row, index)?)
         .with_context(|| format!("Trait catalog column {index} is not u8"))
+}
+
+/// Compose the effective localized `TraitDefinition` projection. C++ loads
+/// locale rows after the base store and ignores rows that have no effective
+/// base entry; official rows are applied before custom rows so custom data wins.
+pub fn compose_trait_definition_locale_like_cpp(
+    base: &super::TraitDefinitionStore,
+    locale: &str,
+    official: impl IntoIterator<Item = TraitCatalogLocaleOverlayRowLikeCpp>,
+    custom: impl IntoIterator<Item = TraitCatalogLocaleOverlayRowLikeCpp>,
+) -> Result<super::TraitDefinitionLocaleStore> {
+    let mut entries = HashMap::new();
+    for row in official.into_iter().chain(custom) {
+        if row.table != TraitCatalogOverlayTableLikeCpp::TraitDefinitionLocale
+            || row.locale != locale
+        {
+            continue;
+        }
+        let id = locale_u32(&row, 0)?;
+        if base.get(id).is_none() {
+            continue;
+        }
+        entries.insert(
+            id,
+            super::TraitDefinitionLocaleEntry {
+                id,
+                override_name: locale_text(&row, 1)?,
+                override_subtext: locale_text(&row, 2)?,
+                override_description: locale_text(&row, 3)?,
+            },
+        );
+    }
+    Ok(super::TraitDefinitionLocaleStore::from_entries_like_cpp(
+        locale,
+        entries.into_values(),
+    ))
+}
+
+/// Compose the effective localized `TraitCurrencySource` requirement strings.
+pub fn compose_trait_currency_source_locale_like_cpp(
+    base: &super::TraitCurrencySourceStore,
+    locale: &str,
+    official: impl IntoIterator<Item = TraitCatalogLocaleOverlayRowLikeCpp>,
+    custom: impl IntoIterator<Item = TraitCatalogLocaleOverlayRowLikeCpp>,
+) -> Result<super::TraitCurrencySourceLocaleStore> {
+    let mut entries = HashMap::new();
+    for row in official.into_iter().chain(custom) {
+        if row.table != TraitCatalogOverlayTableLikeCpp::TraitCurrencySourceLocale
+            || row.locale != locale
+        {
+            continue;
+        }
+        let id = locale_u32(&row, 0)?;
+        if base.get(id).is_none() {
+            continue;
+        }
+        entries.insert(
+            id,
+            super::TraitCurrencySourceLocaleEntry {
+                id,
+                requirement: locale_text(&row, 1)?,
+            },
+        );
+    }
+    Ok(super::TraitCurrencySourceLocaleStore::from_entries_like_cpp(locale, entries.into_values()))
 }
 
 fn compose_store<T>(
@@ -617,5 +722,95 @@ mod tests {
                 .to_string()
                 .contains("missing Trait catalog SQL column")
         );
+    }
+
+    #[test]
+    fn locale_rows_use_custom_precedence_and_ignore_unknown_base_ids() {
+        let base_definition = super::super::TraitDefinitionStore::from_entries([
+            super::super::TraitDefinitionEntry {
+                id: 7,
+                override_name: "base".into(),
+                override_subtext: "base subtext".into(),
+                override_description: "base description".into(),
+                spell_id: 0,
+                override_icon: 0,
+                overrides_spell_id: 0,
+                visible_spell_id: 0,
+            },
+        ]);
+        let official = TraitCatalogLocaleOverlayRowLikeCpp {
+            table: TraitCatalogOverlayTableLikeCpp::TraitDefinitionLocale,
+            locale: "esES".into(),
+            values: vec![
+                integer(7),
+                TraitCatalogOverlayValueLikeCpp::Text("oficial".into()),
+                TraitCatalogOverlayValueLikeCpp::Text("sub".into()),
+                TraitCatalogOverlayValueLikeCpp::Text("desc".into()),
+            ],
+        };
+        let custom = TraitCatalogLocaleOverlayRowLikeCpp {
+            table: TraitCatalogOverlayTableLikeCpp::TraitDefinitionLocale,
+            locale: "esES".into(),
+            values: vec![
+                integer(7),
+                TraitCatalogOverlayValueLikeCpp::Text("custom".into()),
+                TraitCatalogOverlayValueLikeCpp::Null,
+                TraitCatalogOverlayValueLikeCpp::Text("custom desc".into()),
+            ],
+        };
+        let unknown = TraitCatalogLocaleOverlayRowLikeCpp {
+            table: TraitCatalogOverlayTableLikeCpp::TraitDefinitionLocale,
+            locale: "esES".into(),
+            values: vec![
+                integer(999),
+                TraitCatalogOverlayValueLikeCpp::Text("ignored".into()),
+                TraitCatalogOverlayValueLikeCpp::Text("ignored".into()),
+                TraitCatalogOverlayValueLikeCpp::Text("ignored".into()),
+            ],
+        };
+        let effective = compose_trait_definition_locale_like_cpp(
+            &base_definition,
+            "esES",
+            [official],
+            [custom, unknown],
+        )
+        .expect("valid locale rows compose");
+        assert_eq!(effective.locale_like_cpp(), "esES");
+        assert_eq!(effective.len(), 1);
+        let entry = effective.get(7).expect("base definition is localized");
+        assert_eq!(entry.override_name, "custom");
+        assert_eq!(entry.override_subtext, "");
+        assert_eq!(entry.override_description, "custom desc");
+        assert!(effective.get(999).is_none());
+    }
+
+    #[test]
+    fn locale_composition_rejects_non_text_projection_before_publish() {
+        let base_currency_source = super::super::TraitCurrencySourceStore::from_entries([
+            super::super::TraitCurrencySourceEntry {
+                id: 3,
+                requirement: "base".into(),
+                trait_currency_id: 0,
+                amount: 0,
+                quest_id: 0,
+                achievement_id: 0,
+                player_level: 0,
+                trait_node_entry_id: 0,
+                order_index: 0,
+            },
+        ]);
+        let malformed = TraitCatalogLocaleOverlayRowLikeCpp {
+            table: TraitCatalogOverlayTableLikeCpp::TraitCurrencySourceLocale,
+            locale: "frFR".into(),
+            values: vec![integer(3), integer(42)],
+        };
+        let error = compose_trait_currency_source_locale_like_cpp(
+            &base_currency_source,
+            "frFR",
+            [malformed],
+            [],
+        )
+        .expect_err("localized requirement must be text or NULL");
+        assert!(error.to_string().contains("is not text"));
     }
 }

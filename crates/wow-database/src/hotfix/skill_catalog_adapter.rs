@@ -10,7 +10,8 @@ use wow_persistence::{
     SkillLineXTraitTreeHotfixRowLikeCpp, SkillLineXTraitTreeHotfixRowsLikeCpp,
     SkillRaceClassInfoHotfixRowLikeCpp, SkillRaceClassInfoHotfixRowsLikeCpp,
     TraitCatalogHotfixRowLikeCpp, TraitCatalogHotfixRowsLikeCpp, TraitCatalogHotfixTableLikeCpp,
-    TraitCatalogHotfixValueLikeCpp,
+    TraitCatalogHotfixValueLikeCpp, TraitCatalogLocaleHotfixRowLikeCpp,
+    TraitCatalogLocaleHotfixRowsLikeCpp,
 };
 
 use crate::{HotfixDatabase, HotfixStatements, SqlResult};
@@ -140,6 +141,23 @@ const TRAIT_CATALOG_TABLES_LIKE_CPP: &[(
     (
         TraitCatalogHotfixTableLikeCpp::TraitTreeXTraitCurrency,
         HotfixStatements::SEL_TRAIT_TREE_X_TRAIT_CURRENCY,
+        4,
+    ),
+];
+
+const TRAIT_CATALOG_LOCALE_TABLES_LIKE_CPP: &[(
+    TraitCatalogHotfixTableLikeCpp,
+    HotfixStatements,
+    usize,
+)] = &[
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitCurrencySourceLocale,
+        HotfixStatements::SEL_TRAIT_CURRENCY_SOURCE_LOCALE,
+        2,
+    ),
+    (
+        TraitCatalogHotfixTableLikeCpp::TraitDefinitionLocale,
+        HotfixStatements::SEL_TRAIT_DEFINITION_LOCALE,
         4,
     ),
 ];
@@ -324,6 +342,64 @@ impl SkillCatalogHotfixPersistencePortLikeCpp
                 }
                 let [official, custom] = batches;
                 Ok::<_, anyhow::Error>(TraitCatalogHotfixRowsLikeCpp { official, custom })
+            }
+            .await;
+            match loaded {
+                Ok(rows) => SkillCatalogHotfixLoadOutcomeLikeCpp::Loaded(rows),
+                Err(error) => SkillCatalogHotfixLoadOutcomeLikeCpp::Failed {
+                    reason: error.to_string(),
+                },
+            }
+        })
+    }
+
+    fn load_trait_catalog_locale_hotfix_rows_like_cpp(
+        &self,
+        locale: &str,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SkillCatalogHotfixLoadOutcomeLikeCpp<TraitCatalogLocaleHotfixRowsLikeCpp>,
+    > {
+        let locale = locale.to_owned();
+        Box::pin(async move {
+            let loaded = async {
+                let mut batches = [Vec::new(), Vec::new()];
+                for (table, statement_kind, expected_columns) in
+                    TRAIT_CATALOG_LOCALE_TABLES_LIKE_CPP
+                {
+                    for (batch_index, official) in
+                        OFFICIAL_THEN_CUSTOM_LIKE_CPP.into_iter().enumerate()
+                    {
+                        let mut statement = self.hotfix_db.prepare(*statement_kind);
+                        statement.set_bool(0, official);
+                        statement.set_string(1, &locale);
+                        let mut rows = self.hotfix_db.query(&statement).await?;
+                        if rows.is_empty() {
+                            continue;
+                        }
+                        loop {
+                            if rows.field_count() != *expected_columns {
+                                bail!(
+                                    "Trait locale statement for {table:?} returned {} columns, expected {expected_columns}",
+                                    rows.field_count()
+                                );
+                            }
+                            let values = (0..*expected_columns)
+                                .map(|column| trait_catalog_value_like_cpp(&rows, column))
+                                .collect::<Result<Vec<_>>>()?;
+                            batches[batch_index].push(TraitCatalogLocaleHotfixRowLikeCpp {
+                                table: *table,
+                                locale: locale.clone(),
+                                values,
+                            });
+                            if !rows.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                }
+                let [official, custom] = batches;
+                Ok::<_, anyhow::Error>(TraitCatalogLocaleHotfixRowsLikeCpp { official, custom })
             }
             .await;
             match loaded {

@@ -144,6 +144,13 @@ pub(super) struct SessionPlayerCatalogCapabilitiesLikeCpp {
     pub(super) gem_properties_store: Arc<wow_data::GemPropertiesStore>,
     pub(super) skill_store: Arc<wow_data::SkillStore>,
     pub(super) trait_definition_store: Arc<wow_data::trait_tree::TraitDefinitionStore>,
+    /// Locale projections are composed at startup and retained with the
+    /// Player catalog capabilities until a packet/runtime consumer is wired.
+    /// Keeping them here prevents a second SQL reader or a detached store from
+    /// becoming the effective localization authority.
+    pub(super) trait_definition_locale_store: Arc<wow_data::trait_tree::TraitDefinitionLocaleStore>,
+    pub(super) trait_currency_source_locale_store:
+        Arc<wow_data::trait_tree::TraitCurrencySourceLocaleStore>,
     pub(super) trait_tree_skill_line_index:
         Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>,
     pub(super) skill_line_store: Arc<wow_data::SkillLineStore>,

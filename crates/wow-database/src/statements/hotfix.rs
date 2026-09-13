@@ -151,8 +151,16 @@ impl HotfixStatements {
     pub const SEL_TRAIT_CURRENCY_SOURCE: Self = Self::GENERATED_BASE {
         sql: "SELECT Requirement, ID, TraitCurrencyID, Amount, QuestID, AchievementID, PlayerLevel, TraitNodeEntryID, OrderIndex FROM trait_currency_source WHERE (`VerifiedBuild` > 0) = ?",
     };
+    pub const SEL_TRAIT_CURRENCY_SOURCE_LOCALE: Self = Self::GENERATED_LOCALE {
+        table: "trait_currency_source",
+        columns: "Requirement_lang",
+    };
     pub const SEL_TRAIT_DEFINITION: Self = Self::GENERATED_BASE {
         sql: "SELECT OverrideName, OverrideSubtext, OverrideDescription, ID, SpellID, OverrideIcon, OverridesSpellID, VisibleSpellID FROM trait_definition WHERE (`VerifiedBuild` > 0) = ?",
+    };
+    pub const SEL_TRAIT_DEFINITION_LOCALE: Self = Self::GENERATED_LOCALE {
+        table: "trait_definition",
+        columns: "OverrideName_lang, OverrideSubtext_lang, OverrideDescription_lang",
     };
     pub const SEL_TRAIT_DEFINITION_EFFECT_POINTS: Self = Self::GENERATED_BASE {
         sql: "SELECT ID, TraitDefinitionID, EffectIndex, OperationType, CurveID FROM trait_definition_effect_points WHERE (`VerifiedBuild` > 0) = ?",
@@ -606,6 +614,14 @@ mod tests {
         assert_eq!(
             HotfixStatements::SEL_TRAIT_TREE_X_TRAIT_CURRENCY.sql(),
             "SELECT ID, `Index`, TraitTreeID, TraitCurrencyID FROM trait_tree_x_trait_currency WHERE (`VerifiedBuild` > 0) = ?"
+        );
+        assert_eq!(
+            HotfixStatements::SEL_TRAIT_CURRENCY_SOURCE_LOCALE.sql(),
+            "SELECT ID, Requirement_lang FROM trait_currency_source_locale WHERE (`VerifiedBuild` > 0) = ? AND locale = ?"
+        );
+        assert_eq!(
+            HotfixStatements::SEL_TRAIT_DEFINITION_LOCALE.sql(),
+            "SELECT ID, OverrideName_lang, OverrideSubtext_lang, OverrideDescription_lang FROM trait_definition_locale WHERE (`VerifiedBuild` > 0) = ? AND locale = ?"
         );
     }
 
