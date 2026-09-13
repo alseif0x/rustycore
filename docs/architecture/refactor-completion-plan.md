@@ -52,8 +52,11 @@ declined names y las mutaciones de undelete/barber aún no representadas. La ace
 de bytes/captura y la QA viva siguen siendo gates de la issue; la integración remota ya
 está satisfecha.
 
-La próxima macro de núcleo se seleccionará bajo #584 después de auditar el escritor
-legado de criaturas y las fases de `Map::Update` aún no representadas. Después siguen
+La siguiente macro de núcleo bajo #584 es **P3.7, fanout de visibilidad de
+`CreatureRelocationNotifier`**. La entrega conecta los planes de relocalización de
+criaturas ya calculados con la única vía de publicación de sesiones, reutiliza las
+fuentes lejanas de `ObjectUpdater` y aplica el radio de activación por fuente. Después
+siguen
 los residuales P2/P3/P4 por consumidores, el producto #583 y la auditoría #153. Las
 excepciones físicas son individuales y se justifican con la política vigente; no se
 crea una issue por fichero, helper o import.
@@ -120,7 +123,7 @@ de microissues:
 | P0 | Herramientas de ownership, imports, bridges y ratchet físico | #716 integrado y cerrado; su evidencia es histórica y no se repite aquí |
 | P1 | Recompensa de misión y contrato durable | #718 integrado y cerrado; no hay evidencia real de DB/restart/relogin |
 | P2 | Fronteras de Player y operaciones completas | #743 y #735 entregados; continúan los residuales por consumidores |
-| P3 | Fases, runtime, lifetime, residencia/incarnation y storage selectivo | #787 entregado; P3.1 retiró el escritor Creature canónico descartado, P3.2 publicó `SendObjectUpdates`, P3.3 corrigió el orden de respawn/condiciones antes de los visitantes, P3.4 conectó la selección cercana de `ObjectUpdater` con producción, P3.5 corrigió el radio de activación por fuente y P3.6 añadió el override de cinemática del Player (integración `6157a091`); el escritor legado y otras fases siguen pendientes bajo #584 |
+| P3 | Fases, runtime, lifetime, residencia/incarnation y storage selectivo | #787 entregado; P3.1 retiró el escritor Creature canónico descartado, P3.2 publicó `SendObjectUpdates`, P3.3 corrigió el orden de respawn/condiciones antes de los visitantes, P3.4 conectó la selección cercana de `ObjectUpdater` con producción, P3.5 corrigió el radio de activación por fuente, P3.6 añadió el override de cinemática del Player y P3.7 publica el fanout de visibilidad de relocalización de Creature (entrega `a130d9da`); el escritor legado, AI/combat, scripts y FlyByCamera siguen pendientes bajo #584 |
 | P4 | Organización física, excepciones y límites semánticos | #584, acompañado por cada operación; la medición de 31 paths permanece histórica |
 | P5 | Producto de módulos M0–M4, nativo/Wasm y Rust/Wasm/C | #583, tras los requisitos core de #584; no bloquea gameplay independiente |
 | P6 | Auditoría terminal y evidencia integrada | #153, después de #584 y #583; no absorbe implementación |
@@ -828,10 +831,13 @@ Las diferencias que quedan, y que son el trabajo P3 real:
    P3.5 ya aplica la distancia de activación específica de Creature/Pet para fuentes
    inactivas mediante `m_SightDistance`, y P3.6 aplica el override de cinemática del
    Player mediante `max(DEFAULT_VISIBILITY_INSTANCE, Map::GetVisibilityRange())` cuando
-   el cursor de cámara representado está activo. La consulta de FlyByCamera, scripts,
-   fanout real y notificaciones de relocalización siguen teniendo huecos propios. El siguiente
-   corte debe salir de esos límites medidos, no crear un crate o una issue por cada
-   familia.
+   el cursor de cámara representado está activo. **P3.7** consume
+   `CreatureRelocationVisibilityPlan.player_visibility_updates` en
+   `retain_selected_player_visibility_refreshes_like_cpp`, coalesce un único intent por
+   Player y lo entrega por la vía existente de residencia/incarnation y sesión diferida.
+   La consulta de FlyByCamera, scripts, AI/combat y la publicación de CREATE/DESTROY
+   dirigida por objeto siguen teniendo contratos propios; no se introducen en esta
+   macro.
 
 #### Selección P3.1 bajo #584 — retirada del escritor sombra de Creature
 
@@ -870,6 +876,41 @@ sus tests. No retira todavía el escritor legacy, no migra IA/combat, no cambia 
 orden de paquetes ni declara representadas las visitas por celda. La siguiente
 macro solo se abre después de que esta retirada esté integrada y se audite el
 consumidor que permita trasladar una transición completa al mapa canónico.
+
+#### Entrega P3.7 bajo #584 — fanout de visibilidad de Creature
+
+La auditoría comparó `Map.cpp:666-767,797-805,830-905`,
+`GridNotifiers.cpp:137-234` y `WorldObject::GetGridActivationRange`
+(`Object.cpp:1433-1450`) con el camino Rust actual. El plan de relocalización ya
+calculaba `CreatureRelocationVisibilityPlan.player_visibility_updates`, pero el
+owner de Player solo consumía `player_plans`; una Creature reubicada podía por tanto
+no provocar ninguna actualización para los Players que la observan.
+
+La entrega `a130d9da` hace tres cambios acotados:
+
+1. `Map::map_update_player_sources_for_current_tick_like_cpp` es la única construcción
+   de fuentes de Player para `ObjectUpdater` y `ProcessRelocationNotifies`. Incluye
+   viewpoint, combate PvE lejano, casters de aura, summons y referencias activas; la
+   visita usa `grid_activation_range_for_guid_like_cpp` para cada centro.
+2. `MapManager::retain_selected_player_visibility_refreshes_like_cpp` transforma los
+   Players afectados por cada plan de Creature en intents de publicación, junto con los
+   planes de Player ya existentes, y ordena/deduplica por GUID antes de crear la única
+   obligación coalescida del owner.
+3. La entrega sigue fuera del cerrojo de Map por
+   `world-server/src/runtime/map/update_loop.rs:338-342`,
+   `runtime/deferred_visibility.rs` y `WorldSession::apply_deferred_player_visibility...`;
+   se conservan residence revision, incarnation, viewpoint, backpressure y descarte
+   de sesiones obsoletas. No se ejecutan AI relocation checks ni se inventa un ledger
+   de GUIDs de cliente en Map.
+
+La aceptación local cubre dos criaturas que afectan al mismo Player y producen un solo
+intent (`manager::player_owner::visibility::creature_relocation_exports_one_coalesced_refresh_for_each_affected_player`),
+la reutilización de fuentes lejanas y radio por fuente
+(`map::tests::visibility::relocation_reuses_object_updater_far_player_sources_like_cpp`),
+las regresiones de planes/notifiers existentes y los caminos de incarnation, detach,
+queue y desconexión del owner de visibilidad. El cambio no afirma todavía la entrega
+de paquetes CREATE/DESTROY por criatura individual ni la paridad live de cliente,
+captura, DB/reinicio/relogin o AI/combat.
 
 Qué conservar en cualquier corte P3: residencia/incarnation del Player canónico,
 backpressure y cancelación de la tarea de sesión, transferencia entre mapas, descarga
