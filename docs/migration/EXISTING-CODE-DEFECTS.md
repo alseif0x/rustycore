@@ -592,18 +592,21 @@ bulk-closed, retested or reclassified as parity-proven by this planning review.
   correct (hotfix column `15`), as are `MountFlags` `16` and `Flags1` `21`.
   C++ `DB2Metadata.h::AreaTableMeta` / `DB2LoadInfo.h::AreaTableLoadInfo`;
   Rust `wow-data/src/area.rs::AreaTableStore::load`.
-- [ ] **D-M14 Effective skill relation stores use source-interleaved startup
+- [x] **D-M14 Effective skill relation stores used source-interleaved startup
   order instead of C++ table-granular order.** Rust loads both
   `SkillLineAbility` and `SkillRaceClassInfo` WDC4 bases, then queries ability
   official, race-class official, ability custom, race-class custom. C++
   `DB2Manager::LoadStores` completes each `LOAD_DB2` independently, and
   `DB2StorageBase::LoadFromDB` loads official then custom before advancing to
   the next table. The persistence refactor #523 intentionally preserves this
-  observable pre-existing query/failure order; #524 owns the separate fidelity
-  correction and its order/failure tests. C++ `DB2Stores.cpp:848-850`,
-  `DB2Store.cpp:127-133`, `DB2DatabaseLoader.cpp:28-33`; Rust
-  `wow-data/src/skill.rs::SkillStore::load_wdc4_base_like_cpp` and
-  `wow-database/src/skill_catalog_hotfix_adapter.rs`.
+  observable pre-existing query/failure order. The bounded correction in #524
+  (`020163dc`) now completes official/custom `SkillLineAbility` before querying
+  official/custom `SkillRaceClassInfo`, preserving the same failure boundary.
+  C++ `DB2Stores.cpp:848-850`, `DB2Store.cpp:127-133`,
+  `DB2DatabaseLoader.cpp:28-33`; Rust
+  `wow-database/src/hotfix/skill_catalog_adapter.rs::load_skill_relation_hotfix_rows_like_cpp`.
+  The wider #524 family remains open because Rust does not yet load and consume
+  `SkillLineXTraitTree` through a `TraitMgr`-equivalent production authority.
 
 ## LOW — non-issues in practice / cosmetic (recorded for completeness)
 
