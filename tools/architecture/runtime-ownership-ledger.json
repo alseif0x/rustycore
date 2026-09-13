@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "baseline_commit": "cc0559980a4232ab5743affaaa2babfedffdfcf3",
+  "baseline_commit": "995cd77fb48566b972741520986bc41d106470ea",
   "curated_at": "2026-09-13",
   "purpose": "#579 squash merge 59f5bced integrates the closed #578 foundations. It replaces the pre-squash 74daf3f9 ancestor anchor; historical measurements retain their original provenance below. #585 updates only the represented finalization field family and affected logical ceilings, with reviewed syntax and physical deltas in session-finalization-585.md. Remaining ownership/retirement work belongs to coordination epic #584 and its analyzed macrodeliverables; #153 remains terminal verification. No whole-core completion or fresh whole-port parity audit is claimed.",
   "authorities": {
@@ -1376,7 +1376,7 @@
         "command": "python3 tools/architecture/check_architecture.py hotspots --limit 20",
         "measurement": "Current physical report: each Rust file under crates/*/src/**/*.rs is counted separately and partitioned into production/test lines; generated-source provenance and the wider handwritten source/test/tooling inventory are not implemented by this report. Each checked-in row below is a logical owner ceiling including its reviewed private descendants; production/test/total remain independent non-growth ceilings",
         "physical_review_signals": "Approved policy: docs/architecture/module-design-guidelines.md. Usually 200-800 physical handwritten lines is a target, not a minimum; above 1,000 prompts ordinary cohesion review, not user approval; above 2,000 at responsibility/macro closeout requires a responsibility split or a file-specific exception with a reviewed ceiling and bounded exit/review checkpoint. Count handwritten production/tests/fixtures/tools without using attribution to bypass total file size; reproducibly generated sources are reported separately. These physical budgets are not enforced by the current logical ratchet: #584 C4 owns the incremental physical inventory/ceilings and fixtures for generated sources and tooling, preserving existing legacy ceilings until reviewed reductions",
-        "baseline_commit": "cc0559980a4232ab5743affaaa2babfedffdfcf3"
+        "baseline_commit": "995cd77fb48566b972741520986bc41d106470ea"
       },
       "entries": [
         {
