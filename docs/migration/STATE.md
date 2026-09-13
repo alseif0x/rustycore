@@ -105,10 +105,22 @@ transports retain their separate full loop. The selection is implemented in
 `world-server/src/runtime/map_tick.rs`; direct callers retain the whole-store seam.
 Focused positive/negative tests prove nearby inclusion, out-of-cell exclusion and
 split-tick consumption; architecture, formatting, `wow-map` tests and
-`world-server` composition checks pass. Creature/Pet source activation currently uses
-the map visibility range where C++ has per-Creature `m_SightDistance`; unsupported unit
-families remain fail-closed. Creature AI/combat, scripts, transport passengers,
-relocation fanout and live client/DB parity remain separate #584 boundaries.
+`world-server` composition checks pass. Creature/Pet source activation uses the
+canonical per-source `m_SightDistance` for inactive Creatures/Pets, while active
+objects and Players use the map visibility range, matching
+`WorldObject::GetGridActivationRange` (`Entities/Object/Object.cpp:1433-1450`).
+Unsupported or missing source records fail closed. Creature AI/combat, scripts,
+transport passengers, relocation fanout and live client/DB parity remain separate
+#584 boundaries.
+
+**P3.5 activation range — 2026-09-13, #584, implementation `7214fb68`:** the
+production nearby-cell selection now resolves each center's C++ activation radius
+from its canonical map record. Inactive Creatures/Pets use their existing
+`sight_distance` field; active objects and Players retain `Map::GetVisibilityRange`.
+The focused regression covers both branches, and the existing P3.4 nearby-selection
+regression remains green. This is a finite phase-fidelity correction; it does not
+claim the still-unmodeled Player cinematic activation override or any live client,
+capture, DB/restart/relogin or Creature AI/combat acceptance.
 
 **Group state application is locally accepted — 2026-09-11, #743, `9e6767bb`:**
 `GroupRegistry` stays the single authority and every state-bearing group command now

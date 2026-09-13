@@ -22,8 +22,10 @@ P3.2 delivered canonical `Map::SendObjectUpdates` publication, and P3.3 now move
 the legacy Creature owner. P3.3 is integrated and P3.4 is now implemented: the
 production map tick consumes one nearby-cell/source plan for the represented
 `ObjectUpdater` families instead of scanning whole typed stores. The legacy Creature
-writer and its complete effect consumer remain outside that structural cut; the next
-selection must come from the remaining measured P3 runtime boundary under #584.
+writer and its complete effect consumer remain outside that structural cut. P3.5 now
+uses each source's C++ activation radius, including Creature/Pet `m_SightDistance`
+for inactive sources; the next selection must come from the remaining measured P3
+runtime boundary under #584.
 No old issue is reopened and no residual is promoted to implementation merely from a
 textual inventory.
 
@@ -181,7 +183,7 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#524](https://github.com/alseif0x/rustycore/issues/524) | F1, skill startup order | Correct table-granular base/official/custom order and failure/publication phases across the current loader/port. |
 | [#582](https://github.com/alseif0x/rustycore/issues/582) | B, existing LFG decoders | **Closed/integrated as `21686375` (PR #797).** Six C++-faithful client decoders; no handler, queue or matchmaking claim. |
 | [#583](https://github.com/alseif0x/rustycore/issues/583) | X, stateful native/Wasm | Deliver the preserved M0–M4 product after required core; the external login API and laboratory are insufficient. |
-| [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions. P3.3 is integrated; P3.4 is the active finite macro: route the existing nearby-cell/source plan into production `ObjectUpdater` selection, with typed consumers, exact owner boundaries and legacy Creature effects explicit. |
+| [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions. P3.4 and P3.5 are integrated: route the nearby-cell/source plan into production `ObjectUpdater` selection and honor per-source activation radii, with typed consumers, exact owner boundaries and legacy Creature effects explicit. |
 | [#735](https://github.com/alseif0x/rustycore/issues/735) | A, reputation boundary | **Closed/delivered.** Player owns reputation state and named transitions; catalogs, packets and persistence consumers remain outside the domain boundary. |
 | [#743](https://github.com/alseif0x/rustycore/issues/743) | A, group consistency | **Closed/delivered.** GroupRegistry remains authoritative and dropped state-bearing commands converge through the session boundary. |
 | [#787](https://github.com/alseif0x/rustycore/issues/787) | A, session-phase coordination | **Integrated as `d14a9a67` (PR #792; accepted at `76369bda`).** World runs before Map, phase permits remain live through finalization/retirement, and shutdown/replacement barriers are covered by production-linked tests and guarded login/save/relogin QA. |
@@ -228,10 +230,11 @@ inherit work. P3.4 now carries canonical player/viewpoint, represented
 far-combat/aura/summon and active-non-player sources into one deduplicated nearby
 selection, invokes existing per-object consumers only for selected in-world objects,
 preserves the all-transport loop and C++ ordering, and keeps delivery outside map
-guards. Its accepted boundary uses map visibility range for source activation where
-the canonical Creature `m_SightDistance` field is not represented, and fails closed
-for unsupported unit families. The legacy Creature writer and its complete effect
-consumer remain a separate migration boundary.
+guards. P3.5 resolves `WorldObject::GetGridActivationRange` from the canonical source:
+Players and active objects use the map visibility range, inactive Creatures/Pets use
+their `m_SightDistance`, and unsupported or missing records fail closed. The Player
+cinematic activation override remains unmodeled. The legacy Creature writer and its
+complete effect consumer remain a separate migration boundary.
 
 Keep the selected private hecs direction and finite V2 conformance evidence.
 Integrate it only with real owners/consumers and the lifetime/reentry contract;
@@ -243,8 +246,9 @@ P3.3 preserves those owners while correcting respawn/condition phase order and t
 admitted-incarnation boundary. P3.4 is a delivered selection/phase correction, not
 Creature AI migration: it retires the map-wide typed-store scans in the production
 path, covers nearby inclusion and out-of-cell exclusion, and leaves a measurable
-retirement path for source-specific sight distance and remaining unrepresented C++
-sources. Define later migration contracts from traced consumers under #584, never as a
+retirement path for the remaining unrepresented C++ sources. P3.5 closes the
+source-specific Creature/Pet activation-radius mismatch without moving the AI owner.
+Define later migration contracts from traced consumers under #584, never as a
 speculative issue per bridge or crate.
 
 ### A4 — Physical and dependency closeout
