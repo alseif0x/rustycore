@@ -1625,13 +1625,13 @@ impl WorldSession {
                 Vec::new()
             }
         };
-        let profession_tree_authority_complete_like_cpp =
-            self.trait_authority_complete_like_cpp(&configs, node_entries, guid);
+        let normalized_configs = self.normalize_trait_configs_like_cpp(&configs);
+        let effective_configs = normalized_configs.as_deref().unwrap_or(&configs);
         let trait_query_authority_complete_like_cpp = entries_complete_like_cpp
             && configs_complete_like_cpp
-            && profession_tree_authority_complete_like_cpp
+            && self.trait_authority_complete_like_cpp(effective_configs, node_entries, guid)
             && self.complete_represented_trait_config_authority_load_like_cpp(
-                configs.iter().map(|config| {
+                effective_configs.iter().map(|config| {
                     (
                         config.id,
                         config.config_type,
@@ -1643,10 +1643,10 @@ impl WorldSession {
             );
 
         if trait_query_authority_complete_like_cpp {
-            let _ = self.retain_loaded_trait_configs_like_cpp(&configs);
+            let _ = self.retain_loaded_trait_configs_like_cpp(effective_configs);
             let exact_traits = self.trait_definition_store().map(|definitions| {
                 let mut exact = BTreeMap::<i32, i32>::new();
-                for entry in configs
+                for entry in effective_configs
                     .iter()
                     .flat_map(|config| config.entries.iter())
                     .filter(|entry| entry.rank > 0 || entry.granted_ranks > 0)
@@ -1694,14 +1694,14 @@ impl WorldSession {
 
         info!(
             player_guid = guid.counter(),
-            trait_configs = configs.len(),
-            trait_entries = configs
+            trait_configs = effective_configs.len(),
+            trait_entries = effective_configs
                 .iter()
                 .map(|config| config.entries.len())
                 .sum::<usize>(),
             "Loaded character trait configs like C++"
         );
-        configs
+        effective_configs.to_vec()
     }
 
     /// C++ `Player::SendInitialPacketsBeforeAddToMap` (Player.cpp:23479-23590): the init

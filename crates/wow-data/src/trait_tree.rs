@@ -1,6 +1,6 @@
 //! Trait tree DB2 readers.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::Path;
 
 use anyhow::{Context, Result};
@@ -286,10 +286,16 @@ db2_store!(TraitTreeLoadoutEntryStore, TraitTreeLoadoutEntryEntry);
 db2_store!(TraitTreeXTraitCostStore, TraitTreeXTraitCostEntry);
 db2_store!(TraitTreeXTraitCurrencyStore, TraitTreeXTraitCurrencyEntry);
 
+#[path = "trait_tree_semantics.rs"]
+mod trait_tree_semantics;
+pub use trait_tree_semantics::{
+    TraitConfigEntryLikeCpp, TraitConfigValidationResultLikeCpp, TraitPlayerFactsLikeCpp,
+};
+
 /// The startup projection built by C++ `TraitMgr::Load` from
 /// `SkillLineXTraitTree`. It deliberately stores only validated immutable IDs;
 /// trait rules, costs and conditions remain owned by their respective stores.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct TraitTreeSkillLineIndexLikeCpp {
     trees_by_skill_line: BTreeMap<u32, Vec<u32>>,
     trees_by_trait_system: BTreeMap<u32, Vec<u32>>,
@@ -306,6 +312,15 @@ pub struct TraitTreeSkillLineIndexLikeCpp {
     group_conditions: BTreeMap<u32, Vec<u32>>,
     entry_conditions: BTreeMap<u32, Vec<u32>>,
     loadouts_by_specialization: BTreeMap<i32, Vec<TraitTreeLoadoutSelectionLikeCpp>>,
+    trees: BTreeMap<u32, TraitTreeEntry>,
+    nodes: BTreeMap<u32, TraitNodeEntry>,
+    node_entries: BTreeMap<u32, TraitNodeEntryEntry>,
+    groups: BTreeMap<u32, TraitNodeGroupEntry>,
+    costs: BTreeMap<u32, TraitCostEntry>,
+    conditions: BTreeMap<u32, TraitCondEntry>,
+    currencies_by_tree: BTreeMap<u32, Vec<TraitCurrencyEntry>>,
+    currency_sources_by_currency: BTreeMap<u32, Vec<TraitCurrencySourceEntry>>,
+    spec_set_members: BTreeSet<(i32, i32)>,
     graph_loaded: bool,
 }
 
@@ -387,6 +402,15 @@ impl TraitTreeSkillLineIndexLikeCpp {
             group_conditions: BTreeMap::new(),
             entry_conditions: BTreeMap::new(),
             loadouts_by_specialization: BTreeMap::new(),
+            trees: BTreeMap::new(),
+            nodes: BTreeMap::new(),
+            node_entries: BTreeMap::new(),
+            groups: BTreeMap::new(),
+            costs: BTreeMap::new(),
+            conditions: BTreeMap::new(),
+            currencies_by_tree: BTreeMap::new(),
+            currency_sources_by_currency: BTreeMap::new(),
+            spec_set_members: std::collections::BTreeSet::new(),
             graph_loaded: false,
         }
     }
@@ -418,6 +442,16 @@ impl TraitTreeSkillLineIndexLikeCpp {
         tree_costs: &TraitTreeXTraitCostStore,
     ) -> Self {
         self.graph_loaded = true;
+
+        self.trees = trees.iter().map(|row| (row.id, row.clone())).collect();
+        self.nodes = nodes.iter().map(|row| (row.id, row.clone())).collect();
+        self.node_entries = node_entries
+            .iter()
+            .map(|row| (row.id, row.clone()))
+            .collect();
+        self.groups = groups.iter().map(|row| (row.id, row.clone())).collect();
+        self.costs = costs.iter().map(|row| (row.id, row.clone())).collect();
+        self.conditions = conditions.iter().map(|row| (row.id, row.clone())).collect();
 
         for node in nodes
             .iter()
@@ -1509,6 +1543,354 @@ mod tests {
         ));
         assert!(index.entry_belongs_to_tree_set_like_cpp(&[10], 100, 1000));
         assert!(!index.entry_belongs_to_tree_set_like_cpp(&[10], 101, 1000));
+    }
+
+    #[test]
+    fn trait_mgr_semantic_validation_matches_cpp_conditions_costs_and_grants() {
+        let links = SkillLineXTraitTreeStore::from_entries([]);
+        let trees = TraitTreeStore::from_entries([TraitTreeEntry {
+            id: 10,
+            trait_system_id: 7,
+            unused1000_1: 0,
+            first_trait_node_id: 100,
+            player_condition_id: 0,
+            flags: 0,
+            unused1000_2: 0.0,
+            unused1000_3: 0.0,
+        }]);
+        let nodes = TraitNodeStore::from_entries([
+            TraitNodeEntry {
+                id: 100,
+                trait_tree_id: 10,
+                pos_x: 0,
+                pos_y: 0,
+                node_type: 0,
+                flags: 0,
+            },
+            TraitNodeEntry {
+                id: 101,
+                trait_tree_id: 10,
+                pos_x: 1,
+                pos_y: 0,
+                node_type: 2,
+                flags: 0,
+            },
+        ]);
+        let node_entries = TraitNodeEntryStore::from_entries([
+            TraitNodeEntryEntry {
+                id: 1000,
+                trait_definition_id: 0,
+                max_ranks: 2,
+                node_entry_type: 0,
+            },
+            TraitNodeEntryEntry {
+                id: 1001,
+                trait_definition_id: 0,
+                max_ranks: 1,
+                node_entry_type: 0,
+            },
+            TraitNodeEntryEntry {
+                id: 1002,
+                trait_definition_id: 0,
+                max_ranks: 1,
+                node_entry_type: 0,
+            },
+        ]);
+        let costs = TraitCostStore::from_entries([TraitCostEntry {
+            id: 300,
+            internal_name: "point".into(),
+            amount: 1,
+            trait_currency_id: 4,
+        }]);
+        let conditions = TraitCondStore::from_entries([
+            TraitCondEntry {
+                id: 400,
+                cond_type: 0,
+                trait_tree_id: 10,
+                granted_ranks: 0,
+                quest_id: 42,
+                achievement_id: 0,
+                spec_set_id: 0,
+                trait_node_group_id: 0,
+                trait_node_id: 0,
+                trait_currency_id: 0,
+                spent_amount_required: 0,
+                flags: 0,
+                required_level: 0,
+                free_shared_string_id: 0,
+                spend_more_shared_string_id: 0,
+            },
+            TraitCondEntry {
+                id: 401,
+                cond_type: 2,
+                trait_tree_id: 10,
+                granted_ranks: 1,
+                quest_id: 0,
+                achievement_id: 7,
+                spec_set_id: 0,
+                trait_node_group_id: 0,
+                trait_node_id: 0,
+                trait_currency_id: 0,
+                spent_amount_required: 0,
+                flags: 0,
+                required_level: 0,
+                free_shared_string_id: 0,
+                spend_more_shared_string_id: 0,
+            },
+            TraitCondEntry {
+                id: 402,
+                cond_type: 0,
+                trait_tree_id: 10,
+                granted_ranks: 0,
+                quest_id: 0,
+                achievement_id: 0,
+                spec_set_id: 0,
+                trait_node_group_id: 0,
+                trait_node_id: 0,
+                trait_currency_id: 0,
+                spent_amount_required: 0,
+                flags: 0,
+                required_level: 60,
+                free_shared_string_id: 0,
+                spend_more_shared_string_id: 0,
+            },
+            TraitCondEntry {
+                id: 403,
+                cond_type: 0,
+                trait_tree_id: 10,
+                granted_ranks: 0,
+                quest_id: 0,
+                achievement_id: 0,
+                spec_set_id: 9,
+                trait_node_group_id: 0,
+                trait_node_id: 0,
+                trait_currency_id: 0,
+                spent_amount_required: 0,
+                flags: 0,
+                required_level: 0,
+                free_shared_string_id: 0,
+                spend_more_shared_string_id: 0,
+            },
+            TraitCondEntry {
+                id: 404,
+                cond_type: 0,
+                trait_tree_id: 10,
+                granted_ranks: 0,
+                quest_id: 0,
+                achievement_id: 7,
+                spec_set_id: 0,
+                trait_node_group_id: 0,
+                trait_node_id: 0,
+                trait_currency_id: 0,
+                spent_amount_required: 0,
+                flags: 0,
+                required_level: 0,
+                free_shared_string_id: 0,
+                spend_more_shared_string_id: 0,
+            },
+        ]);
+        let index = TraitTreeSkillLineIndexLikeCpp::from_effective_stores_like_cpp(
+            &links,
+            &trees,
+            |_| false,
+            |_| Vec::new(),
+        )
+        .with_trait_graph_like_cpp(
+            &trees,
+            &nodes,
+            &node_entries,
+            &TraitNodeEntryXTraitCondStore::from_entries([
+                TraitNodeEntryXTraitCondEntry {
+                    id: 500,
+                    trait_cond_id: 400,
+                    trait_node_entry_id: 1001,
+                },
+                TraitNodeEntryXTraitCondEntry {
+                    id: 501,
+                    trait_cond_id: 401,
+                    trait_node_entry_id: 1002,
+                },
+                TraitNodeEntryXTraitCondEntry {
+                    id: 503,
+                    trait_cond_id: 404,
+                    trait_node_entry_id: 1000,
+                },
+            ]),
+            &TraitNodeEntryXTraitCostStore::from_entries([TraitNodeEntryXTraitCostEntry {
+                id: 502,
+                trait_node_entry_id: 1000,
+                trait_cost_id: 300,
+            }]),
+            &TraitNodeGroupStore::from_entries([TraitNodeGroupEntry {
+                id: 200,
+                trait_tree_id: 10,
+                flags: 0,
+            }]),
+            &TraitNodeGroupXTraitCondStore::from_entries([TraitNodeGroupXTraitCondEntry {
+                id: 504,
+                trait_cond_id: 403,
+                trait_node_group_id: 200,
+            }]),
+            &TraitNodeGroupXTraitCostStore::from_entries([]),
+            &TraitNodeGroupXTraitNodeStore::from_entries([TraitNodeGroupXTraitNodeEntry {
+                id: 505,
+                trait_node_group_id: 200,
+                trait_node_id: 101,
+                index: 0,
+            }]),
+            &TraitNodeXTraitCondStore::from_entries([TraitNodeXTraitCondEntry {
+                id: 506,
+                trait_cond_id: 402,
+                trait_node_id: 100,
+            }]),
+            &TraitNodeXTraitCostStore::from_entries([]),
+            &TraitNodeXTraitNodeEntryStore::from_entries([
+                TraitNodeXTraitNodeEntryEntry {
+                    id: 600,
+                    trait_node_id: 100,
+                    trait_node_entry_id: 1000,
+                    index: 0,
+                },
+                TraitNodeXTraitNodeEntryEntry {
+                    id: 601,
+                    trait_node_id: 101,
+                    trait_node_entry_id: 1001,
+                    index: 0,
+                },
+                TraitNodeXTraitNodeEntryEntry {
+                    id: 602,
+                    trait_node_id: 101,
+                    trait_node_entry_id: 1002,
+                    index: 1,
+                },
+            ]),
+            &TraitEdgeStore::from_entries([TraitEdgeEntry {
+                id: 700,
+                visual_style: 0,
+                left_trait_node_id: 100,
+                right_trait_node_id: 101,
+                edge_type: 2,
+            }]),
+            &costs,
+            &conditions,
+            &TraitTreeLoadoutStore::from_entries([]),
+            &TraitTreeLoadoutEntryStore::from_entries([]),
+            &TraitTreeXTraitCostStore::from_entries([]),
+        )
+        .with_trait_currency_data_like_cpp(
+            &TraitCurrencyStore::from_entries([TraitCurrencyEntry {
+                id: 4,
+                currency_type: 2,
+                currency_types_id: 0,
+                flags: 0,
+                icon: 0,
+            }]),
+            &TraitCurrencySourceStore::from_entries([TraitCurrencySourceEntry {
+                id: 800,
+                requirement: String::new(),
+                trait_currency_id: 4,
+                amount: 2,
+                quest_id: 0,
+                achievement_id: 0,
+                player_level: 0,
+                trait_node_entry_id: 1000,
+                order_index: 0,
+            }]),
+            &TraitTreeXTraitCurrencyStore::from_entries([TraitTreeXTraitCurrencyEntry {
+                id: 801,
+                index: 0,
+                trait_tree_id: 10,
+                trait_currency_id: 4,
+            }]),
+            &crate::SpecSetMemberStore::from_entries([crate::SpecSetMemberEntry {
+                id: 802,
+                chr_specialization_id: 71,
+                spec_set_id: 9,
+            }]),
+        );
+        let currency_quantities = BTreeMap::new();
+        let rewarded_quest_ids = BTreeSet::from([42]);
+        let achievement_ids = BTreeSet::from([7]);
+        let facts = TraitPlayerFactsLikeCpp {
+            level: 80,
+            primary_specialization_id: 71,
+            money: 0,
+            currency_quantities: &currency_quantities,
+            rewarded_quest_ids: &rewarded_quest_ids,
+            achievement_ids: &achievement_ids,
+        };
+        let valid = [
+            TraitConfigEntryLikeCpp {
+                trait_node_id: 100,
+                trait_node_entry_id: 1000,
+                rank: 2,
+                granted_ranks: 0,
+            },
+            TraitConfigEntryLikeCpp {
+                trait_node_id: 101,
+                trait_node_entry_id: 1001,
+                rank: 1,
+                granted_ranks: 0,
+            },
+        ];
+        assert_eq!(
+            index.validate_config_like_cpp(&[10], 3, 0, &valid, &facts),
+            TraitConfigValidationResultLikeCpp::Ok
+        );
+        let invalid_selection = [
+            valid[0],
+            valid[1],
+            TraitConfigEntryLikeCpp {
+                trait_node_id: 101,
+                trait_node_entry_id: 1002,
+                rank: 1,
+                granted_ranks: 0,
+            },
+        ];
+        assert_eq!(
+            index.validate_config_like_cpp(&[10], 3, 0, &invalid_selection, &facts),
+            TraitConfigValidationResultLikeCpp::Unknown
+        );
+        let granted =
+            index.granted_entries_for_config_like_cpp(&[10], 3, 0, &invalid_selection, &facts);
+        assert_eq!(
+            granted,
+            vec![TraitConfigEntryLikeCpp {
+                trait_node_id: 101,
+                trait_node_entry_id: 1002,
+                rank: 0,
+                granted_ranks: 1,
+            }]
+        );
+        let no_quest = TraitPlayerFactsLikeCpp {
+            rewarded_quest_ids: &BTreeSet::new(),
+            ..facts
+        };
+        assert_eq!(
+            index.validate_config_like_cpp(&[10], 3, 0, &valid, &no_quest),
+            TraitConfigValidationResultLikeCpp::Unknown
+        );
+        let no_achievement = TraitPlayerFactsLikeCpp {
+            achievement_ids: &BTreeSet::new(),
+            ..facts
+        };
+        assert_eq!(
+            index.validate_config_like_cpp(&[10], 3, 0, &valid, &no_achievement),
+            TraitConfigValidationResultLikeCpp::Unknown
+        );
+        let no_level = TraitPlayerFactsLikeCpp { level: 59, ..facts };
+        assert_eq!(
+            index.validate_config_like_cpp(&[10], 3, 0, &valid, &no_level),
+            TraitConfigValidationResultLikeCpp::Unknown
+        );
+        let no_specialization = TraitPlayerFactsLikeCpp {
+            primary_specialization_id: 72,
+            ..facts
+        };
+        assert_eq!(
+            index.validate_config_like_cpp(&[10], 3, 0, &valid, &no_specialization),
+            TraitConfigValidationResultLikeCpp::Unknown
+        );
     }
 
     #[test]
