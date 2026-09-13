@@ -15,12 +15,14 @@ The finite hecs V2 conformance proof has passed within its recorded laboratory l
 That evidence does not install production `hecs` or Wasmtime, prove production storage
 integration, or close the remaining #584 boundaries. #743 and #735 are delivered and
 locally accepted; P3.1 retired the discarded canonical Creature writer and P3.2
-published canonical `SendObjectUpdates`. The active P3.3 macro restores the C++
-respawn/condition phase order before object visitation while preserving admitted map
-incarnations, the legacy Creature owner and the existing persistence fence. The
-remaining P2 operations, legacy-writer migration and other P3/P4 work follow only
-after their complete consumer contract is audited. No new micro-issues are implied;
-each macro includes its consumers and validation.
+published canonical `SendObjectUpdates`. P3.3 restored the C++ respawn/condition
+phase order before object visitation while preserving admitted map incarnations, the
+legacy Creature owner and the existing persistence fence. The active P3.4 macro
+connects the existing nearby-cell/source plan to production `ObjectUpdater` selection
+and retires the current map-wide typed-store scans for that phase. The remaining P2
+operations, legacy-writer migration and other P3/P4 work follow only after their
+complete consumer contract is audited. No new micro-issues are implied; each macro
+includes its consumers and validation.
 
 ## Architecture program state — 2026-09-11
 

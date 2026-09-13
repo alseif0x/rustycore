@@ -19,8 +19,11 @@ recorded scopes.** The next primary implementation is selected from the measured
 P2/P3/P4 residuals under #584: P3.1 retired the discarded canonical Creature writer,
 P3.2 delivered canonical `Map::SendObjectUpdates` publication, and P3.3 now moves
 `ProcessRespawns`/`UpdateSpawnGroupConditions` before object visitation while retaining
-the legacy Creature owner. The legacy writer and still-unrepresented `Map::Update`
-phases remain for subsequent evidence-led macros.
+the legacy Creature owner. P3.3 is integrated; the next selected macro is P3.4:
+connect the existing nearby-cell visit plan to the production `ObjectUpdater` seam so
+map-owned object updates follow C++ active-cell/source selection instead of scanning
+whole typed stores. The legacy Creature writer and its complete effect consumer remain
+outside that structural cut.
 No old issue is reopened and no residual is promoted to implementation merely from a
 textual inventory.
 
@@ -178,7 +181,7 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#524](https://github.com/alseif0x/rustycore/issues/524) | F1, skill startup order | Correct table-granular base/official/custom order and failure/publication phases across the current loader/port. |
 | [#582](https://github.com/alseif0x/rustycore/issues/582) | B, existing LFG decoders | **Closed/integrated as `21686375` (PR #797).** Six C++-faithful client decoders; no handler, queue or matchmaking claim. |
 | [#583](https://github.com/alseif0x/rustycore/issues/583) | X, stateful native/Wasm | Deliver the preserved M0–M4 product after required core; the external login API and laboratory are insufficient. |
-| [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions. P3.3 is the active finite macro: restore C++ respawn/condition phase order for admitted map incarnations, with persistence and legacy-owner boundaries explicit. |
+| [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions. P3.3 is integrated; P3.4 is the active finite macro: route the existing nearby-cell/source plan into production `ObjectUpdater` selection, with typed consumers, exact owner boundaries and legacy Creature effects explicit. |
 | [#735](https://github.com/alseif0x/rustycore/issues/735) | A, reputation boundary | **Closed/delivered.** Player owns reputation state and named transitions; catalogs, packets and persistence consumers remain outside the domain boundary. |
 | [#743](https://github.com/alseif0x/rustycore/issues/743) | A, group consistency | **Closed/delivered.** GroupRegistry remains authoritative and dropped state-bearing commands converge through the session boundary. |
 | [#787](https://github.com/alseif0x/rustycore/issues/787) | A, session-phase coordination | **Integrated as `d14a9a67` (PR #792; accepted at `76369bda`).** World runs before Map, phase permits remain live through finalization/retirement, and shutdown/replacement barriers are covered by production-linked tests and guarded login/save/relogin QA. |
@@ -218,11 +221,18 @@ The current source still selects GlobalLegacy for its creature path and starts t
 canonical map loop; that is not by itself a demonstrated double tick.
 The #787 coordination contract is accepted. Reconcile admission, phases/barriers,
 one resolution, backpressure and transfer/detach/unload/shutdown before removing
-another bridge. P3.3 is the current finite delivery: after the admitted map session
-pass, run `ProcessRespawns` and `UpdateSpawnGroupConditions` before object visitors,
-using map incarnations from the tick plan so a replacement map cannot inherit work.
-The legacy Creature writer, nearby-cell visitation and other unrepresented
-`Map::Update` phases remain subsequent evidence-led macros.
+another bridge. P3.3 integrated the finite phase correction: after the admitted map
+session pass, run `ProcessRespawns` and `UpdateSpawnGroupConditions` before object
+visitors, using map incarnations from the tick plan so a replacement map cannot
+inherit work. The active P3.4 audit found that
+`map_update_visit_plan_like_cpp` and `object_update_plan_for_nearby_like_cpp` are
+production-unused: `update_after_sessions_with_creature_owner_like_cpp` still walks
+whole typed stores. The next implementation must carry canonical player/viewpoint,
+far-combat/aura/summon and active-non-player sources into one deduplicated nearby
+selection, invoke the existing per-object consumers only for selected in-world
+objects, preserve the all-transport loop and C++ ordering, and keep delivery outside
+map guards. The legacy Creature writer and its complete effect consumer remain a
+separate migration boundary.
 
 Keep the selected private hecs direction and finite V2 conformance evidence.
 Integrate it only with real owners/consumers and the lifetime/reentry contract;
@@ -231,8 +241,12 @@ P3.1 and P3.2 are integrated bounded contracts: the Creature owner is explicit a
 the discarded canonical Creature plan is skipped under the legacy/session owner;
 canonical `SendObjectUpdates` snapshots are published after guards are released.
 P3.3 preserves those owners while correcting respawn/condition phase order and the
-admitted-incarnation boundary. Define later migration contracts from traced
-consumers under #584, never as a speculative issue per bridge or crate.
+admitted-incarnation boundary. P3.4 is a selection/phase correction, not Creature AI
+migration: it must retire the map-wide typed-store scans in the affected production
+path, cover empty/invalid/missing sources and deduplication, and leave a measurable
+retirement path for the remaining unrepresented C++ sources. Define later migration
+contracts from traced consumers under #584, never as a speculative issue per bridge or
+crate.
 
 ### A4 — Physical and dependency closeout
 
