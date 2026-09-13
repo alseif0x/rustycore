@@ -5570,6 +5570,9 @@ pub struct WorldSession {
     // TraitDefinition.db2 store used by represented PlayerSpell::TraitDefinitionId cleanup.
     trait_definition_store: Option<Arc<TraitDefinitionStore>>,
 
+    // C++ TraitMgr profession tree projection used by trait-config login validation.
+    trait_tree_skill_line_index: Option<Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>>,
+
     // SkillLine.db2 store for C++ parent/expansion skill resolution.
     skill_line_store: Option<Arc<SkillLineStore>>,
 
@@ -7901,6 +7904,7 @@ impl WorldSession {
             tact_key_store: None,
             skill_store: None,
             trait_definition_store: None,
+            trait_tree_skill_line_index: None,
             skill_line_store: None,
             skill_tiers_store: None,
             area_table_store: None,

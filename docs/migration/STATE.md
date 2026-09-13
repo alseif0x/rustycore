@@ -166,17 +166,23 @@ The integration candidate passed `VALIDATION_V2_CARGO_JOBS=1 ./tools/validation-
 quick --base origin/3.4.3` with one Cargo job in 11.519 seconds; manifest:
 `target/validation-v2/manifests/20260913T061658.691366Z-3417098-quick.json`.
 
-**#524 relation query-order correction — 2026-09-13, implementation `020163dc`:**
+**#524 skill catalog and TraitMgr projection — 2026-09-13, relation implementation
+`020163dc`, projection implementation `0f65d677`:**
 `MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp` now completes the official and
 custom `SkillLineAbility` queries before beginning the official and custom
 `SkillRaceClassInfo` queries. This matches `DB2StorageBase::LoadFromDB`
 (`DB2Store.cpp:127-133`) and `DB2DatabaseLoader`'s official-then-custom bind
 (`DB2DatabaseLoader.cpp:32,190`), so a query or decode failure is observed at the
 same table-granular boundary. The adapter's three focused tests, `cargo check
---locked -p world-server`, formatting and diff checks pass. The complete #524
-startup family remains open: Rust has a `SkillLineXTraitTreeStore` reader, but the
-production bootstrap does not yet load and consume it as `TraitMgr` does
-(`TraitMgr.cpp:212-228`); no absent authority was fabricated by this slice.
+--locked -p world-server`, formatting and diff checks pass. The projection delivery
+now loads `SkillLineXTraitTree.db2` during world startup, validates links against the
+effective `SkillLine`/`TraitTree` stores, publishes an immutable skill-line index to
+sessions and makes profession trait-config hydration fail closed when no linked tree
+exists. Focused `wow-data`, `wow-world` login and `world-server` composition tests pass.
+The complete #524 startup family remains open: the current combined relation loader
+still does not prove the table-granular WDC4 sequence
+`SkillLineAbility` → `SkillLineXTraitTree` → `SkillRaceClassInfo`, and full
+`TraitMgr` indexes/consumers plus final failure/live evidence remain outstanding.
 
 **Group state application is integrated — 2026-09-11, #743 / PR #750,
 `77df8194` (implementation `9e6767bb`):**

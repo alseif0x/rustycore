@@ -171,7 +171,7 @@ mod tests {
     }
 
     #[test]
-    fn app_preserves_skill_line_then_relations_then_world_tiers_order() {
+    fn app_preserves_skill_line_relations_trait_tree_then_world_tiers_order() {
         let source = include_str!("../app.rs");
         let skill_line = source
             .find("load_skill_line_store_like_cpp")
@@ -179,9 +179,12 @@ mod tests {
         let relations = source
             .find("load_skill_store_like_cpp")
             .expect("skill relation catalog stage must remain composed");
+        let trait_tree = source
+            .find("SkillLineXTraitTreeStore::load")
+            .expect("TraitMgr SkillLineXTraitTree stage must remain composed");
         let tiers = source
             .find("load_skill_tiers_store_like_cpp")
             .expect("independent World skill tiers stage must remain composed");
-        assert!(skill_line < relations && relations < tiers);
+        assert!(skill_line < relations && relations < trait_tree && trait_tree < tiers);
     }
 }

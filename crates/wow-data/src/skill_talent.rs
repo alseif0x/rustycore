@@ -746,6 +746,10 @@ impl SkillLineStore {
 }
 
 impl SkillLineXTraitTreeStore {
+    pub fn iter(&self) -> impl Iterator<Item = &SkillLineXTraitTreeEntry> {
+        self.entries.values()
+    }
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SkillLineXTraitTree.db2", |id, idx, r| {
             SkillLineXTraitTreeEntry {

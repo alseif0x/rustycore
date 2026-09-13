@@ -1,11 +1,12 @@
 //! Trait tree DB2 readers.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 use anyhow::{Context, Result};
 use tracing::info;
 
+use crate::skill_talent::SkillLineXTraitTreeStore;
 use crate::wdc4::Wdc4Reader;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -268,6 +269,75 @@ db2_store!(TraitTreeLoadoutStore, TraitTreeLoadoutEntry);
 db2_store!(TraitTreeLoadoutEntryStore, TraitTreeLoadoutEntryEntry);
 db2_store!(TraitTreeXTraitCostStore, TraitTreeXTraitCostEntry);
 db2_store!(TraitTreeXTraitCurrencyStore, TraitTreeXTraitCurrencyEntry);
+
+/// The startup projection built by C++ `TraitMgr::Load` from
+/// `SkillLineXTraitTree`. It deliberately stores only validated immutable IDs;
+/// trait rules, costs and conditions remain owned by their respective stores.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TraitTreeSkillLineIndexLikeCpp {
+    trees_by_skill_line: BTreeMap<u32, Vec<u32>>,
+}
+
+impl TraitTreeSkillLineIndexLikeCpp {
+    /// Build the profession portion of `TraitMgr`'s cross-store index.
+    /// Missing SkillLine or TraitTree references are skipped exactly as the
+    /// C++ loader does, and links are ordered by their DB2 order field.
+    pub fn from_effective_stores_like_cpp(
+        links: &SkillLineXTraitTreeStore,
+        trees: &TraitTreeStore,
+        skill_line_exists: impl Fn(u32) -> bool,
+    ) -> Self {
+        let mut by_skill_line = BTreeMap::<u32, Vec<(i32, u32)>>::new();
+        for link in links.iter() {
+            let Some(trait_tree_id) = u32::try_from(link.trait_tree_id).ok() else {
+                continue;
+            };
+            if link.skill_line_id == 0
+                || !skill_line_exists(link.skill_line_id)
+                || trees.get(trait_tree_id).is_none()
+            {
+                continue;
+            }
+            by_skill_line
+                .entry(link.skill_line_id)
+                .or_default()
+                .push((link.order_index, trait_tree_id));
+        }
+
+        Self {
+            trees_by_skill_line: by_skill_line
+                .into_iter()
+                .map(|(skill_line_id, mut rows)| {
+                    rows.sort_unstable();
+                    (
+                        skill_line_id,
+                        rows.into_iter().map(|(_, tree_id)| tree_id).collect(),
+                    )
+                })
+                .collect(),
+        }
+    }
+
+    /// C++ `TraitMgr` profession lookup used by Player trait-config loading.
+    pub fn trees_for_skill_line_like_cpp(&self, skill_line_id: u32) -> &[u32] {
+        self.trees_by_skill_line
+            .get(&skill_line_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn has_skill_line_like_cpp(&self, skill_line_id: u32) -> bool {
+        !self.trees_for_skill_line_like_cpp(skill_line_id).is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.trees_by_skill_line.values().map(Vec::len).sum()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.trees_by_skill_line.is_empty()
+    }
+}
 
 impl TraitCondStore {
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
@@ -693,6 +763,7 @@ impl_from_entries!(TraitTreeXTraitCurrencyStore, TraitTreeXTraitCurrencyEntry);
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::skill_talent::SkillLineXTraitTreeEntry;
 
     #[test]
     fn trait_node_store_uses_cpp_tree_parent_relationship() {
@@ -706,6 +777,68 @@ mod tests {
         }]);
 
         assert_eq!(store.get(10).unwrap().trait_tree_id, 20);
+    }
+
+    #[test]
+    fn trait_tree_skill_line_index_matches_valid_links_and_order() {
+        let links = SkillLineXTraitTreeStore::from_entries([
+            SkillLineXTraitTreeEntry {
+                id: 1,
+                skill_line_id: 164,
+                trait_tree_id: 20,
+                order_index: 2,
+            },
+            SkillLineXTraitTreeEntry {
+                id: 2,
+                skill_line_id: 164,
+                trait_tree_id: 10,
+                order_index: 1,
+            },
+            SkillLineXTraitTreeEntry {
+                id: 3,
+                skill_line_id: 999,
+                trait_tree_id: 20,
+                order_index: 0,
+            },
+            SkillLineXTraitTreeEntry {
+                id: 4,
+                skill_line_id: 164,
+                trait_tree_id: -1,
+                order_index: 0,
+            },
+        ]);
+        let trees = TraitTreeStore::from_entries([
+            TraitTreeEntry {
+                id: 10,
+                trait_system_id: 0,
+                unused1000_1: 0,
+                first_trait_node_id: 0,
+                player_condition_id: 0,
+                flags: 0,
+                unused1000_2: 0.0,
+                unused1000_3: 0.0,
+            },
+            TraitTreeEntry {
+                id: 20,
+                trait_system_id: 0,
+                unused1000_1: 0,
+                first_trait_node_id: 0,
+                player_condition_id: 0,
+                flags: 0,
+                unused1000_2: 0.0,
+                unused1000_3: 0.0,
+            },
+        ]);
+
+        let index = TraitTreeSkillLineIndexLikeCpp::from_effective_stores_like_cpp(
+            &links,
+            &trees,
+            |skill_line_id| skill_line_id == 164,
+        );
+        assert_eq!(index.trees_for_skill_line_like_cpp(164), &[10, 20]);
+        assert!(index.has_skill_line_like_cpp(164));
+        assert!(!index.has_skill_line_like_cpp(999));
+        assert_eq!(index.len(), 2);
     }
 
     #[test]

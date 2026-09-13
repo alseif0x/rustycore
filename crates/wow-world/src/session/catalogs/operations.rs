@@ -273,6 +273,17 @@ impl WorldSession {
     pub(crate) fn trait_definition_store(&self) -> Option<&Arc<TraitDefinitionStore>> {
         self.trait_definition_store.as_ref()
     }
+    pub fn set_trait_tree_skill_line_index(
+        &mut self,
+        index: Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>,
+    ) {
+        self.trait_tree_skill_line_index = Some(index);
+    }
+    pub(crate) fn trait_tree_skill_line_index(
+        &self,
+    ) -> Option<&Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>> {
+        self.trait_tree_skill_line_index.as_ref()
+    }
     pub fn set_spell_group_store(&mut self, store: Arc<SpellGroupStoreLikeCpp>) {
         self.spell_catalogs.spell_group_store = Some(store);
     }

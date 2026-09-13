@@ -144,6 +144,8 @@ pub(super) struct SessionPlayerCatalogCapabilitiesLikeCpp {
     pub(super) gem_properties_store: Arc<wow_data::GemPropertiesStore>,
     pub(super) skill_store: Arc<wow_data::SkillStore>,
     pub(super) trait_definition_store: Arc<wow_data::trait_tree::TraitDefinitionStore>,
+    pub(super) trait_tree_skill_line_index:
+        Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>,
     pub(super) skill_line_store: Arc<wow_data::SkillLineStore>,
     pub(super) skill_tiers_store: Arc<wow_data::SkillTiersStoreLikeCpp>,
     pub(super) talent_store: Arc<wow_data::TalentStore>,
@@ -348,6 +350,7 @@ impl SessionPlayerCatalogCapabilitiesLikeCpp {
         session.set_gem_properties_store(Arc::clone(&self.gem_properties_store));
         session.set_skill_store(Arc::clone(&self.skill_store));
         session.set_trait_definition_store(Arc::clone(&self.trait_definition_store));
+        session.set_trait_tree_skill_line_index(Arc::clone(&self.trait_tree_skill_line_index));
         session.set_skill_line_store(Arc::clone(&self.skill_line_store));
         session.set_skill_tiers_store(Arc::clone(&self.skill_tiers_store));
         session.set_talent_store(Arc::clone(&self.talent_store));
