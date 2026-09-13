@@ -13,8 +13,8 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza integrada, 2026-09-13: PR #839**, en `3.4.3` como
-`cc0559980a4232ab5743affaaa2babfedffdfcf3`. #787 / PR #792 (`d14a9a67`) y
+**Cabeza integrada, 2026-09-13: PR #842**, en `3.4.3` como
+`995cd77fb48566b972741520986bc41d106470ea`. #787 / PR #792 (`d14a9a67`) y
 #584 P2 item-bonus, P2 item-object y P3.1–P3.9 están integrados dentro de esta cabeza.
 La entrega de ownership de modificadores de objetos está integrada mediante PR #839
 (implementación `ecc67603`) y retira la superficie mutante genérica restante. La coordinación World/Map está
@@ -86,10 +86,12 @@ sin árbol enlazado o especialización/clase válida, y las entradas persistidas
 cerrado si no existen o exceden `MaxRanks`. PR #836 (merge `0fca1020`, implementación
 `d9770755`) añade al mismo dueño la proyección inmutable de nodos, grupos, edges, costes, condiciones y loadouts,
 y rechaza en la autoridad de sesión una pareja nodo/entrada que pertenezca a otro árbol.
-La siguiente macro de #524 valida semánticamente configuraciones persistidas, condiciones,
-costes/monedas y entradas concedidas, con fallback determinista antes de publicar login.
-Siguen después el gasto real, persistencia de mutaciones, starter builds, los índices
-auxiliares restantes, el cierre cross-store y la aceptación final. #486 conserva
+La macro #524 de validación semántica y fallback determinista quedó integrada por PR #842
+(`995cd77f`, implementación `add6650a`): las condiciones, costes/monedas, reglas de
+padre/rango y entradas concedidas se evalúan desde hechos canónicos del Player antes de
+publicar login. Siguen después los overlays SQL de las tablas Trait restantes, la
+cobertura cross-store y la aceptación startup/DB/relogin; el gasto real, persistencia de
+mutaciones, starter builds y effect points son gates funcionales posteriores. #486 conserva
 la implementación integrada por PR #807 y solo sus gates de captura/QA viva y
 mutaciones administrativas no representadas. Estas son líneas funcionales separadas:
 no se convierten en trabajo oculto de #584 ni se usan para reabrir macros cerradas.

@@ -2,7 +2,7 @@
 
 **Reconciled 2026-09-13 under #584 / #787 / #748 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
 Source baseline for this reconciliation: `3.4.3` at
-`cc0559980a4232ab5743affaaa2babfedffdfcf3` (PR #839; the earlier `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`995cd77fb48566b972741520986bc41d106470ea` (PR #842; the earlier `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -69,12 +69,13 @@ WDC4 table-hash ownership and final `RecordRemoved`
 filtering are implemented through PR #826/#828; Generic and Combat config validation are
 integrated by PR #830/#832. PR #836 (merge `0fca1020`, implementation `d9770755`) adds the immutable node/group/edge and
 cost/condition/loadout relation projection and makes persisted node/entry topology fail
-closed at login. The next bounded macro is semantic configuration validation and
-deterministic granted-entry fallback during login; it deliberately does not yet claim
-real currency ownership/spending, mutation persistence, starter-build application,
-complete cross-store coverage or startup/live evidence.
-Physically reconciled by PR #811, the issue remains open for complete `TraitMgr` authority
-acceptance, remaining cross-store coverage and startup/live evidence. In parallel with safe
+closed at login. PR #842 (`995cd77f`, implementation `add6650a`) now validates persisted
+conditions, costs, parent/rank rules and granted-entry fallback before login publication
+from canonical Player facts. The issue remains open for Trait-table SQL hotfix overlays,
+complete cross-store coverage and startup/live DB/relogin evidence; real spending,
+mutation persistence, starter-build application and effect-point behavior remain later
+gates. Physically reconciled by PR #811, the issue remains open for complete `TraitMgr`
+authority acceptance and these explicit residuals. In parallel with safe
 independent work, prepare
 a playable circuit: effective equipment/stats → combat and death/recovery →
 quests/loot/interactions → complete class kit, travel and durable services → soak.
@@ -225,7 +226,7 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#351](https://github.com/alseif0x/rustycore/issues/351) | O, guarded loot QA | Reconcile current runtime/capture orchestration and chest fixture ownership; preserve restore guarantees and prove the actual smoke. |
 | [#352](https://github.com/alseif0x/rustycore/issues/352) | O, realm address operations | Revalidate configured DNS/IP and restart diagnostics. No silent fallback or code change inferred from the historical incident. |
 | [#486](https://github.com/alseif0x/rustycore/issues/486) | F1, target identity query | **Implementation integrated by PR #807 (`86a0eb97`).** The canonical cache/connected-target path returns target game/BNet identities; keep open for action-specific packet/live evidence and unrepresented undelete/barber mutation coverage. |
-| [#524](https://github.com/alseif0x/rustycore/issues/524) | F1, TraitMgr functional authority | PR #803 fixed the relation-query order; PR #822/#824 (`7bb9a911`) separates the WDC4/SQL stages, PR #826 (`d934451a`) applies official/custom `SkillLineXTraitTree` overlays, PR #828 (`276e3981`) retains the WDC4 table hash and applies final table-scoped removals, PR #830 (`a9623787`) indexes `TraitSystemID` trees and validates Generic configs, PR #832 (`1143ed41`) indexes `ChrSpecialization` class masks and validates Combat configs, and PR #834 (`4e3ad8f0`) rejects missing or over-ranked persisted node entries, all in production order `SkillLine` → `SkillLineAbility` → `SkillRaceClassInfo` → `TraitTree`/`SkillLineXTraitTree`, preserving fail-before-publication boundaries. PR #836 (`0fca1020`) adds the immutable node/group/edge/cost/condition/loadout graph. The next finite delivery is semantic config validation, condition/cost evaluation and deterministic granted-entry fallback before login publication. Real spending, mutation persistence, starter builds, final cross-store orchestration and startup/live evidence remain later gates. |
+| [#524](https://github.com/alseif0x/rustycore/issues/524) | F1, TraitMgr functional authority | PR #803 fixed the relation-query order; PR #822/#824 (`7bb9a911`) separates the WDC4/SQL stages, PR #826 (`d934451a`) applies official/custom `SkillLineXTraitTree` overlays, PR #828 (`276e3981`) retains the WDC4 table hash and applies final table-scoped removals, PR #830 (`a9623787`) indexes `TraitSystemID` trees and validates Generic configs, PR #832 (`1143ed41`) indexes `ChrSpecialization` class masks and validates Combat configs, and PR #834 (`4e3ad8f0`) rejects missing or over-ranked persisted node entries, all in production order `SkillLine` → `SkillLineAbility` → `SkillRaceClassInfo` → `TraitTree`/`SkillLineXTraitTree`, preserving fail-before-publication boundaries. PR #836 (`0fca1020`) adds the immutable node/group/edge/cost/condition/loadout graph. PR #842 (`995cd77f`, implementation `add6650a`) adds C++-aligned semantic condition/cost/parent/rank validation and deterministic granted-entry fallback before login publication from canonical Player facts. Remaining gates are Trait-table SQL hotfix overlays, complete cross-store fail-before-publication coverage, startup/live DB/relogin evidence, real spending/mutation persistence, starter builds and effect points. |
 | [#582](https://github.com/alseif0x/rustycore/issues/582) | B, existing LFG decoders | **Closed/integrated as `21686375` (PR #797).** Six C++-faithful client decoders; no handler, queue or matchmaking claim. |
 | [#583](https://github.com/alseif0x/rustycore/issues/583) | X, stateful native/Wasm | Deliver the preserved M0–M4 product after required core; the external login API and laboratory are insufficient. |
 | [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions. PR #816 integrates the P2 item-bonus writer retirement: resolved state application is a named Player-owned operation and the generic `&mut PlayerItemBonusStateLikeCpp` bridge is gone. Candidate `23a7fe16` adds the item-object P2 closure retirement: all production item-object mutations use the Player-owned closed command set, with fixture-only closure access retained. P3.4–P3.9 are integrated in the current delivery, including directed ordinary Creature DESTROY after map removal with map-incarnation/`HaveAtClient` fences (PR #820, `62c1369f`). The legacy Creature writer, AI/combat, scripts, FlyByCamera, CREATE/Pet/corpse/transport parity and exact capture/live gates remain explicit later boundaries. |

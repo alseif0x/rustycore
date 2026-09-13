@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-13:** `3.4.3` is at
-`cc0559980a4232ab5743affaaa2babfedffdfcf3` (PR #839, following PR #838). The entries below preserve
+`995cd77fb48566b972741520986bc41d106470ea` (PR #842, following PR #839). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -25,13 +25,16 @@ and the `wow-entities`/`wow-world` suite completed 3875 tests with zero failures
 boundaries. This evidence does not claim #61 effective statistics, TraitMgr consumers
 (#524), Creature migration, live QA or DB durability.
 
-The next functional macro after this bounded closure is #524's **semantic TraitMgr
-configuration validation and deterministic login fallback**: validate conditions,
-costs/coins, parent and rank rules and automatically granted entries before publishing
-Player state. Real spending, mutation persistence, starter-build application, complete
-cross-store coverage and DB/relogin acceptance remain later macros. The legacy Creature
-writer remains deferred until all AI, combat, movement, script, persistence and visibility
-consumers have one owner.
+The latest bounded functional delivery is #524's **semantic TraitMgr configuration
+validation and deterministic login fallback**, integrated by PR #842 as
+`995cd77fb48566b972741520986bc41d106470ea` (implementation `add6650a`). The immutable
+projection now evaluates C++-aligned conditions, costs, parent/rank rules and granted
+entries before publishing Player state, using canonical Player facts. The issue remains
+open for Trait-table SQL hotfix overlays, complete cross-store fail-before-publication
+coverage and startup/live DB/relogin evidence; real spending, mutation persistence,
+starter-build application and effect-point behavior are later functional gates. The
+legacy Creature writer remains deferred until all AI, combat, movement, script,
+persistence and visibility consumers have one owner.
 
 **#486 target-account identity correction — merged in PR #807, integration
 `86a0eb97` (2026-09-13):**
