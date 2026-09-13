@@ -475,6 +475,76 @@ fn delayed_unit_relocation_visibility_plans_filter_player_seers_like_cpp() {
             .contains(&target_clear_guid)
     );
 }
+
+#[test]
+fn object_update_plan_for_current_tick_visits_only_nearby_map_objects_like_cpp() {
+    let mut map = test_map();
+
+    let mut player = test_player_for_viewpoint(4440401);
+    let player_guid = player.guid();
+    player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .remove_from_world();
+    map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_player(player).unwrap())
+        .unwrap();
+
+    let mut nearby_creature = test_creature_for_spawn(44404, 4440402, true);
+    nearby_creature
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .remove_from_world();
+    nearby_creature
+        .unit_mut()
+        .world_mut()
+        .relocate(Position::xyz(20.0, 20.0, 30.0));
+    let nearby_creature_guid = nearby_creature.guid();
+    map.add_map_object_record_to_map_like_cpp(
+        MapObjectRecord::new_creature(nearby_creature).unwrap(),
+    )
+    .unwrap();
+
+    let mut distant_creature = test_creature_for_spawn(44404, 4440403, true);
+    distant_creature
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .remove_from_world();
+    distant_creature
+        .unit_mut()
+        .world_mut()
+        .relocate(Position::xyz(400.0, 20.0, 30.0));
+    let distant_creature_guid = distant_creature.guid();
+    map.add_map_object_record_to_map_like_cpp(
+        MapObjectRecord::new_creature(distant_creature).unwrap(),
+    )
+    .unwrap();
+
+    let mut nearby_gameobject = test_gameobject_for_spawn(44404, 4440404);
+    nearby_gameobject
+        .world_mut()
+        .object_mut()
+        .remove_from_world();
+    nearby_gameobject
+        .world_mut()
+        .relocate(Position::xyz(25.0, 20.0, 30.0));
+    let nearby_gameobject_guid = nearby_gameobject.world().guid();
+    map.add_map_object_record_to_map_like_cpp(
+        MapObjectRecord::new_game_object(nearby_gameobject).unwrap(),
+    )
+    .unwrap();
+
+    let plan = map.object_update_plan_for_current_tick_like_cpp(37);
+
+    assert_eq!(plan.diff_ms, 37);
+    assert!(plan.update_guids.contains(&nearby_creature_guid));
+    assert!(plan.update_guids.contains(&nearby_gameobject_guid));
+    assert!(!plan.update_guids.contains(&distant_creature_guid));
+    assert!(!plan.update_guids.contains(&player_guid));
+}
+
 #[test]
 fn delayed_unit_relocation_visibility_plans_use_cpp_max_visibility_visits() {
     let mut map = test_map();

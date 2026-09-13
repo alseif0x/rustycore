@@ -114,7 +114,7 @@ pub(crate) fn canonical_map_tick_resume_like_cpp(
     // visitor. Production behaviour is owned by the legacy/session runtime;
     // declare that owner so this tick cannot mutate and discard a shadow plan.
     let resumed = manager
-        .resume_tick_with_pool_update_loaded_grid_records_context_and_owner_like_cpp(
+        .resume_tick_with_pool_update_loaded_grid_records_context_owner_and_selection_like_cpp(
             plan,
             canonical_spawn_metadata.spawn_store(),
             canonical_spawn_metadata.pool_mgr_like_cpp(),
@@ -131,6 +131,7 @@ pub(crate) fn canonical_map_tick_resume_like_cpp(
                 wow_map::SpawnObjectType::Creature | wow_map::SpawnObjectType::AreaTrigger => None,
             },
             wow_map::MapCreatureUpdateOwnerLikeCpp::ExternalRuntime,
+            wow_map::MapObjectUpdateSelectionLikeCpp::NearbyCells,
         );
     if resumed != wow_map::MapTickResumeLikeCpp::Resumed {
         // The manager is not holding this tick any more: nothing was mutated and

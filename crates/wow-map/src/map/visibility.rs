@@ -130,6 +130,123 @@ where
         }
     }
 
+    /// Build the production `ObjectUpdater` selection for the current map
+    /// incarnation. This keeps source discovery and nearby-cell marking on the
+    /// canonical map owner; the caller may then consume the owned GUID plan
+    /// without retaining any map borrow across delivery or I/O.
+    ///
+    /// C++ source categories are taken from `Map.cpp:701-754`: in-world
+    /// players, viewpoints, far PvE combat creatures, out-of-range aura
+    /// casters, summons and active non-Players. Unsupported runtime references
+    /// remain absent rather than being fabricated. Players and Corpses are not
+    /// included in the resulting ObjectUpdater GUID set.
+    pub fn object_update_plan_for_current_tick_like_cpp(&self, diff_ms: u32) -> ObjectUpdatePlan {
+        let mut sources = Vec::new();
+        for (guid, record) in self.entity_world.iter() {
+            if record.kind() != AccessorObjectKind::Player
+                || !record.object().object().is_in_world()
+            {
+                continue;
+            }
+
+            let player_object = record.object();
+            let Some(player) = record.player() else {
+                continue;
+            };
+            let is_far_in_world_unit = |target_guid: ObjectGuid| {
+                let Some(target) = self.map_object(target_guid) else {
+                    return false;
+                };
+                target.object().is_in_world()
+                    && !player_object.is_within_dist_in_map(target, self.visible_distance, false)
+            };
+
+            let far_combat_unit_guids = player
+                .unit()
+                .subsystems()
+                .combat
+                .pve_refs
+                .keys()
+                .copied()
+                .filter(|target_guid| {
+                    is_far_in_world_unit(*target_guid)
+                        && self.map_object_record(*target_guid).is_some_and(|target| {
+                            matches!(
+                                target.kind(),
+                                AccessorObjectKind::Creature | AccessorObjectKind::Pet
+                            )
+                        })
+                })
+                .collect();
+            let far_aura_caster_guids = player
+                .unit()
+                .subsystems()
+                .auras
+                .applied_auras
+                .iter()
+                .map(|aura| aura.caster_guid)
+                .filter(|target_guid| {
+                    is_far_in_world_unit(*target_guid)
+                        && self.map_object_record(*target_guid).is_some_and(|target| {
+                            matches!(
+                                target.kind(),
+                                AccessorObjectKind::Creature | AccessorObjectKind::Pet
+                            )
+                        })
+                })
+                .collect();
+            let far_summon_guids = player
+                .unit()
+                .subsystems()
+                .control
+                .summon_slots
+                .iter()
+                .copied()
+                .filter(|target_guid| {
+                    !target_guid.is_empty()
+                        && is_far_in_world_unit(*target_guid)
+                        && self.map_object_record(*target_guid).is_some_and(|target| {
+                            matches!(
+                                target.kind(),
+                                AccessorObjectKind::Creature | AccessorObjectKind::Pet
+                            )
+                        })
+                })
+                .collect();
+
+            sources.push(MapUpdatePlayerSources {
+                player_guid: *guid,
+                viewpoint_guid: (!player.active_data().farsight_object.is_empty())
+                    .then_some(player.active_data().farsight_object),
+                far_combat_unit_guids,
+                far_aura_caster_guids,
+                far_summon_guids,
+            });
+        }
+
+        let visit_plan = self.map_update_visit_plan_like_cpp(
+            sources,
+            self.represented_active_non_player_sources_like_cpp(),
+            std::iter::empty(),
+            diff_ms,
+        );
+        let centers =
+            visit_plan
+                .nearby_visit_centers
+                .into_iter()
+                .map(|guid| NearbyCellVisitCenter {
+                    guid,
+                    // `WorldObject::GetGridActivationRange()` returns the
+                    // configured map visibility range for active Players and
+                    // represented active-object sources. The max visibility
+                    // override would turn this bounded visit into a map-wide
+                    // scan again.
+                    activation_radius: self.visible_distance,
+                });
+        let nearby = self.visit_nearby_cells_of_like_cpp(centers);
+        self.object_update_plan_for_nearby_like_cpp(&nearby.nearby, diff_ms)
+    }
+
     pub fn reset_notify_flags_for_cells_like_cpp(
         &mut self,
         cells: impl IntoIterator<Item = CellCoord>,

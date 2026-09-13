@@ -462,6 +462,53 @@ fn external_creature_owner_skips_discarded_canonical_plan_like_cpp() {
     );
 }
 
+#[test]
+fn nearby_object_selection_is_consumed_by_the_split_tick_like_cpp() {
+    let mut manager = MapManager::new(MIN_GRID_DELAY_MS, 1);
+    manager.create_world_map(1, 0);
+    insert_player_for_relocation_notify(&mut manager, 9990101, Position::xyz(10.0, 20.0, 30.0));
+    insert_creature_at_for_relocation_notify(
+        &mut manager,
+        9990102,
+        Position::xyz(20.0, 20.0, 30.0),
+        false,
+    );
+    insert_creature_at_for_relocation_notify(
+        &mut manager,
+        9990103,
+        Position::xyz(400.0, 20.0, 30.0),
+        false,
+    );
+
+    let plan = manager
+        .begin_tick_like_cpp(1)
+        .into_started()
+        .expect("timer passed");
+    assert_eq!(
+        manager.resume_tick_with_creature_update_owner_and_selection_like_cpp(
+            plan,
+            None,
+            None::<
+                &mut fn(
+                    &mut Map,
+                    SpawnObjectType,
+                    SpawnId,
+                ) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+            >,
+            MapCreatureUpdateOwnerLikeCpp::CanonicalMap,
+            MapObjectUpdateSelectionLikeCpp::NearbyCells,
+        ),
+        MapTickResumeLikeCpp::Resumed
+    );
+
+    let managed_map = manager.find_map(1, 0).unwrap();
+    assert_eq!(
+        managed_map.last_creatures_update_summary().visited,
+        1,
+        "ObjectUpdater must consume the active nearby cells instead of scanning every Creature"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // #787 — the split canonical tick and the map-reference membership order.
 // ---------------------------------------------------------------------------

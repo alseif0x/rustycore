@@ -19,11 +19,11 @@ recorded scopes.** The next primary implementation is selected from the measured
 P2/P3/P4 residuals under #584: P3.1 retired the discarded canonical Creature writer,
 P3.2 delivered canonical `Map::SendObjectUpdates` publication, and P3.3 now moves
 `ProcessRespawns`/`UpdateSpawnGroupConditions` before object visitation while retaining
-the legacy Creature owner. P3.3 is integrated; the next selected macro is P3.4:
-connect the existing nearby-cell visit plan to the production `ObjectUpdater` seam so
-map-owned object updates follow C++ active-cell/source selection instead of scanning
-whole typed stores. The legacy Creature writer and its complete effect consumer remain
-outside that structural cut.
+the legacy Creature owner. P3.3 is integrated and P3.4 is now implemented: the
+production map tick consumes one nearby-cell/source plan for the represented
+`ObjectUpdater` families instead of scanning whole typed stores. The legacy Creature
+writer and its complete effect consumer remain outside that structural cut; the next
+selection must come from the remaining measured P3 runtime boundary under #584.
 No old issue is reopened and no residual is promoted to implementation merely from a
 textual inventory.
 
@@ -224,15 +224,14 @@ one resolution, backpressure and transfer/detach/unload/shutdown before removing
 another bridge. P3.3 integrated the finite phase correction: after the admitted map
 session pass, run `ProcessRespawns` and `UpdateSpawnGroupConditions` before object
 visitors, using map incarnations from the tick plan so a replacement map cannot
-inherit work. The active P3.4 audit found that
-`map_update_visit_plan_like_cpp` and `object_update_plan_for_nearby_like_cpp` are
-production-unused: `update_after_sessions_with_creature_owner_like_cpp` still walks
-whole typed stores. The next implementation must carry canonical player/viewpoint,
+inherit work. P3.4 now carries canonical player/viewpoint, represented
 far-combat/aura/summon and active-non-player sources into one deduplicated nearby
-selection, invoke the existing per-object consumers only for selected in-world
-objects, preserve the all-transport loop and C++ ordering, and keep delivery outside
-map guards. The legacy Creature writer and its complete effect consumer remain a
-separate migration boundary.
+selection, invokes existing per-object consumers only for selected in-world objects,
+preserves the all-transport loop and C++ ordering, and keeps delivery outside map
+guards. Its accepted boundary uses map visibility range for source activation where
+the canonical Creature `m_SightDistance` field is not represented, and fails closed
+for unsupported unit families. The legacy Creature writer and its complete effect
+consumer remain a separate migration boundary.
 
 Keep the selected private hecs direction and finite V2 conformance evidence.
 Integrate it only with real owners/consumers and the lifetime/reentry contract;
@@ -241,12 +240,12 @@ P3.1 and P3.2 are integrated bounded contracts: the Creature owner is explicit a
 the discarded canonical Creature plan is skipped under the legacy/session owner;
 canonical `SendObjectUpdates` snapshots are published after guards are released.
 P3.3 preserves those owners while correcting respawn/condition phase order and the
-admitted-incarnation boundary. P3.4 is a selection/phase correction, not Creature AI
-migration: it must retire the map-wide typed-store scans in the affected production
-path, cover empty/invalid/missing sources and deduplication, and leave a measurable
-retirement path for the remaining unrepresented C++ sources. Define later migration
-contracts from traced consumers under #584, never as a speculative issue per bridge or
-crate.
+admitted-incarnation boundary. P3.4 is a delivered selection/phase correction, not
+Creature AI migration: it retires the map-wide typed-store scans in the production
+path, covers nearby inclusion and out-of-cell exclusion, and leaves a measurable
+retirement path for source-specific sight distance and remaining unrepresented C++
+sources. Define later migration contracts from traced consumers under #584, never as a
+speculative issue per bridge or crate.
 
 ### A4 — Physical and dependency closeout
 
