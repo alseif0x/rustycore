@@ -1,6 +1,8 @@
 //! Composition boundary for the effective C++ skill catalog.
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
+use std::sync::Arc;
+use tracing::info;
 use wow_persistence::{
     SkillCatalogHotfixLoadOutcomeLikeCpp, SkillCatalogHotfixPersistencePortLikeCpp,
     SkillLineAbilityHotfixRowLikeCpp, SkillLineHotfixRowLikeCpp,
@@ -121,6 +123,29 @@ pub(crate) async fn load_skill_store_like_cpp(
     )
 }
 
+pub(crate) fn load_trait_index_like_cpp(
+    data_dir: &str,
+    locale: &str,
+    skill_line_store: &wow_data::SkillLineStore,
+) -> Result<Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>> {
+    let trait_tree_store = wow_data::trait_tree::TraitTreeStore::load(data_dir, locale)
+        .context("Failed to load TraitTree.db2")?;
+    let skill_line_x_trait_tree_store = wow_data::SkillLineXTraitTreeStore::load(data_dir, locale)
+        .context("Failed to load SkillLineXTraitTree.db2")?;
+    let index = Arc::new(
+        wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp::from_effective_stores_like_cpp(
+            &skill_line_x_trait_tree_store,
+            &trait_tree_store,
+            |skill_line_id| skill_line_store.contains_effective_record_like_cpp(skill_line_id),
+        ),
+    );
+    info!(
+        trait_tree_links = index.len(),
+        "Loaded C++ TraitMgr SkillLineXTraitTree profession index"
+    );
+    Ok(index)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,11 +205,22 @@ mod tests {
             .find("load_skill_store_like_cpp")
             .expect("skill relation catalog stage must remain composed");
         let trait_tree = source
-            .find("SkillLineXTraitTreeStore::load")
+            .rfind("load_trait_index_like_cpp")
             .expect("TraitMgr SkillLineXTraitTree stage must remain composed");
         let tiers = source
             .find("load_skill_tiers_store_like_cpp")
             .expect("independent World skill tiers stage must remain composed");
         assert!(skill_line < relations && relations < trait_tree && trait_tree < tiers);
+    }
+
+    #[test]
+    fn trait_index_loader_owns_both_wdc4_stages() {
+        let source = include_str!("skill_catalog.rs");
+        let loader = source
+            .find("fn load_trait_index_like_cpp")
+            .expect("TraitMgr index loader must remain explicit");
+        let body = &source[loader..];
+        assert!(body.contains("TraitTreeStore::load"));
+        assert!(body.contains("SkillLineXTraitTreeStore::load"));
     }
 }

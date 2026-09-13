@@ -1,13 +1,11 @@
 //! Ordered world-server startup and shutdown composition.
 //!
-//! This module intentionally remains above the normal physical-file target:
-//! its body is the linear composition order inherited from C++ `Main.cpp` and
-//! owns no gameplay algorithms. Splitting it further requires typed staged
-//! bootstrap results so that resource identity, failure drops, task joins, and
-//! shutdown order stay explicit; inventing one mega-context here would only
-//! conceal those dependencies.
+//! The body retains linear C++ `Main.cpp` order and owns no gameplay algorithms.
+//! Further splits require typed staged results so resource identity, failure
+//! drops, task joins and shutdown order remain explicit.
 
 use super::*;
+use crate::hotfix::skill_catalog::load_trait_index_like_cpp;
 use wow_database::player::spell_acquisition_adapter::spell_acquisition_port;
 
 /// Run the world server with explicit process arguments.
@@ -964,9 +962,8 @@ async fn run_inner(
         creature_spawn_store.len(),
         gameobject_spawn_store.len()
     );
-    // C++ acquisition authority is composed in dependency order: the final
-    // SkillLine identities first, then SkillLineAbility/SkillRaceClassInfo
-    // with their official/custom overlays and final removals.
+    // C++ skill authority follows final SkillLine identities, relation stores
+    // and derived projections with official/custom overlays and final removals.
     let skill_catalog_hotfix_persistence =
         wow_database::MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp::new(Arc::clone(
             &hotfix_db,
@@ -1009,30 +1006,8 @@ async fn run_inner(
         skill_store_report.skill_race_class_info_removed_rows,
     );
     let skill_store = Arc::new(skill_store_outcome.store);
-    // This bounded TraitMgr slice consumes SkillLineXTraitTree after the
-    // effective skill catalog and before exposing profession trait-config
-    // lookups. Keep the projection immutable and fail closed for missing
-    // cross-store references. The table-granular WDC4 sequencing residual is
-    // tracked on #524; this projection does not claim that gate is complete.
-    let trait_tree_store = Arc::new(
-        wow_data::trait_tree::TraitTreeStore::load(&data_dir, &locale)
-            .context("Failed to load TraitTree.db2")?,
-    );
-    let skill_line_x_trait_tree_store = Arc::new(
-        wow_data::SkillLineXTraitTreeStore::load(&data_dir, &locale)
-            .context("Failed to load SkillLineXTraitTree.db2")?,
-    );
-    let trait_tree_skill_line_index = Arc::new(
-        wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp::from_effective_stores_like_cpp(
-            &skill_line_x_trait_tree_store,
-            &trait_tree_store,
-            |skill_line_id| skill_line_store.contains_effective_record_like_cpp(skill_line_id),
-        ),
-    );
-    info!(
-        trait_tree_links = trait_tree_skill_line_index.len(),
-        "Loaded C++ TraitMgr SkillLineXTraitTree profession index"
-    );
+    let trait_tree_skill_line_index =
+        load_trait_index_like_cpp(&data_dir, &locale, &skill_line_store)?;
     let trait_definition_store = Arc::new(
         wow_data::trait_tree::TraitDefinitionStore::load(&data_dir, &locale)
             .context("Failed to load TraitDefinition.db2")?,
