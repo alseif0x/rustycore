@@ -7,7 +7,10 @@
 //! (`Entities/Item/Item.cpp:57`) and `RemoveItemsSetItem` (`:146`), the second
 //! deleting an effect once its last equipped item is gone (`:192`).
 
-use crate::{PlayerItemLevelCapsLikeCpp, PlayerItemModifierRuntimeStateLikeCpp};
+use crate::{
+    ApplyEnchantmentEffectAction, ApplyEnchantmentUnitMod, ApplyEnchantmentUnitModifier,
+    PlayerItemLevelCapsLikeCpp, PlayerItemModifierRuntimeStateLikeCpp,
+};
 
 fn item(counter: i64) -> wow_core::ObjectGuid {
     wow_core::ObjectGuid::create_item(1, counter)
@@ -162,7 +165,9 @@ fn resetting_the_bonuses_leaves_set_effects_and_caps_alone() {
         min_item_level: 0,
         max_item_level: 200,
     });
-    runtime.with_bonuses_mut_like_cpp(|bonuses| bonuses.shield_block_value = 29);
+    runtime.apply_enchantment_effect_action_like_cpp(
+        ApplyEnchantmentEffectAction::SetShieldBlockValue { amount: 29 },
+    );
 
     runtime.reset_bonuses_like_cpp();
 
@@ -172,16 +177,22 @@ fn resetting_the_bonuses_leaves_set_effects_and_caps_alone() {
 }
 
 #[test]
-fn the_retained_bonus_borrow_writes_the_owner_and_the_snapshot_copies_it() {
+fn the_named_bonus_operation_writes_the_owner_and_the_snapshot_copies_it() {
     let mut runtime = PlayerItemModifierRuntimeStateLikeCpp::default();
 
-    let returned = runtime.with_bonuses_mut_like_cpp(|bonuses| {
-        bonuses.attack_power_total = 10;
-        bonuses.stats_base[1] = 4;
-        bonuses.attack_power_total
+    runtime.apply_enchantment_effect_action_like_cpp(ApplyEnchantmentEffectAction::UnitModifier {
+        unit_mod: ApplyEnchantmentUnitMod::AttackPower,
+        modifier: ApplyEnchantmentUnitModifier::TotalValue,
+        amount: 10,
+        apply: true,
+    });
+    runtime.apply_enchantment_effect_action_like_cpp(ApplyEnchantmentEffectAction::UnitModifier {
+        unit_mod: ApplyEnchantmentUnitMod::StatAgility,
+        modifier: ApplyEnchantmentUnitModifier::BaseValue,
+        amount: 4,
+        apply: true,
     });
 
-    assert_eq!(returned, 10);
     assert_eq!(runtime.bonuses_like_cpp().attack_power_total, 10);
     let mut snapshot = runtime.bonuses_snapshot_like_cpp();
     snapshot.attack_power_total = 99;

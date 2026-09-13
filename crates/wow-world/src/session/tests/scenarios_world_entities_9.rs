@@ -510,7 +510,14 @@ async fn spell_damage_effects_add_pct_threat_and_one_cast_bonus_like_cpp() {
     assert!(
         session
             .mutate_player_item_modifier_runtime_like_cpp(|runtime| {
-                runtime.with_bonuses_mut_like_cpp(|bonuses| bonuses.attack_power_total = 10);
+                runtime.apply_enchantment_effect_action_like_cpp(
+                    wow_entities::ApplyEnchantmentEffectAction::UnitModifier {
+                        unit_mod: wow_entities::ApplyEnchantmentUnitMod::AttackPower,
+                        modifier: wow_entities::ApplyEnchantmentUnitModifier::TotalValue,
+                        amount: 10,
+                        apply: true,
+                    },
+                );
             })
             .is_some()
     );

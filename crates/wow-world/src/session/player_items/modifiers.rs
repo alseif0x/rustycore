@@ -560,11 +560,7 @@ impl WorldSession {
         action: ApplyEnchantmentEffectAction,
     ) -> bool {
         self.mutate_player_item_modifier_runtime_like_cpp(|runtime| {
-            runtime.with_bonuses_mut_like_cpp(|bonuses| {
-                crate::session_rules::apply_represented_item_bonus_action_to_state_like_cpp(
-                    bonuses, action,
-                );
-            });
+            runtime.apply_enchantment_effect_action_like_cpp(action);
         })
         .is_some()
     }
