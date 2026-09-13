@@ -195,7 +195,10 @@ cinematic manager state.
 Implementation `7214fb68` adds the focused regression for inactive Creature versus
 active-object activation and reruns the P3.4 nearby-selection regression. This is a
 phase-fidelity correction only; it does not migrate Creature AI/combat or claim live
-client, capture, DB/restart/relogin evidence.
+client, capture, DB/restart/relogin evidence. The affected `wow-map` checks,
+formatting, diff and JSON validation pass; validation-v2 `quick` completed in
+15.961 seconds with one Cargo job at manifest
+`target/validation-v2/manifests/20260913T054921.385905Z-3397552-quick.json`.
 
 ### Bounded #578 closeout inventory
 
