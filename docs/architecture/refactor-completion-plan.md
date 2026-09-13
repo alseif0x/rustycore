@@ -16,7 +16,7 @@ la cadencia de `AGENTS.md`.
 **Cabeza integrada, 2026-09-13: PR #816**, en `3.4.3` como
 `db1250767090a5c951dae96ad6c2a2d5b24873ff`. #787 / PR #792 (`d14a9a67`) y
 #584 P2 item-bonus y P3.1–P3.8 están integrados dentro de esta cabeza; P3.9 está
-implementado en PR #820 (`883fa0f0`) y pendiente de integración. La coordinación World/Map está
+implementado en PR #820 (`8ab62574`) y pendiente de integración. La coordinación World/Map está
 implementada y aceptada localmente en `76369bda`; la corrección mantiene el ACK World pendiente hasta finalizar y
 retirar la sesión. El contrato y la evidencia están en el
 [checkpoint de sesión](session-578-checkpoint.md#787-resumption-finalization-is-inside-the-world-completion-boundary--2026-09-12).
@@ -54,7 +54,7 @@ de bytes/captura y la QA viva siguen siendo gates de la issue; la integración r
 está satisfecha.
 
 Las macros P3.7 y P3.8 de núcleo bajo #584 quedaron integradas; P3.9 está implementada
-en PR #820 (`883fa0f0`) y pendiente de integración. P3.7 conecta los planes
+en PR #820 (`8ab62574`) y pendiente de integración. P3.7 conecta los planes
 de relocalización de criaturas ya calculados con la única vía de publicación de sesiones,
 reutiliza las fuentes lejanas de `ObjectUpdater` y aplica el radio de activación por
 fuente; P3.8 marca los Players cercanos para el mismo rail cuando un objeto entra o sale
@@ -996,7 +996,7 @@ La auditoría de P3.8 dejó separado el paso que TrinityCore ejecuta en
 `WorldObject::DestroyForNearbyPlayers` (`Entities/Object/Object.cpp:3617-3655`):
 retirar de forma dirigida solo la Creature ordinaria que el receptor tenía en
 `m_clientGUIDs`, excluyendo al charmer, antes de que el objeto desaparezca del mapa.
-PR #820 (`883fa0f0`, integración pendiente) conserva esa responsabilidad en una sola
+PR #820 (`8ab62574`, integración pendiente) conserva esa responsabilidad en una sola
 cadena. `Map::RemoveFromMap` captura los Players cercanos y el charmer mientras la
 Creature sigue adjunta, y el map tick añade el `map_incarnation` al resultado sin
 serializar ni entregar bajo el guard.

@@ -204,7 +204,7 @@ still names the direct synchronous C++ visibility call as a runtime gap because 
 Rust equivalent is intentionally deferred through the existing phase boundary.
 
 **P3.9 directed Creature DESTROY — 2026-09-13, #584 / PR #820, implementation
-`883fa0f03595210283f7b7378ae0ab9b56c429fe` (integration pending):** an ordinary
+`8ab62574` (integration pending):** an ordinary
 Creature removed from an active map now produces a typed directed-destroy result
 while it is still attached. The canonical map captures nearby in-world Players,
 excludes the direct charmer and binds the result to the map incarnation; the
