@@ -30,6 +30,16 @@ Those contracts and historical evidence remain valid inputs to #584; none is mar
 completed by the scope transfer. #583 waits for the required core macrodeliverables
 in #584; #153 remains an independent auditor, not the owner of unfinished work.
 
+## P2 item-modifier owner closure — final local validation, 2026-09-13
+
+The candidate `ecc67603` on `584-next-audit` passed `validation-v2 final` on
+2026-09-13. The manifest is
+`target/validation-v2/manifests/20260913T165720.613650Z-3851477-final.json`;
+the release profile completed the workspace checks and the `wow-entities`/`wow-world`
+library suites with 3875 passing tests, one ignored and zero failures. The delivery
+still awaits publication and does not close #584 or claim TraitMgr gameplay, Creature
+writer migration, live client QA or DB/relogin durability.
+
 ## P3.8 delivered — map object lifecycle visibility intents — 2026-09-13
 
 The finite residual after P3.7 was the visibility side of object admission and

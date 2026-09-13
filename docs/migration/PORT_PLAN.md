@@ -44,6 +44,9 @@ The P2 item-modifier writer residual is integrated by PR #816: the original
 resolved-effect operation. The follow-up owner closure is delivered on the current
 candidate (`ecc67603`): each item-set, level-cap, reset and resolved-enchantment mutation
 now names a `Player` operation, while the fallback exists only for `cfg(test)` fixtures.
+The follow-up named Player item-modifier closure is implemented on `584-next-audit` at
+`ecc67603` and passed `validation-v2 final` on 2026-09-13 (manifest
+`target/validation-v2/manifests/20260913T165720.613650Z-3851477-final.json`).
 Catalog/effect consumers remain in `wow-world`; effective statistics and auras remain
 allocated to gameplay work such as #61. The P2 item-object residual is integrated in
 `3.4.3` as `ef82beeb`: `PlayerInventoryRuntime` owns a closed

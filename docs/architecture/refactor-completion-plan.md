@@ -896,8 +896,12 @@ Player y de daño que ejercitan los adaptadores de sesión. `cargo check -p wow-
 con un job y los dos tests focalizados de `wow-world` pasan; el test de owner de
 `wow-entities` se ejecuta junto con la suite del crate. El baseline de
 `session-ownership-check` se actualiza solo por las operaciones nuevas y la retirada del
-helper genérico, con el delta revisado. La validación final y publicación siguen siendo
-gates de esta rama.
+helper genérico, con el delta revisado. La validación final `validation-v2 final` pasó
+el 2026-09-13 sobre este candidato; su manifiesto es
+`target/validation-v2/manifests/20260913T165720.613650Z-3851477-final.json` y la suite
+de `wow-entities`/`wow-world` terminó con 3875 tests correctos, uno ignorado y cero
+fallos. Solo queda la publicación de esta rama; la evidencia no amplía el alcance
+funcional descrito abajo.
 
 Este macro no incluye TraitMgr funcional (#524), escritor Creature legado, AI/combat,
 auras, estadísticas, DB/reinicio/relogin ni módulos #583. #524 queda como la siguiente

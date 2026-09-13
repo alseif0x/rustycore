@@ -17,9 +17,12 @@ reset and resolved enchantment actions. Consumers and fixtures were migrated wit
 changing catalog, aura, packet or publication ordering. The canonical detached/stale
 ownership regression, the Player owner regression and the existing item-threat
 regression pass; `cargo check -p wow-world` with one job plus format/diff and the
-ownership-policy check pass. This is a local candidate: final validation/publication
-are pending, and #584 remains open. It does not claim #61 effective statistics,
-TraitMgr consumers (#524), Creature migration, live QA or DB durability.
+ownership-policy check pass. `validation-v2 final` then passed on 2026-09-13; the
+manifest is `target/validation-v2/manifests/20260913T165720.613650Z-3851477-final.json`
+and the `wow-entities`/`wow-world` suite completed 3875 tests with zero failures
+(one ignored). Publication is pending and #584 remains open. This evidence does not
+claim #61 effective statistics, TraitMgr consumers (#524), Creature migration, live
+QA or DB durability.
 
 The next functional macro after this bounded closure is #524's remaining TraitMgr
 authority: currency ownership/spending, condition evaluation, starter-build
