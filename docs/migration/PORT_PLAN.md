@@ -2,7 +2,8 @@
 
 **Reconciled 2026-09-13 under #584 / #787 / #748 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
 Source baseline for this reconciliation: `3.4.3` at
-`76a050814ab0c5641a09892cd369ce2eca24839e` (PR #810; the earlier `886e13ad`,
+`a96ee54863b4fb9c46dabcf6d01839e5a96529f8` (PR #811; the earlier `76a05081`,
+`886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
 bounded planning delivery. Administrative consolidation does not count as implementation.
@@ -36,7 +37,7 @@ boundaries and physical organization. #582 is closed after its decoder-only deli
 action-specific capture/live gate and administration mutations not represented by the
 current Rust surface. #524 has its relation-query order correction integrated by PR
 #803. The bounded `SkillLineXTraitTree` projection and production Player consumer are
-implemented in `0f65d677`, but the issue remains open for table-granular WDC4 startup
+implemented in `0f65d677` and physically reconciled by PR #811, but the issue remains open for table-granular WDC4 startup
 sequencing and complete `TraitMgr` authority acceptance. In parallel with safe independent work, prepare
 a playable circuit: effective equipment/stats → combat and death/recovery →
 quests/loot/interactions → complete class kit, travel and durable services → soak.

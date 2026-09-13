@@ -13,8 +13,8 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza integrada, 2026-09-13: PR #810**, en `3.4.3` como
-`76a050814ab0c5641a09892cd369ce2eca24839e`. #787 / PR #792 (`d14a9a67`) y
+**Cabeza integrada, 2026-09-13: PR #811**, en `3.4.3` como
+`a96ee54863b4fb9c46dabcf6d01839e5a96529f8`. #787 / PR #792 (`d14a9a67`) y
 #584 P3.1–P3.6 están integrados dentro de esta cabeza. La coordinación World/Map está
 implementada y aceptada localmente en `76369bda`; la corrección mantiene el ACK World pendiente hasta finalizar y
 retirar la sesión. El contrato y la evidencia están en el
@@ -24,7 +24,7 @@ no ordena volver a ejecutar entregas ya integradas. La retirada del escritor
 legado de criaturas y las fases de mapa no representadas siguen en #584.
 
 La base revisada de esta entrega es `3.4.3` en
-`76a050814ab0c5641a09892cd369ce2eca24839e`. #133 se cerró el 2026-09-09. Las
+`a96ee54863b4fb9c46dabcf6d01839e5a96529f8`. #133 se cerró el 2026-09-09. Las
 entregas #578, #585, #587, #588, #589, #716, #718, #722 y #737 están integradas y
 cerradas dentro de sus alcances acotados. No se debe esperar otro cierre de #133 ni
 reabrir esas entregas por una preferencia de nombres o por una frontera pendiente.

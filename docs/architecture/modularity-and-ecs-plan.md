@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current integration head is `76a050814ab0c5641a09892cd369ce2eca24839e`.
+The current integration head is `a96ee54863b4fb9c46dabcf6d01839e5a96529f8`.
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
 mutations. #524's relation-query order correction is integrated by PR #803, and PR #810 now
@@ -43,7 +43,7 @@ semantic, storage and extension contracts; neither document turns a pending task
 an accepted result.
 
 The architecture repair program is reviewed against integrated `3.4.3` at
-`76a050814ab0c5641a09892cd369ce2eca24839e`. #587/#588/#589 and the subsequent
+`a96ee54863b4fb9c46dabcf6d01839e5a96529f8`. #587/#588/#589 and the subsequent
 #716/#718/#722/#737 deliveries are integrated and closed in their bounded scopes.
 Their checkpoints retain scoped runtime/capture evidence; they are not reopened by
 the remaining core work or by naming preferences.
