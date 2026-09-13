@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Active delivery — 2026-09-12, #787 / PR #792, integration base `aee29a69`:**
-World/Map phase coordination is implemented and locally accepted on
-`787-p3-map-driven-session-pass` at `76369bda`. The correction retains the World
+**Integrated delivery — 2026-09-12, #787 / PR #792, integration SHA
+`d14a9a67194e8013241e5dc837d9e72589aabac0`:** World/Map phase coordination is
+implemented and locally accepted on `787-p3-map-driven-session-pass` at `76369bda`.
+The correction retains the World
 completion acknowledgement through task-owned finalization, session destruction,
 BattlePet attachment release and registration retirement, preserves the shutdown
 handover, and keeps interrupted effects behind the cross-step barrier.

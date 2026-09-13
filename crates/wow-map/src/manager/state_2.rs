@@ -442,8 +442,13 @@ impl MapManager {
     {
         let plan = self.begin_tick_like_cpp(diff_ms).into_started()?;
         let effective = plan.effective_diff_ms();
-        self.resume_tick_like_cpp(plan, pool_update, load_record)
-            .expect_resumed_like_cpp();
+        self.resume_tick_with_creature_update_owner_like_cpp(
+            plan,
+            pool_update,
+            load_record,
+            MapCreatureUpdateOwnerLikeCpp::CanonicalMap,
+        )
+        .expect_resumed_like_cpp();
         Some(effective)
     }
 
@@ -609,7 +614,50 @@ impl MapManager {
         &mut self,
         plan: MapTickPlanLikeCpp,
         pool_update: Option<(&SpawnStore, &PoolMgrLikeCpp)>,
+        load_record: Option<&mut L>,
+    ) -> MapTickResumeLikeCpp
+    where
+        L: FnMut(&mut Map, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+    {
+        self.resume_tick_with_creature_update_owner_like_cpp(
+            plan,
+            pool_update,
+            load_record,
+            MapCreatureUpdateOwnerLikeCpp::CanonicalMap,
+        )
+    }
+
+    /// Resume one split tick with the pool/loaded-grid callback and an
+    /// explicit Creature-phase owner. Taking the callback by value keeps its
+    /// borrow tied to this call, as the historical pool-update wrapper did.
+    pub fn resume_tick_with_pool_update_loaded_grid_records_context_and_owner_like_cpp<L>(
+        &mut self,
+        plan: MapTickPlanLikeCpp,
+        spawn_store: &SpawnStore,
+        pool_mgr: &PoolMgrLikeCpp,
+        mut load_record: L,
+        creature_update_owner: MapCreatureUpdateOwnerLikeCpp,
+    ) -> MapTickResumeLikeCpp
+    where
+        L: FnMut(&mut Map, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+    {
+        self.resume_tick_with_creature_update_owner_like_cpp(
+            plan,
+            Some((spawn_store, pool_mgr)),
+            Some(&mut load_record),
+            creature_update_owner,
+        )
+    }
+
+    /// Resume one split tick while declaring which runtime owns the Creature
+    /// phase. External ownership suppresses the canonical shadow writer until
+    /// its real effect consumer is integrated.
+    pub fn resume_tick_with_creature_update_owner_like_cpp<L>(
+        &mut self,
+        plan: MapTickPlanLikeCpp,
+        pool_update: Option<(&SpawnStore, &PoolMgrLikeCpp)>,
         mut load_record: Option<&mut L>,
+        creature_update_owner: MapCreatureUpdateOwnerLikeCpp,
     ) -> MapTickResumeLikeCpp
     where
         L: FnMut(&mut Map, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
@@ -648,43 +696,56 @@ impl MapManager {
                     Some((spawn_store, pool_mgr)) => {
                         if let Some(load_record) = load_record.as_mut() {
                             self.updater
-                                .schedule_after_sessions_with_pool_update_loaded_grid_records_context(
+                                .schedule_after_sessions_with_pool_update_loaded_grid_records_context_and_owner_like_cpp(
                                     map,
                                     current,
                                     spawn_store,
                                     pool_mgr,
+                                    creature_update_owner,
                                     &mut **load_record,
                                 )
                         } else {
                             self.updater
-                                .schedule_after_sessions_with_pool_update_context(
+                                .schedule_after_sessions_with_pool_update_context_and_owner_like_cpp(
                                     map,
                                     current,
                                     spawn_store,
                                     pool_mgr,
+                                    creature_update_owner,
                                 )
                         }
                     }
-                    None => self.updater.schedule_after_sessions(map, current),
+                    None => self.updater.schedule_after_sessions_with_owner_like_cpp(
+                        map,
+                        current,
+                        creature_update_owner,
+                    ),
                 }
             } else {
                 match pool_update {
                     Some((spawn_store, pool_mgr)) => {
                         if let Some(load_record) = load_record.as_mut() {
-                            map.update_after_sessions_like_cpp(
+                            map.update_after_sessions_with_creature_owner_like_cpp(
                                 current,
                                 Some((spawn_store, pool_mgr)),
                                 Some(&mut **load_record),
+                                creature_update_owner,
                             );
                         } else {
-                            map.update_after_sessions_like_cpp(
+                            map.update_after_sessions_with_creature_owner_like_cpp(
                                 current,
                                 Some((spawn_store, pool_mgr)),
                                 None::<&mut L>,
+                                creature_update_owner,
                             );
                         }
                     }
-                    None => map.update_after_sessions_like_cpp(current, None, None::<&mut L>),
+                    None => map.update_after_sessions_with_creature_owner_like_cpp(
+                        current,
+                        None,
+                        None::<&mut L>,
+                        creature_update_owner,
+                    ),
                 }
             }
         }
@@ -967,9 +1028,22 @@ impl MapUpdater {
     /// The post-session half of one scheduled map update (#787). The updater
     /// still runs inline; the split only changes which phases this call covers.
     pub fn schedule_after_sessions(&mut self, map: &mut ManagedMap, diff_ms: u32) {
+        self.schedule_after_sessions_with_owner_like_cpp(
+            map,
+            diff_ms,
+            MapCreatureUpdateOwnerLikeCpp::CanonicalMap,
+        );
+    }
+
+    pub fn schedule_after_sessions_with_owner_like_cpp(
+        &mut self,
+        map: &mut ManagedMap,
+        diff_ms: u32,
+        creature_update_owner: MapCreatureUpdateOwnerLikeCpp,
+    ) {
         self.pending_requests += 1;
         self.scheduled_updates += 1;
-        map.update_after_sessions_like_cpp(
+        map.update_after_sessions_with_creature_owner_like_cpp(
             diff_ms,
             None,
             None::<
@@ -979,6 +1053,7 @@ impl MapUpdater {
                     SpawnId,
                 ) -> Option<LoadedGridRespawnRecordsLikeCpp>,
             >,
+            creature_update_owner,
         );
         self.update_finished();
     }
@@ -991,9 +1066,26 @@ impl MapUpdater {
         spawn_store: &SpawnStore,
         pool_mgr: &PoolMgrLikeCpp,
     ) {
+        self.schedule_after_sessions_with_pool_update_context_and_owner_like_cpp(
+            map,
+            diff_ms,
+            spawn_store,
+            pool_mgr,
+            MapCreatureUpdateOwnerLikeCpp::CanonicalMap,
+        );
+    }
+
+    pub fn schedule_after_sessions_with_pool_update_context_and_owner_like_cpp(
+        &mut self,
+        map: &mut ManagedMap,
+        diff_ms: u32,
+        spawn_store: &SpawnStore,
+        pool_mgr: &PoolMgrLikeCpp,
+        creature_update_owner: MapCreatureUpdateOwnerLikeCpp,
+    ) {
         self.pending_requests += 1;
         self.scheduled_updates += 1;
-        map.update_after_sessions_like_cpp(
+        map.update_after_sessions_with_creature_owner_like_cpp(
             diff_ms,
             Some((spawn_store, pool_mgr)),
             None::<
@@ -1003,6 +1095,7 @@ impl MapUpdater {
                     SpawnId,
                 ) -> Option<LoadedGridRespawnRecordsLikeCpp>,
             >,
+            creature_update_owner,
         );
         self.update_finished();
     }
@@ -1019,12 +1112,36 @@ impl MapUpdater {
     ) where
         L: FnMut(&mut Map, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
     {
+        self.schedule_after_sessions_with_pool_update_loaded_grid_records_context_and_owner_like_cpp(
+            map,
+            diff_ms,
+            spawn_store,
+            pool_mgr,
+            MapCreatureUpdateOwnerLikeCpp::CanonicalMap,
+            load_record,
+        );
+    }
+
+    pub fn schedule_after_sessions_with_pool_update_loaded_grid_records_context_and_owner_like_cpp<
+        L,
+    >(
+        &mut self,
+        map: &mut ManagedMap,
+        diff_ms: u32,
+        spawn_store: &SpawnStore,
+        pool_mgr: &PoolMgrLikeCpp,
+        creature_update_owner: MapCreatureUpdateOwnerLikeCpp,
+        load_record: &mut L,
+    ) where
+        L: FnMut(&mut Map, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+    {
         self.pending_requests += 1;
         self.scheduled_updates += 1;
-        map.update_after_sessions_like_cpp(
+        map.update_after_sessions_with_creature_owner_like_cpp(
             diff_ms,
             Some((spawn_store, pool_mgr)),
             Some(load_record),
+            creature_update_owner,
         );
         self.update_finished();
     }

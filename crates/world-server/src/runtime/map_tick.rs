@@ -87,23 +87,28 @@ pub(crate) fn canonical_map_tick_resume_like_cpp(
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
 ) -> Option<CanonicalSpawnGroupConditionTickSummaryLikeCpp> {
     let effective_diff_ms = plan.effective_diff_ms();
-    let resumed = manager.resume_tick_with_pool_update_loaded_grid_records_context(
-        plan,
-        canonical_spawn_metadata.spawn_store(),
-        canonical_spawn_metadata.pool_mgr_like_cpp(),
-        |map, object_type, spawn_id| match object_type {
-            wow_map::SpawnObjectType::GameObject => {
-                build_loaded_grid_gameobject_respawn_record_like_cpp(
-                    map,
-                    object_type,
-                    spawn_id,
-                    canonical_spawn_metadata,
-                    loaded_grid_creature_respawn_caches,
-                )
-            }
-            wow_map::SpawnObjectType::Creature | wow_map::SpawnObjectType::AreaTrigger => None,
-        },
-    );
+    // The canonical map still carries an intentionally incomplete Creature
+    // visitor. Production behaviour is owned by the legacy/session runtime;
+    // declare that owner so this tick cannot mutate and discard a shadow plan.
+    let resumed = manager
+        .resume_tick_with_pool_update_loaded_grid_records_context_and_owner_like_cpp(
+            plan,
+            canonical_spawn_metadata.spawn_store(),
+            canonical_spawn_metadata.pool_mgr_like_cpp(),
+            |map, object_type, spawn_id| match object_type {
+                wow_map::SpawnObjectType::GameObject => {
+                    build_loaded_grid_gameobject_respawn_record_like_cpp(
+                        map,
+                        object_type,
+                        spawn_id,
+                        canonical_spawn_metadata,
+                        loaded_grid_creature_respawn_caches,
+                    )
+                }
+                wow_map::SpawnObjectType::Creature | wow_map::SpawnObjectType::AreaTrigger => None,
+            },
+            wow_map::MapCreatureUpdateOwnerLikeCpp::ExternalRuntime,
+        );
     if resumed != wow_map::MapTickResumeLikeCpp::Resumed {
         // The manager is not holding this tick any more: nothing was mutated and
         // no tail may run, or the summary would report phases that never ran.

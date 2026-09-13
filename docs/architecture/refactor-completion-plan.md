@@ -13,9 +13,9 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Entrega activa, 2026-09-12: #787 / PR #792**, sobre la integración `aee29a69`.
-La coordinación World/Map está implementada y aceptada localmente en
-`76369bda`; la corrección mantiene el ACK World pendiente hasta finalizar y
+**Entrega integrada, 2026-09-12: #787 / PR #792**, en `3.4.3` como
+`d14a9a67194e8013241e5dc837d9e72589aabac0`. La coordinación World/Map está
+implementada y aceptada localmente en `76369bda`; la corrección mantiene el ACK World pendiente hasta finalizar y
 retirar la sesión. El contrato y la evidencia están en el
 [checkpoint de sesión](session-578-checkpoint.md#787-resumption-finalization-is-inside-the-world-completion-boundary--2026-09-12).
 La secuencia del 11 de septiembre que sigue se conserva como contexto fechado;
@@ -808,6 +808,44 @@ Las diferencias que quedan, y que son el trabajo P3 real:
    propio código (visitas por celda cercana, objetos activos, transportes,
    `SendObjectUpdates` real, scripts, notificaciones de relocalización) y son el paso
    8 del ADR.
+
+#### Selección P3.1 bajo #584 — retirada del escritor sombra de Creature
+
+La auditoría de fuentes y consumidores del 2026-09-12 cierra la primera selección
+implementable. C++ tiene un único `Trinity::ObjectUpdater` dentro de
+`Map::Update` (`Maps/Map.cpp:695-754`; `Grids/Notifiers.cpp:258-264`), que llama a
+`Creature::Update` para los objetos admitidos por las celdas activas. En RustyCore
+la visita canónica (`wow-map/src/map/update.rs:361-490`) ejecuta
+`Creature::runtime_update_plan`, pero `ManagedMap::update_after_sessions_like_cpp`
+(`wow-map/src/manager/state_1.rs:506-540`) descarta el plan y no publica sus acciones.
+El comportamiento efectivo continúa en `run_legacy_creature_runtime_tick_and_deliver_once_like_cpp`
+(`world-server/src/runtime/delivery.rs:1490-1700`), que resuelve ciclo de vida,
+movimiento, aggro, hechizos y melé una vez y entrega después de soltar los cerrojos.
+Los puentes de carga/condiciones (`runtime/game_events.rs:382-470, 1100-1215`)
+siguen siendo sincronización de representación, no un segundo reloj.
+
+La escritura canónica descartada avanza temporizadores y registra acciones que nadie
+consume; por eso no es evidencia de paridad y sí una escritura sombra que puede
+desalinear la representación canónica del dueño efectivo. La primera macro de #584
+queda fijada así:
+
+1. Hacer explícito, por tick, el dueño de la fase Creature (`CanonicalMap` o
+   `ExternalRuntime`) en `wow-map` y conservar el modo canónico para las pruebas y
+   para la futura migración.
+2. Cuando el servidor mantiene el escritor legacy/session, seleccionar
+   `ExternalRuntime` en la reanudación canónica. La fase Creature canónica se omite
+   sin mutar temporizadores ni perder planes; las demás fases de `Map::Update` y los
+   puentes de spawn/respawn permanecen sin cambios.
+3. Registrar el dueño seleccionado y cubrir la decisión con una regresión de
+   `MapManager` que demuestre que un dueño externo no produce un plan descartado,
+   mientras el test canónico existente conserva la visita explícita cuando el modo
+   es `CanonicalMap`.
+
+El contrato incluye `MapManager`/`MapUpdater`, `ManagedMap`, el productor canónico y
+sus tests. No retira todavía el escritor legacy, no migra IA/combat, no cambia el
+orden de paquetes ni declara representadas las visitas por celda. La siguiente
+macro solo se abre después de que esta retirada esté integrada y se audite el
+consumidor que permita trasladar una transición completa al mapa canónico.
 
 Qué conservar en cualquier corte P3: residencia/incarnation del Player canónico,
 backpressure y cancelación de la tarea de sesión, transferencia entre mapas, descarga

@@ -14,8 +14,10 @@ intermediate acceptance point, not a smaller replacement target.
 **#743 (group state application/reconciliation), #735 (reputation encapsulation) and
 #787 (World/Map session-phase coordination) are delivered and accepted within their
 recorded scopes.** The next primary implementation is selected from the measured
-P2/P3/P4 residuals under #584: first audit the legacy creature writer and the still
-unrepresented `Map::Update` phases, then choose one finite macro from that evidence.
+P2/P3/P4 residuals under #584: the first audit selected P3.1, retirement of the
+discarded canonical Creature writer while the legacy/session owner remains active;
+the legacy writer and still-unrepresented `Map::Update` phases remain for subsequent
+evidence-led macros.
 No old issue is reopened and no residual is promoted to implementation merely from a
 textual inventory.
 
@@ -176,7 +178,7 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions; select finite complete implementation macros from current consumers. |
 | [#735](https://github.com/alseif0x/rustycore/issues/735) | A, reputation boundary | **Closed/delivered.** Player owns reputation state and named transitions; catalogs, packets and persistence consumers remain outside the domain boundary. |
 | [#743](https://github.com/alseif0x/rustycore/issues/743) | A, group consistency | **Closed/delivered.** GroupRegistry remains authoritative and dropped state-bearing commands converge through the session boundary. |
-| [#787](https://github.com/alseif0x/rustycore/issues/787) | A, session-phase coordination | **Accepted at `76369bda`; PR #792 pending merge.** World runs before Map, phase permits remain live through finalization/retirement, and shutdown/replacement barriers are covered by production-linked tests and guarded login/save/relogin QA. |
+| [#787](https://github.com/alseif0x/rustycore/issues/787) | A, session-phase coordination | **Integrated as `d14a9a67` (PR #792; accepted at `76369bda`).** World runs before Map, phase permits remain live through finalization/retirement, and shutdown/replacement barriers are covered by production-linked tests and guarded login/save/relogin QA. |
 
 **Planning delivery:** [#748](https://github.com/alseif0x/rustycore/issues/748) owns
 this documentation/issue reconciliation and its validation. Closing it does not close #49
@@ -219,8 +221,10 @@ unrepresented `Map::Update` phases against the same owner/lifetime rules.
 Keep the selected private hecs direction and finite V2 conformance evidence.
 Integrate it only with real owners/consumers and the lifetime/reentry contract;
 no global ECS, public raw storage API, extra runtime clock or dependency-only “migration.”
-Define the next finite implementation contract from these traced transitions under #584,
-not a speculative issue per bridge or crate.
+P3.1 is the selected finite contract: make the Creature phase owner explicit and skip
+the discarded canonical plan whenever the legacy/session writer owns the transition.
+Define later migration contracts from their traced consumers under #584, never as a
+speculative issue per bridge or crate.
 
 ### A4 — Physical and dependency closeout
 

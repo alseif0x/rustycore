@@ -160,6 +160,23 @@ pub struct MapUpdateTailSummaryLikeCpp {
     pub metrics: MapUpdateMetricsSummaryLikeCpp,
 }
 
+/// Which runtime is allowed to mutate the map-owned Creature phase for one
+/// `Map::Update` pass.
+///
+/// C++ has one `ObjectUpdater` writer inside `Map::Update`. RustyCore still
+/// carries the legacy creature runtime while its behaviour engine converges on
+/// the canonical map. During that transition the canonical map must record no
+/// discarded Creature plan when an external runtime owns the transition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MapCreatureUpdateOwnerLikeCpp {
+    /// The canonical `wow_map` Creature visitor may run its represented plan.
+    #[default]
+    CanonicalMap,
+    /// A legacy/session runtime owns the transition; the canonical visitor is
+    /// intentionally skipped until its effect consumer is integrated.
+    ExternalRuntime,
+}
+
 /// The concrete `Map` a canonical `ManagedMap` owns.
 ///
 /// Named so code outside `wow-map` can take `&mut` to it without spelling the
@@ -181,6 +198,7 @@ pub struct ManagedMap {
     pub(super) last_dynamic_tree_update_summary_like_cpp: DynamicMapTreeUpdateSummaryLikeCpp,
     pub(super) last_dynamic_objects_update_summary: DynamicObjectsUpdateSummaryLikeCpp,
     pub(super) last_creatures_update_summary: CreatureUpdateSummaryLikeCpp,
+    pub(super) last_creature_update_owner: MapCreatureUpdateOwnerLikeCpp,
     pub(super) last_expired_pvp_combat_refs_like_cpp: Vec<(ObjectGuid, ObjectGuid)>,
     pub(super) last_game_objects_update_summary: GameObjectsUpdateSummaryLikeCpp,
     pub(super) last_transports_update_summary: TransportsUpdateSummaryLikeCpp,
@@ -235,6 +253,7 @@ impl ManagedMap {
             ),
             last_dynamic_objects_update_summary: DynamicObjectsUpdateSummaryLikeCpp::default(),
             last_creatures_update_summary: CreatureUpdateSummaryLikeCpp::default(),
+            last_creature_update_owner: MapCreatureUpdateOwnerLikeCpp::default(),
             last_expired_pvp_combat_refs_like_cpp: Vec::new(),
             last_game_objects_update_summary: GameObjectsUpdateSummaryLikeCpp::default(),
             last_transports_update_summary: TransportsUpdateSummaryLikeCpp::default(),
@@ -342,6 +361,10 @@ impl ManagedMap {
 
     pub const fn last_creatures_update_summary(&self) -> CreatureUpdateSummaryLikeCpp {
         self.last_creatures_update_summary
+    }
+
+    pub const fn last_creature_update_owner_like_cpp(&self) -> MapCreatureUpdateOwnerLikeCpp {
+        self.last_creature_update_owner
     }
 
     pub fn last_expired_pvp_combat_refs_like_cpp(&self) -> &[(ObjectGuid, ObjectGuid)] {
@@ -511,18 +534,47 @@ impl ManagedMap {
     ) where
         L: FnMut(&mut Map, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
     {
+        self.update_after_sessions_with_creature_owner_like_cpp(
+            diff_ms,
+            pool_update,
+            load_record,
+            MapCreatureUpdateOwnerLikeCpp::CanonicalMap,
+        );
+    }
+
+    /// As [`Self::update_after_sessions_like_cpp`], with an explicit owner for
+    /// the represented Creature phase.
+    pub(super) fn update_after_sessions_with_creature_owner_like_cpp<L>(
+        &mut self,
+        diff_ms: u32,
+        pool_update: Option<(&SpawnStore, &PoolMgrLikeCpp)>,
+        load_record: Option<&mut L>,
+        creature_update_owner: MapCreatureUpdateOwnerLikeCpp,
+    ) where
+        L: FnMut(&mut Map, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+    {
         self.last_dynamic_objects_update_summary =
             self.runtime.map.update_dynamic_objects_like_cpp(diff_ms);
         let now_secs = game_time_now_secs_i64();
+        self.last_creature_update_owner = creature_update_owner;
         // Partial C++ ObjectUpdater seam: after DynamicObject, visit only the
         // represented map-owned Creature family in this slice. Default context is
         // honest represented runtime only: no real AI/combat/threat/fanout.
-        self.last_creatures_update_summary =
-            self.runtime
+        self.last_creatures_update_summary = match creature_update_owner {
+            MapCreatureUpdateOwnerLikeCpp::CanonicalMap => self
+                .runtime
                 .map
                 .update_creatures_like_cpp(diff_ms, now_secs, |_guid, _creature| {
                     CreatureRuntimeUpdateContext::default()
-                });
+                }),
+            MapCreatureUpdateOwnerLikeCpp::ExternalRuntime => {
+                // The legacy/session owner already advances this transition.
+                // Do not mutate a canonical shadow and discard its plan: that
+                // would advance timers without applying the corresponding
+                // C++ effects or fanout.
+                CreatureUpdateSummaryLikeCpp::default()
+            }
+        };
         // C++ Unit::Update advances timed PvP combat references for both
         // players and creatures. The canonical map owns both sides here, so
         // expire them once per map tick and purge the reciprocal relation.
