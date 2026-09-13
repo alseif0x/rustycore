@@ -12,14 +12,17 @@ impl WorldSession {
         player_guid: ObjectGuid,
     ) -> bool {
         let complete = self.trait_tree_skill_line_index().is_none_or(|index| {
-            configs
-                .iter()
-                .filter(|config| config.config_type == 2)
-                .all(|config| {
-                    u32::try_from(config.skill_line_id)
-                        .ok()
-                        .is_some_and(|skill_line_id| index.has_skill_line_like_cpp(skill_line_id))
-                })
+            configs.iter().all(|config| match config.config_type {
+                2 => u32::try_from(config.skill_line_id)
+                    .ok()
+                    .is_some_and(|skill_line_id| index.has_skill_line_like_cpp(skill_line_id)),
+                3 => u32::try_from(config.trait_system_id)
+                    .ok()
+                    .is_some_and(|trait_system_id| {
+                        index.has_trait_system_like_cpp(trait_system_id)
+                    }),
+                _ => true,
+            })
         });
         if !complete {
             warn!(
@@ -128,5 +131,62 @@ impl WorldSession {
             }
             Some(configs.into_iter().map(|(_, config)| config).collect())
         })?
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use wow_data::skill_talent::SkillLineXTraitTreeStore;
+    use wow_data::trait_tree::{TraitTreeEntry, TraitTreeSkillLineIndexLikeCpp, TraitTreeStore};
+    use wow_packet::packets::update::TraitConfigCreateData;
+
+    #[test]
+    fn generic_trait_configs_require_a_loaded_trait_system_like_cpp() {
+        let (_packet_tx, packet_rx) = flume::unbounded();
+        let (send_tx, _send_rx) = flume::unbounded();
+        let mut session = WorldSession::new(
+            1,
+            "traits".into(),
+            0,
+            2,
+            2,
+            12340,
+            vec![],
+            "enUS".into(),
+            packet_rx,
+            send_tx,
+        );
+        let index = TraitTreeSkillLineIndexLikeCpp::from_effective_stores_like_cpp(
+            &SkillLineXTraitTreeStore::from_entries([]),
+            &TraitTreeStore::from_entries([TraitTreeEntry {
+                id: 10,
+                trait_system_id: 7,
+                unused1000_1: 0,
+                first_trait_node_id: 0,
+                player_condition_id: 0,
+                flags: 0,
+                unused1000_2: 0.0,
+                unused1000_3: 0.0,
+            }]),
+            |_| false,
+        );
+        session.set_trait_tree_skill_line_index(Arc::new(index));
+
+        let config = |trait_system_id| TraitConfigCreateData {
+            id: 1,
+            config_type: 3,
+            chr_specialization_id: 0,
+            combat_config_flags: 0,
+            local_identifier: 0,
+            skill_line_id: 0,
+            trait_system_id,
+            name: "generic".into(),
+            entries: vec![],
+        };
+        let player = ObjectGuid::create_player(1, 1);
+        assert!(session.trait_authority_complete_like_cpp(&[config(7)], player));
+        assert!(!session.trait_authority_complete_like_cpp(&[config(8)], player));
     }
 }

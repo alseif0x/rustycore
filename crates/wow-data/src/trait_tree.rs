@@ -239,6 +239,10 @@ macro_rules! db2_store {
             pub fn is_empty(&self) -> bool {
                 self.entries.is_empty()
             }
+
+            pub fn iter(&self) -> impl Iterator<Item = &$entry> {
+                self.entries.values()
+            }
         }
     };
 }
@@ -276,6 +280,7 @@ db2_store!(TraitTreeXTraitCurrencyStore, TraitTreeXTraitCurrencyEntry);
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TraitTreeSkillLineIndexLikeCpp {
     trees_by_skill_line: BTreeMap<u32, Vec<u32>>,
+    trees_by_trait_system: BTreeMap<u32, Vec<u32>>,
 }
 
 impl TraitTreeSkillLineIndexLikeCpp {
@@ -304,6 +309,19 @@ impl TraitTreeSkillLineIndexLikeCpp {
                 .push((link.order_index, trait_tree_id));
         }
 
+        let mut trees_by_trait_system = trees.iter().filter(|tree| tree.trait_system_id != 0).fold(
+            BTreeMap::<u32, Vec<u32>>::new(),
+            |mut index, tree| {
+                index.entry(tree.trait_system_id).or_default().push(tree.id);
+                index
+            },
+        );
+        // DB2 records are keyed by ID in the Rust store; keep the projected
+        // vectors deterministic and stable across HashMap iteration order.
+        for tree_ids in trees_by_trait_system.values_mut() {
+            tree_ids.sort_unstable();
+        }
+
         Self {
             trees_by_skill_line: by_skill_line
                 .into_iter()
@@ -315,6 +333,7 @@ impl TraitTreeSkillLineIndexLikeCpp {
                     )
                 })
                 .collect(),
+            trees_by_trait_system,
         }
     }
 
@@ -328,6 +347,21 @@ impl TraitTreeSkillLineIndexLikeCpp {
 
     pub fn has_skill_line_like_cpp(&self, skill_line_id: u32) -> bool {
         !self.trees_for_skill_line_like_cpp(skill_line_id).is_empty()
+    }
+
+    /// C++ `TraitMgr::GetTreesForConfig` generic branch, indexed by
+    /// `TraitTreeEntry::TraitSystemID`.
+    pub fn trees_for_trait_system_like_cpp(&self, trait_system_id: u32) -> &[u32] {
+        self.trees_by_trait_system
+            .get(&trait_system_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn has_trait_system_like_cpp(&self, trait_system_id: u32) -> bool {
+        !self
+            .trees_for_trait_system_like_cpp(trait_system_id)
+            .is_empty()
     }
 
     pub fn len(&self) -> usize {
@@ -839,6 +873,51 @@ mod tests {
         assert!(index.has_skill_line_like_cpp(164));
         assert!(!index.has_skill_line_like_cpp(999));
         assert_eq!(index.len(), 2);
+    }
+
+    #[test]
+    fn trait_tree_index_exposes_generic_trait_systems_like_cpp() {
+        let links = SkillLineXTraitTreeStore::from_entries([]);
+        let trees = TraitTreeStore::from_entries([
+            TraitTreeEntry {
+                id: 10,
+                trait_system_id: 7,
+                unused1000_1: 0,
+                first_trait_node_id: 0,
+                player_condition_id: 0,
+                flags: 0,
+                unused1000_2: 0.0,
+                unused1000_3: 0.0,
+            },
+            TraitTreeEntry {
+                id: 20,
+                trait_system_id: 7,
+                unused1000_1: 0,
+                first_trait_node_id: 0,
+                player_condition_id: 0,
+                flags: 0,
+                unused1000_2: 0.0,
+                unused1000_3: 0.0,
+            },
+            TraitTreeEntry {
+                id: 30,
+                trait_system_id: 0,
+                unused1000_1: 0,
+                first_trait_node_id: 0,
+                player_condition_id: 0,
+                flags: 0,
+                unused1000_2: 0.0,
+                unused1000_3: 0.0,
+            },
+        ]);
+
+        let index =
+            TraitTreeSkillLineIndexLikeCpp::from_effective_stores_like_cpp(&links, &trees, |_| {
+                false
+            });
+        assert_eq!(index.trees_for_trait_system_like_cpp(7), &[10, 20]);
+        assert!(index.has_trait_system_like_cpp(7));
+        assert!(!index.has_trait_system_like_cpp(30));
     }
 
     #[test]
