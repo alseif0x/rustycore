@@ -19,10 +19,12 @@ published canonical `SendObjectUpdates`. P3.3 restored the C++ respawn/condition
 phase order before object visitation while preserving admitted map incarnations, the
 legacy Creature owner and the existing persistence fence. P3.4 is delivered: it
 connects the existing nearby-cell/source plan to production `ObjectUpdater` selection
-and retires the current map-wide typed-store scans for that phase. The remaining P2
-operations, legacy-writer migration and other P3/P4 work follow only after their
-complete consumer contract is audited. No new micro-issues are implied; each macro
-includes its consumers and validation.
+and retires the current map-wide typed-store scans for that phase. P3.5 is delivered:
+each nearby center now uses the C++ activation radius, including canonical
+Creature/Pet `m_SightDistance` for inactive sources. The remaining P2 operations,
+legacy-writer migration and other P3/P4 work follow only after their complete
+consumer contract is audited. No new micro-issues are implied; each macro includes
+its consumers and validation.
 
 ## Architecture program state — 2026-09-11
 

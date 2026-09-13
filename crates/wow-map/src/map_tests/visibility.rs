@@ -15,6 +15,26 @@ fn world_object_visibility_range_reads_map_visible_distance_like_cpp() {
 
     assert_eq!(object.get_visibility_range(&map), 123.5);
 }
+
+#[test]
+fn grid_activation_range_uses_creature_sight_for_inactive_sources_like_cpp() {
+    let mut map = test_map();
+    let creature = test_creature_for_spawn(1234, 1234001, true);
+    let guid = creature.guid();
+    map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_creature(creature).unwrap())
+        .unwrap();
+
+    assert_eq!(
+        map.grid_activation_range_for_guid_like_cpp(guid),
+        wow_entities::DEFAULT_MONSTER_SIGHT_DISTANCE
+    );
+
+    map.with_creature_mut_like_cpp(guid, |creature| {
+        creature.unit_mut().world_mut().set_active(true);
+    });
+    assert_eq!(map.grid_activation_range_for_guid_like_cpp(guid), 100.0);
+}
+
 #[test]
 fn personal_phase_tracker_update_enqueues_expired_canonical_object_like_cpp() {
     let mut map = test_map();

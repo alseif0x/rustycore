@@ -176,6 +176,30 @@ with one Cargo job in 6m56s; manifest:
 `target/validation-v2/manifests/20260913T052709.629293Z-3386854-quick.json`. No live
 client, capture or DB/restart/relogin QA is claimed.
 
+## P3.5 source activation radius — 2026-09-13
+
+The P3.4 path initially used the map visibility range for every nearby-cell center.
+TrinityCore's `WorldObject::GetGridActivationRange` instead returns the map range for
+Players and active objects, but the canonical Creature `m_SightDistance` for an
+inactive Creature (`Entities/Object/Object.cpp:1433-1450`). Pets follow the same
+Creature branch through their embedded Creature.
+
+The production selection now resolves this radius from each exact `MapObjectRecord`
+in `wow-map/src/map/visibility.rs::grid_activation_range_for_guid_like_cpp` before
+calling `visit_nearby_cells_of_like_cpp`. Missing or unsupported records return a
+zero radius and remain subject to the existing missing/invalid/in-world filters; no
+second owner or map-wide fallback is introduced. The Player cinematic activation
+override is still unmodeled because the current Player runtime has no canonical
+cinematic manager state.
+
+Implementation `7214fb68` adds the focused regression for inactive Creature versus
+active-object activation and reruns the P3.4 nearby-selection regression. This is a
+phase-fidelity correction only; it does not migrate Creature AI/combat or claim live
+client, capture, DB/restart/relogin evidence. The affected `wow-map` checks,
+formatting, diff and JSON validation pass; validation-v2 `quick` completed in
+15.961 seconds with one Cargo job at manifest
+`target/validation-v2/manifests/20260913T054921.385905Z-3397552-quick.json`.
+
 ### Bounded #578 closeout inventory
 
 | Delivered result | Evidence boundary |
