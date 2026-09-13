@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-13 (#808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-13 (#844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `995cd77fb48566b972741520986bc41d106470ea` (PR #842).
+The current code integration head is `6f42782fedb1eb77d7896fd139c195fbfbb9c43b` (PR #844).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
 mutations. #524's relation-query order correction is integrated by PR #803; PR #822/#824/#826/#828 now
@@ -45,6 +45,13 @@ Creature/Pet `m_SightDistance` for inactive sources. The remaining P2 operations
 legacy-writer migration and other P3/P4 work follow only after their complete
 consumer contract is audited. No new micro-issues are implied; each macro includes
 its consumers and validation.
+
+PR #844 closes one of those measured P2 operations: Void Storage's fixed-slot state and
+its clear/load/mark, lookup, free-slot, add, delete and swap transitions now belong to
+the canonical `Player`. Session retains template admission, persistence orchestration and
+packet publication, with detached fixtures limited to `cfg(test)`. The owner invariants
+and 29 Void Storage world tests pass; this does not claim DB/restart/relogin durability or
+activate the #583 module product.
 
 ## Architecture program state — 2026-09-13
 

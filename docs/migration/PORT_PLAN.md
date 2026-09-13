@@ -2,7 +2,7 @@
 
 **Reconciled 2026-09-13 under #584 / #787 / #748 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
 Source baseline for this reconciliation: `3.4.3` at
-`995cd77fb48566b972741520986bc41d106470ea` (PR #842; the earlier `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`6f42782fedb1eb77d7896fd139c195fbfbb9c43b` (PR #844; the earlier `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -34,8 +34,8 @@ Player-session rail; P3.8 extends that rail to `Map::AddToMap`/`RemoveFromMap` l
 recipient marking without delivering under a map mutation; P3.9 publishes directed
 ordinary Creature DESTROY after map removal through that rail with map-incarnation
 and `HaveAtClient` fences. Neither slice migrates the legacy Creature owner. The latest
-bounded implementation selected by the fresh audit is the named Player item-modifier
-runtime closure, integrated by PR #839; no historical queue is implied.
+bounded implementation selected by the fresh audit is the Player-owned Void Storage
+transition surface, integrated by PR #844; no historical queue is implied.
 No old issue is reopened and no residual is promoted to implementation merely from a
 textual inventory.
 
@@ -55,6 +55,13 @@ allocated to gameplay work such as #61. The P2 item-object residual is integrate
 receiving `&mut Item`, and wrapped-gift transformation is an owner operation. The old
 closure remains only behind `cfg(test)` for fixtures. #584 remains open for its other
 measured C0-C4 residuals; this delivery does not activate #583 or close the core gate.
+
+The P2 Void Storage owner residual is integrated by PR #844 (`6f42782f`, implementation
+`77e2c4b2`). `Player` now owns the fixed 160-slot state and the complete clear/load/mark,
+lookup, free-slot, add, delete and swap transitions anchored to TrinityCore's `Player.cpp`
+load/save and accessors. Session remains the protocol/application boundary for template
+validation, persistence ordering and packet encoding. The focused owner tests and 29 Void
+Storage world tests pass; DB/restart/relogin durability remains explicitly open.
 
 Continue the remaining core under #584 by complete operations, execution/lifetime
 boundaries and physical organization. #582 is closed after its decoder-only delivery;

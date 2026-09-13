@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748 — 2026-09-13; actualización #524 genérico y P2/P3.9/item-object/item-modifier — 2026-09-13.** Este documento detalla los
+**Sincronización de la entrega #748 — 2026-09-13; actualización #524 genérico y P2/P3.9/item-object/item-modifier/void-storage — 2026-09-13.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -13,8 +13,8 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza integrada, 2026-09-13: PR #842**, en `3.4.3` como
-`995cd77fb48566b972741520986bc41d106470ea`. #787 / PR #792 (`d14a9a67`) y
+**Cabeza integrada, 2026-09-13: PR #844**, en `3.4.3` como
+`6f42782fedb1eb77d7896fd139c195fbfbb9c43b`. #787 / PR #792 (`d14a9a67`) y
 #584 P2 item-bonus, P2 item-object y P3.1–P3.9 están integrados dentro de esta cabeza.
 La entrega de ownership de modificadores de objetos está integrada mediante PR #839
 (implementación `ecc67603`) y retira la superficie mutante genérica restante. La coordinación World/Map está
@@ -64,8 +64,8 @@ vallas de encarnación y `HaveAtClient` después de liberar el guard de Map. La 
 del último escritor genérico de bonos de objeto también quedó
 integrada por PR #816: el estado resuelto se aplica mediante una operación nominal
 del runtime propiedad del Player y se retiró el cierre `&mut` de Session. La siguiente
-macro seleccionada por la auditoría actual es el cierre nominal del runtime de
-modificadores de objetos descrito en §4.3; no mezcla estadísticas efectivas ni auras
+macro incorporada por la auditoría es el cierre nominal de Void Storage descrito en
+§4.4; no mezcla estadísticas efectivas ni auras
 de #61. Después siguen los residuales P2/P3/P4 por consumidores, el producto #583 y
 la auditoría #153. Las
 excepciones físicas son individuales y se justifican con la política vigente; no se
@@ -872,7 +872,7 @@ completa de item use/effects, estadísticas, auras, bytes de cliente ni durabili
 con DB/reinicio/relogin. Las funciones de gameplay o datos que aún falten se asignan a su
 macro funcional; no se reabre #737 ni se crea una issue por cada variante del comando.
 
-#### Entrega seleccionada por auditoría e integrada — runtime de modificadores del Player
+#### Entrega integrada — runtime de modificadores del Player
 
 La auditoría de `origin/3.4.3` en `ef82beeb` encontró un residual P2 distinto del
 item-object ya integrado: `WorldSession::mutate_player_item_modifier_runtime_like_cpp`
@@ -912,6 +912,24 @@ macro funcional amplia después de este cierre: requiere autoridad de monedas y
 condiciones, gasto persistente, starter builds, cobertura cross-store y aceptación de
 startup/DB/relogin. El escritor Creature se mantiene retenido hasta poder migrar todos
 sus consumidores y su fanout sin crear un segundo writer.
+
+#### Entrega P2 bajo #584 — ownership de Void Storage
+
+La auditoría posterior a la entrega de item-object encontró que el último cierre mutable
+genérico de esta familia prestaba el vector de slots y el marcador de carga desde
+`WorldSession`. PR #844 (`6f42782f`, implementación `77e2c4b2`) mueve al `Player` la
+superficie completa de `Player::_voidStorageItems`: normalización a 160 slots,
+clear/load/mark, free-slot, lookup por id/slot, add, delete y swap. Las anclas de
+TrinityCore son `Player.cpp:18334`, `20002` y `28025-28098`.
+
+La sesión conserva la admisión de plantillas, la consulta y orden de persistencia, la
+aplicación de apariencias y la codificación/publicación de paquetes; el fallback
+desconectado queda limitado a fixtures `cfg(test)`. Las regresiones de invariantes del
+owner, los 29 tests Void Storage de `wow-world`, `cargo check --tests` y el guardrail de
+arquitectura pasan con un job. No se afirma durabilidad real de DB/reinicio/relogin ni se
+cierra #584. El siguiente trabajo funcional amplio es #524: composición efectiva de
+los overlays SQL de la familia Trait y `SpecSetMember`, con publicación atómica y
+fallo cerrado antes de los gates posteriores de gasto/mutación.
 
 #### Contraste P3 de composición y fases — revisión acotada 2026-09-12
 
