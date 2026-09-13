@@ -95,7 +95,8 @@ the split map tick. TrinityCore's `Map::Update` calls `ProcessRespawns()` and
 `resetMarkedCells`/`ObjectUpdater` (`Maps/Map.cpp:666-695`); the map manager then
 performs its delayed pass after every map update (`Maps/MapManager.cpp:287-318`).
 
-The candidate at `c7daa069` moves the existing respawn timers, loaded-grid
+The implementation at `c7daa069`, integrated by PR #798 in `3.4.3` as
+`b912c95e33073090a1ef9ea0e09a2b260856389e`, moves the existing respawn timers, loaded-grid
 conditions, DB-save/delete queueing and legacy Creature mirror into
 `canonical_map_tick_respawn_phase_like_cpp` in
 `crates/world-server/src/runtime/map_tick.rs`. It runs only for the admitted
@@ -113,7 +114,7 @@ spawn-condition world-server tests and the new replacement-incarnation map-manag
 regression pass, together with `cargo check -p world-server`, architecture checks,
 formatting and diff checks. Validation-v2 `quick` passed with one Cargo job in 7m03s;
 manifest: `target/validation-v2/manifests/20260913T042148.632508Z-3355103-quick.json`.
-This candidate still requires the PR publication gate and does not include live QA.
+The integrated delivery does not include live client, capture or DB/restart/relogin QA.
 
 ### Bounded #578 closeout inventory
 

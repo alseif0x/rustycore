@@ -77,7 +77,8 @@ there is no production handler registration, queue, matchmaking, teleport, rewar
 two-socket live QA or full LFG parity claim. The detailed boundary and C++ anchors
 are in [the LFG audit](../architecture/lfg-343-audit.md).
 
-**P3.3 respawn/condition phase order — 2026-09-13, #584 candidate `c7daa069`:**
+**P3.3 respawn/condition phase order — 2026-09-13, #584 / PR #798, integration SHA
+`b912c95e33073090a1ef9ea0e09a2b260856389e` (implementation `c7daa069`):**
 the canonical map tick now runs `ProcessRespawns` and
 `UpdateSpawnGroupConditions` after the admitted session pass and before object
 visitation, matching `Map.cpp:682-693` within the split-tick design. The phase is
@@ -89,8 +90,8 @@ regression plus the six existing spawn-condition tests, world-server check and
 format/diff checks pass. Validation-v2 `quick` passed with one Cargo job in 7m03s;
 manifest: `target/validation-v2/manifests/20260913T042148.632508Z-3355103-quick.json`.
 The legacy Creature writer, nearby-cell visitation and other unrepresented
-`Map::Update` phases remain outside this bounded delivery; the candidate still
-requires the PR publication gate and has no live QA evidence.
+`Map::Update` phases remain outside this bounded delivery. The integrated delivery
+has no live client, capture or DB/restart/relogin QA evidence.
 
 **Group state application is locally accepted — 2026-09-11, #743, `9e6767bb`:**
 `GroupRegistry` stays the single authority and every state-bearing group command now
