@@ -412,7 +412,36 @@ fn canonical_map_tick_tail_like_cpp(
 ) -> Option<CanonicalSpawnGroupConditionTickSummaryLikeCpp> {
     summary.player_visibility_refresh_intents =
         manager.take_player_visibility_refresh_intents_like_cpp();
+    let map_incarnations = {
+        let mut incarnations = std::collections::HashMap::new();
+        manager.do_for_all_maps(|managed_map| {
+            let key = wow_map::MapKey::new(managed_map.map_id(), managed_map.instance_id());
+            if let Some(incarnation) = manager.map_incarnation_like_cpp(key) {
+                incarnations.insert(key, incarnation);
+            }
+        });
+        incarnations
+    };
     manager.do_for_all_maps_mut(|managed_map| {
+        let map_id = managed_map.map_id();
+        let instance_id = managed_map.instance_id();
+        let map_incarnation = map_incarnations
+            .get(&wow_map::MapKey::new(map_id, instance_id))
+            .copied()
+            .unwrap_or_default();
+        summary.creature_visibility_destroys.extend(
+            managed_map
+                .map_mut()
+                .take_creature_visibility_destroy_recipients_like_cpp()
+                .into_iter()
+                .map(|intent| CanonicalCreatureVisibilityDestroyLikeCpp {
+                    map_id,
+                    instance_id,
+                    map_incarnation,
+                    creature_guid: intent.creature_guid,
+                    recipient_guids: intent.recipient_guids,
+                }),
+        );
         append_map_object_values_updates_like_cpp(&mut summary, managed_map);
         summary.expired_pvp_combat_refs.extend(
             managed_map

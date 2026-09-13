@@ -271,6 +271,13 @@ impl ControlSubsystem {
         self.charmer_guid.is_some()
     }
 
+    /// The direct C++ `Unit::GetCharmerGUID()` projection. Keep this separate
+    /// from `charmer_or_owner_guid()` because visibility destroy fanout skips
+    /// only the charmer, while an owner remains an eligible recipient.
+    pub const fn charmer_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        self.charmer_guid
+    }
+
     pub fn is_possessed(&self) -> bool {
         self.charm_type == Some(CharmType::Possess)
     }

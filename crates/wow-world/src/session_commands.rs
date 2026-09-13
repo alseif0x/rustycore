@@ -100,6 +100,9 @@ impl WorldSession {
                 )
                 .await;
             }
+            SessionCommand::DestroyVisibleCreatureLikeCpp(command) => {
+                self.handle_destroy_visible_creature_like_cpp_command_like_cpp(command);
+            }
             SessionCommand::RefreshDeferredPlayerVisibilityLikeCpp(intent) => {
                 self.apply_deferred_player_visibility_refresh_like_cpp(
                     catalogs.creature_spawns.as_ref(),
