@@ -88,6 +88,28 @@ pub(crate) fn canonical_map_tick_resume_like_cpp(
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
 ) -> Option<CanonicalSpawnGroupConditionTickSummaryLikeCpp> {
     let effective_diff_ms = plan.effective_diff_ms();
+    if manager.tick_coordination_like_cpp()
+        != wow_map::MapTickCoordinationStateLikeCpp::AwaitingSessions(plan.epoch_like_cpp())
+    {
+        // Respawn work is part of the same admitted tick.  Refuse it before
+        // touching any map when the coordinator no longer owns that plan.
+        return None;
+    }
+    // TrinityCore runs ProcessRespawns and UpdateSpawnGroupConditions after
+    // the map's session pass and before ObjectUpdater (`Map.cpp:682-693`).
+    // Keep that phase inside the admitted map incarnations, before the resume
+    // method visits objects and captures SendObjectUpdates values.
+    let respawn_summary = canonical_map_tick_respawn_phase_like_cpp(
+        manager,
+        plan.updated_maps_like_cpp(),
+        legacy_manager,
+        effective_diff_ms,
+        scheduler,
+        canonical_spawn_metadata,
+        condition_store,
+        map_store,
+        loaded_grid_creature_respawn_caches,
+    );
     // The canonical map still carries an intentionally incomplete Creature
     // visitor. Production behaviour is owned by the legacy/session runtime;
     // declare that owner so this tick cannot mutate and discard a shadow plan.
@@ -115,16 +137,7 @@ pub(crate) fn canonical_map_tick_resume_like_cpp(
         // no tail may run, or the summary would report phases that never ran.
         return None;
     }
-    canonical_map_tick_tail_like_cpp(
-        manager,
-        legacy_manager,
-        effective_diff_ms,
-        scheduler,
-        canonical_spawn_metadata,
-        condition_store,
-        map_store,
-        loaded_grid_creature_respawn_caches,
-    )
+    canonical_map_tick_tail_like_cpp(manager, respawn_summary, map_store)
 }
 
 pub(crate) fn canonical_map_update_tick_set_inactive_like_cpp(
@@ -150,9 +163,18 @@ pub(crate) fn canonical_map_update_tick_set_inactive_like_cpp(
     )
 }
 
+/// Execute the respawn and spawn-group condition phase for the maps admitted
+/// by one split tick.
+///
+/// TrinityCore places this phase before `resetMarkedCells` and the
+/// `ObjectUpdater` visitors (`Map.cpp:682-693`).  The plan's incarnation list
+/// is the authority here: sessions run while the manager guard is released,
+/// so a map recreated under the same key must not receive the predecessor's
+/// respawn work.
 #[allow(clippy::too_many_arguments)]
-fn canonical_map_tick_tail_like_cpp(
+fn canonical_map_tick_respawn_phase_like_cpp(
     manager: &mut wow_map::MapManager,
+    admitted_maps: &[wow_map::MapTickParticipantLikeCpp],
     legacy_manager: Option<&SharedMapManager>,
     effective_diff_ms: u32,
     scheduler: &mut CanonicalRespawnConditionSchedulerLikeCpp,
@@ -160,91 +182,23 @@ fn canonical_map_tick_tail_like_cpp(
     condition_store: &wow_data::ConditionEntriesByTypeStore,
     map_store: &wow_data::MapStore,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
-) -> Option<CanonicalSpawnGroupConditionTickSummaryLikeCpp> {
-    let mut summary = CanonicalSpawnGroupConditionTickSummaryLikeCpp {
-        player_visibility_refresh_intents: manager
-            .take_player_visibility_refresh_intents_like_cpp(),
-        ..Default::default()
-    };
-    manager.do_for_all_maps_mut(|managed_map| {
-        append_map_object_values_updates_like_cpp(&mut summary, managed_map);
-        summary.expired_pvp_combat_refs.extend(
-            managed_map
-                .last_expired_pvp_combat_refs_like_cpp()
-                .iter()
-                .map(|(owner, target)| {
-                    (
-                        managed_map.map_id(),
-                        managed_map.instance_id(),
-                        *owner,
-                        *target,
-                    )
-                }),
-        );
-        let map_kind = managed_map.kind();
-        let map_id = managed_map.map_id();
-        let instance_id = managed_map.instance_id();
-        let map_is_instanceable = map_store
-            .get(map_id)
-            .is_some_and(|entry| entry.is_instanceable_like_cpp());
-        for info in managed_map
-            .last_game_objects_update_summary()
-            .respawn_db_saves
-        {
-            match queue_respawn_db_save_like_cpp(
-                map_kind,
-                map_is_instanceable,
-                map_id,
-                instance_id,
-                info,
-            ) {
-                RespawnDbSaveQueueOutcomeLikeCpp::Queued(save) => {
-                    summary.respawn_db_save_queued += 1;
-                    summary.respawn_db_saves.push(save);
-                }
-                RespawnDbSaveQueueOutcomeLikeCpp::SkippedNonWorldMap => {
-                    summary.respawn_db_save_skipped_non_world_map += 1;
-                }
-                RespawnDbSaveQueueOutcomeLikeCpp::SkippedInstanceableMap => {
-                    summary.respawn_db_save_skipped_instanceable_map += 1;
-                }
-                RespawnDbSaveQueueOutcomeLikeCpp::SkippedInvalidMapId => {
-                    summary.respawn_db_save_skipped_invalid_map_id += 1;
-                }
-            }
-        }
-    });
+) -> CanonicalSpawnGroupConditionTickSummaryLikeCpp {
+    let mut summary = CanonicalSpawnGroupConditionTickSummaryLikeCpp::default();
     if !scheduler.update(effective_diff_ms) {
-        return (!summary.respawn_db_saves.is_empty()
-            || !summary.expired_pvp_combat_refs.is_empty()
-            || !summary.player_visibility_refresh_intents.is_empty()
-            || !summary.object_values_updates.is_empty())
-        .then_some(summary);
+        return summary;
     }
 
-    // C++ `Map::Update` runs `ProcessRespawns()` immediately before
-    // `UpdateSpawnGroupConditions()` when `_respawnCheckTimer` expires.
-    // This tick executes the safe in-memory ProcessRespawns side effects produced
-    // by represented composite CheckRespawn guards: zero-delete for inactive
-    // spawn-group/live-object blockers, linked-respawn future reschedules, pooled
-    // timer UpdatePool plans, and the safe `DoRespawn` unloaded-grid early-return
-    // branch after timer removal. DB delete/save effects are queued for async
-    // execution after releasing the MapManager lock. Loaded-grid Creature
-    // DB-backed loading is wired through the map-owned seam for supported
-    // fixed-level and variable-level cases, including DB-backed FormationInfo
-    // propagation into the bounded SearchFormation/AddCreatureToGroup seam;
-    // AddToWorld ObjectAccessor/fanout, scripts/AI, vehicle runtime beyond local
-    // evidence, zonescript, formation movement/combat/full CreatureGroup runtime,
-    // dynamic-tree, full GameObject physical-removal lifecycle, AreaTrigger
-    // runtime and full PoolMgr runtime remain gaps.
-    // RustyCore does not yet expose CONFIG_RESPAWN_DYNAMIC_ESCORTNPC
-    // or Creature::IsEscorted ownership here, so the bridge passes false/false.
+    // C++ `Map::Update` calls `ProcessRespawns()` immediately before
+    // `UpdateSpawnGroupConditions()` when `_respawnCheckTimer` expires.  The
+    // represented in-memory branches and their asynchronous DB statements
+    // remain unchanged; only their position in the tick moves before the
+    // object visitors.
     let now_secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |duration| {
             i64::try_from(duration.as_secs()).unwrap_or(i64::MAX)
         });
-    manager.do_for_all_maps_mut(|managed_map| {
+    manager.for_admitted_maps_mut_like_cpp(admitted_maps, |managed_map| {
         summary.maps_evaluated += 1;
         let map_kind = managed_map.kind();
         let map_id = managed_map.map_id();
@@ -447,7 +401,71 @@ fn canonical_map_tick_tail_like_cpp(
         }
     });
 
-    Some(summary)
+    summary
+}
+
+fn canonical_map_tick_tail_like_cpp(
+    manager: &mut wow_map::MapManager,
+    mut summary: CanonicalSpawnGroupConditionTickSummaryLikeCpp,
+    map_store: &wow_data::MapStore,
+) -> Option<CanonicalSpawnGroupConditionTickSummaryLikeCpp> {
+    summary.player_visibility_refresh_intents =
+        manager.take_player_visibility_refresh_intents_like_cpp();
+    manager.do_for_all_maps_mut(|managed_map| {
+        append_map_object_values_updates_like_cpp(&mut summary, managed_map);
+        summary.expired_pvp_combat_refs.extend(
+            managed_map
+                .last_expired_pvp_combat_refs_like_cpp()
+                .iter()
+                .map(|(owner, target)| {
+                    (
+                        managed_map.map_id(),
+                        managed_map.instance_id(),
+                        *owner,
+                        *target,
+                    )
+                }),
+        );
+        let map_kind = managed_map.kind();
+        let map_id = managed_map.map_id();
+        let instance_id = managed_map.instance_id();
+        let map_is_instanceable = map_store
+            .get(map_id)
+            .is_some_and(|entry| entry.is_instanceable_like_cpp());
+        for info in managed_map
+            .last_game_objects_update_summary()
+            .respawn_db_saves
+        {
+            match queue_respawn_db_save_like_cpp(
+                map_kind,
+                map_is_instanceable,
+                map_id,
+                instance_id,
+                info,
+            ) {
+                RespawnDbSaveQueueOutcomeLikeCpp::Queued(save) => {
+                    summary.respawn_db_save_queued += 1;
+                    summary.respawn_db_saves.push(save);
+                }
+                RespawnDbSaveQueueOutcomeLikeCpp::SkippedNonWorldMap => {
+                    summary.respawn_db_save_skipped_non_world_map += 1;
+                }
+                RespawnDbSaveQueueOutcomeLikeCpp::SkippedInstanceableMap => {
+                    summary.respawn_db_save_skipped_instanceable_map += 1;
+                }
+                RespawnDbSaveQueueOutcomeLikeCpp::SkippedInvalidMapId => {
+                    summary.respawn_db_save_skipped_invalid_map_id += 1;
+                }
+            }
+        }
+    });
+    let has_work = !summary.respawn_db_saves.is_empty()
+        || !summary.expired_pvp_combat_refs.is_empty()
+        || !summary.player_visibility_refresh_intents.is_empty()
+        || !summary.object_values_updates.is_empty()
+        || !summary.respawn_db_deletes.is_empty()
+        || summary.maps_evaluated > 0;
+    has_work.then_some(summary)
 }
 
 /// Convert the typed snapshots captured by `Map::SendObjectUpdates` while the

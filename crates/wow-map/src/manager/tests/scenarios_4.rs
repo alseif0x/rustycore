@@ -713,3 +713,27 @@ fn a_map_recreated_under_the_same_key_during_the_pass_is_not_resumed_like_cpp() 
     // that point (`MapManager.cpp:314-317`), the replacement included.
     assert_eq!(replacement.delayed_update_calls(), [effective]);
 }
+
+#[test]
+fn admitted_map_phase_skips_a_replacement_incarnation_like_cpp() {
+    let mut manager = MapManager::new(MIN_GRID_DELAY_MS, 1);
+    manager.create_world_map(1, 0);
+
+    let plan = manager
+        .begin_tick_like_cpp(199)
+        .into_started()
+        .expect("timer passed");
+    let admitted = plan.updated_maps_like_cpp().to_vec();
+
+    assert!(manager.destroy_map(1, 0));
+    manager.create_world_map(1, 0);
+
+    let mut visited = 0;
+    manager.for_admitted_maps_mut_like_cpp(&admitted, |_| visited += 1);
+    assert_eq!(
+        visited, 0,
+        "a map recreated under a reused key cannot receive the predecessor tick"
+    );
+
+    manager.abandon_tick_like_cpp(plan);
+}
