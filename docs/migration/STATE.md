@@ -93,22 +93,22 @@ The legacy Creature writer, nearby-cell visitation and other unrepresented
 `Map::Update` phases remain outside this bounded delivery. The integrated delivery
 has no live client, capture or DB/restart/relogin QA evidence.
 
-**P3.4 selected under #584 — nearby-cell ObjectUpdater production wiring, 2026-09-13:**
-the follow-up audit found that the pure nearby-cell/source plan already present in
-`wow-map` is not consumed by the production map tick. C++ `Map::Update` uses
-`VisitNearbyCellsOf` for in-world players, viewpoints, far combat units, aura casters,
-summons and active non-players before `ObjectUpdater::Visit<T>` updates only in-world
-objects in those cells (`Map.cpp:695-754`, `GridNotifiers.cpp:258-264`); Players and
-Corpses are excluded and transports retain their separate full loop. Rust's
-`map_update_visit_plan_like_cpp`/`object_update_plan_for_nearby_like_cpp` are currently
-used by relocation tests/helpers, while `ManagedMap::update_after_sessions...` still
-scans whole typed stores. This can update objects outside active cells and does not
-express the C++ selection contract. The next macro will connect one
-incarnation-scoped, deduplicated nearby plan to the existing per-object consumers,
-preserve the external Creature owner, transport loop, phase order and guard-free
-publication, and add production-linked positive/negative selection tests. It will not
-migrate Creature AI/combat, scripts, transport passengers, relocation fanout or live
-client/DB parity.
+**P3.4 delivered under #584 — nearby-cell ObjectUpdater production wiring, 2026-09-13:**
+the production map tick now consumes one incarnation-scoped, deduplicated nearby plan
+from in-world Players, viewpoints, represented far combat/aura/summon references and
+active non-Players before selected `ObjectUpdater` family consumers. This follows the
+C++ source order and visitor boundary (`Map.cpp:695-754`,
+`GridNotifiers.cpp:258-264`): Players and Corpses stay out of the visitor set and
+transports retain their separate full loop. The selection is implemented in
+`wow-map/src/map/object_update_selection.rs`, wired through
+`ManagedMap::update_after_sessions...`, and selected by
+`world-server/src/runtime/map_tick.rs`; direct callers retain the whole-store seam.
+Focused positive/negative tests prove nearby inclusion, out-of-cell exclusion and
+split-tick consumption; architecture, formatting, `wow-map` tests and
+`world-server` composition checks pass. Creature/Pet source activation currently uses
+the map visibility range where C++ has per-Creature `m_SightDistance`; unsupported unit
+families remain fail-closed. Creature AI/combat, scripts, transport passengers,
+relocation fanout and live client/DB parity remain separate #584 boundaries.
 
 **Group state application is locally accepted — 2026-09-11, #743, `9e6767bb`:**
 `GroupRegistry` stays the single authority and every state-bearing group command now

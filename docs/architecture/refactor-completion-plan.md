@@ -801,13 +801,13 @@ Las diferencias que quedan, y que son el trabajo P3 real:
    integró con permisos, incarnación, reemplazo y apagado; la descripción anterior
    que decía que el driver drenaba toda la cola era obsoleta.
 3. **Las fases de `Map::Update` que siguen incompletas** están anotadas en el código.
-   La visita cercana pura y el plan de objetos ya existen, pero el ciclo de producción
-   todavía llama a consumidores que recorren stores tipados completos. Por tanto aún
-   no reproduce la selección de `ObjectUpdater` por celdas activas, viewpoint,
-   combate lejano, casters de aura, summons y objetos activos. Transportes conservan
-   su bucle separado; scripts, fanout real y notificaciones de relocalización siguen
-   teniendo huecos propios. Este es el siguiente corte P3.4, no una orden de crear un
-   crate o una issue por cada familia.
+   P3.4 ya conecta la visita cercana y el plan de objetos con el ciclo de producción:
+   `ObjectUpdater` recibe solo GUIDs in-world seleccionados desde Players, viewpoints,
+   referencias lejanas y objetos activos. Transportes conservan su bucle separado;
+   la distancia de activación específica de cada Creature, scripts, fanout real y
+   notificaciones de relocalización siguen teniendo huecos propios. El siguiente
+   corte debe salir de esos límites medidos, no crear un crate o una issue por cada
+   familia.
 
 #### Selección P3.1 bajo #584 — retirada del escritor sombra de Creature
 
@@ -859,15 +859,14 @@ entra por `MapManager::update`, y el legado de criaturas—, tres tareas periód
 `GlobalLegacy`, con `GlobalLegacy` por defecto en producción.
 
 Macro P3 entregada por esta revisión: **#787**, el contrato de `ProcessingPlace` y
-la colocación de la actualización de sesión. P3.1, P3.2 y P3.3 son entregas acotadas
-integradas bajo #584. P3.3 ejecuta `ProcessRespawns`/`UpdateSpawnGroupConditions`
+la colocación de la actualización de sesión. P3.1, P3.2, P3.3 y P3.4 son entregas
+acotadas integradas bajo #584. P3.3 ejecuta `ProcessRespawns`/`UpdateSpawnGroupConditions`
 después del paso de sesiones admitidas y antes de `ObjectUpdater`, con la misma
 clave/incarnation del plan para impedir que una sustitución de mapa herede trabajo.
-La selección actual es **P3.4 — selección cercana de ObjectUpdater**: conectar el
-plan ya existente con el camino de producción, usar consumidores por GUID solo para
-objetos en-world seleccionados y conservar el owner externo de Creature, el bucle de
-transportes y la entrega sin guardas. El contrato, las fuentes y los límites deben
-quedar en `session-578-checkpoint.md`; no se crea una issue por puente o fichero.
+P3.4 conecta ese plan con producción, usa consumidores por GUID solo para objetos
+in-world seleccionados y conserva el owner externo de Creature, el bucle de
+transportes y la entrega sin guardas. Su evidencia, límites y siguiente residuo
+medido quedan en `session-578-checkpoint.md`; no se crea una issue por puente o fichero.
 **#785 queda cerrada por premisa falsa**, con esta verificación registrada en la issue.
 
 P3 debe contrastar composición, fases y lifetime con `Map.cpp:666-813`,

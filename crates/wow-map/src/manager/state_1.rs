@@ -3,6 +3,19 @@
 //! Separated from the manager.rs root under #644. Behaviour is preserved.
 
 use super::*;
+use wow_entities::AccessorObjectKind;
+
+/// Which canonical object set a post-session map tick may feed to the
+/// represented `ObjectUpdater` phase.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MapObjectUpdateSelectionLikeCpp {
+    /// Legacy/unit tests and direct map callers retain the pre-selection seam.
+    #[default]
+    WholeTypedStores,
+    /// Production `Map::Update` selects only in-world objects reached from its
+    /// nearby-cell and active-source visitor plan.
+    NearbyCells,
+}
 
 pub const MIN_GRID_DELAY_MS: u32 = 60_000;
 
@@ -553,20 +566,93 @@ impl ManagedMap {
     ) where
         L: FnMut(&mut Map, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
     {
-        self.last_dynamic_objects_update_summary =
-            self.runtime.map.update_dynamic_objects_like_cpp(diff_ms);
+        self.update_after_sessions_with_creature_owner_and_selection_like_cpp(
+            diff_ms,
+            pool_update,
+            load_record,
+            creature_update_owner,
+            MapObjectUpdateSelectionLikeCpp::WholeTypedStores,
+        );
+    }
+
+    pub(super) fn update_after_sessions_with_creature_owner_and_selection_like_cpp<L>(
+        &mut self,
+        diff_ms: u32,
+        pool_update: Option<(&SpawnStore, &PoolMgrLikeCpp)>,
+        load_record: Option<&mut L>,
+        creature_update_owner: MapCreatureUpdateOwnerLikeCpp,
+        object_update_selection: MapObjectUpdateSelectionLikeCpp,
+    ) where
+        L: FnMut(&mut Map, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+    {
+        let nearby_object_plan = match object_update_selection {
+            MapObjectUpdateSelectionLikeCpp::WholeTypedStores => None,
+            MapObjectUpdateSelectionLikeCpp::NearbyCells => Some(
+                self.runtime
+                    .map
+                    .object_update_plan_for_current_tick_like_cpp(diff_ms),
+            ),
+        };
+
+        self.last_dynamic_objects_update_summary = if let Some(plan) = &nearby_object_plan {
+            let guids = plan
+                .update_guids
+                .iter()
+                .copied()
+                .filter(|guid| {
+                    self.runtime
+                        .map
+                        .map_object_record(*guid)
+                        .is_some_and(|record| {
+                            record.kind() == AccessorObjectKind::DynamicObject
+                                && record.dynamic_object().is_some()
+                        })
+                })
+                .collect::<Vec<_>>();
+            self.runtime
+                .map
+                .update_dynamic_objects_for_guids_like_cpp(guids, diff_ms)
+        } else {
+            self.runtime.map.update_dynamic_objects_like_cpp(diff_ms)
+        };
         let now_secs = game_time_now_secs_i64();
         self.last_creature_update_owner = creature_update_owner;
         // Partial C++ ObjectUpdater seam: after DynamicObject, visit only the
         // represented map-owned Creature family in this slice. Default context is
         // honest represented runtime only: no real AI/combat/threat/fanout.
         self.last_creatures_update_summary = match creature_update_owner {
-            MapCreatureUpdateOwnerLikeCpp::CanonicalMap => self
-                .runtime
-                .map
-                .update_creatures_like_cpp(diff_ms, now_secs, |_guid, _creature| {
-                    CreatureRuntimeUpdateContext::default()
-                }),
+            MapCreatureUpdateOwnerLikeCpp::CanonicalMap => {
+                if let Some(plan) = &nearby_object_plan {
+                    let guids = plan
+                        .update_guids
+                        .iter()
+                        .copied()
+                        .filter(|guid| {
+                            self.runtime
+                                .map
+                                .map_object_record(*guid)
+                                .is_some_and(|record| {
+                                    matches!(
+                                        record.kind(),
+                                        AccessorObjectKind::Creature | AccessorObjectKind::Pet
+                                    )
+                                })
+                        })
+                        .collect::<Vec<_>>();
+                    self.runtime.map.update_creatures_for_guids_like_cpp(
+                        guids,
+                        diff_ms,
+                        now_secs,
+                        |_guid, _creature| CreatureRuntimeUpdateContext::default(),
+                    )
+                } else {
+                    self.runtime.map.update_creatures_like_cpp(
+                        diff_ms,
+                        now_secs,
+                        |_guid, _creature| CreatureRuntimeUpdateContext::default(),
+                    )
+                }
+            }
             MapCreatureUpdateOwnerLikeCpp::ExternalRuntime => {
                 // The legacy/session owner already advances this transition.
                 // Do not mutate a canonical shadow and discard its plan: that
@@ -586,30 +672,81 @@ impl ManagedMap {
         // map-owned GameObject records. C++ real order is TypeContainerVisitor
         // nearby-cell/active-object traversal; this Rust insertion only adds the
         // missing family and leaves AI/go-type/per-player/packet/DB gaps open.
-        self.last_game_objects_update_summary = match (pool_update, load_record) {
-            (Some((spawn_store, pool_mgr)), Some(load_record)) => self
-                .runtime
-                .map
-                .update_game_objects_with_pool_update_loaded_grid_records_like_cpp(
-                    diff_ms,
-                    now_secs,
-                    spawn_store,
-                    pool_mgr,
-                    load_record,
-                ),
-            (Some((spawn_store, pool_mgr)), None) => self
-                .runtime
-                .map
-                .update_game_objects_with_pool_update_like_cpp(
-                    diff_ms,
-                    now_secs,
-                    spawn_store,
-                    pool_mgr,
-                ),
-            (None, _) => self
-                .runtime
-                .map
-                .update_game_objects_like_cpp(diff_ms, now_secs),
+        self.last_game_objects_update_summary = {
+            let selected_game_objects = nearby_object_plan.as_ref().map(|plan| {
+                plan.update_guids
+                    .iter()
+                    .copied()
+                    .filter(|guid| {
+                        self.runtime
+                            .map
+                            .map_object_record(*guid)
+                            .is_some_and(|record| {
+                                record.kind() == AccessorObjectKind::GameObject
+                                    && record.game_object().is_some()
+                            })
+                    })
+                    .collect::<Vec<_>>()
+            });
+            match (selected_game_objects, pool_update, load_record) {
+                (Some(guids), Some((spawn_store, pool_mgr)), Some(load_record)) => self
+                    .runtime
+                    .map
+                    .update_game_objects_for_guids_with_optional_pool_update_like_cpp(
+                        guids,
+                        diff_ms,
+                        now_secs,
+                        Some((spawn_store, pool_mgr)),
+                        Some(load_record),
+                    ),
+                (Some(guids), Some((spawn_store, pool_mgr)), None) => self
+                    .runtime
+                    .map
+                    .update_game_objects_for_guids_with_optional_pool_update_like_cpp::<fn(
+                        &mut Map,
+                        SpawnObjectType,
+                        SpawnId,
+                    ) -> Option<LoadedGridRespawnRecordsLikeCpp>>(
+                        guids,
+                        diff_ms,
+                        now_secs,
+                        Some((spawn_store, pool_mgr)),
+                        None,
+                    ),
+                (Some(guids), None, _) => self
+                    .runtime
+                    .map
+                    .update_game_objects_for_guids_with_optional_pool_update_like_cpp::<fn(
+                        &mut Map,
+                        SpawnObjectType,
+                        SpawnId,
+                    ) -> Option<LoadedGridRespawnRecordsLikeCpp>>(
+                        guids, diff_ms, now_secs, None, None,
+                    ),
+                (None, Some((spawn_store, pool_mgr)), Some(load_record)) => self
+                    .runtime
+                    .map
+                    .update_game_objects_with_pool_update_loaded_grid_records_like_cpp(
+                        diff_ms,
+                        now_secs,
+                        spawn_store,
+                        pool_mgr,
+                        load_record,
+                    ),
+                (None, Some((spawn_store, pool_mgr)), None) => self
+                    .runtime
+                    .map
+                    .update_game_objects_with_pool_update_like_cpp(
+                        diff_ms,
+                        now_secs,
+                        spawn_store,
+                        pool_mgr,
+                    ),
+                (None, None, _) => self
+                    .runtime
+                    .map
+                    .update_game_objects_like_cpp(diff_ms, now_secs),
+            }
         };
         // Partial C++ transport seam: after the represented GameObject/ObjectUpdater
         // family and before later represented families, visit typed canonical
@@ -622,25 +759,86 @@ impl ManagedMap {
         // represented map-owned AreaTrigger family in this slice. Other families,
         // nearby-cell traversal, player/session updates, fanout and scripts stay
         // explicit remaining gaps.
-        self.last_area_triggers_update_summary =
-            self.runtime.map.update_area_triggers_like_cpp(diff_ms);
+        self.last_area_triggers_update_summary = if let Some(plan) = &nearby_object_plan {
+            let guids = plan
+                .update_guids
+                .iter()
+                .copied()
+                .filter(|guid| {
+                    self.runtime
+                        .map
+                        .map_object_record(*guid)
+                        .is_some_and(|record| {
+                            record.kind() == AccessorObjectKind::AreaTrigger
+                                && record.area_trigger().is_some()
+                        })
+                })
+                .collect::<Vec<_>>();
+            self.runtime
+                .map
+                .update_area_triggers_for_guids_like_cpp(guids, diff_ms)
+        } else {
+            self.runtime.map.update_area_triggers_like_cpp(diff_ms)
+        };
         // Partial C++ ObjectUpdater seam: visit represented map-owned
         // Conversation records after AreaTrigger for this Rust slice. Exact
         // TypeContainerVisitor ordering/cell traversal, real scripts,
         // SendObjectUpdates and fanout remain explicit gaps.
-        self.last_conversations_update_summary =
-            self.runtime.map.update_conversations_like_cpp(diff_ms);
+        self.last_conversations_update_summary = if let Some(plan) = &nearby_object_plan {
+            let guids = plan
+                .update_guids
+                .iter()
+                .copied()
+                .filter(|guid| {
+                    self.runtime
+                        .map
+                        .map_object_record(*guid)
+                        .is_some_and(|record| {
+                            record.kind() == AccessorObjectKind::Conversation
+                                && record.conversation().is_some()
+                        })
+                })
+                .collect::<Vec<_>>();
+            self.runtime
+                .map
+                .update_conversations_for_guids_like_cpp(guids, diff_ms)
+        } else {
+            self.runtime.map.update_conversations_like_cpp(diff_ms)
+        };
         // Partial C++ ObjectUpdater seam: visit represented map-owned
         // SceneObject records after Conversation for this Rust slice. Real
         // ObjectAccessor::GetUnit and Aura lookup by spell/cast id are not present
         // yet, so the live manager default is conservative and does not remove
         // SceneObjects merely because that runtime is absent.
-        self.last_scene_objects_update_summary =
+        self.last_scene_objects_update_summary = if let Some(plan) = &nearby_object_plan {
+            let guids = plan
+                .update_guids
+                .iter()
+                .copied()
+                .filter(|guid| {
+                    self.runtime
+                        .map
+                        .map_object_record(*guid)
+                        .is_some_and(|record| {
+                            record.kind() == AccessorObjectKind::SceneObject
+                                && record.scene_object().is_some()
+                        })
+                })
+                .collect::<Vec<_>>();
+            self.runtime.map.update_scene_objects_for_guids_like_cpp(
+                guids,
+                diff_ms,
+                |_guid, scene_object| {
+                    SceneObjectUpdateContextLikeCpp::represented_default_for(scene_object)
+                },
+            )
+        } else {
             self.runtime
                 .map
                 .update_scene_objects_like_cpp(diff_ms, |_guid, scene_object| {
                     SceneObjectUpdateContextLikeCpp::represented_default_for(scene_object)
-                });
+                })
+        };
         // C++ calls `Map::SendObjectUpdates()` after ObjectUpdater/Transport/
         // SceneObject-style visitation and before scripts/weather/personal phase
         // (`Map.cpp:777-798`). Rust consumes only represented map-owned

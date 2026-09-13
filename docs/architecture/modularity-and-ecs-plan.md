@@ -17,7 +17,7 @@ integration, or close the remaining #584 boundaries. #743 and #735 are delivered
 locally accepted; P3.1 retired the discarded canonical Creature writer and P3.2
 published canonical `SendObjectUpdates`. P3.3 restored the C++ respawn/condition
 phase order before object visitation while preserving admitted map incarnations, the
-legacy Creature owner and the existing persistence fence. The active P3.4 macro
+legacy Creature owner and the existing persistence fence. P3.4 is delivered: it
 connects the existing nearby-cell/source plan to production `ObjectUpdater` selection
 and retires the current map-wide typed-store scans for that phase. The remaining P2
 operations, legacy-writer migration and other P3/P4 work follow only after their

@@ -12,6 +12,7 @@
 
 mod entity_world;
 mod game_object;
+mod object_update_selection;
 mod relocation;
 mod respawn;
 mod runtime;
