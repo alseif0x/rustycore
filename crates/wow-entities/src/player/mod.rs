@@ -74,6 +74,7 @@ mod transport_and_faction;
 pub use trait_config::{PlayerTraitConfigDetails, PlayerTraitConfigState, PlayerTraitEntry};
 mod visibility;
 mod vitals;
+mod void_storage;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
@@ -3539,6 +3540,8 @@ impl Player {
             TypeId::Player,
             TypeMask::OBJECT | TypeMask::UNIT | TypeMask::PLAYER,
         );
+        let mut gameplay_state = PlayerGameplayState::default();
+        gameplay_state.void_storage_items = vec![None; PLAYER_VOID_STORAGE_MAX_SLOTS_LIKE_CPP];
 
         Self {
             unit,
@@ -3547,7 +3550,7 @@ impl Player {
             active_data: ActivePlayerDataValues::default(),
             inventory: Box::default(),
             inventory_runtime: Box::default(),
-            gameplay_state: PlayerGameplayState::default(),
+            gameplay_state,
             deferred_save: deferred_save::DeferredPlayerSave::default(),
             player_xp_table_like_cpp: None,
             player_data_changes: UpdateMask::new(PLAYER_DATA_BITS),
