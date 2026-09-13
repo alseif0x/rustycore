@@ -1,9 +1,9 @@
 # RustyCore ownership and dependency boundaries
 
-**Current allocation, 2026-09-11:** the master direction and all open issue dispositions
+**Current allocation, 2026-09-13:** the master direction and all open issue dispositions
 are maintained in [PORT_PLAN.md](../migration/PORT_PLAN.md) / #49. The
-[refactor continuation](refactor-completion-plan.md) selects #743 first, then #735
-as the preferred next core delivery; they have no artificial serial dependency.
+[refactor continuation](refactor-completion-plan.md) records #743 and #735 as delivered
+bounded core slices; their old “preferred next” wording is historical.
 #578/#585/#587/#588/#589/#716/#718/#722/#737 are integrated and closed.
 Required remaining #584 core precedes #583, then #153. #133 was closed on
 2026-09-09; that tracker closure neither completes the remaining acceptance nor
