@@ -79,8 +79,8 @@ de `SkillRaceClassInfo`, y TraitMgr construye después la proyección de
 proyección de `SkillLineXTraitTree` y sus consumidores de hidratación de Player están
 implementados con validación de enlaces; profesión, Generic y Combat fallan cerrado
 sin árbol enlazado o especialización/clase válida, y las entradas persistidas fallan
-cerrado si no existen o exceden `MaxRanks`. El candidato `d9770755` añade al mismo
-dueño la proyección inmutable de nodos, grupos, edges, costes, condiciones y loadouts,
+cerrado si no existen o exceden `MaxRanks`. PR #836 (merge `0fca1020`, implementación
+`d9770755`) añade al mismo dueño la proyección inmutable de nodos, grupos, edges, costes, condiciones y loadouts,
 y rechaza en la autoridad de sesión una pareja nodo/entrada que pertenezca a otro árbol.
 Siguen pendientes los consumidores de monedas/condiciones/gasto y starter builds, los
 índices auxiliares restantes, el cierre cross-store y la aceptación final. #486 conserva
