@@ -203,6 +203,17 @@ fn persistence_inventory_records_query_macros_and_rejects_opaque_macro_escapes()
 }
 
 #[test]
+fn persistence_inventory_accepts_out_of_line_module_declarations() {
+    let baseline = inventory(
+        r#"
+                pub(crate) mod economy;
+            "#,
+    )
+    .expect("an out-of-line module declaration is a source boundary");
+    assert!(baseline.accesses.is_empty(), "{baseline:#?}");
+}
+
+#[test]
 fn persistence_inventory_avoids_local_database_and_sqlx_variant_collisions() {
     let innocent = inventory(
         r#"
