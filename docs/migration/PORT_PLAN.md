@@ -2,7 +2,7 @@
 
 **Reconciled 2026-09-13 under #584 / #787 / #748 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
 Source baseline for this reconciliation: `3.4.3` at
-`a9623787fea086f0a1350d2b05d6ec5a300432e4` (PR #830; the earlier `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`1143ed416c41af1219f8c76cb35e85f35c4e8f97` (PR #832; the earlier `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -51,14 +51,14 @@ boundaries and physical organization. #582 is closed after its decoder-only deli
 #486 has its implementation integrated by PR #807 and remains open only for the
 action-specific capture/live gate and administration mutations not represented by the
 current Rust surface. #524's relation-query order correction is integrated by PR #803;
-PR #822/#824/#826/#828/#830 now makes the production WDC4/SQL sequence table-granular through
-`SkillLineAbility`, `SkillLineXTraitTree` and `SkillRaceClassInfo`, and indexes generic
-`TraitSystemID` trees for the production session authority. The bounded projection,
-official/custom overlays, WDC4 table-hash ownership and final `RecordRemoved` filtering
-are implemented through PR #826/#828; the generic TraitMgr projection and fail-closed
-Generic config validation are integrated by PR #830. Physically reconciled by PR #811,
-the issue remains open for complete `TraitMgr` authority acceptance, remaining
-cross-store coverage and startup/live evidence. In parallel with safe independent work, prepare
+PR #822/#824/#826/#828/#830/#832 now makes the production WDC4/SQL sequence table-granular through
+`SkillLineAbility`, `SkillRaceClassInfo` and `TraitTree`/`SkillLineXTraitTree`, and indexes generic
+`TraitSystemID` plus combat class trees for the production session authority. The bounded
+projection, official/custom overlays, WDC4 table-hash ownership and final `RecordRemoved`
+filtering are implemented through PR #826/#828; Generic and Combat config validation are
+integrated by PR #830/#832. Physically reconciled by PR #811, the issue remains open for
+complete `TraitMgr` authority acceptance, remaining cross-store coverage and startup/live
+evidence. In parallel with safe independent work, prepare
 a playable circuit: effective equipment/stats → combat and death/recovery →
 quests/loot/interactions → complete class kit, travel and durable services → soak.
 
@@ -208,7 +208,7 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#351](https://github.com/alseif0x/rustycore/issues/351) | O, guarded loot QA | Reconcile current runtime/capture orchestration and chest fixture ownership; preserve restore guarantees and prove the actual smoke. |
 | [#352](https://github.com/alseif0x/rustycore/issues/352) | O, realm address operations | Revalidate configured DNS/IP and restart diagnostics. No silent fallback or code change inferred from the historical incident. |
 | [#486](https://github.com/alseif0x/rustycore/issues/486) | F1, target identity query | **Implementation integrated by PR #807 (`86a0eb97`).** The canonical cache/connected-target path returns target game/BNet identities; keep open for action-specific packet/live evidence and unrepresented undelete/barber mutation coverage. |
-| [#524](https://github.com/alseif0x/rustycore/issues/524) | F1, skill startup order | PR #803 fixed the relation-query order; PR #822/#824 (`7bb9a911`) separates the WDC4/SQL stages, PR #826 (`d934451a`) applies official/custom `SkillLineXTraitTree` overlays, PR #828 (`276e3981`) retains the WDC4 table hash and applies final table-scoped removals, and PR #830 (`a9623787`) indexes `TraitSystemID` trees and validates Generic configs in production order `SkillLine` → `SkillLineAbility` → `SkillLineXTraitTree` → `SkillRaceClassInfo`, preserving fail-before-publication boundaries. The bounded projections remain installed in production sessions; profession and Generic hydration fail closed without a linked tree. Keep the issue open for complete `TraitMgr` indexes/consumers, final cross-store orchestration and startup/live evidence. |
+| [#524](https://github.com/alseif0x/rustycore/issues/524) | F1, skill startup order | PR #803 fixed the relation-query order; PR #822/#824 (`7bb9a911`) separates the WDC4/SQL stages, PR #826 (`d934451a`) applies official/custom `SkillLineXTraitTree` overlays, PR #828 (`276e3981`) retains the WDC4 table hash and applies final table-scoped removals, PR #830 (`a9623787`) indexes `TraitSystemID` trees and validates Generic configs, and PR #832 (`1143ed41`) indexes `ChrSpecialization` class masks and validates Combat configs in production order `SkillLine` → `SkillLineAbility` → `SkillRaceClassInfo` → `TraitTree`/`SkillLineXTraitTree`, preserving fail-before-publication boundaries. The bounded projections remain installed in production sessions; profession, Generic and Combat hydration fail closed without a linked tree. Keep the issue open for complete `TraitMgr` node/cost/condition/loadout consumers, final cross-store orchestration and startup/live evidence. |
 | [#582](https://github.com/alseif0x/rustycore/issues/582) | B, existing LFG decoders | **Closed/integrated as `21686375` (PR #797).** Six C++-faithful client decoders; no handler, queue or matchmaking claim. |
 | [#583](https://github.com/alseif0x/rustycore/issues/583) | X, stateful native/Wasm | Deliver the preserved M0–M4 product after required core; the external login API and laboratory are insufficient. |
 | [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions. PR #816 integrates the P2 item-bonus writer retirement: resolved state application is a named Player-owned operation and the generic `&mut PlayerItemBonusStateLikeCpp` bridge is gone. P3.4–P3.9 are integrated in the current delivery, including directed ordinary Creature DESTROY after map removal with map-incarnation/`HaveAtClient` fences (PR #820, `62c1369f`). The legacy Creature writer, AI/combat, scripts, FlyByCamera, CREATE/Pet/corpse/transport parity and exact capture/live gates remain explicit later boundaries. |
