@@ -65,8 +65,8 @@ delivers the equivalent refresh through the deferred phase.
 
 ## P3.9 delivered — directed Creature DESTROY — 2026-09-13
 
-PR #820 implements this bounded #584 delivery at commit
-`8ab62574` and is pending integration. TrinityCore's
+PR #820 integrates this bounded #584 delivery into `3.4.3` as
+`62c1369f4e49200b6f6d7605b0bc7de5caeace7c` (implementation `8ab62574`). TrinityCore's
 `WorldObject::DestroyForNearbyPlayers` (`Entities/Object/Object.cpp:3617-3655`) is
 selected from `Map::RemoveFromMap` / `Object::RemoveFromWorld` while the ordinary
 Creature remains attached (`Maps/Map.cpp:933-951`). RustyCore now captures the

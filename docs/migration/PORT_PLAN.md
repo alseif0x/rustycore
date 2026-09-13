@@ -2,7 +2,7 @@
 
 **Reconciled 2026-09-13 under #584 / #787 / #748 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
 Source baseline for this reconciliation: `3.4.3` at
-`db1250767090a5c951dae96ad6c2a2d5b24873ff` (PR #816; the earlier `a3e97063`, `a96ee548`, `76a05081`,
+`62c1369f4e49200b6f6d7605b0bc7de5caeace7c` (PR #820; the earlier `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -16,8 +16,8 @@ intermediate acceptance point, not a smaller replacement target.
 
 **#743 (group state application/reconciliation), #735 (reputation encapsulation) and
 #787 (World/Map session-phase coordination) are delivered and accepted within their
-recorded scopes.** P3.8 is integrated and P3.9 is implemented in PR #820, pending
-integration, as the bounded visibility correction after P3.1–P3.7. P3.7 closes the measured Creature relocation
+recorded scopes.** P3.8 and P3.9 are integrated bounded visibility corrections
+after P3.1–P3.7. P3.7 closes the measured Creature relocation
 fanout gap, while P3.8 marks recipients for object admission/removal through the same
 deferred Player-session rail. P3.1 retired the discarded canonical Creature writer,
 P3.2 delivered canonical `Map::SendObjectUpdates` publication, and P3.3 now moves
@@ -206,7 +206,7 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#524](https://github.com/alseif0x/rustycore/issues/524) | F1, skill startup order | PR #803 fixed the relation-query order. Commit `0f65d677` loads `SkillLineXTraitTree.db2`, builds an immutable validated skill-line index and installs it in production sessions; profession trait-config hydration now fails closed when no linked tree exists. Keep the issue open for the remaining table-granular WDC4 sequence (`SkillLineAbility` → `SkillLineXTraitTree` → `SkillRaceClassInfo`), complete `TraitMgr` indexes/consumers and final failure/acceptance evidence. |
 | [#582](https://github.com/alseif0x/rustycore/issues/582) | B, existing LFG decoders | **Closed/integrated as `21686375` (PR #797).** Six C++-faithful client decoders; no handler, queue or matchmaking claim. |
 | [#583](https://github.com/alseif0x/rustycore/issues/583) | X, stateful native/Wasm | Deliver the preserved M0–M4 product after required core; the external login API and laboratory are insufficient. |
-| [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions. PR #816 integrates the P2 item-bonus writer retirement: resolved state application is a named Player-owned operation and the generic `&mut PlayerItemBonusStateLikeCpp` bridge is gone. P3.4–P3.8 are integrated in the current delivery; PR #820 adds directed ordinary Creature DESTROY after map removal with map-incarnation/`HaveAtClient` fences and is pending integration. The legacy Creature writer, AI/combat, scripts, FlyByCamera, CREATE/Pet/corpse/transport parity and exact capture/live gates remain explicit later boundaries. |
+| [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions. PR #816 integrates the P2 item-bonus writer retirement: resolved state application is a named Player-owned operation and the generic `&mut PlayerItemBonusStateLikeCpp` bridge is gone. P3.4–P3.9 are integrated in the current delivery, including directed ordinary Creature DESTROY after map removal with map-incarnation/`HaveAtClient` fences (PR #820, `62c1369f`). The legacy Creature writer, AI/combat, scripts, FlyByCamera, CREATE/Pet/corpse/transport parity and exact capture/live gates remain explicit later boundaries. |
 | [#735](https://github.com/alseif0x/rustycore/issues/735) | A, reputation boundary | **Closed/delivered.** Player owns reputation state and named transitions; catalogs, packets and persistence consumers remain outside the domain boundary. |
 | [#743](https://github.com/alseif0x/rustycore/issues/743) | A, group consistency | **Closed/delivered.** GroupRegistry remains authoritative and dropped state-bearing commands converge through the session boundary. |
 | [#787](https://github.com/alseif0x/rustycore/issues/787) | A, session-phase coordination | **Integrated as `d14a9a67` (PR #792; accepted at `76369bda`).** World runs before Map, phase permits remain live through finalization/retirement, and shutdown/replacement barriers are covered by production-linked tests and guarded login/save/relogin QA. |
