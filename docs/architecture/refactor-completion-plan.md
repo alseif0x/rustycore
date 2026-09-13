@@ -86,8 +86,10 @@ sin árbol enlazado o especialización/clase válida, y las entradas persistidas
 cerrado si no existen o exceden `MaxRanks`. PR #836 (merge `0fca1020`, implementación
 `d9770755`) añade al mismo dueño la proyección inmutable de nodos, grupos, edges, costes, condiciones y loadouts,
 y rechaza en la autoridad de sesión una pareja nodo/entrada que pertenezca a otro árbol.
-Siguen pendientes los consumidores de monedas/condiciones/gasto y starter builds, los
-índices auxiliares restantes, el cierre cross-store y la aceptación final. #486 conserva
+La siguiente macro de #524 valida semánticamente configuraciones persistidas, condiciones,
+costes/monedas y entradas concedidas, con fallback determinista antes de publicar login.
+Siguen después el gasto real, persistencia de mutaciones, starter builds, los índices
+auxiliares restantes, el cierre cross-store y la aceptación final. #486 conserva
 la implementación integrada por PR #807 y solo sus gates de captura/QA viva y
 mutaciones administrativas no representadas. Estas son líneas funcionales separadas:
 no se convierten en trabajo oculto de #584 ni se usan para reabrir macros cerradas.
