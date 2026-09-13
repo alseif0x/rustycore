@@ -1,5 +1,13 @@
 # RustyCore — Honest Current State (single source of truth)
 
+**Integration head — 2026-09-13:** `3.4.3` is at
+`886e13ad8b7b957b430928eb1e05dfdfbd12405b` (PR #808). The entries below preserve
+dated evidence and limits; they do not select an already integrated macro again.
+The active architecture sequence is the remaining measured work in #584, followed
+by the stateful module product #583 and the independent audit #153. #582 and
+#587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
+the residual acceptance explicitly stated below.
+
 **#486 target-account identity correction — merged in PR #807, integration
 `86a0eb97` (2026-09-13):**
 `CMSG_QUERY_PLAYER_NAMES` now reads a startup-warmed `CharacterCache` projection
@@ -170,7 +178,8 @@ startup family remains open: Rust has a `SkillLineXTraitTreeStore` reader, but t
 production bootstrap does not yet load and consume it as `TraitMgr` does
 (`TraitMgr.cpp:212-228`); no absent authority was fabricated by this slice.
 
-**Group state application is locally accepted — 2026-09-11, #743, `9e6767bb`:**
+**Group state application is integrated — 2026-09-11, #743 / PR #750,
+`77df8194` (implementation `9e6767bb`):**
 `GroupRegistry` stays the single authority and every state-bearing group command now
 either reaches its member or records a delivery obligation that the member converges
 on in a dedicated driver phase. C++ never needs this fence because
@@ -188,7 +197,8 @@ relocation. **No live runtime, capture or DB/restart/relogin evidence exists for
 delivery**; queue saturation is exercised on the real bounded channel in the session
 composition, not on a running server.
 
-**Reputation encapsulation is locally accepted — 2026-09-11, #735:** the canonical Player
+**Reputation encapsulation is integrated — 2026-09-11, #735 / PR #751,
+`9ec0e855` (implementation `c68f8e16`):** the canonical Player
 owns `PlayerReputationStateLikeCpp`, the equivalent of C++ `Player::m_reputationMgr`
 (`Player.h:3116`), together with the state-changing invariants that need no catalog.
 `ReputationMgrLikeCpp` became a borrow of that state, so the per-operation reconstruction

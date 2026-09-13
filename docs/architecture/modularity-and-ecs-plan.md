@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-11 (#748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-13 (#808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -10,6 +10,13 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 → #153 independent audit. #583 does not block an unrelated gameplay macro, while
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
+
+The current integration head is `886e13ad8b7b957b430928eb1e05dfdfbd12405b`.
+#582 is closed after its decoder-only delivery. #486's implementation is integrated
+by PR #807 and remains open only for its capture/live gate and unrepresented admin
+mutations. #524's relation-query order correction is integrated by PR #803, while
+its `SkillLineXTraitTree`/`TraitMgr` production authority remains a separate functional
+residual. Neither functional issue changes the #584 → #583 → #153 architecture gate.
 
 The finite hecs V2 conformance proof has passed within its recorded laboratory limits.
 That evidence does not install production `hecs` or Wasmtime, prove production storage
@@ -26,7 +33,7 @@ legacy-writer migration and other P3/P4 work follow only after their complete
 consumer contract is audited. No new micro-issues are implied; each macro includes
 its consumers and validation.
 
-## Architecture program state — 2026-09-11
+## Architecture program state — 2026-09-13
 
 The [refactor completion plan](refactor-completion-plan.md) records the detailed
 operation contracts and continuation sequence. This document retains the canonical
@@ -34,7 +41,7 @@ semantic, storage and extension contracts; neither document turns a pending task
 an accepted result.
 
 The architecture repair program is reviewed against integrated `3.4.3` at
-`5d8c079a06b587c060c1c6e1c06bedb73c4339d0`. #587/#588/#589 and the subsequent
+`886e13ad8b7b957b430928eb1e05dfdfbd12405b`. #587/#588/#589 and the subsequent
 #716/#718/#722/#737 deliveries are integrated and closed in their bounded scopes.
 Their checkpoints retain scoped runtime/capture evidence; they are not reopened by
 the remaining core work or by naming preferences.
