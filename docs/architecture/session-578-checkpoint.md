@@ -16,8 +16,9 @@ plus any fixes necessary to make that delivered change safe. It does not claim a
 thin Session, full C0–C4 completion, production hecs migration or a finished LFG.
 
 **#584 owns all remaining core C0–C4 work under #133.** It is a coordination epic,
-not another giant implementation PR. P3.8 is integrated; the next selected bounded
-macro is P3.9, directed DESTROY for an ordinary in-world Creature. Before each
+not another giant implementation PR. P3.8 and P3.9 are integrated; P3.9 delivered
+directed DESTROY for an ordinary in-world Creature. The next macro is not selected
+until a fresh audit of the remaining measured responsibilities. Before each
 subsequent implementation child, audit current responsibilities, callers, C++ behavior,
 invariants, dependencies, tests and physical hotspots; then define a finite complete
 outcome and its consumer changes. A crate-focused issue may touch other crates to
@@ -62,20 +63,39 @@ gates under #584; the existing outcome fields that describe the synchronous C++
 visibility call continue to report that direct call as a runtime gap because Rust
 delivers the equivalent refresh through the deferred phase.
 
-## P3.9 selected — directed Creature DESTROY — 2026-09-13
+## P3.9 delivered — directed Creature DESTROY — 2026-09-13
 
-The next bounded operation is the exact directed destroy path for one ordinary
-Creature removal that was in-world and may have been visible to Players. Trace
-TrinityCore `Map::RemoveFromMap` / `Object::RemoveFromWorld` against the current Rust
-removal and deferred refresh order. The implementation must have one canonical
-producer for a typed destroy intent, route it through
-`SessionCommand::DestroyVisibleCreatureLikeCpp`, validate session/world/map/
-instance/generation and `client_visible_guids`, then send the destroy update and
-remove the ledger entry atomically. Preserve ordering with queued refreshes for the
-same GUID, fail closed on stale incarnations, and keep map mutation packet-free.
-Positive/negative production-linked tests must cover visible, invisible, stale and
-already-removed entities. CREATE, Pet, corpse/transport and live capture/QA remain
-separate gates.
+PR #820 implements this bounded #584 delivery at commit
+`8ab62574` and is pending integration. TrinityCore's
+`WorldObject::DestroyForNearbyPlayers` (`Entities/Object/Object.cpp:3617-3655`) is
+selected from `Map::RemoveFromMap` / `Object::RemoveFromWorld` while the ordinary
+Creature remains attached (`Maps/Map.cpp:933-951`). RustyCore now captures the
+nearby in-world Player GUIDs in the canonical `Map`, excludes the direct charmer,
+and retains a typed result with no packet delivery or await under the map mutation.
+
+The canonical map tick binds that result to the map incarnation and, after releasing
+all map guards, the world loop resolves each recipient's current registration through
+`PlayerRegistry`. It publishes the typed
+`SessionCommand::DestroyVisibleCreatureLikeCpp` on the durable session rail. The
+Session is the only writer of `client_visible_guids_like_cpp`: it fails closed for
+logout/disconnect, non-Creature GUIDs, map/instance or incarnation mismatches and
+GUIDs absent from the client ledger; for a valid entry it removes the GUID and emits
+one `SMSG_UPDATE_OBJECT` destroy packet as one transition. Durable drain ordering
+keeps this destroy ahead of a coalesced visibility refresh, even if an older gated
+packet is already queued.
+
+Acceptance covers the map capture/removal test
+`remove_from_map_marks_nearby_players_for_deferred_visibility_like_cpp`, the
+Session positive and negative tests
+`directed_creature_destroy_removes_visible_ledger_and_sends_update_like_cpp` and
+`directed_creature_destroy_rejects_stale_incarnation_and_invisible_guid_like_cpp`,
+and the mailbox incarnation-fence test
+`destroy_visible_creature_like_cpp_command_carries_incarnation_fence`. The focused
+map and Session suites, formatting and diff checks pass; the world-server check
+passes with one Cargo job. This is exact ordinary Creature DESTROY routing only:
+CREATE, Pet, corpse/transport, shared vision, packet capture and live DB/restart/
+relogin QA remain separate gates. The next #584 macro must be chosen from a fresh
+audit; no P3.10 issue is implied by this delivery.
 
 ## Persistence inventory reconciliation — 2026-09-13, after #584 P3.1
 

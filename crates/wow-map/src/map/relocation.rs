@@ -1041,13 +1041,21 @@ where
             let remove_from_map_was_in_world = self
                 .map_object_record(guid)
                 .is_some_and(|record| record.object().object().is_in_world());
-            if remove_from_map_was_in_world {
-                // C++ `Map::RemoveFromMap` performs the destroy visibility walk
-                // while the source is still attached. Mark recipients for the
-                // deferred session rail before erasing the canonical record;
-                // packet delivery remains outside this map mutation.
+            let source_kind = self.map_object_record(guid).map(MapObjectRecord::kind);
+            let creature_destroy_recipient_guids = if remove_from_map_was_in_world
+                && source_kind == Some(AccessorObjectKind::Creature)
+            {
+                self.capture_creature_visibility_destroy_recipients_like_cpp(guid)
+            } else if remove_from_map_was_in_world {
                 self.mark_nearby_players_for_visibility_like_cpp(guid);
-            }
+                Vec::new()
+            } else {
+                Vec::new()
+            };
+            // C++ `Map::RemoveFromMap` performs the destroy visibility walk
+            // while the source is still attached. Mark recipients and retain
+            // the ordinary Creature subset before erasing the canonical record;
+            // packet delivery remains outside this map mutation.
             let creature_zone_script_remove = self
                 .map_object_record(guid)
                 .filter(|record| record.kind() == AccessorObjectKind::Creature)
@@ -1122,6 +1130,14 @@ where
                 .object_mut()
                 .reset_map()
                 .map_err(RemoveFromMapError::ResetMap)?;
+
+            if cxx_in_world && kind == AccessorObjectKind::Creature {
+                self.pending_creature_visibility_destroy_recipients_like_cpp
+                    .push(CreatureVisibilityDestroyRecipientsLikeCpp {
+                        creature_guid: guid,
+                        recipient_guids: creature_destroy_recipient_guids,
+                    });
+            }
 
             // Preserve the typed Player for MapManager's detached/far-teleport
             // owner. The `WorldObject` is only an immutable compatibility

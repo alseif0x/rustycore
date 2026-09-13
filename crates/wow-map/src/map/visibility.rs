@@ -88,6 +88,98 @@ where
         result
     }
 
+    fn nearby_player_guids_for_visibility_like_cpp(
+        &self,
+        source_guid: ObjectGuid,
+    ) -> Vec<ObjectGuid> {
+        let Some((position, combat_reach, is_in_world)) =
+            self.map_object_record(source_guid).map(|record| {
+                let object = record.object();
+                (
+                    object.position(),
+                    object.combat_reach(),
+                    object.object().is_in_world(),
+                )
+            })
+        else {
+            return Vec::new();
+        };
+        if !is_in_world || !is_valid_map_coord_2d(position.x, position.y) {
+            return Vec::new();
+        }
+
+        let mut players: Vec<_> = self
+            .nearby_cell_guids_like_cpp(
+                position.x,
+                position.y,
+                self.visibility_range() + combat_reach,
+            )
+            .world
+            .players
+            .iter()
+            .copied()
+            .filter(|player_guid| *player_guid != source_guid)
+            .filter(|player_guid| {
+                self.map_object_record(*player_guid)
+                    .is_some_and(|record| record.object().object().is_in_world())
+            })
+            .collect();
+        players.sort();
+        players.dedup();
+        players
+    }
+
+    fn mark_player_visibility_guids_like_cpp(&mut self, players: &[ObjectGuid]) -> usize {
+        let mut marked = 0;
+        for player_guid in players {
+            if let Some(player) = self.get_typed_player_mut(*player_guid) {
+                player
+                    .unit_mut()
+                    .world_mut()
+                    .object_mut()
+                    .add_to_notify(ObjectNotifyFlags::VISIBILITY_CHANGED);
+                marked += 1;
+            }
+        }
+        marked
+    }
+
+    /// Capture the nearby in-world Players that may observe a map-owned source
+    /// and mark them for the existing deferred visibility rail.
+    ///
+    /// C++ `Map::AddToMap`/`Map::RemoveFromMap` eventually call
+    /// `UpdateObjectVisibilityOnCreate/Destroy` (`Map.cpp:530-610,933-951`,
+    /// `Object.h:703-704`). Those routines may walk nearby players, but Rust
+    /// must not deliver packets while the map owner is mutating storage.
+    pub(super) fn nearby_and_mark_player_visibility_guids_like_cpp(
+        &mut self,
+        source_guid: ObjectGuid,
+    ) -> Vec<ObjectGuid> {
+        let players = self.nearby_player_guids_for_visibility_like_cpp(source_guid);
+        self.mark_player_visibility_guids_like_cpp(&players);
+        players
+    }
+
+    pub(super) fn capture_creature_visibility_destroy_recipients_like_cpp(
+        &mut self,
+        source_guid: ObjectGuid,
+    ) -> Vec<ObjectGuid> {
+        let Some(record) = self.map_object_record(source_guid) else {
+            return Vec::new();
+        };
+        if record.kind() != AccessorObjectKind::Creature || !record.object().object().is_in_world()
+        {
+            return Vec::new();
+        }
+        let charmer_guid = record
+            .creature()
+            .and_then(|creature| creature.unit().subsystems().control.charmer_guid_like_cpp());
+        self.nearby_and_mark_player_visibility_guids_like_cpp(source_guid)
+            .into_iter()
+            .filter(|player_guid| Some(*player_guid) != charmer_guid)
+            .collect()
+    }
+
     /// Mark the canonical Players that may observe a map-owned source so the
     /// existing delayed relocation/session rail recomputes their exact
     /// visibility on the next map phase.
@@ -104,60 +196,23 @@ where
         &mut self,
         source_guid: ObjectGuid,
     ) -> usize {
-        let Some((position, combat_reach, is_in_world)) =
-            self.map_object_record(source_guid).map(|record| {
-                let object = record.object();
-                (
-                    object.position(),
-                    object.combat_reach(),
-                    object.object().is_in_world(),
-                )
-            })
-        else {
-            return 0;
-        };
-        if !is_in_world || !is_valid_map_coord_2d(position.x, position.y) {
-            return 0;
-        }
+        self.nearby_and_mark_player_visibility_guids_like_cpp(source_guid)
+            .len()
+    }
 
-        let mut players: Vec<_> = self
-            .nearby_cell_guids_like_cpp(
-                position.x,
-                position.y,
-                self.visibility_range() + combat_reach,
-            )
-            .world
-            .players
-            .iter()
-            .copied()
-            .collect();
-        players.sort();
-        players.dedup();
-
-        let mut marked = 0;
-        for player_guid in players {
-            // C++ `Player::UpdateVisibilityOf` does not send a self-create via
-            // the nearby-player walk; the player's own viewpoint is handled by
-            // its normal world-entry path.
-            if player_guid == source_guid {
-                continue;
-            }
-            let player_in_world = self
-                .map_object_record(player_guid)
-                .is_some_and(|record| record.object().object().is_in_world());
-            if !player_in_world {
-                continue;
-            }
-            if let Some(player) = self.get_typed_player_mut(player_guid) {
-                player
-                    .unit_mut()
-                    .world_mut()
-                    .object_mut()
-                    .add_to_notify(ObjectNotifyFlags::VISIBILITY_CHANGED);
-                marked += 1;
-            }
+    /// Drain Creature destroy recipients captured during map-owned removals.
+    pub fn take_creature_visibility_destroy_recipients_like_cpp(
+        &mut self,
+    ) -> Vec<CreatureVisibilityDestroyRecipientsLikeCpp> {
+        let mut pending =
+            std::mem::take(&mut self.pending_creature_visibility_destroy_recipients_like_cpp);
+        pending.sort_by_key(|intent| intent.creature_guid);
+        for intent in &mut pending {
+            intent.recipient_guids.sort();
+            intent.recipient_guids.dedup();
         }
-        marked
+        pending.retain(|intent| !intent.recipient_guids.is_empty());
+        pending
     }
 
     pub fn visit_nearby_cells_of_like_cpp(

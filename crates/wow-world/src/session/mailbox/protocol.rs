@@ -157,6 +157,10 @@ impl SessionCommand {
                 | Self::SendRealmIfVisibleFromLegacySourceLikeCpp(_)
         )
     }
+
+    pub(super) fn is_directed_creature_destroy_like_cpp(&self) -> bool {
+        matches!(self, Self::DestroyVisibleCreatureLikeCpp(_))
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -177,6 +181,7 @@ pub enum SessionCommand {
     ResetSeasonalQuestStatus(ResetSeasonalQuestStatusCommand),
     SendVisibleObjectValuesUpdate(SendVisibleObjectValuesUpdateCommand),
     RefreshVisibleWorldCreaturesLikeCpp(RefreshVisibleWorldCreaturesLikeCppCommand),
+    DestroyVisibleCreatureLikeCpp(DestroyVisibleCreatureLikeCppCommand),
     RefreshDeferredPlayerVisibilityLikeCpp(wow_map::PlayerVisibilityRefreshIntentLikeCpp),
     SendCreatureLootReleaseValuesUpdateLikeCpp(SendCreatureLootReleaseValuesUpdateLikeCppCommand),
     RefreshVisibleGameobjectsOrSpellClicksLikeCpp,
@@ -594,6 +599,18 @@ pub struct SendRepresentedDuelRequestedLikeCppCommand {
 pub struct RefreshVisibleWorldCreaturesLikeCppCommand {
     pub map_id: u16,
     pub instance_id: u32,
+}
+
+/// Destroy one ordinary Creature that the canonical Map removed while it was
+/// in-world. The map incarnation prevents a delayed command from addressing a
+/// replacement map; the session's own registration provides the Player
+/// generation fence.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DestroyVisibleCreatureLikeCppCommand {
+    pub creature_guid: ObjectGuid,
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub map_incarnation: u64,
 }
 
 /// Syncs the bounded represented gathering-node state needed before running a

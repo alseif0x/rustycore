@@ -7,10 +7,57 @@ use super::{
     CreatureSpawnCatalogsLikeCpp, PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP,
     SessionState, WorldSession,
 };
+use crate::session::mailbox::DestroyVisibleCreatureLikeCppCommand;
 use wow_entities::ObjectNotifyFlags;
 use wow_map::PlayerVisibilityRefreshIntentLikeCpp;
 
 impl WorldSession {
+    /// Apply one map-owned C++ `WorldObject::DestroyForNearbyPlayers` result
+    /// after the map guard has been released. The command is intentionally
+    /// narrow: ordinary Creature GUIDs only; the session's client-visible set
+    /// is the final `HaveAtClient` authority and is mutated atomically with the
+    /// destroy packet decision.
+    pub(crate) fn handle_destroy_visible_creature_like_cpp_command_like_cpp(
+        &mut self,
+        command: DestroyVisibleCreatureLikeCppCommand,
+    ) {
+        if self.state() != SessionState::LoggedIn
+            || self.is_disconnecting()
+            || !command.creature_guid.is_creature()
+            || self.player_map_id_like_cpp() != command.map_id
+        {
+            return;
+        }
+        let Some(current_key) = self.current_canonical_player_map_key_like_cpp() else {
+            return;
+        };
+        if current_key.instance_id != command.instance_id {
+            return;
+        }
+        let Some(manager) = self.canonical_map_manager.as_ref() else {
+            return;
+        };
+        let current_map = manager.lock().ok().is_some_and(|manager| {
+            manager.map_incarnation_like_cpp(wow_map::MapKey::new(
+                u32::from(command.map_id),
+                command.instance_id,
+            )) == Some(command.map_incarnation)
+        });
+        if !current_map {
+            return;
+        }
+        if !self
+            .client_visible_guids_like_cpp
+            .remove(&command.creature_guid)
+        {
+            return;
+        }
+        self.send_packet(&wow_packet::packets::update::UpdateObject::destroy_objects(
+            vec![command.creature_guid],
+            command.map_id,
+        ));
+    }
+
     pub(crate) fn apply_move_init_active_mover_complete_like_cpp(&mut self, ticks: u32) {
         let transport_server_time =
             crate::session_rules::game_time_ms_like_cpp().saturating_sub(ticks) as i32;

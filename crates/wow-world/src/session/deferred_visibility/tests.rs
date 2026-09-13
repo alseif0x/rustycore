@@ -6,7 +6,10 @@
 use super::super::{
     PlayerRegistry, SessionPlayerController, SessionState, SharedCanonicalMapManager, WorldSession,
 };
-use crate::session::mailbox::{RefreshVisibleWorldCreaturesLikeCppCommand, SessionCommand};
+use crate::session::mailbox::{
+    DestroyVisibleCreatureLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
+    SessionCommand,
+};
 use std::sync::{Arc, Mutex, RwLock};
 use wow_constants::ServerOpcodes;
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
@@ -183,6 +186,17 @@ impl Fixture {
             .await;
     }
 
+    async fn establish_visible_creature(&mut self) {
+        let intent = self.acknowledge();
+        assert!(
+            self.registry
+                .request_deferred_player_visibility_refresh_like_cpp(intent)
+        );
+        self.pump().await;
+        self.assert_created_once();
+        while self.output.try_recv().is_ok() {}
+    }
+
     fn assert_created_once(&self) {
         assert!(
             self.session
@@ -271,6 +285,97 @@ async fn stationary_ack_map_directory_pump_publishes_creature_only_after_readine
     fixture.assert_unpublished();
     fixture.pump().await;
     fixture.assert_created_once();
+}
+
+#[tokio::test]
+async fn directed_creature_destroy_removes_visible_ledger_and_sends_update_like_cpp() {
+    let mut fixture = Fixture::new();
+    fixture.establish_visible_creature().await;
+
+    let map_incarnation = fixture
+        .canonical
+        .lock()
+        .unwrap()
+        .map_incarnation_like_cpp(KEY)
+        .expect("fixture map incarnation");
+    fixture
+        .session
+        .session_command_tx()
+        .try_send(SessionCommand::DestroyVisibleCreatureLikeCpp(
+            DestroyVisibleCreatureLikeCppCommand {
+                creature_guid: fixture.creature,
+                map_id: KEY.map_id as u16,
+                instance_id: KEY.instance_id,
+                map_incarnation,
+            },
+        ))
+        .unwrap();
+    fixture.pump().await;
+
+    assert!(
+        !fixture
+            .session
+            .client_visible_guids_like_cpp
+            .contains(&fixture.creature)
+    );
+    let packet = fixture.output.try_recv().expect("directed destroy packet");
+    let mut packet = WorldPacket::from_bytes(&packet);
+    assert_eq!(
+        packet.read_uint16().unwrap(),
+        ServerOpcodes::UpdateObject as u16
+    );
+}
+
+#[tokio::test]
+async fn directed_creature_destroy_rejects_stale_incarnation_and_invisible_guid_like_cpp() {
+    let mut fixture = Fixture::new();
+    fixture.establish_visible_creature().await;
+    let map_incarnation = fixture
+        .canonical
+        .lock()
+        .unwrap()
+        .map_incarnation_like_cpp(KEY)
+        .expect("fixture map incarnation");
+
+    fixture
+        .session
+        .session_command_tx()
+        .try_send(SessionCommand::DestroyVisibleCreatureLikeCpp(
+            DestroyVisibleCreatureLikeCppCommand {
+                creature_guid: fixture.creature,
+                map_id: KEY.map_id as u16,
+                instance_id: KEY.instance_id,
+                map_incarnation: map_incarnation.saturating_add(1),
+            },
+        ))
+        .unwrap();
+    fixture.pump().await;
+    assert!(
+        fixture
+            .session
+            .client_visible_guids_like_cpp
+            .contains(&fixture.creature)
+    );
+    assert!(fixture.output.try_recv().is_err());
+
+    fixture
+        .session
+        .client_visible_guids_like_cpp
+        .remove(&fixture.creature);
+    fixture
+        .session
+        .session_command_tx()
+        .try_send(SessionCommand::DestroyVisibleCreatureLikeCpp(
+            DestroyVisibleCreatureLikeCppCommand {
+                creature_guid: fixture.creature,
+                map_id: KEY.map_id as u16,
+                instance_id: KEY.instance_id,
+                map_incarnation,
+            },
+        ))
+        .unwrap();
+    fixture.pump().await;
+    assert!(fixture.output.try_recv().is_err());
 }
 
 #[tokio::test]

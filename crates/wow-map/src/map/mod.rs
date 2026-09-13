@@ -94,6 +94,16 @@ use wow_entities::{
     VehicleKitRemoveOutcomeLikeCpp, WorldObject, WorldObjectEnvironment, WorldObjectHeightQuery,
 };
 
+/// One map-owned Creature removal and the Players that were eligible for the
+/// C++ `WorldObject::DestroyForNearbyPlayers` walk while the source remained
+/// attached. The session registry resolves each recipient's current
+/// registration before publication.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreatureVisibilityDestroyRecipientsLikeCpp {
+    pub creature_guid: ObjectGuid,
+    pub recipient_guids: Vec<ObjectGuid>,
+}
+
 const GRID_SLOT_COUNT: usize = (MAX_NUMBER_OF_GRIDS * MAX_NUMBER_OF_GRIDS) as usize;
 #[cfg(test)]
 const GAMEOBJECT_TYPE_GENERIC_LIKE_CPP: u32 = 5;
@@ -2072,6 +2082,11 @@ pub struct Map<Terrain = NoopTerrainGridLoader, Lifecycle = NoopGridLifecycle> {
     /// set into `remove_from_map_like_cpp(..., true)`. Session/ObjectAccessor/DB
     /// caches must not drain or reconstruct this queue.
     objects_to_remove: HashSet<ObjectGuid>,
+    /// Destroy recipients captured before an in-world Creature is detached.
+    /// Delivery is drained by the canonical world tick after every map guard
+    /// is released; no session or packet state is stored here.
+    pending_creature_visibility_destroy_recipients_like_cpp:
+        Vec<CreatureVisibilityDestroyRecipientsLikeCpp>,
     /// Map-owned temporary Unit world-object switch queue matching C++
     /// `Map::i_objectsToSwitch` (`Map.h:651-652`) and
     /// `Map::AddObjectToSwitchList` (`Map.cpp:2557-2572`).
@@ -2214,6 +2229,7 @@ where
                 DYNAMIC_MAP_TREE_CHECK_PERIOD_MS_LIKE_CPP,
             dynamic_tree_unbalanced_times_like_cpp: 0,
             objects_to_remove: HashSet::new(),
+            pending_creature_visibility_destroy_recipients_like_cpp: Vec::new(),
             objects_to_switch: HashMap::new(),
             far_spell_callbacks_like_cpp: VecDeque::new(),
             represented_far_spell_callback_execution_log_like_cpp: Vec::new(),

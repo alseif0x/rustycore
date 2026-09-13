@@ -97,6 +97,10 @@ fn remove_from_map_marks_nearby_players_for_deferred_visibility_like_cpp() {
             .is_need_notify(ObjectNotifyFlags::VISIBILITY_CHANGED),
         "a nearby Player must be selected before the source is erased"
     );
+    let destroys = map.take_creature_visibility_destroy_recipients_like_cpp();
+    assert_eq!(destroys.len(), 1);
+    assert_eq!(destroys[0].creature_guid, creature_guid);
+    assert_eq!(destroys[0].recipient_guids, vec![player_guid]);
     assert!(map.map_object(creature_guid).is_none());
 }
 

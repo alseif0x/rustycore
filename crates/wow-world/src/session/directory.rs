@@ -20,11 +20,11 @@ use crate::session::SharedCanonicalMapManager;
 use crate::session::mailbox::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyLootMoneyLikeCppCommand,
     ApplyPlayerMeleeResultLikeCppCommand, CreatureAttackStartLikeCppCommand,
-    CreatureAttackStopLikeCppCommand, DurableCreatureRuntimeCommandsLikeCpp,
-    LootRollCommandIdentityLikeCpp, ReconcilePvpCombatExpiryLikeCppCommand,
-    RefreshVisibleWorldCreaturesLikeCppCommand, SendCreatureSpellCastIfVisibleLikeCppCommand,
-    SendIfVisibleLikeCppCommand, SendPlayerSpellIfVisibleLikeCppCommand, SessionCommand,
-    SharedClientVisibleGuidsLikeCpp,
+    CreatureAttackStopLikeCppCommand, DestroyVisibleCreatureLikeCppCommand,
+    DurableCreatureRuntimeCommandsLikeCpp, LootRollCommandIdentityLikeCpp,
+    ReconcilePvpCombatExpiryLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
+    SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand,
+    SendPlayerSpellIfVisibleLikeCppCommand, SessionCommand, SharedClientVisibleGuidsLikeCpp,
 };
 use dashmap::DashMap;
 use std::collections::{HashMap, HashSet};
@@ -2044,6 +2044,21 @@ impl PlayerRegistry {
                     .lock()
                     .ok()
                     .map(|mut durable| durable.publish_send_if_visible_like_cpp(command))
+            })
+            .unwrap_or(false)
+    }
+
+    pub fn publish_current_destroy_visible_creature(
+        &self,
+        registration: PlayerRegistration,
+        command: DestroyVisibleCreatureLikeCppCommand,
+    ) -> bool {
+        self.with_current_durable_runtime(registration)
+            .and_then(|durable| {
+                durable
+                    .lock()
+                    .ok()
+                    .map(|mut durable| durable.publish_destroy_visible_creature_like_cpp(command))
             })
             .unwrap_or(false)
     }

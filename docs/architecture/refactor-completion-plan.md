@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748 — 2026-09-13; actualización #524 y P2/P3.8 — 2026-09-13.** Este documento detalla los
+**Sincronización de la entrega #748 — 2026-09-13; actualización #524 y P2/P3.9 — 2026-09-13.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -15,7 +15,8 @@ la cadencia de `AGENTS.md`.
 
 **Cabeza integrada, 2026-09-13: PR #816**, en `3.4.3` como
 `db1250767090a5c951dae96ad6c2a2d5b24873ff`. #787 / PR #792 (`d14a9a67`) y
-#584 P2 item-bonus y P3.1–P3.8 están integrados dentro de esta cabeza. La coordinación World/Map está
+#584 P2 item-bonus y P3.1–P3.8 están integrados dentro de esta cabeza; P3.9 está
+implementado en PR #820 (`8ab62574`) y pendiente de integración. La coordinación World/Map está
 implementada y aceptada localmente en `76369bda`; la corrección mantiene el ACK World pendiente hasta finalizar y
 retirar la sesión. El contrato y la evidencia están en el
 [checkpoint de sesión](session-578-checkpoint.md#787-resumption-finalization-is-inside-the-world-completion-boundary--2026-09-12).
@@ -52,11 +53,14 @@ declined names y las mutaciones de undelete/barber aún no representadas. La ace
 de bytes/captura y la QA viva siguen siendo gates de la issue; la integración remota ya
 está satisfecha.
 
-Las macros P3.7 y P3.8 de núcleo bajo #584 quedaron integradas. P3.7 conecta los planes
+Las macros P3.7 y P3.8 de núcleo bajo #584 quedaron integradas; P3.9 está implementada
+en PR #820 (`8ab62574`) y pendiente de integración. P3.7 conecta los planes
 de relocalización de criaturas ya calculados con la única vía de publicación de sesiones,
 reutiliza las fuentes lejanas de `ObjectUpdater` y aplica el radio de activación por
 fuente; P3.8 marca los Players cercanos para el mismo rail cuando un objeto entra o sale
-del mapa. La macro P2 del último escritor genérico de bonos de objeto también quedó
+del mapa; P3.9 captura y publica el DESTROY dirigido de una Creature ordinaria con
+vallas de encarnación y `HaveAtClient` después de liberar el guard de Map. La macro P2
+del último escritor genérico de bonos de objeto también quedó
 integrada por PR #816: el estado resuelto se aplica mediante una operación nominal
 del runtime propiedad del Player y se retiró el cierre `&mut` de Session. La próxima
 macro se seleccionará después de auditar el escritor legado de
@@ -127,7 +131,7 @@ de microissues:
 | P0 | Herramientas de ownership, imports, bridges y ratchet físico | #716 integrado y cerrado; su evidencia es histórica y no se repite aquí |
 | P1 | Recompensa de misión y contrato durable | #718 integrado y cerrado; no hay evidencia real de DB/restart/relogin |
 | P2 | Fronteras de Player y operaciones completas | #743 y #735 entregados; continúan los residuales por consumidores |
-| P3 | Fases, runtime, lifetime, residencia/incarnation y storage selectivo | #787 entregado; P3.1 retiró el escritor Creature canónico descartado, P3.2 publicó `SendObjectUpdates`, P3.3 corrigió el orden de respawn/condiciones antes de los visitantes, P3.4 conectó la selección cercana de `ObjectUpdater` con producción, P3.5 corrigió el radio de activación por fuente, P3.6 añadió el override de cinemática del Player, P3.7 publica el fanout de visibilidad de relocalización de Creature y P3.8 marca receptores cercanos para admisión/remoción de objetos; el escritor legado, AI/combat, scripts, FlyByCamera y los gates de captura siguen pendientes bajo #584 |
+| P3 | Fases, runtime, lifetime, residencia/incarnation y storage selectivo | #787 entregado; P3.1 retiró el escritor Creature canónico descartado, P3.2 publicó `SendObjectUpdates`, P3.3 corrigió el orden de respawn/condiciones antes de los visitantes, P3.4 conectó la selección cercana de `ObjectUpdater` con producción, P3.5 corrigió el radio de activación por fuente, P3.6 añadió el override de cinemática del Player, P3.7 publica el fanout de visibilidad de relocalización de Creature, P3.8 marca receptores cercanos para admisión/remoción de objetos y P3.9 publica DESTROY dirigido de Creature ordinaria con vallas de encarnación/`HaveAtClient`; el escritor legado, AI/combat, scripts, FlyByCamera, CREATE/Pet/corpse/transport y los gates de captura siguen pendientes bajo #584 |
 | P4 | Organización física, excepciones y límites semánticos | #584, acompañado por cada operación; la medición de 31 paths permanece histórica |
 | P5 | Producto de módulos M0–M4, nativo/Wasm y Rust/Wasm/C | #583, tras los requisitos core de #584; no bloquea gameplay independiente |
 | P6 | Auditoría terminal y evidencia integrada | #153, después de #584 y #583; no absorbe implementación |
@@ -880,9 +884,10 @@ Las diferencias que quedan, y que son el trabajo P3 real:
    Player y lo entrega por la vía existente de residencia/incarnation y sesión diferida.
    P3.8 extiende esa misma vía a los receptores cercanos de `Map::AddToMap` y
    `Map::RemoveFromMap`, marcando `NOTIFY_VISIBILITY_CHANGED` antes de insertar/retirar
-   el objeto y dejando la entrega fuera del guard de Map. La consulta de FlyByCamera,
-   scripts, AI/combat y la publicación exacta de CREATE/DESTROY dirigida por objeto
-   siguen teniendo contratos propios; no se introducen en estas macros.
+   el objeto y dejando la entrega fuera del guard de Map. P3.9 añade la publicación
+   dirigida de DESTROY para Creature ordinaria con vallas de encarnación y
+   `HaveAtClient`; CREATE, Pet/corpse/transport, FlyByCamera, scripts y AI/combat
+   siguen teniendo contratos propios y no se introducen en esta macro.
 
 #### Selección P3.1 bajo #584 — retirada del escritor sombra de Creature
 
@@ -984,6 +989,33 @@ live/DB/reinicio/relogin siguen siendo gates posteriores. Los campos de resultad
 describen la llamada síncrona C++ continúan marcando ese paso directo como runtime gap;
 la implementación Rust entrega su equivalente en la fase diferida para respetar la
 frontera de locks.
+
+#### Entrega P3.9 bajo #584 — DESTROY dirigido de Creature ordinaria
+
+La auditoría de P3.8 dejó separado el paso que TrinityCore ejecuta en
+`WorldObject::DestroyForNearbyPlayers` (`Entities/Object/Object.cpp:3617-3655`):
+retirar de forma dirigida solo la Creature ordinaria que el receptor tenía en
+`m_clientGUIDs`, excluyendo al charmer, antes de que el objeto desaparezca del mapa.
+PR #820 (`8ab62574`, integración pendiente) conserva esa responsabilidad en una sola
+cadena. `Map::RemoveFromMap` captura los Players cercanos y el charmer mientras la
+Creature sigue adjunta, y el map tick añade el `map_incarnation` al resultado sin
+serializar ni entregar bajo el guard.
+
+Después de liberar el guard, `world-server` resuelve el registro actual de cada Player
+y publica `SessionCommand::DestroyVisibleCreatureLikeCpp` en el rail durable. La
+Session comprueba estado, mapa, instancia, encarnación y `HaveAtClient` en
+`client_visible_guids_like_cpp`; en el caso válido elimina el GUID y emite el bloque
+`SMSG_UPDATE_OBJECT` DESTROY de forma atómica. El drenaje del rail mantiene este
+comando por delante de un refresh de visibilidad coalescido, incluso con un paquete
+gated anterior en cola. El alcance no incluye CREATE, Pet, corpse/transport, shared
+vision, captura ni QA live/DB/reinicio/relogin.
+
+La aceptación son las pruebas de captura/remoción de `wow-map`, las pruebas positiva,
+stale e invisible de `wow-world` y la prueba de la valla de encarnación del mailbox;
+`cargo check` de `wow-map`/`world-server`, formato y diff pasan con un job. Tras la
+integración se debe repetir el perfil `validation-v2 final` y actualizar este plan
+con el SHA de integración; el siguiente macro se elige solo después de auditar los
+residuales medidos.
 
 Qué conservar en cualquier corte P3: residencia/incarnation del Player canónico,
 backpressure y cancelación de la tarea de sesión, transferencia entre mapas, descarga

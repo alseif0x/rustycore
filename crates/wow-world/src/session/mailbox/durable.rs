@@ -16,8 +16,9 @@ use std::sync::{Arc, Mutex};
 use super::protocol::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyPlayerMeleeResultLikeCppCommand,
     CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,
-    ReconcilePvpCombatExpiryLikeCppCommand, SendCreatureSpellCastIfVisibleLikeCppCommand,
-    SendIfVisibleLikeCppCommand, SendPlayerSpellIfVisibleLikeCppCommand, SessionCommand,
+    DestroyVisibleCreatureLikeCppCommand, ReconcilePvpCombatExpiryLikeCppCommand,
+    SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand,
+    SendPlayerSpellIfVisibleLikeCppCommand, SessionCommand,
 };
 
 /// Retained FIFO handoff for committed map-owned creature transitions and
@@ -103,6 +104,13 @@ impl DurableCreatureRuntimeCommandsLikeCpp {
         self.publish_like_cpp(SessionCommand::SendIfVisibleLikeCpp(command))
     }
 
+    pub fn publish_destroy_visible_creature_like_cpp(
+        &mut self,
+        command: DestroyVisibleCreatureLikeCppCommand,
+    ) -> bool {
+        self.publish_like_cpp(SessionCommand::DestroyVisibleCreatureLikeCpp(command))
+    }
+
     /// Publish START+GO as one queue element so capacity checks and session
     /// drains cannot observe only one half of a committed spell cast.
     pub fn publish_creature_spell_cast_if_visible_like_cpp(
@@ -135,12 +143,19 @@ impl DurableCreatureRuntimeCommandsLikeCpp {
         if let Some(intent) = self.deferred_visibility.take() {
             // Preserve the committed transition prefix. Visibility must run
             // before presentation packets, not before their state application.
+            // A directed Creature destroy is itself a visibility transition and
+            // must stay ahead of a coalesced refresh even when an older gated
+            // packet is already queued.
             let first_visible = commands
                 .iter()
                 .position(SessionCommand::is_visibility_gated_like_cpp)
                 .unwrap_or(commands.len());
+            let after_directed_destroy = commands
+                .iter()
+                .rposition(SessionCommand::is_directed_creature_destroy_like_cpp)
+                .map_or(0, |index| index + 1);
             commands.insert(
-                first_visible,
+                first_visible.max(after_directed_destroy),
                 SessionCommand::RefreshDeferredPlayerVisibilityLikeCpp(intent),
             );
         }

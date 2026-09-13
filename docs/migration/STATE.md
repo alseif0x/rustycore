@@ -203,6 +203,21 @@ DB/restart/relogin acceptance remain separate #584 gates. The outcome telemetry
 still names the direct synchronous C++ visibility call as a runtime gap because the
 Rust equivalent is intentionally deferred through the existing phase boundary.
 
+**P3.9 directed Creature DESTROY — 2026-09-13, #584 / PR #820, implementation
+`8ab62574` (integration pending):** an ordinary
+Creature removed from an active map now produces a typed directed-destroy result
+while it is still attached. The canonical map captures nearby in-world Players,
+excludes the direct charmer and binds the result to the map incarnation; the
+world loop publishes it after releasing map guards through the durable Session
+mailbox. The Session validates login, map/instance, incarnation and its
+`client_visible_guids_like_cpp` ledger before atomically removing the GUID and
+emitting one `SMSG_UPDATE_OBJECT` destroy. Durable ordering keeps this destroy
+ahead of a coalesced visibility refresh. The focused map test, two positive/negative
+Session tests, mailbox fence test, `cargo check` for `wow-map`/`world-server`,
+formatting and diff checks pass with one Cargo job. CREATE, Pet, corpse/transport,
+capture and live DB/restart/relogin acceptance remain separate gates; #584 stays
+open for its remaining measured macrodeliverables.
+
 **P2 item-bonus writer retirement — 2026-09-13, #584 / PR #816, integration
 `db1250767090a5c951dae96ad6c2a2d5b24873ff` (implementation `948b7ea9`, ledger
 ratchet `d5d21a60`):** the last generic `with_bonuses_mut_like_cpp` closure no
