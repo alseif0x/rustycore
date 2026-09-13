@@ -79,11 +79,11 @@ de `SkillRaceClassInfo`, y TraitMgr construye después la proyección de
 proyección de `SkillLineXTraitTree` y sus consumidores de hidratación de Player están
 implementados con validación de enlaces; profesión, Generic y Combat fallan cerrado
 sin árbol enlazado o especialización/clase válida, y las entradas persistidas fallan
-cerrado si no existen o exceden `MaxRanks`. Siguen pendientes los índices/consumidores
-completos de `TraitMgr` más allá de `TraitSystemID`, `_skillLinesByClass` y esta
-validación de rango, el cierre
-`_skillLinesByClass`, el cierre
-cross-store y la aceptación final. #486 conserva
+cerrado si no existen o exceden `MaxRanks`. El candidato `d9770755` añade al mismo
+dueño la proyección inmutable de nodos, grupos, edges, costes, condiciones y loadouts,
+y rechaza en la autoridad de sesión una pareja nodo/entrada que pertenezca a otro árbol.
+Siguen pendientes los consumidores de monedas/condiciones/gasto y starter builds, los
+índices auxiliares restantes, el cierre cross-store y la aceptación final. #486 conserva
 la implementación integrada por PR #807 y solo sus gates de captura/QA viva y
 mutaciones administrativas no representadas. Estas son líneas funcionales separadas:
 no se convierten en trabajo oculto de #584 ni se usan para reabrir macros cerradas.

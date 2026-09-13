@@ -57,9 +57,13 @@ PR #822/#824/#826/#828/#830/#832/#834 now makes the production WDC4/SQL sequence
 invalid persisted node-entry ranks at login. The bounded projection, official/custom overlays,
 WDC4 table-hash ownership and final `RecordRemoved`
 filtering are implemented through PR #826/#828; Generic and Combat config validation are
-integrated by PR #830/#832. Physically reconciled by PR #811, the issue remains open for
-complete `TraitMgr` authority acceptance, remaining cross-store coverage and startup/live
-evidence. In parallel with safe independent work, prepare
+integrated by PR #830/#832. Candidate `d9770755` adds the immutable node/group/edge and
+cost/condition/loadout relation projection and makes persisted node/entry topology fail
+closed at login. It deliberately does not claim currency ownership, condition evaluation,
+spending, starter-build application, complete cross-store coverage or startup/live evidence.
+Physically reconciled by PR #811, the issue remains open for complete `TraitMgr` authority
+acceptance, remaining cross-store coverage and startup/live evidence. In parallel with safe
+independent work, prepare
 a playable circuit: effective equipment/stats → combat and death/recovery →
 quests/loot/interactions → complete class kit, travel and durable services → soak.
 
