@@ -281,6 +281,7 @@ db2_store!(TraitTreeXTraitCurrencyStore, TraitTreeXTraitCurrencyEntry);
 pub struct TraitTreeSkillLineIndexLikeCpp {
     trees_by_skill_line: BTreeMap<u32, Vec<u32>>,
     trees_by_trait_system: BTreeMap<u32, Vec<u32>>,
+    skill_line_by_class: BTreeMap<u8, u32>,
 }
 
 impl TraitTreeSkillLineIndexLikeCpp {
@@ -291,22 +292,36 @@ impl TraitTreeSkillLineIndexLikeCpp {
         links: &SkillLineXTraitTreeStore,
         trees: &TraitTreeStore,
         skill_line_exists: impl Fn(u32) -> bool,
+        class_ids_for_skill_line: impl Fn(u32) -> Vec<u8>,
     ) -> Self {
         let mut by_skill_line = BTreeMap::<u32, Vec<(i32, u32)>>::new();
-        for link in links.iter() {
+        let mut skill_line_by_class = BTreeMap::<u8, u32>::new();
+        let mut valid_links = links
+            .iter()
+            .filter(|link| {
+                let Some(trait_tree_id) = u32::try_from(link.trait_tree_id).ok() else {
+                    return false;
+                };
+                link.skill_line_id != 0
+                    && skill_line_exists(link.skill_line_id)
+                    && trees.get(trait_tree_id).is_some()
+            })
+            .collect::<Vec<_>>();
+        // C++ DB2Storage iterates its dense ID table in record-ID order. The
+        // Rust store is HashMap-backed, so sort before reproducing the
+        // `_skillLinesByClass[class] = skillLine` overwrite semantics.
+        valid_links.sort_unstable_by_key(|link| link.id);
+        for link in valid_links {
             let Some(trait_tree_id) = u32::try_from(link.trait_tree_id).ok() else {
                 continue;
             };
-            if link.skill_line_id == 0
-                || !skill_line_exists(link.skill_line_id)
-                || trees.get(trait_tree_id).is_none()
-            {
-                continue;
-            }
             by_skill_line
                 .entry(link.skill_line_id)
                 .or_default()
                 .push((link.order_index, trait_tree_id));
+            for class_id in class_ids_for_skill_line(link.skill_line_id) {
+                skill_line_by_class.insert(class_id, link.skill_line_id);
+            }
         }
 
         let mut trees_by_trait_system = trees.iter().filter(|tree| tree.trait_system_id != 0).fold(
@@ -334,6 +349,7 @@ impl TraitTreeSkillLineIndexLikeCpp {
                 })
                 .collect(),
             trees_by_trait_system,
+            skill_line_by_class,
         }
     }
 
@@ -362,6 +378,20 @@ impl TraitTreeSkillLineIndexLikeCpp {
         !self
             .trees_for_trait_system_like_cpp(trait_system_id)
             .is_empty()
+    }
+
+    /// C++ `TraitMgr::GetTreesForConfig` combat branch after resolving the
+    /// specialization's class through `_skillLinesByClass`.
+    pub fn trees_for_class_like_cpp(&self, class_id: u8) -> &[u32] {
+        self.skill_line_by_class
+            .get(&class_id)
+            .and_then(|skill_line_id| self.trees_by_skill_line.get(skill_line_id))
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn has_class_like_cpp(&self, class_id: u8) -> bool {
+        !self.trees_for_class_like_cpp(class_id).is_empty()
     }
 
     pub fn len(&self) -> usize {
@@ -868,6 +898,7 @@ mod tests {
             &links,
             &trees,
             |skill_line_id| skill_line_id == 164,
+            |_| Vec::new(),
         );
         assert_eq!(index.trees_for_skill_line_like_cpp(164), &[10, 20]);
         assert!(index.has_skill_line_like_cpp(164));
@@ -911,10 +942,12 @@ mod tests {
             },
         ]);
 
-        let index =
-            TraitTreeSkillLineIndexLikeCpp::from_effective_stores_like_cpp(&links, &trees, |_| {
-                false
-            });
+        let index = TraitTreeSkillLineIndexLikeCpp::from_effective_stores_like_cpp(
+            &links,
+            &trees,
+            |_| false,
+            |_| Vec::new(),
+        );
         assert_eq!(index.trees_for_trait_system_like_cpp(7), &[10, 20]);
         assert!(index.has_trait_system_like_cpp(7));
         assert!(!index.has_trait_system_like_cpp(30));
