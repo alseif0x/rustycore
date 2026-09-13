@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-13:** `3.4.3` is at
-`7bb9a911c8d3cf235a9c8c7435e6f46c1bd41071` (PR #824). The entries below preserve
+`d934451a0222edc22494d3e92ee0eded2a05c8b0` (PR #826). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -238,17 +238,18 @@ checks and validation-v2 quick in 8.53 s with one Cargo job
 No live runtime, capture, DB/restart/relogin or full item-stat parity claim is made.
 
 **#524 skill catalog and TraitMgr projection — 2026-09-13, sequence implementation
-`0192bac3` plus hotspot follow-up `de4e114e`, integration `7bb9a911`:** the production bootstrap now keeps the C++
+`0192bac3` plus hotspot follow-up `de4e114e` and TraitTree overlay `9cca8f2b`, integration `d934451a`:** the production bootstrap now keeps the C++
 table stages independently observable: `SkillLine` → WDC4/official/custom
-`SkillLineAbility` → WDC4 `TraitTree`/`SkillLineXTraitTree` projection →
+`SkillLineAbility` → WDC4 `TraitTree` plus WDC4/official/custom
+`SkillLineXTraitTree` projection →
 WDC4/official/custom `SkillRaceClassInfo`. The persistence contract and MariaDB
-adapter expose separate ability and race/class operations, and the WDC4 reader no
+adapter expose separate ability, TraitTree and race/class operations, and the WDC4 reader no
 longer opens both relation files in one stage. Official-then-custom order and
 fail-before-publication behavior remain explicit. Focused adapter and world-server
 ordering tests pass, as does `PROTOC=/home/ubuntu/.local/protoc/bin/protoc
 CARGO_BUILD_JOBS=1 cargo check --locked -p world-server`; formatting and diff checks
-pass. This is a bounded startup correction, not complete TraitMgr parity: hotfix
-coverage for `SkillLineXTraitTree`, the broader TraitMgr indexes/consumers, final
+pass. This is a bounded startup correction, not complete TraitMgr parity: table-hash
+removal accounting, the broader TraitMgr indexes/consumers, final
 cross-store/removal orchestration and live/startup evidence remain open.
 
 **Group state application is integrated — 2026-09-11, #743 / PR #750,
