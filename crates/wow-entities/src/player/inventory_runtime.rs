@@ -457,6 +457,7 @@ mod tests {
             expiration: 0,
             spell_charges: [0; 5],
         });
+        item.force_state(ItemUpdateState::Unchanged);
         item.set_durability(17);
         item.set_item_flag(ItemFieldFlags::WRAPPED);
 
