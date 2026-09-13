@@ -1,7 +1,9 @@
 # Automatic Dungeon Finder 3.4.3 — bounded audit and proposed ownership
 
-Date: 2026-09-05. Audited Rust HEAD: `13c984a6` (aarch64 development host).
-Status: design proposal, not implemented, not full parity or client acceptance.
+Date: 2026-09-13. Historical design audit at `13c984a6`; bounded decoder delivery
+revalidated on current `3.4.3` at `115eb699`/`60c11527` (aarch64 development host).
+Status: protocol decoder slice implemented and ready for integration; this remains
+not full LFG parity or client acceptance.
 C++ root for relative anchors below: `/home/server/woltk-trinity-legacy/src/server/game`.
 
 ## Verdict and scope
@@ -17,7 +19,7 @@ supersede the entire port plan, or authorize publishing the current branch.
 | Surface | C++ anchor | Current Rust / remaining boundary |
 |---|---|---|
 | Catalogs and locks | `DungeonFinding/LFGMgr.cpp:119,188`; `Handlers/LFGHandler.cpp:150` | `wow-data/src/lfg.rs`, world-server catalog loaders and `handlers/misc/lfg.rs` exist. Seasonal activity is hard-coded false; party lock response lacks a live LFG manager. |
-| Join, leave, roles, vote, teleport | `Handlers/LFGHandler.cpp:31-104`; `Server/Protocol/Opcodes.cpp:425-430` | Six opcode constants exist, but the production handler/packet search finds no DFJoin/DFLeave/DFProposalResponse/DFSetRoles/DFBootPlayerVote/DFTeleport implementations. |
+| Join, leave, roles, vote, teleport | `Handlers/LFGHandler.cpp:31-104`; `Server/Protocol/Opcodes.cpp:425-430` | `wow-packet/src/packets/misc/lfg_client.rs` now decodes the six client packets. No handler registration, queue or matchmaking path is claimed. |
 | Queue and proposals | `DungeonFinding/LFGQueue.cpp:288,358,576`; `LFGMgr.cpp:286,397,719,1052,1160` | No live queue, role-check/proposal state machine or deadline driver found. Information/status handlers do not constitute matchmaking. |
 | Group formation | `LFGMgr.cpp:945-1034` | Existing `wow-social::group::GroupRegistry` is canonical. It already restores LFG dungeon/state, owns assigned member roles and gates direct kicks; it does not execute accepted DF proposals. |
 | Teleport and completion | `LFGMgr.cpp:1357,1449,1472` | Must invoke canonical Player/Map transfer and existing rewards/persistence; a successful proposal is not dungeon completion. |
@@ -133,10 +135,10 @@ No server restart, bot traffic, fresh capture-diff, gameplay implementation or i
 ## First implementation follow-up — issue #582
 
 The user authorized continuation into the protocol boundary. Branch
-`582-lfg-client-packet-decoders` starts at `3.4.3` commit `80b9e682`; the change since the
-previous integration base is the documentation website, not the packet dependencies. This branch
-does not include unpushed #578 gameplay changes. The original audit above remains a snapshot of
-`13c984a6`, not a claim that #578 is merged.
+`582-lfg-client-packet-decoders` was rebased from its original `80b9e682` base onto current
+`3.4.3` `6311d48e`; the rebased implementation commit is `115eb699` and the evidence commit
+is `60c11527`. It contains no unpushed #578 gameplay changes. The original audit above remains
+a snapshot of `13c984a6`, not a claim of full LFG parity.
 
 `crates/wow-packet/src/packets/misc/lfg_client.rs` adds six ClientPacket decoders: DFJoin,
 DFLeave, DFProposalResponse, DFSetRoles, DFBootPlayerVote and DFTeleport. Existing packet types
@@ -153,16 +155,13 @@ increment, not LFG runtime parity. All ten focused tests and the full 734-test w
 suite pass on the aarch64 host. The preliminary quick gate also passed; final validation is
 recorded separately from these focused checks.
 
-Final validation passed on code HEAD `bef2d707`:
-`target/validation-v2/manifests/20260905T005754.788511Z-72563-final.json`.
-The routed consumer check (world-modules, world-server, wow-anticheat, wow-network, wow-packet,
-wow-session and wow-world, including test targets) passed in 7m22s, and the isolated 734-test
-packet suite passed. This documentation-only evidence addition does not change that code HEAD.
-The linked GitHub branch was created at the unchanged integration base by the prescribed issue
-workflow; implementation commits remain local. No implementation push or PR was performed.
+Current revalidation on `60c11527` passed with one Cargo job: the ten focused decoder tests and
+the full `wow-packet` library suite (738 tests, zero failures), plus `cargo fmt --all -- --check`
+and `git diff --check`. The applicable validation-v2 quick gate is run for the publication
+candidate and recorded with its manifest in the issue and PR. This evidence is source-anchored
+wire decoding, not capture-diff equivalence.
 
 No handlers are registered and no packets are emitted by production: queue ownership, server
 responses, bot two-socket routing/group proof, runtime clocks, group creation, teleport execution,
 rewards, live acceptance and data repair remain pending. No inventory-wide progress percentage or
-full-LFG closeout is claimed. Fresh live captures become required when these handlers are activated;
-the current evidence is source-anchored byte-fixture testing, not capture-diff equivalence.
+full-LFG closeout is claimed. Fresh live captures become required when these handlers are activated.
