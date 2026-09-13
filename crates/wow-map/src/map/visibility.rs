@@ -160,6 +160,26 @@ where
         players
     }
 
+    pub(super) fn capture_creature_visibility_destroy_recipients_like_cpp(
+        &mut self,
+        source_guid: ObjectGuid,
+    ) -> Vec<ObjectGuid> {
+        let Some(record) = self.map_object_record(source_guid) else {
+            return Vec::new();
+        };
+        if record.kind() != AccessorObjectKind::Creature || !record.object().object().is_in_world()
+        {
+            return Vec::new();
+        }
+        let charmer_guid = record
+            .creature()
+            .and_then(|creature| creature.unit().subsystems().control.charmer_guid_like_cpp());
+        self.nearby_and_mark_player_visibility_guids_like_cpp(source_guid)
+            .into_iter()
+            .filter(|player_guid| Some(*player_guid) != charmer_guid)
+            .collect()
+    }
+
     /// Mark the canonical Players that may observe a map-owned source so the
     /// existing delayed relocation/session rail recomputes their exact
     /// visibility on the next map phase.

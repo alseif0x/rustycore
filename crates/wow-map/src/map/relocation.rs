@@ -1042,22 +1042,10 @@ where
                 .map_object_record(guid)
                 .is_some_and(|record| record.object().object().is_in_world());
             let source_kind = self.map_object_record(guid).map(MapObjectRecord::kind);
-            let creature_charmer_guid = (source_kind == Some(AccessorObjectKind::Creature))
-                .then(|| {
-                    self.map_object_record(guid)
-                        .and_then(MapObjectRecord::creature)
-                        .and_then(|creature| {
-                            creature.unit().subsystems().control.charmer_guid_like_cpp()
-                        })
-                })
-                .flatten();
             let creature_destroy_recipient_guids = if remove_from_map_was_in_world
                 && source_kind == Some(AccessorObjectKind::Creature)
             {
-                self.nearby_and_mark_player_visibility_guids_like_cpp(guid)
-                    .into_iter()
-                    .filter(|player_guid| Some(*player_guid) != creature_charmer_guid)
-                    .collect()
+                self.capture_creature_visibility_destroy_recipients_like_cpp(guid)
             } else if remove_from_map_was_in_world {
                 self.mark_nearby_players_for_visibility_like_cpp(guid);
                 Vec::new()
