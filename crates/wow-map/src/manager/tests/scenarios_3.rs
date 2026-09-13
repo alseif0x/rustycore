@@ -160,6 +160,15 @@ fn map_manager_update_processes_live_relocation_notifies_for_player_source_like_
 
     {
         let map = manager.find_map_mut(1, 0).unwrap().map_mut();
+        // Object admission now marks nearby Players for the deferred lifecycle
+        // visibility rail. Reset the fixture's incidental mark so this test
+        // continues to exercise the explicit Creature/Player notifier setup.
+        map.get_typed_player_mut(player_normal_guid)
+            .unwrap()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .reset_all_notifies();
         map.get_typed_player_mut(player_guid)
             .unwrap()
             .unit_mut()

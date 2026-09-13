@@ -184,6 +184,24 @@ still report their pre-existing drift; no baseline was regenerated. This slice d
 not claim directed creature CREATE/DESTROY packets, AI/combat, scripts, FlyByCamera,
 live client capture or DB/restart/relogin evidence.
 
+**P3.8 map object lifecycle visibility intents — 2026-09-13, #584:** the
+canonical `Map::AddToMap` and `Map::RemoveFromMap` paths now mark nearby in-world
+Players with `ObjectNotifyFlags::VISIBILITY_CHANGED` while the source is still
+attached. This supplies the missing recipient selection for the existing deferred
+visibility rail: the map tick consumes the flag, `MapManager` coalesces a
+residence/incarnation-checked intent and the Session recomputes its real client
+ledger after map guards are released. The helper covers already-in-world, Creature,
+GameObject and generic map-object admission paths and removal before record erasure;
+it sorts/deduplicates recipients, excludes a Player from its own walk and never
+delivers a packet or awaits under the map mutation.
+
+The focused add/remove map tests pass and prove the canonical Player flag mutation
+and source removal. This closes the unmarked-recipient gap only: exact directed
+CREATE/DESTROY bytes, transport-specific fanout, client capture and live
+DB/restart/relogin acceptance remain separate #584 gates. The outcome telemetry
+still names the direct synchronous C++ visibility call as a runtime gap because the
+Rust equivalent is intentionally deferred through the existing phase boundary.
+
 **P2 item-bonus writer retirement — 2026-09-13, #584 / PR #816, integration
 `db1250767090a5c951dae96ad6c2a2d5b24873ff` (implementation `948b7ea9`, ledger
 ratchet `d5d21a60`):** the last generic `with_bonuses_mut_like_cpp` closure no
