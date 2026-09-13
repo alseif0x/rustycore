@@ -215,12 +215,14 @@ uses the instance floor. This fixes the activation selection only. The Rust stat
 does not yet own a FlyByCamera store or cinematic movement/fanout, so those remain
 outside this macro and are not represented by the selector.
 
-Implementation and regression are on the #584 P3.6 branch. The test
+Implementation `f9480dfd` was integrated through PR #804 as
+`6157a0916899bb341b3f4a271ea69333a7cf61f6`. The test
 `grid_activation_range_uses_instance_distance_for_active_player_cinematic_like_cpp`
 covers pre-camera, active-camera and ended states, and the inactive Creature branch
 regression remains green. No live client, capture or DB/restart/relogin evidence is
 claimed; Creature AI/combat, scripts, fanout and relocation side effects remain
-separate measured boundaries.
+separate measured boundaries. The one-job quick gate passed in 11.519 seconds at
+manifest `target/validation-v2/manifests/20260913T061658.691366Z-3417098-quick.json`.
 
 ### Bounded #578 closeout inventory
 
