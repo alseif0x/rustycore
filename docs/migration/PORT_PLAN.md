@@ -2,7 +2,7 @@
 
 **Reconciled 2026-09-13 under #584 / #787 / #748 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
 Source baseline for this reconciliation: `3.4.3` at
-`179fd5d40491e4ded2a8c25b3261263330855cd5` (PR #848; the earlier `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`b26ce713b844f1146a7b2952aade4dd532f1a16e` (PR #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -62,6 +62,15 @@ lookup, free-slot, add, delete and swap transitions anchored to TrinityCore's `P
 load/save and accessors. Session remains the protocol/application boundary for template
 validation, persistence ordering and packet encoding. The focused owner tests and 29 Void
 Storage world tests pass; DB/restart/relogin durability remains explicitly open.
+
+The first F1 equipment/stat projection is integrated by PR #851 (`b26ce713`, implementation
+`fb33111c`). A private character stat module now derives the represented equipment inputs
+and publishes one runtime-only `PlayerEffectiveCombatStatsLikeCpp` snapshot owned by
+`Player` at login and equipment recalculation. The packet VALUES adapter split is retained;
+this slice does not make the snapshot a persistence record or claim combat-consumer parity.
+Keep #61 open for exact C++ combat/AP/damage/aura/regen consumers, reversible equipment
+lifecycle and capture/live DB/relogin evidence. F2 (#29/#31) may consume the snapshot only
+after those missing participants are integrated and acceptance is recorded.
 
 Continue the remaining core under #584 by complete operations, execution/lifetime
 boundaries and physical organization. #582 is closed after its decoder-only delivery;
@@ -228,7 +237,7 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#56](https://github.com/alseif0x/rustycore/issues/56) | F3, area-trigger | Bits, conditions, scripts and tavern paths exist; trace residual explore/BG/corpse/transfer semantics. |
 | [#58](https://github.com/alseif0x/rustycore/issues/58) | Superseded by #41 | Preserve timed-active exclusivity and recursive breadcrumb admission as explicit quest criteria. |
 | [#59](https://github.com/alseif0x/rustycore/issues/59) | Superseded by #41 | Preserve acceptance/completion/reward participants and evidence, without redoing #718. |
-| [#61](https://github.com/alseif0x/rustycore/issues/61) | F1, equipment/stats | Trace existing modifier planning into effective stats and reversibility before accepting combat numbers. |
+| [#61](https://github.com/alseif0x/rustycore/issues/61) | F1, equipment/stats | **Projection integrated by PR #851 (`b26ce713`); issue remains open.** Finish production combat/melee/spell consumers, exact C++ AP/damage/aura/regen/expertise/penetration paths, reversible equip/unequip and broken/repair lifecycle, then capture/live DB/relogin acceptance before accepting combat numbers. |
 | [#63](https://github.com/alseif0x/rustycore/issues/63) | F1, movement | Complete residual mover/transport/vehicle/teleport branches; preserve #588 deferred visibility. |
 | [#65](https://github.com/alseif0x/rustycore/issues/65) | L, source-evidence index | Correct finding/issue status and retain exact C++ provenance; not a separate implementation queue or fresh count. |
 | [#99](https://github.com/alseif0x/rustycore/issues/99) | X, module ecosystem | #583 is the selected stateful product; wider language/WIT/hot-reload proposals remain later capability-led planning. |

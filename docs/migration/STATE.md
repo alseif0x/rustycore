@@ -1,12 +1,29 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-13:** `3.4.3` is at
-`179fd5d40491e4ded2a8c25b3261263330855cd5` (PR #848, following PR #846, PR #844 and PR #842). The entries below preserve
+`b26ce713b844f1146a7b2952aade4dd532f1a16e` (PR #851, following PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**F1 equipment/stat projection — 2026-09-13, #61 / PR #851, merge
+`b26ce713b844f1146a7b2952aade4dd532f1a16e` (implementation `fb33111c`):** the
+character stat projection now lives in a private `handlers/character/stats.rs`
+module and publishes one runtime-only `PlayerEffectiveCombatStatsLikeCpp` snapshot
+owned by the canonical `Player`. Login and equipment recalculation publish the
+represented item/stat projection; packet VALUES publication keeps its existing
+adapter split. The bounded projection includes represented item stats, AP/ranged AP,
+health/mana, ratings, spell power, armor, static school resistances and the Player
+item-bonus fields for resistance, regen, penetration and shield. `PlayerGameplayState::is_empty`
+now treats preallocated all-empty Void Storage capacity as empty. The final profile
+passed at this merge SHA (`target/validation-v2/manifests/20260913T232737.961399Z-4127376-final.json`):
+architecture/format checks, one-job workspace test compilation and 4,778
+`wow-entities`/`wow-world` library tests passed (one ignored). #61 remains open for
+production combat/melee/spell consumers, exact AP/damage/aura/regen/expertise/
+penetration behavior, reversible equipment lifecycle and capture/live DB/relogin
+acceptance where observable; this projection does not close the issue.
 
 **Latest bounded data delivery — 2026-09-13, PR #848, merge
 `179fd5d40491e4ded2a8c25b3261263330855cd5` (implementation `95274da1`):** the
