@@ -122,7 +122,8 @@ regression remains green. This is a finite phase-fidelity correction; it does no
 claim the still-unmodeled Player cinematic activation override or any live client,
 capture, DB/restart/relogin or Creature AI/combat acceptance.
 
-**P3.6 Player cinematic activation radius — 2026-09-13, #584:** the nearby-cell
+**P3.6 Player cinematic activation radius — 2026-09-13, #584 / PR #804, integration
+SHA `6157a0916899bb341b3f4a271ea69333a7cf61f6`:** the nearby-cell
 selector now matches `WorldObject::GetGridActivationRange` for an active Player
 cinematic: after the represented camera cursor is selected, it uses
 `max(DEFAULT_VISIBILITY_INSTANCE, Map::GetVisibilityRange)`; beginning a sequence
@@ -135,6 +136,9 @@ positive/negative regression is `grid_activation_range_uses_instance_distance_fo
 the existing inactive Creature/active-object regression remains green. No live
 client, capture or DB/restart/relogin evidence is claimed, and Creature AI/combat,
 scripts, fanout and relocation notification effects remain separate #584 work.
+The integration candidate passed `VALIDATION_V2_CARGO_JOBS=1 ./tools/validation-v2
+quick --base origin/3.4.3` with one Cargo job in 11.519 seconds; manifest:
+`target/validation-v2/manifests/20260913T061658.691366Z-3417098-quick.json`.
 
 **#524 relation query-order correction — 2026-09-13, implementation `020163dc`:**
 `MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp` now completes the official and
