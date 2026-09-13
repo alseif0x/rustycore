@@ -10,6 +10,7 @@
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
 use super::*;
+use wow_entities::ItemObjectUpdateLikeCpp;
 
 impl WorldSession {
     pub(super) fn creature_loot_release_values_for_viewer_like_cpp(
@@ -883,9 +884,10 @@ impl WorldSession {
             // before every generated entry was taken.
             self.clear_active_loot_guid_if(owner_guid);
             self.loot_table.remove(&owner_guid);
-            self.update_inventory_item_object_like_cpp(owner_guid, |item| {
-                item.set_loot_generated(false);
-            });
+            let _ = self.apply_inventory_item_object_updates_like_cpp(
+                owner_guid,
+                &[ItemObjectUpdateLikeCpp::SetLootGenerated(false)],
+            );
             self.destroy_direct_item_count_after_loot_release_like_cpp(owner_guid, Some(5))
                 .await;
             return true;
@@ -1163,10 +1165,13 @@ impl WorldSession {
                     return;
                 }
             }
-            self.update_inventory_item_object_like_cpp(item_guid, |item| {
-                item.set_count(new_count);
-                item.set_loot_generated(false);
-            });
+            let _ = self.apply_inventory_item_object_updates_like_cpp(
+                item_guid,
+                &[
+                    ItemObjectUpdateLikeCpp::SetCount(new_count),
+                    ItemObjectUpdateLikeCpp::SetLootGenerated(false),
+                ],
+            );
             self.send_packet(&UpdateObject::item_stack_count_update(
                 item_guid,
                 self.player_map_id_like_cpp(),

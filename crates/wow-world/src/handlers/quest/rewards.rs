@@ -262,15 +262,19 @@ impl WorldSession {
         }
 
         for update in &existing_updates {
-            self.update_inventory_item_object_like_cpp(update.item_guid, |item| {
-                item.set_count(update.new_count);
-                if let Some(bonding) = source_item_bonding {
-                    item.set_bonding(bonding);
-                    if update.should_bind {
-                        item.bind_if_stored(is_bag_pos(update.pos));
-                    }
+            let mut item_updates = vec![wow_entities::ItemObjectUpdateLikeCpp::SetCount(
+                update.new_count,
+            )];
+            if let Some(bonding) = source_item_bonding {
+                item_updates.push(wow_entities::ItemObjectUpdateLikeCpp::SetBonding(bonding));
+                if update.should_bind {
+                    item_updates.push(wow_entities::ItemObjectUpdateLikeCpp::BindIfStored(
+                        is_bag_pos(update.pos),
+                    ));
                 }
-            });
+            }
+            let _ =
+                self.apply_inventory_item_object_updates_like_cpp(update.item_guid, &item_updates);
         }
 
         let inventory_type = self.item_template_inventory_type(entry_id);
@@ -603,15 +607,19 @@ impl WorldSession {
         );
 
         for update in &existing_updates {
-            self.update_inventory_item_object_like_cpp(update.item_guid, |item| {
-                item.set_count(update.new_count);
-                if let Some(bonding) = item_bonding {
-                    item.set_bonding(bonding);
-                    if update.should_bind {
-                        item.bind_if_stored(is_bag_pos(update.pos));
-                    }
+            let mut item_updates = vec![wow_entities::ItemObjectUpdateLikeCpp::SetCount(
+                update.new_count,
+            )];
+            if let Some(bonding) = item_bonding {
+                item_updates.push(wow_entities::ItemObjectUpdateLikeCpp::SetBonding(bonding));
+                if update.should_bind {
+                    item_updates.push(wow_entities::ItemObjectUpdateLikeCpp::BindIfStored(
+                        is_bag_pos(update.pos),
+                    ));
                 }
-            });
+            }
+            let _ =
+                self.apply_inventory_item_object_updates_like_cpp(update.item_guid, &item_updates);
         }
 
         let inventory_type = self.item_template_inventory_type(entry_id);

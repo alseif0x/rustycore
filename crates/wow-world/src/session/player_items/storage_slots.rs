@@ -43,16 +43,23 @@ impl WorldSession {
         }
 
         self.remove_inventory_item_like_cpp(src);
-        self.update_inventory_item_object_like_cpp(src_item.guid, |item| {
-            item.set_contained_in(bag_item.guid);
-            item.set_slot(dst_slot);
-            item.set_container_guid_and_slot(bag_item.guid, dst_bag);
-        })
+        self.apply_inventory_item_object_updates_like_cpp(
+            src_item.guid,
+            &[
+                wow_entities::ItemObjectUpdateLikeCpp::SetContainedIn(bag_item.guid),
+                wow_entities::ItemObjectUpdateLikeCpp::SetSlot(dst_slot),
+                wow_entities::ItemObjectUpdateLikeCpp::SetContainerGuidAndSlot(
+                    bag_item.guid,
+                    dst_bag,
+                ),
+            ],
+        )
     }
     pub(crate) fn set_inventory_item_object_slot(&mut self, item_guid: ObjectGuid, slot: u8) {
-        self.update_inventory_item_object_like_cpp(item_guid, |item| {
-            item.set_slot(slot);
-        });
+        let _ = self.apply_inventory_item_object_updates_like_cpp(
+            item_guid,
+            &[wow_entities::ItemObjectUpdateLikeCpp::SetSlot(slot)],
+        );
     }
     pub(crate) fn represented_empty_inventory_positions_like_cpp(&self) -> Option<Vec<(u8, u8)>> {
         let inventory_end = INVENTORY_SLOT_ITEM_START

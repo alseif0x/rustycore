@@ -257,9 +257,12 @@ impl WorldSession {
             );
         }
 
-        self.update_inventory_item_object_like_cpp(item.guid, |item_object| {
-            item_object.set_loot_generated(true);
-        });
+        let _ = self.apply_inventory_item_object_updates_like_cpp(
+            item.guid,
+            &[wow_entities::ItemObjectUpdateLikeCpp::SetLootGenerated(
+                true,
+            )],
+        );
 
         let Some(loot) = self.loot_table.get(&item.guid) else {
             self.send_equip_error(
@@ -358,21 +361,12 @@ impl WorldSession {
 
         let max_durability = self.item_template_max_durability(entry);
         let inventory_type = self.item_template_inventory_type(entry);
-        let mut durability = None;
-        let updated = self.update_inventory_item_object_like_cpp(item_guid, |item_object| {
-            if item_object.is_wrapped() && item_object.object().guid() == item_guid {
-                durability = Some(apply_wrapped_gift_transform_like_cpp(
-                    item_object,
-                    entry,
-                    flags,
-                    max_durability,
-                ));
-            }
-        });
-        if !updated {
-            return None;
-        }
-        let durability = durability?;
+        let durability = self.transform_inventory_wrapped_gift_item_like_cpp(
+            item_guid,
+            entry,
+            flags,
+            max_durability,
+        )?;
 
         if bag == INVENTORY_SLOT_BAG_0 {
             self.update_inventory_item_metadata_like_cpp(slot, item_guid, entry, inventory_type);

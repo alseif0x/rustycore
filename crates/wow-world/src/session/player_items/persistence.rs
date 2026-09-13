@@ -64,16 +64,24 @@ impl WorldSession {
             .filter(|item| item.container_guid() == inventory_item.guid)
             .map(|item| (item.slot(), item.object().guid()))
             .collect();
-        self.update_inventory_item_object_like_cpp(inventory_item.guid, |item| {
-            item.set_count(moved_count);
-            item.set_slot(destination_slot);
-            item.set_container_guid_and_slot(destination_container, destination_bag);
-            item.set_contained_in(if destination_container.is_empty() {
-                player_guid
-            } else {
-                destination_container
-            });
-        });
+        let _ = self.apply_inventory_item_object_updates_like_cpp(
+            inventory_item.guid,
+            &[
+                wow_entities::ItemObjectUpdateLikeCpp::SetCount(moved_count),
+                wow_entities::ItemObjectUpdateLikeCpp::SetSlot(destination_slot),
+                wow_entities::ItemObjectUpdateLikeCpp::SetContainerGuidAndSlot(
+                    destination_container,
+                    destination_bag,
+                ),
+                wow_entities::ItemObjectUpdateLikeCpp::SetContainedIn(
+                    if destination_container.is_empty() {
+                        player_guid
+                    } else {
+                        destination_container
+                    },
+                ),
+            ],
+        );
 
         // A bag's children keep the bag item GUID in the database, but the
         // runtime also caches the bag's current top-level slot.
@@ -83,9 +91,15 @@ impl WorldSession {
             .map(|item| item.object().guid())
             .collect();
         for child_guid in child_guids {
-            self.update_inventory_item_object_like_cpp(child_guid, |item| {
-                item.set_container_guid_and_slot(inventory_item.guid, destination_slot);
-            });
+            let _ = self.apply_inventory_item_object_updates_like_cpp(
+                child_guid,
+                &[
+                    wow_entities::ItemObjectUpdateLikeCpp::SetContainerGuidAndSlot(
+                        inventory_item.guid,
+                        destination_slot,
+                    ),
+                ],
+            );
         }
 
         let item_guid = inventory_item.guid;
@@ -188,33 +202,61 @@ impl WorldSession {
         }
 
         let player_guid = self.player_guid().unwrap_or(ObjectGuid::EMPTY);
-        self.update_inventory_item_object_like_cpp(source.guid, |item| {
-            item.set_slot(destination_slot);
-            item.set_container_guid_and_slot(destination_container, destination_bag);
-            item.set_contained_in(if destination_container.is_empty() {
-                player_guid
-            } else {
-                destination_container
-            });
-        });
-        self.update_inventory_item_object_like_cpp(destination.guid, |item| {
-            item.set_slot(source_slot);
-            item.set_container_guid_and_slot(source_container, source_bag);
-            item.set_contained_in(if source_container.is_empty() {
-                player_guid
-            } else {
-                source_container
-            });
-        });
+        let _ = self.apply_inventory_item_object_updates_like_cpp(
+            source.guid,
+            &[
+                wow_entities::ItemObjectUpdateLikeCpp::SetSlot(destination_slot),
+                wow_entities::ItemObjectUpdateLikeCpp::SetContainerGuidAndSlot(
+                    destination_container,
+                    destination_bag,
+                ),
+                wow_entities::ItemObjectUpdateLikeCpp::SetContainedIn(
+                    if destination_container.is_empty() {
+                        player_guid
+                    } else {
+                        destination_container
+                    },
+                ),
+            ],
+        );
+        let _ = self.apply_inventory_item_object_updates_like_cpp(
+            destination.guid,
+            &[
+                wow_entities::ItemObjectUpdateLikeCpp::SetSlot(source_slot),
+                wow_entities::ItemObjectUpdateLikeCpp::SetContainerGuidAndSlot(
+                    source_container,
+                    source_bag,
+                ),
+                wow_entities::ItemObjectUpdateLikeCpp::SetContainedIn(
+                    if source_container.is_empty() {
+                        player_guid
+                    } else {
+                        source_container
+                    },
+                ),
+            ],
+        );
         for (_, child_guid) in &source_children {
-            self.update_inventory_item_object_like_cpp(*child_guid, |item| {
-                item.set_container_guid_and_slot(source.guid, destination_slot);
-            });
+            let _ = self.apply_inventory_item_object_updates_like_cpp(
+                *child_guid,
+                &[
+                    wow_entities::ItemObjectUpdateLikeCpp::SetContainerGuidAndSlot(
+                        source.guid,
+                        destination_slot,
+                    ),
+                ],
+            );
         }
         for (_, child_guid) in &destination_children {
-            self.update_inventory_item_object_like_cpp(*child_guid, |item| {
-                item.set_container_guid_and_slot(destination.guid, source_slot);
-            });
+            let _ = self.apply_inventory_item_object_updates_like_cpp(
+                *child_guid,
+                &[
+                    wow_entities::ItemObjectUpdateLikeCpp::SetContainerGuidAndSlot(
+                        destination.guid,
+                        source_slot,
+                    ),
+                ],
+            );
         }
 
         let _ = self.mutate_canonical_player_like_cpp(|player| {

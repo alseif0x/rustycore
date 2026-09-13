@@ -54,6 +54,7 @@ pub(super) enum WrappedGiftLoad {
     Unavailable,
 }
 
+#[cfg(test)]
 pub(super) fn apply_wrapped_gift_transform_like_cpp(
     item: &mut wow_entities::Item,
     entry: u32,

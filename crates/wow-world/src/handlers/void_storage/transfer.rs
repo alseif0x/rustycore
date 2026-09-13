@@ -760,10 +760,12 @@ impl WorldSession {
                     post_store_item_object,
                     ..
                 } => {
-                    let updated = self
-                        .update_inventory_item_object_like_cpp(inventory_item.guid, |target| {
-                            *target = item_object.clone()
-                        });
+                    let updated = self.apply_inventory_item_object_updates_like_cpp(
+                        inventory_item.guid,
+                        &[wow_entities::ItemObjectUpdateLikeCpp::Replace(Box::new(
+                            item_object.clone(),
+                        ))],
+                    );
                     debug_assert!(updated);
                     collection_updates
                         .extend(self.on_item_added_to_collection_like_cpp(item_object));

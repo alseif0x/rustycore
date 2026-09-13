@@ -15,7 +15,7 @@ mod damage_control;
 mod deferred_save;
 mod identity;
 mod inventory_runtime;
-pub use inventory_runtime::PlayerInventoryRuntime;
+pub use inventory_runtime::{ItemObjectUpdateLikeCpp, PlayerInventoryRuntime};
 mod battleground;
 mod cinematic;
 mod collection_state;

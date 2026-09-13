@@ -1871,6 +1871,7 @@ fn item_dynamic_flags_changed_like_cpp(
     before.item_flags_bits() != after.item_flags_bits()
 }
 
+#[cfg(test)]
 fn relocate_bag_exchange_child_like_cpp(
     item: &mut wow_entities::Item,
     destination_bag_guid: ObjectGuid,
