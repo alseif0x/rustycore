@@ -16,6 +16,37 @@ where
         self.visible_distance
     }
 
+    /// Resolve the activation radius used by TrinityCore's
+    /// `WorldObject::GetGridActivationRange` for a map-owned source.
+    ///
+    /// C++ (`Entities/Object/Object.cpp:1433-1450`) gives active objects and
+    /// Players the map visibility range, while an ordinary Creature uses its
+    /// canonical `m_SightDistance`. Pets follow the Creature branch through
+    /// their embedded Creature. Unsupported or missing records are fail-closed
+    /// with a zero radius; callers still validate the source position before
+    /// visiting cells.
+    pub(crate) fn grid_activation_range_for_guid_like_cpp(&self, guid: ObjectGuid) -> f32 {
+        let Some(record) = self.map_object_record(guid) else {
+            return 0.0;
+        };
+
+        if record.kind() == AccessorObjectKind::Player || record.object().is_active() {
+            return self.visible_distance;
+        }
+
+        match record.kind() {
+            AccessorObjectKind::Creature => record
+                .creature()
+                .map(|creature| creature.sight_distance())
+                .unwrap_or(0.0),
+            AccessorObjectKind::Pet => record
+                .pet()
+                .map(|pet| pet.creature().sight_distance())
+                .unwrap_or(0.0),
+            _ => 0.0,
+        }
+    }
+
     pub fn nearby_cell_guids_like_cpp(&self, x: f32, y: f32, radius: f32) -> NearbyCellGuids {
         if !is_valid_map_coord_2d(x, y) {
             return NearbyCellGuids::default();
@@ -236,12 +267,7 @@ where
                 .into_iter()
                 .map(|guid| NearbyCellVisitCenter {
                     guid,
-                    // `WorldObject::GetGridActivationRange()` returns the
-                    // configured map visibility range for active Players and
-                    // represented active-object sources. The max visibility
-                    // override would turn this bounded visit into a map-wide
-                    // scan again.
-                    activation_radius: self.visible_distance,
+                    activation_radius: self.grid_activation_range_for_guid_like_cpp(guid),
                 });
         let nearby = self.visit_nearby_cells_of_like_cpp(centers);
         self.object_update_plan_for_nearby_like_cpp(&nearby.nearby, diff_ms)
