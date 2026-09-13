@@ -184,7 +184,8 @@ still report their pre-existing drift; no baseline was regenerated. This slice d
 not claim directed creature CREATE/DESTROY packets, AI/combat, scripts, FlyByCamera,
 live client capture or DB/restart/relogin evidence.
 
-**P3.8 map object lifecycle visibility intents — 2026-09-13, #584:** the
+**P3.8 map object lifecycle visibility intents — 2026-09-13, #584 / PR #818, integration
+`6ef133437fc26e4e27182be084e50246ef48d375` (implementation `162c1a9d`):** the
 canonical `Map::AddToMap` and `Map::RemoveFromMap` paths now mark nearby in-world
 Players with `ObjectNotifyFlags::VISIBILITY_CHANGED` while the source is still
 attached. This supplies the missing recipient selection for the existing deferred

@@ -16,22 +16,25 @@ plus any fixes necessary to make that delivered change safe. It does not claim a
 thin Session, full C0–C4 completion, production hecs migration or a finished LFG.
 
 **#584 owns all remaining core C0–C4 work under #133.** It is a coordination epic,
-not another giant implementation PR. Select no next crate yet: `wow-map` was an
-example, explicitly not a selected task. Before each implementation child, audit
-that crate's current responsibilities, callers, C++ behavior, invariants, dependencies,
-tests and physical hotspots; then define a finite complete outcome and its consumer
-changes. A crate-focused issue may touch other crates to finish its operation.
-Analyze subsequent crates just in time; do not create a speculative issue tree.
+not another giant implementation PR. P3.8 is integrated; the next selected bounded
+macro is P3.9, directed DESTROY for an ordinary in-world Creature. Before each
+subsequent implementation child, audit current responsibilities, callers, C++ behavior,
+invariants, dependencies, tests and physical hotspots; then define a finite complete
+outcome and its consumer changes. A crate-focused issue may touch other crates to
+finish its operation. Analyze later responsibilities just in time; do not create a
+speculative issue tree.
 
 This section supersedes older statements below requiring all C0–C4 inside #578.
 Those contracts and historical evidence remain valid inputs to #584; none is marked
 completed by the scope transfer. #583 waits for the required core macrodeliverables
 in #584; #153 remains an independent auditor, not the owner of unfinished work.
 
-## P3.8 selected — map object lifecycle visibility intents — 2026-09-13
+## P3.8 delivered — map object lifecycle visibility intents — 2026-09-13
 
-The next finite residual after P3.7 is the visibility side of object admission and
-removal. TrinityCore's `Map::AddToMap` and `Map::RemoveFromMap` walk nearby Players
+The finite residual after P3.7 was the visibility side of object admission and
+removal. PR #818 integrates this delivery into `3.4.3` at
+`6ef133437fc26e4e27182be084e50246ef48d375` (implementation `162c1a9d`). TrinityCore's
+`Map::AddToMap` and `Map::RemoveFromMap` walk nearby Players
 through `UpdateObjectVisibilityOnCreate/Destroy` while the source is attached
 (`Maps/Map.cpp:530-610,933-951`; `Entities/Object/Object.h:703-704`). RustyCore had
 the canonical deferred Player-session rail, but these lifecycle paths did not mark
@@ -58,6 +61,21 @@ transport-specific fanout, client capture and live/relogin evidence remain separ
 gates under #584; the existing outcome fields that describe the synchronous C++
 visibility call continue to report that direct call as a runtime gap because Rust
 delivers the equivalent refresh through the deferred phase.
+
+## P3.9 selected — directed Creature DESTROY — 2026-09-13
+
+The next bounded operation is the exact directed destroy path for one ordinary
+Creature removal that was in-world and may have been visible to Players. Trace
+TrinityCore `Map::RemoveFromMap` / `Object::RemoveFromWorld` against the current Rust
+removal and deferred refresh order. The implementation must have one canonical
+producer for a typed destroy intent, route it through
+`SessionCommand::DestroyVisibleCreatureLikeCpp`, validate session/world/map/
+instance/generation and `client_visible_guids`, then send the destroy update and
+remove the ledger entry atomically. Preserve ordering with queued refreshes for the
+same GUID, fail closed on stale incarnations, and keep map mutation packet-free.
+Positive/negative production-linked tests must cover visible, invisible, stale and
+already-removed entities. CREATE, Pet, corpse/transport and live capture/QA remain
+separate gates.
 
 ## Persistence inventory reconciliation — 2026-09-13, after #584 P3.1
 
