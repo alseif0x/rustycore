@@ -69971,8 +69971,8 @@
             {
               "side": "canonical",
               "kind": "method_call",
-              "symbol": "resume_tick_with_pool_update_loaded_grid_records_context",
-              "fingerprint": "fnv1a64x2:c60bfa42d5b05a4df69b0a3b94492454:len=50",
+              "symbol": "resume_tick_with_pool_update_loaded_grid_records_context_and_owner_like_cpp",
+              "fingerprint": "fnv1a64x2:ee0d2b1c76f7f1d1349606b1afa55d7c:len=50",
               "multiplicity": 1
             },
             {
@@ -69990,7 +69990,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn canonical_map_tick_resume_like_cpp (manager : & mut wow_map :: MapManager , legacy_manager : Option < & SharedMapManager > , plan : wow_map :: MapTickPlanLikeCpp , scheduler : & mut CanonicalRespawnConditionSchedulerLikeCpp , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , condition_store : & wow_data :: ConditionEntriesByTypeStore , map_store : & wow_data :: MapStore , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp ,) -> Option < CanonicalSpawnGroupConditionTickSummaryLikeCpp >|body=fnv1a64x2:7810ece1750c03f626c97fb724b61cf1:len=856|evidence=fnv1a64x2:ca0cce55b3ece6075f1ff14c8c130f72:len=634",
+          "fingerprint": "signature=fn canonical_map_tick_resume_like_cpp (manager : & mut wow_map :: MapManager , legacy_manager : Option < & SharedMapManager > , plan : wow_map :: MapTickPlanLikeCpp , scheduler : & mut CanonicalRespawnConditionSchedulerLikeCpp , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , condition_store : & wow_data :: ConditionEntriesByTypeStore , map_store : & wow_data :: MapStore , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp ,) -> Option < CanonicalSpawnGroupConditionTickSummaryLikeCpp >|body=fnv1a64x2:33d2604adc9e201acb19f4f18a990a21:len=937|evidence=fnv1a64x2:4de12ec0a0d544735e58cd725c166228:len=653",
           "cfg": [],
           "multiplicity": 1
         },
