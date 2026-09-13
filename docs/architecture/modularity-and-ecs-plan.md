@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-13 (#844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-13 (#846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `6f42782fedb1eb77d7896fd139c195fbfbb9c43b` (PR #844).
+The current code integration head is `93fa95a9f4c803ff04c68253910766738f3b31be` (PR #846).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
 mutations. #524's relation-query order correction is integrated by PR #803; PR #822/#824/#826/#828 now
@@ -26,9 +26,12 @@ projection and fail-closed Combat config validation through the same boundary. P
 also rejects missing or over-ranked persisted `TraitNodeEntry` rows at login. PR #842
 (`995cd77f`, implementation `add6650a`) now performs C++-aligned semantic condition, cost,
 parent/rank and granted-entry fallback validation before login publication from canonical
-Player facts. #524 remains open for Trait-table SQL hotfix overlays, complete cross-store
-coverage and startup/live DB/relogin evidence; spending/mutation, starter-build and
-effect-point behavior are later functional gates. Neither issue
+Player facts. PR #846 (`93fa95a9`, implementation `57116f75`) now composes all 24
+C++-projected base Trait/`SpecSetMember` SQL hotfix tables with official-then-custom
+precedence, WDC4-hash-scoped removals and fail-before-publication checks. #524 remains
+open for the two locale-specific overlays, complete cross-store coverage and startup/live
+DB/relogin evidence; spending/mutation, starter-build and effect-point behavior are later
+functional gates. Neither issue
 changes the #584 → #583 → #153 architecture gate.
 
 The finite hecs V2 conformance proof has passed within its recorded laboratory limits.

@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748 — 2026-09-13; actualización #524 genérico y P2/P3.9/item-object/item-modifier/void-storage — 2026-09-13.** Este documento detalla los
+**Sincronización de la entrega #748 — 2026-09-13; actualización #524 genérico, SQL hotfix y P2/P3.9/item-object/item-modifier/void-storage — 2026-09-13.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -13,8 +13,8 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza integrada, 2026-09-13: PR #844**, en `3.4.3` como
-`6f42782fedb1eb77d7896fd139c195fbfbb9c43b`. #787 / PR #792 (`d14a9a67`) y
+**Cabeza integrada, 2026-09-13: PR #846**, en `3.4.3` como
+`93fa95a9f4c803ff04c68253910766738f3b31be`. #787 / PR #792 (`d14a9a67`) y
 #584 P2 item-bonus, P2 item-object y P3.1–P3.9 están integrados dentro de esta cabeza.
 La entrega de ownership de modificadores de objetos está integrada mediante PR #839
 (implementación `ecc67603`) y retira la superficie mutante genérica restante. La coordinación World/Map está
@@ -89,9 +89,13 @@ y rechaza en la autoridad de sesión una pareja nodo/entrada que pertenezca a ot
 La macro #524 de validación semántica y fallback determinista quedó integrada por PR #842
 (`995cd77f`, implementación `add6650a`): las condiciones, costes/monedas, reglas de
 padre/rango y entradas concedidas se evalúan desde hechos canónicos del Player antes de
-publicar login. Siguen después los overlays SQL de las tablas Trait restantes, la
-cobertura cross-store y la aceptación startup/DB/relogin; el gasto real, persistencia de
-mutaciones, starter builds y effect points son gates funcionales posteriores. #486 conserva
+publicar login. PR #846 (`93fa95a9`, implementación `57116f75`) compone ahora las 24
+proyecciones SQL base de Trait/`SpecSetMember` con precedencia official→custom,
+`RecordRemoved` final acotado al hash WDC4 y fallo antes de publicar un catálogo
+malformado. Siguen la cobertura cross-store y la aceptación startup/DB/relogin, además
+de los overlays de locale (`trait_definition_locale` y
+`trait_currency_source_locale`); el gasto real, persistencia de mutaciones, starter
+builds y effect points son gates funcionales posteriores. #486 conserva
 la implementación integrada por PR #807 y solo sus gates de captura/QA viva y
 mutaciones administrativas no representadas. Estas son líneas funcionales separadas:
 no se convierten en trabajo oculto de #584 ni se usan para reabrir macros cerradas.
@@ -927,9 +931,10 @@ aplicación de apariencias y la codificación/publicación de paquetes; el fallb
 desconectado queda limitado a fixtures `cfg(test)`. Las regresiones de invariantes del
 owner, los 29 tests Void Storage de `wow-world`, `cargo check --tests` y el guardrail de
 arquitectura pasan con un job. No se afirma durabilidad real de DB/reinicio/relogin ni se
-cierra #584. El siguiente trabajo funcional amplio es #524: composición efectiva de
-los overlays SQL de la familia Trait y `SpecSetMember`, con publicación atómica y
-fallo cerrado antes de los gates posteriores de gasto/mutación.
+cierra #584. El siguiente trabajo funcional amplio de #524 queda acotado a la aceptación
+cross-store y startup/DB/restart/relogin de la composición ya integrada por PR #846, a
+los dos overlays de locale y, después, a los consumidores funcionales de EffectPoints,
+gasto, mutación y starter builds.
 
 #### Contraste P3 de composición y fases — revisión acotada 2026-09-12
 
