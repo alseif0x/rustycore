@@ -54,6 +54,72 @@ pub(crate) struct RuntimeVisibilityRefreshDeliverySummaryLikeCpp {
     pub send_failed: usize,
 }
 
+/// Summary for the map-owned `SendObjectUpdates` VALUES publication rail.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub(crate) struct CanonicalMapObjectValuesDeliverySummaryLikeCpp {
+    pub updates_seen: usize,
+    pub candidates_seen: usize,
+    pub candidates_queued: usize,
+    pub candidates_skipped_wrong_map: usize,
+    pub candidates_skipped_wrong_instance: usize,
+    pub candidates_skipped_not_in_world: usize,
+    pub candidates_skipped_not_visible: usize,
+    pub send_failed: usize,
+}
+
+/// Deliver typed map VALUES updates after the canonical map lock is released.
+///
+/// C++ `Map::SendObjectUpdates` builds one update for every player that has the
+/// source in its `HaveAtClient` set. The map producer has already snapshotted
+/// and cleared the source masks; this adapter owns only recipient selection and
+/// queueing, with the Session command applying the final incarnation/visibility
+/// gate. No synchronous map or persistence guard may surround this function.
+pub(crate) fn deliver_canonical_map_object_values_updates_like_cpp(
+    updates: &[CanonicalMapObjectValuesUpdateLikeCpp],
+    registry: &wow_world::session::directory::PlayerRegistry,
+) -> CanonicalMapObjectValuesDeliverySummaryLikeCpp {
+    let mut summary = CanonicalMapObjectValuesDeliverySummaryLikeCpp {
+        updates_seen: updates.len(),
+        ..Default::default()
+    };
+    let recipients = registry.runtime_recipients();
+    for update in updates {
+        for recipient in &recipients {
+            summary.candidates_seen += 1;
+            if !recipient.is_in_world {
+                summary.candidates_skipped_not_in_world += 1;
+                continue;
+            }
+            if recipient.map_id != update.map_id {
+                summary.candidates_skipped_wrong_map += 1;
+                continue;
+            }
+            if recipient.instance_id != update.instance_id {
+                summary.candidates_skipped_wrong_instance += 1;
+                continue;
+            }
+            if !recipient.committed_visibility.contains(&update.object_guid) {
+                summary.candidates_skipped_not_visible += 1;
+                continue;
+            }
+
+            let command = SessionCommand::SendVisibleObjectValuesUpdate(
+                SendVisibleObjectValuesUpdateCommand {
+                    object_guid: update.object_guid,
+                    map_id: update.map_id,
+                    packet_bytes: update.packet_bytes.clone(),
+                    unit_values_update: update.unit_values_update.clone(),
+                },
+            );
+            match registry.try_send_current_command(recipient.registration, command) {
+                Ok(()) => summary.candidates_queued += 1,
+                Err(_) => summary.send_failed += 1,
+            }
+        }
+    }
+    summary
+}
+
 /// Summary for explicit victim-session creature melee commands.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub(crate) struct RuntimeCreatureMeleeDeliverySummaryLikeCpp {

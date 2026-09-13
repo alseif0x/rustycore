@@ -6,6 +6,58 @@
 use super::*;
 
 #[test]
+fn canonical_map_object_values_delivery_uses_committed_visibility_and_phase_like_cpp() {
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
+    let visible_guid = ObjectGuid::create_player(1, 90);
+    let wrong_map_guid = ObjectGuid::create_player(1, 91);
+    let not_visible_guid = ObjectGuid::create_player(1, 92);
+    let object_guid = test_guid_like_cpp(HighGuid::GameObject, 590001, 1);
+    let (visible_info, visible_rx) = make_registry_player_like_cpp(571, 4, Position::ZERO, true);
+    let (wrong_map_info, wrong_map_rx) =
+        make_registry_player_like_cpp(530, 4, Position::ZERO, true);
+    let (not_visible_info, not_visible_rx) =
+        make_registry_player_like_cpp(571, 4, Position::ZERO, true);
+    visible_info
+        .client_visible_guids_like_cpp
+        .insert(object_guid);
+    registry.register_or_replace(visible_guid, visible_info, Default::default());
+    registry.register_or_replace(wrong_map_guid, wrong_map_info, Default::default());
+    registry.register_or_replace(not_visible_guid, not_visible_info, Default::default());
+
+    let update = crate::CanonicalMapObjectValuesUpdateLikeCpp {
+        map_id: 571,
+        instance_id: 4,
+        object_guid,
+        packet_bytes: vec![0x42, 0x24],
+        unit_values_update: None,
+    };
+    let summary = crate::deliver_canonical_map_object_values_updates_like_cpp(&[update], &registry);
+
+    assert_eq!(summary.updates_seen, 1);
+    assert_eq!(summary.candidates_seen, 3);
+    assert_eq!(summary.candidates_queued, 1);
+    assert_eq!(summary.candidates_skipped_wrong_map, 1);
+    assert_eq!(summary.candidates_skipped_wrong_instance, 0);
+    assert_eq!(summary.candidates_skipped_not_in_world, 0);
+    assert_eq!(summary.candidates_skipped_not_visible, 1);
+    assert_eq!(summary.send_failed, 0);
+    match visible_rx
+        .try_recv()
+        .expect("visible player receives update")
+    {
+        SessionCommand::SendVisibleObjectValuesUpdate(command) => {
+            assert_eq!(command.object_guid, object_guid);
+            assert_eq!(command.map_id, 571);
+            assert_eq!(command.packet_bytes, vec![0x42, 0x24]);
+            assert!(command.unit_values_update.is_none());
+        }
+        other => panic!("unexpected command: {other:?}"),
+    }
+    assert!(wrong_map_rx.try_recv().is_err());
+    assert!(not_visible_rx.try_recv().is_err());
+}
+
+#[test]
 fn loaded_grid_creature_spawn_group_spawn_record_does_not_require_respawn_timer_like_cpp() {
     let spawn_id = 54_985;
     let entry = 42;
