@@ -240,6 +240,18 @@ No live runtime, capture, DB/restart/relogin or full item-stat parity claim is m
 **#524 skill catalog and TraitMgr projection — 2026-09-13, sequence implementation
 `0192bac3` plus hotspot follow-up `de4e114e`, TraitTree overlay `9cca8f2b`, final-removal delivery `68fe676d`, generic TraitMgr index `eee72efd`, combat/class index `4ee7391e` and persisted-entry validation `c09a1f42`, integration `4e3ad8f0`:** the production bootstrap now keeps the C++ table stages independently observable: `SkillLine` → WDC4/official/custom `SkillLineAbility` → WDC4/official/custom `SkillRaceClassInfo` → WDC4 `TraitTree` plus WDC4/official/custom `SkillLineXTraitTree` projection. Official-then-custom order and fail-before-publication behavior remain explicit. The link store retains its WDC4 table hash and applies final table-scoped `RecordRemoved` statuses before projection. PR #830 adds the immutable `TraitSystemID -> TraitTreeID` projection and Generic config validation; PR #832 adds the C++ `ChrSpecialization -> ClassID -> _skillLinesByClass` combat projection and moves TraitMgr construction after effective `SkillRaceClassInfo` composition; PR #834 rejects missing or over-ranked persisted node entries at the existing Session authority boundary. Focused `wow-data`, `wow-world` and `world-server` regressions plus the physical architecture check pass. This remains a bounded startup correction, not complete TraitMgr parity: node topology, cost/condition/loadout consumers, final cross-store orchestration and startup/live evidence remain open.
 
+**#524 TraitMgr node-graph projection — implementation `d9770755` (candidate for integration):**
+the catalog owner now loads the C++ node, group, edge, cost, condition and loadout DB2
+relations once, builds deterministic immutable indexes for tree nodes, node entries,
+groups, parent edges, costs, conditions and specialization loadouts, and returns the
+single `TraitNodeEntryStore` capability used by the world bootstrap. When the graph is
+available, the existing Player trait-config authority rejects a persisted node/entry pair
+that is not linked to one of the config's resolved trees. Focused `wow-data` and
+`wow-world` regressions, `world-server` check, formatting/diff and physical-source checks
+pass. This is still a bounded projection: the index does not yet implement currency
+ownership, condition evaluation, spending, starter-build application, complete
+cross-store failure orchestration or live startup/DB/relogin evidence; #524 remains open.
+
 **Group state application is integrated — 2026-09-11, #743 / PR #750,
 `77df8194` (implementation `9e6767bb`):**
 `GroupRegistry` stays the single authority and every state-bearing group command now

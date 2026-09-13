@@ -1012,10 +1012,7 @@ async fn run_inner(
         wow_data::trait_tree::TraitDefinitionStore::load(&data_dir, &locale)
             .context("Failed to load TraitDefinition.db2")?,
     );
-    let trait_node_entry_store = Arc::new(
-        wow_data::trait_tree::TraitNodeEntryStore::load(&data_dir, &locale)
-            .context("Failed to load TraitNodeEntry.db2")?,
-    );
+    let trait_node_entry_store = Arc::clone(&skill_catalog_stages.trait_node_entry_store);
     let skill_tiers_store = Arc::new(
         crate::skill_world_rules::load_skill_tiers_store_like_cpp(&skill_world_rules_persistence)
             .await
