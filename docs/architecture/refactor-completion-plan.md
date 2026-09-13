@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748 — 2026-09-13; actualización #524 y P2/P3.9 — 2026-09-13.** Este documento detalla los
+**Sincronización de la entrega #748 — 2026-09-13; actualización #524 genérico y P2/P3.9 — 2026-09-13.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -13,8 +13,8 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza integrada, 2026-09-13: PR #828**, en `3.4.3` como
-`276e39810e03c5257ab630aedb1cfb80409b8d6c`. #787 / PR #792 (`d14a9a67`) y
+**Cabeza integrada, 2026-09-13: PR #830**, en `3.4.3` como
+`a9623787fea086f0a1350d2b05d6ec5a300432e4`. #787 / PR #792 (`d14a9a67`) y
 #584 P2 item-bonus y P3.1–P3.9 están integrados dentro de esta cabeza. La coordinación World/Map está
 implementada y aceptada localmente en `76369bda`; la corrección mantiene el ACK World pendiente hasta finalizar y
 retirar la sesión. El contrato y la evidencia están en el
@@ -70,13 +70,15 @@ crea una issue por fichero, helper o import.
 #582 queda cerrado tras su entrega de decodificadores sin matchmaking. #524 conserva
 su corrección de orden de consultas integrada por PR #803 y la secuencia WDC4/SQL
 table-granular integrada por PR #822/#824 (`7bb9a911`), los overlays de
-`SkillLineXTraitTree` por PR #826 (`d934451a`) y las eliminaciones por hash por PR
-#828 (`276e3981`): `SkillLineAbility` termina antes
+`SkillLineXTraitTree` por PR #826 (`d934451a`), las eliminaciones por hash por PR
+#828 (`276e3981`) y el índice genérico de `TraitMgr` por PR #830 (`a9623787`):
+`SkillLineAbility` termina antes
 de que se carguen `TraitTree`/`SkillLineXTraitTree`, y `SkillRaceClassInfo` queda en
 su etapa posterior con consultas official/custom independientes. La proyección de
 `SkillLineXTraitTree` y su consumidor de hidratación de Player están implementados en
 `0f65d677`, con validación de enlaces y cierre seguro ante una profesión sin árbol;
-siguen pendientes los índices/consumidores completos de `TraitMgr`, el cierre
+siguen pendientes los índices/consumidores completos de `TraitMgr` más allá de
+`TraitSystemID`, el cierre
 cross-store y la aceptación final. #486 conserva
 la implementación integrada por PR #807 y solo sus gates de captura/QA viva y
 mutaciones administrativas no representadas. Estas son líneas funcionales separadas:
