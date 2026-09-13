@@ -131,6 +131,38 @@ item-use/effect or statistics parity, packet capture, or DB/restart/relogin dura
 new issue is created for individual command variants; missing functional behavior remains
 allocated to the appropriate gameplay/data macro.
 
+## P2 item-modifier owner closure — 2026-09-13
+
+The fresh audit at integrated `ef82beeb` found one remaining generic mutation surface in
+`session/player_items/modifiers.rs`: `mutate_player_item_modifier_runtime_like_cpp` lent the
+whole `PlayerItemModifierRuntimeStateLikeCpp` to eight item-set, enchantment and valuation
+callers. This was a structural residual after the state had already moved to the canonical
+Player; it did not indicate missing statistics or aura behavior.
+
+Commit `ecc67603` adds named Player operations for the complete state transition set:
+snapshot, item-set item/bonus add/remove, empty-effect removal, item-level caps, bonus reset
+and resolved enchantment action. Production consumers in
+`session/player_items/{items,modifiers,valuation}.rs` now invoke those operations through
+the generation-checked canonical Player access. The no-handle path is retained only under
+`cfg(test)` so fixtures keep their isolated mirror without exposing a production closure.
+Catalog lookup, admission, deferred spell/aura work, packet construction and publication
+remain session responsibilities and their ordering is unchanged.
+
+The owner regression in `wow-entities/src/player_tests/item_modifiers.rs`, the detached and
+stale Player session regression, and the existing damage/threat regression all pass. A
+`cargo check -p wow-world` with one Cargo job, formatting/diff checks and the generated
+ownership-policy delta pass; the focused Session test build took 5m41s on the aarch64 host
+and subsequent focused execution was incremental. The ownership policy removes the generic
+mutator and records the named Session operations; no persistence snapshot is changed.
+
+The source contract is `AddItemsSetItem`/`RemoveItemsSetItem`
+(`Entities/Item/Item.cpp:57,146,192`), `_ApplyItemBonuses`
+(`Player.cpp:7688-7975`) and the state portion of `ApplyEnchantment`
+(`Player.cpp:13058-13389`). This delivery does not claim effective-stat calculations,
+auras, packet capture, live QA, DB/restart/relogin durability or completion of #61, #524,
+the Creature writer or #583. Final validation and publication remain gates before recording
+the merge SHA; #584 remains open.
+
 ## Persistence inventory reconciliation — 2026-09-13, after #584 P3.1
 
 The first remote Rust check after P3.1 exposed two stale architecture inputs that had
