@@ -56,6 +56,18 @@ adapter identities), and removes 40 obsolete pre-split identities. The full
 architecture `check --self-test` pass. This is architecture evidence maintenance only;
 it does not claim gameplay progress or close any core gate.
 
+**P3.2 map VALUES publication is implemented — 2026-09-13, #584, `0290ba79`:** the canonical
+`Map::SendObjectUpdates` producer now snapshots and clears Player, Unit, GameObject/
+Transport, Corpse, AreaTrigger, SceneObject and Conversation values. The world-server
+map tick converts those snapshots to owned `UpdateObject` packets and delivers them
+after releasing map, metadata and persistence guards, filtering current sessions by
+map, instance, in-world state and committed visibility. DynamicObject retains its
+existing dedicated session consumer, so no duplicate writer was introduced. The
+focused map and world-server publication tests pass. Architecture `check` and
+`self-test`, formatting, diff checks and validation-v2 `quick` pass; the manifest is
+`target/validation-v2/manifests/20260913T032906.489145Z-3320295-quick.json`. This is
+a bounded runtime publication delivery, not client capture/live QA or completion of #584.
+
 **Group state application is locally accepted — 2026-09-11, #743, `9e6767bb`:**
 `GroupRegistry` stays the single authority and every state-bearing group command now
 either reaches its member or records a delivery obligation that the member converges

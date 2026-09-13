@@ -17,10 +17,11 @@
 
 use super::map::{
     build_loaded_grid_creature_respawn_record_like_cpp,
-    build_loaded_grid_creature_spawn_group_spawn_record_like_cpp,
     build_loaded_grid_gameobject_respawn_record_like_cpp,
 };
-use super::tick_summary::CanonicalSpawnGroupConditionTickSummaryLikeCpp;
+use super::tick_summary::{
+    CanonicalMapObjectValuesUpdateLikeCpp, CanonicalSpawnGroupConditionTickSummaryLikeCpp,
+};
 use super::*;
 
 /// One admitted map of a split canonical tick and the sessions C++ would drive
@@ -166,6 +167,7 @@ fn canonical_map_tick_tail_like_cpp(
         ..Default::default()
     };
     manager.do_for_all_maps_mut(|managed_map| {
+        append_map_object_values_updates_like_cpp(&mut summary, managed_map);
         summary.expired_pvp_combat_refs.extend(
             managed_map
                 .last_expired_pvp_combat_refs_like_cpp()
@@ -215,7 +217,8 @@ fn canonical_map_tick_tail_like_cpp(
     if !scheduler.update(effective_diff_ms) {
         return (!summary.respawn_db_saves.is_empty()
             || !summary.expired_pvp_combat_refs.is_empty()
-            || !summary.player_visibility_refresh_intents.is_empty())
+            || !summary.player_visibility_refresh_intents.is_empty()
+            || !summary.object_values_updates.is_empty())
         .then_some(summary);
     }
 
@@ -445,4 +448,162 @@ fn canonical_map_tick_tail_like_cpp(
     });
 
     Some(summary)
+}
+
+/// Convert the typed snapshots captured by `Map::SendObjectUpdates` while the
+/// map guard was held into owned packet bytes. The caller delivers the result
+/// only after releasing every synchronous map/persistence guard.
+fn append_map_object_values_updates_like_cpp(
+    summary: &mut CanonicalSpawnGroupConditionTickSummaryLikeCpp,
+    managed_map: &wow_map::ManagedMap,
+) {
+    let Ok(map_id) = u16::try_from(managed_map.map_id()) else {
+        return;
+    };
+    let instance_id = managed_map.instance_id();
+    let updates = managed_map.last_send_object_updates_summary_like_cpp();
+
+    for update in updates.player_values_updates {
+        let Some(packet) = wow_world::entity_update_bridge::player_values_update_to_update_object(
+            update.guid,
+            map_id,
+            &update.values_update,
+        ) else {
+            continue;
+        };
+        summary
+            .object_values_updates
+            .push(CanonicalMapObjectValuesUpdateLikeCpp {
+                map_id,
+                instance_id,
+                object_guid: update.guid,
+                packet_bytes: packet.to_bytes(),
+                unit_values_update: None,
+            });
+    }
+
+    for update in updates.unit_values_updates {
+        let Some(packet_update) =
+            wow_world::entity_update_bridge::unit_values_update_to_packet(&update.values_update)
+        else {
+            continue;
+        };
+        let packet = wow_packet::packets::update::UpdateObject::unit_values_update(
+            update.guid,
+            map_id,
+            packet_update.clone(),
+        );
+        summary
+            .object_values_updates
+            .push(CanonicalMapObjectValuesUpdateLikeCpp {
+                map_id,
+                instance_id,
+                object_guid: update.guid,
+                packet_bytes: packet.to_bytes(),
+                unit_values_update: Some(packet_update),
+            });
+    }
+
+    for update in updates.game_object_values_updates {
+        let Some(packet) =
+            wow_world::entity_update_bridge::game_object_values_update_to_update_object(
+                update.guid,
+                map_id,
+                &update.values_update,
+            )
+        else {
+            continue;
+        };
+        summary
+            .object_values_updates
+            .push(CanonicalMapObjectValuesUpdateLikeCpp {
+                map_id,
+                instance_id,
+                object_guid: update.guid,
+                packet_bytes: packet.to_bytes(),
+                unit_values_update: None,
+            });
+    }
+
+    for update in updates.corpse_values_updates {
+        let Some(packet) = wow_world::entity_update_bridge::corpse_values_update_to_update_object(
+            update.guid,
+            map_id,
+            &update.values_update,
+        ) else {
+            continue;
+        };
+        summary
+            .object_values_updates
+            .push(CanonicalMapObjectValuesUpdateLikeCpp {
+                map_id,
+                instance_id,
+                object_guid: update.guid,
+                packet_bytes: packet.to_bytes(),
+                unit_values_update: None,
+            });
+    }
+
+    for update in updates.area_trigger_values_updates {
+        let Some(packet) =
+            wow_world::entity_update_bridge::area_trigger_values_update_to_update_object(
+                update.guid,
+                map_id,
+                &update.values_update,
+            )
+        else {
+            continue;
+        };
+        summary
+            .object_values_updates
+            .push(CanonicalMapObjectValuesUpdateLikeCpp {
+                map_id,
+                instance_id,
+                object_guid: update.guid,
+                packet_bytes: packet.to_bytes(),
+                unit_values_update: None,
+            });
+    }
+
+    for update in updates.scene_object_values_updates {
+        let Some(packet) =
+            wow_world::entity_update_bridge::scene_object_values_update_to_update_object(
+                update.guid,
+                map_id,
+                &update.values_update,
+            )
+        else {
+            continue;
+        };
+        summary
+            .object_values_updates
+            .push(CanonicalMapObjectValuesUpdateLikeCpp {
+                map_id,
+                instance_id,
+                object_guid: update.guid,
+                packet_bytes: packet.to_bytes(),
+                unit_values_update: None,
+            });
+    }
+
+    for update in updates.conversation_values_updates {
+        let Some(packet) =
+            wow_world::entity_update_bridge::conversation_values_update_to_update_object(
+                update.guid,
+                map_id,
+                &update.values_update,
+            )
+        else {
+            continue;
+        };
+        summary
+            .object_values_updates
+            .push(CanonicalMapObjectValuesUpdateLikeCpp {
+                map_id,
+                instance_id,
+                object_guid: update.guid,
+                packet_bytes: packet.to_bytes(),
+                unit_values_update: None,
+            });
+    }
 }

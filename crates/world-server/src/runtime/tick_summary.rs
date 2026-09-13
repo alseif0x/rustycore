@@ -2,10 +2,25 @@
 
 use super::map::{RespawnDbDeleteLikeCpp, RespawnDbSaveLikeCpp};
 
+/// A VALUES update built while the canonical map owned its lock. Delivery is
+/// performed only after that lock is released and is bound to the recipient's
+/// current registration and committed visibility set.
+#[derive(Debug, Clone)]
+pub(crate) struct CanonicalMapObjectValuesUpdateLikeCpp {
+    pub(crate) map_id: u16,
+    pub(crate) instance_id: u32,
+    pub(crate) object_guid: wow_core::ObjectGuid,
+    pub(crate) packet_bytes: Vec<u8>,
+    /// Present only for Unit/Creature/Pet updates so the Session boundary can
+    /// apply viewer-dependent fields such as spell-click NPC flags.
+    pub(crate) unit_values_update: Option<wow_packet::packets::update::UnitDataValuesDeltaUpdate>,
+}
+
 #[derive(Debug, Default, Clone)]
 pub(crate) struct CanonicalSpawnGroupConditionTickSummaryLikeCpp {
     pub(crate) player_visibility_refresh_intents:
         Vec<wow_map::PlayerVisibilityRefreshIntentLikeCpp>,
+    pub(crate) object_values_updates: Vec<CanonicalMapObjectValuesUpdateLikeCpp>,
     pub(crate) expired_pvp_combat_refs: Vec<(u32, u32, wow_core::ObjectGuid, wow_core::ObjectGuid)>,
     pub(crate) maps_evaluated: usize,
     pub(crate) outcomes: usize,

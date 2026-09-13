@@ -53,6 +53,40 @@ checked snapshot is byte-consistent, and architecture `check --self-test` passes
 This is a correction of the evidence ratchet; it does not close #584 or replace the
 remaining C++ parity, runtime and live acceptance gates.
 
+## P3.2 canonical `Map::SendObjectUpdates` publication — 2026-09-13
+
+The next finite #584 macro completes the represented VALUES publication boundary
+selected after the P3.1 owner audit. The target C++ operation is `Map.cpp:666-815`
+(`Map::Update` phase order), `Map.cpp:1929-1948` (`SendObjectUpdates` and its
+`UpdateDataMapType` fanout), `Object.cpp:797-806` (`ClearUpdateMask(false)`) and
+`Object.cpp:3722-3728` (`WorldObject::BuildUpdate`). The Rust map remains the sole
+owner of the update mask and captures typed snapshots for Player, Creature/Pet
+Unit, GameObject/Transport, Corpse, AreaTrigger, SceneObject and Conversation
+before clearing those masks.
+
+`wow-map::Map::send_object_updates_like_cpp` now emits those snapshots in its
+summary and records publication as deferred. `world-server/runtime/map_tick.rs`
+converts them to owned `UpdateObject` bytes while the map producer owns the
+summary; after the `MapManager`, spawn metadata and persistence guards are
+released, `runtime/delivery.rs` selects current sessions by map, instance,
+in-world state and committed `HaveAtClient` visibility, then queues the existing
+Session command. Unit snapshots retain their typed packet update so the Session
+boundary can apply viewer-dependent NPC flags. DynamicObject remains on its
+existing dedicated session consumer to avoid a second writer; Creature AI,
+scripts, transport movement and the rest of `Map::Update` are outside this macro.
+
+The focused `wow-map` `send_object_updates` tests (six tests, including the
+MapManager ordering case) and the world-server scenario
+`canonical_map_object_values_delivery_uses_committed_visibility_and_phase_like_cpp`
+pass with one Cargo job. Implementation commit: `0290ba79`. Final local evidence
+at that commit: architecture `check` PASS, architecture `self-test` PASS (20 tests),
+`cargo fmt --all -- --check` PASS, `git diff --check` PASS, and validation-v2
+`quick` PASS with manifest
+`target/validation-v2/manifests/20260913T032906.489145Z-3320295-quick.json`.
+This delivery is a live production path with local queue/visibility evidence; it
+does not claim client capture parity, manual-client QA, durable DB proof or
+completion of #584.
+
 ### Bounded #578 closeout inventory
 
 | Delivered result | Evidence boundary |

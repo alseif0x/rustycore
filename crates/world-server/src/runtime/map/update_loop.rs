@@ -6,6 +6,8 @@ use std::time::{Duration, Instant};
 use tracing::debug;
 use wow_persistence::GameEventPersistencePortLikeCpp;
 
+use crate::deliver_canonical_map_object_values_updates_like_cpp;
+
 use super::super::{deferred_visibility, map_session_pass, world_session_pass};
 use super::{
     CanonicalGameEventSchedulerLikeCpp, CanonicalRespawnConditionSchedulerLikeCpp,
@@ -338,6 +340,30 @@ pub(crate) fn spawn_canonical_map_update_loop(
                     &summary.player_visibility_refresh_intents,
                     &player_registry,
                 );
+                let object_values_delivery = deliver_canonical_map_object_values_updates_like_cpp(
+                    &summary.object_values_updates,
+                    &player_registry,
+                );
+                if object_values_delivery.updates_seen > 0
+                    && (object_values_delivery.candidates_queued > 0
+                        || object_values_delivery.send_failed > 0)
+                {
+                    debug!(
+                        updates_seen = object_values_delivery.updates_seen,
+                        candidates_seen = object_values_delivery.candidates_seen,
+                        candidates_queued = object_values_delivery.candidates_queued,
+                        candidates_skipped_wrong_map =
+                            object_values_delivery.candidates_skipped_wrong_map,
+                        candidates_skipped_wrong_instance =
+                            object_values_delivery.candidates_skipped_wrong_instance,
+                        candidates_skipped_not_in_world =
+                            object_values_delivery.candidates_skipped_not_in_world,
+                        candidates_skipped_not_visible =
+                            object_values_delivery.candidates_skipped_not_visible,
+                        send_failed = object_values_delivery.send_failed,
+                        "Canonical Map::SendObjectUpdates VALUES fanout completed outside map guards"
+                    );
+                }
             }
 
             if area_trigger_sweep_summary.loaded_grid_primary_records > 0

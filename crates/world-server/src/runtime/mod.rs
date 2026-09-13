@@ -18,3 +18,4 @@ pub(super) use delivery::*;
 pub(super) use game_events::*;
 pub(super) use map::*;
 pub(crate) use map_tick::*;
+pub(crate) use tick_summary::*;

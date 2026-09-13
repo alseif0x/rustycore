@@ -586,8 +586,6 @@ where
     }
 }
 
-use super::tick_summary::CanonicalSpawnGroupConditionTickSummaryLikeCpp;
-
 pub(crate) fn build_loaded_grid_creature_respawn_record_like_cpp(
     map: &mut wow_map::Map,
     object_type: wow_map::SpawnObjectType,

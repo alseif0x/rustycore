@@ -410,20 +410,25 @@ fn map_manager_update_consumes_send_object_updates_before_personal_phase_like_cp
     assert_eq!(manager.update(1), Some(1));
 
     let managed_map = manager.find_map(1, 0).unwrap();
+    let send_object_updates = managed_map.last_send_object_updates_summary_like_cpp();
+    assert_eq!(send_object_updates.queued_before, 1);
+    assert_eq!(send_object_updates.processed, 1);
+    assert_eq!(send_object_updates.cleared_update_masks, 1);
+    assert_eq!(send_object_updates.skipped_not_in_world, 0);
+    assert_eq!(send_object_updates.missing_or_stale, 0);
+    assert_eq!(send_object_updates.publication_deferred, 1);
+    assert!(send_object_updates.dynamic_object_values_updates.is_empty());
+    assert!(send_object_updates.player_values_updates.is_empty());
+    assert!(send_object_updates.unit_values_updates.is_empty());
+    assert_eq!(send_object_updates.game_object_values_updates.len(), 1);
     assert_eq!(
-        managed_map.last_send_object_updates_summary_like_cpp(),
-        SendObjectUpdatesSummaryLikeCpp {
-            queued_before: 1,
-            processed: 1,
-            cleared_update_masks: 1,
-            skipped_not_in_world: 0,
-            missing_or_stale: 0,
-            fanout_not_represented: 1,
-            dynamic_object_values_updates: Vec::new(),
-            player_values_updates: Vec::new(),
-            unit_values_updates: Vec::new(),
-        }
+        send_object_updates.game_object_values_updates[0].guid,
+        game_object_guid
     );
+    assert!(send_object_updates.corpse_values_updates.is_empty());
+    assert!(send_object_updates.area_trigger_values_updates.is_empty());
+    assert!(send_object_updates.scene_object_values_updates.is_empty());
+    assert!(send_object_updates.conversation_values_updates.is_empty());
     let object = managed_map
         .map()
         .map_object(game_object_guid)

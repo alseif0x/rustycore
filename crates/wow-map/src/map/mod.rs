@@ -16,6 +16,7 @@ mod relocation;
 mod respawn;
 mod runtime;
 mod scripts_weather;
+mod send_object_updates;
 mod spawn_groups;
 mod storage;
 mod update;
@@ -36,6 +37,13 @@ pub use self::runtime::{
 pub(crate) use self::runtime::{
     MapRuntime, MapRuntimePlayerAttachErrorLikeCpp, MapRuntimePlayerDetachErrorLikeCpp,
     MapRuntimePlayerRelocationErrorLikeCpp,
+};
+pub use self::send_object_updates::{
+    RepresentedAreaTriggerValuesUpdateLikeCpp, RepresentedConversationValuesUpdateLikeCpp,
+    RepresentedCorpseValuesUpdateLikeCpp, RepresentedDynamicObjectValuesUpdateLikeCpp,
+    RepresentedGameObjectValuesUpdateLikeCpp, RepresentedPlayerValuesUpdateLikeCpp,
+    RepresentedSceneObjectValuesUpdateLikeCpp, RepresentedUnitValuesUpdateLikeCpp,
+    SendObjectUpdatesSummaryLikeCpp,
 };
 use crate::cell::{Cell, GridObjectGuids, WorldObjectGuids, calculate_cell_area_like_cpp};
 use crate::coords::{
@@ -70,16 +78,16 @@ use wow_entities::{
     AccessorObjectKind, AreaTrigger, CombatBeginContextLikeCpp, CombatSubsystem, Conversation,
     Corpse, Creature, CreatureAimInitializeOutcomeLikeCpp, CreatureRuntimePlan,
     CreatureRuntimeUpdateContext, CreatureSearchFormationOutcomeLikeCpp, DynamicObject,
-    DynamicObjectType, DynamicObjectValuesUpdate, GAMEOBJECT_TYPE_CAPTURE_POINT,
-    GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_DOOR, GAMEOBJECT_TYPE_FLAGDROP, GAMEOBJECT_TYPE_GOOBER,
-    GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT, GAMEOBJECT_TYPE_NEW_FLAG, GAMEOBJECT_TYPE_NEW_FLAG_DROP,
-    GAMEOBJECT_TYPE_TRANSPORT, GO_FLAG_NODESPAWN, GameObject, GameObjectCreateLifecycleRecord,
-    GameObjectLifecycleError, GameObjectTemplateLifecycleRecord,
+    DynamicObjectType, GAMEOBJECT_TYPE_CAPTURE_POINT, GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_DOOR,
+    GAMEOBJECT_TYPE_FLAGDROP, GAMEOBJECT_TYPE_GOOBER, GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT,
+    GAMEOBJECT_TYPE_NEW_FLAG, GAMEOBJECT_TYPE_NEW_FLAG_DROP, GAMEOBJECT_TYPE_TRANSPORT,
+    GO_FLAG_NODESPAWN, GameObject, GameObjectCreateLifecycleRecord, GameObjectLifecycleError,
+    GameObjectTemplateLifecycleRecord,
     GameObjectUpdateOutcomeLikeCpp as EntityGameObjectUpdateOutcomeLikeCpp,
     GameObjectUpdateStatusLikeCpp as EntityGameObjectUpdateStatusLikeCpp, GoState, INVALID_HEIGHT,
     LineOfSightQuery, LootState, MAX_VISIBILITY_DISTANCE, MapBindingError, MapObjectRecord,
-    ObjectAccessorError, ObjectNotifyFlags, Pet, Player, PlayerValuesUpdate, SceneObject,
-    TransportUpdateLikeCpp, Unit, UnitAddToWorldOutcomeLikeCpp, UnitRemoveFromWorldOutcomeLikeCpp,
+    ObjectAccessorError, ObjectNotifyFlags, Pet, Player, SceneObject, TransportUpdateLikeCpp, Unit,
+    UnitAddToWorldOutcomeLikeCpp, UnitRemoveFromWorldOutcomeLikeCpp,
     UnitSharedVisionSetWorldObjectRequestLikeCpp, UnitValuesUpdate,
     VehicleKitAddToWorldResetOutcomeLikeCpp, VehicleKitInstallOutcomeLikeCpp,
     VehicleKitRemoveOutcomeLikeCpp, WorldObject, WorldObjectEnvironment, WorldObjectHeightQuery,
@@ -728,56 +736,6 @@ pub struct PersonalPhaseTrackerUpdateSummaryLikeCpp {
     pub missing_or_stale: usize,
     pub unsupported_kinds: usize,
     pub duplicate_queued: usize,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct RepresentedDynamicObjectValuesUpdateLikeCpp {
-    pub guid: ObjectGuid,
-    pub values_update: DynamicObjectValuesUpdate,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct RepresentedPlayerValuesUpdateLikeCpp {
-    pub guid: ObjectGuid,
-    pub values_update: PlayerValuesUpdate,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct RepresentedUnitValuesUpdateLikeCpp {
-    pub guid: ObjectGuid,
-    pub kind: AccessorObjectKind,
-    pub values_update: UnitValuesUpdate,
-}
-
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct SendObjectUpdatesSummaryLikeCpp {
-    /// Objects in canonical `Map::entity_world` with represented
-    /// `Object::m_objectUpdated` set at snapshot time. Rust does not yet own the
-    /// exact C++ `_updateObjects` pointer set, so this is a represented snapshot.
-    pub queued_before: usize,
-    /// In-world updated objects consumed through the represented BuildUpdate seam.
-    pub processed: usize,
-    /// Objects whose update masks were cleared via `ClearUpdateMask(false)`.
-    pub cleared_update_masks: usize,
-    /// Defense for impossible/stale Rust state where the represented update queue
-    /// contains a not-in-world object. C++ asserts in `Map::SendObjectUpdates`.
-    pub skipped_not_in_world: usize,
-    /// Snapshot GUIDs that disappeared before mutable consumption; this should
-    /// not happen in the current single-threaded map owner but stays non-panicking.
-    pub missing_or_stale: usize,
-    /// Evidence that C++ `UpdateDataMapType` player fanout/packet send is still
-    /// intentionally not represented by this seam.
-    pub fanout_not_represented: usize,
-    /// Stable represented DynamicObject VALUES snapshots captured from canonical
-    /// map-owned objects before the represented `BuildUpdate` clear. This is not
-    /// session fanout and must not be read from live masks after clear.
-    pub dynamic_object_values_updates: Vec<RepresentedDynamicObjectValuesUpdateLikeCpp>,
-    /// Complete Player/Unit/ActivePlayer VALUES snapshots captured before the
-    /// typed Player masks are cleared by represented `BuildUpdate`.
-    pub player_values_updates: Vec<RepresentedPlayerValuesUpdateLikeCpp>,
-    /// Complete Unit VALUES snapshots captured before typed Creature/Pet masks
-    /// are cleared by represented `BuildUpdate`.
-    pub unit_values_updates: Vec<RepresentedUnitValuesUpdateLikeCpp>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2394,125 +2352,6 @@ where
         }
 
         summary.queued_after = self.far_spell_callbacks_like_cpp.len();
-        summary
-    }
-
-    /// Bounded represented consumption seam for C++ `Map::SendObjectUpdates()`.
-    ///
-    /// C++ anchors:
-    /// - `Map.cpp:777` calls `SendObjectUpdates()` after ObjectUpdater/Transport
-    ///   visitation during `Map::Update`.
-    /// - `Map.cpp:1929-1948` drains `_updateObjects`, asserts each object is
-    ///   in-world, calls `obj->BuildUpdate(update_players)`, then builds/sends
-    ///   per-player packets from `UpdateDataMapType`.
-    /// - `Object.cpp:797-806` clears changed values and resets
-    ///   `m_objectUpdated` in `ClearUpdateMask(false)`.
-    /// - `Object.cpp:3722-3728` `WorldObject::BuildUpdate` visits visible players
-    ///   then calls `ClearUpdateMask(false)`.
-    ///
-    /// Rust ownership: `entity_world` is the canonical source of objects and update
-    /// flags. Because RustyCore does not yet have a map-owned `_updateObjects` set,
-    /// this snapshots GUIDs from `entity_world` whose `object().is_object_updated()`
-    /// is true. The seam represents only the consumption/clear side effect; it
-    /// does not create `UpdateDataMapType`, iterate visible players, build packets,
-    /// access sessions/ObjectAccessor, or send `SendDirectMessage` fanout.
-    pub fn send_object_updates_like_cpp(&mut self) -> SendObjectUpdatesSummaryLikeCpp {
-        let updated_guids = self
-            .entity_world
-            .iter()
-            .filter_map(|(guid, record)| {
-                record
-                    .object()
-                    .object()
-                    .is_object_updated()
-                    .then_some(*guid)
-            })
-            .collect::<Vec<_>>();
-
-        let mut summary = SendObjectUpdatesSummaryLikeCpp {
-            queued_before: updated_guids.len(),
-            ..Default::default()
-        };
-
-        for guid in updated_guids {
-            let Some(record) = self.entity_world.get_mut(&guid) else {
-                summary.missing_or_stale += 1;
-                continue;
-            };
-
-            if !record.object().object().is_in_world() {
-                summary.skipped_not_in_world += 1;
-                continue;
-            }
-
-            // Represents `obj->BuildUpdate(update_players)` only up to its durable
-            // map-owned side effect: snapshot every represented typed VALUES mask
-            // before eventually calling `ClearUpdateMask(false)`. Visible-player
-            // iteration, `UpdateDataMapType`, packet construction, and direct sends
-            // remain open fanout gaps.
-            match record.kind() {
-                AccessorObjectKind::Player => {
-                    let player = record.player_mut().expect("typed Player record");
-                    let values_update = player.values_update(true);
-                    if values_update.has_data() {
-                        summary
-                            .player_values_updates
-                            .push(RepresentedPlayerValuesUpdateLikeCpp {
-                                guid,
-                                values_update,
-                            });
-                    }
-                    player.clear_data_changes();
-                }
-                AccessorObjectKind::Creature => {
-                    let creature = record.creature_mut().expect("typed Creature record");
-                    let values_update = creature.unit().values_update();
-                    if values_update.has_data() {
-                        summary
-                            .unit_values_updates
-                            .push(RepresentedUnitValuesUpdateLikeCpp {
-                                guid,
-                                kind: AccessorObjectKind::Creature,
-                                values_update,
-                            });
-                    }
-                    creature.clear_data_changes();
-                }
-                AccessorObjectKind::Pet => {
-                    let pet = record.pet_mut().expect("typed Pet record");
-                    let values_update = pet.creature().unit().values_update();
-                    if values_update.has_data() {
-                        summary
-                            .unit_values_updates
-                            .push(RepresentedUnitValuesUpdateLikeCpp {
-                                guid,
-                                kind: AccessorObjectKind::Pet,
-                                values_update,
-                            });
-                    }
-                    pet.creature_mut().clear_data_changes();
-                }
-                _ => {
-                    if let Some(dynamic_object) = record.dynamic_object_mut() {
-                        let values_update = dynamic_object.values_update();
-                        if values_update.has_data() {
-                            summary.dynamic_object_values_updates.push(
-                                RepresentedDynamicObjectValuesUpdateLikeCpp {
-                                    guid,
-                                    values_update,
-                                },
-                            );
-                        }
-                        dynamic_object.clear_dynamic_object_data_changes();
-                    }
-                    record.object_mut().object_mut().clear_update_mask(false);
-                }
-            }
-            summary.processed += 1;
-            summary.cleared_update_masks += 1;
-            summary.fanout_not_represented += 1;
-        }
-
         summary
     }
 
