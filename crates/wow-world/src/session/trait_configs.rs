@@ -2,6 +2,7 @@
 use super::WorldSession;
 use tracing::warn;
 use wow_core::ObjectGuid;
+use wow_data::trait_tree::TraitNodeEntryStore;
 use wow_entities::{PlayerTraitConfigDetails, PlayerTraitEntry};
 use wow_packet::packets::update::{TraitConfigCreateData, TraitEntryCreateData};
 
@@ -9,29 +10,49 @@ impl WorldSession {
     pub(crate) fn trait_authority_complete_like_cpp(
         &self,
         configs: &[TraitConfigCreateData],
+        node_entries: &TraitNodeEntryStore,
         player_guid: ObjectGuid,
     ) -> bool {
-        let complete = self.trait_tree_skill_line_index().is_none_or(|index| {
-            configs.iter().all(|config| match config.config_type {
-                1 => u32::try_from(config.chr_specialization_id)
-                    .ok()
-                    .and_then(|specialization_id| {
-                        self.chr_specialization_store()
-                            .and_then(|store| store.get(specialization_id))
-                            .map(|specialization| specialization.class_id)
-                    })
-                    .is_some_and(|class_id| index.has_class_like_cpp(class_id)),
-                2 => u32::try_from(config.skill_line_id)
-                    .ok()
-                    .is_some_and(|skill_line_id| index.has_skill_line_like_cpp(skill_line_id)),
-                3 => u32::try_from(config.trait_system_id)
-                    .ok()
-                    .is_some_and(|trait_system_id| {
-                        index.has_trait_system_like_cpp(trait_system_id)
-                    }),
-                _ => true,
-            })
-        });
+        let entries_complete = configs
+            .iter()
+            .flat_map(|config| &config.entries)
+            .all(|entry| {
+                let Some(node_entry_id) = u32::try_from(entry.trait_node_entry_id).ok() else {
+                    return false;
+                };
+                let Some(node_entry) = node_entries.get(node_entry_id) else {
+                    return false;
+                };
+                entry.trait_node_id > 0
+                    && entry.rank >= 0
+                    && entry.granted_ranks >= 0
+                    && i64::from(entry.rank) + i64::from(entry.granted_ranks)
+                        <= i64::from(node_entry.max_ranks)
+            });
+        let complete = entries_complete
+            && self.trait_tree_skill_line_index().is_none_or(|index| {
+                configs.iter().all(|config| match config.config_type {
+                    1 => u32::try_from(config.chr_specialization_id)
+                        .ok()
+                        .and_then(|specialization_id| {
+                            self.chr_specialization_store()
+                                .and_then(|store| store.get(specialization_id))
+                                .map(|specialization| specialization.class_id)
+                        })
+                        .is_some_and(|class_id| index.has_class_like_cpp(class_id)),
+                    2 => u32::try_from(config.skill_line_id)
+                        .ok()
+                        .is_some_and(|skill_line_id| index.has_skill_line_like_cpp(skill_line_id)),
+                    3 => {
+                        u32::try_from(config.trait_system_id)
+                            .ok()
+                            .is_some_and(|trait_system_id| {
+                                index.has_trait_system_like_cpp(trait_system_id)
+                            })
+                    }
+                    _ => true,
+                })
+            });
         if !complete {
             warn!(
                 player_guid = player_guid.counter(),
@@ -195,8 +216,9 @@ mod tests {
             entries: vec![],
         };
         let player = ObjectGuid::create_player(1, 1);
-        assert!(session.trait_authority_complete_like_cpp(&[config(7)], player));
-        assert!(!session.trait_authority_complete_like_cpp(&[config(8)], player));
+        let nodes = wow_data::trait_tree::TraitNodeEntryStore::from_entries([]);
+        assert!(session.trait_authority_complete_like_cpp(&[config(7)], &nodes, player));
+        assert!(!session.trait_authority_complete_like_cpp(&[config(8)], &nodes, player));
     }
 
     #[test]
@@ -261,7 +283,54 @@ mod tests {
             entries: vec![],
         };
         let player = ObjectGuid::create_player(1, 1);
-        assert!(session.trait_authority_complete_like_cpp(&[config(42)], player));
-        assert!(!session.trait_authority_complete_like_cpp(&[config(43)], player));
+        let nodes = wow_data::trait_tree::TraitNodeEntryStore::from_entries([]);
+        assert!(session.trait_authority_complete_like_cpp(&[config(42)], &nodes, player));
+        assert!(!session.trait_authority_complete_like_cpp(&[config(43)], &nodes, player));
+    }
+
+    #[test]
+    fn trait_entries_require_known_node_entry_and_fit_max_ranks_like_cpp() {
+        let (_packet_tx, packet_rx) = flume::unbounded();
+        let (send_tx, _send_rx) = flume::unbounded();
+        let session = WorldSession::new(
+            1,
+            "trait-entry-authority".into(),
+            0,
+            2,
+            2,
+            12340,
+            vec![],
+            "enUS".into(),
+            packet_rx,
+            send_tx,
+        );
+        let nodes =
+            TraitNodeEntryStore::from_entries([wow_data::trait_tree::TraitNodeEntryEntry {
+                id: 10,
+                trait_definition_id: 1,
+                max_ranks: 3,
+                node_entry_type: 0,
+            }]);
+        let mut config = TraitConfigCreateData {
+            id: 1,
+            config_type: 0,
+            chr_specialization_id: 0,
+            combat_config_flags: 0,
+            local_identifier: 0,
+            skill_line_id: 0,
+            trait_system_id: 0,
+            name: "entries".into(),
+            entries: vec![TraitEntryCreateData {
+                trait_node_id: 1,
+                trait_node_entry_id: 10,
+                rank: 2,
+                granted_ranks: 1,
+            }],
+        };
+        let player = ObjectGuid::create_player(1, 1);
+        assert!(session.trait_authority_complete_like_cpp(&[config.clone()], &nodes, player));
+
+        config.entries[0].rank = 3;
+        assert!(!session.trait_authority_complete_like_cpp(&[config], &nodes, player));
     }
 }
