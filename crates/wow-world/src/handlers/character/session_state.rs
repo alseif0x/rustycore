@@ -1626,7 +1626,7 @@ impl WorldSession {
             }
         };
         let profession_tree_authority_complete_like_cpp =
-            self.trait_authority_complete_like_cpp(&configs, guid);
+            self.trait_authority_complete_like_cpp(&configs, node_entries, guid);
         let trait_query_authority_complete_like_cpp = entries_complete_like_cpp
             && configs_complete_like_cpp
             && profession_tree_authority_complete_like_cpp
