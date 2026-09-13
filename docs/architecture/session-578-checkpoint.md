@@ -30,6 +30,16 @@ Those contracts and historical evidence remain valid inputs to #584; none is mar
 completed by the scope transfer. #583 waits for the required core macrodeliverables
 in #584; #153 remains an independent auditor, not the owner of unfinished work.
 
+## P2 item-modifier owner closure — final local validation, 2026-09-13
+
+The candidate `ecc67603` on `584-next-audit` passed `validation-v2 final` on
+2026-09-13. The manifest is
+`target/validation-v2/manifests/20260913T165720.613650Z-3851477-final.json`;
+the release profile completed the workspace checks and the `wow-entities`/`wow-world`
+library suites with 3875 passing tests, one ignored and zero failures. The delivery
+still awaits publication and does not close #584 or claim TraitMgr gameplay, Creature
+writer migration, live client QA or DB/relogin durability.
+
 ## P3.8 delivered — map object lifecycle visibility intents — 2026-09-13
 
 The finite residual after P3.7 was the visibility side of object admission and
@@ -130,6 +140,38 @@ This closes the generic item-object residual of #737 inside #584. It does not cl
 item-use/effect or statistics parity, packet capture, or DB/restart/relogin durability. No
 new issue is created for individual command variants; missing functional behavior remains
 allocated to the appropriate gameplay/data macro.
+
+## P2 item-modifier owner closure — 2026-09-13
+
+The fresh audit at integrated `ef82beeb` found one remaining generic mutation surface in
+`session/player_items/modifiers.rs`: `mutate_player_item_modifier_runtime_like_cpp` lent the
+whole `PlayerItemModifierRuntimeStateLikeCpp` to eight item-set, enchantment and valuation
+callers. This was a structural residual after the state had already moved to the canonical
+Player; it did not indicate missing statistics or aura behavior.
+
+Commit `ecc67603` adds named Player operations for the complete state transition set:
+snapshot, item-set item/bonus add/remove, empty-effect removal, item-level caps, bonus reset
+and resolved enchantment action. Production consumers in
+`session/player_items/{items,modifiers,valuation}.rs` now invoke those operations through
+the generation-checked canonical Player access. The no-handle path is retained only under
+`cfg(test)` so fixtures keep their isolated mirror without exposing a production closure.
+Catalog lookup, admission, deferred spell/aura work, packet construction and publication
+remain session responsibilities and their ordering is unchanged.
+
+The owner regression in `wow-entities/src/player_tests/item_modifiers.rs`, the detached and
+stale Player session regression, and the existing damage/threat regression all pass. A
+`cargo check -p wow-world` with one Cargo job, formatting/diff checks and the generated
+ownership-policy delta pass; the focused Session test build took 5m41s on the aarch64 host
+and subsequent focused execution was incremental. The ownership policy removes the generic
+mutator and records the named Session operations; no persistence snapshot is changed.
+
+The source contract is `AddItemsSetItem`/`RemoveItemsSetItem`
+(`Entities/Item/Item.cpp:57,146,192`), `_ApplyItemBonuses`
+(`Player.cpp:7688-7975`) and the state portion of `ApplyEnchantment`
+(`Player.cpp:13058-13389`). This delivery does not claim effective-stat calculations,
+auras, packet capture, live QA, DB/restart/relogin durability or completion of #61, #524,
+the Creature writer or #583. Final validation and publication remain gates before recording
+the merge SHA; #584 remains open.
 
 ## Persistence inventory reconciliation — 2026-09-13, after #584 P3.1
 

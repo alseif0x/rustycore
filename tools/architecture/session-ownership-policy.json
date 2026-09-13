@@ -20497,6 +20497,32 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "add_player_item_set_bonus_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn add_player_item_set_bonus_like_cpp (& mut self , item_set_id : u32 , spell_entry_id : u32 ,) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "add_player_item_set_item_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn add_player_item_set_item_like_cpp (& mut self , item_set_id : u32 , item_guid : ObjectGuid ,) -> Option < usize >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "add_player_toy_dynamic_field_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn add_player_toy_dynamic_field_like_cpp (& mut self , item_id : u32 ,) -> Option < wow_entities :: PlayerValuesUpdate >",
@@ -26716,6 +26742,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "drop_player_empty_item_set_effect_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn drop_player_empty_item_set_effect_like_cpp (& mut self , item_set_id : u32 ,) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "durability_costs_store",
           "visibility": "pub",
           "signature": "fn durability_costs_store (& self) -> Option < & Arc < DurabilityCostsStore > >",
@@ -31946,19 +31985,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "mutate_player_item_modifier_runtime_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn mutate_player_item_modifier_runtime_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut wow_entities :: PlayerItemModifierRuntimeStateLikeCpp) -> R ,) -> Option < R >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "mutate_player_mount_vehicle_kit_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn mutate_player_mount_vehicle_kit_like_cpp < R > (& mut self , update : impl FnOnce (& mut Option < Vehicle >) -> R ,) -> Option < R >",
@@ -37058,6 +37084,32 @@
           "name": "remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp (& mut self ,) -> usize",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "remove_player_item_set_bonus_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn remove_player_item_set_bonus_like_cpp (& mut self , item_set_id : u32 , spell_entry_id : u32 ,) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "remove_player_item_set_item_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn remove_player_item_set_item_like_cpp (& mut self , item_set_id : u32 , item_guid : ObjectGuid ,) -> Option < Option < usize > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -49733,6 +49785,20 @@
           "name": "set_player_inventory_slot_count_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_player_inventory_slot_count_like_cpp (& mut self , count : u8) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_player_item_level_caps_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn set_player_item_level_caps_like_cpp (& mut self , caps : wow_entities :: PlayerItemLevelCapsLikeCpp ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [

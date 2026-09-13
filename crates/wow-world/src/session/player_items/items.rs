@@ -241,9 +241,7 @@ impl WorldSession {
 
         let mut events = Vec::new();
         let Some(equipped_count_after) =
-            self.mutate_player_item_modifier_runtime_like_cpp(|state| {
-                state.add_item_set_item_like_cpp(item_set.id, item_guid)
-            })
+            self.add_player_item_set_item_like_cpp(item_set.id, item_guid)
         else {
             return Vec::new();
         };
@@ -262,9 +260,7 @@ impl WorldSession {
                 continue;
             }
             let inserted = self
-                .mutate_player_item_modifier_runtime_like_cpp(|state| {
-                    state.add_item_set_bonus_like_cpp(item_set.id, item_set_spell.id)
-                })
+                .add_player_item_set_bonus_like_cpp(item_set.id, item_set_spell.id)
                 .unwrap_or(false);
             if !inserted {
                 continue;
@@ -291,9 +287,7 @@ impl WorldSession {
         item_set: &wow_data::ItemSetEntry,
     ) -> Vec<RepresentedItemSetSpellEventLikeCpp> {
         let Some(equipped_count_after) = self
-            .mutate_player_item_modifier_runtime_like_cpp(|state| {
-                state.remove_item_set_item_like_cpp(item_set.id, item_guid)
-            })
+            .remove_player_item_set_item_like_cpp(item_set.id, item_guid)
             .flatten()
         else {
             return Vec::new();
@@ -310,9 +304,7 @@ impl WorldSession {
                 continue;
             }
             let removed = self
-                .mutate_player_item_modifier_runtime_like_cpp(|state| {
-                    state.remove_item_set_bonus_like_cpp(item_set.id, item_set_spell.id)
-                })
+                .remove_player_item_set_bonus_like_cpp(item_set.id, item_set_spell.id)
                 .unwrap_or(false);
             if !removed {
                 continue;
@@ -326,9 +318,7 @@ impl WorldSession {
             });
         }
 
-        let _ = self.mutate_player_item_modifier_runtime_like_cpp(|state| {
-            state.drop_empty_item_set_effect_like_cpp(item_set.id);
-        });
+        let _ = self.drop_player_empty_item_set_effect_like_cpp(item_set.id);
 
         events
     }

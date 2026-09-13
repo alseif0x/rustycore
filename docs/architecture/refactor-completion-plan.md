@@ -13,11 +13,12 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza integrada, 2026-09-13: PR #837**, en `3.4.3` como
-`c97153a2ea480be2ac49577a4a29843f3f1216c9`. #787 / PR #792 (`d14a9a67`) y
-#584 P2 item-bonus y P3.1–P3.9 están integrados dentro de esta cabeza. La entrega
-candidata `23a7fe16` añade el cierre P2 del runtime de objetos de inventario y se
-publicará contra esta base. La coordinación World/Map está
+**Cabeza integrada, 2026-09-13: PR #838**, en `3.4.3` como
+`ef82beebf3c5a22142ed05ec3d8be67eea324c60`. #787 / PR #792 (`d14a9a67`) y
+#584 P2 item-bonus, P2 item-object y P3.1–P3.9 están integrados dentro de esta cabeza.
+La siguiente entrega de ownership está en la rama local `584-next-audit`, commit
+`ecc67603`, y retira la superficie mutante genérica restante del runtime de
+modificadores de objetos. La coordinación World/Map está
 implementada y aceptada localmente en `76369bda`; la corrección mantiene el ACK World pendiente hasta finalizar y
 retirar la sesión. El contrato y la evidencia están en el
 [checkpoint de sesión](session-578-checkpoint.md#787-resumption-finalization-is-inside-the-world-completion-boundary--2026-09-12).
@@ -26,7 +27,7 @@ no ordena volver a ejecutar entregas ya integradas. La retirada del escritor
 legado de criaturas y las fases de mapa no representadas siguen en #584.
 
 La base revisada de la entrega anterior fue `3.4.3` en
-`db1250767090a5c951dae96ad6c2a2d5b24873ff`; la base vigente es la cabeza de PR #837
+`db1250767090a5c951dae96ad6c2a2d5b24873ff`; la base vigente es la cabeza de PR #838
 indicada arriba. #133 se cerró el 2026-09-09. Las
 entregas #578, #585, #587, #588, #589, #716, #718, #722 y #737 están integradas y
 cerradas dentro de sus alcances acotados. No se debe esperar otro cierre de #133 ni
@@ -63,10 +64,11 @@ del mapa; P3.9 captura y publica el DESTROY dirigido de una Creature ordinaria c
 vallas de encarnación y `HaveAtClient` después de liberar el guard de Map. La macro P2
 del último escritor genérico de bonos de objeto también quedó
 integrada por PR #816: el estado resuelto se aplica mediante una operación nominal
-del runtime propiedad del Player y se retiró el cierre `&mut` de Session. La próxima
-macro se seleccionará después de auditar el escritor legado de
-criaturas y las fases de `Map::Update` aún no representadas. Después siguen
-los residuales P2/P3/P4 por consumidores, el producto #583 y la auditoría #153. Las
+del runtime propiedad del Player y se retiró el cierre `&mut` de Session. La siguiente
+macro seleccionada por la auditoría actual es el cierre nominal del runtime de
+modificadores de objetos descrito en §4.3; no mezcla estadísticas efectivas ni auras
+de #61. Después siguen los residuales P2/P3/P4 por consumidores, el producto #583 y
+la auditoría #153. Las
 excepciones físicas son individuales y se justifican con la política vigente; no se
 crea una issue por fichero, helper o import.
 
@@ -576,13 +578,11 @@ públicos y un cierre genérico con seis sitios de escritura.
   una inserción, y un efecto borrado se lleva sus bonus restantes.
 - Los tres campos espejo `#[cfg(test)]` de la sesión se funden en uno del mismo
   tipo; el inventario de campos pierde dos.
-- Proyección retenida y registrada: `with_bonuses_mut_like_cpp` presta el
-  registro de bonus a las reglas de encantamiento y equipo de
-  `session_rules/rules_1.rs`, que recorren acciones con forma de catálogo que no
-  pueden entrar en `wow-entities` y que C++ aplica sosteniendo el Player
-  (`Player::_ApplyItemBonuses`, `Player::ApplyEnchantment`). **Condición de
-  salida:** que el contrato de aplicación de encantamiento/equipo pase a una
-  operación con nombre que reciba el efecto resuelto en lugar del registro.
+- Proyección histórica: el contrato de aplicación de encantamiento/equipo que antes
+  prestaba `with_bonuses_mut_like_cpp` quedó cerrado por la entrega nominal de
+  `ecc67603`, descrita en la sección siguiente. Las reglas de catálogo, efectos
+  diferidos, auras y paquetes siguen en `wow-world`; el cierre solo mueve las
+  transiciones del estado que C++ ejecuta mientras sostiene el Player.
 
 Aceptación local: catorce regresiones nuevas de invariantes en
 `player_tests/item_modifiers.rs`, controles de arquitectura y ownership con
@@ -868,6 +868,47 @@ Este cierre retira la superficie arquitectónica genérica de #737, pero no decl
 completa de item use/effects, estadísticas, auras, bytes de cliente ni durabilidad real
 con DB/reinicio/relogin. Las funciones de gameplay o datos que aún falten se asignan a su
 macro funcional; no se reabre #737 ni se crea una issue por cada variante del comando.
+
+#### Siguiente entrega seleccionada por auditoría — runtime de modificadores del Player
+
+La auditoría de `origin/3.4.3` en `ef82beeb` encontró un residual P2 distinto del
+item-object ya integrado: `WorldSession::mutate_player_item_modifier_runtime_like_cpp`
+(`session/player_items/modifiers.rs`) todavía prestaba un cierre `FnOnce(&mut
+PlayerItemModifierRuntimeStateLikeCpp)` a ocho consumidores de item-set, encantamiento y
+valoración. El estado ya tiene como propietario semántico al `Player`; la superficie
+genérica era el último acceso que permitía que el llamador mutara el contenedor completo.
+
+La entrega `ecc67603` añade operaciones nominales en `wow-entities::Player` para snapshot,
+añadir/quitar piezas y bonus de conjuntos, eliminar efectos vacíos, instalar caps de nivel,
+reiniciar bonuses y aplicar una acción de encantamiento. Los consumidores de
+`session/player_items/{items,modifiers,valuation}.rs` y sus fixtures llaman esas
+operaciones a través del acceso canónico comprobado; el fallback de sesión queda limitado
+a `cfg(test)` y no expone el contenedor a un cierre de producción. El orden de catálogo,
+admisión, auras, paquetes y publicación no cambia: permanecen en `wow-world`, por lo que
+esta entrega no intenta resolver la funcionalidad de estadísticas efectivas de #61.
+
+Las anclas de comportamiento son `AddItemsSetItem`/`RemoveItemsSetItem`
+(`Entities/Item/Item.cpp:57,146,192`), `_ApplyItemBonuses`
+(`Player.cpp:7688-7975`) y el tramo de estado de `ApplyEnchantment`
+(`Player.cpp:13058-13389`). Se añadió una regresión de owner directo en
+`player_tests/item_modifiers.rs` y se conservaron las regresiones de detached/stale
+Player y de daño que ejercitan los adaptadores de sesión. `cargo check -p wow-world`
+con un job y los dos tests focalizados de `wow-world` pasan; el test de owner de
+`wow-entities` se ejecuta junto con la suite del crate. El baseline de
+`session-ownership-check` se actualiza solo por las operaciones nuevas y la retirada del
+helper genérico, con el delta revisado. La validación final `validation-v2 final` pasó
+el 2026-09-13 sobre este candidato; su manifiesto es
+`target/validation-v2/manifests/20260913T165720.613650Z-3851477-final.json` y la suite
+de `wow-entities`/`wow-world` terminó con 3875 tests correctos, uno ignorado y cero
+fallos. Solo queda la publicación de esta rama; la evidencia no amplía el alcance
+funcional descrito abajo.
+
+Este macro no incluye TraitMgr funcional (#524), escritor Creature legado, AI/combat,
+auras, estadísticas, DB/reinicio/relogin ni módulos #583. #524 queda como la siguiente
+macro funcional amplia después de este cierre: requiere autoridad de monedas y
+condiciones, gasto persistente, starter builds, cobertura cross-store y aceptación de
+startup/DB/relogin. El escritor Creature se mantiene retenido hasta poder migrar todos
+sus consumidores y su fanout sin crear un segundo writer.
 
 #### Contraste P3 de composición y fases — revisión acotada 2026-09-12
 

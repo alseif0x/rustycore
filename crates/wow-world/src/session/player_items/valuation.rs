@@ -207,10 +207,7 @@ impl WorldSession {
         &mut self,
         caps: RepresentedItemLevelCapsLikeCpp,
     ) -> bool {
-        self.mutate_player_item_modifier_runtime_like_cpp(|state| {
-            state.set_item_level_caps_like_cpp(caps);
-        })
-        .is_some()
+        self.set_player_item_level_caps_like_cpp(caps)
     }
     pub(crate) fn set_represented_using_pvp_item_levels_like_cpp(&mut self, active: bool) -> bool {
         let canonical = self

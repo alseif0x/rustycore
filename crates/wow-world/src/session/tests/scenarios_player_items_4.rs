@@ -104,10 +104,12 @@ fn canonical_player_item_modifier_runtime_follows_detached_and_stale_ownership_l
     ));
     assert!(
         session
-            .mutate_player_item_modifier_runtime_like_cpp(|runtime| {
-                runtime.add_item_set_item_like_cpp(700, ObjectGuid::create_item(1, 88));
-                runtime.add_item_set_bonus_like_cpp(700, 35);
-            })
+            .add_player_item_set_item_like_cpp(700, ObjectGuid::create_item(1, 88))
+            .is_some()
+    );
+    assert!(
+        session
+            .add_player_item_set_bonus_like_cpp(700, 35)
             .is_some()
     );
     assert_eq!(

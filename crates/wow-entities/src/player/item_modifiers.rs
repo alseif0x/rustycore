@@ -24,6 +24,7 @@ use super::{
     ApplyEnchantmentBaseMod, ApplyEnchantmentCombatRating, ApplyEnchantmentEffectAction,
     ApplyEnchantmentUnitMod, ApplyEnchantmentUnitModifier,
 };
+use crate::Player;
 use wow_constants::{Stats, WeaponAttackType};
 use wow_core::ObjectGuid;
 
@@ -230,6 +231,80 @@ impl PlayerItemModifierRuntimeStateLikeCpp {
         action: ApplyEnchantmentEffectAction,
     ) {
         apply_enchantment_effect_action_to_bonus_state_like_cpp(&mut self.bonuses, action);
+    }
+}
+
+impl Player {
+    /// Snapshot the Player-owned item-modifier runtime. The session may read
+    /// this value for packet/valuation work, but it cannot borrow the state
+    /// container itself.
+    #[must_use]
+    pub fn item_modifier_runtime_snapshot_like_cpp(&self) -> PlayerItemModifierRuntimeStateLikeCpp {
+        self.gameplay_state().item_modifiers.clone()
+    }
+
+    /// C++ `AddItemsSetItem` (`Item.cpp:57`) on the Player owner.
+    pub fn add_item_set_item_like_cpp(&mut self, item_set_id: u32, item_guid: ObjectGuid) -> usize {
+        self.gameplay_state_mut()
+            .item_modifiers
+            .add_item_set_item_like_cpp(item_set_id, item_guid)
+    }
+
+    /// C++ `AddItemsSetItem` bonus insertion (`Item.cpp:122`) on the Player owner.
+    pub fn add_item_set_bonus_like_cpp(&mut self, item_set_id: u32, spell_entry_id: u32) -> bool {
+        self.gameplay_state_mut()
+            .item_modifiers
+            .add_item_set_bonus_like_cpp(item_set_id, spell_entry_id)
+    }
+
+    /// C++ `RemoveItemsSetItem` (`Item.cpp:146`) on the Player owner.
+    pub fn remove_item_set_item_like_cpp(
+        &mut self,
+        item_set_id: u32,
+        item_guid: ObjectGuid,
+    ) -> Option<usize> {
+        self.gameplay_state_mut()
+            .item_modifiers
+            .remove_item_set_item_like_cpp(item_set_id, item_guid)
+    }
+
+    /// C++ `RemoveItemsSetItem` bonus removal (`Item.cpp:188`) on the Player owner.
+    pub fn remove_item_set_bonus_like_cpp(
+        &mut self,
+        item_set_id: u32,
+        spell_entry_id: u32,
+    ) -> bool {
+        self.gameplay_state_mut()
+            .item_modifiers
+            .remove_item_set_bonus_like_cpp(item_set_id, spell_entry_id)
+    }
+
+    /// Drop an empty C++ `Player::ItemSetEff` entry (`Item.cpp:192`).
+    pub fn drop_empty_item_set_effect_like_cpp(&mut self, item_set_id: u32) -> bool {
+        self.gameplay_state_mut()
+            .item_modifiers
+            .drop_empty_item_set_effect_like_cpp(item_set_id)
+    }
+
+    /// Install the item-level limits consumed by `Item::GetItemLevel(Player const*)`.
+    pub fn set_item_level_caps_like_cpp(&mut self, caps: PlayerItemLevelCapsLikeCpp) {
+        self.gameplay_state_mut()
+            .item_modifiers
+            .set_item_level_caps_like_cpp(caps);
+    }
+
+    /// Reset the Player-owned equipment-bonus accumulator before reapplying mods.
+    pub fn reset_item_modifier_bonuses_like_cpp(&mut self) {
+        self.gameplay_state_mut()
+            .item_modifiers
+            .reset_bonuses_like_cpp();
+    }
+
+    /// Apply one resolved enchantment/equipment action to the Player owner.
+    pub fn apply_item_modifier_action_like_cpp(&mut self, action: ApplyEnchantmentEffectAction) {
+        self.gameplay_state_mut()
+            .item_modifiers
+            .apply_enchantment_effect_action_like_cpp(action);
     }
 }
 

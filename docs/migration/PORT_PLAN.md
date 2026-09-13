@@ -2,7 +2,7 @@
 
 **Reconciled 2026-09-13 under #584 / #787 / #748 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
 Source baseline for this reconciliation: `3.4.3` at
-`c97153a2ea480be2ac49577a4a29843f3f1216c9` (PR #837; the earlier `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`ef82beebf3c5a22142ed05ec3d8be67eea324c60` (PR #838; the earlier `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -34,17 +34,22 @@ Player-session rail; P3.8 extends that rail to `Map::AddToMap`/`RemoveFromMap` l
 recipient marking without delivering under a map mutation; P3.9 publishes directed
 ordinary Creature DESTROY after map removal through that rail with map-incarnation
 and `HaveAtClient` fences. Neither slice migrates the legacy Creature owner. The next primary
-implementation is selected after a fresh audit of the remaining measured P2/P3/P4
-residuals; no historical queue is implied.
+implementation selected by the fresh audit is the named Player item-modifier runtime
+closure described below; no historical queue is implied.
 No old issue is reopened and no residual is promoted to implementation merely from a
 textual inventory.
 
-The P2 item-modifier writer residual is also integrated by PR #816: the generic
-`&mut PlayerItemBonusStateLikeCpp` closure is retired behind a named
-Player-owned resolved-effect operation. Catalog/effect consumers remain in
-`wow-world`, and the remaining item work is gameplay or data acceptance rather than
-another generic ownership cut. The follow-up P2 item-object residual is now implemented
-in candidate `23a7fe16`: `PlayerInventoryRuntime` owns a closed
+The P2 item-modifier writer residual is integrated by PR #816: the original
+`&mut PlayerItemBonusStateLikeCpp` closure was retired behind a named Player-owned
+resolved-effect operation. The follow-up owner closure is delivered on the current
+candidate (`ecc67603`): each item-set, level-cap, reset and resolved-enchantment mutation
+now names a `Player` operation, while the fallback exists only for `cfg(test)` fixtures.
+The follow-up named Player item-modifier closure is implemented on `584-next-audit` at
+`ecc67603` and passed `validation-v2 final` on 2026-09-13 (manifest
+`target/validation-v2/manifests/20260913T165720.613650Z-3851477-final.json`).
+Catalog/effect consumers remain in `wow-world`; effective statistics and auras remain
+allocated to gameplay work such as #61. The P2 item-object residual is integrated in
+`3.4.3` as `ef82beeb`: `PlayerInventoryRuntime` owns a closed
 `ItemObjectUpdateLikeCpp` command set, every production caller describes updates without
 receiving `&mut Item`, and wrapped-gift transformation is an owner operation. The old
 closure remains only behind `cfg(test)` for fixtures. #584 remains open for its other
