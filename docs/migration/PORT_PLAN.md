@@ -1,7 +1,9 @@
 # RustyCore — Master port and delivery plan
 
-**Reconciled 2026-09-12 under #787 / #748 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
-Source baseline: `3.4.3` at `5d8c079a06b587c060c1c6e1c06bedb73c4339d0`.
+**Reconciled 2026-09-13 under #584 / #787 / #748 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
+Source baseline for this reconciliation: `3.4.3` at
+`21686375d1fae81876b91f662069a25781ef10b2` (the earlier `5d8c079a` references
+remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
 bounded planning delivery. Administrative consolidation does not count as implementation.
 
@@ -14,10 +16,11 @@ intermediate acceptance point, not a smaller replacement target.
 **#743 (group state application/reconciliation), #735 (reputation encapsulation) and
 #787 (World/Map session-phase coordination) are delivered and accepted within their
 recorded scopes.** The next primary implementation is selected from the measured
-P2/P3/P4 residuals under #584: the first audit selected P3.1, retirement of the
-discarded canonical Creature writer while the legacy/session owner remains active;
-the legacy writer and still-unrepresented `Map::Update` phases remain for subsequent
-evidence-led macros.
+P2/P3/P4 residuals under #584: P3.1 retired the discarded canonical Creature writer,
+P3.2 delivered canonical `Map::SendObjectUpdates` publication, and P3.3 now moves
+`ProcessRespawns`/`UpdateSpawnGroupConditions` before object visitation while retaining
+the legacy Creature owner. The legacy writer and still-unrepresented `Map::Update`
+phases remain for subsequent evidence-led macros.
 No old issue is reopened and no residual is promoted to implementation merely from a
 textual inventory.
 
@@ -173,9 +176,9 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#352](https://github.com/alseif0x/rustycore/issues/352) | O, realm address operations | Revalidate configured DNS/IP and restart diagnostics. No silent fallback or code change inferred from the historical incident. |
 | [#486](https://github.com/alseif0x/rustycore/issues/486) | F1, target identity query | Return target game/BNet account identities via the canonical cache/connected target; current querying-session IDs are wrong. |
 | [#524](https://github.com/alseif0x/rustycore/issues/524) | F1, skill startup order | Correct table-granular base/official/custom order and failure/publication phases across the current loader/port. |
-| [#582](https://github.com/alseif0x/rustycore/issues/582) | B, existing LFG decoders | Resume local branch at `607e9bb4` / code `bef2d707`, reconcile and validate before integration; no matchmaking claim. |
+| [#582](https://github.com/alseif0x/rustycore/issues/582) | B, existing LFG decoders | **Closed/integrated as `21686375` (PR #797).** Six C++-faithful client decoders; no handler, queue or matchmaking claim. |
 | [#583](https://github.com/alseif0x/rustycore/issues/583) | X, stateful native/Wasm | Deliver the preserved M0–M4 product after required core; the external login API and laboratory are insufficient. |
-| [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions; select finite complete implementation macros from current consumers. |
+| [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions. P3.3 is the active finite macro: restore C++ respawn/condition phase order for admitted map incarnations, with persistence and legacy-owner boundaries explicit. |
 | [#735](https://github.com/alseif0x/rustycore/issues/735) | A, reputation boundary | **Closed/delivered.** Player owns reputation state and named transitions; catalogs, packets and persistence consumers remain outside the domain boundary. |
 | [#743](https://github.com/alseif0x/rustycore/issues/743) | A, group consistency | **Closed/delivered.** GroupRegistry remains authoritative and dropped state-bearing commands converge through the session boundary. |
 | [#787](https://github.com/alseif0x/rustycore/issues/787) | A, session-phase coordination | **Integrated as `d14a9a67` (PR #792; accepted at `76369bda`).** World runs before Map, phase permits remain live through finalization/retirement, and shutdown/replacement barriers are covered by production-linked tests and guarded login/save/relogin QA. |
@@ -215,16 +218,21 @@ The current source still selects GlobalLegacy for its creature path and starts t
 canonical map loop; that is not by itself a demonstrated double tick.
 The #787 coordination contract is accepted. Reconcile admission, phases/barriers,
 one resolution, backpressure and transfer/detach/unload/shutdown before removing
-another bridge. The next analysis must cover the legacy creature writer and
-unrepresented `Map::Update` phases against the same owner/lifetime rules.
+another bridge. P3.3 is the current finite delivery: after the admitted map session
+pass, run `ProcessRespawns` and `UpdateSpawnGroupConditions` before object visitors,
+using map incarnations from the tick plan so a replacement map cannot inherit work.
+The legacy Creature writer, nearby-cell visitation and other unrepresented
+`Map::Update` phases remain subsequent evidence-led macros.
 
 Keep the selected private hecs direction and finite V2 conformance evidence.
 Integrate it only with real owners/consumers and the lifetime/reentry contract;
 no global ECS, public raw storage API, extra runtime clock or dependency-only “migration.”
-P3.1 is the selected finite contract: make the Creature phase owner explicit and skip
-the discarded canonical plan whenever the legacy/session writer owns the transition.
-Define later migration contracts from their traced consumers under #584, never as a
-speculative issue per bridge or crate.
+P3.1 and P3.2 are integrated bounded contracts: the Creature owner is explicit and
+the discarded canonical Creature plan is skipped under the legacy/session owner;
+canonical `SendObjectUpdates` snapshots are published after guards are released.
+P3.3 preserves those owners while correcting respawn/condition phase order and the
+admitted-incarnation boundary. Define later migration contracts from traced
+consumers under #584, never as a speculative issue per bridge or crate.
 
 ### A4 — Physical and dependency closeout
 

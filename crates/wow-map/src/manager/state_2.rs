@@ -376,6 +376,32 @@ impl MapManager {
         }
     }
 
+    /// Visit only the map incarnations admitted by one split tick.
+    ///
+    /// A session phase runs after the manager releases its guard.  A map can
+    /// therefore be destroyed and recreated under the same [`MapKey`] before
+    /// the remaining phases resume.  C++ continues with the object that was
+    /// admitted by `MapManager::Update`; a replacement must not receive the
+    /// old tick's respawn or object phases.  Keep this filter beside the tick
+    /// plan rather than making callers reconstruct the lifetime check.
+    pub fn for_admitted_maps_mut_like_cpp<F>(
+        &mut self,
+        participants: &[MapTickParticipantLikeCpp],
+        mut worker: F,
+    ) where
+        F: FnMut(&mut ManagedMap),
+    {
+        for participant in participants {
+            if self.map_incarnation_like_cpp(participant.key) != Some(participant.incarnation) {
+                continue;
+            }
+            let Some(map) = self.maps.get_mut(&participant.key) else {
+                continue;
+            };
+            worker(map);
+        }
+    }
+
     pub fn do_for_all_maps_with_map_id<F>(&self, map_id: u32, mut worker: F)
     where
         F: FnMut(&ManagedMap),

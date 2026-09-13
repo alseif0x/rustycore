@@ -14,8 +14,13 @@ product remains mandatory even though operator activation is optional.
 The finite hecs V2 conformance proof has passed within its recorded laboratory limits.
 That evidence does not install production `hecs` or Wasmtime, prove production storage
 integration, or close the remaining #584 boundaries. #743 and #735 are delivered and
-locally accepted; the current recommended sequence is the remaining P2 operations, then
-P3 runtime/lifetime/private-hecs and P4 semantic/physical work. No new micro-issues are implied; each macro includes its consumers and validation.
+locally accepted; P3.1 retired the discarded canonical Creature writer and P3.2
+published canonical `SendObjectUpdates`. The active P3.3 macro restores the C++
+respawn/condition phase order before object visitation while preserving admitted map
+incarnations, the legacy Creature owner and the existing persistence fence. The
+remaining P2 operations, legacy-writer migration and other P3/P4 work follow only
+after their complete consumer contract is audited. No new micro-issues are implied;
+each macro includes its consumers and validation.
 
 ## Architecture program state — 2026-09-11
 
