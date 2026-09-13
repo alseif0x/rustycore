@@ -265,12 +265,12 @@ impl SkillStore {
             total_race_class,
         })
     }
-    /// Load the WDC4 half of the effective C++ skill authority before any SQL
-    /// overlay is requested, matching `DB2Manager::LoadStores`.
-    pub fn load_wdc4_base_like_cpp(
+    /// Load the WDC4 `SkillLineAbility` stage before advancing to the next
+    /// table in `DB2Manager::LoadStores`.
+    pub fn load_wdc4_skill_line_ability_base_like_cpp(
         data_dir: &str,
         locale: &str,
-    ) -> Result<SkillStoreWdc4BaseLikeCpp> {
+    ) -> Result<SkillStoreWdc4AbilityBaseLikeCpp> {
         let dbc_dir = Path::new(data_dir).join("dbc").join(locale);
         let sla_path = dbc_dir.join("SkillLineAbility.db2");
         let sla_reader = Wdc4Reader::open(&sla_path)
@@ -281,6 +281,19 @@ impl SkillStore {
             .map(|(id, idx)| skill_line_ability_source_from_wdc4_like_cpp(id, idx, &sla_reader))
             .collect::<Vec<_>>();
 
+        Ok(SkillStoreWdc4AbilityBaseLikeCpp {
+            abilities: base_abilities,
+            ability_table_hash: sla_table_hash,
+        })
+    }
+
+    /// Load the WDC4 `SkillRaceClassInfo` stage after the intervening
+    /// `SkillLineXTraitTree` startup stage has completed.
+    pub fn load_wdc4_skill_race_class_info_base_like_cpp(
+        data_dir: &str,
+        locale: &str,
+    ) -> Result<SkillStoreWdc4RaceClassInfoBaseLikeCpp> {
+        let dbc_dir = Path::new(data_dir).join("dbc").join(locale);
         let srci_path = dbc_dir.join("SkillRaceClassInfo.db2");
         let srci_reader = Wdc4Reader::open(&srci_path)
             .with_context(|| format!("failed to open {}", srci_path.display()))?;
@@ -290,9 +303,7 @@ impl SkillStore {
             .map(|(id, idx)| skill_race_class_info_source_from_wdc4_like_cpp(id, idx, &srci_reader))
             .collect::<Vec<_>>();
 
-        Ok(SkillStoreWdc4BaseLikeCpp {
-            abilities: base_abilities,
-            ability_table_hash: sla_table_hash,
+        Ok(SkillStoreWdc4RaceClassInfoBaseLikeCpp {
             race_class_infos: base_race_class_infos,
             race_class_table_hash: srci_table_hash,
         })
@@ -300,7 +311,8 @@ impl SkillStore {
     /// Compose already decoded Hotfix overlays over an opaque WDC4 base.
     /// Derived indexes are rebuilt only after final tombstones.
     pub fn compose_effective_from_hotfix_overlays_like_cpp(
-        base: SkillStoreWdc4BaseLikeCpp,
+        ability_base: SkillStoreWdc4AbilityBaseLikeCpp,
+        race_class_info_base: SkillStoreWdc4RaceClassInfoBaseLikeCpp,
         official_abilities: impl IntoIterator<Item = SkillLineAbilitySourceRecordLikeCpp>,
         custom_abilities: impl IntoIterator<Item = SkillLineAbilitySourceRecordLikeCpp>,
         official_race_class_infos: impl IntoIterator<Item = SkillRaceClassInfoSourceRecordLikeCpp>,
@@ -309,14 +321,14 @@ impl SkillStore {
         skill_line_store: &SkillLineStore,
     ) -> SkillStoreEffectiveLoadOutcomeLikeCpp {
         let outcome = compose_effective_skill_store_like_cpp(
-            base.abilities,
+            ability_base.abilities,
             official_abilities,
             custom_abilities,
-            base.ability_table_hash,
-            base.race_class_infos,
+            ability_base.ability_table_hash,
+            race_class_info_base.race_class_infos,
             official_race_class_infos,
             custom_race_class_infos,
-            base.race_class_table_hash,
+            race_class_info_base.race_class_table_hash,
             removed_records,
             skill_line_store,
         );

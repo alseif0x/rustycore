@@ -223,12 +223,16 @@ pub struct SkillRaceClassInfoSourceRecordLikeCpp {
     pub skill_tier_id: i128,
 }
 
-/// Opaque WDC4 half of the effective skill catalog. Keeping this value opaque
-/// lets the composition root preserve C++ file/SQL order without exposing the
-/// store's intermediate maps or table hashes.
-pub struct SkillStoreWdc4BaseLikeCpp {
+/// Opaque WDC4 `SkillLineAbility` stage of the effective skill catalog.
+/// Keeping this value opaque lets the composition root preserve C++ file/SQL
+/// order without exposing intermediate indexes or table hashes.
+pub struct SkillStoreWdc4AbilityBaseLikeCpp {
     pub(super) abilities: Vec<SkillLineAbilitySourceRecordLikeCpp>,
     pub(super) ability_table_hash: u32,
+}
+
+/// Opaque WDC4 `SkillRaceClassInfo` stage of the effective skill catalog.
+pub struct SkillStoreWdc4RaceClassInfoBaseLikeCpp {
     pub(super) race_class_infos: Vec<SkillRaceClassInfoSourceRecordLikeCpp>,
     pub(super) race_class_table_hash: u32,
 }

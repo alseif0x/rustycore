@@ -962,8 +962,10 @@ async fn run_inner(
         creature_spawn_store.len(),
         gameobject_spawn_store.len()
     );
-    // C++ skill authority follows final SkillLine identities, relation stores
-    // and derived projections with official/custom overlays and final removals.
+    // C++ skill authority follows table-granular startup order: SkillLine,
+    // SkillLineAbility, SkillLineXTraitTree, then SkillRaceClassInfo. Keep the
+    // WDC4/SQL stages separate so a failed table cannot be hidden behind a
+    // combined relation read.
     let skill_catalog_hotfix_persistence =
         wow_database::MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp::new(Arc::clone(
             &hotfix_db,
@@ -983,15 +985,34 @@ async fn run_inner(
         skill_line_store.len(),
         skill_line_store.effective_record_count_like_cpp()
     );
-    let skill_store_outcome = hotfix::skill_catalog::load_skill_store_like_cpp(
-        &data_dir,
-        &locale,
-        &skill_catalog_hotfix_persistence,
+    let skill_line_ability_base =
+        wow_data::SkillStore::load_wdc4_skill_line_ability_base_like_cpp(&data_dir, &locale)
+            .context("Failed to load SkillLineAbility.db2")?;
+    let skill_line_ability_hotfix_rows =
+        hotfix::skill_catalog::load_skill_line_ability_hotfix_rows_like_cpp(
+            &skill_catalog_hotfix_persistence,
+        )
+        .await
+        .context("Failed to load SkillLineAbility hotfix rows")?;
+    let trait_tree_skill_line_index =
+        load_trait_index_like_cpp(&data_dir, &locale, &skill_line_store)?;
+    let skill_race_class_info_base =
+        wow_data::SkillStore::load_wdc4_skill_race_class_info_base_like_cpp(&data_dir, &locale)
+            .context("Failed to load SkillRaceClassInfo.db2")?;
+    let skill_race_class_info_hotfix_rows =
+        hotfix::skill_catalog::load_skill_race_class_info_hotfix_rows_like_cpp(
+            &skill_catalog_hotfix_persistence,
+        )
+        .await
+        .context("Failed to load SkillRaceClassInfo hotfix rows")?;
+    let skill_store_outcome = hotfix::skill_catalog::compose_skill_store_like_cpp(
+        skill_line_ability_base,
+        skill_race_class_info_base,
+        skill_line_ability_hotfix_rows,
+        skill_race_class_info_hotfix_rows,
         &db2_hotfix_removals,
         skill_line_store.as_ref(),
-    )
-    .await
-    .context("Failed to load effective SkillLineAbility/SkillRaceClassInfo stores")?;
+    );
     let skill_store_report = &skill_store_outcome.report;
     info!(
         "Loaded {} effective SkillLineAbility rows ({} indexed, {} invalid, {} removed) and {} effective SkillRaceClassInfo rows ({} indexed, {} invalid, {} missing SkillLine, {} removed)",
@@ -1006,8 +1027,6 @@ async fn run_inner(
         skill_store_report.skill_race_class_info_removed_rows,
     );
     let skill_store = Arc::new(skill_store_outcome.store);
-    let trait_tree_skill_line_index =
-        load_trait_index_like_cpp(&data_dir, &locale, &skill_line_store)?;
     let trait_definition_store = Arc::new(
         wow_data::trait_tree::TraitDefinitionStore::load(&data_dir, &locale)
             .context("Failed to load TraitDefinition.db2")?,

@@ -179,8 +179,9 @@ pub use hotfix::{
 };
 pub use hotfix::{
     SkillCatalogHotfixLoadOutcomeLikeCpp, SkillCatalogHotfixPersistencePortLikeCpp,
-    SkillLineAbilityHotfixRowLikeCpp, SkillLineHotfixRowLikeCpp, SkillLineHotfixRowsLikeCpp,
-    SkillRaceClassInfoHotfixRowLikeCpp, SkillRelationHotfixRowsLikeCpp,
+    SkillLineAbilityHotfixRowLikeCpp, SkillLineAbilityHotfixRowsLikeCpp, SkillLineHotfixRowLikeCpp,
+    SkillLineHotfixRowsLikeCpp, SkillRaceClassInfoHotfixRowLikeCpp,
+    SkillRaceClassInfoHotfixRowsLikeCpp,
 };
 pub use hotfix_delivery_metadata::{
     HotfixBlobPersistenceRowLikeCpp, HotfixDataPersistenceRowLikeCpp,
