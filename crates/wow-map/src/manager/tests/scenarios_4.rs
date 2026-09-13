@@ -423,6 +423,45 @@ fn canonical_map_update_visits_creature_with_no_real_ai_combat_effect_like_cpp()
     );
 }
 
+#[test]
+fn external_creature_owner_skips_discarded_canonical_plan_like_cpp() {
+    let mut manager = MapManager::new(MIN_GRID_DELAY_MS, 1);
+    manager.create_world_map(1, 0);
+    insert_creature_for_update(&mut manager, 9990002, true);
+    manager.map_updater_mut().activate(1);
+
+    let plan = manager
+        .begin_tick_like_cpp(1)
+        .into_started()
+        .expect("timer passed");
+    assert_eq!(
+        manager.resume_tick_with_creature_update_owner_like_cpp(
+            plan,
+            None,
+            None::<
+                &mut fn(
+                    &mut Map,
+                    SpawnObjectType,
+                    SpawnId,
+                ) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+            >,
+            MapCreatureUpdateOwnerLikeCpp::ExternalRuntime,
+        ),
+        MapTickResumeLikeCpp::Resumed
+    );
+
+    let managed_map = manager.find_map(1, 0).unwrap();
+    assert_eq!(
+        managed_map.last_creature_update_owner_like_cpp(),
+        MapCreatureUpdateOwnerLikeCpp::ExternalRuntime
+    );
+    assert_eq!(
+        managed_map.last_creatures_update_summary(),
+        CreatureUpdateSummaryLikeCpp::default(),
+        "an external owner must prevent a canonical plan whose effects are discarded"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // #787 — the split canonical tick and the map-reference membership order.
 // ---------------------------------------------------------------------------
