@@ -702,16 +702,21 @@ impl WorldSession {
             self.handle_force_speed_change_ack_like_cpp(opcode, &mut pkt.ack, pkt.speed)
         };
 
-        if accepted && matches!(opcode, ClientOpcodes::MoveSetModMovementForceMagnitudeAck) {
+        if accepted
+            && matches!(opcode, ClientOpcodes::MoveSetModMovementForceMagnitudeAck)
+            && let Some(source_position) = self.mover_position_like_cpp(pkt.ack.status.guid)
+        {
             let mut status = pkt.ack.status.clone();
             status.time = self.adjust_client_movement_time_like_cpp(status.time);
-            self.broadcast_to_movement_set_like_cpp(
+            self.broadcast_from_movement_source_set_like_cpp(
+                status.guid,
+                source_position,
                 MoveUpdateModMovementForceMagnitude {
                     status,
                     speed: pkt.speed,
                 }
                 .to_bytes(),
-                false,
+                crate::map_manager::VISIBILITY_RADIUS,
             );
         }
     }
@@ -752,7 +757,7 @@ impl WorldSession {
             None,
         );
     }
-    /// Handle C++ `HandleMoveApplyMovementForceAck` bookkeeping until movement-force broadcasts exist.
+    /// Handle C++ `HandleMoveApplyMovementForceAck`.
     pub async fn handle_move_apply_movement_force_ack(
         &mut self,
         mut pkt: MoveApplyMovementForceAck,
@@ -762,18 +767,22 @@ impl WorldSession {
             force = ?pkt.force.id,
             "MoveApplyMovementForceAck"
         );
-        if self.record_apply_movement_force_ack_like_cpp(&mut pkt.ack, &pkt.force) {
-            self.broadcast_to_movement_set_like_cpp(
+        if self.record_apply_movement_force_ack_like_cpp(&mut pkt.ack, &pkt.force)
+            && let Some(source_position) = self.mover_position_like_cpp(pkt.ack.status.guid)
+        {
+            self.broadcast_from_movement_source_set_like_cpp(
+                pkt.ack.status.guid,
+                source_position,
                 MoveUpdateApplyMovementForce {
                     status: pkt.ack.status,
                     force: pkt.force,
                 }
                 .to_bytes(),
-                false,
+                crate::map_manager::VISIBILITY_RADIUS,
             );
         }
     }
-    /// Handle C++ `HandleMoveRemoveMovementForceAck` bookkeeping until movement-force broadcasts exist.
+    /// Handle C++ `HandleMoveRemoveMovementForceAck`.
     pub async fn handle_move_remove_movement_force_ack(
         &mut self,
         mut pkt: MoveRemoveMovementForceAck,
@@ -783,14 +792,18 @@ impl WorldSession {
             force = ?pkt.id,
             "MoveRemoveMovementForceAck"
         );
-        if self.record_remove_movement_force_ack_like_cpp(&mut pkt.ack, pkt.id) {
-            self.broadcast_to_movement_set_like_cpp(
+        if self.record_remove_movement_force_ack_like_cpp(&mut pkt.ack, pkt.id)
+            && let Some(source_position) = self.mover_position_like_cpp(pkt.ack.status.guid)
+        {
+            self.broadcast_from_movement_source_set_like_cpp(
+                pkt.ack.status.guid,
+                source_position,
                 MoveUpdateRemoveMovementForce {
                     status: pkt.ack.status,
                     trigger_guid: pkt.id,
                 }
                 .to_bytes(),
-                false,
+                crate::map_manager::VISIBILITY_RADIUS,
             );
         }
     }

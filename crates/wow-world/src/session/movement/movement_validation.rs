@@ -44,6 +44,25 @@ impl WorldSession {
         self.sanitize_movement_info_flags_represented_like_cpp(status);
         true
     }
+    /// Validate a movement-force ACK against the Unit controlled by this
+    /// session. TrinityCore calls `ValidateMovementInfo` and then compares the
+    /// packet GUID with `_player->m_unitMovedByMe` in the force handlers
+    /// (`MovementHandler.cpp:583-615`), so a controlled Creature/Pet is a valid
+    /// source even though ordinary Player ACKs retain their narrower contract.
+    pub(crate) fn validate_and_sanitize_active_mover_ack_like_cpp(
+        &self,
+        status: &mut wow_packet::packets::movement::MovementInfo,
+    ) -> bool {
+        let Some(active_mover_guid) = self.player_moved_unit_guid_like_cpp() else {
+            return false;
+        };
+        if status.guid != active_mover_guid || !status.position.is_valid_map_coord_like_cpp() {
+            return false;
+        }
+
+        self.sanitize_movement_info_flags_represented_like_cpp(status);
+        true
+    }
     pub(crate) fn record_movement_ack_event_like_cpp(&mut self, event: MovementAckEventLikeCpp) {
         #[cfg(test)]
         self.movement_ack_events_like_cpp.push(event);
@@ -83,7 +102,7 @@ impl WorldSession {
         ack: &mut wow_packet::packets::movement::MovementAck,
         force: &wow_packet::packets::movement::MovementForce,
     ) -> bool {
-        if !self.validate_and_sanitize_movement_ack_status_represented_like_cpp(&mut ack.status) {
+        if !self.validate_and_sanitize_active_mover_ack_like_cpp(&mut ack.status) {
             self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
                 opcode: ClientOpcodes::MoveApplyMovementForceAck,
                 mover_guid: ack.status.guid,
@@ -120,7 +139,7 @@ impl WorldSession {
         ack: &mut wow_packet::packets::movement::MovementAck,
         force_id: ObjectGuid,
     ) -> bool {
-        if !self.validate_and_sanitize_movement_ack_status_represented_like_cpp(&mut ack.status) {
+        if !self.validate_and_sanitize_active_mover_ack_like_cpp(&mut ack.status) {
             self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
                 opcode: ClientOpcodes::MoveRemoveMovementForceAck,
                 mover_guid: ack.status.guid,
@@ -162,7 +181,19 @@ impl WorldSession {
         ack: &mut wow_packet::packets::movement::MovementAck,
         speed: f32,
     ) -> bool {
-        if !self.record_validated_movement_ack_like_cpp(opcode, ack, Some(speed)) {
+        if !self.validate_and_sanitize_active_mover_ack_like_cpp(&mut ack.status) {
+            self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
+                opcode,
+                mover_guid: ack.status.guid,
+                ack_index: Some(ack.ack_index),
+                movement_force_id: None,
+                movement_force_type: None,
+                adjusted_time: None,
+                speed: Some(speed),
+                time_skipped: None,
+                spline_id: None,
+                accepted: false,
+            });
             self.trace_anticheat_violation_like_cpp(
                 "HandleMoveSetModMovementForceMagnitudeAck.InvalidMovementAck",
                 Some(opcode),
@@ -179,12 +210,27 @@ impl WorldSession {
             return false;
         }
 
+        self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
+            opcode,
+            mover_guid: ack.status.guid,
+            ack_index: Some(ack.ack_index),
+            movement_force_id: None,
+            movement_force_type: None,
+            adjusted_time: None,
+            speed: Some(speed),
+            time_skipped: None,
+            spline_id: None,
+            accepted: true,
+        });
+
         let Some(mut remaining_forced_changes) =
             self.resolved_movement_force_mod_magnitude_changes_like_cpp()
         else {
             return false;
         };
-        let Some(expected_magnitude) = self.resolved_movement_force_mod_magnitude_like_cpp() else {
+        let Some(expected_magnitude) =
+            self.mover_movement_force_mod_magnitude_like_cpp(ack.status.guid)
+        else {
             return false;
         };
         let mut action = MovementSpeedAckActionLikeCpp::Accepted;
