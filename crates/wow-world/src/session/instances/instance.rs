@@ -12,38 +12,107 @@ impl WorldSession {
     }
     pub(in crate::session) fn check_instance_count_probe_like_cpp(&self, instance_id: u32) -> bool {
         let now_secs = u64::try_from(unix_now()).unwrap_or(0);
-        let active_count = self
-            .represented_instance_reset_times_like_cpp
-            .values()
-            .filter(|release_time| **release_time > now_secs)
-            .count();
-        if active_count < self.max_instances_per_hour_like_cpp as usize {
-            return true;
+        if let Some(result) = self.with_owned_player_like_cpp(|player| {
+            player.check_instance_count_probe_like_cpp(
+                instance_id,
+                now_secs,
+                self.max_instances_per_hour_like_cpp,
+            )
+        }) {
+            return result;
         }
-
-        self.represented_instance_reset_times_like_cpp
-            .get(&instance_id)
-            .is_some_and(|release_time| *release_time > now_secs)
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self
+                .instance_reset_times_snapshot_like_cpp()
+                .is_some_and(|times| {
+                    times
+                        .values()
+                        .filter(|release_time| **release_time > now_secs)
+                        .count()
+                        < self.max_instances_per_hour_like_cpp as usize
+                        || times
+                            .get(&instance_id)
+                            .is_some_and(|release_time| *release_time > now_secs)
+                });
+        }
+        false
     }
     pub(in crate::session) fn check_instance_count_at_like_cpp(
         &mut self,
         instance_id: u32,
         now_secs: u64,
     ) -> bool {
-        self.prune_expired_instance_reset_times_like_cpp(now_secs);
-        if self.represented_instance_reset_times_like_cpp.len()
-            < self.max_instances_per_hour_like_cpp as usize
-        {
-            return true;
+        if let Some(result) = self.with_owned_player_mut_like_cpp(|player| {
+            player.check_instance_count_like_cpp(
+                instance_id,
+                now_secs,
+                self.max_instances_per_hour_like_cpp,
+            )
+        }) {
+            return result;
         }
-
-        self.represented_instance_reset_times_like_cpp
-            .contains_key(&instance_id)
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.prune_expired_instance_reset_times_like_cpp(now_secs);
+            return self
+                .instance_reset_times_snapshot_like_cpp()
+                .is_some_and(|times| {
+                    times.len() < self.max_instances_per_hour_like_cpp as usize
+                        || times.contains_key(&instance_id)
+                });
+        }
+        false
     }
     pub(crate) fn add_instance_enter_time_like_cpp(&mut self, instance_id: u32, enter_time: u64) {
-        self.represented_instance_reset_times_like_cpp
-            .entry(instance_id)
-            .or_insert(enter_time.saturating_add(HOUR_SECS_LIKE_CPP));
+        if self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.add_instance_enter_time_like_cpp(instance_id, enter_time);
+            })
+            .is_some()
+        {
+            return;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_instance_reset_times_like_cpp
+                .entry(instance_id)
+                .or_insert(enter_time.saturating_add(HOUR_SECS_LIKE_CPP));
+        }
+    }
+    pub(in crate::session) fn instance_reset_times_snapshot_like_cpp(
+        &self,
+    ) -> Option<std::collections::BTreeMap<u32, u64>> {
+        let canonical = self
+            .with_owned_player_like_cpp(|player| player.instance_reset_times_like_cpp().clone());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.represented_instance_reset_times_like_cpp.clone());
+        }
+        canonical
+    }
+    pub(in crate::session) fn replace_instance_reset_times_like_cpp(
+        &mut self,
+        rows: impl IntoIterator<Item = (u32, u64)>,
+    ) -> bool {
+        let rows: Vec<_> = rows.into_iter().collect();
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            player.replace_instance_reset_times_like_cpp(rows.iter().copied());
+        });
+        if canonical.is_some() {
+            return true;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_instance_reset_times_like_cpp.clear();
+            for (instance_id, release_time) in rows {
+                self.represented_instance_reset_times_like_cpp
+                    .entry(instance_id)
+                    .or_insert(release_time);
+            }
+            return true;
+        }
+        false
     }
     pub(in crate::session) fn create_map_instance_owner_guid_like_cpp(
         &self,

@@ -239,6 +239,22 @@ consume the canonical `InstanceLockMgr` plus injected `DungeonEncounterStore` to
 `represented_seer_guid_like_cpp` is the C++ `Player::m_seer` pointer seam
 (`Player.h:2417,2423`, `Player.cpp:298-300,25344-25395`) and requires a complete
 Player/visibility owner migration.
+
+## P2 Player instance-reset owner — candidate PR #919, 2026-09-14
+
+The candidate moves C++ `Player::_instanceResetTimes` into the canonical
+`wow_entities::PlayerGameplayState` (`crates/wow-entities/src/player_gameplay_state.rs:60`)
+and exposes named operations from `player/recent_instances.rs`. Session admission
+materializes the canonical Player before farm-limit checks and entry accounting, matching
+the `Player*` passed to TrinityCore `MapManager::CreateMap` (`Player.cpp:1116-1125`).
+Login hydration and save projection use the same owner
+(`session/persistence/load.rs:101-140`, `session/lifecycle/persistence/projection.rs:380-388`).
+The former Session map is now a `cfg(test)` fixture fallback and is transferred once
+when a fixture owner is materialized. The owner regression, 16 instance scenarios, five
+instance-count scenarios, three teleport scenarios, package check and syntax ownership
+check pass. The exact production residual is now two fields: locked dungeon encounters
+and the Player `m_seer` visibility seam.
+
 ## P2 Player mount presentation owner closure — integrated PR #897, 2026-09-14
 
 PR #897 integrates the bounded Player mount-presentation owner closure into

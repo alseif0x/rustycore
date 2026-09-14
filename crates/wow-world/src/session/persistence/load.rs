@@ -99,7 +99,7 @@ impl WorldSession {
         }
     }
     pub async fn load_instance_time_restrictions_like_cpp(&mut self) {
-        self.represented_instance_reset_times_like_cpp.clear();
+        let _ = self.replace_instance_reset_times_like_cpp([]);
 
         let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             warn!(
@@ -136,11 +136,10 @@ impl WorldSession {
             }
         };
 
-        for row in rows {
-            self.represented_instance_reset_times_like_cpp
-                .entry(row.instance_id)
-                .or_insert(row.release_time);
-        }
+        let _ = self.replace_instance_reset_times_like_cpp(
+            rows.into_iter()
+                .map(|row| (row.instance_id, row.release_time)),
+        );
     }
     /// C++ `CollectionMgr::LoadAccountHeirlooms`.
     pub(crate) fn load_represented_account_heirlooms_like_cpp(

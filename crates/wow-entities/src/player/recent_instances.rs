@@ -13,6 +13,8 @@
 
 use crate::Player;
 
+const INSTANCE_RESET_WINDOW_SECS_LIKE_CPP: u64 = 60 * 60;
+
 impl Player {
     /// C++ `Player::SetRecentInstance` (Player.h:2518).
     pub fn set_recent_instance_like_cpp(&mut self, map_id: u32, instance_id: u32) {
@@ -28,5 +30,68 @@ impl Player {
             .recent_instances
             .remove(&map_id)
             .is_some()
+    }
+
+    /// C++ `Player::_instanceResetTimes` is Player-owned state. The Session
+    /// may borrow this snapshot for admission and persistence, but cannot
+    /// retain a second production map.
+    pub fn instance_reset_times_like_cpp(&self) -> &std::collections::BTreeMap<u32, u64> {
+        &self.gameplay_state().instance_reset_times
+    }
+
+    pub fn clear_instance_reset_times_like_cpp(&mut self) {
+        self.gameplay_state_mut().instance_reset_times.clear();
+    }
+
+    pub fn replace_instance_reset_times_like_cpp(
+        &mut self,
+        rows: impl IntoIterator<Item = (u32, u64)>,
+    ) {
+        let times = &mut self.gameplay_state_mut().instance_reset_times;
+        times.clear();
+        for (instance_id, release_time) in rows {
+            times.entry(instance_id).or_insert(release_time);
+        }
+    }
+
+    pub fn prune_instance_reset_times_like_cpp(&mut self, now_secs: u64) {
+        self.gameplay_state_mut()
+            .instance_reset_times
+            .retain(|_, release_time| *release_time > now_secs);
+    }
+
+    pub fn check_instance_count_like_cpp(
+        &mut self,
+        instance_id: u32,
+        now_secs: u64,
+        max_instances_per_hour: u32,
+    ) -> bool {
+        self.prune_instance_reset_times_like_cpp(now_secs);
+        let times = self.instance_reset_times_like_cpp();
+        times.len() < max_instances_per_hour as usize || times.contains_key(&instance_id)
+    }
+
+    pub fn check_instance_count_probe_like_cpp(
+        &self,
+        instance_id: u32,
+        now_secs: u64,
+        max_instances_per_hour: u32,
+    ) -> bool {
+        let times = self.instance_reset_times_like_cpp();
+        let active_count = times
+            .values()
+            .filter(|release_time| **release_time > now_secs)
+            .count();
+        active_count < max_instances_per_hour as usize
+            || times
+                .get(&instance_id)
+                .is_some_and(|release_time| *release_time > now_secs)
+    }
+
+    pub fn add_instance_enter_time_like_cpp(&mut self, instance_id: u32, enter_time: u64) {
+        self.gameplay_state_mut()
+            .instance_reset_times
+            .entry(instance_id)
+            .or_insert(enter_time.saturating_add(INSTANCE_RESET_WINDOW_SECS_LIKE_CPP));
     }
 }

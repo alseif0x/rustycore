@@ -6778,6 +6778,7 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(crate) represented_completed_achievements_like_cpp: HashSet<u32>,
     /// C++ `Player::_instanceResetTimes`: instance id -> release time.
+    #[cfg(test)]
     pub(crate) represented_instance_reset_times_like_cpp: BTreeMap<u32, u64>,
     /// C++ `ActivePlayerData::DailyQuestsCompleted`, represented per-session until full Player runtime owns it.
     #[cfg(test)]
@@ -8658,6 +8659,7 @@ impl WorldSession {
             represented_rewarded_quest_rows_like_cpp: BTreeSet::new(),
             #[cfg(test)]
             represented_completed_achievements_like_cpp: HashSet::new(),
+            #[cfg(test)]
             represented_instance_reset_times_like_cpp: BTreeMap::new(),
             #[cfg(test)]
             daily_quests_completed_like_cpp: HashSet::new(),

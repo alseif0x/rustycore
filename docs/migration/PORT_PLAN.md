@@ -180,6 +180,23 @@ tracks C++ `Player::_instanceResetTimes` and its load/save paths (`Player.cpp:11
 `DungeonEncounterStore` is not injected into sessions (`world-server/app.rs:522-528`);
 and `represented_seer_guid_like_cpp` is C++ `Player::m_seer` (`Player.h:2417,2423`,
 `Player.cpp:298-300,25344-25395`) and requires a complete Player/visibility owner move.
+
+## P2 Player instance-reset owner — candidate PR #919, 2026-09-14
+
+The candidate moves C++ `Player::_instanceResetTimes` onto the canonical
+`wow_entities::PlayerGameplayState` (`crates/wow-entities/src/player_gameplay_state.rs:60`)
+with named Player operations in `player/recent_instances.rs`. Session admission now
+materializes the canonical Player before farm-limit checks and entry accounting, so
+`MapManager::CreateMap` observes one owner as in TrinityCore (`Player.cpp:1116-1125`).
+Login hydration and save projection use that same owner
+(`session/persistence/load.rs:101-140`, `session/lifecycle/persistence/projection.rs:380-388`);
+the former Session map remains only as a `cfg(test)` fixture fallback and is transferred
+once when a fixture owner is materialized. The focused owner regression, 16 instance
+scenarios, 5 instance-count scenarios, 3 teleport scenarios, package check and syntax
+ownership check pass. The exact production residual falls from three to two fields:
+locked dungeon encounters and the Player `m_seer` visibility seam remain separate
+deliveries.
+
 PR #895 closes the next measured P2 owner surface: production rest-flag, deferred-publication and rest-clock writes now use named transitions on `wow-entities::Player` over `PlayerRestState`, following `RestMgr::SetRestFlag` / `RemoveRestFlag` (`RestMgr.cpp:95-122`), `RestMgr::_restTime` (`RestMgr.h:86`) and `Player::SetRestState` (`Player.h:2652`). Session retains packet/application ordering and its generic rest-state mutator is detached-fixture-only under `cfg(test)`. The Player owner regression, rest-owner scenarios, affected chat/area-trigger/zone scenarios, package checks, formatting/diff and architecture ratchet pass. This is an ownership closure: quest objective progress, durable persistence, captures and live QA remain separate #41/#584 gates. The next #584 macro still comes from a fresh C0–C4 responsibility and consumer audit.
 
 PR #878 closes the next measured P2 owner surface: the Player-owned mount VehicleKit

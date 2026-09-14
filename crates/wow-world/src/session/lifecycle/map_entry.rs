@@ -236,6 +236,16 @@ impl WorldSession {
         };
         drop(manager);
 
+        // C++ `MapManager::CreateMap` receives the live `Player*` before it
+        // performs admission checks and instance-entry accounting. Materialize
+        // that canonical owner before any check can read or mutate
+        // `_instanceResetTimes`; the Session retains only a test fallback.
+        if let Some(key) = key
+            && !self.ensure_canonical_player_owner_exists_like_cpp(key)
+        {
+            return None;
+        }
+
         if is_dungeon
             && !bypass_player_cannot_enter_like_cpp
             && let wow_map::CreateMapDecision::Existing {
@@ -319,17 +329,6 @@ impl WorldSession {
         if is_dungeon && let Some(key) = key {
             let now_secs = u64::try_from(unix_now()).unwrap_or(0);
             self.add_instance_enter_time_like_cpp(key.instance_id, now_secs);
-        }
-
-        // C++ `MapManager::CreateMap` receives the live `Player*` and applies
-        // `SetRecentInstance` to that owner before the caller adds it to the
-        // selected map (MapManager.cpp:139-231). Materialize the canonical
-        // owner before applying those side effects, but keep the actual map
-        // transfer until every side effect and lock context is installed.
-        if let Some(key) = key
-            && !self.ensure_canonical_player_owner_exists_like_cpp(key)
-        {
-            return None;
         }
 
         let _ = self.apply_create_map_side_effects_like_cpp(map_id, &decision);

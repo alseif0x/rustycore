@@ -334,7 +334,16 @@ impl WorldSession {
         let Ok(manager) = manager.lock() else {
             return false;
         };
-        manager.player_residence_like_cpp(handle).is_some()
+        let owner_ready = manager.player_residence_like_cpp(handle).is_some();
+        drop(manager);
+        #[cfg(test)]
+        if owner_ready && !self.represented_instance_reset_times_like_cpp.is_empty() {
+            let rows = std::mem::take(&mut self.represented_instance_reset_times_like_cpp);
+            let _ = self.with_owned_player_mut_like_cpp(|player| {
+                player.replace_instance_reset_times_like_cpp(rows);
+            });
+        }
+        owner_ready
     }
     #[cfg(test)]
     pub(in crate::session) fn mutate_player_unit_presentation_like_cpp<R>(

@@ -1,5 +1,5 @@
 pub use crate::player::PlayerCollectionStateLikeCpp;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use wow_core::{ObjectGuid, Position};
 
@@ -55,6 +55,9 @@ pub struct PlayerGameplayState {
     pub(crate) legacy_raid_difficulty_id: u32,
     /// C++ `Player::m_recentInstances`, keyed by map ID.
     pub recent_instances: HashMap<u32, u32>,
+    /// C++ `Player::_instanceResetTimes`, keyed by instance ID and retained
+    /// for the account's instance-entry rate limit until its release time.
+    pub instance_reset_times: BTreeMap<u32, u64>,
     pub pass_on_group_loot: bool,
     /// C++ `Player::m_ChampioningFaction`.
     pub championing_faction_id: u32,
