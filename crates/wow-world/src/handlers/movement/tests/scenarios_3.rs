@@ -392,6 +392,32 @@ async fn movement_force_acks_validate_and_route_from_controlled_mover_like_cpp()
     );
 
     session
+        .handle_move_knock_back_ack(wow_packet::packets::movement::MoveKnockBackAck {
+            ack: wow_packet::packets::movement::MovementAck {
+                status: MovementInfo {
+                    guid: mover_guid,
+                    time: 1_001,
+                    position: mover_position,
+                    ..MovementInfo::default()
+                },
+                ack_index: 49,
+            },
+            speeds: None,
+        })
+        .await;
+    let command = observer_command_rx
+        .try_recv()
+        .expect("observer receives knockback update from the Player source");
+    let crate::session::mailbox::SessionCommand::SendIfVisibleLikeCpp(command) = command else {
+        panic!("expected SendIfVisibleLikeCpp knockback command");
+    };
+    assert_eq!(command.source_guid, player_guid);
+    assert_eq!(
+        wow_packet::WorldPacket::from_bytes(&command.packet_bytes).server_opcode(),
+        Some(wow_constants::ServerOpcodes::MoveUpdateKnockBack)
+    );
+
+    session
         .handle_move_apply_movement_force_ack(
             wow_packet::packets::movement::MoveApplyMovementForceAck {
                 ack: wow_packet::packets::movement::MovementAck {
@@ -401,7 +427,7 @@ async fn movement_force_acks_validate_and_route_from_controlled_mover_like_cpp()
                         position: player_position,
                         ..MovementInfo::default()
                     },
-                    ack_index: 49,
+                    ack_index: 50,
                 },
                 force,
             },

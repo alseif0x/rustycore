@@ -150,7 +150,11 @@ impl WorldSession {
         opcode: ClientOpcodes,
         ack: &mut wow_packet::packets::movement::MovementAck,
     ) -> bool {
-        if !self.validate_and_sanitize_movement_ack_status_represented_like_cpp(&mut ack.status) {
+        // C++ validates the packet with the Player but admits the status when
+        // its GUID is the active `_player->m_unitMovedByMe` (MovementHandler.cpp:548-559).
+        // Keep the Player-owned movement-info write below; only the active
+        // mover gate decides whether this ACK is accepted.
+        if !self.validate_and_sanitize_active_mover_ack_like_cpp(&mut ack.status) {
             self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
                 opcode,
                 mover_guid: ack.status.guid,
