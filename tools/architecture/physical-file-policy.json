@@ -48,9 +48,9 @@
     },
     {
       "path": "crates/world-server/src/creature_loaded_grid.rs",
-      "observed_lines": 2944,
-      "ceiling_lines": 2944,
-      "split": "Separate grid population, loaded-creature construction and runtime-registration tests.",
+      "observed_lines": 797,
+      "ceiling_lines": 797,
+      "split": "#584 P4 splits the 2,944-line file into 797 lines of production grid population and loaded-creature construction plus the shared test facade and two responsibility-scoped test modules (1,194/525 lines). All 28 tests remain registered; the old root is retained as the production facade and its test files carry explicit cfg(test) attribution.",
       "review_checkpoint": "584:C4"
     },
     {
