@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`4ad36d420a0f56297390262f3667be1b5fc4ae6f` (PR #904 following PR #902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`5f6b1ad83d6ea6adf81368a36384593808632737` (PR #923 following PR #922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -16,6 +16,22 @@ admission/publication is integrated by PR #866 (`MovementHandler.cpp:548-559`). 
 are no longer pending implementation items. The open boundary is complete
 vehicle/transport seat-offset admission, runtime branches whose mover or consumer is
 not represented, exact packet-order captures and live client/server/DB QA.
+
+**Player `m_seer` visibility projection integrated — 2026-09-14, PR #923, merge
+`5f6b1ad83d6ea6adf81368a36384593808632737`:** TrinityCore initializes
+`Player::m_seer` to self (`Player.cpp:298-300`, `Player.h:2417-2425`) and mutates
+it through `SetViewpoint` (`Player.cpp:25338-25395`), while map and visibility
+read that pointer (`Map.cpp:716-718`, `GridNotifiers.cpp:95-222`). Rust production
+now derives the seer GUID from the canonical map-owned Player's
+`ActivePlayerData::FarsightObject`; empty means the Player itself. Deferred
+visibility, movement, aggro and GameObject/DynamicObject consumers use the
+projection, and the former Session field is a `cfg(test)` fixture only.
+`last_observed_farsight_object_like_cpp` is a receiver-local publication fence for
+the explicit FAR_SIGHT clear VALUES packet, not gameplay authority. Focused
+FAR_SIGHT (14), GameObject despawn (22), DynamicObject VALUES (15), package,
+ownership syntax, architecture and 20 self-tests pass. Full captures,
+DB/relogin durability and live QA remain open gameplay/runtime gates under
+#41/#63/#584; #584 still owns other C0-C4 and runtime work.
 
 **Transport C0/C3 lifecycle integrated — 2026-09-14, PR #901, merge
 `bf460aa7a8ccec0269eea1771a094ef12f0c6109` (implementation `82b2d8d9`):** the bounded

@@ -1,8 +1,8 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #921:** `d25cbc9161f8affb8c5201a1ad6a653870938969`.
+**Integrated head after PR #923:** `5f6b1ad83d6ea6adf81368a36384593808632737`.
 
-Current exact inventory: 648 WorldSession fields (219 production, 429 test fixtures); #584 has one unresolved production responsibility, the Player `m_seer` visibility seam. Encounter-lock resolution is integrated by PR #921.
+Current exact inventory: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution and the Player `m_seer` visibility projection are integrated; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -254,8 +254,25 @@ IDs and absent active locks return unlocked, while missing or ambiguous authorit
 returns indeterminate and the production loot adapter fails closed. The former set
 is `cfg(test)` fixture input only. Canonical lock, loot-filter and composition
 regressions pass, as do cargo check, ownership syntax and architecture checks. The
-merge is `d25cbc9161f8affb8c5201a1ad6a653870938969`; `m_seer` is now the only exact
-production residual under #584.
+merge is `d25cbc9161f8affb8c5201a1ad6a653870938969`; `m_seer` was the remaining
+exact production residual at that checkpoint and is closed by PR #923 below.
+
+## P2 Player::m_seer canonical visibility projection — integrated PR #923, 2026-09-14
+
+TrinityCore initializes `Player::m_seer` to the Player itself
+(`Player.cpp:298-300`, `Player.h:2417-2425`) and changes it only through
+`SetViewpoint` (`Player.cpp:25338-25395`); map and visibility code read that
+pointer (`Map.cpp:716-718`, `GridNotifiers.cpp:95-222`). Rust production code now
+derives the seer GUID from the canonical map-owned Player's
+`ActivePlayerData::FarsightObject`; empty means the Player itself. Deferred
+visibility, movement, aggro and GameObject/DynamicObject consumers use this
+projection. The former Session field is test-fixture input under `cfg(test)` only.
+`last_observed_farsight_object_like_cpp` is a receiver-local publication fence for
+the one explicit FAR_SIGHT clear VALUES packet after viewpoint removal, not gameplay
+authority. FAR_SIGHT (14), GameObject despawn (22), DynamicObject VALUES (15),
+package, ownership syntax, architecture and self-test evidence pass at merge
+`5f6b1ad8`. Full captures, DB/relogin durability and live QA remain gameplay/runtime
+gates under #41/#63/#584.
 
 ## P2 Player instance-reset owner — integrated PR #919, 2026-09-14
 
