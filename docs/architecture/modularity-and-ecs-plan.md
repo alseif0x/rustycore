@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-14 (#913 / #911 / #909 / #907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-14 (#916 / #915 / #913 / #911 / #909 / #907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `9ec36295344d3faf96733b77bac4686d0a903ec1` (PR #913, following PR #911, PR #909, PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
+The current code integration head is `06b076fb14730fd9e3061dd5b9f0a51a23d207bd` (PR #916, following PR #915, PR #913, PR #909, PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
 PR #889, PR #876, P3.10 correction PR #873 and delivery PR #871).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
@@ -120,9 +120,9 @@ classification under `immutable_catalogs_configuration_and_services`; no gamepla
 owner moves and no second authority is introduced. The exact residual is 6 fields
 once integrated.
 
-## P3 Creature query duplicate-response correction — candidate, 2026-09-14
+## P3 Creature query duplicate-response correction — integrated PR #916, 2026-09-14
 
-The `creature_query_cache` audit found a behavior mismatch, not a valid Session
+PR #916 integrates the `creature_query_cache` correction: the audit found a behavior mismatch, not a valid Session
 authority. TrinityCore keeps serialized bytes in `CreatureTemplate::QueryData` and
 `WorldSession::HandleCreatureQuery` responds to every `CMSG_QUERY_CREATURE`, using the
 cache only to build the payload (`Handlers/QueryHandler.cpp:71-99`,
@@ -132,8 +132,8 @@ The focused regression requires two responses for two identical queries. The syn
 snapshot was regenerated with the official checker, and the existing
 `represented_player_unit_values_updates_delivered_like_cpp` classification is recorded
 under the Map/visibility publication family. The ledger remains 647 fields (220
-production, 427 fixtures) and the exact residual falls to 5; the integration must keep
-the `CacheDataQueries` configuration difference explicit if it is implemented later.
+production, 427 fixtures) and the exact residual falls to 5; the integrated boundary keeps
+the `CacheDataQueries` configuration difference explicit for future work.
 
 The finite hecs V2 conformance proof has passed within its recorded laboratory limits.
 That evidence does not install production `hecs` or Wasmtime, prove production storage
