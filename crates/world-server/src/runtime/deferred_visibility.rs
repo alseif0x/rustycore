@@ -1,6 +1,6 @@
 //! Deliver map-selected visibility after releasing the canonical map guard.
 
-use super::tick_summary::CanonicalCreatureVisibilityDestroyLikeCpp;
+use super::tick_summary::CanonicalObjectVisibilityDestroyLikeCpp;
 
 pub(super) fn deliver_deferred_player_visibility_like_cpp(
     intents: &[wow_map::PlayerVisibilityRefreshIntentLikeCpp],
@@ -13,12 +13,12 @@ pub(super) fn deliver_deferred_player_visibility_like_cpp(
     }
 }
 
-/// Publish directed Creature destroys selected by `Map::RemoveFromMap` after
+/// Publish directed object destroys selected by `Map::RemoveFromMap` after
 /// all map guards are released. The directory resolves each recipient's
 /// current registration; the session performs the final map-incarnation and
 /// `HaveAtClient` checks before sending the packet.
-pub(super) fn deliver_directed_creature_destroy_like_cpp(
-    destroys: &[CanonicalCreatureVisibilityDestroyLikeCpp],
+pub(super) fn deliver_directed_object_destroy_like_cpp(
+    destroys: &[CanonicalObjectVisibilityDestroyLikeCpp],
     registry: &wow_world::session::directory::PlayerRegistry,
 ) {
     for destroy in destroys {
@@ -35,14 +35,14 @@ pub(super) fn deliver_directed_creature_destroy_like_cpp(
             {
                 continue;
             }
-            let command = wow_world::session::mailbox::DestroyVisibleCreatureLikeCppCommand {
-                creature_guid: destroy.creature_guid,
+            let command = wow_world::session::mailbox::DestroyVisibleObjectLikeCppCommand {
+                object_guid: destroy.object_guid,
                 map_id,
                 instance_id: destroy.instance_id,
                 map_incarnation: destroy.map_incarnation,
             };
             let _ =
-                registry.publish_current_destroy_visible_creature(recipient.registration, command);
+                registry.publish_current_destroy_visible_object(recipient.registration, command);
         }
     }
 }

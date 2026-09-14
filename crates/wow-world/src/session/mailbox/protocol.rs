@@ -163,8 +163,8 @@ impl SessionCommand {
         )
     }
 
-    pub(super) fn is_directed_creature_destroy_like_cpp(&self) -> bool {
-        matches!(self, Self::DestroyVisibleCreatureLikeCpp(_))
+    pub(super) fn is_directed_object_destroy_like_cpp(&self) -> bool {
+        matches!(self, Self::DestroyVisibleObjectLikeCpp(_))
     }
 }
 
@@ -186,7 +186,7 @@ pub enum SessionCommand {
     ResetSeasonalQuestStatus(ResetSeasonalQuestStatusCommand),
     SendVisibleObjectValuesUpdate(SendVisibleObjectValuesUpdateCommand),
     RefreshVisibleWorldCreaturesLikeCpp(RefreshVisibleWorldCreaturesLikeCppCommand),
-    DestroyVisibleCreatureLikeCpp(DestroyVisibleCreatureLikeCppCommand),
+    DestroyVisibleObjectLikeCpp(DestroyVisibleObjectLikeCppCommand),
     RefreshDeferredPlayerVisibilityLikeCpp(wow_map::PlayerVisibilityRefreshIntentLikeCpp),
     SendCreatureLootReleaseValuesUpdateLikeCpp(SendCreatureLootReleaseValuesUpdateLikeCppCommand),
     RefreshVisibleGameobjectsOrSpellClicksLikeCpp,
@@ -606,13 +606,13 @@ pub struct RefreshVisibleWorldCreaturesLikeCppCommand {
     pub instance_id: u32,
 }
 
-/// Destroy one ordinary Creature that the canonical Map removed while it was
-/// in-world. The map incarnation prevents a delayed command from addressing a
-/// replacement map; the session's own registration provides the Player
+/// Destroy one map-owned WorldObject that the canonical Map removed while it
+/// was in-world. The map incarnation prevents a delayed command from
+/// addressing a replacement map; the session registration is the Player
 /// generation fence.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DestroyVisibleCreatureLikeCppCommand {
-    pub creature_guid: ObjectGuid,
+pub struct DestroyVisibleObjectLikeCppCommand {
+    pub object_guid: ObjectGuid,
     pub map_id: u16,
     pub instance_id: u32,
     pub map_incarnation: u64,

@@ -94,12 +94,14 @@ use wow_entities::{
     VehicleKitRemoveOutcomeLikeCpp, WorldObject, WorldObjectEnvironment, WorldObjectHeightQuery,
 };
 
-/// Map-owned Creature/Pet removal recipients captured before deferred publication.
+/// Map-owned visibility-destroy recipients captured before deferred publication.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CreatureVisibilityDestroyRecipientsLikeCpp {
-    pub creature_guid: ObjectGuid,
+pub struct ObjectVisibilityDestroyRecipientsLikeCpp {
+    pub object_guid: ObjectGuid,
     pub recipient_guids: Vec<ObjectGuid>,
 }
+
+pub type CreatureVisibilityDestroyRecipientsLikeCpp = ObjectVisibilityDestroyRecipientsLikeCpp;
 
 const GRID_SLOT_COUNT: usize = (MAX_NUMBER_OF_GRIDS * MAX_NUMBER_OF_GRIDS) as usize;
 #[cfg(test)]
@@ -2079,11 +2081,11 @@ pub struct Map<Terrain = NoopTerrainGridLoader, Lifecycle = NoopGridLifecycle> {
     /// set into `remove_from_map_like_cpp(..., true)`. Session/ObjectAccessor/DB
     /// caches must not drain or reconstruct this queue.
     objects_to_remove: HashSet<ObjectGuid>,
-    /// Destroy recipients captured before an in-world Creature is detached.
+    /// Destroy recipients captured before an in-world object is detached.
     /// Delivery is drained by the canonical world tick after every map guard
     /// is released; no session or packet state is stored here.
-    pending_creature_visibility_destroy_recipients_like_cpp:
-        Vec<CreatureVisibilityDestroyRecipientsLikeCpp>,
+    pending_object_visibility_destroy_recipients_like_cpp:
+        Vec<ObjectVisibilityDestroyRecipientsLikeCpp>,
     /// Map-owned temporary Unit world-object switch queue matching C++
     /// `Map::i_objectsToSwitch` (`Map.h:651-652`) and
     /// `Map::AddObjectToSwitchList` (`Map.cpp:2557-2572`).
@@ -2226,7 +2228,7 @@ where
                 DYNAMIC_MAP_TREE_CHECK_PERIOD_MS_LIKE_CPP,
             dynamic_tree_unbalanced_times_like_cpp: 0,
             objects_to_remove: HashSet::new(),
-            pending_creature_visibility_destroy_recipients_like_cpp: Vec::new(),
+            pending_object_visibility_destroy_recipients_like_cpp: Vec::new(),
             objects_to_switch: HashMap::new(),
             far_spell_callbacks_like_cpp: VecDeque::new(),
             represented_far_spell_callback_execution_log_like_cpp: Vec::new(),
@@ -4536,6 +4538,7 @@ fn remove_from_map_in_world_eligible_type_like_cpp(kind: AccessorObjectKind) -> 
         AccessorObjectKind::Player
             | AccessorObjectKind::Creature
             | AccessorObjectKind::Pet
+            | AccessorObjectKind::Corpse
             | AccessorObjectKind::GameObject
             | AccessorObjectKind::Transport
     )

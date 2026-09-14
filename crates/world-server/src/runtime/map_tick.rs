@@ -20,7 +20,8 @@ use super::map::{
     build_loaded_grid_gameobject_respawn_record_like_cpp,
 };
 use super::tick_summary::{
-    CanonicalMapObjectValuesUpdateLikeCpp, CanonicalSpawnGroupConditionTickSummaryLikeCpp,
+    CanonicalMapObjectValuesUpdateLikeCpp, CanonicalObjectVisibilityDestroyLikeCpp,
+    CanonicalSpawnGroupConditionTickSummaryLikeCpp,
 };
 use super::*;
 
@@ -429,16 +430,16 @@ fn canonical_map_tick_tail_like_cpp(
             .get(&wow_map::MapKey::new(map_id, instance_id))
             .copied()
             .unwrap_or_default();
-        summary.creature_visibility_destroys.extend(
+        summary.object_visibility_destroys.extend(
             managed_map
                 .map_mut()
-                .take_creature_visibility_destroy_recipients_like_cpp()
+                .take_object_visibility_destroy_recipients_like_cpp()
                 .into_iter()
-                .map(|intent| CanonicalCreatureVisibilityDestroyLikeCpp {
+                .map(|intent| CanonicalObjectVisibilityDestroyLikeCpp {
                     map_id,
                     instance_id,
                     map_incarnation,
-                    creature_guid: intent.creature_guid,
+                    object_guid: intent.object_guid,
                     recipient_guids: intent.recipient_guids,
                 }),
         );
@@ -493,6 +494,7 @@ fn canonical_map_tick_tail_like_cpp(
         || !summary.expired_pvp_combat_refs.is_empty()
         || !summary.player_visibility_refresh_intents.is_empty()
         || !summary.object_values_updates.is_empty()
+        || !summary.object_visibility_destroys.is_empty()
         || !summary.respawn_db_deletes.is_empty()
         || summary.maps_evaluated > 0;
     has_work.then_some(summary)

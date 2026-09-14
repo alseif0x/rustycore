@@ -336,8 +336,8 @@ pub(crate) fn spawn_canonical_map_update_loop(
             };
 
             if let Some(summary) = tick_summary.as_ref() {
-                deferred_visibility::deliver_directed_creature_destroy_like_cpp(
-                    &summary.creature_visibility_destroys,
+                deferred_visibility::deliver_directed_object_destroy_like_cpp(
+                    &summary.object_visibility_destroys,
                     &player_registry,
                 );
                 deferred_visibility::deliver_deferred_player_visibility_like_cpp(

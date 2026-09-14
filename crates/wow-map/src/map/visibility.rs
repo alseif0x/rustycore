@@ -220,14 +220,16 @@ where
         players
     }
 
-    pub(super) fn capture_creature_visibility_destroy_recipients_like_cpp(
+    pub(super) fn capture_object_visibility_destroy_recipients_like_cpp(
         &mut self,
         source_guid: ObjectGuid,
     ) -> Vec<ObjectGuid> {
         let Some(record) = self.map_object_record(source_guid) else {
             return Vec::new();
         };
-        if !source_guid.is_creature_or_pet() || !record.object().object().is_in_world() {
+        if (!source_guid.is_creature_or_pet() && !source_guid.is_corpse())
+            || !record.object().object().is_in_world()
+        {
             return Vec::new();
         }
         let charmer_guid = record.charmer_guid_like_cpp();
@@ -257,13 +259,13 @@ where
             .len()
     }
 
-    /// Drain Creature destroy recipients captured during map-owned removals.
-    pub fn take_creature_visibility_destroy_recipients_like_cpp(
+    /// Drain object destroy recipients captured during map-owned removals.
+    pub fn take_object_visibility_destroy_recipients_like_cpp(
         &mut self,
-    ) -> Vec<CreatureVisibilityDestroyRecipientsLikeCpp> {
+    ) -> Vec<ObjectVisibilityDestroyRecipientsLikeCpp> {
         let mut pending =
-            std::mem::take(&mut self.pending_creature_visibility_destroy_recipients_like_cpp);
-        pending.sort_by_key(|intent| intent.creature_guid);
+            std::mem::take(&mut self.pending_object_visibility_destroy_recipients_like_cpp);
+        pending.sort_by_key(|intent| intent.object_guid);
         for intent in &mut pending {
             intent.recipient_guids.sort();
             intent.recipient_guids.dedup();

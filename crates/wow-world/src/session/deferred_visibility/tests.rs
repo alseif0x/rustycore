@@ -7,8 +7,7 @@ use super::super::{
     PlayerRegistry, SessionPlayerController, SessionState, SharedCanonicalMapManager, WorldSession,
 };
 use crate::session::mailbox::{
-    DestroyVisibleCreatureLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
-    SessionCommand,
+    DestroyVisibleObjectLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand, SessionCommand,
 };
 use std::sync::{Arc, Mutex, RwLock};
 use wow_constants::ServerOpcodes;
@@ -263,8 +262,8 @@ fn first_update_block(bytes: &[u8]) -> Option<(u8, ObjectGuid)> {
 }
 
 fn destroy_visible_command(guid: ObjectGuid, map_incarnation: u64) -> SessionCommand {
-    SessionCommand::DestroyVisibleCreatureLikeCpp(DestroyVisibleCreatureLikeCppCommand {
-        creature_guid: guid,
+    SessionCommand::DestroyVisibleObjectLikeCpp(DestroyVisibleObjectLikeCppCommand {
+        object_guid: guid,
         map_id: KEY.map_id as u16,
         instance_id: KEY.instance_id,
         map_incarnation,
@@ -297,7 +296,7 @@ async fn stationary_ack_map_directory_pump_publishes_creature_only_after_readine
 }
 
 #[tokio::test]
-async fn directed_creature_and_pet_destroy_remove_visible_ledger_like_cpp() {
+async fn directed_creature_and_corpse_destroy_remove_visible_ledger_like_cpp() {
     let mut fixture = Fixture::new();
     fixture.establish_visible_creature().await;
 
@@ -326,22 +325,22 @@ async fn directed_creature_and_pet_destroy_remove_visible_ledger_like_cpp() {
         packet.read_uint16().unwrap(),
         ServerOpcodes::UpdateObject as u16
     );
-    let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 901, 588_903);
+    let corpse_guid = ObjectGuid::create_world_object(HighGuid::Corpse, 0, 1, 571, 0, 901, 588_903);
     fixture
         .session
         .client_visible_guids_like_cpp
-        .insert(pet_guid);
+        .insert(corpse_guid);
     fixture
         .session
         .session_command_tx()
-        .try_send(destroy_visible_command(pet_guid, map_incarnation))
+        .try_send(destroy_visible_command(corpse_guid, map_incarnation))
         .unwrap();
     fixture.pump().await;
     assert!(
         !fixture
             .session
             .client_visible_guids_like_cpp
-            .contains(&pet_guid)
+            .contains(&corpse_guid)
     );
 }
 
