@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-14 (#904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-14 (#906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `4ad36d420a0f56297390262f3667be1b5fc4ae6f` (PR #904, following PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
+The current code integration head is `9a35ba0f007422e90f1d0837c03a23c353078379` (PR #906, following PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
 PR #889, PR #876, P3.10 correction PR #873 and delivery PR #871).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
@@ -43,18 +43,28 @@ consumed before owner publication, and Session identity fields are test fixtures
 only. This is a private ownership move with no new crate, universal context or map
 lock. Module-login, registry, character, group and chat adapters use canonical
 queries; stale handles fail closed. Swing-error state remains a separate melee
-responsibility. The exact C++ anchors, ledger family and focused evidence are in
+responsibility integrated by PR #906. The exact C++ anchors, ledger family and focused evidence are in
 `docs/architecture/session-578-checkpoint.md`.
 
-The current #584 candidate is the bounded **Player swing-error owner** macro at
-`67409023`. TrinityCore stores `m_swingErrorMsg` on `Player` (`Player.h:3023`,
+PR #906 integrates the bounded **Player swing-error owner** macro at merge
+`9a35ba0f` (implementation `67409023`). TrinityCore stores `m_swingErrorMsg` on `Player` (`Player.h:3023`,
 `Player.cpp:20625-20631`) and invokes it from `Unit::DoMeleeAttackIfReady`
 (`Unit.cpp:2087-2150`). Rust mirrors that ownership in the private canonical
 Player combat module; Session only performs the existing `AttackSwingError`
 encoding/delivery after the owner reports a changed non-null value. Clear and
 duplicate behavior remain C++-aligned, stale owners fail closed, and no lock,
 crate or second authority is introduced. The implementation removes one
-production Session field; 12 residual fields remain subject to fresh audits.
+production Session field; 11 production residual fields remain subject to fresh
+audits. The complete library-test profile timed out in existing long-running
+`wow-world` tests; focused evidence is recorded in the checkpoint.
+
+The current #584 candidate is the **pending-bind confirmation evidence boundary**
+at `9df51d81`. C++ handles `MiscHandler.cpp:1063-1075` through Player and
+InstanceMap; Rust now gates `represented_confirmed_pending_binds` behind
+`cfg(test)` because it is diagnostic evidence with no production authority. The
+total ledger remains 647 fields while production falls to 220 and test fixtures
+rise to 427. No new owner, lock, packet, persistence or runtime behavior is
+introduced.
 
 The finite hecs V2 conformance proof has passed within its recorded laboratory limits.
 That evidence does not install production `hecs` or Wasmtime, prove production storage

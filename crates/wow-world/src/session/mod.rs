@@ -7089,7 +7089,10 @@ pub struct WorldSession {
         std::collections::BTreeMap<wow_core::ObjectGuid, RepresentedGameObjectUseState>,
     /// C++ `Player::SetPendingBind` represented until `InstanceMap` owns real bind confirmation.
     pub(crate) pending_bind: Option<RepresentedPendingBind>,
-    /// Confirmed pending bind ids, used by represented `CMSG_INSTANCE_LOCK_RESPONSE`.
+    /// Confirmed pending bind ids observed by the represented `CMSG_INSTANCE_LOCK_RESPONSE`
+    /// fixture. C++ keeps the real confirmation on Player/InstanceMap; this is test evidence,
+    /// not production gameplay state.
+    #[cfg(test)]
     pub(crate) represented_confirmed_pending_binds: Vec<u32>,
     /// Count of represented `Player::RepopAtGraveyard` calls from rejected pending binds.
     #[cfg(test)]
@@ -8862,6 +8865,7 @@ impl WorldSession {
             represented_gameobject_use_effects: Vec::new(),
             represented_gameobject_use_states: std::collections::BTreeMap::new(),
             pending_bind: None,
+            #[cfg(test)]
             represented_confirmed_pending_binds: Vec::new(),
             #[cfg(test)]
             represented_repop_at_graveyard_count: 0,

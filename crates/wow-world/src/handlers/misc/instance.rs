@@ -259,6 +259,7 @@ impl crate::session::WorldSession {
 
         if response.accept_lock {
             if self.confirm_pending_bind_like_cpp(pending_bind).await {
+                #[cfg(test)]
                 self.represented_confirmed_pending_binds
                     .push(pending_bind.instance_id);
             }

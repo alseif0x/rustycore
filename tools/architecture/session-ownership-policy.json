@@ -3246,8 +3246,10 @@
           "name": "represented_confirmed_pending_binds",
           "type": "Vec < u32 >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_creature_kill_events_like_cpp",
