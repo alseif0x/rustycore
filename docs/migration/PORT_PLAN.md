@@ -1,14 +1,14 @@
 # RustyCore — Master port and delivery plan
 
-**Reconciled 2026-09-14 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49), with PR #901, #902, #904, #906, #907, #909, #911, #913, #915, #916, #917, #919, #921, #922, #923, #924, #925, #926 and #927 integrated.**
+**Reconciled 2026-09-14 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49), with PR #901, #902, #904, #906, #907, #909, #911, #913, #915, #916, #917, #919, #921, #922, #923, #924, #925, #926, #927 and #929 integrated.**
 Source baseline for this reconciliation: `3.4.3` at
-`b7ac63b7a4b91c37cd775d41d26fd10052ae44b9` (PR #927, following PR #926/#925/#924, PR #922/#921, PR #919, PR #917, PR #916, PR #915, #913, #909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`028185d87fed7b52eb157424d0a9d9d52325b593` (PR #929, following PR #927/#926/#925/#924, PR #922/#921, PR #919, PR #917, PR #916, PR #915, #913, #909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
 bounded planning delivery. Administrative consolidation does not count as implementation.
 
-Current exact architecture inventory after PR #927: 649 WorldSession fields (219 production, 430 test fixtures). The locked-encounter authority, Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and directed Pet DESTROY publication are integrated; no unresolved production WorldSession residual remains in this audited slice. Session retains only a one-field publication fence for the explicit FAR_SIGHT clear packet.
+Current exact architecture inventory after PR #929: 649 WorldSession fields (219 production, 430 test fixtures). The locked-encounter authority, Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; no unresolved production WorldSession residual remains in this audited slice. Session retains only a one-field publication fence for the explicit FAR_SIGHT clear packet.
 
 The target remains **full functional parity with the TrinityCore-derived WoW 3.4.3
 server**, with the approved native/Wasm module product. A playable milestone is an
@@ -18,7 +18,7 @@ intermediate acceptance point, not a smaller replacement target.
 
 **#743 (group state application/reconciliation), #735 (reputation encapsulation) and
 #787 (World/Map session-phase coordination) are delivered and accepted within their
-recorded scopes.** P3.8, P3.9, P3.10, P3.11 and P3.12 are integrated bounded visibility corrections
+recorded scopes.** P3.8, P3.9, P3.10, P3.11, P3.12 and P3.13 are integrated bounded visibility corrections
 after P3.1–P3.7. P3.7 closes the measured Creature relocation
 fanout gap, while P3.8 marks recipients for object admission/removal through the same
 deferred Player-session rail. P3.1 retired the discarded canonical Creature writer,
@@ -44,7 +44,10 @@ P3.11 now includes canonical Pets in the Creature CREATE discovery path after th
 cell query, preserving phase/range/detection gates and the canonical Pet owner. P3.12
 extends the already-audited directed DESTROY rail to Pets after `Map::RemoveFromMap`,
 preserving map-incarnation and `HaveAtClient` fences. It does not move Pet AI, movement,
-summon lifecycle, persistence or vehicle/corpse/transport ownership.
+summon lifecycle, persistence or vehicle/transport ownership. P3.13 generalizes the
+same directed DESTROY rail to in-world Corpses, retaining the C++
+`WorldObject::RemoveFromWorld`/`UpdateObjectVisibilityOnDestroy` order; corpse
+reclaim, persistence, loot and live QA remain separate gates.
 PR #876 adds the bounded Transport VALUES visibility projection without broadening the
 CREATE/lifecycle claim. The fresh 2026-09-14 audit selected **Transport
 CREATE/DESTROY and phase-visibility intents**, delivered by PR #901 and integrated at
@@ -236,6 +239,17 @@ authority. FAR_SIGHT (14), GameObject despawn (22), DynamicObject VALUES (15),
 package, ownership syntax, architecture and self-test evidence pass at merge
 `5f6b1ad8`. Full captures, DB/relogin durability and live QA remain gameplay/runtime
 gates under #41/#63/#584; #584 retains other C0-C4 and runtime work.
+
+## P3.13 directed Corpse DESTROY — integrated PR #929, 2026-09-14
+
+The C++ corpse removal path is `Corpse::RemoveFromWorld` →
+`WorldObject::RemoveFromWorld` (`Corpse.cpp:56`), with
+`UpdateObjectVisibilityOnDestroy` reached before the source leaves the map
+(`Object.cpp:1023-1029`, `Map.cpp:934-951`). Rust now uses the same generic
+post-map-guard DESTROY rail for in-world Corpses as for Creature/Pet, capturing
+recipients before erasure and rechecking map incarnation and `HaveAtClient` in the
+receiving Session. Corpse reclaim, persistence, loot, transport/vehicle lifecycle,
+exact captures and live QA remain separate #584/#63 gates.
 
 PR #895 closes the next measured P2 owner surface: production rest-flag, deferred-publication and rest-clock writes now use named transitions on `wow-entities::Player` over `PlayerRestState`, following `RestMgr::SetRestFlag` / `RemoveRestFlag` (`RestMgr.cpp:95-122`), `RestMgr::_restTime` (`RestMgr.h:86`) and `Player::SetRestState` (`Player.h:2652`). Session retains packet/application ordering and its generic rest-state mutator is detached-fixture-only under `cfg(test)`. The Player owner regression, rest-owner scenarios, affected chat/area-trigger/zone scenarios, package checks, formatting/diff and architecture ratchet pass. This is an ownership closure: quest objective progress, durable persistence, captures and live QA remain separate #41/#584 gates. The next #584 macro still comes from a fresh C0–C4 responsibility and consumer audit.
 
@@ -680,7 +694,8 @@ Creature DESTROY recipients at removal and publishes one typed command per curre
 Session after the map guard, fenced by map incarnation and `HaveAtClient`; P3.11 adds
 canonical Pet CREATE discovery through the same Creature snapshot path, and P3.12
 captures Pet DESTROY recipients before erasure and publishes the existing directed
-command after the guard. Pet runtime/owner lifecycle, corpse/transport, transport
+command after the guard. P3.13 now uses the same typed object rail for Corpse
+removal. Pet runtime/owner lifecycle, corpse reclaim/persistence/loot, transport
 fanout and live capture remain separate acceptance gates.
 
 Keep the selected private hecs direction and finite V2 conformance evidence.

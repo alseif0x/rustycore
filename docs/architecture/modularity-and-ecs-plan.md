@@ -11,9 +11,9 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `b7ac63b7a4b91c37cd775d41d26fd10052ae44b9` (PR #927, following PR #926/#925/#924/#923, PR #922/#921, PR #918, PR #917, PR #916, PR #915, PR #913, PR #909, PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
+The current code integration head is `028185d87fed7b52eb157424d0a9d9d52325b593` (PR #929, following PR #927/#926/#925/#924/#923, PR #922/#921, PR #918, PR #917, PR #916, PR #915, PR #913, PR #909, PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
 PR #889, PR #876, P3.10 correction PR #873 and delivery PR #871).
-Current exact inventory after PR #927: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution, the Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and directed Pet DESTROY publication are integrated; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet.
+Current exact inventory after PR #929: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution, the Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet.
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
 mutations. #524's relation-query order correction is integrated by PR #803; PR #822/#824/#826/#828 now
@@ -219,6 +219,19 @@ vehicle and transport ownership remain outside this slice.
 `wow-map visibility` (47 tests) and `wow-world deferred_visibility` (12 tests) pass
 with one Cargo job. Merge still requires the normal format, diff and architecture
 checks.
+
+## P3.13 directed Corpse DESTROY — integrated PR #929, 2026-09-14, merge `028185d8`
+
+TrinityCore's `Corpse::RemoveFromWorld` delegates to `WorldObject::RemoveFromWorld`
+(`Corpse.cpp:56`), which reaches `UpdateObjectVisibilityOnDestroy`
+(`Object.cpp:1023-1029`) during the `Map::RemoveFromMap` lifetime
+(`Map.cpp:934-951`). Rust now captures nearby recipients before an in-world Corpse
+is erased and routes it through the single generic object DESTROY command. The map
+incarnation and Session `HaveAtClient` fences remain unchanged; corpse reclaim,
+persistence, loot and live QA are separate gameplay gates.
+
+The map, deferred-visibility and mailbox regressions, four-package Cargo check,
+format/diff checks and architecture ratchets pass at the merged SHA.
 
 ## P2 Player instance-reset owner — integrated PR #919, 2026-09-14
 

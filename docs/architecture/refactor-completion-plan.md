@@ -1,12 +1,12 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #927/#925/#924/#923/#922/#921/#919/#918/#917/#916/#915/#913/#911/#909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.12/P3.11/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #929/#927/#925/#924/#923/#922/#921/#919/#918/#917/#916/#915/#913/#911/#909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.13/P3.12/P3.11/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
 anclas C++, orden de ejecución y criterios de aceptación de la arquitectura.
 
-Estado exacto tras PR #927 (`b7ac63b7`): 649 campos de WorldSession (219 de producción, 430 fixtures). El lock de encuentros, la proyección de visibilidad `Player::m_seer`, la búsqueda de CREATE para Pets canónicas y el DESTROY dirigido de Pets ya usan la autoridad canónica; no queda un residual productivo de WorldSession en este corte auditado. Session conserva un único cerrojo de publicación para el paquete explícito de limpieza FAR_SIGHT.
+Estado exacto tras PR #929 (`028185d8`): 649 campos de WorldSession (219 de producción, 430 fixtures). El lock de encuentros, la proyección de visibilidad `Player::m_seer`, la búsqueda de CREATE para Pets canónicas y el DESTROY dirigido genérico de Creature/Pet/Corpse ya usan la autoridad canónica; no queda un residual productivo de WorldSession en este corte auditado. Session conserva un único cerrojo de publicación para el paquete explícito de limpieza FAR_SIGHT.
 
 PR #881 añade el cierre nominal de las mutaciones de aura del Player sobre el `AuraSubsystem`
 propiedad de su Unit; la superficie genérica de Session queda limitada a fixtures `cfg(test)`.
@@ -212,6 +212,21 @@ vehicle or transport authority moves.
 The focused `wow-map visibility` suite (47 tests) and `wow-world deferred_visibility`
 suite (12 tests, including Creature and Pet directed removal) pass with one Cargo job;
 format, diff and architecture ratchets remain required before merge.
+
+## P3.13 directed Corpse DESTROY — integrated PR #929, 2026-09-14, merge `028185d8`
+
+The C++ corpse path is the same world-object lifetime: `Corpse::RemoveFromWorld`
+delegates to `WorldObject::RemoveFromWorld` (`Corpse.cpp:56`), which calls
+`UpdateObjectVisibilityOnDestroy` (`Object.cpp:1023-1029`) while
+`Map::RemoveFromMap` still owns the source (`Map.cpp:934-951`). Rust generalizes
+the existing directed destroy rail to Corpse, capturing nearby recipients before
+erasure and publishing after the map guard with map-incarnation and `HaveAtClient`
+fences. Reclaim, persistence, loot, transport/vehicle lifecycle and live QA remain
+separate #584/#63 gates.
+
+The 47-test map visibility suite, 12-test deferred-visibility suite, 16-test
+mailbox suite, four-package check, formatting/diff checks and architecture ratchets
+pass at the merged SHA.
 
 ## P2 Player instance-reset owner — integrated PR #919, 2026-09-14
 

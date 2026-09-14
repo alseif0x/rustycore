@@ -1,8 +1,8 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #927:** `b7ac63b7a4b91c37cd775d41d26fd10052ae44b9`.
+**Integrated head after PR #929:** `028185d87fed7b52eb157424d0a9d9d52325b593`.
 
-Current exact inventory: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution, the Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and directed Pet DESTROY publication are integrated; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet.
+Current exact inventory: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution, the Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -26,7 +26,7 @@ plus any fixes necessary to make that delivered change safe. It does not claim a
 thin Session, full C0–C4 completion, production hecs migration or a finished LFG.
 
 **#584 owns all remaining core C0–C4 work under #133.** It is a coordination epic,
-not another giant implementation PR. P3.8, P3.9, P3.10, P3.11 and P3.12 are integrated; P3.9
+not another giant implementation PR. P3.8, P3.9, P3.10, P3.11, P3.12 and P3.13 are integrated; P3.9
 delivered directed DESTROY for an ordinary in-world Creature and P3.10 delivered
 receiver-filtered Player/Unit VALUES fanout after `Map::SendObjectUpdates`. PR #876
 also integrates the separate Transport VALUES membership projection through the
@@ -36,8 +36,8 @@ phase visibility as the next bounded macro; PR #901 integrates it at
 `bf460aa7a8ccec0269eea1771a094ef12f0c6109` with typed map snapshots carried through
 the deferred Session rail. P3.11 includes indexed canonical Pets in the existing
 Creature CREATE discovery query, preserving the phase/range/detection gates and the
-canonical Pet owner; P3.12 now covers directed Pet DESTROY, while Pet
-runtime/owner lifecycle remains a separate gate. Before each subsequent implementation child, audit current
+canonical Pet owner; P3.12 now covers directed Pet DESTROY and P3.13 extends the
+same rail to Corpse, while Pet/corpse runtime and owner lifecycle remain separate gates. Before each subsequent implementation child, audit current
 responsibilities, callers, C++ behavior, invariants, dependencies, tests and physical
 hotspots; then define a finite complete outcome and its consumer changes. A
 crate-focused issue may touch other crates to finish its operation. Analyze later
@@ -448,8 +448,8 @@ the normal map, phase, range and detection gates. The source anchors are
 `visible_creatures_skip_not_in_world_canonical_objects_like_cpp`
 passes with the affected `wow-world` package check, formatting and diff checks. This
 closes only the canonical Pet visibility projection gap. It does not move Pet AI,
-movement, summon ownership, persistence or directed DESTROY; those, corpse/transport
-lifecycle, exact captures and live DB/restart/relogin QA remain open #584/#63 gates;
+movement, summon ownership or persistence; those, corpse reclaim/persistence/loot,
+transport lifecycle, exact captures and live DB/restart/relogin QA remain open #584/#63 gates;
 directed Pet DESTROY is covered by the integrated P3.12 slice below.
 
 ## P3.12 directed Pet DESTROY — 2026-09-14, #584 / PR #927, merge `b7ac63b7`
@@ -465,6 +465,20 @@ separate gates.
 
 The `wow-map` visibility suite passes 47 tests and the `wow-world` deferred-visibility
 suite passes 12 tests, including the combined Creature/Pet directed-destroy case.
+
+## P3.13 directed Corpse DESTROY — 2026-09-14, #584 / PR #929, merge `028185d8`
+
+`Corpse::RemoveFromWorld` delegates to `WorldObject::RemoveFromWorld`
+(`Corpse.cpp:56`), which reaches `UpdateObjectVisibilityOnDestroy`
+(`Object.cpp:1023-1029`) while `Map::RemoveFromMap` still owns the source
+(`Map.cpp:934-951`). The canonical map now captures nearby recipients before
+erasing an in-world Corpse and routes the result through the existing generic
+directed DESTROY command after releasing map guards. Map-incarnation and
+`HaveAtClient` fences remain in force; corpse reclaim, persistence, loot and live
+QA are outside this structural boundary.
+
+The map visibility, deferred-visibility and mailbox regressions, four-package
+Cargo check, formatting/diff checks and architecture ratchets pass at the merged SHA.
 
 ## Transport VALUES membership projection — 2026-09-14
 
