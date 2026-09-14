@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`5f6b1ad83d6ea6adf81368a36384593808632737` (PR #923 following PR #922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`a1f66c33903ee76b6bb0675177d33e3b283806ed` (PR #925 following PR #924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -32,6 +32,20 @@ FAR_SIGHT (14), GameObject despawn (22), DynamicObject VALUES (15), package,
 ownership syntax, architecture and 20 self-tests pass. Full captures,
 DB/relogin durability and live QA remain open gameplay/runtime gates under
 #41/#63/#584; #584 still owns other C0-C4 and runtime work.
+
+**Canonical Pet visibility CREATE integrated — 2026-09-14, #584 / PR #925, merge
+`a1f66c33903ee76b6bb0675177d33e3b283806ed`:** the canonical map already places
+Pets in the Creature cell family, matching TrinityCore's generic
+`Map::AddToMap`/`UpdateObjectVisibilityOnCreate` path (`Map.cpp:530-610`) and
+`Pet::AddToWorld` (`Pet.cpp:69-88`). The Session visibility query now reads
+Creature/Pet records through `with_creature_or_pet_like_cpp`, so an in-world Pet
+passes the existing map, phase, range and detection gates and reaches the common
+Creature CREATE snapshot. The focused regression
+`visible_creatures_skip_not_in_world_canonical_objects_like_cpp`
+passes, as do the affected package check and formatting/diff checks. This closes
+the projection gap only; Pet AI/movement, summon ownership/persistence, directed
+Pet DESTROY, corpse/transport lifecycle, exact captures and live DB/restart/relogin
+QA remain explicit #584/#63 gates.
 
 **Transport C0/C3 lifecycle integrated — 2026-09-14, PR #901, merge
 `bf460aa7a8ccec0269eea1771a094ef12f0c6109` (implementation `82b2d8d9`):** the bounded

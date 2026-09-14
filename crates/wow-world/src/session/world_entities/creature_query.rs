@@ -169,11 +169,6 @@ impl WorldSession {
         {
             let Some(creature) = map
                 .map()
-                // C++ `Pet` inherits the Creature/Unit visibility and CREATE
-                // path (`Map::AddToMap` -> `UpdateObjectVisibilityOnCreate`,
-                // Map.cpp:530-610; Pet.cpp:69-88). Keep the owner in the
-                // canonical Pet record; this adapter only needs the common
-                // Creature body to build the observer's packet snapshot.
                 .with_creature_or_pet_like_cpp(guid, |creature, _owner| creature.clone())
             else {
                 continue;
