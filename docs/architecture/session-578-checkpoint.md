@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #916:** `06b076fb14730fd9e3061dd5b9f0a51a23d207bd`.
+**Integrated head after PR #917:** `4fb6f8a21ab4d5809f02d4f21ef13b65740fdfe1`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -216,6 +216,29 @@ se registra bajo la familia de publicación Map/visibility. El ledger conserva 6
 (220 producción, 427 fixtures) y reduce el residual exacto a 5. La diferencia de `CacheDataQueries` queda explícita
 como frontera futura si se implementa más adelante.
 
+## P4 Map publication delivery guards — candidate PR #918, 2026-09-14
+
+The fresh C0–C4 audit classifies `represented_capture_point_removed_delivered_like_cpp` and
+`represented_dynamic_object_values_updates_delivered_like_cpp` under the Map/visibility
+publication family. C++ sends `CapturePointRemoved` from `GameObject::Delete`
+(`Entities/GameObject/GameObject.cpp:1746-1756`) and builds DynamicObject field updates
+through `WorldObjectChangeAccumulator` (`Entities/Object/Object.cpp:3654-3717`) before
+`Map::SendObjectUpdates` publishes the per-player update map
+(`Maps/Map.cpp:1929-1948`). Rust reads canonical `ManagedMap` summaries through
+`session/movement/movement_publication.rs:175-208` and
+`session/instances/map_key.rs:453-628`; both HashSets are receiver-local generation/GUID
+publication fences, not entity state. The candidate leaves three exact production fields
+unresolved and changes no packet bytes, map clock or persistence order.
+
+The remaining fields stay separate: `represented_instance_reset_times_like_cpp` is the
+C++ `Player::_instanceResetTimes` load/check/add/save state
+(`Player.cpp:1116-1125,19190-19198,27937-28010`) and requires a Player-owned persistence
+cut; `represented_locked_dungeon_encounters` currently has no production writer and must
+consume the canonical `InstanceLockMgr` plus injected `DungeonEncounterStore` to match
+`Player::IsLockedToDungeonEncounter` (`Player.cpp:20725-20748`);
+`represented_seer_guid_like_cpp` is the C++ `Player::m_seer` pointer seam
+(`Player.h:2417,2423`, `Player.cpp:298-300,25344-25395`) and requires a complete
+Player/visibility owner migration.
 ## P2 Player mount presentation owner closure — integrated PR #897, 2026-09-14
 
 PR #897 integrates the bounded Player mount-presentation owner closure into

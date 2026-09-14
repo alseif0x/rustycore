@@ -1,8 +1,8 @@
 # RustyCore — Master port and delivery plan
 
-**Reconciled 2026-09-14 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49), with PR #901, #902, #904, #906, #907, #909, #911, #913, #915 and #916 integrated.**
+**Reconciled 2026-09-14 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49), with PR #901, #902, #904, #906, #907, #909, #911, #913, #915, #916 and #917 integrated.**
 Source baseline for this reconciliation: `3.4.3` at
-`06b076fb14730fd9e3061dd5b9f0a51a23d207bd` (PR #916, following PR #915, #913, #909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`4fb6f8a21ab4d5809f02d4f21ef13b65740fdfe1` (PR #917, following PR #915, #913, #909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -157,6 +157,29 @@ under the Map/visibility publication family. The ledger remains 647 fields (220
 production, 427 fixtures) and the exact residual falls to 5; the integrated boundary keeps
 the `CacheDataQueries` configuration difference explicit for future work.
 
+## P4 Map publication delivery guards — candidate PR #918, 2026-09-14
+
+The fresh C0–C4 audit classifies `represented_capture_point_removed_delivered_like_cpp` and
+`represented_dynamic_object_values_updates_delivered_like_cpp` under
+`map_runtime_creature_gameobject_and_visibility`. TrinityCore emits
+`CapturePointRemoved` from `GameObject::Delete` (`Entities/GameObject/GameObject.cpp:1746-1756`)
+and builds DynamicObject field updates through `WorldObjectChangeAccumulator`
+(`Entities/Object/Object.cpp:3654-3717`) before `Map::SendObjectUpdates` publishes the
+per-player update map (`Maps/Map.cpp:1929-1948`). Rust consumes only the canonical
+`ManagedMap` summaries in `session/movement/movement_publication.rs:175-208` and
+`session/instances/map_key.rs:453-628`; the generation/GUID/fingerprint sets are
+receiver-local publication fences, not GameObject or DynamicObject authorities. The
+classification leaves three exact production fields unresolved without changing wire bytes,
+map clocks or persistence.
+
+The remaining fields are intentionally separate responsibilities: `represented_instance_reset_times_like_cpp`
+tracks C++ `Player::_instanceResetTimes` and its load/save paths (`Player.cpp:1116-1125,
+19190-19198,27937-28010`) and needs a Player-owned persistence cut;
+`represented_locked_dungeon_encounters` stands in for `Player::IsLockedToDungeonEncounter`
+(`Player.cpp:20725-20748`) but has no production writer while the loaded
+`DungeonEncounterStore` is not injected into sessions (`world-server/app.rs:522-528`);
+and `represented_seer_guid_like_cpp` is C++ `Player::m_seer` (`Player.h:2417,2423`,
+`Player.cpp:298-300,25344-25395`) and requires a complete Player/visibility owner move.
 PR #895 closes the next measured P2 owner surface: production rest-flag, deferred-publication and rest-clock writes now use named transitions on `wow-entities::Player` over `PlayerRestState`, following `RestMgr::SetRestFlag` / `RemoveRestFlag` (`RestMgr.cpp:95-122`), `RestMgr::_restTime` (`RestMgr.h:86`) and `Player::SetRestState` (`Player.h:2652`). Session retains packet/application ordering and its generic rest-state mutator is detached-fixture-only under `cfg(test)`. The Player owner regression, rest-owner scenarios, affected chat/area-trigger/zone scenarios, package checks, formatting/diff and architecture ratchet pass. This is an ownership closure: quest objective progress, durable persistence, captures and live QA remain separate #41/#584 gates. The next #584 macro still comes from a fresh C0–C4 responsibility and consumer audit.
 
 PR #878 closes the next measured P2 owner surface: the Player-owned mount VehicleKit

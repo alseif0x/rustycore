@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #916/#915/#913/#911/#909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #918/#917/#916/#915/#913/#911/#909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -125,6 +125,28 @@ clasificación existente de `represented_player_unit_values_updates_delivered_li
 se registra bajo la familia de publicación Map/visibility. El ledger conserva 647 campos
 (220 producción, 427 fixtures) y reduce el residual exacto a 5; la integración pendiente
 debe mantener explícita la diferencia de `CacheDataQueries` si se implementa más adelante.
+
+## P4 Map publication delivery guards — candidate PR #918, 2026-09-14
+
+The fresh audit classifies `represented_capture_point_removed_delivered_like_cpp` and
+`represented_dynamic_object_values_updates_delivered_like_cpp` as valid Session
+publication fences in `map_runtime_creature_gameobject_and_visibility`. C++ emits the
+first from `GameObject::Delete` (`Entities/GameObject/GameObject.cpp:1746-1756`) and
+constructs the second through `WorldObjectChangeAccumulator`
+(`Entities/Object/Object.cpp:3654-3717`) before `Map::SendObjectUpdates`
+publishes updates (`Maps/Map.cpp:1929-1948`). Rust consumes only canonical map
+summaries in `session/movement/movement_publication.rs:175-208` and
+`session/instances/map_key.rs:453-628`; generation/GUID/fingerprint dedupe is
+receiver-local and does not duplicate entity authority. The candidate leaves three
+production residuals.
+
+Those residuals are not one refactor: instance reset times require moving the
+Player `_instanceResetTimes` load/check/add/save contract
+(`Player.cpp:1116-1125,19190-19198,27937-28010`); locked encounter loot needs a
+canonical InstanceLockMgr query plus injected DungeonEncounter catalog for
+`Player::IsLockedToDungeonEncounter` (`Player.cpp:20725-20748`); and seer requires
+moving the Player `m_seer`/SetViewpoint lifecycle and every visibility consumer
+(`Player.h:2417,2423`, `Player.cpp:298-300,25344-25395`).
 
 PR #891 añade el cierre P2 acotado del owner de taxi del Player: el avance de ruta
 tras teletransporte y la limpieza del vuelo pasan a ser transiciones nominales sobre
