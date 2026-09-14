@@ -1,12 +1,28 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`ed92d14f173ee2be2332b242576eb603aaff58f4` (PR #876, following PR #873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`d8cb0594093c25ae618ab2603896fd3e2f7de26d` (PR #878, following PR #876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**P2 Player-owned mount VehicleKit operations — 2026-09-14, #584 / PR #878,
+integration `d8cb0594093c25ae618ab2603896fd3e2f7de26d` (implementation
+`ceb58c9a`):** the remaining production Session mutation surface for a Player's
+mount vehicle kit now routes through named `Player` operations in
+`crates/wow-entities/src/player/vehicle.rs`. This follows TrinityCore's
+`Unit::CreateVehicleKit`, `Unit::RemoveVehicleKit` and `Unit::GetVehicleKit`
+(`src/server/game/Entities/Unit/Unit.cpp:11304-11323`): install, snapshot,
+clear, uninstall/removal and ejectable-passenger removal are owner transitions.
+Session retains vehicle-template admission, aura/packet/presentation effects and
+the detached fixture fallback under `cfg(test)`; no second production authority,
+lock or clock is added. The owner lifecycle test, three represented-eject tests,
+both package checks, formatting/diff checks and the architecture ratchet pass.
+This is a structural owner closure only: complete vehicle seat/offset admission,
+passenger lifecycle, CREATE/DESTROY, Pet/corpse/Transport publication, captures,
+DB/restart/relogin and live QA remain separate #584/#63 gates.
 
 **F1 movement knockback-ACK slice — 2026-09-14, #63 / PR #866, merge
 `0079daa81c4955e38031009a24b17b8dbabc7d9b`:** `HandleMoveKnockBackAck` now

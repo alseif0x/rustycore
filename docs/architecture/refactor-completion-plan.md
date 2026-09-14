@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #876 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -17,8 +17,8 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza de código integrada, 2026-09-14: PR #876**, en `3.4.3` como
-`ed92d14f173ee2be2332b242576eb603aaff58f4`. PR #873 corrige el fanout P3.10
+**Cabeza de código integrada, 2026-09-14: PR #878**, en `3.4.3` como
+`d8cb0594093c25ae618ab2603896fd3e2f7de26d`. PR #873 corrige el fanout P3.10
 integrado por #871 (`304f482b101ff0ac8600854bd1a4ebb72cec2b5d`): Player/Unit
 queda exclusivamente en el rail de Session filtrado por receptor y la sesión
 revalida el `MapKey` después de soltar el guard de Map. PR #866 queda como la entrega previa de knockback ACK; PR #864 queda como la entrega previa de ACK. PR #862 queda como la entrega previa de ACK anterior. PR #853 queda como la entrega previa de admisión. #787 / PR #792 (`d14a9a67`) y
@@ -964,6 +964,25 @@ cierra #584. El siguiente trabajo funcional amplio de #524 queda acotado a la ac
 cross-store y startup/DB/restart/relogin de la composición ya integrada por PR #846 y
 PR #848, y después a los consumidores funcionales de locale/EffectPoints, gasto,
 mutación y starter builds.
+
+#### Entrega P2 bajo #584 — ownership del mount VehicleKit del Player
+
+La auditoría posterior a Transport VALUES encontró el último acceso de producción
+genérico al kit de vehículo montado por un Player. PR #878 (`d8cb0594`, implementación
+`ceb58c9a`) mueve las transiciones nominales a
+`crates/wow-entities/src/player/vehicle.rs`, siguiendo
+`Unit::CreateVehicleKit`, `Unit::RemoveVehicleKit` y `Unit::GetVehicleKit`
+(`Unit.cpp:11304-11323`). `Player` posee ahora install, snapshot, clear,
+uninstall/removal y expulsión de pasajero desde un asiento ejectable; Session
+conserva admisión de plantilla, aura, paquetes y publicación/presentación.
+
+La regresión del ciclo del owner y las tres regresiones de expulsión pasan junto a
+los checks de `wow-entities`/`wow-world`, formato/diff y el ratchet de arquitectura.
+El fallback sin Player queda limitado a fixtures `cfg(test)`. Esta entrega no mezcla
+la corrección funcional completa de vehículos: admisión de seat/offset, ciclo de
+pasajeros, CREATE/DESTROY, Pet/corpse/Transport, persistencia, capturas ni QA viva
+siguen siendo límites separados de #584/#63. El siguiente macro de #584 vuelve a
+seleccionarse solo después de una auditoría C0–C4 nueva y completa.
 
 #### Contraste P3 de composición y fases — revisión acotada 2026-09-12
 
