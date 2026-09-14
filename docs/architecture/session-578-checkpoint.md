@@ -1,8 +1,8 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #919:** `68a0bac749a6a7f627184e290e43d8bf6a72f670`.
+**Integrated head after PR #921:** `d25cbc9161f8affb8c5201a1ad6a653870938969`.
 
-Current exact inventory: 647 WorldSession fields (219 production, 428 test fixtures); #584 has two unresolved production responsibilities, locked dungeon encounters and the Player `m_seer` visibility seam.
+Current exact inventory: 648 WorldSession fields (219 production, 429 test fixtures); #584 has one unresolved production responsibility, the Player `m_seer` visibility seam. Encounter-lock resolution is integrated by PR #921.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -242,6 +242,21 @@ consume the canonical `InstanceLockMgr` plus injected `DungeonEncounterStore` to
 (`Player.h:2417,2423`, `Player.cpp:298-300,25344-25395`) and requires a complete
 Player/visibility owner migration.
 
+## P2 Player dungeon-encounter lock query — integrated PR #921, 2026-09-14
+
+PR #921 removes the production interpretation of
+`represented_locked_dungeon_encounters`. The immutable `DungeonEncounterStore` is
+installed through `SessionWorldCatalogCapabilitiesLikeCpp`; the Session binding
+finds the player's unique canonical map/difficulty and queries the shared
+`InstanceLockMgr` completed-encounter mask, matching
+`Player::IsLockedToDungeonEncounter` (`Player.cpp:20725-20748`). Unknown encounter
+IDs and absent active locks return unlocked, while missing or ambiguous authority
+returns indeterminate and the production loot adapter fails closed. The former set
+is `cfg(test)` fixture input only. Canonical lock, loot-filter and composition
+regressions pass, as do cargo check, ownership syntax and architecture checks. The
+merge is `d25cbc9161f8affb8c5201a1ad6a653870938969`; `m_seer` is now the only exact
+production residual under #584.
+
 ## P2 Player instance-reset owner — integrated PR #919, 2026-09-14
 
 PR #919 moves C++ `Player::_instanceResetTimes` into the canonical
@@ -254,8 +269,9 @@ Login hydration and save projection use the same owner
 The former Session map is now a `cfg(test)` fixture fallback and is transferred once
 when a fixture owner is materialized. The owner regression, 16 instance scenarios, five
 instance-count scenarios, three teleport scenarios, package check and syntax ownership
-check pass. The exact production residual is now two fields: locked dungeon encounters
-and the Player `m_seer` visibility seam.
+check pass. At the #919 checkpoint the exact production residual was two fields: locked dungeon
+encounters and the Player `m_seer` visibility seam. PR #921 closes the encounter
+query; only the `m_seer` visibility seam remains.
 
 ## P2 Player mount presentation owner closure — integrated PR #897, 2026-09-14
 

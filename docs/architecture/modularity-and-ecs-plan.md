@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-14 (#919 / #918 / #917 / #916 / #915 / #913 / #911 / #909 / #907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-14 (#921 / #919 / #918 / #917 / #916 / #915 / #913 / #911 / #909 / #907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,9 +11,9 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `68a0bac749a6a7f627184e290e43d8bf6a72f670` (PR #919, following PR #918, PR #917, PR #916, PR #915, PR #913, PR #909, PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
+The current code integration head is `d25cbc9161f8affb8c5201a1ad6a653870938969` (PR #921, following PR #918, PR #917, PR #916, PR #915, PR #913, PR #909, PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
 PR #889, PR #876, P3.10 correction PR #873 and delivery PR #871).
-Current exact inventory after PR #919: 647 WorldSession fields (219 production, 428 test fixtures), with two unresolved #584 production responsibilities: locked dungeon encounters and the Player `m_seer` visibility seam.
+Current exact inventory after PR #921: 648 WorldSession fields (219 production, 429 test fixtures). Encounter-lock resolution is integrated; the only unresolved #584 production responsibility is the Player `m_seer` visibility seam.
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
 mutations. #524's relation-query order correction is integrated by PR #803; PR #822/#824/#826/#828 now
@@ -158,6 +158,21 @@ and the currently non-injected `DungeonEncounterStore` to reproduce
 Player-owned `m_seer` (`Player.h:2417,2423`, `Player.cpp:298-300,25344-25395`) and
 requires a complete visibility-owner migration.
 
+## P2 Player dungeon-encounter lock query — integrated PR #921, 2026-09-14
+
+PR #921 routes encounter-lock filtering through the canonical C++ query contract.
+Startup injects the immutable `DungeonEncounterStore` through
+`SessionWorldCatalogCapabilitiesLikeCpp`; the Session binding finds the player's
+unique canonical map/difficulty and reads the shared `InstanceLockMgr` completed
+encounter mask, matching `Player::IsLockedToDungeonEncounter`
+(`Player.cpp:20725-20748`). Unknown rows and absent active locks are unlocked;
+missing or ambiguous authority is indeterminate and production loot fails closed.
+The former `represented_locked_dungeon_encounters` set is `cfg(test)` fixture input
+only. Creature and GameObject encounter-loot consumers use the typed query. Focused
+lock, loot and composition tests plus cargo, syntax and architecture checks pass at
+merge `d25cbc9161f8affb8c5201a1ad6a653870938969`. `m_seer` remains the sole exact
+production residual under #584.
+
 ## P2 Player instance-reset owner — integrated PR #919, 2026-09-14
 
 PR #919 moves `_instanceResetTimes` to the canonical
@@ -167,9 +182,9 @@ keeps its C++ load, admission and save operations behind named Player methods in
 the map admission checks that read and update the rate-limit map; login hydration and
 persistence projection borrow that owner. The former Session field is `cfg(test)` only,
 with a one-time fixture transfer for old tests. Focused owner, instance-count, teleport,
-package and syntax ownership checks pass. This reduces the exact production residual to
-`represented_locked_dungeon_encounters` and `represented_seer_guid_like_cpp`, which
-remain separate contracts.
+package and syntax ownership checks pass. At the #919 checkpoint this reduced the exact production residual to
+`represented_locked_dungeon_encounters` and `represented_seer_guid_like_cpp`; PR #921
+now closes the former, leaving the `m_seer` visibility seam.
 
 The finite hecs V2 conformance proof has passed within its recorded laboratory limits.
 That evidence does not install production `hecs` or Wasmtime, prove production storage
