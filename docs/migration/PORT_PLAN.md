@@ -2,7 +2,7 @@
 
 **Reconciled 2026-09-14 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
 Source baseline for this reconciliation: `3.4.3` at
-`7c3add2fd5a1df791fcc793295028de553f9346a` (PR #853, following #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`10528d454f8e2b1504e6ed87ee5c1eb0a0d38524` (PR #855, following #854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -80,6 +80,15 @@ from #588. This is a bounded admission correction: #63 remains open for transpor
 passenger/reset behavior, vehicle and non-creature movers, death/BG/taxi branches,
 ack/order, and live client/server/DB capture QA. Do not treat the focused regressions
 or local final profile as full movement acceptance.
+
+PR #855 extends this same bounded #63 operation to canonical transport membership
+(`10528d45`). The handler removes stale passenger membership before a switch or detach,
+adds only an in-world typed Transport owned by the current Map, and clears the
+movement transport state when the requested target is absent. Focused attach/switch/
+detach/missing-target regressions, the 47-test movement suite and `validation-v2 final`
+pass at the merged head with 3,880 `wow-world` tests. #63 remains open for vehicle
+seat/turning, full offset/coordinate validation, non-Creature movers, death/BG/taxi,
+ACK/order and live capture/QA; preserve the deferred visibility bridge from #588.
 
 Continue the remaining core under #584 by complete operations, execution/lifetime
 boundaries and physical organization. #582 is closed after its decoder-only delivery;
@@ -247,7 +256,7 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#58](https://github.com/alseif0x/rustycore/issues/58) | Superseded by #41 | Preserve timed-active exclusivity and recursive breadcrumb admission as explicit quest criteria. |
 | [#59](https://github.com/alseif0x/rustycore/issues/59) | Superseded by #41 | Preserve acceptance/completion/reward participants and evidence, without redoing #718. |
 | [#61](https://github.com/alseif0x/rustycore/issues/61) | F1, equipment/stats | **Projection integrated by PR #851 (`b26ce713`); issue remains open.** Finish production combat/melee/spell consumers, exact C++ AP/damage/aura/regen/expertise/penetration paths, reversible equip/unequip and broken/repair lifecycle, then capture/live DB/relogin acceptance before accepting combat numbers. |
-| [#63](https://github.com/alseif0x/rustycore/issues/63) | F1, movement | **Admission slice integrated by PR #853 (`7c3add2f`):** pending teleport and unfinished controlled-mover spline now fail closed before side effects. Continue transport passenger/reset, vehicle and non-creature movers, death/BG/taxi, ack/order, and live capture/QA; preserve #588 deferred visibility. |
+| [#63](https://github.com/alseif0x/rustycore/issues/63) | F1, movement | **Admission + transport slices integrated by PR #853/#855 (`10528d45`):** pending teleport and unfinished controlled-mover spline fail closed before side effects; canonical Map-owned transport membership now switches/detaches safely and resets missing targets. Continue vehicle seat/turning, full offset validation, non-Creature/death/BG/taxi, ACK/order and live capture/QA; preserve #588 deferred visibility. |
 | [#65](https://github.com/alseif0x/rustycore/issues/65) | L, source-evidence index | Correct finding/issue status and retain exact C++ provenance; not a separate implementation queue or fresh count. |
 | [#99](https://github.com/alseif0x/rustycore/issues/99) | X, module ecosystem | #583 is the selected stateful product; wider language/WIT/hot-reload proposals remain later capability-led planning. |
 | [#153](https://github.com/alseif0x/rustycore/issues/153) | X/A, terminal audit | Audit accepted #584/#583 and their evidence; do not absorb known implementation work or await #133 reopening. |

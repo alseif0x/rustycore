@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61 y #63 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.9/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #855 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.9/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -13,8 +13,8 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza integrada, 2026-09-14: PR #853**, en `3.4.3` como
-`7c3add2fd5a1df791fcc793295028de553f9346a`. #787 / PR #792 (`d14a9a67`) y
+**Cabeza integrada, 2026-09-14: PR #855**, en `3.4.3` como
+`10528d454f8e2b1504e6ed87ee5c1eb0a0d38524`. PR #853 queda como la entrega previa de admisión. #787 / PR #792 (`d14a9a67`) y
 #584 P2 item-bonus, P2 item-object y P3.1–P3.9 están integrados dentro de esta cabeza.
 La entrega de ownership de modificadores de objetos está integrada mediante PR #839
 (implementación `ecc67603`) y retira la superficie mutante genérica restante. La coordinación World/Map está
@@ -1158,6 +1158,19 @@ la ruta positiva existente sigue funcionando. Formato, diff, arquitectura,
 reset, giro de vehículos, movers no Creature, muerte/BG/taxi, ACK/orden y QA viva
 con capturas. La visibilidad diferida de `MoveInitActiveMoverComplete` pertenece al
 puente ya integrado de #588 y no se duplica.
+
+#### Entrega F1 bajo #63 — membresía de pasajeros de transporte
+
+PR #855 (`10528d45`) completa el siguiente tramo de `MovementHandler.cpp:361-390`.
+Antes de publicar el movimiento aceptado, el handler consulta el mapa canónico, retira
+el Player del `Transport` anterior cuando cambia o se separa y añade el Player al
+`Transport` tipado solo si existe y está en el mundo. El mapa conserva la única
+autoridad de la colección de pasajeros; si el objetivo no puede resolverse, la
+operación devuelve `ResetTransport` y el estado de sesión/Player se limpia. Las
+regresiones cubren attach, switch, detach y objetivo ausente; el movimiento completo
+queda en 47/47 y el perfil final pasa con 3.880 tests de `wow-world`. #63 sigue abierto
+para seats/turning de vehículos, validación completa de offsets/coordenadas, movers no
+Creature, muerte/BG/taxi, ACK/orden y QA viva con capturas.
 
 Qué conservar en cualquier corte P3: residencia/incarnation del Player canónico,
 backpressure y cancelación de la tarea de sesión, transferencia entre mapas, descarga

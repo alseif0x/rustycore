@@ -1,12 +1,15 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`7c3add2fd5a1df791fcc793295028de553f9346a` (PR #853, following PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`10528d454f8e2b1504e6ed87ee5c1eb0a0d38524` (PR #855, following PR #854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**F1 movement transport membership slice — 2026-09-14, #63 / PR #855, merge
+`10528d454f8e2b1504e6ed87ee5c1eb0a0d38524`:** the accepted Player movement path now reconciles the canonical Map-owned Transport passenger set before side effects and publication. A transport switch removes the previous passenger first; a valid in-world target is added; a missing or not-in-world target resets transport state. Focused attach/switch/detach/missing-target regressions and the 47-test movement suite pass; `validation-v2 final` passes with 3,880 `wow-world` tests and 0 failures. #63 remains open for vehicle seat/turning, complete offset validation, non-Creature/death/BG/taxi branches, ACK/order and live client/server/DB capture QA.
 
 **F1 movement admission slice — 2026-09-14, #63 / PR #853, merge
 `7c3add2fd5a1df791fcc793295028de553f9346a` (implementation `3af90ec2`):**

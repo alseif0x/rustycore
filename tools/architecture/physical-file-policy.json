@@ -300,9 +300,9 @@
     },
     {
       "path": "crates/wow-map/src/map/game_object.rs",
-      "observed_lines": 2310,
-      "ceiling_lines": 2310,
-      "split": "Separate map-owned GameObject lifecycle transitions and their interaction/respawn tests.",
+      "observed_lines": 2311,
+      "ceiling_lines": 2311,
+      "split": "Separate map-owned GameObject lifecycle transitions and their interaction/respawn tests. PR #855 adds one typed mutable Transport passenger operation (+12 physical lines netting the existing file at 2,311); this reviewed C4 ceiling records the canonical Map ownership boundary and is not a blanket growth allowance.",
       "review_checkpoint": "584:C4"
     },
     {
