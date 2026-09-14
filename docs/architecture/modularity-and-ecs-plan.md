@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-14 (#893 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-14 (#895 / #893 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `cd054d5a3b19f9f75bfef726de1dc99368b3227b` (PR #893, following PR #891,
+The current code integration head is `94c21521a6d215f8f9fb086ddbef3267ee08c10f` (PR #895, following PR #893 and PR #891,
 PR #889, PR #876, P3.10 correction PR #873 and delivery PR #871).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
@@ -51,6 +51,8 @@ Creature/Pet `m_SightDistance` for inactive sources. The remaining P2 operations
 legacy-writer migration and other P3/P4 work follow only after their complete
 consumer contract is audited. No new micro-issues are implied; each macro includes
 its consumers and validation.
+
+PR #895 closes the next bounded P2 owner surface selected by that audit: production rest-flag, deferred-publication and rest-clock writes now use named `Player` transitions over the Player-owned `PlayerRestState`, following `RestMgr::SetRestFlag` / `RemoveRestFlag` (`RestMgr.cpp:95-122`), `RestMgr::_restTime` (`RestMgr.h:86`) and `Player::SetRestState` (`Player.h:2652`). Session retains packet/application ordering and the generic rest-state adapter is fixture-only under `cfg(test)`. No second authority, lock or clock is introduced. The owner regression, rest-owner scenarios, affected world scenarios, package checks and architecture ratchet pass; quest objective progress, durable persistence, captures and live QA remain outside this structural closure.
 
 PR #881 closes the next bounded P2 owner surface selected by that audit: Player aura
 state no longer has production callers mutating `AuraSubsystem` through a generic
