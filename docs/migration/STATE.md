@@ -106,6 +106,23 @@ production combat/melee/spell consumers, exact AP/damage/aura/regen/expertise/
 penetration behavior, reversible equipment lifecycle and capture/live DB/relogin
 acceptance where observable; this projection does not close the issue.
 
+**F1 canonical AP threat consumer — 2026-09-14, #61 / PR #857, merge
+`fd302c350ce56cae4841c04165e50c23ae0b01e8`:** initial spell threat now reads
+the Player-owned effective attack-power snapshot, preserving C++ modifier sum,
+non-negative clamp and multiplier order (`Spell.cpp:5558-5575`,
+`Unit.cpp:9165-9180`). The snapshot retains AP and ranged-AP multipliers;
+the focused harmful-spell and Player-owner tests pass. Aura-backed producers,
+the remaining combat/stat consumers and live parity remain open in #61.
+
+**F1 canonical weapon-range consumer — 2026-09-14, #61 / PR #858, merge
+`cda7f8a0dcd2129c45d83982eabdb1ae7c3a6f14`:** the melee pass now snapshots
+Player-owned base/offhand weapon ranges before the mutable Unit timer update;
+item/AP/delay inputs come from one C++-shaped `wow-data` projection. The focused
+world/entity/data tests and final validation pass at
+`target/validation-v2/manifests/20260914T024623.613803Z-127420-final.json`.
+Exact aura-backed damage modifiers, complete weapon admission, full spell/melee
+parity and live capture/QA remain open in #61.
+
 **Latest bounded data delivery — 2026-09-13, PR #848, merge
 `179fd5d40491e4ded2a8c25b3261263330855cd5` (implementation `95274da1`):** the
 effective Trait catalog now composes the C++ locale projections for

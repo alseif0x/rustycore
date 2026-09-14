@@ -68,8 +68,13 @@ macro incorporada por la auditoría es el cierre nominal de Void Storage descrit
 §4.4; no mezcla estadísticas efectivas ni auras
 de #61. La proyección F1 de #61 quedó integrada por PR #851: `Player` posee ahora
 un snapshot runtime de estadísticas efectivas y `handlers/character/stats.rs` concentra
-la derivación de equipo; la issue sigue abierta para consumidores de combate y la
-aceptación reversible/captura/QA descrita en `PORT_PLAN.md`. Después siguen los
+la derivación de equipo. PR #857 conecta el consumidor de amenaza de hechizo al AP
+canónico con el orden C++ de suma, clamp y multiplicador (`Spell.cpp:5558-5575`,
+`Unit.cpp:9165-9180`); PR #858 conecta el consumidor cuerpo a cuerpo a los rangos
+base/offhand del Player, derivados por la proyección C++-shaped de `wow-data`.
+La issue sigue abierta para productores de auras, consumidores de combate restantes,
+admisión completa de armas, ciclo reversible y la aceptación reversible/captura/QA
+descrita en `PORT_PLAN.md`. Después siguen los
 residuales P2/P3/P4 por consumidores, el producto #583 y
 la auditoría #153. Las
 excepciones físicas son individuales y se justifican con la política vigente; no se
@@ -1137,6 +1142,22 @@ stale e invisible de `wow-world` y la prueba de la valla de encarnación del mai
 integración se debe repetir el perfil `validation-v2 final` y actualizar este plan
 con el SHA de integración; el siguiente macro se elige solo después de auditar los
 residuales medidos.
+
+#### Entrega F1 bajo #61 — consumidores de AP y rango de arma
+
+PR #857 (`fd302c35`) hace que la amenaza inicial de hechizo consuma el snapshot
+efectivo de AP propiedad del Player, conservando la suma de modificadores, el clamp
+no negativo y el orden de multiplicadores de C++ (`Spell.cpp:5558-5575`,
+`Unit.cpp:9165-9180`). PR #858 (`cda7f8a0`) hace que el tick cuerpo a cuerpo tome
+los rangos base/offhand del mismo snapshot antes de la transición mutable del reloj
+de Unit; la derivación de item/AP/retardo vive en una proyección pura de `wow-data`.
+Los consumidores de paquetes y persistencia permanecen separados del snapshot.
+
+Las regresiones enfocadas de `wow-world`, `wow-entities` y la validación final de
+cada PR pasan en sus manifiestos registrados. Estos son cortes acotados: no cierran
+#61 ni prueban productores de aura, matemática completa de daño/regen/expertise/
+penetration, admisión de todas las armas, ciclo reversible de equipo o captura/QA
+viva.
 
 #### Entrega F1 bajo #63 — admisión de teleport y MoveSpline
 
