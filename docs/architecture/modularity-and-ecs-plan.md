@@ -817,9 +817,9 @@ with the added lifecycle/recovery risk before approving an implementation.
 | Macro / epic | Deliverable and completion gate | Dependencies |
 | --- | --- | --- |
 | #584 core / C0–C4 | Complete each core responsibility with canonical ownership, consumers, physical navigability, lifecycle/persistence and scoped acceptance; the finite hecs V2 proof is already passed within lab limits | Closed predecessors provide evidence; no #133 reopening and no new micro-issue per helper |
-| #743 | Group-command state delivery and reconciliation across saturation, disconnect, replacement, stale removal and related state-bearing transitions | Current recommended macro; #583 is not a prerequisite |
-| #735 | Reputation encapsulation under canonical Player ownership with catalog resolution outside the entity boundary and preserved publication/save flags | Recommended after #743; ordering preference, not a hard dependency |
-| Remaining #584 P2 → P3 → P4 | Finish residual operations, then runtime/lifetime/private-hecs integration and semantic/physical decomposition with consumer migration | Select by complete operation contract and real dependency; keep exceptions file-specific |
+| #743 | **Delivered.** Group-command state delivery and reconciliation across saturation, disconnect, replacement and stale removal; preserve the integrated GroupRegistry/Player contract. | Closed in its bounded scope; do not reopen as a whole group rewrite |
+| #735 | **Delivered.** Reputation state transitions are owned by canonical Player while catalog resolution, packet and persistence adapters remain in `wow-world`. | Closed in its bounded scope; broader gameplay consumers remain with their functional lanes |
+| Remaining #584 P2 → P3 → P4 | Finish residual operations, then runtime/lifetime/private-hecs integration and semantic/physical decomposition with consumer migration. PR #878 is the latest bounded VehicleKit owner closure; the next macro requires a fresh C0–C4 responsibility/consumer audit. | Select by complete operation contract and real dependency; keep exceptions file-specific |
 | #583, under #99 / M0–M4 | Production module product: shared hooks/state/lifecycle, native and Wasm execution, Rust/Wasm/C mixed evidence, durable reward/state and author/operator lifecycle | Waits for required #584 core, but does not block unrelated gameplay macros |
 | #153 | Independent terminal audit of the completed #584 core and #583 product; known work stays with its implementation owner | #584 and #583; #133 tracker closure is already recorded |
 | Next Part-1 port macro | Re-audit its actual residual path against current Rust/C++; implement complete gameplay responsibility with existing hard dependencies | Ordered #49 index, retaining M0–M6 and relevant prerequisites |
@@ -828,8 +828,8 @@ with the added lifecycle/recovery risk before approving an implementation.
 | Wasm bounded delivery / broader language ecosystem | #583 delivers an optional executor with Rust/C bindings and explicit limits; further languages, WIT or hot reload are not implied | No M6 gate for the approved bounded #583 delivery; broader #99 expansion retains fresh planning |
 
 The finite pre-migration conformance checkpoint above is already passed within its lab scope;
-do not repeat it as a new "next" task. Continue #584 with the complete #743 contract, then
-#735 as an ordering preference, then the remaining P2/P3/P4 responsibilities. Safe same-owner
+do not repeat it as a new "next" task. Preserve the integrated #743 and #735 contracts,
+then continue the remaining P2/P3/P4 responsibilities after a fresh complete audit. Safe same-owner
 source/test splits may precede or accompany these operations, but they do not retire semantic
 ownership. Preserve the committed Player work. The production module product is one subsequent
 #583 delivery, not a series of greeting-size deliverables. Internal focused commits and checks
