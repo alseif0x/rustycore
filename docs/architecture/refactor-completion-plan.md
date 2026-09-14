@@ -19,8 +19,9 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza de código integrada, 2026-09-14: PR #881**, en `3.4.3` como
-`2a916c1c429456085e9274a60fcf57138ce12b43`. PR #873 corrige el fanout P3.10
+**Cabeza de código integrada, 2026-09-14: PR #883**, en `3.4.3` como
+`0f79ca837a7417876986cf1803f715a8512b7503`. PR #883 cierra la superficie de
+propiedad de `Player::TradeData` representado después de PR #881. PR #873 corrige el fanout P3.10
 integrado por #871 (`304f482b101ff0ac8600854bd1a4ebb72cec2b5d`): Player/Unit
 queda exclusivamente en el rail de Session filtrado por receptor y la sesión
 revalida el `MapKey` después de soltar el guard de Map. PR #866 queda como la entrega previa de knockback ACK; PR #864 queda como la entrega previa de ACK. PR #862 queda como la entrega previa de ACK anterior. PR #853 queda como la entrega previa de admisión. #787 / PR #792 (`d14a9a67`) y

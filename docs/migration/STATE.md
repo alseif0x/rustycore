@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`2a916c1c429456085e9274a60fcf57138ce12b43` (PR #881, following PR #876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`0f79ca837a7417876986cf1803f715a8512b7503` (PR #883, following PR #876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -37,8 +37,8 @@ canonical/detached/replacement aura-authority regression, both package checks,
 formatting/diff checks and architecture ratchet pass. Full aura gameplay, exact
 packet captures, durable DB/restart/relogin and live QA remain separate #584 gates.
 
-**P2 Player-owned trade transitions — 2026-09-14, #584 / implementation candidate
-`584-trade-owner-closure`:** the represented `TradeData` state now has a private
+**P2 Player-owned trade transitions — 2026-09-14, #584 / PR #883, integration
+`0f79ca837a7417876986cf1803f715a8512b7503` (implementation `50e98f43`):** the represented `TradeData` state now has a private
 `wow-entities::Player` owner module with named open/clear, state-index,
 acceptance, gold, item-slot and trade-spell transitions. This follows
 `Player::m_trade` (`Player.h:2998`), creation in `TradeHandler.cpp:694-695`,

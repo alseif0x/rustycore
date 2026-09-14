@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `2a916c1c429456085e9274a60fcf57138ce12b43` (PR #881,
+The current code integration head is `0f79ca837a7417876986cf1803f715a8512b7503` (PR #883,
 following PR #876, P3.10 correction PR #873 and delivery PR #871).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
@@ -61,7 +61,7 @@ limited to `cfg(test)` fixtures. The C++ ownership anchors are `Unit.h:620-640,
 introduced. Aura gameplay, packet captures and durable/live acceptance remain outside
 this structural closure.
 
-The following bounded P2 owner closure moves represented `TradeData` transitions
+PR #883 closes the bounded P2 owner surface for represented `TradeData` transitions
 onto `wow-entities::Player`. A private `player/trade.rs` module names open/clear,
 state-index, acceptance, gold, item-slot and trade-spell transitions over
 `Player::m_trade` (`Player.h:2998`; `TradeHandler.cpp:694-695`;
