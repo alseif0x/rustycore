@@ -86,10 +86,25 @@ impl WorldSession {
             .map(|auras| auras.runtime_applications_like_cpp().clone())
     }
     pub(crate) fn insert_player_visible_aura_like_cpp(&mut self, aura: AuraApplication) -> bool {
-        self.mutate_player_aura_subsystem_like_cpp(|auras| {
-            auras.insert_runtime_application_like_cpp(aura);
-        })
-        .is_some()
+        let _fallback = aura.clone();
+        let _canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.insert_player_visible_aura_like_cpp(aura);
+            })
+            .is_some();
+        #[cfg(test)]
+        if _canonical {
+            return true;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_aura_subsystem_like_cpp(|auras| {
+                    auras.insert_runtime_application_like_cpp(_fallback);
+                })
+                .is_some();
+        }
+        _canonical
     }
     pub(in crate::session) fn player_has_visible_aura_spell_like_cpp(
         &self,

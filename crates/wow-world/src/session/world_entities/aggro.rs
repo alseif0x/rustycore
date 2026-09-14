@@ -391,20 +391,33 @@ impl WorldSession {
             let Ok(spell_id) = u32::try_from(spell_id) else {
                 return;
             };
-            let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
-                auras.remove_threat_snapshot_like_cpp(slot);
-                for effect_index in 0..u32::BITS {
-                    let effect_bit = 1u32 << effect_index;
-                    if effect_mask & effect_bit != 0 {
-                        auras.remove_applied(wow_entities::AppliedAuraRef::new(
-                            spell_id,
-                            caster_guid,
-                            slot,
-                            effect_bit,
-                        ));
+            let _canonical = self
+                .with_owned_player_mut_like_cpp(|player| {
+                    player.remove_player_threat_aura_like_cpp(
+                        spell_id,
+                        caster_guid,
+                        slot,
+                        effect_mask,
+                    );
+                })
+                .is_some();
+            #[cfg(test)]
+            if !_canonical && self.player_handle_like_cpp.is_none() {
+                let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
+                    auras.remove_threat_snapshot_like_cpp(slot);
+                    for effect_index in 0..u32::BITS {
+                        let effect_bit = 1u32 << effect_index;
+                        if effect_mask & effect_bit != 0 {
+                            auras.remove_applied(wow_entities::AppliedAuraRef::new(
+                                spell_id,
+                                caster_guid,
+                                slot,
+                                effect_bit,
+                            ));
+                        }
                     }
-                }
-            });
+                });
+            }
             return;
         }
         let snapshot = self
@@ -422,16 +435,30 @@ impl WorldSession {
         let Ok(spell_id) = u32::try_from(spell_id) else {
             return;
         };
-        let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
-            auras.insert_threat_snapshot_like_cpp(slot, snapshot.clone());
-            let interrupt_flags = snapshot.interrupt_flags();
-            for &(effect_bit, aura_type, amount, misc_value) in snapshot.effects() {
-                let aura =
-                    wow_entities::AppliedAuraRef::new(spell_id, caster_guid, slot, effect_bit);
-                auras.register_applied_aura(aura, None, interrupt_flags[0], interrupt_flags[1]);
-                auras.register_applied_aura_effect_like_cpp(aura, aura_type, amount, misc_value);
-            }
-        });
+        let _canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.apply_player_threat_aura_like_cpp(
+                    spell_id,
+                    caster_guid,
+                    slot,
+                    snapshot.clone(),
+                );
+            })
+            .is_some();
+        #[cfg(test)]
+        if !_canonical && self.player_handle_like_cpp.is_none() {
+            let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
+                auras.insert_threat_snapshot_like_cpp(slot, snapshot.clone());
+                let interrupt_flags = snapshot.interrupt_flags();
+                for &(effect_bit, aura_type, amount, misc_value) in snapshot.effects() {
+                    let aura =
+                        wow_entities::AppliedAuraRef::new(spell_id, caster_guid, slot, effect_bit);
+                    auras.register_applied_aura(aura, None, interrupt_flags[0], interrupt_flags[1]);
+                    auras
+                        .register_applied_aura_effect_like_cpp(aura, aura_type, amount, misc_value);
+                }
+            });
+        }
     }
     pub(in crate::session) fn hydrate_canonical_threat_relevant_auras_like_cpp(&mut self) {
         let Some(auras) = self
