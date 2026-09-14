@@ -508,6 +508,53 @@ impl WorldSession {
             })
     }
 
+    /// Resolve the movement-force magnitude from the active Unit. C++ reads
+    /// `mover->GetMovementForces()->GetModMagnitude()` in
+    /// `HandleMoveSetModMovementForceMagnitudeAck` (`MovementHandler.cpp:638-650)`;
+    /// a controlled Creature/Pet therefore cannot borrow the Player's value.
+    pub(crate) fn mover_movement_force_mod_magnitude_like_cpp(
+        &self,
+        mover_guid: ObjectGuid,
+    ) -> Option<f32> {
+        if self.player_guid() == Some(mover_guid) {
+            let canonical = self.with_owned_player_like_cpp(|player| {
+                player.unit().movement_force_mod_magnitude_like_cpp()
+            });
+            #[cfg(test)]
+            if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+                return Some(self.movement_force_mod_magnitude_like_cpp);
+            }
+            return canonical;
+        }
+
+        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
+        if let Some(manager) = self.map_manager.as_ref().cloned() {
+            let manager = manager
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            if let Some(creature) = manager.find_creature(map_id, instance_id, mover_guid) {
+                return Some(
+                    creature
+                        .creature
+                        .unit()
+                        .movement_force_mod_magnitude_like_cpp(),
+                );
+            }
+        }
+
+        let key = self.current_canonical_player_map_key_like_cpp()?;
+        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        manager
+            .find_map(key.map_id, key.instance_id)
+            .and_then(|managed| {
+                managed
+                    .map()
+                    .with_creature_or_pet_like_cpp(mover_guid, |creature, _| {
+                        creature.unit().movement_force_mod_magnitude_like_cpp()
+                    })
+            })
+    }
+
     /// Reconcile the canonical map transport passenger set with the movement
     /// packet's requested transport. This is the C++ `AddPassenger`/
     /// `RemovePassenger` branch in `MovementHandler.cpp:361-390`; the map owns
