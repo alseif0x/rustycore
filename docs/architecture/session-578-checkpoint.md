@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #907:** `33141494b4410a26e01ac5d72ea9f82132b2e522`.
+**Integrated head after PR #909:** `1c8b5577badccb6f74d3b049a7e231494b9fa792`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -134,7 +134,7 @@ packet, persistence-order or ownership behavior change. The residual falls from
 427 test fixtures). This is a classification closure, not a claim that the
 remaining gameplay/catalog residuals or #584 are complete.
 
-## P2 Selected-player Session binding classification — candidate, 2026-09-14
+## P2 Selected-player Session binding classification — integrated PR #909, 2026-09-14
 
 The next C0–C4 audit classified `player_guid` as the selected-player binding of
 WorldSession, not Player gameplay state. TrinityCore keeps the live `_player`
@@ -146,10 +146,11 @@ clears it at login, transfer completion and finalization, while all gameplay
 state remains behind canonical Player/Map accessors. Session handlers use it for
 admission, lifecycle, addressing and stale-generation rejection; it is never a
 fallback owner or persistence mirror. The ledger therefore assigns it to the
-dedicated `session_selected_player_binding` family. This is a classification-only
-cut with no code or behavior change; once integrated, the unresolved residual will
-be 9 exact production fields and the ledger total will remain 647 (220 production,
-427 test fixtures).
+dedicated `session_selected_player_binding` family. PR #909 integrates this
+classification at merge `1c8b5577badccb6f74d3b049a7e231494b9fa792`. It is a
+ledger-only cut with no code or behavior change; the unresolved residual is now 9
+exact production fields and the ledger total remains 647 (220 production, 427 test
+fixtures). Architecture check, self-test (20/20) and diff validation pass.
 
 ## P2 Player mount presentation owner closure — integrated PR #897, 2026-09-14
 

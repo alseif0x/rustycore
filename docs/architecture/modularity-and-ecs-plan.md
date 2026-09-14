@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-14 (#907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-14 (#909 / #907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `33141494b4410a26e01ac5d72ea9f82132b2e522` (PR #907, following PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
+The current code integration head is `1c8b5577badccb6f74d3b049a7e231494b9fa792` (PR #909, following PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
 PR #889, PR #876, P3.10 correction PR #873 and delivery PR #871).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
@@ -76,14 +76,16 @@ admission; Rust's `set_player_guid` and persistence plan preserve that Session
 lifetime. This is a ledger classification only, with no code or behavior change;
 the unresolved production residual is now 10 fields.
 
-The next C0–C4 classification assigns `player_guid` to a dedicated selected-player
-Session binding family. TrinityCore keeps `_player` on `WorldSession`
+PR #909 integrates the next C0–C4 classification of `player_guid` into a dedicated
+selected-player Session binding family at merge
+`1c8b5577badccb6f74d3b049a7e231494b9fa792`. TrinityCore keeps `_player` on `WorldSession`
 (`Server/WorldSession.h:1882`) and installs/clears it during login/logout through
 `SetPlayer` (`WorldSession.cpp:672-694,978-985`); Rust's `set_player_guid` is the
 generation-checked GUID key used by Session admission, lifecycle, addressing and
 stale-owner guards. It never reconstructs gameplay state or replaces canonical
 Player ownership. This ledger-only cut leaves 9 exact unresolved production
-fields, with no code, lock, packet or runtime behavior change.
+fields, with no code, lock, packet or runtime behavior change. Architecture check,
+self-test (20/20) and diff validation pass.
 
 The finite hecs V2 conformance proof has passed within its recorded laboratory limits.
 That evidence does not install production `hecs` or Wasmtime, prove production storage
