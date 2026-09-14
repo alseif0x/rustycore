@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #878:** `d8cb0594093c25ae618ab2603896fd3e2f7de26d`.
+**Integrated head after PR #881:** `2a916c1c429456085e9274a60fcf57138ce12b43`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -189,6 +189,20 @@ This is a structural boundary closure. Vehicle seat/offset admission, complete
 passenger lifecycle, CREATE/DESTROY, Pet/corpse/Transport publication, exact
 captures, DB/restart/relogin and live QA remain outside this slice and #584 stays
 open for the next fresh responsibility audit.
+
+## P2 Player-owned aura mutation operations — integrated PR #881, 2026-09-14
+
+PR #881 integrates this bounded #584 owner closure into `3.4.3` at
+`2a916c1c429456085e9274a60fcf57138ce12b43` (implementation `3e1bdd9d`).
+Visible-aura publication/removal, aura-authority completion, spell-hit authority
+tombstone/reset and threat-aura install/apply/remove now call named `Player`
+operations over the Unit-owned `AuraSubsystem`, following TrinityCore's Unit aura
+containers and visible-aura transitions (`Unit.h:620-640,1226-1260,1825-1844`;
+`Unit.cpp:680-690`). Session retains packet/catalog adaptation; the generic mutator
+remains only for handle-less `cfg(test)` fixtures. The canonical/detached/replacement
+aura-authority regression, package checks, formatting/diff checks and architecture
+ratchet pass. This does not claim full aura gameplay, exact captures, durable DB or
+live QA, and #584 remains open for the next fresh responsibility audit.
 
 ## P2 item-object ownership closure — 2026-09-13
 

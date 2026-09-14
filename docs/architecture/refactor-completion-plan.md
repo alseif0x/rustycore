@@ -1,11 +1,13 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
 anclas C++, orden de ejecución y criterios de aceptación de la arquitectura.
 
+PR #881 añade el cierre nominal de las mutaciones de aura del Player sobre el `AuraSubsystem`
+propiedad de su Unit; la superficie genérica de Session queda limitada a fixtures `cfg(test)`.
 PR #876 añade la proyección separada de `Player::m_visibleTransports` para Transport
 VALUES a través del registro y del consumidor de Session; no amplía el alcance a
 CREATE/DESTROY o al ciclo de pasajeros.
@@ -17,8 +19,8 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza de código integrada, 2026-09-14: PR #878**, en `3.4.3` como
-`d8cb0594093c25ae618ab2603896fd3e2f7de26d`. PR #873 corrige el fanout P3.10
+**Cabeza de código integrada, 2026-09-14: PR #881**, en `3.4.3` como
+`2a916c1c429456085e9274a60fcf57138ce12b43`. PR #873 corrige el fanout P3.10
 integrado por #871 (`304f482b101ff0ac8600854bd1a4ebb72cec2b5d`): Player/Unit
 queda exclusivamente en el rail de Session filtrado por receptor y la sesión
 revalida el `MapKey` después de soltar el guard de Map. PR #866 queda como la entrega previa de knockback ACK; PR #864 queda como la entrega previa de ACK. PR #862 queda como la entrega previa de ACK anterior. PR #853 queda como la entrega previa de admisión. #787 / PR #792 (`d14a9a67`) y
@@ -180,7 +182,8 @@ de microissues:
 | P0 | Herramientas de ownership, imports, bridges y ratchet físico | #716 integrado y cerrado; su evidencia es histórica y no se repite aquí |
 | P1 | Recompensa de misión y contrato durable | #718 integrado y cerrado; no hay evidencia real de DB/restart/relogin |
 | P2 | Fronteras de Player y operaciones completas | #743 y #735 entregados; continúan los residuales por consumidores |
-| P3 | Fases, runtime, lifetime, residencia/incarnation y storage selectivo | #787 entregado; P3.1 retiró el escritor Creature canónico descartado, P3.2 publicó `SendObjectUpdates`, P3.3 corrigió el orden de respawn/condiciones antes de los visitantes, P3.4 conectó la selección cercana de `ObjectUpdater` con producción, P3.5 corrigió el radio de activación por fuente, P3.6 añadió el override de cinemática del Player, P3.7 publica el fanout de visibilidad de relocalización de Creature, P3.8 marca receptores cercanos para admisión/remoción de objetos, P3.9 publica DESTROY dirigido de Creature ordinaria con vallas de encarnación/`HaveAtClient` y P3.10 publica VALUES Player/Unit filtrados por receptor fuera del guard de Map; #873 retira esos dos tipos del rail genérico para evitar duplicados y exposición de campos de propietario; #876 proyecta la membresía separada de Transport para VALUES; #878 cierra las transiciones nominales del mount VehicleKit en Player; el escritor legado, AI/combat, scripts, FlyByCamera, CREATE/Pet/corpse/transport lifecycle, flags shared-raid y los gates de captura siguen pendientes bajo #584 |
+| P3 | Fases, runtime, lifetime, residencia/incarnation y storage selectivo | #787 entregado; P3.1 retiró el escritor Creature canónico descartado, P3.2 publicó `SendObjectUpdates`, P3.3 corrigió el orden de respawn/condiciones antes de los visitantes, P3.4 conectó la selección cercana de `ObjectUpdater` con producción, P3.5 corrigió el radio de activación por fuente, P3.6 añadió el override de cinemática del Player, P3.7 publica el fanout de visibilidad de relocalización de Creature, P3.8 marca receptores cercanos para admisión/remoción de objetos, P3.9 publica DESTROY dirigido de Creature ordinaria con vallas de encarnación/`HaveAtClient` y P3.10 publica VALUES Player/Unit filtrados por receptor fuera del guard de Map; #873 retira esos dos tipos del rail genérico para evitar duplicados y exposición de campos de propietario; #876 proyecta la membresía separada de Transport para VALUES; #878 cierra las transiciones nominales del mount VehicleKit en Player; #881 cierra
+las transiciones nominales de aura sobre el Unit-owned AuraSubsystem; el escritor legado, AI/combat, scripts, FlyByCamera, CREATE/Pet/corpse/transport lifecycle, flags shared-raid y los gates de captura siguen pendientes bajo #584 |
 | P4 | Organización física, excepciones y límites semánticos | #584, acompañado por cada operación; la medición de 31 paths permanece histórica |
 | P5 | Producto de módulos M0–M4, nativo/Wasm y Rust/Wasm/C | #583, tras los requisitos core de #584; no bloquea gameplay independiente |
 | P6 | Auditoría terminal y evidencia integrada | #153, después de #584 y #583; no absorbe implementación |

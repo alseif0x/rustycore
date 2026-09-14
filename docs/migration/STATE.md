@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`d8cb0594093c25ae618ab2603896fd3e2f7de26d` (PR #878, following PR #876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`2a916c1c429456085e9274a60fcf57138ce12b43` (PR #881, following PR #876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -23,6 +23,19 @@ both package checks, formatting/diff checks and the architecture ratchet pass.
 This is a structural owner closure only: complete vehicle seat/offset admission,
 passenger lifecycle, CREATE/DESTROY, Pet/corpse/Transport publication, captures,
 DB/restart/relogin and live QA remain separate #584/#63 gates.
+
+**P2 Player-owned aura mutation operations — 2026-09-14, #584 / PR #881,
+integration `2a916c1c429456085e9274a60fcf57138ce12b43` (implementation
+`3e1bdd9d`):** the remaining production Session mutation surface for Player aura
+state now routes through named operations on `Player` over its Unit-owned
+`AuraSubsystem`: visible-aura insert/remove, persisted aura-authority completion,
+spell-hit authority tombstone/reset, and threat-aura install/apply/remove. This
+matches TrinityCore's Unit-owned aura maps and transitions (`Unit.h:620-640,
+1226-1260,1825-1844`; `Unit.cpp:680-690`). Session retains packet/catalog
+adaptation and the handle-less generic mutator is `cfg(test)` only. The focused
+canonical/detached/replacement aura-authority regression, both package checks,
+formatting/diff checks and architecture ratchet pass. Full aura gameplay, exact
+packet captures, durable DB/restart/relogin and live QA remain separate #584 gates.
 
 **F1 movement knockback-ACK slice — 2026-09-14, #63 / PR #866, merge
 `0079daa81c4955e38031009a24b17b8dbabc7d9b`:** `HandleMoveKnockBackAck` now
