@@ -12,6 +12,33 @@ impl Player {
         self.unit.world().object().guid()
     }
 
+    /// C++ `Unit::GetRace` (`Unit.h:736`) resolved from the canonical Player.
+    pub const fn race_like_cpp(&self) -> u8 {
+        self.unit.data().race
+    }
+
+    /// C++ `Unit::GetClass` (`Unit.h:739`) resolved from the canonical Player.
+    pub const fn class_like_cpp(&self) -> u8 {
+        self.unit.data().class_id
+    }
+
+    /// C++ `Unit::GetLevel` (`Unit.h:733`) resolved from the canonical Player.
+    pub const fn level_like_cpp(&self) -> u8 {
+        let level = self.unit.data().level;
+        if level <= 0 {
+            0
+        } else if level >= u8::MAX as i32 {
+            u8::MAX
+        } else {
+            level as u8
+        }
+    }
+
+    /// C++ `Unit::GetGender` (`Unit.h:742`) resolved from the canonical Player.
+    pub const fn gender_like_cpp(&self) -> u8 {
+        self.unit.data().sex
+    }
+
     pub fn set_race_class_gender(&mut self, race: u8, class_id: u8, gender: Gender) {
         self.unit.set_race(race);
         self.unit.set_class(class_id);

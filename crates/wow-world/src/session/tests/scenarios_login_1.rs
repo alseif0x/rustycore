@@ -283,7 +283,10 @@ fn ensure_login_player_controller_is_idempotent_like_cpp() {
         0,
     ));
     assert_eq!(session.player_guid(), Some(guid));
-    assert_eq!(session.player_name_like_cpp(), Some("LoginTester"));
+    assert_eq!(
+        session.player_name_like_cpp(),
+        Some("LoginTester".to_string())
+    );
     assert_eq!(session.player_position_like_cpp(), Some(start));
     assert_eq!(session.player_map_id_like_cpp(), 571);
     assert_eq!(session.fall_information_like_cpp(), (0, start.z));
@@ -306,7 +309,10 @@ fn ensure_login_player_controller_is_idempotent_like_cpp() {
     ));
 
     assert_eq!(session.player_guid(), Some(guid));
-    assert_eq!(session.player_name_like_cpp(), Some("LoginTesterRenamed"));
+    assert_eq!(
+        session.player_name_like_cpp(),
+        Some("LoginTesterRenamed".to_string())
+    );
     assert_eq!(session.player_position_like_cpp(), Some(moved));
     assert_eq!(session.player_map_id_like_cpp(), 1);
     assert_eq!(session.fall_information_like_cpp(), (0, moved.z));

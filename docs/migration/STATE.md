@@ -32,6 +32,19 @@ passenger seat/offset admission, AI/scripts, taxi routing, exact C++ captures, o
 DB/restart/relogin QA; those remain explicit #63/#584 gates. No legacy Creature writer
 migration is implied.
 
+**P2 Player identity owner — candidate `e1929813298b8f1e91d6005ed63f4cb94f1615dd`,
+2026-09-14:** the next #584 macro moves name, race, class, level and gender
+authority to the canonical `wow_entities::Player`/`Unit`/`WorldObject`. The change
+follows TrinityCore `Player::LoadFromDB` (`Player.cpp:17060-17089`, `17247-17283`)
+and `Unit::GetLevel/GetRace/GetClass/GetGender` (`Unit.h:733-745`). Session retains
+only a login bootstrap DTO until owner installation; the old identity fields are
+fixture-only under `cfg(test)`, stale handles fail closed, and module/registry/
+character/group/chat consumers resolve through the canonical owner. `Player::m_swingErrorMsg`
+remains a separate melee residual. The candidate passes the two crate checks, 919
+entity tests, login 17/17, persistence 25/25, identity 23/23, formatting/diff and
+architecture check plus 20 self-tests. Save/reload durability, captures and live
+DB/relogin QA remain open gates.
+
 **P2 Player-owned mount presentation transition — 2026-09-14, #584 / PR #897, integration `90e58c7358d03340fb9ce10461a14dd33b94ceed` (implementation `bc58334f`):** the remaining production mount-presentation write now uses a named `Player` transition that applies `MountDisplayID` and `UNIT_FLAG_MOUNT` together, following TrinityCore `Unit::Mount` / `Unit::Dismount` (`Entities/Unit/Unit.cpp:7822-7865`). Session retains aura, collision, vehicle-kit and packet side effects; its broad unit-presentation closure is test-only for detached scale fixtures. The Player owner regression, mount spell-state scenarios, package, formatting/diff and architecture checks pass. Full mount gameplay, persistence, captures and live QA remain separate gates under #63/#584.
 
 **P2 Player-owned RestMgr transitions — 2026-09-14, #584 / PR #895, integration `94c21521a6d215f8f9fb086ddbef3267ee08c10f` (implementation `ea18126e`):** the remaining production Player rest-flag, deferred-publication and rest-clock writes now use named transitions on `wow-entities::Player` over its Player-owned `PlayerRestState`. The boundary follows `RestMgr::SetRestFlag` / `RemoveRestFlag` (`RestMgr.cpp:95-122`), `RestMgr::_restTime` (`RestMgr.h:86`) and `Player::SetRestState` (`Player.h:2652`). Session retains zone/catalog resolution, packet publication and application ordering; its generic PlayerRestState mutator is now a detached-fixture seam under `cfg(test)` only. The Player owner regression, rest-owner scenarios, chat, area-trigger, zone, package, formatting/diff and architecture checks pass. Quest objective progress, durable persistence, captures and live QA remain separate gameplay gates under #41/#584.

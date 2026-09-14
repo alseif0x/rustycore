@@ -633,7 +633,26 @@ impl WorldSession {
         }
     }
     pub(crate) fn set_loaded_player_name_like_cpp(&mut self, name: String) {
-        self.player_name = Some(name);
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.unit_mut().world_mut().set_name(name.clone());
+            })
+            .is_some();
+        if canonical {
+            self.player_identity_bootstrap_like_cpp = None;
+            return;
+        }
+        #[cfg(not(test))]
+        if self.player_handle_like_cpp.is_some() {
+            return;
+        }
+        self.player_identity_bootstrap_like_cpp
+            .get_or_insert_default()
+            .name = Some(name.clone());
+        #[cfg(test)]
+        {
+            self.player_name = Some(name);
+        }
     }
     pub(crate) fn set_loaded_player_identity_like_cpp(
         &mut self,
@@ -658,10 +677,35 @@ impl WorldSession {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         self.current_map_id = map_id;
-        self.player_race = race;
-        self.player_class = class;
-        self.player_level = level;
-        self.player_gender = gender;
+        let gray_level = self.gray_level(level);
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_race_class_gender(race, class, crate::session::gender_from_u8(gender));
+                player.set_level_and_gray_level_like_cpp(level, gray_level);
+            })
+            .is_some();
+        if canonical {
+            self.player_identity_bootstrap_like_cpp = None;
+        } else {
+            #[cfg(not(test))]
+            if self.player_handle_like_cpp.is_some() {
+                return;
+            }
+            self.player_identity_bootstrap_like_cpp = Some(super::PlayerIdentityBootstrapLikeCpp {
+                name: self.player_name_like_cpp(),
+                race,
+                class,
+                level,
+                gender,
+            });
+            #[cfg(test)]
+            {
+                self.player_race = race;
+                self.player_class = class;
+                self.player_level = level;
+                self.player_gender = gender;
+            }
+        }
         self.set_player_faction_for_race_like_cpp(race);
         if initialize_reputation {
             self.initialize_reputation_mgr_like_cpp();

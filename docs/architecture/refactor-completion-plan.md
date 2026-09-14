@@ -22,6 +22,17 @@ mapa de `Transport::TeleportPassengersAndHideTransport`, seats/offsets, pasajero
 AI/scripts, taxi y QA viva/DB siguen fuera de este corte y permanecen gates explícitos
 de #63/#584.
 
+La siguiente macro analizada es el **owner de identidad del Player**, candidata
+`e1929813298b8f1e91d6005ed63f4cb94f1615dd`. `name`, `race`, `class`, `level` y
+`gender` se resuelven desde `wow_entities::Player`/`Unit`/`WorldObject` después de
+la instalación canónica, con un DTO de bootstrap de login de un solo uso. La
+superficie antigua de Session queda restringida a fixtures `cfg(test)` y los
+consumidores de login de módulos, registro, character, group y chat usan consultas
+canónicas. La evidencia C++ es `Player.cpp:17060-17089,17247-17283` y
+`Unit.h:733-745`; `m_swingErrorMsg` queda deliberadamente para una macro de melee
+separada. El cierre no afirma todavía durabilidad de SaveToDB/relogin, capturas ni
+QA viva.
+
 PR #891 añade el cierre P2 acotado del owner de taxi del Player: el avance de ruta
 tras teletransporte y la limpieza del vuelo pasan a ser transiciones nominales sobre
 `PlayerTaxi`, siguiendo `PlayerTaxi::NextTaxiDestination` (`PlayerTaxi.h:74`) y

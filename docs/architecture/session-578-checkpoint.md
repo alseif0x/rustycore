@@ -43,6 +43,33 @@ Those contracts and historical evidence remain valid inputs to #584; none is mar
 completed by the scope transfer. #583 waits for the required core macrodeliverables
 in #584; #153 remains an independent auditor, not the owner of unfinished work.
 
+## P2 Player identity owner — candidate `e1929813298b8f1e91d6005ed63f4cb94f1615dd`, 2026-09-14
+
+The next bounded macro selected by the C0–C4 audit is the five-field Player identity
+boundary: name, race, class, level and gender. TrinityCore keeps these values on the
+canonical `Player`/`Unit`/`WorldObject`, loaded together by `Player::LoadFromDB`
+(`Player.cpp:17060-17089`, `17247-17283`) and exposed by `Unit::GetLevel`,
+`GetRace`, `GetClass` and `GetGender` (`Unit.h:733-745`). The candidate adds narrow
+canonical queries, routes post-owner hydration and level changes through the
+generation-checked Player, and restricts the old Session fields to `cfg(test)`
+fixtures. A login-only `PlayerIdentityBootstrapLikeCpp` carries construction input
+until owner installation, then is cleared; a stale/missing owner fails closed instead
+of recreating a second authority. Player name is read from `WorldObject::name` after
+installation, while the API returns an owned `String` so no map guard or borrowed
+entity reference crosses the boundary.
+
+The candidate updates module-login, registry, character-query, group/chat and
+character-entry consumers, and records the exact ownership in
+`runtime-ownership-ledger.json` (`player_identity_login_bootstrap` plus the five
+fixture fields). It intentionally leaves `Player::m_swingErrorMsg`
+(`Player.h:3023`, `Player.cpp:20625-20631`) for a separate melee macro. Evidence at
+this SHA: `cargo check -p wow-entities -p wow-world`; `cargo test -p wow-entities
+--lib` (919/919); `cargo test -p wow-world --lib scenarios_login_1` (17/17),
+`scenarios_persistence_1` (25/25) and `scenarios_misc_6` (23/23); formatting,
+`git diff --check`, architecture check and its 20 self-tests all pass. Durable
+save/reload, exact packet captures and live DB/relogin QA remain outside this owner
+closure.
+
 ## P2 Player mount presentation owner closure — integrated PR #897, 2026-09-14
 
 PR #897 integrates the bounded Player mount-presentation owner closure into

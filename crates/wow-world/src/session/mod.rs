@@ -5347,6 +5347,18 @@ pub struct SessionPersistencePortsLikeCpp {
     pub(crate) catalogs: CatalogPersistenceCapabilitiesLikeCpp,
 }
 
+/// Login-only identity input consumed while the canonical Player is being
+/// constructed. Once a generation-checked Player exists this value is retired;
+/// it is not a second runtime identity authority.
+#[derive(Debug, Clone, Default)]
+struct PlayerIdentityBootstrapLikeCpp {
+    name: Option<String>,
+    race: u8,
+    class: u8,
+    level: u8,
+    gender: u8,
+}
+
 pub struct WorldSession {
     /// The realm/instance transport, owned by `wow-session` (#297).
     ///
@@ -6033,13 +6045,18 @@ pub struct WorldSession {
     /// Current map ID for VALUES update packets.
     current_map_id: u16,
 
-    /// Race of the currently logged-in character (set at login).
+    /// Login-only identity input consumed while the canonical Player is being
+    /// constructed. Production reads resolve from that Player after install.
+    player_identity_bootstrap_like_cpp: Option<PlayerIdentityBootstrapLikeCpp>,
+
+    /// Detached fixture identity; production identity belongs to Player.
+    #[cfg(test)]
     player_race: u8,
-    /// Class of the currently logged-in character (set at login).
+    #[cfg(test)]
     player_class: u8,
-    /// Level of the currently logged-in character (set at login).
+    #[cfg(test)]
     player_level: u8,
-    /// Gender of the currently logged-in character (set at login).
+    #[cfg(test)]
     player_gender: u8,
     /// C++ `Player::m_createMode`, loaded from `characters.createMode`.
     #[cfg(test)]
@@ -6155,6 +6172,8 @@ pub struct WorldSession {
     represented_mover_fixed_position_vehicle_like_cpp: bool,
 
     /// Cached character name for chat messages.
+    /// Detached fixture identity; production name belongs to the canonical Player.
+    #[cfg(test)]
     player_name: Option<String>,
 
     // Addon chat filtering state. Mirrors C++ WorldSession::_registeredAddonPrefixes
@@ -8241,9 +8260,14 @@ impl WorldSession {
             #[cfg(test)]
             inventory_item_objects: HashMap::new(),
             current_map_id: 0,
+            player_identity_bootstrap_like_cpp: None,
+            #[cfg(test)]
             player_race: 0,
+            #[cfg(test)]
             player_class: 0,
+            #[cfg(test)]
             player_level: 0,
+            #[cfg(test)]
             player_gender: 0,
             #[cfg(test)]
             player_create_mode_like_cpp: wow_data::PLAYER_CREATE_MODE_NORMAL_LIKE_CPP,
@@ -8303,6 +8327,7 @@ impl WorldSession {
             represented_can_swim_to_fly_transition_like_cpp: false,
             #[cfg(test)]
             represented_mover_fixed_position_vehicle_like_cpp: false,
+            #[cfg(test)]
             player_name: None,
             registered_addon_prefixes: Vec::new(),
             filter_addon_messages: false,
@@ -9096,6 +9121,7 @@ impl WorldSession {
         key: wow_map::MapKey,
         bootstrap_position: Option<Position>,
     ) -> Option<Player> {
+        #[cfg(not(test))]
         if self.player_handle_like_cpp.is_some() {
             return None;
         }
@@ -12388,7 +12414,7 @@ impl WorldSession {
             guid,
             PlayerSessionRegistrationLikeCpp {
                 identity: crate::session::directory::PlayerDirectoryIdentityLikeCpp::new_with_bnet(
-                    name,
+                    name.clone(),
                     self.account_id,
                     self.battlenet_account_id(),
                     self.recruiter_id_like_cpp,
@@ -12762,6 +12788,7 @@ impl WorldSession {
             self.represented_seer_guid_like_cpp = Some(guid);
         }
         if guid.is_none() {
+            self.player_identity_bootstrap_like_cpp = None;
             #[cfg(test)]
             {
                 self.player_bootstrap_attached_like_cpp = false;
@@ -12847,16 +12874,26 @@ impl WorldSession {
     ) {
         let controller_position = controller.position();
         self.set_player_guid(Some(controller.guid()));
-        self.player_name = Some(controller.name().to_string());
+        self.player_identity_bootstrap_like_cpp = Some(PlayerIdentityBootstrapLikeCpp {
+            name: Some(controller.name().to_string()),
+            race: controller.race(),
+            class: controller.class(),
+            level: controller.level(),
+            gender: controller.gender(),
+        });
         #[cfg(test)]
         {
+            self.player_name = Some(controller.name().to_string());
             self.player_position = Some(controller_position);
         }
         self.current_map_id = controller.map_id();
-        self.player_race = controller.race();
-        self.player_class = controller.class();
-        self.player_level = controller.level();
-        self.player_gender = controller.gender();
+        #[cfg(test)]
+        {
+            self.player_race = controller.race();
+            self.player_class = controller.class();
+            self.player_level = controller.level();
+            self.player_gender = controller.gender();
+        }
         self.represented_seer_guid_like_cpp = Some(controller.guid());
         #[cfg(test)]
         {
@@ -12879,9 +12916,25 @@ impl WorldSession {
     }
 
     pub(crate) fn set_player_level_like_cpp(&mut self, level: u8) {
-        self.player_level = level;
         let gray_level = self.gray_level(level);
-        crate::canonical_player_sync::sync_player_level_like_cpp(self, level, gray_level);
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_level_and_gray_level_like_cpp(level, gray_level);
+            })
+            .is_some();
+        if !canonical {
+            #[cfg(not(test))]
+            if self.player_handle_like_cpp.is_some() {
+                return;
+            }
+            self.player_identity_bootstrap_like_cpp
+                .get_or_insert_default()
+                .level = level;
+            #[cfg(test)]
+            {
+                self.player_level = level;
+            }
+        }
         self.refresh_represented_talent_points_like_cpp();
     }
 
@@ -12890,7 +12943,18 @@ impl WorldSession {
         if self.player_class_like_cpp() != class {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
-        self.player_class = class;
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.unit_mut().set_class(class);
+                player.unit_mut().set_player_class(class);
+            })
+            .is_some();
+        if !canonical {
+            self.player_identity_bootstrap_like_cpp
+                .get_or_insert_default()
+                .class = class;
+            self.player_class = class;
+        }
         self.refresh_represented_talent_points_like_cpp();
     }
 
@@ -13409,8 +13473,22 @@ impl WorldSession {
         self.set_player_currencies_like_cpp(HashMap::new())
     }
 
-    pub(crate) fn player_name_like_cpp(&self) -> Option<&str> {
-        self.player_name.as_deref()
+    pub(crate) fn player_name_like_cpp(&self) -> Option<String> {
+        if let Some(name) =
+            self.with_owned_player_like_cpp(|player| player.unit().world().name().to_owned())
+        {
+            return Some(name);
+        }
+        #[cfg(test)]
+        {
+            return self.player_name.clone();
+        }
+        if self.player_handle_like_cpp.is_some() {
+            return None;
+        }
+        self.player_identity_bootstrap_like_cpp
+            .as_ref()
+            .and_then(|identity| identity.name.clone())
     }
 
     pub(crate) fn player_faction_template_id_like_cpp(&self) -> Option<u32> {
@@ -13462,11 +13540,39 @@ impl WorldSession {
     }
 
     pub(crate) fn player_race_like_cpp(&self) -> u8 {
-        self.player_race
+        if let Some(race) = self.with_owned_player_like_cpp(|player| player.race_like_cpp()) {
+            return race;
+        }
+        #[cfg(test)]
+        {
+            return self.player_race;
+        }
+        #[cfg(not(test))]
+        if self.player_handle_like_cpp.is_some() {
+            return 0;
+        }
+        self.player_identity_bootstrap_like_cpp
+            .as_ref()
+            .map(|identity| identity.race)
+            .unwrap_or_default()
     }
 
     pub(crate) fn player_class_like_cpp(&self) -> u8 {
-        self.player_class
+        if let Some(class) = self.with_owned_player_like_cpp(|player| player.class_like_cpp()) {
+            return class;
+        }
+        #[cfg(test)]
+        {
+            return self.player_class;
+        }
+        #[cfg(not(test))]
+        if self.player_handle_like_cpp.is_some() {
+            return 0;
+        }
+        self.player_identity_bootstrap_like_cpp
+            .as_ref()
+            .map(|identity| identity.class)
+            .unwrap_or_default()
     }
 
     pub(crate) fn player_create_mode_like_cpp(&self) -> Option<u8> {
@@ -13479,11 +13585,39 @@ impl WorldSession {
     }
 
     pub(crate) fn player_level_like_cpp(&self) -> u8 {
-        self.player_level
+        if let Some(level) = self.with_owned_player_like_cpp(|player| player.level_like_cpp()) {
+            return level;
+        }
+        #[cfg(test)]
+        {
+            return self.player_level;
+        }
+        #[cfg(not(test))]
+        if self.player_handle_like_cpp.is_some() {
+            return 0;
+        }
+        self.player_identity_bootstrap_like_cpp
+            .as_ref()
+            .map(|identity| identity.level)
+            .unwrap_or_default()
     }
 
     pub(crate) fn player_gender_like_cpp(&self) -> u8 {
-        self.player_gender
+        if let Some(gender) = self.with_owned_player_like_cpp(|player| player.gender_like_cpp()) {
+            return gender;
+        }
+        #[cfg(test)]
+        {
+            return self.player_gender;
+        }
+        #[cfg(not(test))]
+        if self.player_handle_like_cpp.is_some() {
+            return 0;
+        }
+        self.player_identity_bootstrap_like_cpp
+            .as_ref()
+            .map(|identity| identity.gender)
+            .unwrap_or_default()
     }
 
     pub(crate) fn represented_shapeshift_form_like_cpp(&self) -> Option<u32> {

@@ -208,7 +208,7 @@ impl WorldSession {
             None => return,
         };
 
-        let inviter_name = self.player_name_like_cpp().unwrap_or_default().to_string();
+        let inviter_name = self.player_name_like_cpp().unwrap_or_default();
         let vra = self.virtual_realm_address();
         let (realm_name, realm_name_normalized) = self
             .realm_names_for_address_like_cpp(vra)
@@ -348,7 +348,7 @@ impl WorldSession {
             Some(g) => g,
             None => return,
         };
-        let my_name = self.player_name_like_cpp().unwrap_or_default().to_string();
+        let my_name = self.player_name_like_cpp().unwrap_or_default();
 
         // Clone Arcs immediately so we hold no borrow on `self` later.
         let pending = match self.pending_invites() {
@@ -725,7 +725,7 @@ impl WorldSession {
             return;
         }
 
-        let player_name = self.player_name_like_cpp().unwrap_or_default().to_string();
+        let player_name = self.player_name_like_cpp().unwrap_or_default();
 
         if real_group_guid.is_none() {
             if let (Some(pending_invites), Some(invite)) =

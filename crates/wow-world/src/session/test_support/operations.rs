@@ -29,6 +29,7 @@ impl WorldSession {
         };
         drop(manager);
         self.player_handle_like_cpp = Some(handle);
+        self.player_identity_bootstrap_like_cpp = None;
         self.with_owned_player_like_cpp(Player::guid) == Some(guid)
     }
     #[cfg(test)]

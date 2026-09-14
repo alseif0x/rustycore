@@ -335,10 +335,10 @@ impl WorldSession {
         };
         let snapshot = wow_module_api::PlayerLoginSnapshot {
             guid,
-            name: self.player_name.clone().unwrap_or_default(),
-            race: self.player_race,
-            class: self.player_class,
-            level: self.player_level,
+            name: self.player_name_like_cpp().unwrap_or_default(),
+            race: self.player_race_like_cpp(),
+            class: self.player_class_like_cpp(),
+            level: self.player_level_like_cpp(),
             map_id: self.player_map_id_like_cpp(),
             first_login,
         };

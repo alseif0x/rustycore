@@ -218,7 +218,7 @@ impl WorldSession {
     }
     pub(super) fn player_name_and_guid(&self) -> (wow_core::ObjectGuid, String) {
         let guid = self.player_guid().unwrap_or(wow_core::ObjectGuid::EMPTY);
-        let name = self.player_name_like_cpp().unwrap_or_default().to_string();
+        let name = self.player_name_like_cpp().unwrap_or_default();
         (guid, name)
     }
     pub(super) fn has_gm_silence_aura_like_cpp(&self) -> bool {

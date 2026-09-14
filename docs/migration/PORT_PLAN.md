@@ -52,6 +52,18 @@ gates. It does not reopen closed issues or start Creature-owner migration.
 
 PR #897 closes the next measured P2 owner surface: the remaining production mount-presentation write now uses a named `Player` transition that applies `MountDisplayID` and `UNIT_FLAG_MOUNT` together, following TrinityCore `Unit::Mount` / `Unit::Dismount` (`Entities/Unit/Unit.cpp:7822-7865`). Session retains aura, collision, vehicle-kit and packet side effects; its broad unit-presentation closure is test-only for detached scale fixtures. The Player owner regression, mount spell-state scenarios, package checks, formatting/diff and architecture ratchet pass. This is an ownership closure: full mount gameplay, persistence, captures and live QA remain separate #63/#584 gates. The next #584 macro still comes from a fresh C0–C4 responsibility and consumer audit.
 
+The fresh audit now selects **Player identity ownership** as the next bounded #584
+macro, candidate `e1929813298b8f1e91d6005ed63f4cb94f1615dd`. Name, race, class, level
+and gender resolve from canonical `wow_entities::Player`/`Unit`/`WorldObject` after
+the login transition, following `Player::LoadFromDB` (`Player.cpp:17060-17089,
+17247-17283`) and `Unit::GetLevel/GetRace/GetClass/GetGender` (`Unit.h:733-745`).
+The Session keeps only a one-way login bootstrap DTO, and detached identity fields
+are test fixtures. Consumer migration covers module login, registry, character
+query/entry, group and chat; stale handles fail closed. The C++ swing-error member
+(`Player.h:3023`) is deliberately a separate melee macro. The candidate's focused
+checks and architecture evidence are recorded in `session-578-checkpoint.md`;
+durable save/reload, captures and live DB/relogin remain open acceptance gates.
+
 PR #895 closes the next measured P2 owner surface: production rest-flag, deferred-publication and rest-clock writes now use named transitions on `wow-entities::Player` over `PlayerRestState`, following `RestMgr::SetRestFlag` / `RemoveRestFlag` (`RestMgr.cpp:95-122`), `RestMgr::_restTime` (`RestMgr.h:86`) and `Player::SetRestState` (`Player.h:2652`). Session retains packet/application ordering and its generic rest-state mutator is detached-fixture-only under `cfg(test)`. The Player owner regression, rest-owner scenarios, affected chat/area-trigger/zone scenarios, package checks, formatting/diff and architecture ratchet pass. This is an ownership closure: quest objective progress, durable persistence, captures and live QA remain separate #41/#584 gates. The next #584 macro still comes from a fresh C0–C4 responsibility and consumer audit.
 
 PR #878 closes the next measured P2 owner surface: the Player-owned mount VehicleKit

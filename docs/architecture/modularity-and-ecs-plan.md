@@ -37,6 +37,16 @@ startup/live DB/relogin evidence, production locale/EffectPoints consumers and l
 spending/mutation and starter-build behavior. Neither issue
 changes the #584 → #583 → #153 architecture gate.
 
+The next #584 ownership slice is the Player identity boundary, candidate
+`e1929813298b8f1e91d6005ed63f4cb94f1615dd`: name, race, class, level and gender are
+canonical on `wow_entities::Player`/`Unit`/`WorldObject`; a one-way login DTO is
+consumed before owner publication, and Session identity fields are test fixtures
+only. This is a private ownership move with no new crate, universal context or map
+lock. Module-login, registry, character, group and chat adapters use canonical
+queries; stale handles fail closed. Swing-error state remains a separate melee
+responsibility. The exact C++ anchors, ledger family and focused evidence are in
+`docs/architecture/session-578-checkpoint.md`.
+
 The finite hecs V2 conformance proof has passed within its recorded laboratory limits.
 That evidence does not install production `hecs` or Wasmtime, prove production storage
 integration, or close the remaining #584 boundaries. #743 and #735 are delivered and
