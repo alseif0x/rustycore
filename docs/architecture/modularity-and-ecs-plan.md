@@ -71,6 +71,14 @@ partner mailbox; its generic whole-state mutator is fixture-only. Owner and soci
 scenario regressions, package checks, formatting/diff and the architecture ratchet
 pass. Trade settlement durability, captures and live QA remain gameplay gates.
 
+The following bounded P2 owner closure moves represented guild membership and invitation
+transitions onto `wow-entities::Player`. Named membership, invitation, rank and
+clear-invitation operations follow `Player::SetInGuild` (`Player.cpp:7216`),
+`SetGuildIdInvited` and `SetGuildRank` (`Player.h:1939,1943`). Session keeps GuildMgr/cache,
+protocol and application effects; the broad whole-state guild mutator remains only for
+handle-less `cfg(test)` fixtures. This is an owner boundary, not guild-manager/database,
+capture or live-QA completion.
+
 PR #844 closes one of those measured P2 operations: Void Storage's fixed-slot state and
 its clear/load/mark, lookup, free-slot, add, delete and swap transitions now belong to
 the canonical `Player`. Session retains template admission, persistence orchestration and

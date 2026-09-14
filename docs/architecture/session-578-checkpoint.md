@@ -220,6 +220,17 @@ client-index rule. The 15-test social scenario suite, package checks, formatting
 diff and architecture ratchet pass. This is an ownership closure only: complete
 trade settlement durability, exact captures and live QA remain gameplay gates.
 
+## P2 Player-owned guild membership transitions — implementation candidate, 2026-09-14
+
+The next bounded #584 owner closure moves represented guild membership and pending
+invitation state onto named `wow-entities::Player` operations. The C++ anchors are
+`Player::SetInGuild` (`Player.cpp:7216`), `SetGuildIdInvited` and `SetGuildRank`
+(`Player.h:1939,1943`). Session retains GuildMgr/cache, protocol and application
+effects; the broad composite guild mutator is fixture-only under `cfg(test)`, and
+the composite install is retired. Owner, social-scenario, guild-handler, package,
+architecture and formatting/diff checks pass. Guild-manager/database durability,
+captures and live QA remain outside this structural closure.
+
 ## P2 item-object ownership closure — 2026-09-13
 
 The corrected #737 inventory identified one remaining production boundary: the generic

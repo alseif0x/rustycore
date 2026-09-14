@@ -1005,6 +1005,21 @@ producción. Las regresiones del owner cubren las transiciones y el caso de oro 
 asequible; la suite social, checks, formato/diff y ratchet de arquitectura pasan.
 La liquidación durable, las capturas y la QA viva siguen siendo límites funcionales.
 
+#### Entrega P2 bajo #584 — ownership de guild membership del Player
+
+La siguiente auditoría C0–C4 encontró que la membresía de guild y la invitación
+pendiente todavía se modificaban a través de un cierre compuesto de `WorldSession`,
+aunque TrinityCore las conserva en `Player::SetInGuild` (`Player.cpp:7216`),
+`SetGuildIdInvited` y `SetGuildRank` (`Player.h:1939,1943`). La entrega candidata
+añade operaciones nombradas al módulo social privado de `Player` para membresía,
+invitación, rango, limpieza de invitación y snapshot; retira el instalador compuesto.
+
+Session conserva los efectos GuildMgr/cache, protocolo y aplicación. El mutador de
+estado completo queda solo para fixtures sin handle bajo `cfg(test)`, sin segundo owner,
+lock, reloj o espejo. Las regresiones del owner, la suite social, la suite de handlers
+de guild, checks, formato/diff y ratchet de arquitectura pasan. Persistencia del
+manager, capturas y QA viva siguen siendo límites funcionales.
+
 #### Contraste P3 de composición y fases — revisión acotada 2026-09-12
 
 **Corrección de la primera versión de esta sección (misma fecha).** La versión

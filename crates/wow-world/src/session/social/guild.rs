@@ -7,8 +7,7 @@ use super::*;
 
 impl WorldSession {
     fn player_guild_state_snapshot_like_cpp(&self) -> Option<wow_entities::PlayerGuildState> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.gameplay_state().guild.clone());
+        let canonical = self.with_owned_player_like_cpp(|player| player.guild_state_like_cpp());
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(wow_entities::PlayerGuildState {
@@ -22,33 +21,33 @@ impl WorldSession {
         }
         canonical
     }
+    #[cfg(test)]
     fn mutate_player_guild_state_like_cpp<R>(
         &mut self,
         f: impl FnOnce(&mut wow_entities::PlayerGuildState) -> R,
     ) -> Option<R> {
         let mut state = self.player_guild_state_snapshot_like_cpp()?;
         let result = f(&mut state);
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.install_guild_state_like_cpp(state.clone())
-            })
-            .is_some();
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_guild_id_like_cpp = state.guild_id.unwrap_or(0);
-            self.represented_guild_id_invited_like_cpp = state.invited_guild_id.unwrap_or(0);
-            self.represented_guild_id_authority_complete_like_cpp = state.authority_complete;
-            return Some(result);
-        }
-        canonical.then_some(result)
+        self.represented_guild_id_like_cpp = state.guild_id.unwrap_or(0);
+        self.represented_guild_id_invited_like_cpp = state.invited_guild_id.unwrap_or(0);
+        self.represented_guild_id_authority_complete_like_cpp = state.authority_complete;
+        Some(result)
     }
     pub(crate) fn set_represented_guild_id_like_cpp(&mut self, guild_id: u64) -> bool {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.mutate_player_guild_state_like_cpp(|state| {
-            state.guild_id = (guild_id != 0).then_some(guild_id);
-            state.authority_complete = true;
-        })
-        .is_some()
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.set_guild_id_like_cpp(guild_id))
+            .is_some();
+        #[cfg(test)]
+        if !canonical && self.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_guild_state_like_cpp(|state| {
+                    state.guild_id = (guild_id != 0).then_some(guild_id);
+                    state.authority_complete = true;
+                })
+                .is_some();
+        }
+        canonical
     }
     pub(crate) fn resolved_represented_guild_id_like_cpp(&self) -> Option<u64> {
         let state = self.player_guild_state_snapshot_like_cpp()?;
@@ -61,12 +60,19 @@ impl WorldSession {
         self.resolved_represented_guild_id_like_cpp()
             .expect("test Player guild owner must resolve")
     }
-    #[cfg(test)]
     pub(crate) fn set_represented_guild_id_invited_like_cpp(&mut self, guild_id: u64) -> bool {
-        self.mutate_player_guild_state_like_cpp(|state| {
-            state.invited_guild_id = (guild_id != 0).then_some(guild_id);
-        })
-        .is_some()
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.set_guild_id_invited_like_cpp(guild_id))
+            .is_some();
+        #[cfg(test)]
+        if !canonical && self.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_guild_state_like_cpp(|state| {
+                    state.invited_guild_id = (guild_id != 0).then_some(guild_id);
+                })
+                .is_some();
+        }
+        canonical
     }
     #[cfg(test)]
     pub(crate) fn represented_guild_id_invited_like_cpp(&self) -> u64 {
@@ -105,8 +111,16 @@ impl WorldSession {
             return false;
         }
 
-        self.mutate_player_guild_state_like_cpp(|state| state.invited_guild_id = None)
-            .is_some()
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.clear_guild_invitation_like_cpp())
+            .is_some();
+        #[cfg(test)]
+        if !canonical && self.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_guild_state_like_cpp(|state| state.invited_guild_id = None)
+                .is_some();
+        }
+        canonical
     }
     pub(crate) fn represented_set_auto_decline_guild_invites_like_cpp(
         &mut self,
