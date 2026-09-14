@@ -177,21 +177,52 @@ impl WorldSession {
             return Ok(());
         }
 
-        let Some(update) = self.mutate_player_persistent_capability_state_like_cpp(|state| {
-            if equipped.equipped_item_class == ItemClass::Weapon as i8
-                && (state.weapon_proficiency & sub_class_mask) == 0
-            {
-                state.weapon_proficiency |= sub_class_mask;
-                Some((ItemClass::Weapon as u8, state.weapon_proficiency))
-            } else if equipped.equipped_item_class == ItemClass::Armor as i8
-                && (state.armor_proficiency & sub_class_mask) == 0
-            {
-                state.armor_proficiency |= sub_class_mask;
-                Some((ItemClass::Armor as u8, state.armor_proficiency))
-            } else {
-                None
-            }
-        }) else {
+        let update = if equipped.equipped_item_class == ItemClass::Weapon as i8 {
+            let canonical = self.with_owned_player_mut_like_cpp(|player| {
+                player
+                    .add_weapon_proficiency_like_cpp(sub_class_mask)
+                    .map(|mask| (ItemClass::Weapon as u8, mask))
+            });
+            #[cfg(test)]
+            let canonical = canonical.or_else(|| {
+                self.player_handle_like_cpp.is_none().then(|| {
+                    self.mutate_player_persistent_capability_state_like_cpp(|state| {
+                        if state.weapon_proficiency & sub_class_mask == 0 {
+                            state.weapon_proficiency |= sub_class_mask;
+                            Some((ItemClass::Weapon as u8, state.weapon_proficiency))
+                        } else {
+                            None
+                        }
+                    })
+                    .expect("handle-less fixture capability owner")
+                })
+            });
+            canonical
+        } else if equipped.equipped_item_class == ItemClass::Armor as i8 {
+            let canonical = self.with_owned_player_mut_like_cpp(|player| {
+                player
+                    .add_armor_proficiency_like_cpp(sub_class_mask)
+                    .map(|mask| (ItemClass::Armor as u8, mask))
+            });
+            #[cfg(test)]
+            let canonical = canonical.or_else(|| {
+                self.player_handle_like_cpp.is_none().then(|| {
+                    self.mutate_player_persistent_capability_state_like_cpp(|state| {
+                        if state.armor_proficiency & sub_class_mask == 0 {
+                            state.armor_proficiency |= sub_class_mask;
+                            Some((ItemClass::Armor as u8, state.armor_proficiency))
+                        } else {
+                            None
+                        }
+                    })
+                    .expect("handle-less fixture capability owner")
+                })
+            });
+            canonical
+        } else {
+            Some(None)
+        };
+        let Some(update) = update else {
             return Err("No canonical Player persistent-capability owner");
         };
         if let Some((proficiency_class, proficiency_mask)) = update {

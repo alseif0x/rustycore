@@ -526,11 +526,20 @@ impl WorldSession {
             })
             .collect()
     }
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn set_represented_at_login_flags_like_cpp(&mut self, flags: u16) -> bool {
-        self.mutate_player_persistent_capability_state_like_cpp(|state| {
-            state.at_login_flags = flags;
-        })
-        .is_some()
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.set_at_login_flags_like_cpp(flags))
+            .is_some();
+        #[cfg(test)]
+        if !canonical && self.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_persistent_capability_state_like_cpp(|state| {
+                    state.at_login_flags = flags;
+                })
+                .is_some();
+        }
+        canonical
     }
     pub(crate) fn resolved_represented_at_login_flags_like_cpp(&self) -> Option<u16> {
         self.player_persistent_capability_state_snapshot_like_cpp()

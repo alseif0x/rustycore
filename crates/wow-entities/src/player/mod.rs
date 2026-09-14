@@ -29,6 +29,7 @@ mod location;
 mod menu;
 mod movement_control;
 mod pending_spell_cast;
+mod persistent_capabilities;
 mod pet_lifecycle;
 mod progression;
 mod pvp;

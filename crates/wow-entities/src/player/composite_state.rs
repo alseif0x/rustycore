@@ -3,7 +3,7 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Whole-state installs for the four composite Player states the session
+//! Whole-state installs for the remaining composite Player states the session
 //! mutates through a snapshot.
 //!
 //! Each session mutator takes a copy of the state, runs its caller's closure on
@@ -14,10 +14,7 @@
 //! Each state is a composite of fields C++ sets one by one; the anchors are
 //! recorded per method so the grouping stays traceable to them.
 
-use crate::{
-    Player, PlayerCollectionStateLikeCpp, PlayerCurrency, PlayerPersistentCapabilityStateLikeCpp,
-    PlayerTradeStateLikeCpp,
-};
+use crate::{Player, PlayerCollectionStateLikeCpp, PlayerCurrency, PlayerTradeStateLikeCpp};
 use std::collections::HashMap;
 
 impl Player {
@@ -27,18 +24,6 @@ impl Player {
     /// (Player.cpp:12877).
     pub fn install_trade_state_like_cpp(&mut self, trade: Option<PlayerTradeStateLikeCpp>) {
         self.gameplay_state_mut().trade = trade;
-    }
-
-    /// Install the Player's persistent capability state: the at-login flags
-    /// C++ keeps in `Player::m_atLoginFlags` (`SetAtLoginFlag`, Player.h:2474)
-    /// together with the proficiency masks behind
-    /// `Player::AddWeaponProficiency` and `Player::AddArmorProficiency`
-    /// (Player.h:1433-1434).
-    pub fn install_persistent_capabilities_like_cpp(
-        &mut self,
-        capabilities: PlayerPersistentCapabilityStateLikeCpp,
-    ) {
-        self.gameplay_state_mut().persistent_capabilities = capabilities;
     }
 
     /// Install the Player's currency map, C++ `Player::_currencyStorage`
