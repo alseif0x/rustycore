@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-14 (#866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-14 (#871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `abd396a0afcb247b411acbaf0d05d8713b747daf` (PR #869).
+The current code integration head is `304f482b101ff0ac8600854bd1a4ebb72cec2b5d` (PR #871).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
 mutations. #524's relation-query order correction is integrated by PR #803; PR #822/#824/#826/#828 now
@@ -139,6 +139,15 @@ durability, and suppresses the branch for `Unit::IsInFeralForm` (`Unit.cpp:496,
 absent, usable, broken and feral states; aura-backed modifiers, complete combat
 math and live/capture acceptance remain explicit #61 work.
 
+P3.10 / PR #871 completes the measured Player/Unit VALUES fanout boundary under #584. The
+Session consumes canonical `Map::SendObjectUpdates` snapshots only after releasing
+map guards; Unit setters enqueue their in-world objects, self updates retain
+owner/active-player fields and observers receive receiver-filtered values behind
+map/instance/incarnation, phase, range and `HaveAtClient` fences. Shared-raid field
+flags, exact packet captures, complete CREATE/Pet/corpse/transport coverage and
+live DB/restart/relogin evidence remain explicit follow-up gates. This does not move
+the legacy Creature owner or imply completion of #584.
+
 ## Architecture program state — 2026-09-14
 
 The [refactor completion plan](refactor-completion-plan.md) records the detailed
@@ -147,7 +156,7 @@ semantic, storage and extension contracts; neither document turns a pending task
 an accepted result.
 
 The architecture repair program is reviewed against integrated `3.4.3` at
-`abd396a0afcb247b411acbaf0d05d8713b747daf`. #587/#588/#589 and the subsequent
+`304f482b101ff0ac8600854bd1a4ebb72cec2b5d`. #587/#588/#589 and the subsequent
 #716/#718/#722/#737 deliveries are integrated and closed in their bounded scopes.
 Their checkpoints retain scoped runtime/capture evidence; they are not reopened by
 the remaining core work or by naming preferences.

@@ -2,7 +2,7 @@
 
 **Reconciled 2026-09-14 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
 Source baseline for this reconciliation: `3.4.3` at
-`abd396a0afcb247b411acbaf0d05d8713b747daf` (PR #869, following #866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`304f482b101ff0ac8600854bd1a4ebb72cec2b5d` (PR #871, following #869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -16,7 +16,7 @@ intermediate acceptance point, not a smaller replacement target.
 
 **#743 (group state application/reconciliation), #735 (reputation encapsulation) and
 #787 (World/Map session-phase coordination) are delivered and accepted within their
-recorded scopes.** P3.8 and P3.9 are integrated bounded visibility corrections
+recorded scopes.** P3.8, P3.9 and P3.10 are integrated bounded visibility corrections
 after P3.1–P3.7. P3.7 closes the measured Creature relocation
 fanout gap, while P3.8 marks recipients for object admission/removal through the same
 deferred Player-session rail. P3.1 retired the discarded canonical Creature writer,
@@ -33,9 +33,11 @@ once its represented camera cursor is active. P3.7 is the bounded fanout deliver
 Player-session rail; P3.8 extends that rail to `Map::AddToMap`/`RemoveFromMap` lifecycle
 recipient marking without delivering under a map mutation; P3.9 publishes directed
 ordinary Creature DESTROY after map removal through that rail with map-incarnation
-and `HaveAtClient` fences. Neither slice migrates the legacy Creature owner. The latest
-bounded implementation selected by the fresh audit is the Player-owned Void Storage
-transition surface, integrated by PR #844; no historical queue is implied.
+and `HaveAtClient` fences. P3.10 publishes receiver-filtered Player/Unit VALUES after
+`Map::SendObjectUpdates`, with Unit enqueue fixes and no packet delivery under a map
+guard. Neither slice migrates the legacy Creature owner. P3.10 is the latest
+bounded delivery; the next implementation must be selected by a fresh audit of the
+remaining measured responsibilities rather than by a historical queue.
 No old issue is reopened and no residual is promoted to implementation merely from a
 textual inventory.
 
@@ -319,7 +321,7 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#524](https://github.com/alseif0x/rustycore/issues/524) | F1, TraitMgr functional authority | PR #803 fixed the relation-query order; PR #822/#824 (`7bb9a911`) separates the WDC4/SQL stages, PR #826 (`d934451a`) applies official/custom `SkillLineXTraitTree` overlays, PR #828 (`276e3981`) retains the WDC4 table hash and applies final table-scoped removals, PR #830 (`a9623787`) indexes `TraitSystemID` trees and validates Generic configs, PR #832 (`1143ed41`) indexes `ChrSpecialization` class masks and validates Combat configs, and PR #834 (`4e3ad8f0`) rejects missing or over-ranked persisted node entries, all in production order `SkillLine` → `SkillLineAbility` → `SkillRaceClassInfo` → `TraitTree`/`SkillLineXTraitTree`, preserving fail-before-publication boundaries. PR #836 (`0fca1020`) adds the immutable node/group/edge/cost/condition/loadout graph. PR #842 (`995cd77f`, implementation `add6650a`) adds C++-aligned semantic condition/cost/parent/rank validation and deterministic granted-entry fallback before login publication from canonical Player facts. PR #846 (`93fa95a9`, implementation `57116f75`) composes all 24 C++-projected base Trait/`SpecSetMember` SQL hotfix tables with official-then-custom precedence, WDC4-hash-scoped removals and fail-before-publication checks. PR #848 (`179fd5d4`, implementation `95274da1`) adds both locale overlays with exact SQL projections and immutable Player capability retention. Remaining gates are explicit cross-store fail-before-publication coverage, startup/live DB/relogin evidence, production locale/EffectPoints consumers, real spending/mutation persistence and starter-build application. |
 | [#582](https://github.com/alseif0x/rustycore/issues/582) | B, existing LFG decoders | **Closed/integrated as `21686375` (PR #797).** Six C++-faithful client decoders; no handler, queue or matchmaking claim. |
 | [#583](https://github.com/alseif0x/rustycore/issues/583) | X, stateful native/Wasm | Deliver the preserved M0–M4 product after required core; the external login API and laboratory are insufficient. |
-| [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions. PR #816 integrates the P2 item-bonus writer retirement: resolved state application is a named Player-owned operation and the generic `&mut PlayerItemBonusStateLikeCpp` bridge is gone. Candidate `23a7fe16` adds the item-object P2 closure retirement: all production item-object mutations use the Player-owned closed command set, with fixture-only closure access retained. P3.4–P3.9 are integrated in the current delivery, including directed ordinary Creature DESTROY after map removal with map-incarnation/`HaveAtClient` fences (PR #820, `62c1369f`). The legacy Creature writer, AI/combat, scripts, FlyByCamera, CREATE/Pet/corpse/transport parity and exact capture/live gates remain explicit later boundaries. |
+| [#584](https://github.com/alseif0x/rustycore/issues/584) | A, core coordinator | Own remaining P2/P3/P4 and C0–C4 dispositions. PR #816 integrates the P2 item-bonus writer retirement: resolved state application is a named Player-owned operation and the generic `&mut PlayerItemBonusStateLikeCpp` bridge is gone. Candidate `23a7fe16` adds the item-object P2 closure retirement: all production item-object mutations use the Player-owned closed command set, with fixture-only closure access retained. P3.4–P3.10 are integrated in the current delivery, including directed ordinary Creature DESTROY after map removal (PR #820, `62c1369f`) and receiver-filtered Player/Unit VALUES fanout after `Map::SendObjectUpdates` (PR #871, `304f482b`). The legacy Creature writer, AI/combat, scripts, FlyByCamera, shared-raid field flags, CREATE/Pet/corpse/transport parity and exact capture/live gates remain explicit later boundaries. |
 | [#735](https://github.com/alseif0x/rustycore/issues/735) | A, reputation boundary | **Closed/delivered.** Player owns reputation state and named transitions; catalogs, packets and persistence consumers remain outside the domain boundary. |
 | [#743](https://github.com/alseif0x/rustycore/issues/743) | A, group consistency | **Closed/delivered.** GroupRegistry remains authoritative and dropped state-bearing commands converge through the session boundary. |
 | [#787](https://github.com/alseif0x/rustycore/issues/787) | A, session-phase coordination | **Integrated as `d14a9a67` (PR #792; accepted at `76369bda`).** World runs before Map, phase permits remain live through finalization/retirement, and shutdown/replacement barriers are covered by production-linked tests and guarded login/save/relogin QA. |

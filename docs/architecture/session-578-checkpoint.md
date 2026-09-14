@@ -1,6 +1,6 @@
-# Session convergence checkpoint — updated 2026-09-13
+# Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #849:** `4a3accf4459abe5421c4a24057057788fb213863`.
+**Integrated head after PR #871:** `304f482b101ff0ac8600854bd1a4ebb72cec2b5d`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -24,9 +24,10 @@ plus any fixes necessary to make that delivered change safe. It does not claim a
 thin Session, full C0–C4 completion, production hecs migration or a finished LFG.
 
 **#584 owns all remaining core C0–C4 work under #133.** It is a coordination epic,
-not another giant implementation PR. P3.8 and P3.9 are integrated; P3.9 delivered
-directed DESTROY for an ordinary in-world Creature. The next macro is not selected
-until a fresh audit of the remaining measured responsibilities. Before each
+not another giant implementation PR. P3.8, P3.9 and P3.10 are integrated; P3.9
+delivered directed DESTROY for an ordinary in-world Creature and P3.10 delivered
+receiver-filtered Player/Unit VALUES fanout after `Map::SendObjectUpdates`. The next
+macro is not selected until a fresh audit of the remaining measured responsibilities. Before each
 subsequent implementation child, audit current responsibilities, callers, C++ behavior,
 invariants, dependencies, tests and physical hotspots; then define a finite complete
 outcome and its consumer changes. A crate-focused issue may touch other crates to
@@ -126,8 +127,27 @@ and the mailbox incarnation-fence test
 map and Session suites, formatting and diff checks pass; the world-server check
 passes with one Cargo job. This is exact ordinary Creature DESTROY routing only:
 CREATE, Pet, corpse/transport, shared vision, packet capture and live DB/restart/
-relogin QA remain separate gates. The next #584 macro must be chosen from a fresh
-audit; no P3.10 issue is implied by this delivery.
+relogin QA remain separate gates.
+
+## P3.10 delivered — Player/Unit VALUES fanout — 2026-09-14
+
+PR #871 integrates this bounded #584 delivery into `3.4.3` at
+`304f482b101ff0ac8600854bd1a4ebb72cec2b5d` (implementation `30157c1f`). The
+Session consumes the canonical Player and Unit snapshots emitted by
+`Map::SendObjectUpdates` after all map guards are released. Unit field setters now
+enqueue their in-world object, self updates retain owner/active-player fields and
+observers receive receiver-filtered Player/Unit values only when the committed
+map/instance/incarnation, phase, range and `HaveAtClient` fences hold. Creature/Pet
+updates use the same path, with packet bytes built before delivery and no map lock
+held across a send.
+
+The three `wow-world` fanout regressions, 27 `wow-entities` unit regressions,
+production `world-server` check, architecture checks and `validation-v2 quick` pass
+at `target/validation-v2/manifests/20260914T072651.033982Z-371881-quick.json`.
+Shared-raid field flags, exact packet captures, complete CREATE/Pet/corpse/transport
+coverage and live DB/restart/relogin acceptance remain separate #584 gates. This
+delivery does not close #584; the next macro still requires a fresh responsibility
+audit.
 
 ## P2 item-object ownership closure — 2026-09-13
 

@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`abd396a0afcb247b411acbaf0d05d8713b747daf` (PR #869, following PR #866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`304f482b101ff0ac8600854bd1a4ebb72cec2b5d` (PR #871, following PR #869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -412,6 +412,22 @@ Session tests, mailbox fence test, `cargo check` for `wow-map`/`world-server`,
 formatting and diff checks pass with one Cargo job. CREATE, Pet, corpse/transport,
 capture and live DB/restart/relogin acceptance remain separate gates; #584 stays
 open for its remaining measured macrodeliverables.
+
+**P3.10 Player/Unit VALUES fanout — 2026-09-14, #584 / PR #871, integration
+`304f482b101ff0ac8600854bd1a4ebb72cec2b5d` (implementation `30157c1f`):** the
+Session now consumes the Player and Unit snapshots produced by
+`Map::SendObjectUpdates` after map guards are released. Unit field mutations enqueue
+their canonical in-world object, self updates retain owner/active-player fields, and
+observers receive receiver-filtered Player/Unit values only when map, instance,
+incarnation, phase, range and `HaveAtClient` fences hold. Creature/Pet updates use
+the same committed visibility path; packet bytes are built before delivery and no
+map lock crosses a send. Three `wow-world` fanout regressions, 27 `wow-entities`
+unit regressions, the production `world-server` check, architecture checks and
+`validation-v2 quick` pass at
+`target/validation-v2/manifests/20260914T072651.033982Z-371881-quick.json`.
+Shared-raid field flags, exact packet captures, complete CREATE/Pet/corpse/transport
+coverage and live DB/restart/relogin acceptance remain separate #584 gates; #584
+stays open and the next macro still requires a fresh responsibility audit.
 
 **P2 item-bonus writer retirement — 2026-09-13, #584 / PR #816, integration
 `db1250767090a5c951dae96ad6c2a2d5b24873ff` (implementation `948b7ea9`, ledger
