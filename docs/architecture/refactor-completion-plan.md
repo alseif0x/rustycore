@@ -12,15 +12,15 @@ PR #876 añade la proyección separada de `Player::m_visibleTransports` para Tra
 VALUES a través del registro y del consumidor de Session; no amplía el alcance a
 CREATE/DESTROY o al ciclo de pasajeros.
 
-La auditoría C0/C3 del 2026-09-14 selecciona como siguiente macro **Transport
-CREATE/DESTROY y visibilidad por fase**. C++ lo ejecuta en
-`Map::AddToMap(Transport)`, `Map::SendUpdateTransportVisibility` y
-`Transport::TeleportPassengersAndHideTransport` (`Map.cpp:574-610,1853-1915`,
-`Transport.cpp:630-680`); RustyCore solo tiene el CREATE de login, el owner typed y
-VALUES membership. La entrega debe capturar un snapshot typed con mapa/incarnation,
-publicarlo fuera del guard y cambiar `Player::m_visibleTransports` en la misma
-transición, con pruebas de fase, reemplazo, stale y desconexión. Seats/offsets,
-pasajeros, AI/scripts, taxi y QA viva/DB quedan fuera y siguen en #63/#584.
+La auditoría C0/C3 del 2026-09-14 seleccionó como macro **Transport CREATE/DESTROY y
+visibilidad por fase**. La implementación candidata en `584-transport-visibility`
+captura el Transport typed desde el mapa, resuelve sus datos de CREATE en propiedad,
+marca receptores same-phase en add/remove y publica CREATE/OUT-OF-RANGE junto con la
+membresía separada de `Player::m_visibleTransports` fuera del guard. Las regresiones
+focales de mapa y puente, `cargo check -p wow-world` y fmt/diff pasan. El traslado de
+mapa de `Transport::TeleportPassengersAndHideTransport`, seats/offsets, pasajeros,
+AI/scripts, taxi y QA viva/DB siguen fuera de este corte y permanecen gates explícitos
+de #63/#584.
 
 PR #891 añade el cierre P2 acotado del owner de taxi del Player: el avance de ruta
 tras teletransporte y la limpieza del vuelo pasan a ser transiciones nominales sobre

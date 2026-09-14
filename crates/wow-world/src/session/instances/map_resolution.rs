@@ -68,6 +68,49 @@ impl WorldSession {
     pub(crate) fn has_world_map_manager_like_cpp(&self) -> bool {
         self.map_manager.is_some()
     }
+    /// Snapshot every in-world transport on the player's canonical map that
+    /// survives the viewer phase check.  C++ `Map::SendInitTransports` and the
+    /// transport add/remove fan-out use the map reference list rather than a
+    /// distance radius, so this is intentionally a whole-map typed scan.
+    pub(crate) fn visible_transports_from_canonical_map_like_cpp(
+        &self,
+        map_id: u16,
+    ) -> Option<Vec<wow_packet::packets::update::GameObjectCreateData>> {
+        let requested_map_id = u32::from(map_id);
+        let player_map_key = self.current_canonical_player_map_key_like_cpp();
+        let viewer_phase_shift = self.represented_player_phase_shift_like_cpp();
+        let manager = self.canonical_map_manager.as_ref()?;
+        let Ok(manager) = manager.lock() else {
+            return None;
+        };
+        let map = match player_map_key {
+            Some(key) if key.map_id == requested_map_id => {
+                manager.find_map(key.map_id, key.instance_id)?
+            }
+            Some(_) => return None,
+            None => manager.find_map(requested_map_id, 0)?,
+        };
+
+        let mut transports = Vec::new();
+        for guid in map.map().typed_transport_guids_like_cpp() {
+            let Some(transport) = map.map().get_typed_transport_like_cpp(guid) else {
+                continue;
+            };
+            let world = transport.world();
+            if !world.object().is_in_world()
+                || world.map_id() != requested_map_id
+                || !viewer_phase_shift
+                    .as_ref()
+                    .is_some_and(|viewer| viewer.can_see(world.phase_shift()))
+            {
+                continue;
+            }
+            transports.push(
+                crate::entity_update_bridge::transport_create_data_from_entity_like_cpp(transport),
+            );
+        }
+        Some(transports)
+    }
     pub(crate) fn visible_dynamic_objects_from_canonical_map_like_cpp(
         &self,
         map_id: u16,

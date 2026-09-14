@@ -105,6 +105,56 @@ fn remove_from_map_marks_nearby_players_for_deferred_visibility_like_cpp() {
 }
 
 #[test]
+fn transport_visibility_walk_uses_same_phase_map_references_not_distance_like_cpp() {
+    let mut map = test_map();
+
+    let mut player = test_player_for_viewpoint(4510301);
+    player
+        .unit_mut()
+        .world_mut()
+        .relocate(Position::xyz(10_000.0, 10_000.0, 30.0));
+    let player_guid = player.guid();
+    map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_player(player).unwrap())
+        .unwrap();
+    map.get_typed_player_mut(player_guid)
+        .unwrap()
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .reset_all_notifies();
+
+    let transport = test_transport(4510302, true);
+    let transport_guid = transport.world().guid();
+    map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_transport(transport).unwrap())
+        .unwrap();
+
+    assert_eq!(
+        map.transport_visibility_recipients_like_cpp(transport_guid),
+        vec![player_guid]
+    );
+    assert!(
+        map.map_object(player_guid)
+            .unwrap()
+            .object()
+            .is_need_notify(ObjectNotifyFlags::VISIBILITY_CHANGED)
+    );
+
+    map.get_typed_player_mut(player_guid)
+        .unwrap()
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .reset_all_notifies();
+    map.remove_from_map_like_cpp(transport_guid, true).unwrap();
+    assert!(
+        map.map_object(player_guid)
+            .unwrap()
+            .object()
+            .is_need_notify(ObjectNotifyFlags::VISIBILITY_CHANGED)
+    );
+}
+
+#[test]
 fn grid_activation_range_uses_creature_sight_for_inactive_sources_like_cpp() {
     let mut map = test_map();
     let creature = test_creature_for_spawn(1234, 1234001, true);

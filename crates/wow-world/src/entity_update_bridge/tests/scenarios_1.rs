@@ -36,6 +36,39 @@ fn bridges_active_player_money_update_from_entity_mask() {
 }
 
 #[test]
+fn bridges_canonical_transport_create_values_like_cpp() {
+    let guid = ObjectGuid::create_transport(HighGuid::Transport, 7_701);
+    let mut transport = Transport::new();
+    transport.world_mut().object_mut().create(guid);
+    transport.world_mut().set_map(571, 7).unwrap();
+    transport
+        .world_mut()
+        .relocate(Position::new(11.0, 22.0, 33.0, 0.5));
+    transport.initialize_created_state(TransportCreateInfo {
+        entry: 1_234,
+        display_id: 5_678,
+        object_scale: 1.25,
+        name: "bridge-test".to_string(),
+        period_ms: 120_000,
+        path_progress_ms: 30_000,
+        allow_stopping: true,
+    });
+
+    let create = transport_create_data_from_entity_like_cpp(&transport);
+    assert_eq!(create.guid, guid);
+    assert_eq!(create.entry, 1_234);
+    assert_eq!(create.display_id, 5_678);
+    assert_eq!(
+        create.go_type,
+        wow_entities::GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT
+    );
+    assert_eq!(create.position, Position::new(11.0, 22.0, 33.0, 0.5));
+    assert_eq!(create.level, 120_000);
+    assert_eq!(create.dynamic_flags >> 16, 16_383);
+    assert_eq!(create.gameobject_flags & 0x0010_0028, 0x0010_0028);
+}
+
+#[test]
 fn bridges_active_player_explored_zones_update_from_entity_mask_like_cpp() {
     let mut player = Player::new(Some(7), false);
     player.clear_data_changes();

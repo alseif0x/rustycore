@@ -3,8 +3,43 @@
 //! Separated from the entity_update_bridge.rs root under #662. Behaviour is preserved.
 
 use super::*;
+use wow_entities::{GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT, Transport};
+use wow_packet::packets::update::GameObjectCreateData;
 
 pub(super) const VISIBLE_ITEM_FULL_UPDATE_MASK: u32 = 0x0F;
+
+/// Snapshot a canonical map transport into the packet-owned CREATE values.
+///
+/// The map manager owns the `Transport` while this function runs, but the
+/// returned value is detached from that guard.  This mirrors the values used
+/// by `Transport::Create`/`Map::SendInitTransports` and deliberately leaves
+/// passenger, seat and spline relocation work to their own macro boundaries.
+pub fn transport_create_data_from_entity_like_cpp(transport: &Transport) -> GameObjectCreateData {
+    let world = transport.world();
+    let object = world.object().object_data_values();
+    let data = transport.game_object().data();
+    GameObjectCreateData {
+        guid: world.guid(),
+        entry: u32::try_from(object.entry_id).unwrap_or(0),
+        dynamic_flags: object.dynamic_flags,
+        display_id: u32::try_from(data.display_id).unwrap_or(0),
+        go_type: u8::try_from(data.type_id).unwrap_or(GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT),
+        position: world.position(),
+        rotation: [0.0, 0.0, 0.0, 1.0],
+        anim_progress: data.percent_health,
+        state: data.state,
+        art_kit: data.art_kit,
+        created_by: data.created_by,
+        faction_template: data.faction_template,
+        // Transport.cpp sets these constructor flags before the CREATE block;
+        // preserve any map-owned flags already present on the canonical object.
+        gameobject_flags: data.flags | 0x0010_0028,
+        world_effect_id: 0,
+        scale: object.scale,
+        level: u32::try_from(data.level).unwrap_or_default(),
+        parent_rotation: [0.0, 0.0, 0.0, 1.0],
+    }
+}
 
 pub fn corpse_create_data_from_entity_like_cpp(corpse: &Corpse) -> CorpseCreateData {
     let world = corpse.world();
