@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-14 (#889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-14 (#891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,8 +11,8 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `e37570c4e1e9feee04aadac6d485f5d1f314ced1` (PR #889,
-following PR #876, P3.10 correction PR #873 and delivery PR #871).
+The current code integration head is `faa5964bbdb360adc12e58279ab17b76c76b66b9` (PR #891, following PR #889,
+PR #876, P3.10 correction PR #873 and delivery PR #871).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
 mutations. #524's relation-query order correction is integrated by PR #803; PR #822/#824/#826/#828 now
@@ -97,6 +97,17 @@ proficiency masks, following `Player.h:1433-1434,2474`. Session remains the
 persistence/protocol/application boundary and its generic adapter is fixture-only
 under `cfg(test)`. Owner, persistence, spell-state and architecture checks pass;
 durability, captures and live QA remain separate gates.
+
+
+PR #891 closes the next bounded P2 owner surface: named Player transitions now own
+post-teleport taxi route advancement and taxi-flight cleanup over `PlayerTaxi`,
+following `PlayerTaxi::NextTaxiDestination` (`PlayerTaxi.h:74`) and
+`Player::CleanupAfterTaxiFlight` (`Player.cpp:22019`). Session remains the map,
+spline and packet/application boundary, and the handle-less generic taxi adapter is
+fixture-only under `cfg(test)`. The Player owner regression, 14 taxi tests, 11
+canonical-access scenarios, 13 movement scenarios, package checks and architecture
+ratchet pass. Route generation, node admission, teleport ordering, persistence,
+captures and live QA remain separate gameplay gates under #584.
 
 PR #844 closes one of those measured P2 operations: Void Storage's fixed-slot state and
 its clear/load/mark, lookup, free-slot, add, delete and swap transitions now belong to

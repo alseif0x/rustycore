@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`e37570c4e1e9feee04aadac6d485f5d1f314ced1` (PR #889, following PR #887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`faa5964bbdb360adc12e58279ab17b76c76b66b9` (PR #891, following PR #889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -90,6 +90,19 @@ fixture-only under `cfg(test)`. Owner tests, the 25-test persistence scenario,
 spell-state scenarios, package checks, formatting/diff checks and the architecture
 ratchet pass. Durable save/reload, captures and live QA remain separate gameplay
 gates; #584 stays open.
+
+**P2 Player-owned taxi flight transitions — 2026-09-14, #584 / PR #891,
+integration `faa5964bbdb360adc12e58279ab17b76c76b66b9` (implementation
+`a2a32586`):** post-teleport route advancement and taxi-flight cleanup now use
+named transitions on `wow-entities::Player` over its `PlayerTaxi` state. The
+boundary follows `PlayerTaxi::NextTaxiDestination` (`PlayerTaxi.h:74`) and
+`Player::CleanupAfterTaxiFlight` (`Player.cpp:22019`); Session retains map
+admission, spline completion and packet/application effects, while the generic
+handle-less taxi mutator is fixture-only under `cfg(test)`. The Player owner
+regression, 14 taxi tests, 11 canonical-access scenarios, 13 movement scenarios,
+package checks, formatting/diff checks and architecture ratchet pass. Route
+creation/node admission, teleport ordering, persistence, captures and live QA
+remain separate #584 gameplay gates.
 
 **F1 movement knockback-ACK slice — 2026-09-14, #63 / PR #866, merge
 `0079daa81c4955e38031009a24b17b8dbabc7d9b`:** `HandleMoveKnockBackAck` now
