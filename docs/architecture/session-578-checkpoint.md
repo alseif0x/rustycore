@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #895:** `94c21521a6d215f8f9fb086ddbef3267ee08c10f`.
+**Integrated head after PR #897:** `90e58c7358d03340fb9ce10461a14dd33b94ceed`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -40,6 +40,20 @@ This section supersedes older statements below requiring all C0–C4 inside #578
 Those contracts and historical evidence remain valid inputs to #584; none is marked
 completed by the scope transfer. #583 waits for the required core macrodeliverables
 in #584; #153 remains an independent auditor, not the owner of unfinished work.
+
+## P2 Player mount presentation owner closure — integrated PR #897, 2026-09-14
+
+PR #897 integrates the bounded Player mount-presentation owner closure into
+`3.4.3` as `90e58c7358d03340fb9ce10461a14dd33b94ceed` (implementation
+`bc58334f`). Production mount presentation now uses one named transition on the
+canonical Player for the Unit `MountDisplayID` and `UNIT_FLAG_MOUNT` fields,
+following TrinityCore `Unit::Mount` / `Unit::Dismount`
+(`Entities/Unit/Unit.cpp:7822-7865`). Session retains aura, collision,
+vehicle-kit and packet side effects; its broad unit-presentation helper is
+restricted to detached `cfg(test)` scale fixtures. The Player owner regression,
+mount spell-state scenarios, package checks, formatting/diff checks and
+architecture ratchet/self-test pass. Full mount gameplay, persistence, captures
+and live QA remain separate #63/#584 gates.
 
 ## P2 Player RestMgr owner closure — integrated PR #895, 2026-09-14
 
