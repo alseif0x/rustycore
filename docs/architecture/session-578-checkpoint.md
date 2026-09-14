@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #897:** `90e58c7358d03340fb9ce10461a14dd33b94ceed`.
+**Integrated head after PR #902:** `c06f13158e587ce0250df12fc54bfb204b6d3d42`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
