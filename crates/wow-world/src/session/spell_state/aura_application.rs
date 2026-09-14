@@ -10,10 +10,20 @@ impl WorldSession {
         &mut self,
         slot: u8,
     ) -> Option<AuraApplication> {
-        self.mutate_player_aura_subsystem_like_cpp(|auras| {
-            auras.remove_runtime_application_like_cpp(slot)
-        })
-        .flatten()
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.remove_player_visible_aura_like_cpp(slot)
+            })
+            .flatten();
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_aura_subsystem_like_cpp(|auras| {
+                    auras.remove_runtime_application_like_cpp(slot)
+                })
+                .flatten();
+        }
+        canonical
     }
     pub(crate) fn same_effect_stack_rule_aura_types_like_cpp(
         &self,

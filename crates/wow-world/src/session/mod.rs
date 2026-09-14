@@ -12737,10 +12737,18 @@ impl WorldSession {
             // Player, not the authenticated WorldSession. Clear both at the
             // identity boundary so a later character cannot inherit positive
             // or negative aura-spell authority from the previous one.
-            let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
-                auras.clear_runtime_applications_like_cpp();
-                auras.reset_player_aura_source_authority_like_cpp();
-            });
+            let _canonical = self
+                .with_owned_player_mut_like_cpp(|player| {
+                    player.reset_player_aura_source_authority_like_cpp();
+                })
+                .is_some();
+            #[cfg(test)]
+            if !_canonical && self.player_handle_like_cpp.is_none() {
+                let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
+                    auras.clear_runtime_applications_like_cpp();
+                    auras.reset_player_aura_source_authority_like_cpp();
+                });
+            }
             self.begin_player_equipment_inventory_authority_load_like_cpp();
             #[cfg(test)]
             {

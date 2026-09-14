@@ -30,6 +30,7 @@ impl WorldSession {
         }
         canonical
     }
+    #[cfg(test)]
     pub(in crate::session) fn mutate_player_aura_subsystem_like_cpp<R>(
         &mut self,
         mutate: impl FnOnce(&mut wow_entities::AuraSubsystem) -> R,
@@ -63,10 +64,20 @@ impl WorldSession {
         })
     }
     pub(crate) fn set_player_aura_authority_complete_like_cpp(&mut self, complete: bool) -> bool {
-        self.mutate_player_aura_subsystem_like_cpp(|auras| {
-            auras.set_persisted_player_aura_authority_complete_like_cpp(complete);
-        })
-        .is_some()
+        let _canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_player_aura_authority_complete_like_cpp(complete);
+            })
+            .is_some();
+        #[cfg(test)]
+        if !_canonical && self.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_aura_subsystem_like_cpp(|auras| {
+                    auras.set_persisted_player_aura_authority_complete_like_cpp(complete);
+                })
+                .is_some();
+        }
+        _canonical
     }
     #[cfg(test)]
     pub(crate) fn player_aura_authority_complete_like_cpp(&self) -> bool {
@@ -77,9 +88,17 @@ impl WorldSession {
             .map(|auras| auras.persisted_player_aura_authority_complete_like_cpp())
     }
     pub(crate) fn tombstone_player_spell_hit_aura_authority_like_cpp(&mut self) {
-        let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
-            auras.tombstone_spell_hit_aura_authority_like_cpp();
-        });
+        let _canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.tombstone_player_spell_hit_aura_authority_like_cpp();
+            })
+            .is_some();
+        #[cfg(test)]
+        if !_canonical && self.player_handle_like_cpp.is_none() {
+            let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
+                auras.tombstone_spell_hit_aura_authority_like_cpp();
+            });
+        }
     }
     fn represented_active_glyph_aura_source_is_empty_like_cpp(&self) -> bool {
         self.player_talent_runtime_snapshot_like_cpp()
@@ -412,28 +431,45 @@ impl WorldSession {
                 row.effect_mask,
                 &represented_effect_amounts,
             );
-            let installed = self.mutate_player_aura_subsystem_like_cpp(|auras| {
-                auras.insert_threat_snapshot_like_cpp(slot, canonical_snapshot);
-                auras.insert_runtime_application_like_cpp(AuraApplication {
-                    spell_id,
-                    difficulty_id: row.difficulty,
-                    caster_guid,
-                    slot,
-                    duration_total,
-                    duration_remaining,
-                    stack_count: row.stack_count.max(1),
-                    aura_flags,
-                    effect_mask: row.effect_mask,
-                    aura_interrupt_flags: 0,
-                    aura_interrupt_flags2: 0,
-                    represented_effect: None,
-                    represented_amount: 0,
-                    represented_effect_amounts,
-                    represented_misc_value: None,
-                    represented_multiplier: 1.0,
-                    applied_at: Instant::now(),
-                });
-            });
+            let aura = AuraApplication {
+                spell_id,
+                difficulty_id: row.difficulty,
+                caster_guid,
+                slot,
+                duration_total,
+                duration_remaining,
+                stack_count: row.stack_count.max(1),
+                aura_flags,
+                effect_mask: row.effect_mask,
+                aura_interrupt_flags: 0,
+                aura_interrupt_flags2: 0,
+                represented_effect: None,
+                represented_amount: 0,
+                represented_effect_amounts,
+                represented_misc_value: None,
+                represented_multiplier: 1.0,
+                applied_at: Instant::now(),
+            };
+            let _fallback_snapshot = canonical_snapshot.clone();
+            let _fallback_aura = aura.clone();
+            let _canonical = self
+                .with_owned_player_mut_like_cpp(|player| {
+                    player.install_player_threat_aura_like_cpp(slot, canonical_snapshot, aura);
+                })
+                .is_some();
+            #[cfg(test)]
+            let installed = if _canonical {
+                Some(())
+            } else if self.player_handle_like_cpp.is_none() {
+                self.mutate_player_aura_subsystem_like_cpp(|auras| {
+                    auras.insert_threat_snapshot_like_cpp(slot, _fallback_snapshot);
+                    auras.insert_runtime_application_like_cpp(_fallback_aura);
+                })
+            } else {
+                None
+            };
+            #[cfg(not(test))]
+            let installed = _canonical.then_some(());
             if installed.is_none() {
                 break;
             }
