@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-14 (#921 / #919 / #918 / #917 / #916 / #915 / #913 / #911 / #909 / #907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-14 (#923 / #922 / #921 / #919 / #918 / #917 / #916 / #915 / #913 / #911 / #909 / #907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,9 +11,9 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `d25cbc9161f8affb8c5201a1ad6a653870938969` (PR #921, following PR #918, PR #917, PR #916, PR #915, PR #913, PR #909, PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
+The current code integration head is `5f6b1ad83d6ea6adf81368a36384593808632737` (PR #923, following PR #922/#921, PR #918, PR #917, PR #916, PR #915, PR #913, PR #909, PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
 PR #889, PR #876, P3.10 correction PR #873 and delivery PR #871).
-Current exact inventory after PR #921: 648 WorldSession fields (219 production, 429 test fixtures). Encounter-lock resolution is integrated; the only unresolved #584 production responsibility is the Player `m_seer` visibility seam.
+Current exact inventory after PR #923: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution and the Player `m_seer` visibility projection are integrated; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet.
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
 mutations. #524's relation-query order correction is integrated by PR #803; PR #822/#824/#826/#828 now
@@ -172,6 +172,23 @@ only. Creature and GameObject encounter-loot consumers use the typed query. Focu
 lock, loot and composition tests plus cargo, syntax and architecture checks pass at
 merge `d25cbc9161f8affb8c5201a1ad6a653870938969`. `m_seer` remains the sole exact
 production residual under #584.
+
+## P2 Player::m_seer canonical visibility projection — integrated PR #923, 2026-09-14
+
+TrinityCore initializes `Player::m_seer` to the Player itself
+(`Player.cpp:298-300`, `Player.h:2417-2425`) and changes it only through
+`SetViewpoint` (`Player.cpp:25338-25395`); map and visibility code read that
+pointer (`Map.cpp:716-718`, `GridNotifiers.cpp:95-222`). Rust production code now
+derives the seer GUID from the canonical map-owned Player's
+`ActivePlayerData::FarsightObject`; empty means the Player itself. Deferred
+visibility, movement, aggro and GameObject/DynamicObject consumers use this
+projection. The former Session field is test-fixture input under `cfg(test)` only.
+`last_observed_farsight_object_like_cpp` is a receiver-local publication fence for
+the one explicit FAR_SIGHT clear VALUES packet after viewpoint removal, not gameplay
+authority. FAR_SIGHT (14), GameObject despawn (22), DynamicObject VALUES (15),
+package, ownership syntax, architecture and self-test evidence pass at merge
+`5f6b1ad8`. Full captures, DB/relogin durability and live QA remain gameplay/runtime
+gates under #41/#63/#584.
 
 ## P2 Player instance-reset owner — integrated PR #919, 2026-09-14
 

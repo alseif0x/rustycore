@@ -1,12 +1,12 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #921/#919/#918/#917/#916/#915/#913/#911/#909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #923/#922/#921/#919/#918/#917/#916/#915/#913/#911/#909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
 anclas C++, orden de ejecución y criterios de aceptación de la arquitectura.
 
-Estado exacto tras PR #921 (`d25cbc91`): 648 campos de WorldSession (219 de producción, 429 fixtures). El lock de encuentros ya usa la autoridad canónica; queda una responsabilidad productiva pendiente en #584: el seam de visibilidad `Player::m_seer`.
+Estado exacto tras PR #923 (`5f6b1ad8`): 649 campos de WorldSession (219 de producción, 430 fixtures). El lock de encuentros y la proyección de visibilidad `Player::m_seer` ya usan la autoridad canónica; no queda un residual productivo de WorldSession en este corte auditado. Session conserva un único cerrojo de publicación para el paquete explícito de limpieza FAR_SIGHT.
 
 PR #881 añade el cierre nominal de las mutaciones de aura del Player sobre el `AuraSubsystem`
 propiedad de su Unit; la superficie genérica de Session queda limitada a fixtures `cfg(test)`.
@@ -164,6 +164,24 @@ creature and GameObject encounter-loot consumers use the typed query. Focused lo
 loot and composition tests, cargo checks, syntax ownership and architecture checks
 pass at merge `d25cbc9161f8affb8c5201a1ad6a653870938969`. The sole exact production
 residual under #584 is `Player::m_seer` visibility.
+
+## P2 Player::m_seer canonical visibility projection — integrated PR #923, 2026-09-14
+
+TrinityCore inicializa `Player::m_seer` al propio Player (`Player.cpp:298-300`,
+`Player.h:2417-2425`) y sólo lo cambia mediante `SetViewpoint`
+(`Player.cpp:25338-25395`); el mapa y la visibilidad consultan ese estado
+(`Map.cpp:716-718`, `GridNotifiers.cpp:95-222`). Rust deriva ahora el GUID del
+seer de producción desde el `Player` canónico propietario del mapa y su
+`ActivePlayerData::FarsightObject`; un valor vacío representa al propio Player.
+Los consumidores de visibilidad diferida, movimiento, aggro y consultas de
+GameObject/DynamicObject usan esa proyección. El antiguo campo de Session queda
+limitado a fixtures `cfg(test)`. `last_observed_farsight_object_like_cpp` es sólo
+un cerrojo local del receptor para emitir una vez el paquete de limpieza
+FAR_SIGHT tras retirar el viewpoint, no una autoridad de gameplay. Pasan las
+regresiones focales FAR_SIGHT (14), GameObject despawn (22), DynamicObject VALUES
+(15), `cargo check`, ownership syntax, architecture check y 20 self-tests en el
+merge `5f6b1ad8`. Capturas completas, durabilidad DB/relogin y QA viva siguen
+siendo gates de gameplay/runtime bajo #41/#63/#584.
 
 ## P2 Player instance-reset owner — integrated PR #919, 2026-09-14
 
