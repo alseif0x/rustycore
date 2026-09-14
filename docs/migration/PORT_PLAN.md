@@ -1,8 +1,8 @@
 # RustyCore — Master port and delivery plan
 
-**Reconciled 2026-09-14 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49), with PR #901 and #902 integrated.**
+**Reconciled 2026-09-14 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49), with PR #901, #902 and #904 integrated.**
 Source baseline for this reconciliation: `3.4.3` at
-`c06f13158e587ce0250df12fc54bfb204b6d3d42` (PR #902, following #901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`4ad36d420a0f56297390262f3667be1b5fc4ae6f` (PR #904, following #902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -52,15 +52,15 @@ gates. It does not reopen closed issues or start Creature-owner migration.
 
 PR #897 closes the next measured P2 owner surface: the remaining production mount-presentation write now uses a named `Player` transition that applies `MountDisplayID` and `UNIT_FLAG_MOUNT` together, following TrinityCore `Unit::Mount` / `Unit::Dismount` (`Entities/Unit/Unit.cpp:7822-7865`). Session retains aura, collision, vehicle-kit and packet side effects; its broad unit-presentation closure is test-only for detached scale fixtures. The Player owner regression, mount spell-state scenarios, package checks, formatting/diff and architecture ratchet pass. This is an ownership closure: full mount gameplay, persistence, captures and live QA remain separate #63/#584 gates. The next #584 macro still comes from a fresh C0–C4 responsibility and consumer audit.
 
-The fresh audit now selects **Player identity ownership** as the next bounded #584
-macro, candidate `e1929813298b8f1e91d6005ed63f4cb94f1615dd`. Name, race, class, level
+The fresh audit selected **Player identity ownership** as the bounded #584
+macro, integrated by PR #904 (`4ad36d42`). Name, race, class, level
 and gender resolve from canonical `wow_entities::Player`/`Unit`/`WorldObject` after
 the login transition, following `Player::LoadFromDB` (`Player.cpp:17060-17089,
 17247-17283`) and `Unit::GetLevel/GetRace/GetClass/GetGender` (`Unit.h:733-745`).
 The Session keeps only a one-way login bootstrap DTO, and detached identity fields
 are test fixtures. Consumer migration covers module login, registry, character
 query/entry, group and chat; stale handles fail closed. The C++ swing-error member
-(`Player.h:3023`) is deliberately a separate melee macro. The candidate's focused
+(`Player.h:3023`) is deliberately a separate melee macro. Its focused
 checks and architecture evidence are recorded in `session-578-checkpoint.md`;
 durable save/reload, captures and live DB/relogin remain open acceptance gates.
 

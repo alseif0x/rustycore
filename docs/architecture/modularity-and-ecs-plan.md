@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-14 (#902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-14 (#904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `c06f13158e587ce0250df12fc54bfb204b6d3d42` (PR #902, following PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
+The current code integration head is `4ad36d420a0f56297390262f3667be1b5fc4ae6f` (PR #904, following PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
 PR #889, PR #876, P3.10 correction PR #873 and delivery PR #871).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
@@ -37,8 +37,7 @@ startup/live DB/relogin evidence, production locale/EffectPoints consumers and l
 spending/mutation and starter-build behavior. Neither issue
 changes the #584 → #583 → #153 architecture gate.
 
-The next #584 ownership slice is the Player identity boundary, candidate
-`e1929813298b8f1e91d6005ed63f4cb94f1615dd`: name, race, class, level and gender are
+The #584 Player identity boundary is integrated by PR #904 (`4ad36d42`): name, race, class, level and gender are
 canonical on `wow_entities::Player`/`Unit`/`WorldObject`; a one-way login DTO is
 consumed before owner publication, and Session identity fields are test fixtures
 only. This is a private ownership move with no new crate, universal context or map

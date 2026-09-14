@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`c06f13158e587ce0250df12fc54bfb204b6d3d42` (PR #902 following PR #901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`4ad36d420a0f56297390262f3667be1b5fc4ae6f` (PR #904 following PR #902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -32,8 +32,8 @@ passenger seat/offset admission, AI/scripts, taxi routing, exact C++ captures, o
 DB/restart/relogin QA; those remain explicit #63/#584 gates. No legacy Creature writer
 migration is implied.
 
-**P2 Player identity owner — candidate `e1929813298b8f1e91d6005ed63f4cb94f1615dd`,
-2026-09-14:** the next #584 macro moves name, race, class, level and gender
+**P2 Player identity owner — integrated PR #904, merge `4ad36d420a0f56297390262f3667be1b5fc4ae6f`,
+2026-09-14:** the #584 macro moves name, race, class, level and gender
 authority to the canonical `wow_entities::Player`/`Unit`/`WorldObject`. The change
 follows TrinityCore `Player::LoadFromDB` (`Player.cpp:17060-17089`, `17247-17283`)
 and `Unit::GetLevel/GetRace/GetClass/GetGender` (`Unit.h:733-745`). Session retains
@@ -43,7 +43,8 @@ character/group/chat consumers resolve through the canonical owner. `Player::m_s
 remains a separate melee residual. The candidate passes the two crate checks, 919
 entity tests, login 17/17, persistence 25/25, identity 23/23, formatting/diff and
 architecture check plus 20 self-tests. Save/reload durability, captures and live
-DB/relogin QA remain open gates.
+DB/relogin QA remain open gates; the next #584 implementation must follow a fresh
+C0–C4 responsibility and consumer audit rather than reselecting this slice.
 
 **P2 Player-owned mount presentation transition — 2026-09-14, #584 / PR #897, integration `90e58c7358d03340fb9ce10461a14dd33b94ceed` (implementation `bc58334f`):** the remaining production mount-presentation write now uses a named `Player` transition that applies `MountDisplayID` and `UNIT_FLAG_MOUNT` together, following TrinityCore `Unit::Mount` / `Unit::Dismount` (`Entities/Unit/Unit.cpp:7822-7865`). Session retains aura, collision, vehicle-kit and packet side effects; its broad unit-presentation closure is test-only for detached scale fixtures. The Player owner regression, mount spell-state scenarios, package, formatting/diff and architecture checks pass. Full mount gameplay, persistence, captures and live QA remain separate gates under #63/#584.
 
