@@ -8,6 +8,15 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#63 movement audit — 2026-09-14:** the current code and TrinityCore anchors show
+that ordinary force-speed ACKs are already implemented in
+`session/movement/speed.rs` with the C++ forced-change counter, transport exemption,
+correction and kick branches (`MovementHandler.cpp:468-546`), and knockback ACK
+admission/publication is integrated by PR #866 (`MovementHandler.cpp:548-559`). They
+are no longer pending implementation items. The open boundary is complete
+vehicle/transport seat-offset admission, runtime branches whose mover or consumer is
+not represented, exact packet-order captures and live client/server/DB QA.
+
 **P2 Player-owned mount presentation transition — 2026-09-14, #584 / PR #897, integration `90e58c7358d03340fb9ce10461a14dd33b94ceed` (implementation `bc58334f`):** the remaining production mount-presentation write now uses a named `Player` transition that applies `MountDisplayID` and `UNIT_FLAG_MOUNT` together, following TrinityCore `Unit::Mount` / `Unit::Dismount` (`Entities/Unit/Unit.cpp:7822-7865`). Session retains aura, collision, vehicle-kit and packet side effects; its broad unit-presentation closure is test-only for detached scale fixtures. The Player owner regression, mount spell-state scenarios, package, formatting/diff and architecture checks pass. Full mount gameplay, persistence, captures and live QA remain separate gates under #63/#584.
 
 **P2 Player-owned RestMgr transitions — 2026-09-14, #584 / PR #895, integration `94c21521a6d215f8f9fb086ddbef3267ee08c10f` (implementation `ea18126e`):** the remaining production Player rest-flag, deferred-publication and rest-clock writes now use named transitions on `wow-entities::Player` over its Player-owned `PlayerRestState`. The boundary follows `RestMgr::SetRestFlag` / `RemoveRestFlag` (`RestMgr.cpp:95-122`), `RestMgr::_restTime` (`RestMgr.h:86`) and `Player::SetRestState` (`Player.h:2652`). Session retains zone/catalog resolution, packet publication and application ordering; its generic PlayerRestState mutator is now a detached-fixture seam under `cfg(test)` only. The Player owner regression, rest-owner scenarios, chat, area-trigger, zone, package, formatting/diff and architecture checks pass. Quest objective progress, durable persistence, captures and live QA remain separate gameplay gates under #41/#584.

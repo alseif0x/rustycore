@@ -54,6 +54,14 @@ its consumers and validation.
 
 PR #897 closes the next bounded P2 owner surface selected by that audit: production mount-presentation writes now use one named `Player` transition for the Unit `MountDisplayID` and `UNIT_FLAG_MOUNT` fields, following TrinityCore `Unit::Mount` / `Unit::Dismount` (`Unit.cpp:7822-7865`). Session retains aura, collision, vehicle-kit and packet side effects; its broad unit-presentation adapter is test-only for detached scale fixtures. No second authority, lock or clock is introduced. The Player owner regression, affected mount scenarios, package checks and architecture ratchet pass; full mount gameplay, persistence, captures and live QA remain outside this structural closure.
 
+The current #63 movement audit retires two stale plan entries: ordinary force-speed ACKs
+are implemented by `handle_force_speed_change_ack_like_cpp` with the C++ counter,
+transport exemption, correction and kick branches (`MovementHandler.cpp:468-546`),
+and knockback ACK admission/publication is integrated by PR #866
+(`MovementHandler.cpp:548-559`). The remaining movement work is complete
+vehicle/transport seat-offset admission, runtime branches whose mover or consumer is
+not represented, exact packet-order captures and live client/server/DB QA.
+
 PR #895 closes the next bounded P2 owner surface selected by that audit: production rest-flag, deferred-publication and rest-clock writes now use named `Player` transitions over the Player-owned `PlayerRestState`, following `RestMgr::SetRestFlag` / `RemoveRestFlag` (`RestMgr.cpp:95-122`), `RestMgr::_restTime` (`RestMgr.h:86`) and `Player::SetRestState` (`Player.h:2652`). Session retains packet/application ordering and the generic rest-state adapter is fixture-only under `cfg(test)`. No second authority, lock or clock is introduced. The owner regression, rest-owner scenarios, affected world scenarios, package checks and architecture ratchet pass; quest objective progress, durable persistence, captures and live QA remain outside this structural closure.
 
 PR #881 closes the next bounded P2 owner surface selected by that audit: Player aura
