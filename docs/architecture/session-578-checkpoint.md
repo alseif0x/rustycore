@@ -186,6 +186,21 @@ production fields while the ledger remains 647 fields (220 production, 427 test
 fixtures). Architecture check, self-test (20/20), focused policy/configuration tests
 and diff validation pass.
 
+## P2 Player base-stat catalog classification — candidate, 2026-09-14
+
+El siguiente C0–C4 audit clasifica `player_stats` como un catálogo inmutable de
+configuración/servicios, no como autoridad de estado de `WorldSession`. TrinityCore
+mantiene las filas de raza/clase/nivel en `ObjectMgr::_playerInfo` y expone
+`ObjectMgr::GetPlayerLevelInfo` (`Globals/ObjectMgr.h:628-673,1155,1866`,
+`ObjectMgr.cpp:4429-4445`); `Player` solo consulta esa autoridad durante el cálculo
+de sus estadísticas (`Player.cpp:2256-2260,2370-2374`). Rust ya carga el catálogo una
+vez en `world-server/app.rs:2222-2240`, lo compone en la capacidad `SessionInventoryCapabilitiesLikeCpp`
+(`session_resources.rs:65,107`) y lo conserva como `Arc<PlayerStatsStore>` para los
+lectores de estadísticas (`handlers/character/stats.rs:117`, `session_state.rs:1103`).
+El ledger registra la clasificación en `immutable_catalogs_configuration_and_services`;
+no se mueve gameplay, no se crea una autoridad duplicada y el residual exacto queda en
+6 campos hasta la integración.
+
 ## P2 Player mount presentation owner closure — integrated PR #897, 2026-09-14
 
 PR #897 integrates the bounded Player mount-presentation owner closure into
