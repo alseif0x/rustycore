@@ -201,6 +201,21 @@ El ledger registra la clasificación en `immutable_catalogs_configuration_and_se
 no se mueve gameplay, no se crea una autoridad duplicada y el residual exacto queda en
 6 campos hasta la integración.
 
+## P3 Creature query duplicate-response correction — candidate, 2026-09-14
+
+La auditoría del residuo `creature_query_cache` encontró una diferencia de
+comportamiento, no una autoridad válida de Session. TrinityCore conserva el caché de
+bytes serializados en `CreatureTemplate::QueryData` y `WorldSession::HandleCreatureQuery`
+responde cada `CMSG_QUERY_CREATURE`, usando el caché solo para construir el payload
+(`Handlers/QueryHandler.cpp:71-99`, `World.cpp:1706-1707`). Rust mantenía un
+`HashSet<u32>` por Session y silenciaba consultas repetidas; se retiró ese campo y el
+handler vuelve a responder cada petición. La regresión focal exige dos respuestas para
+dos consultas iguales. El snapshot sintáctico se regeneró con el checker oficial y la
+clasificación existente de `represented_player_unit_values_updates_delivered_like_cpp`
+se registra bajo la familia de publicación Map/visibility. El ledger conserva 647 campos
+(220 producción, 427 fixtures) y reduce el residual exacto a 5; la integración pendiente
+debe mantener explícita la diferencia de `CacheDataQueries` si se implementa más adelante.
+
 ## P2 Player mount presentation owner closure — integrated PR #897, 2026-09-14
 
 PR #897 integrates the bounded Player mount-presentation owner closure into

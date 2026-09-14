@@ -7186,11 +7186,6 @@ pub struct WorldSession {
     /// Ownerless legacy fixtures only; production uses Player's teleport state.
     #[cfg(test)]
     pending_teleport: Option<(u32, wow_core::Position)>,
-
-    // ── QueryCreature cache ────────────────────────────────────────
-    /// Creature entry IDs for which we've already sent a QueryCreatureResponse.
-    /// The client caches the response locally, so we skip duplicates.
-    pub(crate) creature_query_cache: std::collections::HashSet<u32>,
 }
 
 /// Compatibility name while handler modules move to the Player-owned type.
@@ -8899,7 +8894,6 @@ impl WorldSession {
             active_area_trigger: None,
             #[cfg(test)]
             pending_teleport: None,
-            creature_query_cache: std::collections::HashSet::new(),
             instance_lock_mgr: None,
         }
     }

@@ -82,12 +82,6 @@ impl WorldSession {
         catalogs: &crate::session::ObjectMgrCatalogsLikeCpp,
         query: QueryCreature,
     ) {
-        // If already responded, skip — client caches locally after first response
-        if self.creature_query_cache.contains(&query.creature_id) {
-            return;
-        }
-        self.creature_query_cache.insert(query.creature_id);
-
         let row = match catalogs
             .creature
             .resolve_like_cpp(query.creature_id, &self.locale)
