@@ -2,7 +2,7 @@
 
 **Reconciled 2026-09-14 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
 Source baseline for this reconciliation: `3.4.3` at
-`0079daa81c4955e38031009a24b17b8dbabc7d9b` (PR #866, following #864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`abd396a0afcb247b411acbaf0d05d8713b747daf` (PR #869, following #866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -70,10 +70,14 @@ and publishes one runtime-only `PlayerEffectiveCombatStatsLikeCpp` snapshot owne
 threat consume the Player-owned AP snapshot with C++ clamp/multiplier order
 (`Spell.cpp:5558-5575`, `Unit.cpp:9165-9180`). PR #858 (`cda7f8a0`) makes melee
 consume Player-owned base/offhand weapon ranges derived by the C++-shaped `wow-data`
-projection. The packet VALUES adapter split is retained; these slices do not make the
-snapshot a persistence record or claim full combat parity. Keep #61 open for aura-backed
-producers, exact AP/damage/aura/regen/expertise/penetration behavior, complete weapon
-admission, reversible equipment lifecycle and capture/live DB/relogin evidence. F2
+projection. PR #869 (`abd396a0`) closes the exact offhand admission used by
+`Unit::DoMeleeAttackIfReady` (`Unit.cpp:2140`): the canonical Player slot and Item
+object must resolve a weapon inventory type and a non-broken item, and
+`Unit::IsInFeralForm` (`Unit.cpp:8807-8812`) suppresses the offhand branch. The packet
+VALUES adapter split is retained; these slices do not make the snapshot a persistence
+record or claim full combat parity. Keep #61 open for aura-backed producers, exact
+AP/damage/aura/regen/expertise/penetration behavior, reversible equipment lifecycle
+and capture/live DB/relogin evidence. F2
 (#29/#31) may consume the snapshot only after those missing participants are integrated
 and acceptance is recorded.
 
@@ -126,6 +130,15 @@ movement suite, architecture checks, `world-server` check and `validation-v2 qui
 pass at the recorded manifest. #63 remains open for ordinary speed ACKs, remaining
 transport/death/BG/taxi operations, broader mover kinds, complete seat/offset
 admission, captures and live QA.
+
+PR #869 (`abd396a0`) closes the measured offhand admission boundary under #61.
+`Unit::DoMeleeAttackIfReady` now requires `!IsInFeralForm()` and
+`haveOffhandWeapon()` (`Unit.cpp:2140`); the latter resolves the canonical Player
+slot and Item object through `GetWeaponForAttack` (`Unit.cpp:496`,
+`Player.cpp:9243-9270`) and rejects absent, non-weapon or broken items. Focused
+owner/world regressions, the production world-server check and architecture
+ratchets pass. This is a bounded consumer correction; aura-backed combat math,
+reversible equipment lifecycle and live/capture acceptance remain in #61.
 
 Continue the remaining core under #584 by complete operations, execution/lifetime
 boundaries and physical organization. #582 is closed after its decoder-only delivery;
@@ -292,7 +305,7 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#56](https://github.com/alseif0x/rustycore/issues/56) | F3, area-trigger | Bits, conditions, scripts and tavern paths exist; trace residual explore/BG/corpse/transfer semantics. |
 | [#58](https://github.com/alseif0x/rustycore/issues/58) | Superseded by #41 | Preserve timed-active exclusivity and recursive breadcrumb admission as explicit quest criteria. |
 | [#59](https://github.com/alseif0x/rustycore/issues/59) | Superseded by #41 | Preserve acceptance/completion/reward participants and evidence, without redoing #718. |
-| [#61](https://github.com/alseif0x/rustycore/issues/61) | F1, equipment/stats | **Projection and first consumers integrated by PR #851 (`b26ce713`), #857 (`fd302c35`) and #858 (`cda7f8a0`); issue remains open.** Finish aura-backed producers, exact C++ AP/damage/aura/regen/expertise/penetration paths, complete weapon admission, reversible equip/unequip and broken/repair lifecycle, then capture/live DB/relogin acceptance before accepting combat numbers. |
+| [#61](https://github.com/alseif0x/rustycore/issues/61) | F1, equipment/stats | **Projection and first consumers integrated by PR #851 (`b26ce713`), #857 (`fd302c35`), #858 (`cda7f8a0`) and #869 (`abd396a0`); issue remains open.** Exact offhand admission now follows `Unit.cpp:496,2140,8807-8812` and `Player.cpp:9243-9270`, including broken-item and feral-form gates. Finish aura-backed producers, exact C++ AP/damage/aura/regen/expertise/penetration paths, reversible equip/unequip and broken/repair lifecycle, then capture/live DB/relogin acceptance before accepting combat numbers. |
 | [#63](https://github.com/alseif0x/rustycore/issues/63) | F1, movement | **Admission + transport/ACK slices integrated by PR #853/#855/#859/#860/#862/#864 (`2d375ef1`):** pending teleport and unfinished controlled-mover spline fail closed before side effects; canonical Map-owned transport membership switches/detaches safely and resets missing targets; vehicle passenger turning follows the C++ early return; stale transport distance validation covers controlled Creature/Pet movers; `MoveTimeSkipped` and movement-force Apply/Remove/mod-magnitude ACKs validate, advance/check and publish from the active controlled mover. Continue complete seat/offset admission, ordinary speed ACKs, knockback/death/BG/taxi operations, broader mover kinds and live capture/QA; preserve #588 deferred visibility. |
 | [#65](https://github.com/alseif0x/rustycore/issues/65) | L, source-evidence index | Correct finding/issue status and retain exact C++ provenance; not a separate implementation queue or fresh count. |
 | [#99](https://github.com/alseif0x/rustycore/issues/99) | X, module ecosystem | #583 is the selected stateful product; wider language/WIT/hot-reload proposals remain later capability-led planning. |

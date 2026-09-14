@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`0079daa81c4955e38031009a24b17b8dbabc7d9b` (PR #866, following PR #864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`abd396a0afcb247b411acbaf0d05d8713b747daf` (PR #869, following PR #866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -122,6 +122,17 @@ world/entity/data tests and final validation pass at
 `target/validation-v2/manifests/20260914T024623.613803Z-127420-final.json`.
 Exact aura-backed damage modifiers, complete weapon admission, full spell/melee
 parity and live capture/QA remain open in #61.
+
+**F1 exact offhand admission — 2026-09-14, #61 / PR #869, merge
+`abd396a0afcb247b411acbaf0d05d8713b747daf`:** the melee timer and swing path now
+require a canonical Player offhand slot with a weapon inventory type and a
+non-broken Item object, and reject the offhand branch in feral forms. This follows
+`Unit::haveOffhandWeapon` (`Unit.cpp:496`), `Unit::DoMeleeAttackIfReady`
+(`Unit.cpp:2140`), `Unit::IsInFeralForm` (`Unit.cpp:8807-8812`) and
+`Player::GetWeaponForAttack` (`Player.cpp:9243-9270`). Focused owner admission/
+feral regressions, all 26 `combat_tick_` world tests, production `world-server`
+check and architecture checks pass at the pre-merge candidate. Aura-backed damage
+modifiers, captures and live combat parity remain open in #61.
 
 **Latest bounded data delivery — 2026-09-13, PR #848, merge
 `179fd5d40491e4ded2a8c25b3261263330855cd5` (implementation `95274da1`):** the
