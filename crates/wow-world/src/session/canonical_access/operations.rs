@@ -283,6 +283,15 @@ impl WorldSession {
     ) -> Option<wow_entities::PlayerEffectiveCombatStatsLikeCpp> {
         self.canonical_player_snapshot_like_cpp(|player| *player.effective_combat_stats_like_cpp())
     }
+
+    /// Read the canonical Player's total melee attack power for consumers
+    /// whose C++ counterpart calls `Unit::GetTotalAttackPowerValue`.
+    ///
+    /// The derived snapshot is the only production authority for this value;
+    /// callers must not rebuild it from Session-owned item modifiers.
+    pub(crate) fn canonical_player_total_attack_power_like_cpp(&self) -> Option<f32> {
+        self.canonical_player_snapshot_like_cpp(|player| player.total_attack_power_like_cpp())
+    }
     /// Apply one named canonical cinematic transition, or the handle-less test
     /// mirror that stands in for it. C++ performs these on the Player's own
     /// `CinematicMgr` (`CinematicMgr.h:39`, `CinematicMgr.cpp:46`, `:83`), never

@@ -34,9 +34,18 @@ pub struct PlayerEffectiveCombatStatsLikeCpp {
     pub attack_power: i32,
     pub attack_power_mod_pos: i32,
     pub attack_power_mod_neg: i32,
+    /// C++ `Unit::GetTotalAttackPowerValue(BASE_ATTACK)` multiplier.
+    ///
+    /// The current stat projection publishes the represented value (zero when
+    /// no aura-backed multiplier is available); keeping it on the Player
+    /// snapshot prevents combat consumers from reconstructing AP from an item
+    /// mirror when the aura/runtime producer is added.
+    pub attack_power_multiplier: f32,
     pub ranged_attack_power: i32,
     pub ranged_attack_power_mod_pos: i32,
     pub ranged_attack_power_mod_neg: i32,
+    /// C++ `Unit::GetTotalAttackPowerValue(RANGED_ATTACK)` multiplier.
+    pub ranged_attack_power_multiplier: f32,
     pub min_damage: f32,
     pub max_damage: f32,
     pub min_ranged_damage: f32,
@@ -80,9 +89,11 @@ impl Default for PlayerEffectiveCombatStatsLikeCpp {
             attack_power: 0,
             attack_power_mod_pos: 0,
             attack_power_mod_neg: 0,
+            attack_power_multiplier: 0.0,
             ranged_attack_power: 0,
             ranged_attack_power_mod_pos: 0,
             ranged_attack_power_mod_neg: 0,
+            ranged_attack_power_multiplier: 0.0,
             min_damage: 0.0,
             max_damage: 0.0,
             min_ranged_damage: 0.0,
@@ -118,6 +129,36 @@ impl Player {
     #[must_use]
     pub const fn effective_combat_stats_like_cpp(&self) -> &PlayerEffectiveCombatStatsLikeCpp {
         &self.effective_combat_stats
+    }
+
+    /// Return the same non-negative total used by C++
+    /// `Unit::GetTotalAttackPowerValue(BASE_ATTACK)`.
+    #[must_use]
+    pub fn total_attack_power_like_cpp(&self) -> f32 {
+        let stats = self.effective_combat_stats_like_cpp();
+        let attack_power = stats.attack_power as f32
+            + stats.attack_power_mod_pos as f32
+            + stats.attack_power_mod_neg as f32;
+        if attack_power < 0.0 {
+            0.0
+        } else {
+            attack_power * (1.0 + stats.attack_power_multiplier)
+        }
+    }
+
+    /// Return the same non-negative total used by C++
+    /// `Unit::GetTotalAttackPowerValue(RANGED_ATTACK)`.
+    #[must_use]
+    pub fn total_ranged_attack_power_like_cpp(&self) -> f32 {
+        let stats = self.effective_combat_stats_like_cpp();
+        let attack_power = stats.ranged_attack_power as f32
+            + stats.ranged_attack_power_mod_pos as f32
+            + stats.ranged_attack_power_mod_neg as f32;
+        if attack_power < 0.0 {
+            0.0
+        } else {
+            attack_power * (1.0 + stats.ranged_attack_power_multiplier)
+        }
     }
 
     /// Replace the complete derived snapshot after one coherent recalculation.

@@ -482,6 +482,7 @@ async fn spell_damage_effects_add_pct_threat_and_one_cast_bonus_like_cpp() {
     let player = ObjectGuid::create_player(1, 43);
     let spell_id = 18_003;
     session.player_guid = Some(player);
+    install_canonical_player_owner_for_test(&mut session, 0, 0);
     register_test_creature(&mut session, manager.clone(), guid, 40);
     let mut spell_store = wow_data::SpellStore::new();
     let mut damage_spell = threat_spell_info_like_cpp(
@@ -515,6 +516,16 @@ async fn spell_damage_effects_add_pct_threat_and_one_cast_bonus_like_cpp() {
             apply: true,
         },
     ));
+    // The production item/stat recalculation publishes this value as part of
+    // the complete Player snapshot. Keep the fixture explicit so the threat
+    // assertion exercises the canonical consumer rather than a Session mirror.
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            let mut stats = *player.effective_combat_stats_like_cpp();
+            stats.attack_power_mod_pos = 10;
+            player.replace_effective_combat_stats_like_cpp(stats);
+        })
+        .expect("canonical Player fixture");
 
     session.execute_spell(spell_id, guid).await.unwrap();
 

@@ -100,13 +100,13 @@ impl WorldSession {
     ) -> Option<f32> {
         if let Some(entry) = threat_entry {
             let caster_attack_power = if self.player_guid() == Some(caster_guid) {
-                self.resolved_item_bonus_state_like_cpp()?
-                    .attack_power_total
-                    .max(0)
+                self.canonical_player_total_attack_power_like_cpp()
+                    .unwrap_or(0.0)
+                    .max(0.0)
             } else {
-                0
+                0.0
             };
-            return Some(entry.flat_mod as f32 + entry.ap_pct_mod * caster_attack_power as f32);
+            return Some(entry.flat_mod as f32 + entry.ap_pct_mod * caster_attack_power);
         }
 
         let difficulty = self.current_map_difficulty_id_like_cpp();
