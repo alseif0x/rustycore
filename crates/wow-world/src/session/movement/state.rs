@@ -398,6 +398,51 @@ impl WorldSession {
         }
         canonical.flatten()
     }
+
+    /// Resolve the active mover's `MoveSpline::Finalized()` admission state.
+    ///
+    /// `WorldSession::HandleMovementOpcode` rejects a packet while the mover's
+    /// spline is still active (`MovementHandler.cpp:305-335`). Player motion
+    /// belongs to the canonical Player; creature/pet motion is still executed
+    /// by the legacy map runtime, whose `movement_finished` method is the
+    /// corresponding `movespline` owner. The canonical creature projection is
+    /// only a fallback for fixtures that do not install the legacy runtime.
+    pub(crate) fn mover_spline_finalized_like_cpp(&self, mover_guid: ObjectGuid) -> Option<bool> {
+        if self.player_guid() == Some(mover_guid) {
+            let canonical = self.with_owned_player_like_cpp(|player| {
+                player.unit().subsystems().motion.spline.finalized
+            });
+            #[cfg(test)]
+            if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+                // Handle-less movement fixtures have no materialized Player;
+                // C++'s freshly constructed MoveSpline is finalized.
+                return Some(true);
+            }
+            return canonical;
+        }
+
+        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
+        if let Some(manager) = self.map_manager.as_ref().cloned() {
+            let manager = manager
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            if let Some(creature) = manager.find_creature(map_id, instance_id, mover_guid) {
+                return Some(creature.movement_finished());
+            }
+        }
+
+        let key = self.current_canonical_player_map_key_like_cpp()?;
+        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        manager
+            .find_map(key.map_id, key.instance_id)
+            .and_then(|managed| {
+                managed
+                    .map()
+                    .with_creature_or_pet_like_cpp(mover_guid, |creature, _| {
+                        creature.unit().subsystems().motion.spline.finalized
+                    })
+            })
+    }
     pub fn set_player_moved_unit_guid_like_cpp(&mut self, guid: ObjectGuid) {
         #[cfg_attr(not(test), allow(unused_variables))]
         let canonical = self
