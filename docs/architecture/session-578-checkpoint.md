@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #881:** `2a916c1c429456085e9274a60fcf57138ce12b43`.
+**Integrated head after PR #883:** `0f79ca837a7417876986cf1803f715a8512b7503`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -204,10 +204,11 @@ aura-authority regression, package checks, formatting/diff checks and architectu
 ratchet pass. This does not claim full aura gameplay, exact captures, durable DB or
 live QA, and #584 remains open for the next fresh responsibility audit.
 
-## P2 Player-owned trade transitions — implementation candidate, 2026-09-14
+## P2 Player-owned trade transitions — integrated PR #883, 2026-09-14
 
-The next measured P2 boundary is the represented `TradeData` state. The candidate
-adds `crates/wow-entities/src/player/trade.rs`, where `Player::m_trade` is mutated
+PR #883 integrates this bounded #584 owner closure into `3.4.3` at
+`0f79ca837a7417876986cf1803f715a8512b7503` (implementation `50e98f43`). The represented
+`TradeData` state now has `crates/wow-entities/src/player/trade.rs`, where `Player::m_trade` is mutated
 through named open/clear, state-index, acceptance, gold, item-slot and trade-spell
 operations. The C++ anchors are `Player.h:2998`, `TradeHandler.cpp:694-695`,
 `Player.cpp:12864-12879` and `TradeData.cpp:58-150`. Session keeps money and
