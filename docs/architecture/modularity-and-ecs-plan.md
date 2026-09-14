@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-14 (#864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-14 (#866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `2d375ef164a292f10f265a73e2086785161e95f8` (PR #864).
+The current code integration head is `0079daa81c4955e38031009a24b17b8dbabc7d9b` (PR #866).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
 mutations. #524's relation-query order correction is integrated by PR #803; PR #822/#824/#826/#828 now
@@ -109,6 +109,16 @@ tests pass. Ordinary speed ACKs, knockback, remaining transport/death/BG/taxi
 branches, broader mover kinds, exact captures and live QA remain explicit #63
 boundaries.
 
+PR #866 completes the following knockback-ACK admission boundary from
+`MovementHandler.cpp:548-559`. The handler performs Player-owned validation but
+admits the status when its GUID is the active `m_unitMovedByMe`; accepted movement
+info remains owned by the Player and `MoveUpdateKnockBack` is published from the
+Player source, matching the C++ path. The controlled-mover regression and 50-test
+movement suite pass, with architecture, `world-server` and `validation-v2 quick`
+evidence recorded at the integration candidate. Ordinary speed ACKs, remaining
+transport/death/BG/taxi branches, broader mover kinds, exact captures and live QA
+remain explicit #63 boundaries.
+
 ## Architecture program state — 2026-09-14
 
 The [refactor completion plan](refactor-completion-plan.md) records the detailed
@@ -117,7 +127,7 @@ semantic, storage and extension contracts; neither document turns a pending task
 an accepted result.
 
 The architecture repair program is reviewed against integrated `3.4.3` at
-`2d375ef164a292f10f265a73e2086785161e95f8`. #587/#588/#589 and the subsequent
+`0079daa81c4955e38031009a24b17b8dbabc7d9b`. #587/#588/#589 and the subsequent
 #716/#718/#722/#737 deliveries are integrated and closed in their bounded scopes.
 Their checkpoints retain scoped runtime/capture evidence; they are not reopened by
 the remaining core work or by naming preferences.

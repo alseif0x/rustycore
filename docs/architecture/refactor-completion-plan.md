@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #864 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.9/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #866 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.9/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -13,8 +13,8 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza integrada, 2026-09-14: PR #864**, en `3.4.3` como
-`2d375ef164a292f10f265a73e2086785161e95f8`. PR #862 queda como la entrega previa de ACK. PR #853 queda como la entrega previa de admisión. #787 / PR #792 (`d14a9a67`) y
+**Cabeza integrada, 2026-09-14: PR #866**, en `3.4.3` como
+`0079daa81c4955e38031009a24b17b8dbabc7d9b`. PR #864 queda como la entrega previa de ACK. PR #862 queda como la entrega previa de ACK anterior. PR #853 queda como la entrega previa de admisión. #787 / PR #792 (`d14a9a67`) y
 #584 P2 item-bonus, P2 item-object y P3.1–P3.9 están integrados dentro de esta cabeza.
 La entrega de ownership de modificadores de objetos está integrada mediante PR #839
 (implementación `ecc67603`) y retira la superficie mutante genérica restante. La coordinación World/Map está
@@ -1198,6 +1198,19 @@ arquitectura, `world-server` y `validation-v2 quick` con el manifiesto
 `target/validation-v2/manifests/20260914T050653.422270Z-262358-quick.json`.
 Esta entrega no cierra #63: quedan ACK de velocidad ordinaria, knockback, death/BG/
 taxi, offsets/seats completos, otros movers, capturas y QA viva.
+
+#### Entrega F1 bajo #63 — ACK de knockback del mover controlado
+
+PR #866 (`0079daa8`) completa la frontera de admisión de
+`MovementHandler.cpp:548-559`. El handler valida el estado con el Player, pero
+acepta el GUID cuando coincide con `_player->m_unitMovedByMe`; el estado de
+movimiento aceptado sigue escribiéndose en el Player y `MoveUpdateKnockBack` se
+publica desde ese origen, como en C++. La regresión de mover controlado prueba la
+admisión y el `source_guid` del Player. Pasan el test enfocado, los 50 tests de
+movement handlers, arquitectura, `world-server` y `validation-v2 quick` con el
+manifiesto `target/validation-v2/manifests/20260914T052813.807323Z-281858-quick.json`.
+Esta entrega no cierra #63: quedan ACK de velocidad ordinaria, death/BG/taxi,
+offsets/seats completos, otros movers, capturas y QA viva.
 
 Qué conservar en cualquier corte P3: residencia/incarnation del Player canónico,
 backpressure y cancelación de la tarea de sesión, transferencia entre mapas, descarga

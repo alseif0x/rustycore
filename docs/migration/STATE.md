@@ -1,12 +1,25 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`2d375ef164a292f10f265a73e2086785161e95f8` (PR #864, following PR #862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`0079daa81c4955e38031009a24b17b8dbabc7d9b` (PR #866, following PR #864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**F1 movement knockback-ACK slice — 2026-09-14, #63 / PR #866, merge
+`0079daa81c4955e38031009a24b17b8dbabc7d9b`:** `HandleMoveKnockBackAck` now
+admits a status whose GUID is the active `_player->m_unitMovedByMe`, after the
+Player-owned validation, matching `MovementHandler.cpp:548-559`. The accepted
+status remains written to the Player-owned movement-info state and the
+`MoveUpdateKnockBack` publication keeps the Player as its source, as in C++.
+A controlled-mover regression proves acceptance and Player-source publication;
+the focused test, all 50 movement-handler tests, architecture checks,
+`world-server` check and `validation-v2 quick` pass at
+`target/validation-v2/manifests/20260914T052813.807323Z-281858-quick.json`.
+#63 remains open for ordinary speed ACKs, remaining transport/death/BG/taxi
+branches, broader mover coverage, exact captures and live QA.
 
 **F1 movement force-ACK slice — 2026-09-14, #63 / PR #864, merge
 `2d375ef164a292f10f265a73e2086785161e95f8`:** `HandleMoveApplyMovementForceAck`,
