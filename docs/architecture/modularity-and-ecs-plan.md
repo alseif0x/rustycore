@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-14 (#897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-14 (#899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `90e58c7358d03340fb9ce10461a14dd33b94ceed` (PR #897, following PR #895, PR #893 and PR #891,
+The current code integration head is `1c047b42495a7edcefd2507e734196e43dee666e` (PR #899, following PR #897, PR #895, PR #893 and PR #891,
 PR #889, PR #876, P3.10 correction PR #873 and delivery PR #871).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
@@ -61,6 +61,17 @@ and knockback ACK admission/publication is integrated by PR #866
 (`MovementHandler.cpp:548-559`). The remaining movement work is complete
 vehicle/transport seat-offset admission, runtime branches whose mover or consumer is
 not represented, exact packet-order captures and live client/server/DB QA.
+
+La auditoría C0/C3 de 2026-09-14 selecciona el siguiente macro de núcleo:
+**Transport CREATE/DESTROY y visibilidad por fase**. `Map::AddToMap(Transport)`,
+`Map::SendUpdateTransportVisibility` y `Transport::TeleportPassengersAndHideTransport`
+(`Map.cpp:574-610,1853-1915`; `Transport.cpp:630-680`) construyen bloques para
+jugadores de la misma fase y mantienen `Player::m_visibleTransports`. La rama Rust
+actual solo tiene el owner typed, CREATE de login y VALUES membership; el tick no
+publica cambios dinámicos. La entrega debe mover un snapshot de intención con
+incarnation/map key fuera del lock, enviar por Session y actualizar membership en una
+sola transición. Seats/offsets, pasajeros, AI/scripts, taxi y captura/DB en vivo no
+forman parte de esta macro.
 
 PR #895 closes the next bounded P2 owner surface selected by that audit: production rest-flag, deferred-publication and rest-clock writes now use named `Player` transitions over the Player-owned `PlayerRestState`, following `RestMgr::SetRestFlag` / `RemoveRestFlag` (`RestMgr.cpp:95-122`), `RestMgr::_restTime` (`RestMgr.h:86`) and `Player::SetRestState` (`Player.h:2652`). Session retains packet/application ordering and the generic rest-state adapter is fixture-only under `cfg(test)`. No second authority, lock or clock is introduced. The owner regression, rest-owner scenarios, affected world scenarios, package checks and architecture ratchet pass; quest objective progress, durable persistence, captures and live QA remain outside this structural closure.
 

@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`90e58c7358d03340fb9ce10461a14dd33b94ceed` (PR #897, following PR #895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`1c047b42495a7edcefd2507e734196e43dee666e` (PR #899, following PR #897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -16,6 +16,25 @@ admission/publication is integrated by PR #866 (`MovementHandler.cpp:548-559`). 
 are no longer pending implementation items. The open boundary is complete
 vehicle/transport seat-offset admission, runtime branches whose mover or consumer is
 not represented, exact packet-order captures and live client/server/DB QA.
+
+**Fresh C0/C3 lifecycle audit — 2026-09-14, next bounded macro:** the remaining
+object-publication gap is the Transport CREATE/DESTROY and phase-visibility lifecycle,
+not ordinary VALUES. TrinityCore `Map::AddToMap(Transport)` and
+`Map::SendUpdateTransportVisibility` (`Maps/Map.cpp:574-610,1853-1915`) build a
+transport CREATE/OUT-OF-RANGE block for every same-phase player and maintain
+`Player::m_visibleTransports`; `Transport::TeleportPassengersAndHideTransport` and
+`Transport::Update` (`Entities/Transport/Transport.cpp:630-680`) repeat the
+destroy/create transition when a transport leaves or re-enters a map. RustyCore now
+has the typed `Transport` owner, login-time `SendInitTransports` projection and a
+separate VALUES membership rail, but `wow-map`'s transport tick only advances the
+typed object and no production consumer emits those dynamic CREATE/DESTROY blocks.
+The next macro owns one complete map/instance/incarnation-safe transport visibility
+intent: capture the typed create/destroy snapshot while the map owns it, deliver after
+releasing the map guard through the existing Session rail, update the separate visible-
+transport membership atomically with the packet, and cover stale, phase-mismatch,
+replacement and disconnected recipients. It does not migrate passenger seat/offset
+admission, AI/scripts, taxi routing or full live capture/DB acceptance; those remain
+#63/#584 gates. No legacy Creature writer migration is implied.
 
 **P2 Player-owned mount presentation transition — 2026-09-14, #584 / PR #897, integration `90e58c7358d03340fb9ce10461a14dd33b94ceed` (implementation `bc58334f`):** the remaining production mount-presentation write now uses a named `Player` transition that applies `MountDisplayID` and `UNIT_FLAG_MOUNT` together, following TrinityCore `Unit::Mount` / `Unit::Dismount` (`Entities/Unit/Unit.cpp:7822-7865`). Session retains aura, collision, vehicle-kit and packet side effects; its broad unit-presentation closure is test-only for detached scale fixtures. The Player owner regression, mount spell-state scenarios, package, formatting/diff and architecture checks pass. Full mount gameplay, persistence, captures and live QA remain separate gates under #63/#584.
 

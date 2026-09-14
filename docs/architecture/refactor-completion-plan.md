@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -11,6 +11,16 @@ propiedad de su Unit; la superficie genérica de Session queda limitada a fixtur
 PR #876 añade la proyección separada de `Player::m_visibleTransports` para Transport
 VALUES a través del registro y del consumidor de Session; no amplía el alcance a
 CREATE/DESTROY o al ciclo de pasajeros.
+
+La auditoría C0/C3 del 2026-09-14 selecciona como siguiente macro **Transport
+CREATE/DESTROY y visibilidad por fase**. C++ lo ejecuta en
+`Map::AddToMap(Transport)`, `Map::SendUpdateTransportVisibility` y
+`Transport::TeleportPassengersAndHideTransport` (`Map.cpp:574-610,1853-1915`,
+`Transport.cpp:630-680`); RustyCore solo tiene el CREATE de login, el owner typed y
+VALUES membership. La entrega debe capturar un snapshot typed con mapa/incarnation,
+publicarlo fuera del guard y cambiar `Player::m_visibleTransports` en la misma
+transición, con pruebas de fase, reemplazo, stale y desconexión. Seats/offsets,
+pasajeros, AI/scripts, taxi y QA viva/DB quedan fuera y siguen en #63/#584.
 
 PR #891 añade el cierre P2 acotado del owner de taxi del Player: el avance de ruta
 tras teletransporte y la limpieza del vuelo pasan a ser transiciones nominales sobre
@@ -69,8 +79,8 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza de código integrada, 2026-09-14: PR #897**, en `3.4.3` como
-`90e58c7358d03340fb9ce10461a14dd33b94ceed`. PR #887 cierra la superficie de
+**Cabeza de código integrada, 2026-09-14: PR #899**, en `3.4.3` como
+`1c047b42495a7edcefd2507e734196e43dee666e`. PR #887 cierra la superficie de
 propiedad de guild del Player después de PR #883 y PR #881. PR #873 corrige el fanout P3.10
 integrado por #871 (`304f482b101ff0ac8600854bd1a4ebb72cec2b5d`): Player/Unit
 queda exclusivamente en el rail de Session filtrado por receptor y la sesión
