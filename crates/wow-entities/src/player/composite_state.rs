@@ -16,20 +16,11 @@
 
 use crate::{
     Player, PlayerBattlegroundState, PlayerCollectionStateLikeCpp, PlayerCurrency,
-    PlayerGuildState, PlayerPersistentCapabilityStateLikeCpp, PlayerTradeStateLikeCpp,
+    PlayerPersistentCapabilityStateLikeCpp, PlayerTradeStateLikeCpp,
 };
 use std::collections::HashMap;
 
 impl Player {
-    /// Install the Player's guild membership state, the composite of C++
-    /// `Player::SetInGuild` (Player.h:1938), `Player::SetGuildRank`
-    /// (Player.h:1939) and `Player::SetGuildIdInvited` (Player.h:1943), plus
-    /// the `_LoadGuild` authority marker that records membership as resolved
-    /// even when the character has no guild.
-    pub fn install_guild_state_like_cpp(&mut self, guild: PlayerGuildState) {
-        self.gameplay_state_mut().guild = guild;
-    }
-
     /// Install the Player's trade state, C++ `Player::m_trade`: the handler
     /// creates it on both sides when a trade opens (TradeHandler.cpp:694-695)
     /// and `None` is the normal no-trade state C++ clears back to
