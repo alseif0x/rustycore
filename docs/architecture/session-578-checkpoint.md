@@ -152,6 +152,20 @@ ledger-only cut with no code or behavior change; the unresolved residual is now 
 exact production fields and the ledger total remains 647 (220 production, 427 test
 fixtures). Architecture check, self-test (20/20) and diff validation pass.
 
+## P2 VMAP indoor-check configuration classification — candidate, 2026-09-14
+
+The next C0–C4 audit classified `vmap_indoor_check_like_cpp` as immutable world
+configuration, not Session gameplay authority. TrinityCore reads
+`CONFIG_VMAP_INDOOR_CHECK` from the process `World` configuration
+(`World.h:119`, `World.cpp:1116`); Rust loads the same key in `world-server/app.rs:5064`,
+stores it in `SessionRuntimePolicyCapabilitiesLikeCpp` and injects it once through
+`session_resources.rs:295,505`. The Session consumer only reads the immutable
+switch when applying the aura indoor-check branch (`session/spell_state/aura_application.rs:40`).
+The ledger assigns the field to `immutable_catalogs_configuration_and_services`;
+there is no code, packet, lock, persistence or runtime-order change. Once
+integrated, the unresolved residual will be 8 exact production fields while the
+ledger remains 647 fields (220 production, 427 test fixtures).
+
 ## P2 Player mount presentation owner closure — integrated PR #897, 2026-09-14
 
 PR #897 integrates the bounded Player mount-presentation owner closure into

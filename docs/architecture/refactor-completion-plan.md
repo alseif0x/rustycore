@@ -76,6 +76,15 @@ código en el merge `1c8b5577badccb6f74d3b049a7e231494b9fa792`; el residual
 productivo exacto queda en 9 campos. Architecture check, self-test (20/20) y diff
 validation pasan.
 
+La siguiente clasificación C0–C4 asigna `vmap_indoor_check_like_cpp` a la
+configuración inmutable del mundo. TrinityCore lee `CONFIG_VMAP_INDOOR_CHECK`
+desde `World` (`World.h:119`, `World.cpp:1116`); Rust carga e inyecta la misma
+clave mediante `SessionRuntimePolicyCapabilitiesLikeCpp`
+(`world-server/app.rs:5064`, `session_resources.rs:295,505`) y el consumidor de
+aura solo lee el switch. Es una clasificación de ledger sin cambio de código,
+paquetes, lock o orden de runtime; el residual productivo exacto queda en 8
+campos.
+
 PR #891 añade el cierre P2 acotado del owner de taxi del Player: el avance de ruta
 tras teletransporte y la limpieza del vuelo pasan a ser transiciones nominales sobre
 `PlayerTaxi`, siguiendo `PlayerTaxi::NextTaxiDestination` (`PlayerTaxi.h:74`) y

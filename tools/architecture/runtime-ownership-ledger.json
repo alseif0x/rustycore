@@ -631,7 +631,7 @@
       },
       {
         "id": "immutable_catalogs_configuration_and_services",
-        "expected_field_count": 71,
+        "expected_field_count": 72,
         "field_names": [
           "access_requirement_store",
           "area_table_store",
@@ -702,6 +702,7 @@
           "vehicle_accessory_store",
           "vehicle_seat_store",
           "vehicle_store",
+          "vmap_indoor_check_like_cpp",
           "waypoint_path_resolver_like_cpp",
           "world_safe_loc_store_like_cpp"
         ],
@@ -1005,7 +1006,7 @@
       },
       {
         "id": "unresolved_world_session_residual",
-        "expected_field_count": 9,
+        "expected_field_count": 8,
         "field_names": [
           "creature_query_cache",
           "player_stats",
@@ -1014,10 +1015,9 @@
           "represented_dynamic_object_values_updates_delivered_like_cpp",
           "represented_instance_reset_times_like_cpp",
           "represented_locked_dungeon_encounters",
-          "represented_seer_guid_like_cpp",
-          "vmap_indoor_check_like_cpp"
+          "represented_seer_guid_like_cpp"
         ],
-        "current_storage": "9 exact production fields remain explicitly unresolved; recent_player_guid_low_like_cpp is classified under the cohesive Session identity family and player_guid under the selected-player binding family. The represented_confirmed_pending_binds vector is cfg(test) diagnostic evidence because C++ confirms the bind on Player/InstanceMap. Player identity (name, race, class, level and gender) and the C++ Player::m_swingErrorMsg transition now resolve through the canonical wow_entities::Player after their login/owner boundaries. Fixture fields are classified separately. This residual is not stable Session ownership. #578 must classify and remove the remaining gameplay/catalog authority before #153 can accept the shell.",
+        "current_storage": "8 exact production fields remain explicitly unresolved; recent_player_guid_low_like_cpp is classified under the cohesive Session identity family and player_guid under the selected-player binding family. The vmap_indoor_check_like_cpp world configuration is classified with immutable catalogs/configuration/services because C++ reads it from sWorld and Rust injects it once through SessionRuntimePolicyCapabilitiesLikeCpp. The represented_confirmed_pending_binds vector is cfg(test) diagnostic evidence because C++ confirms the bind on Player/InstanceMap. Player identity (name, race, class, level and gender) and the C++ Player::m_swingErrorMsg transition now resolve through the canonical wow_entities::Player after their login/owner boundaries. Fixture fields are classified separately. This residual is not stable Session ownership. #578 must classify and remove the remaining gameplay/catalog authority before #153 can accept the shell.",
         "sole_writer": "WorldSession methods/handlers identified by the syntax and call-site inventory; exact writer must be recorded before moving the field.",
         "readers": "Derived mechanically from field references; semantic readers remain an audit obligation.",
         "clock_lifetime": "Unknown or mixed until classified; no new clock may be inferred.",
