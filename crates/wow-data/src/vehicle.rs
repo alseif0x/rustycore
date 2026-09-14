@@ -13,6 +13,8 @@ use crate::wdc4::Wdc4Reader;
 pub const MAX_VEHICLE_SEATS_LIKE_CPP: usize = 8;
 pub const VEHICLE_SEAT_FLAG_SHOULD_USE_VEH_SEAT_EXIT_ANIM_ON_VOLUNTARY_EXIT: i32 = 0x0000_0008;
 pub const VEHICLE_SEAT_FLAG_DISABLE_GRAVITY: i32 = 0x0000_0004;
+/// C++ `VEHICLE_SEAT_FLAG_ALLOW_TURNING` (DBCEnums.h:2389).
+pub const VEHICLE_SEAT_FLAG_ALLOW_TURNING: i32 = 0x0000_0400;
 pub const VEHICLE_SEAT_FLAG_CAN_CONTROL: i32 = 0x0000_0800;
 pub const VEHICLE_SEAT_FLAG_UNCONTROLLED: i32 = 0x0000_2000;
 pub const VEHICLE_SEAT_FLAG_CAN_ATTACK: i32 = 0x0000_4000;
@@ -108,6 +110,12 @@ pub fn vehicle_seat_flags_can_enter_or_exit_like_cpp(flags: i32) -> bool {
 
 pub fn vehicle_seat_flags_can_switch_from_seat_like_cpp(flags: i32) -> bool {
     flags & VEHICLE_SEAT_FLAG_CAN_SWITCH != 0
+}
+
+/// Whether a passenger may rotate its own facing while the vehicle remains
+/// authoritative for position (`MovementHandler.cpp:408-421`).
+pub const fn vehicle_seat_flags_allow_turning_like_cpp(flags: i32) -> bool {
+    flags & VEHICLE_SEAT_FLAG_ALLOW_TURNING != 0
 }
 
 pub struct VehicleStore {
@@ -428,6 +436,13 @@ mod tests {
             VEHICLE_SEAT_FLAG_CAN_ATTACK
         ));
         assert!(ejectable.is_ejectable_like_cpp());
+
+        assert!(vehicle_seat_flags_allow_turning_like_cpp(
+            VEHICLE_SEAT_FLAG_ALLOW_TURNING
+        ));
+        assert!(!vehicle_seat_flags_allow_turning_like_cpp(
+            VEHICLE_SEAT_FLAG_CAN_CONTROL
+        ));
     }
 
     #[test]

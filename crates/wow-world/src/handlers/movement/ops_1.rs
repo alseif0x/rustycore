@@ -236,7 +236,14 @@ impl WorldSession {
                 info.transport = None;
             }
             self.set_player_transport_info_like_cpp(info.transport.clone());
-            self.apply_movement_side_effects_like_cpp(opcode, &info);
+            // C++ handles fall/parachute/pet effects before assigning
+            // `m_movementInfo`, but stand/fall/under-map/jump effects after
+            // the vehicle early-return. Keep that phase boundary explicit.
+            if self.represented_current_vehicle_seat_allows_turning_like_cpp() {
+                self.apply_movement_pre_position_side_effects_like_cpp(opcode, &info);
+            } else {
+                self.apply_movement_side_effects_like_cpp(opcode, &info);
+            }
         } else if matches!(
             opcode,
             Some(ClientOpcodes::MoveSetFly) | Some(ClientOpcodes::MoveSetAdvFly)
@@ -253,6 +260,23 @@ impl WorldSession {
             self.set_player_movement_time_like_cpp(info.time);
             self.set_player_movement_flags_like_cpp(info.flags);
             self.set_player_movement_jump_like_cpp(info.jump.clone());
+
+            // TrinityCore returns before `UpdatePosition` and publication for
+            // a passenger whose seat permits independent turning. Only the
+            // facing changes; the vehicle remains authoritative for x/y/z.
+            if self.represented_current_vehicle_seat_allows_turning_like_cpp() {
+                if self
+                    .player_position_like_cpp()
+                    .is_some_and(|current| current.orientation != info.position.orientation)
+                {
+                    self.set_player_orientation_like_cpp(info.position.orientation);
+                    self.remove_auras_with_interrupt_flags_like_cpp(
+                        SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP,
+                        0,
+                    );
+                }
+                return;
+            }
 
             // Update server-side player position.
             self.set_player_position_like_cpp(info.position);
@@ -558,6 +582,34 @@ impl WorldSession {
             matches!(opcode, Some(ClientOpcodes::MoveFallLand)),
         );
         self.handle_under_map_like_cpp(info);
+    }
+    pub(super) fn apply_movement_pre_position_side_effects_like_cpp(
+        &mut self,
+        opcode: Option<ClientOpcodes>,
+        info: &MovementInfo,
+    ) {
+        if matches!(opcode, Some(ClientOpcodes::MoveFallLand)) {
+            self.handle_fall_like_cpp(info);
+        }
+
+        match opcode {
+            Some(ClientOpcodes::MoveFallLand)
+            | Some(ClientOpcodes::MoveStartSwim)
+            | Some(ClientOpcodes::MoveSetFly) => {
+                self.remove_auras_with_interrupt_flags_like_cpp(
+                    SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP,
+                    0,
+                );
+            }
+            _ => {}
+        }
+
+        if matches!(
+            opcode,
+            Some(ClientOpcodes::MoveSetFly) | Some(ClientOpcodes::MoveSetAdvFly)
+        ) {
+            self.request_temporary_pet_unsummon_like_cpp();
+        }
     }
     pub(super) fn clear_player_emote_state_on_player_movement_like_cpp(&mut self) {
         if let Some(update) = self.clear_player_emote_state_on_movement_like_cpp() {
