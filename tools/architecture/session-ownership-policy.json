@@ -2460,13 +2460,6 @@
           "source_class": "production"
         },
         {
-          "name": "player_swing_error_msg_like_cpp",
-          "type": "Option < u8 >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "player_transport_login_state_like_cpp",
           "type": "Option < Box < PlayerTransportLoginStateLikeCpp > >",
           "visibility": "private",

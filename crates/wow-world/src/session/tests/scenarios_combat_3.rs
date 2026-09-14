@@ -158,7 +158,11 @@ fn combat_tick_offhand_only_does_not_clear_base_swing_error_like_cpp() {
             unit.set_weapon_damage(WeaponAttackType::OffAttack, 4.0, 4.0);
         })
         .unwrap();
-    session.player_swing_error_msg_like_cpp = Some(0);
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player.set_attack_swing_error_like_cpp(Some(0));
+        })
+        .unwrap();
     session.combat_target = Some(guid);
     session.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 40);
@@ -172,7 +176,10 @@ fn combat_tick_offhand_only_does_not_clear_base_swing_error_like_cpp() {
 
     session.tick_combat_sync();
 
-    assert_eq!(session.player_swing_error_msg_like_cpp, Some(0));
+    assert_eq!(
+        session.with_owned_player_like_cpp(|player| player.attack_swing_error_like_cpp()),
+        Some(Some(0))
+    );
     assert_eq!(
         manager
             .read()
