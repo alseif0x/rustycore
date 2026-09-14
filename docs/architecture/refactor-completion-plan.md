@@ -1,12 +1,12 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #919/#918/#917/#916/#915/#913/#911/#909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #921/#919/#918/#917/#916/#915/#913/#911/#909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
 anclas C++, orden de ejecución y criterios de aceptación de la arquitectura.
 
-Estado exacto tras PR #919 (`68a0bac7`): 647 campos de WorldSession (219 de producción, 428 fixtures) y dos responsabilidades productivas pendientes en #584: encuentros de mazmorra bloqueados y el seam de visibilidad `Player::m_seer`.
+Estado exacto tras PR #921 (`d25cbc91`): 648 campos de WorldSession (219 de producción, 429 fixtures). El lock de encuentros ya usa la autoridad canónica; queda una responsabilidad productiva pendiente en #584: el seam de visibilidad `Player::m_seer`.
 
 PR #881 añade el cierre nominal de las mutaciones de aura del Player sobre el `AuraSubsystem`
 propiedad de su Unit; la superficie genérica de Session queda limitada a fixtures `cfg(test)`.
@@ -150,6 +150,21 @@ canonical InstanceLockMgr query plus injected DungeonEncounter catalog for
 moving the Player `m_seer`/SetViewpoint lifecycle and every visibility consumer
 (`Player.h:2417,2423`, `Player.cpp:298-300,25344-25395`).
 
+## P2 Player dungeon-encounter lock query — integrated PR #921, 2026-09-14
+
+PR #921 completes the encounter-lock authority cut. The immutable
+`DungeonEncounterStore` is installed through the existing
+`SessionWorldCatalogCapabilitiesLikeCpp` bundle; the Session binding resolves the
+player's unique canonical map/difficulty and reads the shared `InstanceLockMgr`
+completed-encounter mask, matching `Player::IsLockedToDungeonEncounter`
+(`Player.cpp:20725-20748`). Unknown rows and absent active locks are unlocked;
+missing or ambiguous authority is indeterminate and production loot fails closed.
+`represented_locked_dungeon_encounters` is `cfg(test)` fixture input only, and both
+creature and GameObject encounter-loot consumers use the typed query. Focused lock,
+loot and composition tests, cargo checks, syntax ownership and architecture checks
+pass at merge `d25cbc9161f8affb8c5201a1ad6a653870938969`. The sole exact production
+residual under #584 is `Player::m_seer` visibility.
+
 ## P2 Player instance-reset owner — integrated PR #919, 2026-09-14
 
 PR #919 moves C++ `_instanceResetTimes` into the canonical
@@ -158,8 +173,9 @@ named operations in `player/recent_instances.rs`. Map admission creates the cano
 Player before farm-limit checks and entry accounting; login hydration and save projection
 read the same owner. The old Session map is `cfg(test)` fixture state only and transfers
 once when a fixture owner is materialized. Owner, instance-count, teleport, package and
-syntax ownership checks pass. The exact production residual is now the locked-encounter
-contract and the Player `m_seer` visibility seam.
+syntax ownership checks pass. At the #919 checkpoint the exact production residual was the locked-encounter
+contract and the Player `m_seer` visibility seam; PR #921 closes the former, leaving
+`m_seer` as the only exact production residual.
 
 PR #891 añade el cierre P2 acotado del owner de taxi del Player: el avance de ruta
 tras teletransporte y la limpieza del vuelo pasan a ser transiciones nominales sobre
