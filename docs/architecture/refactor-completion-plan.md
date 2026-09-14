@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
