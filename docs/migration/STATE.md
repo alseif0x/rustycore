@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`304f482b101ff0ac8600854bd1a4ebb72cec2b5d` (PR #871, following PR #869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`bd5b13d4b885f1887b95c654e2ebdb13f6c70c49` (PR #873, following PR #871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -413,15 +413,19 @@ formatting and diff checks pass with one Cargo job. CREATE, Pet, corpse/transpor
 capture and live DB/restart/relogin acceptance remain separate gates; #584 stays
 open for its remaining measured macrodeliverables.
 
-**P3.10 Player/Unit VALUES fanout — 2026-09-14, #584 / PR #871, integration
-`304f482b101ff0ac8600854bd1a4ebb72cec2b5d` (implementation `30157c1f`):** the
+**P3.10 Player/Unit VALUES fanout — 2026-09-14, #584 / PR #871 + #873, integration
+`bd5b13d4b885f1887b95c654e2ebdb13f6c70c49` (implementation `30157c1f`, correction
+`5586997d`):** the
 Session now consumes the Player and Unit snapshots produced by
 `Map::SendObjectUpdates` after map guards are released. Unit field mutations enqueue
 their canonical in-world object, self updates retain owner/active-player fields, and
 observers receive receiver-filtered Player/Unit values only when map, instance,
 incarnation, phase, range and `HaveAtClient` fences hold. Creature/Pet updates use
 the same committed visibility path; packet bytes are built before delivery and no
-map lock crosses a send. Three `wow-world` fanout regressions, 27 `wow-entities`
+map lock crosses a send. The generic map rail excludes Player/Unit so the filtered
+Session path is the sole publisher for those families, and the Session rechecks
+the admitted `MapKey` before publishing after the map lock is released. Three
+`wow-world` fanout regressions, 27 `wow-entities`
 unit regressions, the production `world-server` check, architecture checks and
 `validation-v2 quick` pass at
 `target/validation-v2/manifests/20260914T072651.033982Z-371881-quick.json`.
