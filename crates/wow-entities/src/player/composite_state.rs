@@ -15,8 +15,8 @@
 //! recorded per method so the grouping stays traceable to them.
 
 use crate::{
-    Player, PlayerBattlegroundState, PlayerCollectionStateLikeCpp, PlayerCurrency,
-    PlayerPersistentCapabilityStateLikeCpp, PlayerTradeStateLikeCpp,
+    Player, PlayerCollectionStateLikeCpp, PlayerCurrency, PlayerPersistentCapabilityStateLikeCpp,
+    PlayerTradeStateLikeCpp,
 };
 use std::collections::HashMap;
 
@@ -39,14 +39,6 @@ impl Player {
         capabilities: PlayerPersistentCapabilityStateLikeCpp,
     ) {
         self.gameplay_state_mut().persistent_capabilities = capabilities;
-    }
-
-    /// Install the Player's battleground state, the composite of C++
-    /// `Player::m_bgData` (Player.h:2335-2337 read it) and the arena-team
-    /// invitation `Player::SetArenaTeamIdInvited` (Player.h:1956) keeps beside
-    /// it.
-    pub fn install_battleground_state_like_cpp(&mut self, battleground: PlayerBattlegroundState) {
-        self.gameplay_state_mut().battleground = battleground;
     }
 
     /// Install the Player's currency map, C++ `Player::_currencyStorage`

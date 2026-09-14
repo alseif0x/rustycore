@@ -14065,7 +14065,7 @@ impl WorldSession {
         &self,
     ) -> Option<wow_entities::PlayerBattlegroundState> {
         let canonical =
-            self.with_owned_player_like_cpp(|player| player.gameplay_state().battleground.clone());
+            self.with_owned_player_like_cpp(|player| player.battleground_state_like_cpp());
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(
@@ -14083,10 +14083,19 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn set_player_battleground_type_id_like_cpp(&mut self, bg_type_id: u32) -> bool {
-        self.mutate_player_battleground_state_like_cpp(|state| {
-            state.set_battleground_type_id_like_cpp(bg_type_id);
-        })
-        .is_some()
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_battleground_type_id_like_cpp(bg_type_id)
+            })
+            .is_some();
+        if !canonical && self.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_battleground_state_like_cpp(|state| {
+                    state.set_battleground_type_id_like_cpp(bg_type_id);
+                })
+                .is_some();
+        }
+        canonical
     }
 
     #[cfg(test)]
@@ -14095,16 +14104,34 @@ impl WorldSession {
         bg_type_id: u32,
         bg_map_id: u32,
     ) -> bool {
-        self.mutate_player_battleground_state_like_cpp(|state| {
-            state.set_battleground_context_like_cpp(bg_type_id, bg_map_id);
-        })
-        .is_some()
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_battleground_context_like_cpp(bg_type_id, bg_map_id)
+            })
+            .is_some();
+        if !canonical && self.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_battleground_state_like_cpp(|state| {
+                    state.set_battleground_context_like_cpp(bg_type_id, bg_map_id);
+                })
+                .is_some();
+        }
+        canonical
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn set_represented_battleground_status_like_cpp(&mut self, status: Option<u8>) {
-        let _ = self.mutate_player_battleground_state_like_cpp(|state| {
-            state.set_battleground_status_like_cpp(status);
-        });
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_battleground_status_like_cpp(status)
+            })
+            .is_some();
+        #[cfg(test)]
+        if !canonical && self.player_handle_like_cpp.is_none() {
+            let _ = self.mutate_player_battleground_state_like_cpp(|state| {
+                state.set_battleground_status_like_cpp(status);
+            });
+        }
     }
 
     pub(crate) fn player_in_represented_battleground_like_cpp(&self) -> bool {
@@ -14373,13 +14400,21 @@ impl WorldSession {
         queue_type_id: RepresentedBattlegroundQueueTypeIdLikeCpp,
         invited_instance_guid: u32,
     ) {
-        let _ = self.mutate_player_battleground_state_like_cpp(|state| {
-            state.install_queue_slot_like_cpp(RepresentedBattlegroundQueueSlotLikeCpp {
-                slot,
-                queue_type_id,
-                invited_instance_guid,
+        let queue_slot = RepresentedBattlegroundQueueSlotLikeCpp {
+            slot,
+            queue_type_id,
+            invited_instance_guid,
+        };
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.install_battleground_queue_slot_like_cpp(queue_slot)
+            })
+            .is_some();
+        if !canonical && self.player_handle_like_cpp.is_none() {
+            let _ = self.mutate_player_battleground_state_like_cpp(|state| {
+                state.install_queue_slot_like_cpp(queue_slot);
             });
-        });
+        }
     }
 
     #[cfg_attr(not(test), allow(unused_variables))]
@@ -15188,14 +15223,25 @@ impl WorldSession {
         &self.represented_calendar_add_events_like_cpp
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn set_represented_arena_team_id_invited_like_cpp(
         &mut self,
         arena_team_id: u32,
     ) -> bool {
-        self.mutate_player_battleground_state_like_cpp(|state| {
-            state.set_arena_team_id_invited_like_cpp(arena_team_id);
-        })
-        .is_some()
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_arena_team_id_invited_like_cpp(arena_team_id)
+            })
+            .is_some();
+        #[cfg(test)]
+        if !canonical && self.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_battleground_state_like_cpp(|state| {
+                    state.set_arena_team_id_invited_like_cpp(arena_team_id);
+                })
+                .is_some();
+        }
+        canonical
     }
 
     #[cfg(test)]
