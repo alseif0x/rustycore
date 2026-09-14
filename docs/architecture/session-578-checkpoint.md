@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #876:** `ed92d14f173ee2be2332b242576eb603aaff58f4`.
+**Integrated head after PR #878:** `d8cb0594093c25ae618ab2603896fd3e2f7de26d`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -171,6 +171,24 @@ Session membership. The world-server check, both focused tests, formatting/diff 
 and `python3 tools/architecture/check_architecture.py check` pass. Full Transport
 CREATE/DESTROY, passenger lifecycle, exact packet captures and live DB/restart/relogin
 evidence remain separate #584/#63 acceptance gates.
+
+## P2 Player-owned mount VehicleKit operations — 2026-09-14
+
+PR #878 integrates this bounded #584 owner closure at
+`d8cb0594093c25ae618ab2603896fd3e2f7de26d` (implementation `ceb58c9a`). The
+Player now owns named install, snapshot, clear, uninstall/removal and
+ejectable-passenger transitions for its mount VehicleKit in
+`crates/wow-entities/src/player/vehicle.rs`, matching TrinityCore
+`Unit::CreateVehicleKit`, `Unit::RemoveVehicleKit` and `Unit::GetVehicleKit`
+(`Unit.cpp:11304-11323`). Session keeps vehicle-template admission, aura and
+packet/presentation effects; the detached fallback remains test-only.
+
+The Player owner lifecycle regression, the three represented-eject regressions,
+both package checks, formatting/diff checks and the architecture ratchet pass.
+This is a structural boundary closure. Vehicle seat/offset admission, complete
+passenger lifecycle, CREATE/DESTROY, Pet/corpse/Transport publication, exact
+captures, DB/restart/relogin and live QA remain outside this slice and #584 stays
+open for the next fresh responsibility audit.
 
 ## P2 item-object ownership closure — 2026-09-13
 
