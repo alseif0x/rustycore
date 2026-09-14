@@ -1,9 +1,27 @@
 use super::Player;
 use crate::Vehicle;
-use wow_constants::TypeId;
+use wow_constants::{TypeId, UnitFlags};
 use wow_core::ObjectGuid;
 
 impl Player {
+    /// Apply the Player's mount presentation fields as one owner transition.
+    ///
+    /// TrinityCore's `Unit::Mount`/`Unit::Dismount` update the Unit-owned
+    /// `MountDisplayID` and `UNIT_FLAG_MOUNT` fields together
+    /// (`Entities/Unit/Unit.cpp:7822-7865`). Session owns the aura and
+    /// collision side effects around this projection; the Player owns the
+    /// canonical Unit fields.
+    pub fn set_mount_presentation_like_cpp(&mut self, display_id: u32, mounted: bool) {
+        self.unit_mut().set_mount_display_id(display_id);
+        let mut flags = self.unit().unit_flags_like_cpp();
+        if mounted {
+            flags.insert(UnitFlags::MOUNT);
+        } else {
+            flags.remove(UnitFlags::MOUNT);
+        }
+        self.unit_mut().set_unit_flags_like_cpp(flags);
+    }
+
     /// C++ `Unit::GetVehicleKit()` for the Player-owned mount vehicle.
     pub fn mount_vehicle_kit_snapshot_like_cpp(&self) -> Option<Vehicle> {
         self.gameplay_state().mount_vehicle_kit.clone()
@@ -66,7 +84,7 @@ impl Player {
 mod tests {
     use super::Player;
     use crate::{Vehicle, VehicleSeatAddon, VehicleSeatInfo};
-    use wow_constants::TypeId;
+    use wow_constants::{TypeId, UnitFlags};
     use wow_core::{ObjectGuid, Position};
 
     fn player() -> Player {
@@ -117,5 +135,27 @@ mod tests {
         assert!(player.eject_mount_vehicle_passenger_like_cpp(passenger));
         assert!(player.remove_mount_vehicle_kit_like_cpp());
         assert!(player.mount_vehicle_kit_snapshot_like_cpp().is_none());
+    }
+
+    #[test]
+    fn player_names_mount_presentation_transition_like_cpp() {
+        let mut player = player();
+        player.set_mount_presentation_like_cpp(4321, true);
+        assert_eq!(player.unit().data().mount_display_id, 4321);
+        assert!(
+            player
+                .unit()
+                .unit_flags_like_cpp()
+                .contains(UnitFlags::MOUNT)
+        );
+
+        player.set_mount_presentation_like_cpp(0, false);
+        assert_eq!(player.unit().data().mount_display_id, 0);
+        assert!(
+            !player
+                .unit()
+                .unit_flags_like_cpp()
+                .contains(UnitFlags::MOUNT)
+        );
     }
 }

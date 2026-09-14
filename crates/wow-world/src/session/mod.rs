@@ -10941,19 +10941,12 @@ impl WorldSession {
     }
 
     fn set_player_mount_presentation_like_cpp(&mut self, display_id: i32, mounted: bool) -> bool {
-        #[cfg_attr(not(test), allow(unused_mut))]
         let mut canonical = self
-            .mutate_player_unit_presentation_like_cpp(|player| {
-                player
-                    .unit_mut()
-                    .set_mount_display_id(u32::try_from(display_id).unwrap_or(0));
-                let mut flags = player.unit().unit_flags_like_cpp();
-                if mounted {
-                    flags.insert(UnitFlags::MOUNT);
-                } else {
-                    flags.remove(UnitFlags::MOUNT);
-                }
-                player.unit_mut().set_unit_flags_like_cpp(flags);
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_mount_presentation_like_cpp(
+                    u32::try_from(display_id).unwrap_or(0),
+                    mounted,
+                );
             })
             .is_some();
         #[cfg(test)]
@@ -10963,16 +10956,10 @@ impl WorldSession {
         {
             canonical = self
                 .mutate_canonical_player_by_guid_like_cpp(guid, |player| {
-                    player
-                        .unit_mut()
-                        .set_mount_display_id(u32::try_from(display_id).unwrap_or(0));
-                    let mut flags = player.unit().unit_flags_like_cpp();
-                    if mounted {
-                        flags.insert(UnitFlags::MOUNT);
-                    } else {
-                        flags.remove(UnitFlags::MOUNT);
-                    }
-                    player.unit_mut().set_unit_flags_like_cpp(flags);
+                    player.set_mount_presentation_like_cpp(
+                        u32::try_from(display_id).unwrap_or(0),
+                        mounted,
+                    );
                 })
                 .is_some();
         }
