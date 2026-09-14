@@ -72,6 +72,29 @@ closure. The five production-only stale-handle guards added with the final integ
 implementation are included in the Session hotspot ceiling (`86915` production /
 `197512` total) rather than hidden from the ratchet.
 
+## P2 Player swing-error owner — candidate `67409023`, 2026-09-14
+
+The next bounded C0–C4 macro moves TrinityCore's `Player::m_swingErrorMsg` to the
+canonical Rust `wow_entities::Player`. The source contract is
+`Player.h:3023` and `Player.cpp:20625-20631`: `Player::SetAttackSwingError`
+stores the latest nullable error and publishes `AttackSwingError` only when a
+non-null value differs from the previous value. `Unit.cpp:2087-2150` supplies
+the melee caller. Rust implements that duplicate-suppression/clear contract in
+`crates/wow-entities/src/player/combat.rs`; Session now resolves the canonical
+Player, asks it whether a packet is due, and retains packet encoding and delivery
+order. A missing or stale owner fails closed. No Session mirror, persistence,
+opcode/layout change, map lock across delivery, or live-capture claim is part of
+this slice.
+
+Candidate evidence at `67409023`: `cargo check -p wow-entities -p wow-world`,
+the focused Player owner test (1/1), `scenarios_combat_2` (13/13),
+`scenarios_combat_3` (9/9), formatting/diff checks, architecture check and its
+20 self-tests pass. The ownership ledger now records 647 total WorldSession
+fields (221 production) and 12 unresolved residual fields; logical hotspot
+counts are Session 86,914 production / 110,604 test / 197,518 total and Player
+16,702 production / 13,710 test / 30,412 total. Exact packet captures,
+durable persistence and live DB/relogin QA remain later #584 gates.
+
 ## P2 Player mount presentation owner closure — integrated PR #897, 2026-09-14
 
 PR #897 integrates the bounded Player mount-presentation owner closure into

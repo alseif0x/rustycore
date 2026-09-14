@@ -64,6 +64,17 @@ query/entry, group and chat; stale handles fail closed. The C++ swing-error memb
 checks and architecture evidence are recorded in `session-578-checkpoint.md`;
 durable save/reload, captures and live DB/relogin remain open acceptance gates.
 
+The next fresh C0–C4 cut is the bounded **Player swing-error owner** macro,
+implemented at candidate `67409023`. It follows `Player::SetAttackSwingError`
+(`Player.cpp:20625-20631`) and its `Unit::DoMeleeAttackIfReady` caller
+(`Unit.cpp:2087-2150`): nullable duplicate suppression and clear state live on
+the canonical `wow_entities::Player`, while Session remains the packet
+encoding/delivery adapter. Missing or stale owners fail closed. This removes the
+Session mirror, updates the ownership ledger to 647 total fields (221
+production) and leaves 12 other residual fields for later audited macros. The
+slice does not claim a packet-layout change, persistence, exact captures or live
+DB/relogin QA; those remain explicit #584 acceptance gates.
+
 PR #895 closes the next measured P2 owner surface: production rest-flag, deferred-publication and rest-clock writes now use named transitions on `wow-entities::Player` over `PlayerRestState`, following `RestMgr::SetRestFlag` / `RemoveRestFlag` (`RestMgr.cpp:95-122`), `RestMgr::_restTime` (`RestMgr.h:86`) and `Player::SetRestState` (`Player.h:2652`). Session retains packet/application ordering and its generic rest-state mutator is detached-fixture-only under `cfg(test)`. The Player owner regression, rest-owner scenarios, affected chat/area-trigger/zone scenarios, package checks, formatting/diff and architecture ratchet pass. This is an ownership closure: quest objective progress, durable persistence, captures and live QA remain separate #41/#584 gates. The next #584 macro still comes from a fresh C0–C4 responsibility and consumer audit.
 
 PR #878 closes the next measured P2 owner surface: the Player-owned mount VehicleKit
