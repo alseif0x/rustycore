@@ -3729,20 +3729,11 @@ impl WorldSession {
         let health = i64::from(health);
         let max_health = i64::from(max_health_for_update);
 
-        // Existing represented unarmed damage bridge consumes the total AP
-        // after C++ base and total-value modifiers have been separated.
-        let ap_f = projection.total_attack_power as f32;
-        let base_dmg = ap_f / 14.0 * 2.0;
-        let min_d = (base_dmg + 1.0).max(1.0);
-        let max_d = min_d + 1.0;
-
-        let rap_f = projection.total_ranged_attack_power as f32;
-        let (min_rd, max_rd) = if rap_f > 0.0 {
-            let rd = rap_f / 14.0 * 2.8;
-            ((rd + 1.0).max(1.0), rd + 3.0)
-        } else {
-            (0.0, 0.0)
-        };
+        let weapon_damage = wow_data::player::effective_weapon_damage_ranges_like_cpp(
+            projection,
+            gear.weapon_damage,
+            gear.base_attack_time,
+        );
 
         // Power for slot 0 (mana/rage/energy/runic). Keep current power from
         // the runtime player and update only the max, like C++ `SetMaxPower`.
@@ -3807,8 +3798,8 @@ impl WorldSession {
         let changes = PlayerStatChanges {
             health,
             max_health,
-            min_damage: min_d,
-            max_damage: max_d,
+            min_damage: weapon_damage[0][0],
+            max_damage: weapon_damage[0][1],
             base_mana,
             base_health: projection.create_health,
             attack_power: projection.attack_power,
@@ -3819,8 +3810,8 @@ impl WorldSession {
             ranged_attack_power_mod_pos: projection.ranged_attack_power_mod_pos,
             ranged_attack_power_mod_neg: 0,
             ranged_attack_power_multiplier: 0.0,
-            min_ranged_damage: min_rd,
-            max_ranged_damage: max_rd,
+            min_ranged_damage: weapon_damage[2][0],
+            max_ranged_damage: weapon_damage[2][1],
             power0,
             max_power0,
             stats: projection.stats,

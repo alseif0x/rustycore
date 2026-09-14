@@ -44,3 +44,23 @@ fn total_attack_power_matches_cpp_non_negative_modifier_and_multiplier_order() {
     player.replace_effective_combat_stats_like_cpp(stats);
     assert_eq!(player.total_ranged_attack_power_like_cpp(), 0.0);
 }
+
+#[test]
+fn effective_weapon_damage_prefers_player_snapshot_and_falls_back_to_unit() {
+    let mut player = Player::new(None, false);
+    player
+        .unit_mut()
+        .set_weapon_damage(wow_constants::WeaponAttackType::BaseAttack, 7.0, 9.0);
+    assert_eq!(
+        player.weapon_damage_like_cpp(wow_constants::WeaponAttackType::BaseAttack),
+        [7.0, 9.0]
+    );
+
+    let mut stats = *player.effective_combat_stats_like_cpp();
+    stats.weapon_damage[wow_constants::WeaponAttackType::BaseAttack as usize] = [111.0, 137.0];
+    player.replace_effective_combat_stats_like_cpp(stats);
+    assert_eq!(
+        player.weapon_damage_like_cpp(wow_constants::WeaponAttackType::BaseAttack),
+        [111.0, 137.0]
+    );
+}

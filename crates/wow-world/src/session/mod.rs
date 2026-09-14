@@ -17976,6 +17976,12 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
     facing_target: bool,
     within_los: bool,
 ) -> Option<(Vec<u32>, Option<Option<u8>>)> {
+    // C++ `DoMeleeAttackIfReady` reads UnitData damage ranges that were
+    // recalculated by `UpdateDamagePhysical` after equipment changes. The
+    // Player-owned effective snapshot is the canonical Rust equivalent; take
+    // both ranges before borrowing Unit mutably for the timer transition.
+    let base_weapon_damage = player.weapon_damage_like_cpp(WeaponAttackType::BaseAttack);
+    let offhand_weapon_damage = player.weapon_damage_like_cpp(WeaponAttackType::OffAttack);
     let unit = player.unit_mut();
     let spell_pauses_combat_timer = [
         wow_entities::CurrentSpellSlot::Generic,
@@ -18036,7 +18042,7 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
                 {
                     let _ = unit.finish_spell(wow_entities::CurrentSpellSlot::Melee);
                 } else {
-                    let [min_damage, max_damage] = unit.weapon_damage(WeaponAttackType::BaseAttack);
+                    let [min_damage, max_damage] = base_weapon_damage;
                     swings.push(min_damage.max(1.0).min(max_damage.max(1.0)).round() as u32);
                 }
             }
@@ -18058,7 +18064,7 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
             }
             if melee_state_update_allowed {
                 unit.remove_attacking_interrupt_auras_like_cpp();
-                let [min_damage, max_damage] = unit.weapon_damage(WeaponAttackType::OffAttack);
+                let [min_damage, max_damage] = offhand_weapon_damage;
                 swings.push(min_damage.max(1.0).min(max_damage.max(1.0)).round() as u32);
             }
             unit.reset_attack_timer_like_cpp(WeaponAttackType::OffAttack);

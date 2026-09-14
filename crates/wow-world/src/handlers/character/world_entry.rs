@@ -2622,17 +2622,15 @@ impl WorldSession {
         let gear = self.represented_player_gear_stats_like_cpp(true)?;
         let projection = self.player_stat_system_projection_like_cpp(race, class, level, &gear)?;
         self.publish_player_effective_combat_stats_like_cpp(projection, &gear);
-        let ap_f = projection.total_attack_power as f32;
-        let base_dmg = ap_f / 14.0 * 2.0;
-        let min_damage = (base_dmg + 1.0).max(1.0);
-        let max_damage = min_damage + 1.0;
-        let ranged_ap_f = projection.total_ranged_attack_power as f32;
-        let (min_ranged_damage, max_ranged_damage) = if ranged_ap_f > 0.0 {
-            let damage = ranged_ap_f / 14.0 * 2.8;
-            ((damage + 1.0).max(1.0), damage + 3.0)
-        } else {
-            (0.0, 0.0)
-        };
+        let weapon_damage = wow_data::player::effective_weapon_damage_ranges_like_cpp(
+            projection,
+            gear.weapon_damage,
+            gear.base_attack_time,
+        );
+        let min_damage = weapon_damage[0][0];
+        let max_damage = weapon_damage[0][1];
+        let min_ranged_damage = weapon_damage[2][0];
+        let max_ranged_damage = weapon_damage[2][1];
         let combat = PlayerCombatStats {
             health: restored_saved_health_like_cpp(saved_health, projection.max_health),
             max_health: projection.max_health,

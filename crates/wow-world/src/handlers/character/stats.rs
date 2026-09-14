@@ -28,6 +28,9 @@ pub(crate) struct RepresentedPlayerGearStatsLikeCpp {
     pub(super) spell_penetration_bonus: i32,
     pub(super) shield_block_base_mod: i32,
     pub(super) shield_block_value: u32,
+    /// C++ `UnitData` weapon ranges installed by `_ApplyWeaponDamage`.
+    pub(super) weapon_damage: [[f32; 2]; 3],
+    pub(super) base_attack_time: [u32; 3],
 }
 
 impl WorldSession {
@@ -97,6 +100,8 @@ impl WorldSession {
             gear.spell_penetration_bonus = bonuses.spell_penetration_bonus;
             gear.shield_block_base_mod = bonuses.shield_block_base_mod;
             gear.shield_block_value = bonuses.shield_block_value;
+            gear.weapon_damage = bonuses.weapon_damage;
+            gear.base_attack_time = bonuses.base_attack_time;
         }
 
         Some(gear)
@@ -156,6 +161,11 @@ impl WorldSession {
         // Physical resistance is the final armor value after agility and flat
         // armor. School resistances remain the item/aura flat contributions.
         resistances[0] = projection.armor;
+        let weapon_damage = wow_data::player::effective_weapon_damage_ranges_like_cpp(
+            projection,
+            gear.weapon_damage,
+            gear.base_attack_time,
+        );
         let stats = PlayerEffectiveCombatStatsLikeCpp {
             stats: projection.stats,
             stat_pos_buff: projection.stat_pos_buff,
@@ -172,6 +182,11 @@ impl WorldSession {
             ranged_attack_power: projection.ranged_attack_power,
             ranged_attack_power_mod_pos: projection.ranged_attack_power_mod_pos,
             ranged_attack_power_multiplier: 0.0,
+            min_damage: weapon_damage[0][0],
+            max_damage: weapon_damage[0][1],
+            weapon_damage,
+            min_ranged_damage: weapon_damage[2][0],
+            max_ranged_damage: weapon_damage[2][1],
             combat_ratings: gear.combat_ratings,
             spell_power: gear.spell_power,
             mana_regen: gear.mana_regen_bonus as f32 / 5.0,
