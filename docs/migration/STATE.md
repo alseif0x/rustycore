@@ -1,12 +1,26 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`28762f166d39d69e844b99978bbd72e4085a2739` (PR #862, following PR #860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`2d375ef164a292f10f265a73e2086785161e95f8` (PR #864, following PR #862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**F1 movement force-ACK slice — 2026-09-14, #63 / PR #864, merge
+`2d375ef164a292f10f265a73e2086785161e95f8`:** `HandleMoveApplyMovementForceAck`,
+`HandleMoveRemoveMovementForceAck` and `HandleMoveSetModMovementForceMagnitudeAck`
+now validate against the active `m_unitMovedByMe`, read the expected magnitude from
+that Unit (including controlled Creature/Pet map state), adjust accepted client time
+and publish from the mover's position/GUID. This matches
+`MovementHandler.cpp:581-663`, including `mover->SendMessageToSet`; wrong-GUID
+ACKs are rejected without publication. The focused controlled-mover regression, 50
+movement-handler tests, architecture checks, `world-server` check and
+`validation-v2 quick` pass at
+`target/validation-v2/manifests/20260914T050653.422270Z-262358-quick.json`.
+#63 remains open for ordinary speed ACKs, knockback, remaining transport/death/BG/
+taxi branches, broader mover coverage, captures and live QA.
 
 **F1 movement MoveTimeSkipped controlled-mover slice — 2026-09-14, #63 / PR #862, merge
 `28762f166d39d69e844b99978bbd72e4085a2739`:** `HandleMoveTimeSkippedOpcode` now
