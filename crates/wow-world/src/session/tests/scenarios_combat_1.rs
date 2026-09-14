@@ -609,6 +609,9 @@ fn combat_tick_uses_canonical_player_base_attack_timer_like_cpp() {
             player
                 .unit_mut()
                 .set_weapon_damage(WeaponAttackType::BaseAttack, 7.0, 7.0);
+            let mut effective = *player.effective_combat_stats_like_cpp();
+            effective.weapon_damage[WeaponAttackType::BaseAttack as usize] = [11.0, 11.0];
+            player.replace_effective_combat_stats_like_cpp(effective);
         })
         .unwrap();
     session.combat_target = None;
@@ -629,7 +632,10 @@ fn combat_tick_uses_canonical_player_base_attack_timer_like_cpp() {
         .find_creature(0, 0, guid)
         .unwrap()
         .current_hp();
-    assert_eq!(after_first, 33);
+    assert_eq!(
+        after_first, 29,
+        "melee consumes the canonical Player effective weapon range instead of Unit's stale mirror"
+    );
 
     session.tick_combat_sync();
     let after_second = manager

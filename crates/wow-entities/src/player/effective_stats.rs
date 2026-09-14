@@ -48,6 +48,9 @@ pub struct PlayerEffectiveCombatStatsLikeCpp {
     pub ranged_attack_power_multiplier: f32,
     pub min_damage: f32,
     pub max_damage: f32,
+    /// Final C++ `UnitData` damage ranges, including the off-hand range that
+    /// is not present in the current partial packet adapter.
+    pub weapon_damage: [[f32; 2]; 3],
     pub min_ranged_damage: f32,
     pub max_ranged_damage: f32,
     pub combat_ratings: [i32; 32],
@@ -96,6 +99,7 @@ impl Default for PlayerEffectiveCombatStatsLikeCpp {
             ranged_attack_power_multiplier: 0.0,
             min_damage: 0.0,
             max_damage: 0.0,
+            weapon_damage: [[0.0; 2]; 3],
             min_ranged_damage: 0.0,
             max_ranged_damage: 0.0,
             combat_ratings: [0; 32],
@@ -158,6 +162,19 @@ impl Player {
             0.0
         } else {
             attack_power * (1.0 + stats.ranged_attack_power_multiplier)
+        }
+    }
+
+    /// Read a final weapon range from the Player-owned snapshot. Before the
+    /// first complete stat publication the snapshot is zeroed, so retain the
+    /// Unit's C++ base/default range for that transitional state.
+    #[must_use]
+    pub fn weapon_damage_like_cpp(&self, attack: wow_constants::WeaponAttackType) -> [f32; 2] {
+        let range = self.effective_combat_stats_like_cpp().weapon_damage[attack as usize];
+        if range[0] > 0.0 && range[1] > 0.0 {
+            range
+        } else {
+            self.unit().weapon_damage(attack)
         }
     }
 
