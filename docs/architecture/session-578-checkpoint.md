@@ -1,6 +1,8 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #917:** `4fb6f8a21ab4d5809f02d4f21ef13b65740fdfe1`.
+**Integrated head after PR #919:** `68a0bac749a6a7f627184e290e43d8bf6a72f670`.
+
+Current exact inventory: 647 WorldSession fields (219 production, 428 test fixtures); #584 has two unresolved production responsibilities, locked dungeon encounters and the Player `m_seer` visibility seam.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -216,7 +218,7 @@ se registra bajo la familia de publicación Map/visibility. El ledger conserva 6
 (220 producción, 427 fixtures) y reduce el residual exacto a 5. La diferencia de `CacheDataQueries` queda explícita
 como frontera futura si se implementa más adelante.
 
-## P4 Map publication delivery guards — candidate PR #918, 2026-09-14
+## P4 Map publication delivery guards — integrated PR #918, 2026-09-14
 
 The fresh C0–C4 audit classifies `represented_capture_point_removed_delivered_like_cpp` and
 `represented_dynamic_object_values_updates_delivered_like_cpp` under the Map/visibility
@@ -227,7 +229,7 @@ through `WorldObjectChangeAccumulator` (`Entities/Object/Object.cpp:3654-3717`) 
 (`Maps/Map.cpp:1929-1948`). Rust reads canonical `ManagedMap` summaries through
 `session/movement/movement_publication.rs:175-208` and
 `session/instances/map_key.rs:453-628`; both HashSets are receiver-local generation/GUID
-publication fences, not entity state. The candidate leaves three exact production fields
+publication fences, not entity state. The integrated PR #918 leaves three exact production fields
 unresolved and changes no packet bytes, map clock or persistence order.
 
 The remaining fields stay separate: `represented_instance_reset_times_like_cpp` is the
@@ -240,9 +242,9 @@ consume the canonical `InstanceLockMgr` plus injected `DungeonEncounterStore` to
 (`Player.h:2417,2423`, `Player.cpp:298-300,25344-25395`) and requires a complete
 Player/visibility owner migration.
 
-## P2 Player instance-reset owner — candidate PR #919, 2026-09-14
+## P2 Player instance-reset owner — integrated PR #919, 2026-09-14
 
-The candidate moves C++ `Player::_instanceResetTimes` into the canonical
+PR #919 moves C++ `Player::_instanceResetTimes` into the canonical
 `wow_entities::PlayerGameplayState` (`crates/wow-entities/src/player_gameplay_state.rs:60`)
 and exposes named operations from `player/recent_instances.rs`. Session admission
 materializes the canonical Player before farm-limit checks and entry accounting, matching
