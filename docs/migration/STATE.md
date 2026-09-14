@@ -1,12 +1,28 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Integration head — 2026-09-13:** `3.4.3` is at
-`b26ce713b844f1146a7b2952aade4dd532f1a16e` (PR #851, following PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+**Integration head — 2026-09-14:** `3.4.3` is at
+`7c3add2fd5a1df791fcc793295028de553f9346a` (PR #853, following PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**F1 movement admission slice — 2026-09-14, #63 / PR #853, merge
+`7c3add2fd5a1df791fcc793295028de553f9346a` (implementation `3af90ec2`):**
+`HandleMovementOpcode` now rejects player movement while near or far teleport is
+pending and rejects controlled-mover movement until its canonical MoveSpline is
+finalized. The guards run before emote, position, state or packet-publication side
+effects, matching `MovementHandler.cpp` and `Player.h::IsBeingTeleported`; the
+active legacy `MapManager` spline authority remains used while that runtime is
+live, with the canonical map fallback and fail-closed unknown state. Focused
+positive/negative regressions, the full `wow-world` library suite (3,878 passed,
+0 failed, 1 ignored), architecture checks and `validation-v2 final` passed at the
+integration candidate. #63 remains open for transport passenger enter/exit and
+reset, vehicle turning, non-creature movers, death/BG/taxi branches,
+acknowledgement/order, and live client/server/DB capture evidence. The deferred
+visibility bridge for `MoveInitActiveMoverComplete` is already integrated under
+#588 and is not duplicated here.
 
 **F1 equipment/stat projection — 2026-09-13, #61 / PR #851, merge
 `b26ce713b844f1146a7b2952aade4dd532f1a16e` (implementation `fb33111c`):** the
