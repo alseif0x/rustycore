@@ -17,16 +17,16 @@ are no longer pending implementation items. The open boundary is complete
 vehicle/transport seat-offset admission, runtime branches whose mover or consumer is
 not represented, exact packet-order captures and live client/server/DB QA.
 
-**Transport C0/C3 lifecycle implementation candidate — 2026-09-14, selected by PR
-#900:** the bounded CREATE/DESTROY and phase-visibility slice now has a production
-consumer on branch `584-transport-visibility`. `wow-map` marks same-phase Players
+**Transport C0/C3 lifecycle integrated — 2026-09-14, PR #901, merge
+`bf460aa7a8ccec0269eea1771a094ef12f0c6109` (implementation `82b2d8d9`):** the bounded
+CREATE/DESTROY and phase-visibility slice is integrated into `3.4.3`. `wow-map` marks same-phase Players
 through the Transport map-reference walk (`Map.cpp:574-610,1853-1915`) on add/remove;
 `wow-world` snapshots typed in-world transports into owned `GameObjectCreateData`,
 creates `CreateTransport`/OUT-OF-RANGE blocks during the existing deferred visibility
 refresh, and publishes `m_visibleTransports` atomically with the packet. The map guard
 is released before Session delivery, and the separate Transport VALUES membership
 rail remains intact. Focused map visibility and entity-bridge regressions pass, as do
-the `wow-world` package check and formatting/diff checks on the candidate. The slice
+the `wow-world` package check and formatting/diff checks on the merged implementation. The slice
 does not claim `Transport::TeleportPassengersAndHideTransport` map relocation,
 passenger seat/offset admission, AI/scripts, taxi routing, exact C++ captures, or live
 DB/restart/relogin QA; those remain explicit #63/#584 gates. No legacy Creature writer

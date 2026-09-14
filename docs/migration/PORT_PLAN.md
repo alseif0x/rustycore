@@ -40,8 +40,8 @@ delivery and owner-only bytes reaching observers, and rechecks the admitted `Map
 before publication. Neither slice migrates the legacy Creature owner. P3.10 is integrated;
 PR #876 adds the bounded Transport VALUES visibility projection without broadening the
 CREATE/lifecycle claim. The fresh 2026-09-14 audit selected **Transport
-CREATE/DESTROY and phase-visibility intents**, and the implementation candidate is
-now on branch `584-transport-visibility`. C++ creates and removes transport blocks
+CREATE/DESTROY and phase-visibility intents**, delivered by PR #901 and integrated at
+`bf460aa7a8ccec0269eea1771a094ef12f0c6109`. C++ creates and removes transport blocks
 through `Map::AddToMap` and `Map::SendUpdateTransportVisibility`
 (`Map.cpp:574-610,1853-1915`); the Rust slice carries typed map snapshots through
 the deferred Session visibility rail and updates `m_visibleTransports` atomically
@@ -420,13 +420,13 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#743](https://github.com/alseif0x/rustycore/issues/743) | A, group consistency | **Closed/delivered.** GroupRegistry remains authoritative and dropped state-bearing commands converge through the session boundary. |
 | [#787](https://github.com/alseif0x/rustycore/issues/787) | A, session-phase coordination | **Integrated as `d14a9a67` (PR #792; accepted at `76369bda`).** World runs before Map, phase permits remain live through finalization/retirement, and shutdown/replacement barriers are covered by production-linked tests and guarded login/save/relogin QA. |
 
-**#584 Transport visibility implementation candidate (2026-09-14):** the typed
+**#584 Transport visibility implementation integrated (2026-09-14, PR #901):** the typed
 transport owner now feeds CREATE/OUT-OF-RANGE snapshots from canonical map state into
 the deferred Session rail. Add/remove marks same-phase map-reference recipients;
 refresh publishes the packet and the separate `m_visibleTransports` membership in one
 transition, with map/instance/incarnation checks retained by the existing consumer.
-The focused map and bridge regressions plus the `wow-world` check pass on branch
-`584-transport-visibility`. Map relocation via
+The focused map and bridge regressions plus the `wow-world` check pass at merge
+`bf460aa7a8ccec0269eea1771a094ef12f0c6109`. Map relocation via
 `Transport::TeleportPassengersAndHideTransport`, passenger seat/offset admission,
 AI/scripts, taxi routing and live capture/DB acceptance remain explicit #63/#584
 gates; no Creature-owner migration is included.
