@@ -247,7 +247,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return 0;
         };
-        let represented_seer_guid = self.represented_seer_guid_like_cpp;
+        let represented_seer_guid = self.current_seer_guid_like_cpp();
         let direct_target_seer_gate_allows_send = represented_seer_guid.is_none_or(|seer_guid| {
             seer_guid.is_empty()
                 || seer_guid == player_guid

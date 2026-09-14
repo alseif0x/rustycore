@@ -105,7 +105,7 @@ impl WorldSession {
         }
         self.sync_represented_farsight_clear_from_canonical_like_cpp();
         let viewpoint = self
-            .represented_seer_guid_like_cpp
+            .current_seer_guid_like_cpp()
             .filter(|guid| !guid.is_empty())
             .unwrap_or(intent.handle().guid());
         if viewpoint != intent.viewpoint_guid() {

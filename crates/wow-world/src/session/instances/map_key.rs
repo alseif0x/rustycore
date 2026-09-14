@@ -473,7 +473,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return 0;
         };
-        let represented_seer_guid = self.represented_seer_guid_like_cpp;
+        let represented_seer_guid = self.current_seer_guid_like_cpp();
         let (update_generation, updates) = {
             let Ok(manager) = manager.lock() else {
                 return 0;

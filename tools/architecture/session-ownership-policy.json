@@ -1135,6 +1135,13 @@
           "source_class": "test_fixture"
         },
         {
+          "name": "last_observed_farsight_object_like_cpp",
+          "type": "wow_core :: ObjectGuid",
+          "visibility": "private",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "last_packet_time",
           "type": "Instant",
           "visibility": "private",
@@ -4310,8 +4317,10 @@
           "name": "represented_seer_guid_like_cpp",
           "type": "Option < wow_core :: ObjectGuid >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_self_res_spells_like_cpp",
@@ -26554,6 +26563,19 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "current_seer_guid_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn current_seer_guid_like_cpp (& self) -> Option < ObjectGuid >",
+          "cfg": [],
+          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -77001,7 +77023,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:54b8fcfa3b02766cda3db663091e1277:len=93579|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:53abf04c3da04f6452789896e9342997:len=94086|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
