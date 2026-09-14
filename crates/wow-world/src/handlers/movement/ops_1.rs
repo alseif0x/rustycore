@@ -82,6 +82,22 @@ impl WorldSession {
             );
         }
 
+        // MovementHandler.cpp returns before validation while the active
+        // Player is being teleported. The ACK/world-port handlers own the
+        // pending transition, so movement packets must not clear emotes,
+        // mutate position, or publish stale state in this window.
+        if mover_is_player
+            && (self.near_teleport_pending_like_cpp()
+                || self.represented_far_teleport_pending_like_cpp())
+        {
+            trace!(
+                account = self.account_id,
+                ?mover_guid,
+                "Ignoring movement while Player teleport is pending"
+            );
+            return;
+        }
+
         // C++ calls Player::ValidateMovementInfo before rejecting mismatched
         // GUIDs or invalid positions, then broadcasts only the sanitized state.
         let movement_validation = self.sanitize_movement_info_represented_like_cpp(&mut info);
@@ -129,6 +145,21 @@ impl WorldSession {
             warn!(
                 account = self.account_id,
                 "Invalid movement position: {pos:?}"
+            );
+            return;
+        }
+
+        // C++ `HandleMovementOpcode` rejects movement generated before the
+        // mover's spline has finalized. Keep this after GUID/position checks,
+        // matching the source ordering and preserving sanitized admission.
+        if !self
+            .mover_spline_finalized_like_cpp(mover_guid)
+            .unwrap_or(false)
+        {
+            trace!(
+                account = self.account_id,
+                ?mover_guid,
+                "Ignoring movement while mover MoveSpline is not finalized"
             );
             return;
         }

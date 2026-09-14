@@ -400,6 +400,79 @@ async fn handle_movement_uses_current_mover_guid_like_cpp() {
 }
 
 #[tokio::test]
+async fn controlled_mover_movement_is_ignored_until_spline_finalizes_like_cpp() {
+    let mut session = make_session();
+    let player_guid = ObjectGuid::create_player(1, 144);
+    let mover_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 778, 1_144);
+    let player_position = Position::new(1.0, 2.0, 3.0, 0.5);
+    let mover_start = Position::new(10.0, 10.0, 0.0, 0.0);
+    let attempted_position = Position::new(12.0, 13.0, 1.0, 1.25);
+    let manager = Arc::new(RwLock::new(crate::map_manager::MapManager::new()));
+
+    session.set_player_guid(Some(player_guid));
+    session.set_player_moved_unit_guid_like_cpp(mover_guid);
+    session.set_player_position_like_cpp(player_position);
+    session.set_map_manager(Arc::clone(&manager));
+
+    let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(mover_start.x, mover_start.y);
+    manager.write().unwrap().add_creature(
+        0,
+        0,
+        grid_x,
+        grid_y,
+        crate::map_manager::WorldCreature::new(
+            mover_guid,
+            778,
+            mover_start,
+            100,
+            80,
+            1,
+            2,
+            0.0,
+            1,
+            35,
+            0,
+            0,
+        ),
+    );
+    {
+        let mut guard = manager.write().unwrap();
+        let mover = guard
+            .find_creature_mut(0, 0, mover_guid)
+            .expect("controlled mover creature");
+        mover
+            .begin_move_spline_like_cpp(attempted_position)
+            .expect("active movement spline");
+        assert!(!mover.movement_finished());
+    }
+
+    session
+        .handle_movement_info_like_cpp(
+            Some(ClientOpcodes::MoveHeartbeat),
+            MovementInfo {
+                guid: mover_guid,
+                flags: MovementFlag::FORWARD,
+                time: 1_234,
+                position: attempted_position,
+                ..MovementInfo::default()
+            },
+        )
+        .await;
+
+    assert_eq!(session.player_position_like_cpp(), Some(player_position));
+    assert_eq!(session.player_movement_time_like_cpp(), 0);
+    let guard = manager.read().unwrap();
+    let mover = guard
+        .find_creature(0, 0, mover_guid)
+        .expect("controlled mover creature");
+    assert_eq!(mover.position(), mover_start);
+    assert_eq!(
+        mover.creature.unit().movement_flags_like_cpp(),
+        MovementFlag::empty()
+    );
+}
+
+#[tokio::test]
 async fn handle_movement_does_not_broadcast_outside_visibility_range_like_cpp() {
     let mut session = make_session();
     let guid = ObjectGuid::create_player(1, 42);

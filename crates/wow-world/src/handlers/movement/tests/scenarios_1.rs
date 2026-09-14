@@ -121,6 +121,37 @@ async fn rejected_transport_movement_clears_player_emote_state_like_cpp() {
 }
 
 #[tokio::test]
+async fn movement_is_ignored_while_player_teleport_is_pending_like_cpp() {
+    let (mut session, send_rx) = make_session_with_send_rx();
+    let guid = ObjectGuid::create_player(1, 48);
+    let original = Position::new(1.0, 2.0, 3.0, 0.0);
+    let destination = Position::new(20.0, 30.0, 40.0, 1.0);
+    session.set_player_guid(Some(guid));
+    session.set_player_moved_unit_guid_like_cpp(guid);
+    session.set_player_position_like_cpp(original);
+    session
+        .set_player_emote_state_like_cpp(10)
+        .expect("emote state update packet");
+    session.set_near_teleport_pending_like_cpp(true, Some((0, destination)), Some((20, 21)));
+    drain_server_opcodes(&send_rx);
+
+    session
+        .handle_movement_info_like_cpp(
+            Some(ClientOpcodes::MoveHeartbeat),
+            MovementInfo {
+                guid,
+                position: Position::new(10.0, 20.0, 30.0, 1.0),
+                ..MovementInfo::default()
+            },
+        )
+        .await;
+
+    assert_eq!(session.player_position_like_cpp(), Some(original));
+    assert_eq!(session.player_emote_state_like_cpp(), 10);
+    assert!(drain_server_opcodes(&send_rx).is_empty());
+}
+
+#[tokio::test]
 async fn accepted_movement_updates_represented_jump_info_like_cpp() {
     let mut session = make_session();
     let guid = ObjectGuid::create_player(1, 44);
