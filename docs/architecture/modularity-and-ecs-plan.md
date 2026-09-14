@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-14 (#916 / #915 / #913 / #911 / #909 / #907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-14 (#917 / #916 / #915 / #913 / #911 / #909 / #907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `06b076fb14730fd9e3061dd5b9f0a51a23d207bd` (PR #916, following PR #915, PR #913, PR #909, PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
+The current code integration head is `4fb6f8a21ab4d5809f02d4f21ef13b65740fdfe1` (PR #917, following PR #915, PR #913, PR #909, PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
 PR #889, PR #876, P3.10 correction PR #873 and delivery PR #871).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
@@ -135,6 +135,27 @@ under the Map/visibility publication family. The ledger remains 647 fields (220
 production, 427 fixtures) and the exact residual falls to 5; the integrated boundary keeps
 the `CacheDataQueries` configuration difference explicit for future work.
 
+## P4 Map publication delivery guards — candidate PR #918, 2026-09-14
+
+The fresh C0–C4 audit classifies `represented_capture_point_removed_delivered_like_cpp` and
+`represented_dynamic_object_values_updates_delivered_like_cpp` under
+`map_runtime_creature_gameobject_and_visibility`. The C++ sources are
+`GameObject::Delete` (`Entities/GameObject/GameObject.cpp:1746-1756`),
+`WorldObjectChangeAccumulator` (`Entities/Object/Object.cpp:3654-3717`) and
+`Map::SendObjectUpdates` (`Maps/Map.cpp:1929-1948`). Rust consumes canonical
+`ManagedMap` update summaries in `session/movement/movement_publication.rs:175-208` and
+`session/instances/map_key.rs:453-628`. These Session sets only prevent replay of one
+map generation to one receiver; they do not own GameObject or DynamicObject state.
+The candidate reduces the exact production residual to three fields while preserving
+packet, clock and persistence boundaries.
+
+The three remaining fields need distinct deliveries. Instance reset times are
+Player-owned `_instanceResetTimes` with DB load/check/add/save (`Player.cpp:1116-1125,
+19190-19198,27937-28010`); locked encounter checks need the canonical InstanceLockMgr
+and the currently non-injected `DungeonEncounterStore` to reproduce
+`Player::IsLockedToDungeonEncounter` (`Player.cpp:20725-20748`); and the seer GUID is
+Player-owned `m_seer` (`Player.h:2417,2423`, `Player.cpp:298-300,25344-25395`) and
+requires a complete visibility-owner migration.
 The finite hecs V2 conformance proof has passed within its recorded laboratory limits.
 That evidence does not install production `hecs` or Wasmtime, prove production storage
 integration, or close the remaining #584 boundaries. #743 and #735 are delivered and

@@ -724,7 +724,7 @@
       },
       {
         "id": "map_runtime_creature_gameobject_and_visibility",
-        "expected_field_count": 21,
+        "expected_field_count": 23,
         "field_names": [
           "canonical_map_manager",
           "client_visible_guids_like_cpp",
@@ -740,6 +740,8 @@
           "pending_creature_spawn",
           "player_handle_like_cpp",
           "represented_gameobject_phase_shifts",
+          "represented_capture_point_removed_delivered_like_cpp",
+          "represented_dynamic_object_values_updates_delivered_like_cpp",
           "represented_player_unit_values_updates_delivered_like_cpp",
           "represented_gameobject_tap_lists",
           "represented_gameobject_use_effects",
@@ -748,7 +750,7 @@
           "represented_unique_gameobject_uses",
           "suppress_creature_movement_queued_at_or_before_like_cpp"
         ],
-        "current_storage": "WorldSession holds legacy and canonical map handles plus represented creature/GameObject/visibility state while world-server runs both global loops and explicit bridges. The Player/Unit VALUES delivery guard is a Session publication fence over a canonical Map::SendObjectUpdates snapshot; it is not a second Player or Unit authority. #578 gives MapManager the sole generation-checked Player lifetime and leaves Session one PlayerHandle; the former persistent SessionPlayerController gameplay mirror has been retired.",
+        "current_storage": "WorldSession holds legacy and canonical map handles plus represented creature/GameObject/visibility state while world-server runs both global loops and explicit bridges. The CapturePointRemoved and DynamicObject VALUES guards, together with the Player/Unit VALUES guard, are Session publication fences over canonical map-owned update summaries; they are not entity authorities. #578 gives MapManager the sole generation-checked Player lifetime and leaves Session one PlayerHandle; the former persistent SessionPlayerController gameplay mirror has been retired.",
         "sole_writer": "Production GlobalLegacy owns legacy creature transitions, including the player->creature melee swing since #28: the phase resolves it once from the loop's map diff and the session path is gated off under that owner. The canonical map loop owns canonical phases. Session may request work but must not tick the same transition; test-only Session ownership is diagnostic, and `RustyCore.LegacyCreatureGlobalRuntime = 0` keeps it as the supported diagnostic path.",
         "readers": "World-server runtime/delivery, Session handlers, visibility/fanout, loot, combat, movement, and map tests.",
         "clock_lifetime": "Process/map-instance lifetime. Exactly one writer/clock per transition; current canonical and legacy loops use configured map intervals and explicit phase order.",
@@ -1009,10 +1011,8 @@
       },
       {
         "id": "unresolved_world_session_residual",
-        "expected_field_count": 5,
+        "expected_field_count": 3,
         "field_names": [
-          "represented_capture_point_removed_delivered_like_cpp",
-          "represented_dynamic_object_values_updates_delivered_like_cpp",
           "represented_instance_reset_times_like_cpp",
           "represented_locked_dungeon_encounters",
           "represented_seer_guid_like_cpp"
