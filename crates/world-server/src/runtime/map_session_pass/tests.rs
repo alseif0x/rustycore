@@ -52,6 +52,7 @@ fn register(
                 DurableCreatureRuntimeCommandsLikeCpp::default(),
             )),
             client_visible_guids_like_cpp: Default::default(),
+            client_visible_transports_like_cpp: Default::default(),
             advanced_combat_logging_enabled_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
         },

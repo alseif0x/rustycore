@@ -194,6 +194,7 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
             session_phase_tx: wow_world::session::directory::detached_session_phase_rail_like_cpp(),
             durable_creature_runtime_commands_like_cpp: Default::default(),
             client_visible_guids_like_cpp: Default::default(),
+            client_visible_transports_like_cpp: Default::default(),
             advanced_combat_logging_enabled_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
         },

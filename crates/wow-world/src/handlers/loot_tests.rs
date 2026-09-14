@@ -47,7 +47,7 @@ use crate::session::directory::{
 use crate::session::mailbox::{
     ApplyLootMoneyLikeCppCommand, KickLikeCppCommand, LootRollCommandIdentityLikeCpp,
     LootRollVoteCommand, MasterLootGiveResult, SendCreatureSpellCastIfVisibleLikeCppCommand,
-    SessionCommand,
+    SendVisibleObjectValuesUpdateCommand, SessionCommand,
 };
 use crate::session::{
     DurableItemLootCompletionLikeCpp, LootMoneyDeliveryAddressLikeCpp,
@@ -180,6 +180,29 @@ fn make_visible_creature_spell_session_like_cpp()
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session.client_visible_guids_like_cpp.insert(source_guid);
     (session, send_rx, source_guid)
+}
+
+#[test]
+fn transport_values_command_uses_visible_transport_membership_like_cpp() {
+    let (mut session, send_rx, _) = make_visible_creature_spell_session_like_cpp();
+    let transport_guid = ObjectGuid::create_transport(HighGuid::Transport, 590003);
+    let command = || SendVisibleObjectValuesUpdateCommand {
+        object_guid: transport_guid,
+        map_id: 571,
+        packet_bytes: vec![0x52, 0x26],
+        unit_values_update: None,
+    };
+
+    session.handle_send_visible_object_values_update_command_like_cpp(command());
+    assert!(send_rx.try_recv().is_err());
+    session
+        .client_visible_transports_like_cpp
+        .insert(transport_guid);
+    session.handle_send_visible_object_values_update_command_like_cpp(command());
+    assert_eq!(send_rx.try_recv().unwrap(), vec![0x52, 0x26]);
+    session.client_visible_transports_like_cpp.clear();
+    session.handle_send_visible_object_values_update_command_like_cpp(command());
+    assert!(send_rx.try_recv().is_err());
 }
 
 /// One committed cast. `go_marker` distinguishes the basic frame (`0xBB`)
@@ -937,6 +960,7 @@ fn broadcast_info(
         session_phase_tx: crate::session::directory::detached_session_phase_rail_like_cpp(),
         durable_creature_runtime_commands_like_cpp: Default::default(),
         client_visible_guids_like_cpp: Default::default(),
+        client_visible_transports_like_cpp: Default::default(),
         advanced_combat_logging_enabled_like_cpp: Default::default(),
         visibility_refresh_pending_like_cpp: Default::default(),
     }

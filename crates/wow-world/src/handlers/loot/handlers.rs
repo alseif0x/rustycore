@@ -1807,10 +1807,14 @@ impl WorldSession {
         if self.player_map_id_like_cpp() != command.map_id {
             return;
         }
-        if !self
-            .client_visible_guids_like_cpp
-            .contains(&command.object_guid)
-        {
+        let client_has_object = if command.object_guid.is_mo_transport() {
+            self.client_visible_transports_like_cpp
+                .contains(&command.object_guid)
+        } else {
+            self.client_visible_guids_like_cpp
+                .contains(&command.object_guid)
+        };
+        if !client_has_object {
             return;
         }
 
