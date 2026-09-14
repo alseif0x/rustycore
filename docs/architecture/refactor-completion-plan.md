@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -42,16 +42,28 @@ la supresión de duplicados, mientras Session mantiene únicamente la codificaci
 y entrega de `AttackSwingError`. El owner ausente o obsoleto falla cerrado; no se
 introducen espejo de Session, lock, persistencia ni cambio de opcode. El ledger
 queda en 647 campos totales de WorldSession (220 de producción y 427 fixtures),
-con 11 responsabilidades productivas residuales para auditorías posteriores. Los
+con 10 responsabilidades productivas residuales para auditorías posteriores. Los
 checks focales, arquitectónicos y de formato están registrados en el checkpoint;
 capturas exactas, DB/relogin y QA viva siguen siendo gates explícitos.
 
-La auditoría posterior clasifica `represented_confirmed_pending_binds` como
+PR #907 integra la clasificación de `represented_confirmed_pending_binds` como
 evidencia `cfg(test)` y no como autoridad de Session: C++ confirma el bind desde
-`MiscHandler.cpp:1063-1075` sobre Player/InstanceMap. El candidato `9df51d81`
-mantiene el total de 647 campos, reduce producción a 220 y deja 11 residuos
-productivos. Los tres escenarios de `InstanceLockResponse`, `cargo check` y el
-ratchet arquitectónico pasan; no cambia gameplay, paquetes ni persistencia.
+`MiscHandler.cpp:1063-1075` sobre Player/InstanceMap. El merge
+`33141494b4410a26e01ac5d72ea9f82132b2e522` mantiene el total de 647 campos,
+reduce producción a 220 y deja 10 residuos productivos tras la clasificación de
+identidad siguiente. Los tres escenarios de `InstanceLockResponse`, `cargo check`
+y el ratchet arquitectónico pasan; el path exhaustivo de `wow-world` alcanza el
+timeout de 900 segundos y no se presenta como verde.
+
+La auditoría C0–C4 del mismo corte clasifica `recent_player_guid_low_like_cpp`
+en la familia cohesiva de identidad de Session. TrinityCore declara
+`WorldSession::m_GUIDLow` (`Server/WorldSession.h:1881`), lo actualiza al
+adjuntar Player y lo conserva tras logout reciente (`WorldSession.cpp:980-985`),
+para atribuir datos de cuenta de personaje (`WorldSession.cpp:877-888`) y admitir
+peticiones sociales (`Handlers/SocialHandler.cpp:57-62`). Rust conserva el mismo
+writer, lectores y lifetime en `set_player_guid` y el plan de persistencia. Es una
+clasificación de ledger sin cambio de código ni comportamiento; quedan 10 campos
+productivos residuales exactos.
 
 PR #891 añade el cierre P2 acotado del owner de taxi del Player: el avance de ruta
 tras teletransporte y la limpieza del vuelo pasan a ser transiciones nominales sobre
