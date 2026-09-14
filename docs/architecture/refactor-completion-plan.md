@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #911/#909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -42,7 +42,7 @@ la supresión de duplicados, mientras Session mantiene únicamente la codificaci
 y entrega de `AttackSwingError`. El owner ausente o obsoleto falla cerrado; no se
 introducen espejo de Session, lock, persistencia ni cambio de opcode. El ledger
 queda en 647 campos totales de WorldSession (220 de producción y 427 fixtures),
-con 10 responsabilidades productivas residuales para auditorías posteriores. Los
+con 8 responsabilidades productivas residuales para auditorías posteriores. Los
 checks focales, arquitectónicos y de formato están registrados en el checkpoint;
 capturas exactas, DB/relogin y QA viva siguen siendo gates explícitos.
 
@@ -76,14 +76,15 @@ código en el merge `1c8b5577badccb6f74d3b049a7e231494b9fa792`; el residual
 productivo exacto queda en 9 campos. Architecture check, self-test (20/20) y diff
 validation pasan.
 
-La siguiente clasificación C0–C4 asigna `vmap_indoor_check_like_cpp` a la
-configuración inmutable del mundo. TrinityCore lee `CONFIG_VMAP_INDOOR_CHECK`
+PR #911 integra la clasificación C0–C4 de `vmap_indoor_check_like_cpp` en la
+configuración inmutable del mundo, en el merge
+`0dbf768419338ac7d3bf3974cf20fa7e7fa4c2ad`. TrinityCore lee `CONFIG_VMAP_INDOOR_CHECK`
 desde `World` (`World.h:119`, `World.cpp:1116`); Rust carga e inyecta la misma
 clave mediante `SessionRuntimePolicyCapabilitiesLikeCpp`
 (`world-server/app.rs:5064`, `session_resources.rs:295,505`) y el consumidor de
 aura solo lee el switch. Es una clasificación de ledger sin cambio de código,
 paquetes, lock o orden de runtime; el residual productivo exacto queda en 8
-campos.
+campos. Architecture check, self-test (20/20) y diff validation pasan.
 
 PR #891 añade el cierre P2 acotado del owner de taxi del Player: el avance de ruta
 tras teletransporte y la limpieza del vuelo pasan a ser transiciones nominales sobre

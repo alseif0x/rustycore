@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #909:** `1c8b5577badccb6f74d3b049a7e231494b9fa792`.
+**Integrated head after PR #911:** `0dbf768419338ac7d3bf3974cf20fa7e7fa4c2ad`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -152,7 +152,7 @@ ledger-only cut with no code or behavior change; the unresolved residual is now 
 exact production fields and the ledger total remains 647 (220 production, 427 test
 fixtures). Architecture check, self-test (20/20) and diff validation pass.
 
-## P2 VMAP indoor-check configuration classification — candidate, 2026-09-14
+## P2 VMAP indoor-check configuration classification — integrated PR #911, 2026-09-14
 
 The next C0–C4 audit classified `vmap_indoor_check_like_cpp` as immutable world
 configuration, not Session gameplay authority. TrinityCore reads
@@ -163,8 +163,10 @@ stores it in `SessionRuntimePolicyCapabilitiesLikeCpp` and injects it once throu
 switch when applying the aura indoor-check branch (`session/spell_state/aura_application.rs:40`).
 The ledger assigns the field to `immutable_catalogs_configuration_and_services`;
 there is no code, packet, lock, persistence or runtime-order change. Once
-integrated, the unresolved residual will be 8 exact production fields while the
-ledger remains 647 fields (220 production, 427 test fixtures).
+integrated, the unresolved residual is 8 exact production fields while the ledger
+remains 647 fields (220 production, 427 test fixtures). PR #911 integrates this
+ledger classification at merge `0dbf768419338ac7d3bf3974cf20fa7e7fa4c2ad`;
+architecture check, self-test (20/20) and diff validation pass.
 
 ## P2 Player mount presentation owner closure — integrated PR #897, 2026-09-14
 
