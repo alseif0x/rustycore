@@ -203,9 +203,7 @@ impl WorldSession {
             };
             if !state.is_pvp_hostile_like_cpp() && self.player_is_pvp_like_cpp(guid) == Some(true) {
                 let now = wow_entities::game_time_secs_like_cpp();
-                let _ = self.mutate_player_world_local_state_like_cpp(|state| {
-                    state.set_pvp_end_timer_like_cpp(Some(now));
-                });
+                let _ = self.set_player_pvp_end_timer_like_cpp(Some(now));
             }
         }
 
@@ -542,7 +540,7 @@ impl WorldSession {
             .load(Ordering::Relaxed)
     }
     #[cfg(test)]
-    pub(crate) fn set_player_pvp_hostile_like_cpp(&mut self, hostile: bool) {
+    fn set_player_pvp_hostile_fixture_like_cpp(&mut self, hostile: bool) {
         let _ = self.mutate_player_world_local_state_like_cpp(|state| {
             state.set_pvp_hostile_like_cpp(hostile);
         });
@@ -554,7 +552,7 @@ impl WorldSession {
         pvp_enabled: bool,
         in_pvp_flag: bool,
     ) {
-        self.set_player_pvp_hostile_like_cpp(hostile);
+        self.set_player_pvp_hostile_fixture_like_cpp(hostile);
         self.update_player_pvp_like_cpp(pvp_enabled, true);
         if let Some(guid) = self.player_guid() {
             let _ = self.with_owned_player_mut_like_cpp(|player| {

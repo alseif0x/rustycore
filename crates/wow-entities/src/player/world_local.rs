@@ -26,6 +26,8 @@
 //! established it for the current position, where C++ `IsOutdoors()` answers a
 //! plain bool from data it always has.
 
+use super::Player;
+
 /// C++ `Player` state updated by `UpdateZone`, `UpdateArea`, `UpdatePvPState`
 /// and `UpdateContestedPvP`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -179,5 +181,56 @@ impl PlayerWorldLocalState {
     /// the current position.
     pub fn set_is_outdoors_like_cpp(&mut self, is_outdoors: Option<bool>) {
         self.is_outdoors = is_outdoors;
+    }
+}
+
+impl Player {
+    /// C++ `Player::UpdateZone` stores the zone on the Player.
+    pub fn set_zone_id_like_cpp(&mut self, zone_id: u32) {
+        self.gameplay_state_mut()
+            .world_local
+            .set_zone_id_like_cpp(zone_id);
+    }
+
+    /// C++ `Player::UpdateArea` stores the area on the Player.
+    pub fn set_area_id_like_cpp(&mut self, area_id: u32) {
+        self.gameplay_state_mut()
+            .world_local
+            .set_area_id_like_cpp(area_id);
+    }
+
+    /// Install one zone/area pair at the Player boundary.
+    pub fn set_zone_area_like_cpp(&mut self, zone_id: u32, area_id: u32) {
+        self.gameplay_state_mut()
+            .world_local
+            .set_zone_area_like_cpp(zone_id, area_id);
+    }
+
+    /// Record terrain authority for the Player's current zone/area pair.
+    pub fn set_zone_area_authority_like_cpp(&mut self, complete: bool) {
+        self.gameplay_state_mut()
+            .world_local
+            .set_zone_area_authority_like_cpp(complete);
+    }
+
+    /// C++ `Player::UpdatePvPState` stores `pvpInfo.IsHostile`.
+    pub fn set_pvp_hostile_like_cpp(&mut self, hostile: bool) {
+        self.gameplay_state_mut()
+            .world_local
+            .set_pvp_hostile_like_cpp(hostile);
+    }
+
+    /// C++ `Player::UpdatePvPState` stores `pvpInfo.EndTimer`.
+    pub fn set_pvp_end_timer_like_cpp(&mut self, end_timer: Option<i64>) {
+        self.gameplay_state_mut()
+            .world_local
+            .set_pvp_end_timer_like_cpp(end_timer);
+    }
+
+    /// Record the terrain-derived `WorldObject::IsOutdoors()` result.
+    pub fn set_is_outdoors_like_cpp(&mut self, is_outdoors: bool) {
+        self.gameplay_state_mut()
+            .world_local
+            .set_is_outdoors_like_cpp(Some(is_outdoors));
     }
 }

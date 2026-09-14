@@ -134,6 +134,7 @@ impl WorldSession {
         });
         result
     }
+    #[cfg(test)]
     pub(in crate::session) fn mutate_player_world_local_state_like_cpp<R>(
         &mut self,
         mutate: impl FnOnce(&mut wow_entities::PlayerWorldLocalState) -> R,
@@ -159,6 +160,121 @@ impl WorldSession {
             self.player_contested_pvp_timer_like_cpp = state.contested_pvp_timer_like_cpp();
             self.represented_is_outdoors_like_cpp = state.is_outdoors_like_cpp();
             return Some(result);
+        }
+        canonical
+    }
+    pub(in crate::session) fn set_player_zone_id_like_cpp(&mut self, zone_id: u32) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.set_zone_id_like_cpp(zone_id))
+            .is_some();
+        #[cfg(test)]
+        if !canonical && self.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_world_local_state_like_cpp(|state| {
+                    state.set_zone_id_like_cpp(zone_id);
+                })
+                .is_some();
+        }
+        canonical
+    }
+    pub(in crate::session) fn set_player_area_id_like_cpp(&mut self, area_id: u32) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.set_area_id_like_cpp(area_id))
+            .is_some();
+        #[cfg(test)]
+        if !canonical && self.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_world_local_state_like_cpp(|state| {
+                    state.set_area_id_like_cpp(area_id);
+                })
+                .is_some();
+        }
+        canonical
+    }
+    pub(in crate::session) fn set_player_world_local_zone_area_like_cpp(
+        &mut self,
+        zone_id: u32,
+        area_id: u32,
+    ) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_zone_area_like_cpp(zone_id, area_id)
+            })
+            .is_some();
+        #[cfg(test)]
+        if !canonical && self.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_world_local_state_like_cpp(|state| {
+                    state.set_zone_area_like_cpp(zone_id, area_id);
+                })
+                .is_some();
+        }
+        canonical
+    }
+    pub(in crate::session) fn set_player_zone_area_authority_like_cpp(
+        &mut self,
+        complete: bool,
+    ) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_zone_area_authority_like_cpp(complete)
+            })
+            .is_some();
+        #[cfg(test)]
+        if !canonical && self.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_world_local_state_like_cpp(|state| {
+                    state.set_zone_area_authority_like_cpp(complete);
+                })
+                .is_some();
+        }
+        canonical
+    }
+    pub(crate) fn set_player_pvp_hostile_like_cpp(&mut self, hostile: bool) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.set_pvp_hostile_like_cpp(hostile))
+            .is_some();
+        #[cfg(test)]
+        if !canonical && self.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_world_local_state_like_cpp(|state| {
+                    state.set_pvp_hostile_like_cpp(hostile);
+                })
+                .is_some();
+        }
+        canonical
+    }
+    pub(in crate::session) fn set_player_pvp_end_timer_like_cpp(
+        &mut self,
+        end_timer: Option<i64>,
+    ) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.set_pvp_end_timer_like_cpp(end_timer))
+            .is_some();
+        #[cfg(test)]
+        if !canonical && self.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_world_local_state_like_cpp(|state| {
+                    state.set_pvp_end_timer_like_cpp(end_timer);
+                })
+                .is_some();
+        }
+        canonical
+    }
+    pub(in crate::session) fn set_player_is_outdoors_like_cpp(
+        &mut self,
+        is_outdoors: bool,
+    ) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.set_is_outdoors_like_cpp(is_outdoors))
+            .is_some();
+        #[cfg(test)]
+        if !canonical && self.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_world_local_state_like_cpp(|state| {
+                    state.set_is_outdoors_like_cpp(Some(is_outdoors));
+                })
+                .is_some();
         }
         canonical
     }
