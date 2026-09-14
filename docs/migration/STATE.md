@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`b7ac63b7a4b91c37cd775d41d26fd10052ae44b9` (PR #927 following PR #926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`028185d87fed7b52eb157424d0a9d9d52325b593` (PR #929 following PR #927/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -48,16 +48,18 @@ corpse/transport lifecycle, exact captures and live DB/restart/relogin QA remain
 explicit #584/#63 gates. Directed Pet DESTROY is covered by the integrated PR #927
 slice recorded below.
 
-**Directed Pet DESTROY integrated — 2026-09-14, #584 / PR #927, merge `b7ac63b7`:**
+**Directed object DESTROY integrated — 2026-09-14, #584 / PR #929, merge `028185d8`:**
 TrinityCore removes ordinary units through `Map::RemoveFromMap` while the source is
 still attached, so `WorldObject::DestroyForNearbyPlayers` can walk nearby Players
 (`Map.cpp:934-951`, `Object.cpp:3617-3648`); `Pet::RemoveFromWorld` follows that
-Unit path (`Pet.cpp:94-101`). Rust now captures Creature/Pet recipients before
-canonical erasure and sends the existing deferred directed DESTROY command for Pet
-GUIDs as well, retaining charmer exclusion, map-incarnation and `HaveAtClient`
-fences. The `wow-map` visibility suite (47 tests) and `wow-world` deferred-visibility
-suite (12 tests, including the Pet case) pass. This does not move Pet AI, summon
-ownership, persistence, vehicle/transport lifecycle or live QA.
+Unit path (`Pet.cpp:94-101`). For Corpses, `Corpse::RemoveFromWorld` delegates to
+the same world-object removal path (`Corpse.cpp:56`, `Object.cpp:1023-1029`). Rust
+now captures one generic object recipient list before canonical erasure and sends
+one directed DESTROY command for Creature, Pet or Corpse, retaining map-incarnation
+and `HaveAtClient` fences. The `wow-map` visibility suite (47 tests), `wow-world`
+deferred-visibility suite (12 tests), mailbox suite (16 tests), package check and
+architecture checks pass. Pet AI, summon ownership, corpse reclaim/persistence/loot,
+vehicle/transport lifecycle and live QA remain separate gates.
 
 **Transport C0/C3 lifecycle integrated — 2026-09-14, PR #901, merge
 `bf460aa7a8ccec0269eea1771a094ef12f0c6109` (implementation `82b2d8d9`):** the bounded
