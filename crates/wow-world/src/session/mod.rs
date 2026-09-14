@@ -15323,33 +15323,7 @@ impl WorldSession {
             return false;
         }
 
-        let passenger_type_id = if passenger_guid.is_player() {
-            TypeId::Player
-        } else {
-            TypeId::Unit
-        };
-        self.mutate_player_mount_vehicle_kit_like_cpp(|kit| {
-            let Some(vehicle_kit) = kit.as_mut() else {
-                return false;
-            };
-            if !vehicle_kit
-                .seat_info_for_passenger_like_cpp(passenger_guid)
-                .is_some_and(|seat| seat.ejectable)
-            {
-                return false;
-            }
-            vehicle_kit
-                .remove_passenger_plan_like_cpp(
-                    passenger_guid,
-                    passenger_type_id,
-                    false,
-                    false,
-                    false,
-                    false,
-                )
-                .is_some()
-        })
-        .unwrap_or(false)
+        self.eject_player_mount_vehicle_passenger_like_cpp(passenger_guid)
     }
 
     fn has_recently_dropped_flag_debuff_like_cpp(&self) -> Option<bool> {
