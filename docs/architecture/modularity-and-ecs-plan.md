@@ -76,6 +76,15 @@ admission; Rust's `set_player_guid` and persistence plan preserve that Session
 lifetime. This is a ledger classification only, with no code or behavior change;
 the unresolved production residual is now 10 fields.
 
+The next C0–C4 classification assigns `player_guid` to a dedicated selected-player
+Session binding family. TrinityCore keeps `_player` on `WorldSession`
+(`Server/WorldSession.h:1882`) and installs/clears it during login/logout through
+`SetPlayer` (`WorldSession.cpp:672-694,978-985`); Rust's `set_player_guid` is the
+generation-checked GUID key used by Session admission, lifecycle, addressing and
+stale-owner guards. It never reconstructs gameplay state or replaces canonical
+Player ownership. This ledger-only cut leaves 9 exact unresolved production
+fields, with no code, lock, packet or runtime behavior change.
+
 The finite hecs V2 conformance proof has passed within its recorded laboratory limits.
 That evidence does not install production `hecs` or Wasmtime, prove production storage
 integration, or close the remaining #584 boundaries. #743 and #735 are delivered and

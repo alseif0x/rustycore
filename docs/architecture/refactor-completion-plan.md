@@ -65,6 +65,15 @@ writer, lectores y lifetime en `set_player_guid` y el plan de persistencia. Es u
 clasificación de ledger sin cambio de código ni comportamiento; quedan 10 campos
 productivos residuales exactos.
 
+La siguiente clasificación C0–C4 asigna `player_guid` a una familia dedicada de
+binding de Player en Session. TrinityCore mantiene `_player` en `WorldSession`
+(`Server/WorldSession.h:1882`) y lo instala/limpia durante login/logout mediante
+`SetPlayer` (`WorldSession.cpp:672-694,978-985`); `set_player_guid` de Rust es la
+clave GUID con comprobación de generación para admisión, ciclo de vida,
+direccionamiento y rechazo de owners obsoletos. No reconstruye estado de gameplay
+ni sustituye al Player canónico. Es una clasificación de ledger sin cambio de
+código; el residual productivo exacto queda en 9 campos.
+
 PR #891 añade el cierre P2 acotado del owner de taxi del Player: el avance de ruta
 tras teletransporte y la limpieza del vuelo pasan a ser transiciones nominales sobre
 `PlayerTaxi`, siguiendo `PlayerTaxi::NextTaxiDestination` (`PlayerTaxi.h:74`) y

@@ -984,11 +984,30 @@
         "review": "docs/architecture/session-578-checkpoint.md; current exact membership, not terminal ownership acceptance."
       },
       {
+        "id": "session_selected_player_binding",
+        "expected_field_count": 1,
+        "field_names": [
+          "player_guid"
+        ],
+        "current_storage": "The authenticated Session retains the selected Player GUID as its generation-checked binding key; gameplay state remains on the canonical Player and the map runtime.",
+        "sole_writer": "Character login/transfer admission installs the selected GUID and logout/finalization clears it through WorldSession::set_player_guid.",
+        "readers": "Session admission, lifecycle, packet handlers, canonical Player-handle resolution, directory addressing and stale-generation guards.",
+        "clock_lifetime": "Selected-character Session lifetime, from owner publication through logout/finalization; it is not a Player gameplay clock.",
+        "persistence_publication_order": "The binding is installed only after character admission and canonical Player publication; it is cleared before the Session accepts a replacement character.",
+        "mirror_direction": "The GUID is a Session-to-owner binding key. It does not mirror Player gameplay state and cannot be used to reconstruct a missing owner.",
+        "target_owner": "Application WorldSession binding boundary, with canonical wow_entities::Player and MapManager as the gameplay owner.",
+        "cutover_issues": [
+          584
+        ],
+        "rollback_condition": "Restore the prior binding path if login/transfer admission, stale-generation rejection, logout cleanup or replacement-character isolation changes.",
+        "retirement_condition": "The Session binding is represented by one generation-checked selected-owner key and no gameplay/catalog field is attached to it.",
+        "review": "docs/architecture/session-578-checkpoint.md; current exact membership, not terminal ownership acceptance. C++ WorldSession::_player is the authority boundary."
+      },
+      {
         "id": "unresolved_world_session_residual",
-        "expected_field_count": 10,
+        "expected_field_count": 9,
         "field_names": [
           "creature_query_cache",
-          "player_guid",
           "player_stats",
           "represented_capture_point_removed_delivered_like_cpp",
           "represented_cast_unstuck_enabled_like_cpp",
@@ -998,7 +1017,7 @@
           "represented_seer_guid_like_cpp",
           "vmap_indoor_check_like_cpp"
         ],
-        "current_storage": "10 exact production fields remain explicitly unresolved; recent_player_guid_low_like_cpp is classified under the cohesive Session identity family because it is the C++ WorldSession::m_GUIDLow post-logout character attribution. The represented_confirmed_pending_binds vector is cfg(test) diagnostic evidence because C++ confirms the bind on Player/InstanceMap. Player identity (name, race, class, level and gender) and the C++ Player::m_swingErrorMsg transition now resolve through the canonical wow_entities::Player after their login/owner boundaries. Fixture fields are classified separately. This residual is not stable Session ownership. #578 must classify and remove the remaining gameplay/catalog authority before #153 can accept the shell.",
+        "current_storage": "9 exact production fields remain explicitly unresolved; recent_player_guid_low_like_cpp is classified under the cohesive Session identity family and player_guid under the selected-player binding family. The represented_confirmed_pending_binds vector is cfg(test) diagnostic evidence because C++ confirms the bind on Player/InstanceMap. Player identity (name, race, class, level and gender) and the C++ Player::m_swingErrorMsg transition now resolve through the canonical wow_entities::Player after their login/owner boundaries. Fixture fields are classified separately. This residual is not stable Session ownership. #578 must classify and remove the remaining gameplay/catalog authority before #153 can accept the shell.",
         "sole_writer": "WorldSession methods/handlers identified by the syntax and call-site inventory; exact writer must be recorded before moving the field.",
         "readers": "Derived mechanically from field references; semantic readers remain an audit obligation.",
         "clock_lifetime": "Unknown or mixed until classified; no new clock may be inferred.",

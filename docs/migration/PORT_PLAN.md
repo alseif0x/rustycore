@@ -94,6 +94,16 @@ Session lifetime. The field moves from the unresolved residual into
 behavior change. The residual is now 10 exact production fields; total membership
 remains 647 (220 production, 427 test fixtures).
 
+The next audited classification assigns `player_guid` to a dedicated selected-player
+Session binding family. TrinityCore keeps `_player` on `WorldSession`
+(`Server/WorldSession.h:1882`) and installs/clears it through `SetPlayer` during
+login and logout (`WorldSession.cpp:672-694,978-985`); Rust's `set_player_guid`
+is the generation-checked GUID key used by Session admission, lifecycle,
+addressing and stale-owner guards. It never reconstructs gameplay state when the
+canonical Player is absent. This ledger-only classification reduces the exact
+unresolved production residual to 9 while keeping 647 total fields (220 production,
+427 test fixtures).
+
 PR #895 closes the next measured P2 owner surface: production rest-flag, deferred-publication and rest-clock writes now use named transitions on `wow-entities::Player` over `PlayerRestState`, following `RestMgr::SetRestFlag` / `RemoveRestFlag` (`RestMgr.cpp:95-122`), `RestMgr::_restTime` (`RestMgr.h:86`) and `Player::SetRestState` (`Player.h:2652`). Session retains packet/application ordering and its generic rest-state mutator is detached-fixture-only under `cfg(test)`. The Player owner regression, rest-owner scenarios, affected chat/area-trigger/zone scenarios, package checks, formatting/diff and architecture ratchet pass. This is an ownership closure: quest objective progress, durable persistence, captures and live QA remain separate #41/#584 gates. The next #584 macro still comes from a fresh C0–C4 responsibility and consumer audit.
 
 PR #878 closes the next measured P2 owner surface: the Player-owned mount VehicleKit

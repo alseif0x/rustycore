@@ -134,6 +134,23 @@ packet, persistence-order or ownership behavior change. The residual falls from
 427 test fixtures). This is a classification closure, not a claim that the
 remaining gameplay/catalog residuals or #584 are complete.
 
+## P2 Selected-player Session binding classification — candidate, 2026-09-14
+
+The next C0–C4 audit classified `player_guid` as the selected-player binding of
+WorldSession, not Player gameplay state. TrinityCore keeps the live `_player`
+pointer on `WorldSession` (`Server/WorldSession.h:1882`), installs it through
+`SetPlayer` and retains the separate `m_GUIDLow` only for recent logout
+(`Server/WorldSession.cpp:672-694,978-985`). Rust's `player_guid` is the stable
+GUID key for the generation-checked `PlayerHandle`: `set_player_guid` installs or
+clears it at login, transfer completion and finalization, while all gameplay
+state remains behind canonical Player/Map accessors. Session handlers use it for
+admission, lifecycle, addressing and stale-generation rejection; it is never a
+fallback owner or persistence mirror. The ledger therefore assigns it to the
+dedicated `session_selected_player_binding` family. This is a classification-only
+cut with no code or behavior change; once integrated, the unresolved residual will
+be 9 exact production fields and the ledger total will remain 647 (220 production,
+427 test fixtures).
+
 ## P2 Player mount presentation owner closure — integrated PR #897, 2026-09-14
 
 PR #897 integrates the bounded Player mount-presentation owner closure into
