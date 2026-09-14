@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #913:** `9ec36295344d3faf96733b77bac4686d0a903ec1`.
+**Integrated head after PR #916:** `06b076fb14730fd9e3061dd5b9f0a51a23d207bd`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -201,9 +201,9 @@ El ledger registra la clasificación en `immutable_catalogs_configuration_and_se
 no se mueve gameplay, no se crea una autoridad duplicada y el residual exacto queda en
 6 campos hasta la integración.
 
-## P3 Creature query duplicate-response correction — candidate, 2026-09-14
+## P3 Creature query duplicate-response correction — integrated PR #916, 2026-09-14
 
-La auditoría del residuo `creature_query_cache` encontró una diferencia de
+PR #916 integra la corrección del residuo `creature_query_cache`, que era una diferencia de
 comportamiento, no una autoridad válida de Session. TrinityCore conserva el caché de
 bytes serializados en `CreatureTemplate::QueryData` y `WorldSession::HandleCreatureQuery`
 responde cada `CMSG_QUERY_CREATURE`, usando el caché solo para construir el payload
@@ -213,8 +213,8 @@ handler vuelve a responder cada petición. La regresión focal exige dos respues
 dos consultas iguales. El snapshot sintáctico se regeneró con el checker oficial y la
 clasificación existente de `represented_player_unit_values_updates_delivered_like_cpp`
 se registra bajo la familia de publicación Map/visibility. El ledger conserva 647 campos
-(220 producción, 427 fixtures) y reduce el residual exacto a 5; la integración pendiente
-debe mantener explícita la diferencia de `CacheDataQueries` si se implementa más adelante.
+(220 producción, 427 fixtures) y reduce el residual exacto a 5. La diferencia de `CacheDataQueries` queda explícita
+como frontera futura si se implementa más adelante.
 
 ## P2 Player mount presentation owner closure — integrated PR #897, 2026-09-14
 

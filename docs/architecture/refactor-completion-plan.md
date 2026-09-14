@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #913/#911/#909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #916/#915/#913/#911/#909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -111,9 +111,9 @@ El ledger registra la clasificación en `immutable_catalogs_configuration_and_se
 no se mueve gameplay, no se crea una autoridad duplicada y el residual exacto queda en
 6 campos hasta la integración.
 
-## P3 Creature query duplicate-response correction — candidate, 2026-09-14
+## P3 Creature query duplicate-response correction — integrated PR #916, 2026-09-14
 
-La auditoría del residuo `creature_query_cache` encontró una diferencia de
+PR #916 integra la corrección del residuo `creature_query_cache`, que era una diferencia de
 comportamiento, no una autoridad válida de Session. TrinityCore conserva el caché de
 bytes serializados en `CreatureTemplate::QueryData` y `WorldSession::HandleCreatureQuery`
 responde cada `CMSG_QUERY_CREATURE`, usando el caché solo para construir el payload
