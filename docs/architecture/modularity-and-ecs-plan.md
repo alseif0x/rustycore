@@ -80,6 +80,16 @@ typed mutable operation, with no generic record access, second mirror, lock or c
 Attach/switch/detach/missing-target regressions and the full movement-handler suite pass;
 vehicle seat/turning, complete offset validation and live capture gates remain in #63.
 
+PR #859 completes the Player passenger turning branch from
+`MovementHandler.cpp:408-421`: a seat carrying `VEHICLE_SEAT_FLAG_ALLOW_TURNING`
+updates only facing, removes turning-interrupt auras and returns before relocation or
+`MoveUpdate` publication. PR #860 extends the stale transport distance guard from
+`MovementHandler.cpp:345-350` to controlled Creature/Pet movers by reading the active
+position from the legacy map owner with the canonical map projection as fallback. The
+two slices preserve one movement authority and pass their focused regressions plus
+`validation-v2 final`; complete seat/offset admission, other mover kinds, death/BG/taxi,
+ACK/order and live capture remain explicit #63 boundaries.
+
 ## Architecture program state — 2026-09-14
 
 The [refactor completion plan](refactor-completion-plan.md) records the detailed

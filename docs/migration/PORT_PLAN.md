@@ -84,11 +84,14 @@ or local final profile as full movement acceptance.
 PR #855 extends this same bounded #63 operation to canonical transport membership
 (`10528d45`). The handler removes stale passenger membership before a switch or detach,
 adds only an in-world typed Transport owned by the current Map, and clears the
-movement transport state when the requested target is absent. Focused attach/switch/
-detach/missing-target regressions, the 47-test movement suite and `validation-v2 final`
-pass at the merged head with 3,880 `wow-world` tests. #63 remains open for vehicle
-seat/turning, full offset/coordinate validation, non-Creature movers, death/BG/taxi,
-ACK/order and live capture/QA; preserve the deferred visibility bridge from #588.
+movement transport state when the requested target is absent. PR #859
+(`95444be0`) then matches the C++ vehicle passenger turning early return
+(`MovementHandler.cpp:408-421`), and PR #860 (`704dc4cb`) applies the stale
+transport distance guard to controlled Creature/Pet movers (`MovementHandler.cpp:345-350`).
+Both slices pass focused regressions and `validation-v2 final` with 3,881 tests and
+zero failures. #63 remains open for complete transport seat/offset admission, other
+mover kinds, death/BG/taxi, ACK/order and live capture/QA; preserve the deferred
+visibility bridge from #588.
 
 Continue the remaining core under #584 by complete operations, execution/lifetime
 boundaries and physical organization. #582 is closed after its decoder-only delivery;
@@ -256,7 +259,7 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#58](https://github.com/alseif0x/rustycore/issues/58) | Superseded by #41 | Preserve timed-active exclusivity and recursive breadcrumb admission as explicit quest criteria. |
 | [#59](https://github.com/alseif0x/rustycore/issues/59) | Superseded by #41 | Preserve acceptance/completion/reward participants and evidence, without redoing #718. |
 | [#61](https://github.com/alseif0x/rustycore/issues/61) | F1, equipment/stats | **Projection integrated by PR #851 (`b26ce713`); issue remains open.** Finish production combat/melee/spell consumers, exact C++ AP/damage/aura/regen/expertise/penetration paths, reversible equip/unequip and broken/repair lifecycle, then capture/live DB/relogin acceptance before accepting combat numbers. |
-| [#63](https://github.com/alseif0x/rustycore/issues/63) | F1, movement | **Admission + transport slices integrated by PR #853/#855 (`10528d45`):** pending teleport and unfinished controlled-mover spline fail closed before side effects; canonical Map-owned transport membership now switches/detaches safely and resets missing targets. Continue vehicle seat/turning, full offset validation, non-Creature/death/BG/taxi, ACK/order and live capture/QA; preserve #588 deferred visibility. |
+| [#63](https://github.com/alseif0x/rustycore/issues/63) | F1, movement | **Admission + transport slices integrated by PR #853/#855/#859/#860 (`704dc4cb`):** pending teleport and unfinished controlled-mover spline fail closed before side effects; canonical Map-owned transport membership switches/detaches safely and resets missing targets; vehicle passenger turning follows the C++ early return; stale transport distance validation covers controlled Creature/Pet movers. Continue complete seat/offset admission, other mover kinds, death/BG/taxi, ACK/order and live capture/QA; preserve #588 deferred visibility. |
 | [#65](https://github.com/alseif0x/rustycore/issues/65) | L, source-evidence index | Correct finding/issue status and retain exact C++ provenance; not a separate implementation queue or fresh count. |
 | [#99](https://github.com/alseif0x/rustycore/issues/99) | X, module ecosystem | #583 is the selected stateful product; wider language/WIT/hot-reload proposals remain later capability-led planning. |
 | [#153](https://github.com/alseif0x/rustycore/issues/153) | X/A, terminal audit | Audit accepted #584/#583 and their evidence; do not absorb known implementation work or await #133 reopening. |
