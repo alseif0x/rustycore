@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #904:** `4ad36d420a0f56297390262f3667be1b5fc4ae6f`.
+**Integrated head after PR #906:** `9a35ba0f007422e90f1d0837c03a23c353078379`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -72,7 +72,7 @@ closure. The five production-only stale-handle guards added with the final integ
 implementation are included in the Session hotspot ceiling (`86915` production /
 `197512` total) rather than hidden from the ratchet.
 
-## P2 Player swing-error owner — candidate `67409023`, 2026-09-14
+## P2 Player swing-error owner — integrated PR #906, 2026-09-14
 
 The next bounded C0–C4 macro moves TrinityCore's `Player::m_swingErrorMsg` to the
 canonical Rust `wow_entities::Player`. The source contract is
@@ -86,14 +86,31 @@ order. A missing or stale owner fails closed. No Session mirror, persistence,
 opcode/layout change, map lock across delivery, or live-capture claim is part of
 this slice.
 
-Candidate evidence at `67409023`: `cargo check -p wow-entities -p wow-world`,
-the focused Player owner test (1/1), `scenarios_combat_2` (13/13),
-`scenarios_combat_3` (9/9), formatting/diff checks, architecture check and its
-20 self-tests pass. The ownership ledger now records 647 total WorldSession
-fields (221 production) and 12 unresolved residual fields; logical hotspot
-counts are Session 86,914 production / 110,604 test / 197,518 total and Player
-16,702 production / 13,710 test / 30,412 total. Exact packet captures,
-durable persistence and live DB/relogin QA remain later #584 gates.
+PR #906 integrates the implementation at merge `9a35ba0f`; its implementation
+commit is `67409023`. The focused Player owner test (1/1), `scenarios_combat_2`
+(13/13), `scenarios_combat_3` (9/9), formatting/diff checks, architecture check
+and its 20 self-tests pass. The ownership ledger records 647 total WorldSession
+fields (220 production and 427 test fixtures) and 11 unresolved production
+residual fields; logical hotspot counts are Session 86,918 production / 110,604
+test / 197,522 total and Player 16,702 production / 13,710 test / 30,412 total.
+Exact packet captures, durable persistence and live DB/relogin QA remain later
+#584 gates. The final profile's full library-test step timed out after 900 seconds
+in existing long-running `wow-world` tests; it is not recorded as a green suite.
+
+## P2 Pending-bind confirmation evidence boundary — candidate `9df51d81`, 2026-09-14
+
+The C0–C4 audit found `represented_confirmed_pending_binds` was a production
+Session field with no TrinityCore counterpart. C++ handles the operation in
+`MiscHandler.cpp:1063-1075`, calling `Player::ConfirmPendingBind` and then
+`Player::SetPendingBind(0, 0)`; the confirmation is owned by Player/InstanceMap,
+not a session result vector. Rust now keeps the vector only under `cfg(test)` as
+diagnostic evidence, gates the production push out, and records the exact
+classification in the session policy and ledger. No gameplay owner, packet order,
+persistence or runtime behavior changes. `cargo check -p wow-world`, the three
+`instance_lock_response` regressions (3/3), formatting/diff checks, architecture
+check and 20 self-tests pass. Production WorldSession fields fall from 221 to
+220; the total remains 647 because the diagnostic is a fixture. The remaining
+unresolved production residual is 11 fields.
 
 ## P2 Player mount presentation owner closure — integrated PR #897, 2026-09-14
 

@@ -1,8 +1,8 @@
 # RustyCore — Master port and delivery plan
 
-**Reconciled 2026-09-14 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49), with PR #901, #902 and #904 integrated.**
+**Reconciled 2026-09-14 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49), with PR #901, #902, #904 and #906 integrated.**
 Source baseline for this reconciliation: `3.4.3` at
-`4ad36d420a0f56297390262f3667be1b5fc4ae6f` (PR #904, following #902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`9a35ba0f007422e90f1d0837c03a23c353078379` (PR #906, following #904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -64,16 +64,25 @@ query/entry, group and chat; stale handles fail closed. The C++ swing-error memb
 checks and architecture evidence are recorded in `session-578-checkpoint.md`;
 durable save/reload, captures and live DB/relogin remain open acceptance gates.
 
-The next fresh C0–C4 cut is the bounded **Player swing-error owner** macro,
-implemented at candidate `67409023`. It follows `Player::SetAttackSwingError`
+PR #906 integrates the bounded **Player swing-error owner** macro at merge
+`9a35ba0f` (implementation `67409023`). It follows `Player::SetAttackSwingError`
 (`Player.cpp:20625-20631`) and its `Unit::DoMeleeAttackIfReady` caller
 (`Unit.cpp:2087-2150`): nullable duplicate suppression and clear state live on
 the canonical `wow_entities::Player`, while Session remains the packet
 encoding/delivery adapter. Missing or stale owners fail closed. This removes the
-Session mirror, updates the ownership ledger to 647 total fields (221
-production) and leaves 12 other residual fields for later audited macros. The
+Session mirror, updates the ownership ledger to 647 total fields (220 production
+and 427 test fixtures) and leaves 11 production residual fields for later audited macros. The
 slice does not claim a packet-layout change, persistence, exact captures or live
 DB/relogin QA; those remain explicit #584 acceptance gates.
+
+The current audit's next bounded cleanup is the **pending-bind confirmation
+evidence boundary**, candidate `9df51d81`. TrinityCore confirms pending binds on
+`Player`/`InstanceMap` from `MiscHandler.cpp:1063-1075`; Rust's
+`represented_confirmed_pending_binds` vector had no production counterpart and is
+now `cfg(test)` diagnostic evidence only. The production field count drops from
+221 to 220 while total membership stays 647; the unresolved production residual
+is 11 fields. No packet, persistence, map or Player behavior changes, and the
+three instance-lock regressions plus architecture checks pass.
 
 PR #895 closes the next measured P2 owner surface: production rest-flag, deferred-publication and rest-clock writes now use named transitions on `wow-entities::Player` over `PlayerRestState`, following `RestMgr::SetRestFlag` / `RemoveRestFlag` (`RestMgr.cpp:95-122`), `RestMgr::_restTime` (`RestMgr.h:86`) and `Player::SetRestState` (`Player.h:2652`). Session retains packet/application ordering and its generic rest-state mutator is detached-fixture-only under `cfg(test)`. The Player owner regression, rest-owner scenarios, affected chat/area-trigger/zone scenarios, package checks, formatting/diff and architecture ratchet pass. This is an ownership closure: quest objective progress, durable persistence, captures and live QA remain separate #41/#584 gates. The next #584 macro still comes from a fresh C0–C4 responsibility and consumer audit.
 
