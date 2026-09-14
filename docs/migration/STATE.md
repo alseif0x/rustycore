@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`0f79ca837a7417876986cf1803f715a8512b7503` (PR #883, following PR #876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`19dea8e078f5b7bec827532cefb8f46911e332e7` (PR #885, following PR #876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -50,17 +50,17 @@ as do the world check, architecture ratchet and formatting/diff checks. This is
 an ownership closure: full trade settlement durability, captures and live QA stay
 with the gameplay acceptance boundary.
 
-**P2 Player-owned guild membership transitions — 2026-09-14, #584 / implementation
-candidate `584-guild-owner-closure`:** the represented guild membership and pending
-invitation state now have named operations on `wow-entities::Player`, following
-`Player::SetInGuild` (`Player.cpp:7216`), `SetGuildIdInvited` and `SetGuildRank`
-(`Player.h:1939,1943`). Session remains the GuildMgr/cache, protocol and application
-adapter; its whole-state guild mutator is retained only for handle-less `cfg(test)`
-fixtures. The composite guild install is retired. Owner tests cover membership,
-rank, invitation and resolved empty membership; the social scenario suite, guild
-handler suite, package check, architecture ratchet and formatting/diff checks pass.
-This is an ownership closure, not guild-manager/database, packet-capture or live-QA
-acceptance.
+**P2 Player-owned guild membership transitions — 2026-09-14, #584 / PR #885,
+integration `19dea8e078f5b7bec827532cefb8f46911e332e7` (implementation
+`f0d32675`):** the represented guild membership and pending invitation state now
+have named operations on `wow-entities::Player`,
+following `Player::SetInGuild` (`Player.cpp:7216`), `SetGuildIdInvited` and
+`SetGuildRank` (`Player.h:1939,1943`). Session remains the GuildMgr/cache, protocol
+and application adapter; its whole-state guild mutator is retained only for
+handle-less `cfg(test)` fixtures. The composite guild install is retired. Owner,
+social scenario, guild handler, package, architecture and formatting/diff checks
+pass. This is an ownership closure, not guild-manager/database, packet-capture or
+live-QA acceptance.
 
 **F1 movement knockback-ACK slice — 2026-09-14, #63 / PR #866, merge
 `0079daa81c4955e38031009a24b17b8dbabc7d9b`:** `HandleMoveKnockBackAck` now

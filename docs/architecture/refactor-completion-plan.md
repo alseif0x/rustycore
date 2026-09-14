@@ -19,9 +19,9 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza de código integrada, 2026-09-14: PR #883**, en `3.4.3` como
-`0f79ca837a7417876986cf1803f715a8512b7503`. PR #883 cierra la superficie de
-propiedad de `Player::TradeData` representado después de PR #881. PR #873 corrige el fanout P3.10
+**Cabeza de código integrada, 2026-09-14: PR #885**, en `3.4.3` como
+`19dea8e078f5b7bec827532cefb8f46911e332e7`. PR #885 cierra la superficie de
+propiedad de guild del Player después de PR #883 y PR #881. PR #873 corrige el fanout P3.10
 integrado por #871 (`304f482b101ff0ac8600854bd1a4ebb72cec2b5d`): Player/Unit
 queda exclusivamente en el rail de Session filtrado por receptor y la sesión
 revalida el `MapKey` después de soltar el guard de Map. PR #866 queda como la entrega previa de knockback ACK; PR #864 queda como la entrega previa de ACK. PR #862 queda como la entrega previa de ACK anterior. PR #853 queda como la entrega previa de admisión. #787 / PR #792 (`d14a9a67`) y
@@ -1007,11 +1007,12 @@ La liquidación durable, las capturas y la QA viva siguen siendo límites funcio
 
 #### Entrega P2 bajo #584 — ownership de guild membership del Player
 
-La siguiente auditoría C0–C4 encontró que la membresía de guild y la invitación
-pendiente todavía se modificaban a través de un cierre compuesto de `WorldSession`,
-aunque TrinityCore las conserva en `Player::SetInGuild` (`Player.cpp:7216`),
-`SetGuildIdInvited` y `SetGuildRank` (`Player.h:1939,1943`). La entrega candidata
-añade operaciones nombradas al módulo social privado de `Player` para membresía,
+PR #885 integra en `19dea8e078f5b7bec827532cefb8f46911e332e7` la siguiente auditoría
+C0–C4: la membresía de guild y la invitación pendiente se modificaban a través de
+un cierre compuesto de `WorldSession`, aunque TrinityCore las conserva en
+`Player::SetInGuild` (`Player.cpp:7216`), `SetGuildIdInvited` y `SetGuildRank`
+(`Player.h:1939,1943`). La entrega añade operaciones nombradas al módulo social
+privado de `Player` para membresía,
 invitación, rango, limpieza de invitación y snapshot; retira el instalador compuesto.
 
 Session conserva los efectos GuildMgr/cache, protocolo y aplicación. El mutador de
