@@ -271,6 +271,7 @@ impl WorldSession {
             .await;
             self.sync_represented_farsight_clear_from_canonical_like_cpp();
             self.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp();
+            self.send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp();
         }
 
         // Check for instance link delivery (ConnectTo flow)

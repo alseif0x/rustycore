@@ -21,6 +21,13 @@ impl Unit {
     pub(super) fn mark_unit_data(&mut self, bit: usize) {
         self.unit_data_changes.set(UNIT_DATA_PARENT_BIT);
         self.unit_data_changes.set(bit);
+        // C++ generated UpdateField setters call AddToObjectUpdateIfNeeded on
+        // the owning Unit. Keep the canonical map queue in sync whenever a
+        // live UnitData value changes; the map's SendObjectUpdates phase then
+        // snapshots and clears this mask exactly once.
+        self.world_mut()
+            .object_mut()
+            .add_to_object_update_if_needed();
     }
     pub(super) fn mark_unit_data_array(
         &mut self,
@@ -30,9 +37,15 @@ impl Unit {
     ) {
         self.unit_data_changes.set(parent_bit);
         self.unit_data_changes.set(first_element_bit + index);
+        self.world_mut()
+            .object_mut()
+            .add_to_object_update_if_needed();
     }
     pub(super) fn mark_unit_data_nested(&mut self, parent_bit: usize, bit: usize) {
         self.unit_data_changes.set(parent_bit);
         self.unit_data_changes.set(bit);
+        self.world_mut()
+            .object_mut()
+            .add_to_object_update_if_needed();
     }
 }
