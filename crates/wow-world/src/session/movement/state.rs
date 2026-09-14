@@ -472,6 +472,42 @@ impl WorldSession {
             })
     }
 
+    /// Resolve the active mover's current world position for MovementHandler's
+    /// stale transport-packet guard (`MovementHandler.cpp:345-350`). C++
+    /// applies the grid-size comparison to every `Unit*`, including a
+    /// controlled creature or pet; keep the legacy map runtime as the first
+    /// authority and the canonical map projection as its bounded fallback.
+    pub(crate) fn mover_position_like_cpp(
+        &self,
+        mover_guid: ObjectGuid,
+    ) -> Option<wow_core::Position> {
+        if self.player_guid() == Some(mover_guid) {
+            return self.player_position_like_cpp();
+        }
+
+        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
+        if let Some(manager) = self.map_manager.as_ref().cloned() {
+            let manager = manager
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            if let Some(creature) = manager.find_creature(map_id, instance_id, mover_guid) {
+                return Some(creature.position());
+            }
+        }
+
+        let key = self.current_canonical_player_map_key_like_cpp()?;
+        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        manager
+            .find_map(key.map_id, key.instance_id)
+            .and_then(|managed| {
+                managed
+                    .map()
+                    .with_creature_or_pet_like_cpp(mover_guid, |creature, _| {
+                        creature.unit().world().position()
+                    })
+            })
+    }
+
     /// Reconcile the canonical map transport passenger set with the movement
     /// packet's requested transport. This is the C++ `AddPassenger`/
     /// `RemovePassenger` branch in `MovementHandler.cpp:361-390`; the map owns

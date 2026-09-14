@@ -397,6 +397,42 @@ async fn handle_movement_uses_current_mover_guid_like_cpp() {
     assert_eq!(status.flags, MovementFlag::FORWARD);
     assert_eq!(status.position, moved_position);
     assert_eq!(creature_time, status.time);
+
+    let stale_transport_position = Position::new(1_000.0, 1_000.0, 1.0, 1.25);
+    let stale_transport_movement = MovementInfo {
+        guid: mover_guid,
+        flags: MovementFlag::FORWARD,
+        time: 1_235,
+        position: stale_transport_position,
+        transport: Some(TransportInfo {
+            guid: ObjectGuid::create_transport(HighGuid::Transport, 1_145),
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+            o: 0.0,
+            seat: 0,
+            time: 0,
+            prev_time: None,
+            vehicle_id: None,
+        }),
+        ..MovementInfo::default()
+    };
+    session
+        .handle_movement_info_like_cpp(Some(ClientOpcodes::MoveHeartbeat), stale_transport_movement)
+        .await;
+    let guard = manager.read().unwrap();
+    assert_eq!(
+        guard
+            .find_creature(0, 0, mover_guid)
+            .expect("controlled mover creature")
+            .position(),
+        moved_position,
+        "C++ rejects stale transport movement for every active mover, including controlled creatures"
+    );
+    assert!(
+        other_command_rx.try_recv().is_err(),
+        "stale transport movement must not publish a second MoveUpdate"
+    );
 }
 
 #[tokio::test]
