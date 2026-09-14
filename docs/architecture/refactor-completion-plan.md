@@ -33,6 +33,18 @@ canónicas. La evidencia C++ es `Player.cpp:17060-17089,17247-17283` y
 separada. El cierre estructural no afirma todavía durabilidad de SaveToDB/relogin, capturas ni
 QA viva.
 
+La auditoría C0–C4 posterior a #904 selecciona como siguiente macro acotada el
+owner de `Player::m_swingErrorMsg` (candidato `67409023`). La referencia exacta
+es `Player.h:3023`, `Player.cpp:20625-20631` y el llamador de melee
+`Unit.cpp:2087-2150`: el `Player` canónico conserva el estado nullable y decide
+la supresión de duplicados, mientras Session mantiene únicamente la codificación
+y entrega de `AttackSwingError`. El owner ausente o obsoleto falla cerrado; no se
+introducen espejo de Session, lock, persistencia ni cambio de opcode. El ledger
+queda en 647 campos totales de WorldSession (221 de producción), con 12
+responsabilidades residuales para auditorías posteriores. Los checks focales,
+arquitectónicos y de formato están registrados en el checkpoint; capturas exactas,
+DB/relogin y QA viva siguen siendo gates explícitos.
+
 PR #891 añade el cierre P2 acotado del owner de taxi del Player: el avance de ruta
 tras teletransporte y la limpieza del vuelo pasan a ser transiciones nominales sobre
 `PlayerTaxi`, siguiendo `PlayerTaxi::NextTaxiDestination` (`PlayerTaxi.h:74`) y

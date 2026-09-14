@@ -20,6 +20,7 @@ pub use inventory_runtime::{ItemObjectUpdateLikeCpp, PlayerInventoryRuntime};
 mod battleground;
 mod cinematic;
 mod collection_state;
+mod combat;
 mod difficulty;
 mod effective_stats;
 mod equipment_sets;
@@ -3518,6 +3519,8 @@ pub struct Player {
     /// update-field publication. It is rebuilt from current inputs and is not
     /// persisted as gameplay state.
     effective_combat_stats: PlayerEffectiveCombatStatsLikeCpp,
+    /// C++ `Player::m_swingErrorMsg`, updated by `Player::SetAttackSwingError`.
+    swing_error_msg_like_cpp: Option<u8>,
     deferred_save: deferred_save::DeferredPlayerSave,
     player_xp_table_like_cpp: Option<Arc<Vec<u32>>>,
     player_data_changes: UpdateMask,
@@ -3562,6 +3565,7 @@ impl Player {
             inventory_runtime: Box::default(),
             gameplay_state,
             effective_combat_stats: PlayerEffectiveCombatStatsLikeCpp::default(),
+            swing_error_msg_like_cpp: None,
             deferred_save: deferred_save::DeferredPlayerSave::default(),
             player_xp_table_like_cpp: None,
             player_data_changes: UpdateMask::new(PLAYER_DATA_BITS),

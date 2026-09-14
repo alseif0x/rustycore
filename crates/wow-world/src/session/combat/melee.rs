@@ -27,12 +27,16 @@ impl WorldSession {
         use wow_packet::ServerPacket;
         use wow_packet::packets::combat::AttackSwingError;
 
-        if let Some(reason) = error {
-            if self.player_swing_error_msg_like_cpp != Some(reason) {
+        let Some(publish) = self.mutate_canonical_player_like_cpp(|player| {
+            player.set_attack_swing_error_like_cpp(error)
+        }) else {
+            return;
+        };
+        if publish {
+            if let Some(reason) = error {
                 let _ = self.send_tx().send(AttackSwingError { reason }.to_bytes());
             }
         }
-        self.player_swing_error_msg_like_cpp = error;
     }
     pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
         &mut self,

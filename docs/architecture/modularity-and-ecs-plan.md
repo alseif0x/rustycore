@@ -46,6 +46,16 @@ queries; stale handles fail closed. Swing-error state remains a separate melee
 responsibility. The exact C++ anchors, ledger family and focused evidence are in
 `docs/architecture/session-578-checkpoint.md`.
 
+The current #584 candidate is the bounded **Player swing-error owner** macro at
+`67409023`. TrinityCore stores `m_swingErrorMsg` on `Player` (`Player.h:3023`,
+`Player.cpp:20625-20631`) and invokes it from `Unit::DoMeleeAttackIfReady`
+(`Unit.cpp:2087-2150`). Rust mirrors that ownership in the private canonical
+Player combat module; Session only performs the existing `AttackSwingError`
+encoding/delivery after the owner reports a changed non-null value. Clear and
+duplicate behavior remain C++-aligned, stale owners fail closed, and no lock,
+crate or second authority is introduced. The implementation removes one
+production Session field; 12 residual fields remain subject to fresh audits.
+
 The finite hecs V2 conformance proof has passed within its recorded laboratory limits.
 That evidence does not install production `hecs` or Wasmtime, prove production storage
 integration, or close the remaining #584 boundaries. #743 and #735 are delivered and

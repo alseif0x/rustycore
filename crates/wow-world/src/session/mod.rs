@@ -6218,10 +6218,6 @@ pub struct WorldSession {
     pub(crate) combat_target: Option<wow_core::ObjectGuid>,
     /// Last represented player melee tick used to decrement C++ `m_attackTimer`.
     combat_tick_last_at_like_cpp: Instant,
-    /// Represented result of C++ `IsWithinLOSInMap(victim)` for melee swings until LOS runtime is canonical.
-    /// C++ `Player::m_swingErrorMsg`; suppresses duplicate `SMSG_ATTACK_SWING_ERROR` packets.
-    player_swing_error_msg_like_cpp: Option<u8>,
-
     /// True when the player is engaged in combat.
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
     #[cfg(test)]
@@ -8343,7 +8339,6 @@ impl WorldSession {
             #[cfg(test)]
             combat_target: None,
             combat_tick_last_at_like_cpp: Instant::now(),
-            player_swing_error_msg_like_cpp: None,
             #[cfg(test)]
             in_combat: false,
             #[cfg(test)]
