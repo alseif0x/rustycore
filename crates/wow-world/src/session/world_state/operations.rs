@@ -140,9 +140,7 @@ impl WorldSession {
         } else {
             false
         };
-        let _ = self.mutate_player_world_local_state_like_cpp(|state| {
-            state.set_pvp_hostile_like_cpp(zone_hostile || war_mode_active);
-        });
+        let _ = self.set_player_pvp_hostile_like_cpp(zone_hostile || war_mode_active);
     }
     pub(crate) fn handle_represented_tavern_area_trigger_with_catalog_like_cpp(
         &mut self,
@@ -219,12 +217,7 @@ impl WorldSession {
         if old_area != new_area {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
-        if self
-            .mutate_player_world_local_state_like_cpp(|state| {
-                state.set_area_id_like_cpp(new_area);
-            })
-            .is_none()
-        {
+        if !self.set_player_area_id_like_cpp(new_area) {
             return false;
         }
         let zone_id = world_local.zone_id_like_cpp();
@@ -303,12 +296,7 @@ impl WorldSession {
         if old_zone != new_zone {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
-        if self
-            .mutate_player_world_local_state_like_cpp(|state| {
-                state.set_zone_id_like_cpp(new_zone);
-            })
-            .is_none()
-        {
+        if !self.set_player_zone_id_like_cpp(new_zone) {
             return false;
         }
         let area_id = world_local.area_id_like_cpp();
@@ -656,9 +644,7 @@ impl WorldSession {
         if changed {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
-        let _ = self.mutate_player_world_local_state_like_cpp(|state| {
-            state.set_zone_area_like_cpp(zone_id, area_id);
-        });
+        let _ = self.set_player_world_local_zone_area_like_cpp(zone_id, area_id);
         let _ = self.with_owned_player_mut_like_cpp(|player| {
             player
                 .unit_mut()
@@ -667,9 +653,7 @@ impl WorldSession {
         });
     }
     pub(crate) fn set_player_zone_area_authority_complete_like_cpp(&mut self, complete: bool) {
-        let _ = self.mutate_player_world_local_state_like_cpp(|state| {
-            state.set_zone_area_authority_like_cpp(complete);
-        });
+        let _ = self.set_player_zone_area_authority_like_cpp(complete);
         if !complete {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }

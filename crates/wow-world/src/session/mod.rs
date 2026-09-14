@@ -10637,9 +10637,7 @@ impl WorldSession {
     }
 
     pub fn set_represented_is_outdoors_like_cpp(&mut self, is_outdoors: bool) {
-        let _ = self.mutate_player_world_local_state_like_cpp(|state| {
-            state.set_is_outdoors_like_cpp(Some(is_outdoors));
-        });
+        let _ = self.set_player_is_outdoors_like_cpp(is_outdoors);
     }
 
     #[cfg(test)]
@@ -12725,9 +12723,7 @@ impl WorldSession {
         let previous_player_guid = self.player_guid;
         let player_changed = self.player_guid != guid;
         if player_changed {
-            let _ = self.mutate_player_world_local_state_like_cpp(|state| {
-                state.set_zone_area_authority_like_cpp(false);
-            });
+            let _ = self.set_player_zone_area_authority_like_cpp(false);
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         self.player_guid = guid;

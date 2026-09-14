@@ -7,7 +7,7 @@
 //! `m_contestedPvPTimer`, and `WorldObject::IsOutdoors()` answers from the
 //! terrain the position refresh established.
 
-use crate::PlayerWorldLocalState;
+use crate::{Player, PlayerWorldLocalState};
 
 #[test]
 fn a_fresh_world_local_state_has_no_established_location() {
@@ -140,4 +140,31 @@ fn the_represented_parts_rebuild_the_state_the_mirror_holds() {
     assert_eq!(state.pvp_end_timer_like_cpp(), Some(123));
     assert_eq!(state.contested_pvp_timer_like_cpp(), 456);
     assert_eq!(state.is_outdoors_like_cpp(), Some(true));
+}
+
+#[test]
+fn the_player_names_world_local_transitions_like_cpp() {
+    let mut player = Player::new(Some(99), false);
+
+    player.set_zone_area_like_cpp(900, 901);
+    player.set_zone_area_authority_like_cpp(true);
+    player.set_pvp_hostile_like_cpp(true);
+    player.set_pvp_end_timer_like_cpp(Some(123));
+    player.set_is_outdoors_like_cpp(true);
+
+    let state = &player.gameplay_state().world_local;
+    assert_eq!(state.zone_area_like_cpp(), (900, 901));
+    assert!(state.has_zone_area_authority_like_cpp());
+    assert!(state.is_pvp_hostile_like_cpp());
+    assert_eq!(state.pvp_end_timer_like_cpp(), Some(123));
+    assert_eq!(state.is_outdoors_like_cpp(), Some(true));
+
+    player.set_area_id_like_cpp(902);
+    assert_eq!(player.gameplay_state().world_local.area_id_like_cpp(), 902);
+    assert!(
+        !player
+            .gameplay_state()
+            .world_local
+            .has_zone_area_authority_like_cpp()
+    );
 }
