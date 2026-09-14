@@ -230,3 +230,57 @@ fn apply_enchantment_effect_actions_match_cpp_damage_and_totem_attack_slot_rules
         }]
     );
 }
+
+#[test]
+fn offhand_weapon_admission_requires_usable_canonical_item_like_cpp() {
+    let mut player = Player::new(None, false);
+    let item_guid = ObjectGuid::create_item(1, 61_001);
+
+    assert!(!player.has_offhand_weapon_for_attack_like_cpp());
+
+    let mut item = Item::default();
+    item.object_mut().create(item_guid);
+    item.set_max_durability(100);
+    item.set_durability(100);
+    player
+        .inventory_runtime_mut_like_cpp()
+        .inventory_items_mut()
+        .insert(
+            EQUIPMENT_SLOT_OFFHAND,
+            PlayerInventoryItem {
+                guid: item_guid,
+                entry_id: 61_001,
+                db_guid: 61_001,
+                inventory_type: Some(InventoryType::WeaponOffhand as u8),
+            },
+        );
+    player
+        .inventory_runtime_mut_like_cpp()
+        .item_objects_mut()
+        .insert(item_guid, item);
+
+    assert!(player.has_offhand_weapon_for_attack_like_cpp());
+
+    player
+        .inventory_runtime_mut_like_cpp()
+        .item_objects_mut()
+        .get_mut(&item_guid)
+        .expect("installed offhand item")
+        .set_durability(0);
+    assert!(!player.has_offhand_weapon_for_attack_like_cpp());
+}
+
+#[test]
+fn feral_form_blocks_offhand_attacks_like_cpp() {
+    let mut player = Player::new(None, false);
+    player
+        .unit_mut()
+        .set_shapeshift_form_like_cpp(wow_constants::ShapeShiftForm::CatForm);
+    assert!(player.is_in_feral_form_like_cpp());
+
+    player
+        .unit_mut()
+        .set_shapeshift_form_like_cpp(wow_constants::ShapeShiftForm::None);
+    player.set_shapeshift_form_id_like_cpp(16);
+    assert!(player.is_in_feral_form_like_cpp());
+}

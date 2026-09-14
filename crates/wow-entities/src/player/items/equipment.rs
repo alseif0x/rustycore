@@ -9,6 +9,61 @@ use super::super::*;
 use crate::player_rules::set_dynamic_update_mask_index;
 
 impl Player {
+    /// C++ `Unit::haveOffhandWeapon`/`Player::GetWeaponForAttack` admission.
+    ///
+    /// Player dual-wield capability is only one prerequisite. TrinityCore
+    /// resolves the concrete offhand item, requires an item-class weapon and,
+    /// for the `useable` query used by `haveOffhandWeapon`, rejects a broken
+    /// item (`Unit.cpp:496`, `Player.cpp:9243-9270`). The canonical Player
+    /// inventory runtime is the sole Rust owner of both the slot record and
+    /// item object, so this check deliberately does not infer an equipped
+    /// weapon from `can_dual_wield` or from the cached damage bounds alone.
+    pub fn has_offhand_weapon_for_attack_like_cpp(&self) -> bool {
+        let Some(slot_item) = self
+            .inventory_runtime_like_cpp()
+            .inventory_items()
+            .get(&EQUIPMENT_SLOT_OFFHAND)
+        else {
+            return false;
+        };
+
+        let Some(inventory_type) = slot_item.inventory_type else {
+            return false;
+        };
+        let is_weapon_inventory_type = matches!(
+            inventory_type,
+            value if value == InventoryType::Weapon as u8
+                || value == InventoryType::WeaponMainhand as u8
+                || value == InventoryType::WeaponOffhand as u8
+                || value == InventoryType::Weapon2Hand as u8
+                || value == InventoryType::Ranged as u8
+                || value == InventoryType::RangedRight as u8
+        );
+        if !is_weapon_inventory_type {
+            return false;
+        }
+
+        self.inventory_runtime_like_cpp()
+            .item_objects()
+            .get(&slot_item.guid)
+            .is_some_and(|item| !item.is_broken())
+    }
+
+    /// C++ `Unit::IsInFeralForm` (`Unit.cpp:8807-8812`) for the Player-owned
+    /// shapeshift projection. The unit update field is authoritative when it
+    /// is present; the transitional Player gameplay projection is retained as
+    /// a fallback until aura state owns shapeshift changes for every runtime
+    /// path.
+    pub fn is_in_feral_form_like_cpp(&self) -> bool {
+        matches!(
+            self.unit().shapeshift_form_like_cpp(),
+            wow_constants::ShapeShiftForm::CatForm
+                | wow_constants::ShapeShiftForm::BearForm
+                | wow_constants::ShapeShiftForm::DireBearForm
+                | wow_constants::ShapeShiftForm::GhostWolf
+        ) || matches!(self.shapeshift_form_id_like_cpp(), 1 | 5 | 8 | 16)
+    }
+
     pub fn find_equip_slot(&self, args: FindEquipSlotArgs<'_>) -> u8 {
         let slots = equip_slot_candidates(args);
         if slots[0] == NULL_SLOT {
