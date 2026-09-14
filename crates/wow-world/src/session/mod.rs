@@ -40,6 +40,7 @@ pub mod mailbox;
 mod money;
 mod movement;
 pub(crate) use movement::state::MovementTransportMembershipLikeCpp;
+mod object_updates;
 mod persistence;
 mod pets;
 mod player_cast;
@@ -7122,6 +7123,10 @@ pub struct WorldSession {
     /// suppress the same snapshot without blocking later identical bytes.
     represented_dynamic_object_values_updates_delivered_like_cpp:
         std::collections::HashSet<(u32, u32, u64, wow_core::ObjectGuid, u64)>,
+    /// Session-local delivery guard for Player/Creature/Pet VALUES packets
+    /// consumed from the canonical map's `Map::SendObjectUpdates` snapshot.
+    represented_player_unit_values_updates_delivered_like_cpp:
+        std::collections::HashSet<(u32, u32, u64, wow_core::ObjectGuid, u64)>,
     /// Session-local delivery guard for represented GameObjectDespawn packets
     /// consumed from the last map-owned `GameObject::Update` summary.
     represented_gameobject_visual_despawns_delivered_like_cpp:
@@ -8852,6 +8857,8 @@ impl WorldSession {
             suppress_creature_movement_queued_at_or_before_like_cpp: None,
             represented_seer_guid_like_cpp: None,
             represented_dynamic_object_values_updates_delivered_like_cpp:
+                std::collections::HashSet::new(),
+            represented_player_unit_values_updates_delivered_like_cpp:
                 std::collections::HashSet::new(),
             represented_gameobject_visual_despawns_delivered_like_cpp:
                 std::collections::HashSet::new(),
