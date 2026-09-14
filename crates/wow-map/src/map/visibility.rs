@@ -227,13 +227,10 @@ where
         let Some(record) = self.map_object_record(source_guid) else {
             return Vec::new();
         };
-        if record.kind() != AccessorObjectKind::Creature || !record.object().object().is_in_world()
-        {
+        if !source_guid.is_creature_or_pet() || !record.object().object().is_in_world() {
             return Vec::new();
         }
-        let charmer_guid = record
-            .creature()
-            .and_then(|creature| creature.unit().subsystems().control.charmer_guid_like_cpp());
+        let charmer_guid = record.charmer_guid_like_cpp();
         self.nearby_and_mark_player_visibility_guids_like_cpp(source_guid)
             .into_iter()
             .filter(|player_guid| Some(*player_guid) != charmer_guid)

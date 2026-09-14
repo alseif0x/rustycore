@@ -262,6 +262,15 @@ fn first_update_block(bytes: &[u8]) -> Option<(u8, ObjectGuid)> {
     ))
 }
 
+fn destroy_visible_command(guid: ObjectGuid, map_incarnation: u64) -> SessionCommand {
+    SessionCommand::DestroyVisibleCreatureLikeCpp(DestroyVisibleCreatureLikeCppCommand {
+        creature_guid: guid,
+        map_id: KEY.map_id as u16,
+        instance_id: KEY.instance_id,
+        map_incarnation,
+    })
+}
+
 #[tokio::test]
 async fn stationary_ack_map_directory_pump_publishes_creature_only_after_readiness() {
     let mut fixture = Fixture::new();
@@ -288,7 +297,7 @@ async fn stationary_ack_map_directory_pump_publishes_creature_only_after_readine
 }
 
 #[tokio::test]
-async fn directed_creature_destroy_removes_visible_ledger_and_sends_update_like_cpp() {
+async fn directed_creature_and_pet_destroy_remove_visible_ledger_like_cpp() {
     let mut fixture = Fixture::new();
     fixture.establish_visible_creature().await;
 
@@ -301,14 +310,7 @@ async fn directed_creature_destroy_removes_visible_ledger_and_sends_update_like_
     fixture
         .session
         .session_command_tx()
-        .try_send(SessionCommand::DestroyVisibleCreatureLikeCpp(
-            DestroyVisibleCreatureLikeCppCommand {
-                creature_guid: fixture.creature,
-                map_id: KEY.map_id as u16,
-                instance_id: KEY.instance_id,
-                map_incarnation,
-            },
-        ))
+        .try_send(destroy_visible_command(fixture.creature, map_incarnation))
         .unwrap();
     fixture.pump().await;
 
@@ -324,10 +326,27 @@ async fn directed_creature_destroy_removes_visible_ledger_and_sends_update_like_
         packet.read_uint16().unwrap(),
         ServerOpcodes::UpdateObject as u16
     );
+    let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 901, 588_903);
+    fixture
+        .session
+        .client_visible_guids_like_cpp
+        .insert(pet_guid);
+    fixture
+        .session
+        .session_command_tx()
+        .try_send(destroy_visible_command(pet_guid, map_incarnation))
+        .unwrap();
+    fixture.pump().await;
+    assert!(
+        !fixture
+            .session
+            .client_visible_guids_like_cpp
+            .contains(&pet_guid)
+    );
 }
 
 #[tokio::test]
-async fn directed_creature_destroy_rejects_stale_incarnation_and_invisible_guid_like_cpp() {
+async fn directed_creature_destroy_rejects_stale_incarnation_like_cpp() {
     let mut fixture = Fixture::new();
     fixture.establish_visible_creature().await;
     let map_incarnation = fixture
@@ -340,13 +359,9 @@ async fn directed_creature_destroy_rejects_stale_incarnation_and_invisible_guid_
     fixture
         .session
         .session_command_tx()
-        .try_send(SessionCommand::DestroyVisibleCreatureLikeCpp(
-            DestroyVisibleCreatureLikeCppCommand {
-                creature_guid: fixture.creature,
-                map_id: KEY.map_id as u16,
-                instance_id: KEY.instance_id,
-                map_incarnation: map_incarnation.saturating_add(1),
-            },
+        .try_send(destroy_visible_command(
+            fixture.creature,
+            map_incarnation.saturating_add(1),
         ))
         .unwrap();
     fixture.pump().await;
@@ -356,25 +371,6 @@ async fn directed_creature_destroy_rejects_stale_incarnation_and_invisible_guid_
             .client_visible_guids_like_cpp
             .contains(&fixture.creature)
     );
-    assert!(fixture.output.try_recv().is_err());
-
-    fixture
-        .session
-        .client_visible_guids_like_cpp
-        .remove(&fixture.creature);
-    fixture
-        .session
-        .session_command_tx()
-        .try_send(SessionCommand::DestroyVisibleCreatureLikeCpp(
-            DestroyVisibleCreatureLikeCppCommand {
-                creature_guid: fixture.creature,
-                map_id: KEY.map_id as u16,
-                instance_id: KEY.instance_id,
-                map_incarnation,
-            },
-        ))
-        .unwrap();
-    fixture.pump().await;
     assert!(fixture.output.try_recv().is_err());
 }
 

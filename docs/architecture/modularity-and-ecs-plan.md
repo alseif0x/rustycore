@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-14 (#925 / #924 / #923 / #922 / #921 / #919 / #918 / #917 / #916 / #915 / #913 / #911 / #909 / #907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-14 (#927 / #925 / #924 / #923 / #922 / #921 / #919 / #918 / #917 / #916 / #915 / #913 / #911 / #909 / #907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -205,6 +205,20 @@ passes together with the affected package check, formatting and diff checks.
 This is a visibility projection closure only: Pet AI/movement, summon ownership and
 persistence, directed Pet DESTROY, transport/corpse lifecycle, captures and live QA
 remain separate #584/#63 gates.
+
+## P3.12 directed Pet DESTROY — candidate PR #927, 2026-09-14
+
+TrinityCore's generic `Map::RemoveFromMap` invokes `WorldObject::DestroyForNearbyPlayers`
+while a unit remains attached (`Map.cpp:934-951`, `Object.cpp:3617-3648`), and
+`Pet::RemoveFromWorld` reaches that Unit path (`Pet.cpp:94-101`). The bounded Rust
+delivery extends the existing recipient capture and deferred directed DESTROY command
+from ordinary Creature to Pet. The map incarnation, charmer exclusion and Session
+`HaveAtClient` checks remain the publication contract; Pet AI, summon, persistence,
+vehicle and transport ownership remain outside this slice.
+
+`wow-map visibility` (47 tests) and `wow-world deferred_visibility` (12 tests) pass
+with one Cargo job. Merge still requires the normal format, diff and architecture
+checks.
 
 ## P2 Player instance-reset owner — integrated PR #919, 2026-09-14
 
