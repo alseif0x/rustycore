@@ -2,7 +2,7 @@
 
 **Reconciled 2026-09-14 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
 Source baseline for this reconciliation: `3.4.3` at
-`2d375ef164a292f10f265a73e2086785161e95f8` (PR #864, following #862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`0079daa81c4955e38031009a24b17b8dbabc7d9b` (PR #866, following #864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -111,6 +111,16 @@ wrong-GUID ACKs are rejected without publication. The controlled-mover regressio
 `validation-v2 quick` pass at the recorded manifest. #63 remains open for ordinary
 speed ACKs, knockback, remaining transport/death/BG/taxi operations, broader mover
 kinds, complete transport offsets/seats and live capture/QA.
+
+PR #866 (`0079daa8`) closes the next measured knockback-ACK admission boundary
+from `MovementHandler.cpp:548-559`. The handler validates through the Player but
+accepts the active `m_unitMovedByMe` GUID, then retains the Player-owned movement
+info write and Player-source `MoveUpdateKnockBack` publication. A controlled-mover
+regression covers acceptance and source identity; the focused test, 50-test
+movement suite, architecture checks, `world-server` check and `validation-v2 quick`
+pass at the recorded manifest. #63 remains open for ordinary speed ACKs, remaining
+transport/death/BG/taxi operations, broader mover kinds, complete seat/offset
+admission, captures and live QA.
 
 Continue the remaining core under #584 by complete operations, execution/lifetime
 boundaries and physical organization. #582 is closed after its decoder-only delivery;
