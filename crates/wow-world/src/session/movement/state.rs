@@ -694,15 +694,30 @@ impl WorldSession {
         mover_guid: ObjectGuid,
         time_skipped: u32,
     ) -> bool {
-        let adjusted_time = (self.player_guid() == Some(mover_guid))
-            .then(|| {
-                self.resolved_player_movement_time_like_cpp()
-                    .map(|time| time.saturating_add(time_skipped))
+        // C++ validates against the active `m_unitMovedByMe`, so a controlled
+        // Creature/Pet is a valid mover too (MovementHandler.cpp:721-739).
+        // Keep the owner-specific write on the mover rather than silently
+        // advancing the Player clock for every ACK.
+        let adjusted_time = if self.player_moved_unit_guid_like_cpp() != Some(mover_guid) {
+            None
+        } else if self.player_guid() == Some(mover_guid) {
+            self.resolved_player_movement_time_like_cpp()
+                .map(|time| time.wrapping_add(time_skipped))
+                .inspect(|adjusted_time| self.set_player_movement_time_like_cpp(*adjusted_time))
+        } else {
+            self.mutate_world_creature(mover_guid, |creature| {
+                let adjusted_time = creature
+                    .creature
+                    .unit()
+                    .movement_time_like_cpp()
+                    .wrapping_add(time_skipped);
+                creature
+                    .creature
+                    .unit_mut()
+                    .set_movement_time_like_cpp(adjusted_time);
+                adjusted_time
             })
-            .flatten();
-        if let Some(adjusted_time) = adjusted_time {
-            self.set_player_movement_time_like_cpp(adjusted_time);
-        }
+        };
         let accepted = adjusted_time.is_some();
 
         self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {

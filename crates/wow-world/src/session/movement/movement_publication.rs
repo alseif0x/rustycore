@@ -6,6 +6,46 @@
 use super::*;
 
 impl WorldSession {
+    /// Publish a movement-set packet from the Unit that actually moved.
+    /// C++ calls `mover->SendMessageToSet`, so controlled movers must be
+    /// spatially routed from their own position and carry their own GUID as
+    /// the visibility source (MovementHandler.cpp:735-739).
+    pub(crate) fn broadcast_from_movement_source_set_like_cpp(
+        &self,
+        source_guid: ObjectGuid,
+        source_position: wow_core::Position,
+        bytes: Vec<u8>,
+        range: f32,
+    ) {
+        let (Some(registry), Some(_player_guid)) = (self.player_registry(), self.player_guid())
+        else {
+            return;
+        };
+        let map_id = self.player_map_id_like_cpp();
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        for registration in registry.movement_recipients_within_range(
+            source_guid,
+            map_id,
+            instance_id,
+            source_position,
+            range,
+        ) {
+            let _ = registry.try_send_current_command(
+                registration,
+                SessionCommand::SendIfVisibleLikeCpp(SendIfVisibleLikeCppCommand {
+                    queued_at: Instant::now(),
+                    source_guid,
+                    map_id,
+                    instance_id,
+                    packet_bytes: bytes.clone(),
+                }),
+            );
+        }
+    }
+
     /// Update this session's position (and map) in the player registry.
     /// Called whenever `player_position` changes.
     pub(crate) fn update_registry_position(&self) {

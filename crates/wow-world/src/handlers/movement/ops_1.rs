@@ -802,14 +802,18 @@ impl WorldSession {
             time_skipped = pkt.time_skipped,
             "MoveTimeSkipped"
         );
-        if self.apply_move_time_skipped_like_cpp(pkt.mover_guid, pkt.time_skipped) {
-            self.broadcast_to_movement_set_like_cpp(
+        if self.apply_move_time_skipped_like_cpp(pkt.mover_guid, pkt.time_skipped)
+            && let Some(source_position) = self.mover_position_like_cpp(pkt.mover_guid)
+        {
+            self.broadcast_from_movement_source_set_like_cpp(
+                pkt.mover_guid,
+                source_position,
                 MoveSkipTime {
                     mover_guid: pkt.mover_guid,
                     time_skipped: pkt.time_skipped,
                 }
                 .to_bytes(),
-                false,
+                crate::map_manager::VISIBILITY_RADIUS,
             );
         }
     }
