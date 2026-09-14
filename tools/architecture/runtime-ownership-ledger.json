@@ -875,7 +875,7 @@
       },
       {
         "id": "session_identity_account_and_realm_policy",
-        "expected_field_count": 21,
+        "expected_field_count": 22,
         "field_names": [
           "account_expansion",
           "account_id",
@@ -896,10 +896,11 @@
           "realm_names_like_cpp",
           "realm_region",
           "recruiter_id_like_cpp",
+          "recent_player_guid_low_like_cpp",
           "security",
           "server_expansion_like_cpp"
         ],
-        "current_storage": "Authenticated account identity, realm handle data, security/build/locale, and server/account policy flags live directly on WorldSession.",
+        "current_storage": "Authenticated account identity, realm handle data, security/build/locale, server/account policy flags, and the C++ m_GUIDLow recent-character attribution live directly on WorldSession.",
         "sole_writer": "Authentication/login and the world-server session factory initialize identity/policy; the owning Session updates only explicitly mutable Session values such as mute/account selection state.",
         "readers": "Admission, login, handlers, character selection, feature/status packets, conditions, and audit/logging paths.",
         "clock_lifetime": "Authenticated Session lifetime, independent from a selected character; realm metadata is a process snapshot injected at construction.",
@@ -984,12 +985,11 @@
       },
       {
         "id": "unresolved_world_session_residual",
-        "expected_field_count": 11,
+        "expected_field_count": 10,
         "field_names": [
           "creature_query_cache",
           "player_guid",
           "player_stats",
-          "recent_player_guid_low_like_cpp",
           "represented_capture_point_removed_delivered_like_cpp",
           "represented_cast_unstuck_enabled_like_cpp",
           "represented_dynamic_object_values_updates_delivered_like_cpp",
@@ -998,7 +998,7 @@
           "represented_seer_guid_like_cpp",
           "vmap_indoor_check_like_cpp"
         ],
-        "current_storage": "11 exact production fields remain explicitly unresolved; the represented_confirmed_pending_binds vector is now cfg(test) diagnostic evidence because C++ confirms the bind on Player/InstanceMap. Player identity (name, race, class, level and gender) and the C++ Player::m_swingErrorMsg transition now resolve through the canonical wow_entities::Player after their login/owner boundaries. Fixture fields are classified separately. This residual is not stable Session ownership. #578 must classify and remove the remaining gameplay/catalog authority before #153 can accept the shell.",
+        "current_storage": "10 exact production fields remain explicitly unresolved; recent_player_guid_low_like_cpp is classified under the cohesive Session identity family because it is the C++ WorldSession::m_GUIDLow post-logout character attribution. The represented_confirmed_pending_binds vector is cfg(test) diagnostic evidence because C++ confirms the bind on Player/InstanceMap. Player identity (name, race, class, level and gender) and the C++ Player::m_swingErrorMsg transition now resolve through the canonical wow_entities::Player after their login/owner boundaries. Fixture fields are classified separately. This residual is not stable Session ownership. #578 must classify and remove the remaining gameplay/catalog authority before #153 can accept the shell.",
         "sole_writer": "WorldSession methods/handlers identified by the syntax and call-site inventory; exact writer must be recorded before moving the field.",
         "readers": "Derived mechanically from field references; semantic readers remain an audit obligation.",
         "clock_lifetime": "Unknown or mixed until classified; no new clock may be inferred.",

@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #906:** `9a35ba0f007422e90f1d0837c03a23c353078379`.
+**Integrated head after PR #907:** `33141494b4410a26e01ac5d72ea9f82132b2e522`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -97,7 +97,7 @@ Exact packet captures, durable persistence and live DB/relogin QA remain later
 #584 gates. The final profile's full library-test step timed out after 900 seconds
 in existing long-running `wow-world` tests; it is not recorded as a green suite.
 
-## P2 Pending-bind confirmation evidence boundary — candidate `9df51d81`, 2026-09-14
+## P2 Pending-bind confirmation evidence boundary — integrated PR #907, 2026-09-14
 
 The C0–C4 audit found `represented_confirmed_pending_binds` was a production
 Session field with no TrinityCore counterpart. C++ handles the operation in
@@ -105,12 +105,34 @@ Session field with no TrinityCore counterpart. C++ handles the operation in
 `Player::SetPendingBind(0, 0)`; the confirmation is owned by Player/InstanceMap,
 not a session result vector. Rust now keeps the vector only under `cfg(test)` as
 diagnostic evidence, gates the production push out, and records the exact
-classification in the session policy and ledger. No gameplay owner, packet order,
-persistence or runtime behavior changes. `cargo check -p wow-world`, the three
-`instance_lock_response` regressions (3/3), formatting/diff checks, architecture
-check and 20 self-tests pass. Production WorldSession fields fall from 221 to
-220; the total remains 647 because the diagnostic is a fixture. The remaining
-unresolved production residual is 11 fields.
+classification in the session policy and ledger. PR #907 integrates this boundary
+at merge `33141494b4410a26e01ac5d72ea9f82132b2e522`. No gameplay owner, packet
+order, persistence or runtime behavior changes. `cargo check -p wow-world`, the
+three `instance_lock_response` regressions (3/3), formatting/diff checks,
+architecture check and 20 self-tests pass. Production WorldSession fields fall
+from 221 to 220; the total remains 647 because the diagnostic is a fixture. The
+final profile paths 01–07 pass, while its full `wow-world` library suite reaches
+the documented 900-second timeout (exit 143) and is not claimed green. The
+remaining unresolved production residual is 10 fields after the Session identity
+classification below.
+
+## P2 Session recent-character attribution classification — integrated with PR #907, 2026-09-14
+
+The fresh C0–C4 audit classified `recent_player_guid_low_like_cpp` as stable
+WorldSession identity state rather than a Player gameplay mirror. TrinityCore
+declares `m_GUIDLow` on `WorldSession` (`Server/WorldSession.h:1881`), updates it
+when a Player is attached and retains it through recent logout
+(`Server/WorldSession.cpp:980-985`), and uses it for post-logout account-data
+attribution (`WorldSession.cpp:877-888`) and social request admission
+(`Handlers/SocialHandler.cpp:57-62`). Rust has the same lifetime: the owning
+Session writes the low GUID in `set_player_guid` (`session/mod.rs:12764-12787`),
+and the persistence plan reads it for character-scoped account data
+(`session/persistence/plans.rs:419`). It is therefore assigned to
+`session_identity_account_and_realm_policy` in the runtime ledger, with no code,
+packet, persistence-order or ownership behavior change. The residual falls from
+11 to 10 exact production fields; total membership remains 647 (220 production,
+427 test fixtures). This is a classification closure, not a claim that the
+remaining gameplay/catalog residuals or #584 are complete.
 
 ## P2 Player mount presentation owner closure — integrated PR #897, 2026-09-14
 

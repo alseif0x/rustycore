@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-14 (#906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-14 (#907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `9a35ba0f007422e90f1d0837c03a23c353078379` (PR #906, following PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
+The current code integration head is `33141494b4410a26e01ac5d72ea9f82132b2e522` (PR #907, following PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
 PR #889, PR #876, P3.10 correction PR #873 and delivery PR #871).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
@@ -58,13 +58,23 @@ production Session field; 11 production residual fields remain subject to fresh
 audits. The complete library-test profile timed out in existing long-running
 `wow-world` tests; focused evidence is recorded in the checkpoint.
 
-The current #584 candidate is the **pending-bind confirmation evidence boundary**
-at `9df51d81`. C++ handles `MiscHandler.cpp:1063-1075` through Player and
-InstanceMap; Rust now gates `represented_confirmed_pending_binds` behind
-`cfg(test)` because it is diagnostic evidence with no production authority. The
-total ledger remains 647 fields while production falls to 220 and test fixtures
-rise to 427. No new owner, lock, packet, persistence or runtime behavior is
-introduced.
+PR #907 integrates the **pending-bind confirmation evidence boundary** at merge
+`33141494b4410a26e01ac5d72ea9f82132b2e522`. C++ handles
+`MiscHandler.cpp:1063-1075` through Player and InstanceMap; Rust now gates
+`represented_confirmed_pending_binds` behind `cfg(test)` because it is diagnostic
+evidence with no production authority. The total ledger remains 647 fields while
+production is 220 and test fixtures are 427. Paths 01–07 of the final profile
+pass; the full `wow-world` library suite reaches the 900-second runner timeout and
+is not claimed green. No new owner, lock, packet, persistence or runtime behavior
+is introduced.
+
+The same C0–C4 audit classifies `recent_player_guid_low_like_cpp` under the
+cohesive Session identity family. TrinityCore's `WorldSession::m_GUIDLow`
+(`Server/WorldSession.h:1881`, `WorldSession.cpp:877-888,980-985`) is a
+post-logout character attribution used by account-data persistence and social
+admission; Rust's `set_player_guid` and persistence plan preserve that Session
+lifetime. This is a ledger classification only, with no code or behavior change;
+the unresolved production residual is now 10 fields.
 
 The finite hecs V2 conformance proof has passed within its recorded laboratory limits.
 That evidence does not install production `hecs` or Wasmtime, prove production storage
