@@ -121,6 +121,47 @@ async fn rejected_transport_movement_clears_player_emote_state_like_cpp() {
 }
 
 #[tokio::test]
+async fn vehicle_passenger_turning_updates_facing_without_relocating_or_broadcasting_like_cpp() {
+    let (mut session, send_rx) = make_session_with_send_rx();
+    let guid = ObjectGuid::create_player(1, 49);
+    let initial = Position::new(1.0, 2.0, 3.0, 0.25);
+    session.set_player_guid(Some(guid));
+    session.set_player_moved_unit_guid_like_cpp(guid);
+    session.set_player_position_like_cpp(initial);
+    session.time_sync_clock_delta = 1;
+    session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_ALLOW_TURNING);
+    drain_server_opcodes(&send_rx);
+
+    session
+        .handle_movement_info_like_cpp(
+            Some(ClientOpcodes::MoveHeartbeat),
+            MovementInfo {
+                guid,
+                time: 42,
+                flags: MovementFlag::FORWARD,
+                position: Position::new(100.0, 100.0, 100.0, 1.25),
+                ..MovementInfo::default()
+            },
+        )
+        .await;
+
+    assert_eq!(
+        session.player_position_like_cpp(),
+        Some(Position::new(1.0, 2.0, 3.0, 1.25)),
+        "C++ vehicle passenger branch changes only orientation"
+    );
+    assert_eq!(session.player_movement_time_like_cpp(), 43);
+    assert_eq!(
+        session.player_movement_flags_like_cpp(),
+        MovementFlag::FORWARD
+    );
+    assert!(
+        drain_server_opcodes(&send_rx).is_empty(),
+        "C++ returns before mover UpdatePosition or MoveUpdate publication"
+    );
+}
+
+#[tokio::test]
 async fn movement_is_ignored_while_player_teleport_is_pending_like_cpp() {
     let (mut session, send_rx) = make_session_with_send_rx();
     let guid = ObjectGuid::create_player(1, 48);

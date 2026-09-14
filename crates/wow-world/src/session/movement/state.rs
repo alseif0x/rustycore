@@ -264,6 +264,28 @@ impl WorldSession {
     pub(crate) fn set_player_position_like_cpp(&mut self, position: wow_core::Position) {
         self.set_player_map_position_like_cpp(self.current_map_id, position);
     }
+    /// Apply the server-side facing update used by C++ `Unit::SetOrientation`
+    /// for a vehicle passenger. This intentionally leaves map coordinates and
+    /// cell ownership untouched; the vehicle remains authoritative for them.
+    pub(crate) fn set_player_orientation_like_cpp(&mut self, orientation: f32) -> bool {
+        let Some(mut position) = self.player_position_like_cpp() else {
+            return false;
+        };
+        if position.orientation == orientation {
+            return false;
+        }
+        position.orientation = orientation;
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.unit_mut().world_mut().relocate(position);
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.player_position = Some(position);
+        }
+        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+    }
     pub(crate) fn set_player_movement_time_like_cpp(&mut self, time: u32) {
         let _canonical = self
             .with_owned_player_mut_like_cpp(|player| {

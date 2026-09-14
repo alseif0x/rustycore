@@ -235,6 +235,13 @@ impl WorldSession {
             .and_then(|(flags, _)| flags)
             .is_some_and(wow_data::vehicle_seat_flags_can_switch_from_seat_like_cpp)
     }
+    /// C++ `MovementHandler.cpp:408-421` allows a passenger to update only its
+    /// facing when the current `VehicleSeatEntry` has `ALLOW_TURNING`.
+    pub(crate) fn represented_current_vehicle_seat_allows_turning_like_cpp(&self) -> bool {
+        self.player_vehicle_seat_state_like_cpp()
+            .and_then(|(flags, _)| flags)
+            .is_some_and(wow_data::vehicle_seat_flags_allow_turning_like_cpp)
+    }
     pub(in crate::session) fn represented_vehicle_base_guid_for_switch_like_cpp(
         &self,
     ) -> Option<ObjectGuid> {
