@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #893:** `cd054d5a3b19f9f75bfef726de1dc99368b3227b`.
+**Integrated head after PR #895:** `94c21521a6d215f8f9fb086ddbef3267ee08c10f`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -40,6 +40,20 @@ This section supersedes older statements below requiring all C0–C4 inside #578
 Those contracts and historical evidence remain valid inputs to #584; none is marked
 completed by the scope transfer. #583 waits for the required core macrodeliverables
 in #584; #153 remains an independent auditor, not the owner of unfinished work.
+
+## P2 Player RestMgr owner closure — integrated PR #895, 2026-09-14
+
+PR #895 integrates the bounded Player rest-state owner closure into `3.4.3` as
+`94c21521a6d215f8f9fb086ddbef3267ee08c10f` (implementation `ea18126e`).
+Production rest-flag, deferred-publication and rest-clock writes now use named
+transitions on the canonical `Player` over `PlayerRestState`, following
+`RestMgr::SetRestFlag` / `RemoveRestFlag` (`RestMgr.cpp:95-122`),
+`RestMgr::_restTime` (`RestMgr.h:86`) and `Player::SetRestState`
+(`Player.h:2652`). Session retains packet/application ordering and its generic
+mutator is restricted to detached `cfg(test)` fixtures. The Player owner regression,
+rest-owner scenarios, affected chat/area-trigger/zone scenarios, package checks,
+formatting/diff checks and architecture ratchet/self-test pass. Quest objective
+progress, durable persistence, captures and live QA remain separate #41/#584 gates.
 
 ## P2 item-modifier owner closure — final local validation, 2026-09-13
 

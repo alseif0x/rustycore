@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -35,6 +35,17 @@ paquetes, fmt/diff y ratchet/self-test de arquitectura. La admisión completa,
 efectos de aura/quest/rest, persistencia, capturas y QA viva siguen siendo gates
 de gameplay de #584.
 
+PR #895 añade el cierre P2 acotado del owner RestMgr del Player: las escrituras de
+flags de descanso, publicación diferida y reloj pasan por transiciones nominales de
+`Player` sobre `PlayerRestState`, siguiendo `RestMgr::SetRestFlag` / `RemoveRestFlag`
+(`RestMgr.cpp:95-122`), `RestMgr::_restTime` (`RestMgr.h:86`) y
+`Player::SetRestState` (`Player.h:2652`). Session conserva la resolución de
+catálogo, la publicación de paquetes y el orden de aplicación; el mutador genérico
+queda limitado a fixtures desconectados bajo `cfg(test)`. La regresión del owner,
+los escenarios de rest, chat, area-trigger y zona, los checks de paquetes y el ratchet
+de arquitectura pasan. El progreso de objetivos de misión, la persistencia durable,
+las capturas y la QA viva siguen siendo gates de gameplay bajo #41/#584.
+
 El alcance de esta sincronización es documental. No reabre el análisis completo del
 port, no inventa nuevas microissues y no convierte una prueba histórica en evidencia
 nueva. Cada macro incluye sus consumidores y sus pruebas; la validación final sigue
@@ -42,8 +53,8 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza de código integrada, 2026-09-14: PR #893**, en `3.4.3` como
-`cd054d5a3b19f9f75bfef726de1dc99368b3227b`. PR #887 cierra la superficie de
+**Cabeza de código integrada, 2026-09-14: PR #895**, en `3.4.3` como
+`94c21521a6d215f8f9fb086ddbef3267ee08c10f`. PR #887 cierra la superficie de
 propiedad de guild del Player después de PR #883 y PR #881. PR #873 corrige el fanout P3.10
 integrado por #871 (`304f482b101ff0ac8600854bd1a4ebb72cec2b5d`): Player/Unit
 queda exclusivamente en el rail de Session filtrado por receptor y la sesión
