@@ -156,3 +156,82 @@ impl PlayerBattlegroundState {
         self.arena_team_id_invited = arena_team_id;
     }
 }
+
+impl super::Player {
+    /// Read the Player-owned `m_bgData` projection and adjacent arena invite
+    /// state without exposing the composite mutable state to Session.
+    pub fn battleground_state_like_cpp(&self) -> PlayerBattlegroundState {
+        self.gameplay_state().battleground.clone()
+    }
+
+    /// Record the represented battleground type in the Player-owned `m_bgData`.
+    pub fn set_battleground_type_id_like_cpp(&mut self, bg_type_id: u32) {
+        self.gameplay_state_mut()
+            .battleground
+            .set_battleground_type_id_like_cpp(bg_type_id);
+    }
+
+    /// Record the battleground type and map established by the entry gate.
+    pub fn set_battleground_context_like_cpp(&mut self, bg_type_id: u32, bg_map_id: u32) {
+        self.gameplay_state_mut()
+            .battleground
+            .set_battleground_context_like_cpp(bg_type_id, bg_map_id);
+    }
+
+    /// Keep the represented Battleground status beside the Player's `m_bgData`
+    /// projection. A live `Battleground` owner remains a separate gameplay
+    /// boundary.
+    pub fn set_battleground_status_like_cpp(&mut self, status: Option<u8>) {
+        self.gameplay_state_mut()
+            .battleground
+            .set_battleground_status_like_cpp(status);
+    }
+
+    /// C++ `Player::SetArenaTeamIdInvited` (`Player.h:1956`).
+    pub fn set_arena_team_id_invited_like_cpp(&mut self, arena_team_id: u32) {
+        self.gameplay_state_mut()
+            .battleground
+            .set_arena_team_id_invited_like_cpp(arena_team_id);
+    }
+
+    /// Install one queue slot in the Player-owned `m_bgData` projection.
+    pub fn install_battleground_queue_slot_like_cpp(
+        &mut self,
+        slot: PlayerBattlegroundQueueSlotLikeCpp,
+    ) {
+        self.gameplay_state_mut()
+            .battleground
+            .install_queue_slot_like_cpp(slot);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::Player;
+
+    #[test]
+    fn represented_battleground_transitions_remain_player_owned_like_cpp() {
+        let mut player = Player::new(Some(7), false);
+
+        player.set_battleground_status_like_cpp(Some(4));
+        player.set_arena_team_id_invited_like_cpp(77);
+
+        let state = player.battleground_state_like_cpp();
+        assert_eq!(state.battleground_status_like_cpp(), Some(4));
+        assert_eq!(state.arena_team_id_invited_like_cpp(), 77);
+    }
+
+    #[test]
+    fn clearing_represented_battleground_status_stays_with_player_like_cpp() {
+        let mut player = Player::new(Some(8), false);
+        player.set_battleground_status_like_cpp(Some(2));
+        player.set_battleground_status_like_cpp(None);
+
+        assert_eq!(
+            player
+                .battleground_state_like_cpp()
+                .battleground_status_like_cpp(),
+            None
+        );
+    }
+}

@@ -400,29 +400,19 @@ impl WorldSession {
         }
         canonical
     }
+    #[cfg(test)]
     pub(in crate::session) fn mutate_player_battleground_state_like_cpp<R>(
         &mut self,
         mutate: impl FnOnce(&mut wow_entities::PlayerBattlegroundState) -> R,
     ) -> Option<R> {
         let mut state = self.player_battleground_state_snapshot_like_cpp()?;
         let result = mutate(&mut state);
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.install_battleground_state_like_cpp(state.clone());
-            })
-            .is_some();
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.player_battleground_type_id_like_cpp = state.battleground_type_id_like_cpp();
-            self.player_battleground_map_id_like_cpp = state.battleground_map_id_like_cpp();
-            self.represented_battleground_status_like_cpp = state.battleground_status_like_cpp();
-            self.represented_battleground_queue_slots_like_cpp =
-                state.queue_slots_like_cpp().to_vec();
-            self.represented_arena_team_id_invited_like_cpp =
-                state.arena_team_id_invited_like_cpp();
-            return Some(result);
-        }
-        canonical.then_some(result)
+        self.player_battleground_type_id_like_cpp = state.battleground_type_id_like_cpp();
+        self.player_battleground_map_id_like_cpp = state.battleground_map_id_like_cpp();
+        self.represented_battleground_status_like_cpp = state.battleground_status_like_cpp();
+        self.represented_battleground_queue_slots_like_cpp = state.queue_slots_like_cpp().to_vec();
+        self.represented_arena_team_id_invited_like_cpp = state.arena_team_id_invited_like_cpp();
+        Some(result)
     }
     pub(crate) fn owned_player_cuf_profiles_like_cpp(
         &self,
