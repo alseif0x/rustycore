@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #902:** `c06f13158e587ce0250df12fc54bfb204b6d3d42`.
+**Integrated head after PR #904:** `4ad36d420a0f56297390262f3667be1b5fc4ae6f`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -43,9 +43,9 @@ Those contracts and historical evidence remain valid inputs to #584; none is mar
 completed by the scope transfer. #583 waits for the required core macrodeliverables
 in #584; #153 remains an independent auditor, not the owner of unfinished work.
 
-## P2 Player identity owner — candidate `e1929813298b8f1e91d6005ed63f4cb94f1615dd`, 2026-09-14
+## P2 Player identity owner — integrated PR #904, 2026-09-14
 
-The next bounded macro selected by the C0–C4 audit is the five-field Player identity
+The bounded macro selected by the C0–C4 audit was the five-field Player identity
 boundary: name, race, class, level and gender. TrinityCore keeps these values on the
 canonical `Player`/`Unit`/`WorldObject`, loaded together by `Player::LoadFromDB`
 (`Player.cpp:17060-17089`, `17247-17283`) and exposed by `Unit::GetLevel`,
@@ -58,17 +58,19 @@ of recreating a second authority. Player name is read from `WorldObject::name` a
 installation, while the API returns an owned `String` so no map guard or borrowed
 entity reference crosses the boundary.
 
-The candidate updates module-login, registry, character-query, group/chat and
+PR #904 integrates the implementation at merge `4ad36d42`; it updates module-login, registry, character-query, group/chat and
 character-entry consumers, and records the exact ownership in
 `runtime-ownership-ledger.json` (`player_identity_login_bootstrap` plus the five
 fixture fields). It intentionally leaves `Player::m_swingErrorMsg`
-(`Player.h:3023`, `Player.cpp:20625-20631`) for a separate melee macro. Evidence at
-this SHA: `cargo check -p wow-entities -p wow-world`; `cargo test -p wow-entities
+(`Player.h:3023`, `Player.cpp:20625-20631`) for a separate melee macro. Evidence for
+the integrated implementation: `cargo check -p wow-entities -p wow-world`; `cargo test -p wow-entities
 --lib` (919/919); `cargo test -p wow-world --lib scenarios_login_1` (17/17),
 `scenarios_persistence_1` (25/25) and `scenarios_misc_6` (23/23); formatting,
 `git diff --check`, architecture check and its 20 self-tests all pass. Durable
 save/reload, exact packet captures and live DB/relogin QA remain outside this owner
-closure.
+closure. The five production-only stale-handle guards added with the final integrated
+implementation are included in the Session hotspot ceiling (`86915` production /
+`197512` total) rather than hidden from the ratchet.
 
 ## P2 Player mount presentation owner closure — integrated PR #897, 2026-09-14
 

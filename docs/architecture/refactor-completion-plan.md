@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -22,15 +22,15 @@ mapa de `Transport::TeleportPassengersAndHideTransport`, seats/offsets, pasajero
 AI/scripts, taxi y QA viva/DB siguen fuera de este corte y permanecen gates explícitos
 de #63/#584.
 
-La siguiente macro analizada es el **owner de identidad del Player**, candidata
-`e1929813298b8f1e91d6005ed63f4cb94f1615dd`. `name`, `race`, `class`, `level` y
+El **owner de identidad del Player** está integrado por PR #904 (`4ad36d42`).
+`name`, `race`, `class`, `level` y
 `gender` se resuelven desde `wow_entities::Player`/`Unit`/`WorldObject` después de
 la instalación canónica, con un DTO de bootstrap de login de un solo uso. La
 superficie antigua de Session queda restringida a fixtures `cfg(test)` y los
 consumidores de login de módulos, registro, character, group y chat usan consultas
 canónicas. La evidencia C++ es `Player.cpp:17060-17089,17247-17283` y
 `Unit.h:733-745`; `m_swingErrorMsg` queda deliberadamente para una macro de melee
-separada. El cierre no afirma todavía durabilidad de SaveToDB/relogin, capturas ni
+separada. El cierre estructural no afirma todavía durabilidad de SaveToDB/relogin, capturas ni
 QA viva.
 
 PR #891 añade el cierre P2 acotado del owner de taxi del Player: el avance de ruta
@@ -90,8 +90,8 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza de código integrada, 2026-09-14: PR #899**, en `3.4.3` como
-`1c047b42495a7edcefd2507e734196e43dee666e`. PR #887 cierra la superficie de
+**Cabeza de código integrada, 2026-09-14: PR #904**, en `3.4.3` como
+`4ad36d420a0f56297390262f3667be1b5fc4ae6f`. PR #887 cierra la superficie de
 propiedad de guild del Player después de PR #883 y PR #881. PR #873 corrige el fanout P3.10
 integrado por #871 (`304f482b101ff0ac8600854bd1a4ebb72cec2b5d`): Player/Unit
 queda exclusivamente en el rail de Session filtrado por receptor y la sesión
