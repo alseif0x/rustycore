@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-14 (#881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-14 (#887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `19dea8e078f5b7bec827532cefb8f46911e332e7` (PR #885,
+The current code integration head is `72f6a3fa87d00f9319c1cfa626f7a10345fc9654` (PR #887,
 following PR #876, P3.10 correction PR #873 and delivery PR #871).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
@@ -80,6 +80,16 @@ follow `Player::SetInGuild` (`Player.cpp:7216`), `SetGuildIdInvited` and `SetGui
 effects; the broad whole-state guild mutator remains only for handle-less `cfg(test)`
 fixtures. This is an owner boundary, not guild-manager/database, capture or live-QA
 completion.
+
+PR #887 closes the bounded P2 owner surface for represented Battleground state.
+`player/battleground.rs` owns named type/map/status/queue and arena-invitation
+transitions over the Player's `m_bgData` projection, following `Player.h:976,
+2335-2338,2821`, `Player.cpp:24258-24262` and `Player.h:1956`. Session retains
+queue admission, matchmaking/lifecycle coordination, packet publication and
+application effects; the composite mutator is fixture-only under `cfg(test)`. The
+owner, canonical ownership, PVP handler, package, formatting/diff and architecture
+ratchet checks pass. Functional Battleground lifecycle, persistence, captures and
+live QA remain separate gameplay gates.
 
 PR #844 closes one of those measured P2 operations: Void Storage's fixed-slot state and
 its clear/load/mark, lookup, free-slot, add, delete and swap transitions now belong to

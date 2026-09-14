@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #885:** `19dea8e078f5b7bec827532cefb8f46911e332e7`.
+**Integrated head after PR #887:** `72f6a3fa87d00f9319c1cfa626f7a10345fc9654`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -231,6 +231,22 @@ effects; the broad composite guild mutator is fixture-only under `cfg(test)`, an
 the composite install is retired. Owner, social-scenario, guild-handler, package,
 architecture and formatting/diff checks pass. Guild-manager/database durability,
 captures and live QA remain outside this structural closure.
+
+## P2 Player-owned Battleground transitions — integrated PR #887, 2026-09-14
+
+PR #887 integrates this bounded #584 owner closure into `3.4.3` at
+`72f6a3fa87d00f9319c1cfa626f7a10345fc9654` (implementation `4bd82511`). The
+represented Battleground type/map, status, queue-slot and arena-team invitation
+state now use named `wow-entities::Player` operations. The C++ anchors are
+`Player::m_bgData`/`BGData` (`Player.h:976,2821`),
+`InBattleground`/`GetBattlegroundTypeId` (`Player.h:2335-2338`), the represented
+Battleground id write (`Player.cpp:24258-24262`) and
+`SetArenaTeamIdInvited` (`Player.h:1956`). Session retains queue admission,
+matchmaking/lifecycle coordination, packets and application effects; the broad
+composite mutator is fixture-only under `cfg(test)`. Owner, canonical ownership,
+PVP handler, package, formatting/diff and architecture checks pass. Complete
+queue/matchmaking/lifecycle, persistence, captures and live QA remain separate
+gameplay acceptance gates; #584 remains open.
 
 ## P2 item-object ownership closure — 2026-09-13
 

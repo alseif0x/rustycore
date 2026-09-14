@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`19dea8e078f5b7bec827532cefb8f46911e332e7` (PR #885, following PR #876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`72f6a3fa87d00f9319c1cfa626f7a10345fc9654` (PR #887, following PR #885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -61,6 +61,21 @@ handle-less `cfg(test)` fixtures. The composite guild install is retired. Owner,
 social scenario, guild handler, package, architecture and formatting/diff checks
 pass. This is an ownership closure, not guild-manager/database, packet-capture or
 live-QA acceptance.
+
+**P2 Player-owned Battleground transitions — 2026-09-14, #584 / PR #887,
+integration `72f6a3fa87d00f9319c1cfa626f7a10345fc9654` (implementation
+`4bd82511`):** represented Battleground type/map, status, queue-slot and arena-team
+invitation transitions now resolve named operations on `wow-entities::Player`. The
+owner follows `Player::m_bgData`/`BGData` (`Player.h:976,2821`),
+`InBattleground`/`GetBattlegroundTypeId` (`Player.h:2335-2338`), the represented
+Battleground id write (`Player.cpp:24258-24262`) and
+`SetArenaTeamIdInvited` (`Player.h:1956`). Session keeps queue admission,
+matchmaking/lifecycle coordination, packets and application effects; its
+whole-state Battleground mutator is retained only for handle-less `cfg(test)`
+fixtures. Owner tests, the 11-test canonical ownership scenario, the 23-test PVP
+handler suite, both package checks, formatting/diff checks and the architecture
+ratchet pass. Functional queue/matchmaking/lifecycle, persistence, captures and
+live QA remain separate #584 gameplay gates.
 
 **F1 movement knockback-ACK slice — 2026-09-14, #63 / PR #866, merge
 `0079daa81c4955e38031009a24b17b8dbabc7d9b`:** `HandleMoveKnockBackAck` now
