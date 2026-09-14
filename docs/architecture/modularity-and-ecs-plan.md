@@ -11,9 +11,9 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `a1f66c33903ee76b6bb0675177d33e3b283806ed` (PR #925, following PR #924/#923, PR #922/#921, PR #918, PR #917, PR #916, PR #915, PR #913, PR #909, PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
+The current code integration head is `b7ac63b7a4b91c37cd775d41d26fd10052ae44b9` (PR #927, following PR #926/#925/#924/#923, PR #922/#921, PR #918, PR #917, PR #916, PR #915, PR #913, PR #909, PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
 PR #889, PR #876, P3.10 correction PR #873 and delivery PR #871).
-Current exact inventory after PR #925: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution, the Player `m_seer` visibility projection and canonical Pet visibility CREATE discovery are integrated; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet.
+Current exact inventory after PR #927: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution, the Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and directed Pet DESTROY publication are integrated; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet.
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
 mutations. #524's relation-query order correction is integrated by PR #803; PR #822/#824/#826/#828 now
@@ -203,10 +203,10 @@ the normal map, phase, range and detection gates. The C++ anchors are
 `visible_creatures_skip_not_in_world_canonical_objects_like_cpp`
 passes together with the affected package check, formatting and diff checks.
 This is a visibility projection closure only: Pet AI/movement, summon ownership and
-persistence, directed Pet DESTROY, transport/corpse lifecycle, captures and live QA
-remain separate #584/#63 gates.
+persistence, transport/corpse lifecycle, captures and live QA remain separate
+#584/#63 gates; directed Pet DESTROY is covered by the integrated P3.12 slice below.
 
-## P3.12 directed Pet DESTROY — candidate PR #927, 2026-09-14
+## P3.12 directed Pet DESTROY — integrated PR #927, 2026-09-14, merge `b7ac63b7`
 
 TrinityCore's generic `Map::RemoveFromMap` invokes `WorldObject::DestroyForNearbyPlayers`
 while a unit remains attached (`Map.cpp:934-951`, `Object.cpp:3617-3648`), and
@@ -441,10 +441,10 @@ is released. P3.11 then closes the measured canonical Pet CREATE discovery gap:
 now reads that common body through `with_creature_or_pet_like_cpp` before applying
 the existing phase/range/detection gates. The regression
 `visible_creatures_skip_not_in_world_canonical_objects_like_cpp`
-covers the indexed in-world case. Pet AI/movement, summon ownership and
-persistence, directed Pet DESTROY, corpse/transport lifecycle, exact captures and
-live QA remain open; this does not move the legacy Creature owner or imply
-completion of #584.
+covers the indexed in-world case. P3.12 now covers directed Pet DESTROY through
+the existing bounded rail; Pet AI/movement, summon ownership and persistence,
+corpse/transport lifecycle, exact captures and live QA remain open. This does not
+move the legacy Creature owner or imply completion of #584.
 
 PR #876 closes the next narrow Transport VALUES fanout residual without widening
 that boundary. C++ keeps `Player::m_visibleTransports` separate from ordinary

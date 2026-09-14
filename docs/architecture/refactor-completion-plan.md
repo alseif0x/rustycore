@@ -6,7 +6,7 @@ y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
 anclas C++, orden de ejecución y criterios de aceptación de la arquitectura.
 
-Estado exacto tras PR #925 (`a1f66c33`): 649 campos de WorldSession (219 de producción, 430 fixtures). El lock de encuentros, la proyección de visibilidad `Player::m_seer` y la búsqueda de CREATE para Pets canónicas ya usan la autoridad canónica; no queda un residual productivo de WorldSession en este corte auditado. Session conserva un único cerrojo de publicación para el paquete explícito de limpieza FAR_SIGHT.
+Estado exacto tras PR #927 (`b7ac63b7`): 649 campos de WorldSession (219 de producción, 430 fixtures). El lock de encuentros, la proyección de visibilidad `Player::m_seer`, la búsqueda de CREATE para Pets canónicas y el DESTROY dirigido de Pets ya usan la autoridad canónica; no queda un residual productivo de WorldSession en este corte auditado. Session conserva un único cerrojo de publicación para el paquete explícito de limpieza FAR_SIGHT.
 
 PR #881 añade el cierre nominal de las mutaciones de aura del Player sobre el `AuraSubsystem`
 propiedad de su Unit; la superficie genérica de Session queda limitada a fixtures `cfg(test)`.
@@ -196,10 +196,10 @@ the normal map, phase, range and detection gates. The C++ anchors are
 `visible_creatures_skip_not_in_world_canonical_objects_like_cpp`
 passes together with the affected package check, formatting and diff checks.
 This is a visibility projection closure only: Pet AI/movement, summon ownership and
-persistence, directed Pet DESTROY, transport/corpse lifecycle, captures and live QA
-remain separate #584/#63 gates.
+persistence, transport/corpse lifecycle, captures and live QA remain separate
+#584/#63 gates; directed Pet DESTROY is covered by the integrated P3.12 slice below.
 
-## P3.12 directed Pet DESTROY — candidate PR #927, 2026-09-14
+## P3.12 directed Pet DESTROY — integrated PR #927, 2026-09-14, merge `b7ac63b7`
 
 TrinityCore's generic `Map::RemoveFromMap` calls `WorldObject::DestroyForNearbyPlayers`
 while a unit is still attached (`Map.cpp:934-951`, `Object.cpp:3617-3648`);
