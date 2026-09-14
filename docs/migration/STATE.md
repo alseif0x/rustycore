@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`a1f66c33903ee76b6bb0675177d33e3b283806ed` (PR #925 following PR #924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`b7ac63b7a4b91c37cd775d41d26fd10052ae44b9` (PR #927 following PR #926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -43,11 +43,12 @@ passes the existing map, phase, range and detection gates and reaches the common
 Creature CREATE snapshot. The focused regression
 `visible_creatures_skip_not_in_world_canonical_objects_like_cpp`
 passes, as do the affected package check and formatting/diff checks. This closes
-the projection gap only; Pet AI/movement, summon ownership/persistence, directed
-Pet DESTROY, corpse/transport lifecycle, exact captures and live DB/restart/relogin
-QA remain explicit #584/#63 gates.
+the projection gap only; Pet AI/movement, summon ownership/persistence,
+corpse/transport lifecycle, exact captures and live DB/restart/relogin QA remain
+explicit #584/#63 gates. Directed Pet DESTROY is covered by the integrated PR #927
+slice recorded below.
 
-**Directed Pet DESTROY candidate — 2026-09-14, #584 / PR #927 candidate:**
+**Directed Pet DESTROY integrated — 2026-09-14, #584 / PR #927, merge `b7ac63b7`:**
 TrinityCore removes ordinary units through `Map::RemoveFromMap` while the source is
 still attached, so `WorldObject::DestroyForNearbyPlayers` can walk nearby Players
 (`Map.cpp:934-951`, `Object.cpp:3617-3648`); `Pet::RemoveFromWorld` follows that
