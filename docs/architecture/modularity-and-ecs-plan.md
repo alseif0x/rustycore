@@ -120,6 +120,21 @@ classification under `immutable_catalogs_configuration_and_services`; no gamepla
 owner moves and no second authority is introduced. The exact residual is 6 fields
 once integrated.
 
+## P3 Creature query duplicate-response correction — candidate, 2026-09-14
+
+The `creature_query_cache` audit found a behavior mismatch, not a valid Session
+authority. TrinityCore keeps serialized bytes in `CreatureTemplate::QueryData` and
+`WorldSession::HandleCreatureQuery` responds to every `CMSG_QUERY_CREATURE`, using the
+cache only to build the payload (`Handlers/QueryHandler.cpp:71-99`,
+`World.cpp:1706-1707`). Rust kept a per-Session `HashSet<u32>` and silently suppressed
+repeated requests; the field is removed and the handler now responds to every request.
+The focused regression requires two responses for two identical queries. The syntax
+snapshot was regenerated with the official checker, and the existing
+`represented_player_unit_values_updates_delivered_like_cpp` classification is recorded
+under the Map/visibility publication family. The ledger remains 647 fields (220
+production, 427 fixtures) and the exact residual falls to 5; the integration must keep
+the `CacheDataQueries` configuration difference explicit if it is implemented later.
+
 The finite hecs V2 conformance proof has passed within its recorded laboratory limits.
 That evidence does not install production `hecs` or Wasmtime, prove production storage
 integration, or close the remaining #584 boundaries. #743 and #735 are delivered and

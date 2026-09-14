@@ -142,6 +142,21 @@ El ledger registra la clasificación en `immutable_catalogs_configuration_and_se
 no se mueve gameplay, no se crea una autoridad duplicada y el residual exacto queda en
 6 campos hasta la integración.
 
+## P3 Creature query duplicate-response correction — candidate, 2026-09-14
+
+The `creature_query_cache` audit found a behavior mismatch, not a valid Session
+authority. TrinityCore keeps serialized bytes in `CreatureTemplate::QueryData` and
+`WorldSession::HandleCreatureQuery` responds to every `CMSG_QUERY_CREATURE`, using the
+cache only to build the payload (`Handlers/QueryHandler.cpp:71-99`,
+`World.cpp:1706-1707`). Rust kept a per-Session `HashSet<u32>` and silently suppressed
+repeated requests; the field is removed and the handler now responds to every request.
+The focused regression requires two responses for two identical queries. The syntax
+snapshot was regenerated with the official checker, and the existing
+`represented_player_unit_values_updates_delivered_like_cpp` classification is recorded
+under the Map/visibility publication family. The ledger remains 647 fields (220
+production, 427 fixtures) and the exact residual falls to 5; the integration must keep
+the `CacheDataQueries` configuration difference explicit if it is implemented later.
+
 PR #895 closes the next measured P2 owner surface: production rest-flag, deferred-publication and rest-clock writes now use named transitions on `wow-entities::Player` over `PlayerRestState`, following `RestMgr::SetRestFlag` / `RemoveRestFlag` (`RestMgr.cpp:95-122`), `RestMgr::_restTime` (`RestMgr.h:86`) and `Player::SetRestState` (`Player.h:2652`). Session retains packet/application ordering and its generic rest-state mutator is detached-fixture-only under `cfg(test)`. The Player owner regression, rest-owner scenarios, affected chat/area-trigger/zone scenarios, package checks, formatting/diff and architecture ratchet pass. This is an ownership closure: quest objective progress, durable persistence, captures and live QA remain separate #41/#584 gates. The next #584 macro still comes from a fresh C0–C4 responsibility and consumer audit.
 
 PR #878 closes the next measured P2 owner surface: the Player-owned mount VehicleKit

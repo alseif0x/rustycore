@@ -202,6 +202,23 @@ async fn creature_query_uses_typed_catalog_and_preserves_packet_projection_like_
     assert_eq!(send_rx.try_recv().unwrap(), expected.to_bytes());
 }
 #[tokio::test]
+async fn creature_query_repeats_response_like_cpp() {
+    let row = creature_query_catalog_row_like_cpp();
+    let (mut session, send_rx) = make_session_with_send_capacity(2);
+    install_world_query_catalogs_like_cpp(&mut session, [row], [], [], []);
+
+    session
+        .handle_query_creature(QueryCreature { creature_id: 42 })
+        .await;
+    session
+        .handle_query_creature(QueryCreature { creature_id: 42 })
+        .await;
+
+    assert!(send_rx.try_recv().is_ok());
+    assert!(send_rx.try_recv().is_ok());
+    assert!(send_rx.try_recv().is_err());
+}
+#[tokio::test]
 async fn creature_query_missing_or_failed_catalog_emits_disallowed_response_like_cpp() {
     for with_empty_capability in [false, true] {
         let (mut session, send_rx) = make_session_with_send_capacity(1);
