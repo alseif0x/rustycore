@@ -1,8 +1,8 @@
 # RustyCore — Master port and delivery plan
 
-**Reconciled 2026-09-14 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49), with PR #897 and PR #895 integrated.**
+**Reconciled 2026-09-14 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49), with PR #899, #897 and #895 integrated.**
 Source baseline for this reconciliation: `3.4.3` at
-`90e58c7358d03340fb9ce10461a14dd33b94ceed` (PR #897, following #895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`1c047b42495a7edcefd2507e734196e43dee666e` (PR #899, following #897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -39,8 +39,17 @@ guard. PR #873 keeps Player/Unit out of the generic map rail to prevent duplicat
 delivery and owner-only bytes reaching observers, and rechecks the admitted `MapKey`
 before publication. Neither slice migrates the legacy Creature owner. P3.10 is integrated;
 PR #876 adds the bounded Transport VALUES visibility projection without broadening the
-CREATE/lifecycle claim. The next implementation must be selected by a fresh audit of the
-remaining measured responsibilities rather than by a historical queue.
+CREATE/lifecycle claim. The fresh 2026-09-14 audit selects the next bounded macro as
+**Transport CREATE/DESTROY and phase-visibility intents**: C++ creates and removes
+transport blocks through `Map::AddToMap`, `Map::SendUpdateTransportVisibility` and
+`Transport::TeleportPassengersAndHideTransport` (`Map.cpp:574-610,1853-1915`,
+`Transport.cpp:630-680`), while Rust currently only advances the typed transport and
+handles login-time CREATE plus VALUES membership. The macro must carry a typed,
+incarnation-safe intent out of `wow-map`, publish after the map guard through Session,
+and update `m_visibleTransports` with the same transition. Seat/offset admission,
+passenger movement, AI/scripts and live capture/DB acceptance remain separate #63/#584
+gates. This is the next implementation boundary; it does not reopen closed issues or
+start Creature-owner migration.
 
 PR #897 closes the next measured P2 owner surface: the remaining production mount-presentation write now uses a named `Player` transition that applies `MountDisplayID` and `UNIT_FLAG_MOUNT` together, following TrinityCore `Unit::Mount` / `Unit::Dismount` (`Entities/Unit/Unit.cpp:7822-7865`). Session retains aura, collision, vehicle-kit and packet side effects; its broad unit-presentation closure is test-only for detached scale fixtures. The Player owner regression, mount spell-state scenarios, package checks, formatting/diff and architecture ratchet pass. This is an ownership closure: full mount gameplay, persistence, captures and live QA remain separate #63/#584 gates. The next #584 macro still comes from a fresh C0–C4 responsibility and consumer audit.
 
@@ -411,6 +420,19 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#735](https://github.com/alseif0x/rustycore/issues/735) | A, reputation boundary | **Closed/delivered.** Player owns reputation state and named transitions; catalogs, packets and persistence consumers remain outside the domain boundary. |
 | [#743](https://github.com/alseif0x/rustycore/issues/743) | A, group consistency | **Closed/delivered.** GroupRegistry remains authoritative and dropped state-bearing commands converge through the session boundary. |
 | [#787](https://github.com/alseif0x/rustycore/issues/787) | A, session-phase coordination | **Integrated as `d14a9a67` (PR #792; accepted at `76369bda`).** World runs before Map, phase permits remain live through finalization/retirement, and shutdown/replacement barriers are covered by production-linked tests and guarded login/save/relogin QA. |
+
+**Next #584 macro selected by the 2026-09-14 audit:** Transport CREATE/DESTROY and
+phase-visibility intents. The current typed transport owner advances in the map tick,
+and login-time CREATE plus Transport VALUES membership are present, but dynamic map
+entry/exit and phase changes have no production packet consumer. The bounded delivery
+will trace `Map::AddToMap(Transport)`, `Map::SendUpdateTransportVisibility` and
+`Transport::TeleportPassengersAndHideTransport` (`Map.cpp:574-610,1853-1915`,
+`Transport.cpp:630-680`), capture typed create/destroy snapshots with map
+incarnation, publish after releasing the map guard, and update the separate
+`m_visibleTransports` membership in the same Session transition. It includes stale,
+replacement, phase-mismatch and disconnected-recipient tests. Passenger seat/offset
+admission, AI/scripts, taxi routing and live capture/DB acceptance remain explicit
+#63/#584 gates; no Creature-owner migration is included.
 
 **Planning delivery:** [#748](https://github.com/alseif0x/rustycore/issues/748) owns
 this documentation/issue reconciliation and its validation. Closing it does not close #49
