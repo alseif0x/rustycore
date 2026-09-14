@@ -306,13 +306,8 @@ impl WorldSession {
                 .world_mut()
                 .set_zone_and_area(new_zone, area_id);
         });
-        if self
-            .mutate_player_rest_state_like_cpp(|state| {
-                // Pending publication survives same-zone reentry after a cancelled post-add.
-                state.defer_flag_sync_like_cpp();
-            })
-            .is_none()
-        {
+        // Pending publication survives same-zone reentry after a cancelled post-add.
+        if !self.defer_player_rest_flag_sync_like_cpp() {
             return false;
         }
         self.update_area_represented_with_rest_update_like_cpp(new_area, false);
@@ -322,18 +317,12 @@ impl WorldSession {
             .as_ref()
             .and_then(|store| store.get(new_zone).copied());
         let Some(zone) = zone_entry else {
-            let rest_flag_update_dirty = self
-                .mutate_player_rest_state_like_cpp(
-                    wow_entities::PlayerRestState::end_deferred_flag_sync_like_cpp,
-                )
-                .unwrap_or(false);
+            let rest_flag_update_dirty = self.end_player_rest_flag_sync_like_cpp();
             if send_rest_update
                 && rest_flag_update_dirty
                 && self.send_represented_resting_player_flag_update_like_cpp()
             {
-                let _ = self.mutate_player_rest_state_like_cpp(|state| {
-                    state.clear_deferred_flag_update_like_cpp();
-                });
+                let _ = self.clear_player_deferred_rest_flag_update_like_cpp();
             }
             return true;
         };
@@ -352,18 +341,12 @@ impl WorldSession {
         } else {
             self.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP);
         }
-        let rest_flag_update_dirty = self
-            .mutate_player_rest_state_like_cpp(
-                wow_entities::PlayerRestState::end_deferred_flag_sync_like_cpp,
-            )
-            .unwrap_or(false);
+        let rest_flag_update_dirty = self.end_player_rest_flag_sync_like_cpp();
         if send_rest_update
             && rest_flag_update_dirty
             && self.send_represented_resting_player_flag_update_like_cpp()
         {
-            let _ = self.mutate_player_rest_state_like_cpp(|state| {
-                state.clear_deferred_flag_update_like_cpp();
-            });
+            let _ = self.clear_player_deferred_rest_flag_update_like_cpp();
         }
 
         if old_zone == new_zone {

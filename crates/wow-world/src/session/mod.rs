@@ -11772,14 +11772,7 @@ impl WorldSession {
         rest_flag: u32,
         trigger_id: u32,
     ) -> bool {
-        self.mutate_player_rest_state_like_cpp(|state| {
-            state.set_flag_like_cpp(
-                rest_flag,
-                trigger_id,
-                crate::session_rules::current_game_time_secs_like_cpp,
-            )
-        })
-        .unwrap_or(false)
+        self.set_player_rest_flag_like_cpp(rest_flag, trigger_id)
     }
 
     fn update_represented_rest_flag_like_cpp(&mut self, rest_flag: u32, active: bool) -> bool {
@@ -11859,10 +11852,7 @@ impl WorldSession {
     }
 
     pub(crate) fn take_deferred_rest_flag_update_dirty_like_cpp(&mut self) -> bool {
-        self.mutate_player_rest_state_like_cpp(
-            wow_entities::PlayerRestState::take_deferred_flag_update_like_cpp,
-        )
-        .unwrap_or(false)
+        self.take_player_deferred_rest_flag_update_dirty_like_cpp()
     }
 
     /// Apply XP to the live session state, leveling up if threshold reached.

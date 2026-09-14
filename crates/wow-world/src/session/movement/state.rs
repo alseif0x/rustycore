@@ -91,8 +91,7 @@ impl WorldSession {
             .unwrap_or(false)
     }
     pub(crate) fn remove_represented_rest_flag_like_cpp(&mut self, rest_flag: u32) -> bool {
-        self.mutate_player_rest_state_like_cpp(|state| state.remove_flag_like_cpp(rest_flag))
-            .unwrap_or(false)
+        self.remove_player_rest_flag_like_cpp(rest_flag)
     }
     pub(in crate::session) fn remove_represented_active_talent_side_effects_like_cpp(
         &mut self,

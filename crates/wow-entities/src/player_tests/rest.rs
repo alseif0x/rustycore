@@ -7,7 +7,7 @@
 //! (`:89`), with `Player::SetRestState` (`Player.h:2652`) writing the update
 //! field.
 
-use crate::PlayerRestState;
+use crate::{Player, PlayerRestState};
 
 const IN_TAVERN: u32 = 0x1;
 const IN_CITY: u32 = 0x2;
@@ -183,4 +183,23 @@ fn the_represented_parts_rebuild_the_state_the_mirror_holds() {
     assert_eq!(state.inn_trigger_id_like_cpp(), 77);
     assert_eq!(state.rest_time_secs_like_cpp(), 456);
     assert_eq!(state.logout_time_like_cpp(), None);
+}
+
+#[test]
+fn the_player_names_rest_mgr_transitions_like_cpp() {
+    let mut player = Player::new(Some(571), false);
+
+    assert!(player.set_rest_flag_like_cpp(IN_CITY, 0, now_1000));
+    assert!(player.rest_state_like_cpp().has_rest_flag_like_cpp(IN_CITY));
+    assert_eq!(player.rest_state_like_cpp().rest_time_secs_like_cpp(), 1000);
+
+    player.defer_rest_flag_sync_like_cpp();
+    assert!(!player.remove_rest_flag_like_cpp(IN_TAVERN));
+    assert!(!player.end_deferred_rest_flag_sync_like_cpp());
+    assert!(!player.take_deferred_rest_flag_update_dirty_like_cpp());
+
+    assert!(player.remove_rest_flag_like_cpp(IN_CITY));
+    assert_eq!(player.rest_state_like_cpp().rest_time_secs_like_cpp(), 0);
+    player.set_rest_time_secs_like_cpp(321);
+    assert_eq!(player.rest_state_like_cpp().rest_time_secs_like_cpp(), 321);
 }
