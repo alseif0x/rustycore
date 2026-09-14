@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #873:** `bd5b13d4b885f1887b95c654e2ebdb13f6c70c49`.
+**Integrated head after PR #876:** `ed92d14f173ee2be2332b242576eb603aaff58f4`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -26,8 +26,10 @@ thin Session, full C0–C4 completion, production hecs migration or a finished L
 **#584 owns all remaining core C0–C4 work under #133.** It is a coordination epic,
 not another giant implementation PR. P3.8, P3.9 and P3.10 are integrated; P3.9
 delivered directed DESTROY for an ordinary in-world Creature and P3.10 delivered
-receiver-filtered Player/Unit VALUES fanout after `Map::SendObjectUpdates`. The next
-macro is not selected until a fresh audit of the remaining measured responsibilities. Before each
+receiver-filtered Player/Unit VALUES fanout after `Map::SendObjectUpdates`. PR #876
+also integrates the separate Transport VALUES membership projection through the
+PlayerRegistry and Session consumer; Transport CREATE/DESTROY and passenger lifecycle
+remain separate gates. The next macro is not selected until a fresh audit of the remaining measured responsibilities. Before each
 subsequent implementation child, audit current responsibilities, callers, C++ behavior,
 invariants, dependencies, tests and physical hotspots; then define a finite complete
 outcome and its consumer changes. A crate-focused issue may touch other crates to
@@ -148,9 +150,27 @@ The three `wow-world` fanout regressions, 27 `wow-entities` unit regressions,
 production `world-server` check, architecture checks and `validation-v2 quick` pass
 at `target/validation-v2/manifests/20260914T072651.033982Z-371881-quick.json`.
 Shared-raid field flags, exact packet captures, complete CREATE/Pet/corpse/transport
-coverage and live DB/restart/relogin acceptance remain separate #584 gates. This
-delivery does not close #584; the next macro still requires a fresh responsibility
-audit.
+coverage and live DB/restart/relogin acceptance remain separate #584 gates. PR #876
+now covers the Transport VALUES membership gate specifically; it does not close #584,
+and the next macro still requires a fresh responsibility audit.
+
+## Transport VALUES membership projection — 2026-09-14
+
+PR #876 (`ed92d14f173ee2be2332b242576eb603aaff58f4`, implementation `0c8e0f69`)
+closes the remaining Transport VALUES recipient gate identified by the fresh #584
+audit. TrinityCore keeps `Player::m_visibleTransports` separate from ordinary
+`m_clientGUIDs` while `Map::SendObjectUpdates`/`SendInitTransports` and
+`Object.cpp:3680-3728` use `HaveAtClient`. RustyCore now carries that membership as
+a distinct generation-safe shared projection in the PlayerRegistry registration and
+runtime recipient. The map delivery adapter selects it only for MO transport GUIDs;
+the Session command consumer repeats the same check before raw packet publication.
+
+The world-server regression proves a visible Transport is queued and an uncommitted
+recipient is skipped. The wow-world regression proves absent, present and cleared
+Session membership. The world-server check, both focused tests, formatting/diff checks
+and `python3 tools/architecture/check_architecture.py check` pass. Full Transport
+CREATE/DESTROY, passenger lifecycle, exact packet captures and live DB/restart/relogin
+evidence remain separate #584/#63 acceptance gates.
 
 ## P2 item-object ownership closure — 2026-09-13
 

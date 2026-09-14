@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`bd5b13d4b885f1887b95c654e2ebdb13f6c70c49` (PR #873, following PR #871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`ed92d14f173ee2be2332b242576eb603aaff58f4` (PR #876, following PR #873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -432,6 +432,22 @@ unit regressions, the production `world-server` check, architecture checks and
 Shared-raid field flags, exact packet captures, complete CREATE/Pet/corpse/transport
 coverage and live DB/restart/relogin acceptance remain separate #584 gates; #584
 stays open and the next macro still requires a fresh responsibility audit.
+
+**Transport VALUES visibility projection — 2026-09-14, #584 / PR #876, integration
+`ed92d14f173ee2be2332b242576eb603aaff58f4` (implementation `0c8e0f69`):** the
+map `Transport` VALUES route now uses the C++ `Player::m_visibleTransports`
+membership separately from ordinary `m_clientGUIDs`. The Session publishes that
+generation-safe set through `PlayerSessionRegistrationLikeCpp` and
+`PlayerRuntimeRecipient`; the world-server delivery adapter selects it only for
+MO transport GUIDs, while all other object families retain ordinary committed
+visibility. The Session command consumer applies the same gate, so a stale or
+undeliverable Transport update is dropped before packet publication. The focused
+world-server fanout regression proves visible and non-visible recipients, and the
+wow-world regression proves absent, present and cleared Session membership. The
+world-server check, focused tests, formatting/diff checks and full architecture
+check pass. This closes only Transport VALUES fanout; Transport CREATE/DESTROY,
+passenger lifecycle, exact captures and live DB/restart/relogin evidence remain
+separate #584/#63 gates.
 
 **P2 item-bonus writer retirement — 2026-09-13, #584 / PR #816, integration
 `db1250767090a5c951dae96ad6c2a2d5b24873ff` (implementation `948b7ea9`, ledger

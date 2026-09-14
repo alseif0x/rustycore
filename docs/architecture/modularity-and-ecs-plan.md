@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-14 (#871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-14 (#876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,8 +11,8 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `bd5b13d4b885f1887b95c654e2ebdb13f6c70c49` (PR #873,
-following P3.10 PR #871).
+The current code integration head is `ed92d14f173ee2be2332b242576eb603aaff58f4` (PR #876,
+following P3.10 correction PR #873 and delivery PR #871).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
 mutations. #524's relation-query order correction is integrated by PR #803; PR #822/#824/#826/#828 now
@@ -153,6 +153,17 @@ reaching observers, and rechecks the admitted `MapKey` before publication after 
 is released. This does not move
 the legacy Creature owner or imply completion of #584.
 
+PR #876 closes the next narrow Transport VALUES fanout residual without widening
+that boundary. C++ keeps `Player::m_visibleTransports` separate from ordinary
+`m_clientGUIDs` (`Map::SendInitTransports` and `Object.cpp:3680-3728`); RustyCore
+therefore publishes a distinct generation-safe membership through the PlayerRegistry
+registration and runtime-recipient projection. The map delivery adapter selects the
+transport set only for MO transport GUIDs, and the Session consumer applies the same
+gate before raw packet publication. The focused world-server and wow-world
+regressions cover visible, absent and cleared membership; no second gameplay owner,
+clock or lock is introduced. Transport CREATE/DESTROY, passenger lifecycle, exact
+captures and live DB/restart/relogin evidence remain separate #584/#63 gates.
+
 ## Architecture program state — 2026-09-14
 
 The [refactor completion plan](refactor-completion-plan.md) records the detailed
@@ -161,7 +172,7 @@ semantic, storage and extension contracts; neither document turns a pending task
 an accepted result.
 
 The architecture repair program is reviewed against integrated `3.4.3` at
-`bd5b13d4b885f1887b95c654e2ebdb13f6c70c49`. #587/#588/#589 and the subsequent
+`ed92d14f173ee2be2332b242576eb603aaff58f4`. #587/#588/#589 and the subsequent
 #716/#718/#722/#737 deliveries are integrated and closed in their bounded scopes.
 Their checkpoints retain scoped runtime/capture evidence; they are not reopened by
 the remaining core work or by naming preferences.
