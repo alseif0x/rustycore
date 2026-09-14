@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #891:** `faa5964bbdb360adc12e58279ab17b76c76b66b9`.
+**Integrated head after PR #893:** `cd054d5a3b19f9f75bfef726de1dc99368b3227b`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -275,6 +275,23 @@ scenarios, 13 movement scenarios, package checks, formatting/diff checks and the
 architecture ratchet/self-test pass. Route generation/node admission, teleport
 ordering, persistence, captures and live QA remain separate #584 gameplay gates;
 this slice does not close #584.
+
+## P2 Player-owned world-local transitions — integrated PR #893, 2026-09-14
+
+PR #893 integrates this bounded #584 owner closure into `3.4.3` at
+`cd054d5a3b19f9f75bfef726de1dc99368b3227b` (implementation `89c66ada`).
+All production zone/area, terrain-authority, PvP-hostility/timer and outdoors
+writes now call named `Player` transitions over `PlayerWorldLocalState`, following
+`Player::UpdateZone`, `Player::UpdateArea`, `Player::UpdatePvPState`,
+`Player::UpdateContestedPvP` and `WorldObject::IsOutdoors`. Session retains
+terrain/catalog resolution, rest/aura/packet effects and application ordering;
+the generic world-local mutator is fixture-only under `cfg(test)`.
+
+The Player owner test, 11 world-local owner tests, chat/zone, world-state and
+outdoors/spell-state scenarios, package checks, formatting/diff checks and the
+architecture ratchet/self-test pass. Full terrain admission, aura/quest/rest
+side effects, persistence, captures and live QA remain separate #584 gameplay
+gates; this slice does not close #584.
 
 ## P2 item-object ownership closure — 2026-09-13
 
