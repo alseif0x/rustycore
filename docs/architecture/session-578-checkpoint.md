@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #887:** `72f6a3fa87d00f9319c1cfa626f7a10345fc9654`.
+**Integrated head after PR #889:** `e37570c4e1e9feee04aadac6d485f5d1f314ced1`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -247,6 +247,18 @@ composite mutator is fixture-only under `cfg(test)`. Owner, canonical ownership,
 PVP handler, package, formatting/diff and architecture checks pass. Complete
 queue/matchmaking/lifecycle, persistence, captures and live QA remain separate
 gameplay acceptance gates; #584 remains open.
+
+## P2 Player-owned persistent capability transitions — integrated PR #889, 2026-09-14
+
+PR #889 integrates this bounded #584 owner closure into `3.4.3` at
+`e37570c4e1e9feee04aadac6d485f5d1f314ced1` (implementation `4066e261`).
+`player/persistent_capabilities.rs` owns named at-login flag replacement/removal
+and weapon/armor proficiency mask transitions, following
+`Player.h:1433-1434,2474`. Session retains persistence projection and
+packet/application effects; the whole-state capability mutator is fixture-only
+under `cfg(test)`. Owner, persistence, spell-state, package and architecture
+checks pass. Durable save/reload, captures and live QA remain outside this slice;
+#584 remains open.
 
 ## P2 item-object ownership closure — 2026-09-13
 
