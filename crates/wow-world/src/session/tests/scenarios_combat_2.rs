@@ -193,6 +193,24 @@ fn combat_tick_uses_canonical_player_offhand_timer_like_cpp() {
         0,
     ));
     let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+    let offhand_guid = ObjectGuid::create_item(1, 68_019);
+    let mut offhand_item = wow_entities::Item::default();
+    offhand_item.object_mut().create(offhand_guid);
+    offhand_item.object_mut().set_entry(68_019);
+    offhand_item.set_slot(EQUIPMENT_SLOT_OFFHAND);
+    assert_eq!(
+        session.insert_inventory_item_like_cpp(
+            EQUIPMENT_SLOT_OFFHAND,
+            InventoryItem {
+                guid: offhand_guid,
+                entry_id: 68_019,
+                db_guid: 68_019,
+                inventory_type: Some(InventoryType::WeaponOffhand as u8),
+            },
+        ),
+        None
+    );
+    assert_eq!(session.insert_inventory_item_object(offhand_item), None);
     session
         .mutate_canonical_player_like_cpp(|player| {
             let unit = player.unit_mut();
@@ -239,6 +257,28 @@ fn combat_tick_uses_canonical_player_offhand_timer_like_cpp() {
             .unit()
             .attack_timer(WeaponAttackType::OffAttack),
         2_000
+    );
+    drop(guard);
+
+    let no_offhand_swing = session
+        .mutate_canonical_player_like_cpp(|player| {
+            player
+                .inventory_runtime_mut_like_cpp()
+                .inventory_items_mut()
+                .remove(&EQUIPMENT_SLOT_OFFHAND);
+            player
+                .inventory_runtime_mut_like_cpp()
+                .item_objects_mut()
+                .remove(&offhand_guid);
+            player
+                .unit_mut()
+                .set_attack_timer(WeaponAttackType::OffAttack, 0);
+            take_canonical_player_attack_swings_like_cpp(player, 0, true, true, true)
+        })
+        .flatten();
+    assert_eq!(
+        no_offhand_swing, None,
+        "C++ does not process an offhand swing when the equipped weapon is absent"
     );
 }
 #[test]

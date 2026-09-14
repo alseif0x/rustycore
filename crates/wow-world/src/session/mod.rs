@@ -17982,6 +17982,12 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
     // both ranges before borrowing Unit mutably for the timer transition.
     let base_weapon_damage = player.weapon_damage_like_cpp(WeaponAttackType::BaseAttack);
     let offhand_weapon_damage = player.weapon_damage_like_cpp(WeaponAttackType::OffAttack);
+    // C++ `Unit::DoMeleeAttackIfReady` admits the offhand branch only when
+    // `!IsInFeralForm() && haveOffhandWeapon()` (Unit.cpp:2140). Resolve both
+    // predicates before borrowing the mutable Unit; dual-wield capability by
+    // itself is not an equipped weapon.
+    let has_offhand_weapon = player.has_offhand_weapon_for_attack_like_cpp();
+    let is_in_feral_form = player.is_in_feral_form_like_cpp();
     let unit = player.unit_mut();
     let spell_pauses_combat_timer = [
         wow_entities::CurrentSpellSlot::Generic,
@@ -18026,7 +18032,7 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
             unit.set_attack_timer(WeaponAttackType::BaseAttack, 100);
         } else {
             base_attack_error_update = Some(None);
-            if unit.can_dual_wield_like_cpp()
+            if has_offhand_weapon
                 && unit.attack_timer(WeaponAttackType::OffAttack) < ATTACK_DISPLAY_DELAY_LIKE_CPP_MS
             {
                 unit.set_attack_timer(
@@ -18050,7 +18056,9 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
         }
     }
 
-    if unit.can_dual_wield_like_cpp() && unit.is_attack_ready_like_cpp(WeaponAttackType::OffAttack)
+    if !is_in_feral_form
+        && has_offhand_weapon
+        && unit.is_attack_ready_like_cpp(WeaponAttackType::OffAttack)
     {
         processed_ready_attack = true;
         if has_auto_attack_error {

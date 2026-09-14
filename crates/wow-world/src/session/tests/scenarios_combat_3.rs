@@ -128,6 +128,24 @@ fn combat_tick_offhand_only_does_not_clear_base_swing_error_like_cpp() {
         0,
     ));
     let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+    let offhand_guid = ObjectGuid::create_item(1, 81_032);
+    let mut offhand_item = wow_entities::Item::default();
+    offhand_item.object_mut().create(offhand_guid);
+    offhand_item.object_mut().set_entry(81_032);
+    offhand_item.set_slot(EQUIPMENT_SLOT_OFFHAND);
+    assert_eq!(
+        session.insert_inventory_item_like_cpp(
+            EQUIPMENT_SLOT_OFFHAND,
+            InventoryItem {
+                guid: offhand_guid,
+                entry_id: 81_032,
+                db_guid: 81_032,
+                inventory_type: Some(InventoryType::WeaponOffhand as u8),
+            },
+        ),
+        None
+    );
+    assert_eq!(session.insert_inventory_item_object(offhand_item), None);
     session
         .mutate_canonical_player_like_cpp(|player| {
             let unit = player.unit_mut();
