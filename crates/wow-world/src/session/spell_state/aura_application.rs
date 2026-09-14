@@ -487,12 +487,7 @@ impl WorldSession {
                 vehicle_id
             };
             let mount_capability_id = aura.represented_amount;
-            let _ = self.mutate_player_mount_vehicle_kit_like_cpp(|kit| {
-                if let Some(vehicle_kit) = kit.as_mut() {
-                    vehicle_kit.uninstall();
-                }
-                *kit = None;
-            });
+            let _ = self.remove_player_mount_vehicle_kit_like_cpp();
             #[cfg(test)]
             {
                 self.player_mount_vehicle_id_like_cpp = 0;

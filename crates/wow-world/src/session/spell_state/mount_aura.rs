@@ -226,7 +226,7 @@ impl WorldSession {
             if !self.set_player_mount_presentation_like_cpp(0, false) {
                 return false;
             }
-            let _ = self.mutate_player_mount_vehicle_kit_like_cpp(|kit| *kit = None);
+            let _ = self.clear_player_mount_vehicle_kit_like_cpp();
             #[cfg(test)]
             {
                 self.player_mount_vehicle_id_like_cpp = 0;

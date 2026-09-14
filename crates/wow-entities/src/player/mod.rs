@@ -37,6 +37,7 @@ mod rest;
 mod spell_runtime;
 mod talent_runtime;
 mod taxi_state;
+mod vehicle;
 mod world_local;
 pub use battleground::PlayerBattlegroundState;
 pub use cinematic::PlayerCinematicStateLikeCpp;
