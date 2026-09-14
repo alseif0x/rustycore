@@ -2,7 +2,7 @@
 
 **Reconciled 2026-09-14 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
 Source baseline for this reconciliation: `3.4.3` at
-`72f6a3fa87d00f9319c1cfa626f7a10345fc9654` (PR #887, following #885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`e37570c4e1e9feee04aadac6d485f5d1f314ced1` (PR #889, following #887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -93,6 +93,14 @@ Battleground mutator remains only for handle-less `cfg(test)` fixtures. The owne
 canonical ownership, PVP handler, package, formatting/diff and architecture checks
 pass. Queue/matchmaking/lifecycle, persistence, captures and live QA remain separate
 gameplay gates, so #584 stays open for its other C0-C4 responsibilities.
+
+PR #889 closes the next bounded P2 Player owner surface: at-login flags and
+weapon/armor proficiency masks now use named canonical `Player` transitions in
+`player/persistent_capabilities.rs`, following `Player.h:1433-1434,2474`.
+Session keeps persistence and packet/application effects; the generic whole-state
+adapter is retained only for handle-less `cfg(test)` fixtures. Owner, persistence
+and spell-state regressions plus the architecture ratchet pass. Durable save/reload,
+captures, live QA and the remaining #584 C0-C4 responsibilities are still open.
 
 The P2 item-modifier writer residual is integrated by PR #816: the original
 `&mut PlayerItemBonusStateLikeCpp` closure was retired behind a named Player-owned

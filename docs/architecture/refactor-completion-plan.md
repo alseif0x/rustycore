@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -19,8 +19,8 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza de código integrada, 2026-09-14: PR #887**, en `3.4.3` como
-`72f6a3fa87d00f9319c1cfa626f7a10345fc9654`. PR #887 cierra la superficie de
+**Cabeza de código integrada, 2026-09-14: PR #889**, en `3.4.3` como
+`e37570c4e1e9feee04aadac6d485f5d1f314ced1`. PR #887 cierra la superficie de
 propiedad de guild del Player después de PR #883 y PR #881. PR #873 corrige el fanout P3.10
 integrado por #871 (`304f482b101ff0ac8600854bd1a4ebb72cec2b5d`): Player/Unit
 queda exclusivamente en el rail de Session filtrado por receptor y la sesión
@@ -1038,6 +1038,19 @@ handle bajo `cfg(test)`. Las pruebas del owner, el escenario canónico de owners
 la suite PVP, checks de paquetes, formato/diff y ratchet de arquitectura pasan.
 La funcionalidad completa de cola/matchmaking/lifecycle, persistencia, capturas y QA
 viva sigue siendo una frontera de gameplay separada.
+
+#### Entrega P2 bajo #584 — ownership de capacidades persistentes del Player
+
+PR #889 integra en `3.4.3` (`e37570c4e1e9feee04aadac6d485f5d1f314ced1`,
+implementación `4066e261`) el módulo privado
+`wow-entities/src/player/persistent_capabilities.rs`. Los flags de login y las
+máscaras de proficiency de arma/armadura se modifican mediante operaciones
+nominales del `Player`, siguiendo `Player.h:1433-1434,2474`; el instalador
+composite anterior queda retirado. `Session` conserva la proyección de persistencia,
+los paquetes y la admisión de aplicación, con el adaptador genérico limitado a
+fixtures `cfg(test)`. Pasan los tests del owner, persistencia, spell-state, checks
+de paquetes, formato/diff y ownership arquitectónico. No se afirma durabilidad
+DB/reinicio/relogin, captura ni QA viva; #584 sigue abierto.
 
 #### Contraste P3 de composición y fases — revisión acotada 2026-09-12
 

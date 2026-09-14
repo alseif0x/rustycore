@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`72f6a3fa87d00f9319c1cfa626f7a10345fc9654` (PR #887, following PR #885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`e37570c4e1e9feee04aadac6d485f5d1f314ced1` (PR #889, following PR #887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -76,6 +76,20 @@ fixtures. Owner tests, the 11-test canonical ownership scenario, the 23-test PVP
 handler suite, both package checks, formatting/diff checks and the architecture
 ratchet pass. Functional queue/matchmaking/lifecycle, persistence, captures and
 live QA remain separate #584 gameplay gates.
+
+**P2 Player-owned persistent capability transitions — 2026-09-14, #584 / PR #889,
+integration `e37570c4e1e9feee04aadac6d485f5d1f314ced1` (implementation
+`4066e261`):** the character-loaded at-login flags and weapon/armor proficiency
+masks now have named transitions on `wow-entities::Player` in
+`player/persistent_capabilities.rs`. The operations follow
+`Player::SetAtLoginFlag` (`Player.h:2474`) and
+`Player::AddWeaponProficiency`/`AddArmorProficiency` (`Player.h:1433-1434`),
+including idempotent mask OR and removal reporting. Session retains persistence
+projection and packet/application orchestration; its whole-state mutator is
+fixture-only under `cfg(test)`. Owner tests, the 25-test persistence scenario,
+spell-state scenarios, package checks, formatting/diff checks and the architecture
+ratchet pass. Durable save/reload, captures and live QA remain separate gameplay
+gates; #584 stays open.
 
 **F1 movement knockback-ACK slice — 2026-09-14, #63 / PR #866, merge
 `0079daa81c4955e38031009a24b17b8dbabc7d9b`:** `HandleMoveKnockBackAck` now
