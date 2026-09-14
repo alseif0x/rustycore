@@ -5,6 +5,12 @@
 
 use super::*;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MovementTransportMembershipLikeCpp {
+    Detached,
+    Attached(ObjectGuid),
+}
+
 impl WorldSession {
     pub(crate) fn remove_current_player_from_canonical_current_map_like_cpp(&mut self) -> bool {
         let Some(guid) = self.player_guid() else {
@@ -442,6 +448,70 @@ impl WorldSession {
                         creature.unit().subsystems().motion.spline.finalized
                     })
             })
+    }
+
+    /// Reconcile the canonical map transport passenger set with the movement
+    /// packet's requested transport. This is the C++ `AddPassenger`/
+    /// `RemovePassenger` branch in `MovementHandler.cpp:361-390`; the map owns
+    /// both the transport object and its passenger membership.
+    pub(crate) fn reconcile_player_transport_membership_like_cpp(
+        &self,
+        player_guid: ObjectGuid,
+        requested_transport_guid: Option<ObjectGuid>,
+    ) -> MovementTransportMembershipLikeCpp {
+        let Some(key) = self.current_canonical_player_map_key_like_cpp() else {
+            #[cfg(test)]
+            return requested_transport_guid
+                .filter(|guid| !guid.is_empty())
+                .map_or(MovementTransportMembershipLikeCpp::Detached, |guid| {
+                    MovementTransportMembershipLikeCpp::Attached(guid)
+                });
+            #[cfg(not(test))]
+            return MovementTransportMembershipLikeCpp::Detached;
+        };
+        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+            return MovementTransportMembershipLikeCpp::Detached;
+        };
+        let Ok(mut manager) = manager.lock() else {
+            return MovementTransportMembershipLikeCpp::Detached;
+        };
+        let Some(managed) = manager.find_map_mut(key.map_id, key.instance_id) else {
+            return MovementTransportMembershipLikeCpp::Detached;
+        };
+        let map = managed.map_mut();
+        let current_transport_guid = map
+            .get_typed_transport_for_passenger_like_cpp(player_guid)
+            .map(|transport| transport.world().guid());
+        let requested_transport_guid = requested_transport_guid.filter(|guid| !guid.is_empty());
+
+        if current_transport_guid == requested_transport_guid {
+            return requested_transport_guid.map_or(
+                MovementTransportMembershipLikeCpp::Detached,
+                MovementTransportMembershipLikeCpp::Attached,
+            );
+        }
+
+        if let Some(current_transport_guid) = current_transport_guid {
+            if let Some(transport) = map.get_typed_transport_mut_like_cpp(current_transport_guid) {
+                transport.remove_passenger(player_guid);
+            }
+        }
+
+        let Some(requested_transport_guid) = requested_transport_guid else {
+            return MovementTransportMembershipLikeCpp::Detached;
+        };
+
+        let Some(transport) = map.get_typed_transport_mut_like_cpp(requested_transport_guid) else {
+            return MovementTransportMembershipLikeCpp::Detached;
+        };
+        if transport.add_passenger(player_guid)
+            || transport.passengers().contains(&player_guid)
+            || transport.static_passengers().contains(&player_guid)
+        {
+            MovementTransportMembershipLikeCpp::Attached(requested_transport_guid)
+        } else {
+            MovementTransportMembershipLikeCpp::Detached
+        }
     }
     pub fn set_player_moved_unit_guid_like_cpp(&mut self, guid: ObjectGuid) {
         #[cfg_attr(not(test), allow(unused_variables))]

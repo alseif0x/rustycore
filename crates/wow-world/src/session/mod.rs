@@ -39,6 +39,7 @@ mod loot;
 pub mod mailbox;
 mod money;
 mod movement;
+pub(crate) use movement::state::MovementTransportMembershipLikeCpp;
 mod persistence;
 mod pets;
 mod player_cast;

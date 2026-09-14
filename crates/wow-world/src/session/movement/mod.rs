@@ -8,5 +8,5 @@ mod far_transfer;
 mod movement_publication;
 mod movement_validation;
 mod speed;
-mod state;
+pub(super) mod state;
 mod transfer;
