@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -19,8 +19,8 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza de código integrada, 2026-09-14: PR #885**, en `3.4.3` como
-`19dea8e078f5b7bec827532cefb8f46911e332e7`. PR #885 cierra la superficie de
+**Cabeza de código integrada, 2026-09-14: PR #887**, en `3.4.3` como
+`72f6a3fa87d00f9319c1cfa626f7a10345fc9654`. PR #887 cierra la superficie de
 propiedad de guild del Player después de PR #883 y PR #881. PR #873 corrige el fanout P3.10
 integrado por #871 (`304f482b101ff0ac8600854bd1a4ebb72cec2b5d`): Player/Unit
 queda exclusivamente en el rail de Session filtrado por receptor y la sesión
@@ -1020,6 +1020,24 @@ estado completo queda solo para fixtures sin handle bajo `cfg(test)`, sin segund
 lock, reloj o espejo. Las regresiones del owner, la suite social, la suite de handlers
 de guild, checks, formato/diff y ratchet de arquitectura pasan. Persistencia del
 manager, capturas y QA viva siguen siendo límites funcionales.
+
+#### Entrega P2 bajo #584 — ownership de Battleground del Player
+
+PR #887 integra en `72f6a3fa87d00f9319c1cfa626f7a10345fc9654` la siguiente
+auditoría C0–C4: el tipo/mapa, estado, cola y la invitación de arena representados
+se escribían desde un mutador compuesto de `WorldSession`, aunque TrinityCore los
+conserva en `Player::m_bgData`/`BGData` (`Player.h:976,2821`), los lee mediante
+`InBattleground`/`GetBattlegroundTypeId` (`Player.h:2335-2338`), establece el id
+representado en `Player.cpp:24258-24262` y mantiene la invitación en
+`SetArenaTeamIdInvited` (`Player.h:1956`).
+
+`player/battleground.rs` nombra las transiciones del owner y retira el instalador
+compuesto de producción. Session conserva admisión de cola, matchmaking, lifecycle,
+paquetes y efectos de aplicación; el mutador completo queda solo para fixtures sin
+handle bajo `cfg(test)`. Las pruebas del owner, el escenario canónico de ownership,
+la suite PVP, checks de paquetes, formato/diff y ratchet de arquitectura pasan.
+La funcionalidad completa de cola/matchmaking/lifecycle, persistencia, capturas y QA
+viva sigue siendo una frontera de gameplay separada.
 
 #### Contraste P3 de composición y fases — revisión acotada 2026-09-12
 
