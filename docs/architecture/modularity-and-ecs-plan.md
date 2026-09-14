@@ -63,7 +63,7 @@ vehicle/transport seat-offset admission, runtime branches whose mover or consume
 not represented, exact packet-order captures and live client/server/DB QA.
 
 La auditoría C0/C3 de 2026-09-14 seleccionó el macro **Transport CREATE/DESTROY y
-visibilidad por fase**. La implementación candidata en `584-transport-visibility`
+visibilidad por fase**, integrado por PR #901 en `3.4.3` (`bf460aa7`). La implementación
 marca los Players de la misma fase desde `Map::AddToMap`/`RemoveFromMap`, toma
 snapshots typed de Transport como datos propios y envía CREATE/OUT-OF-RANGE fuera del
 guard de mapa; `Player::m_visibleTransports` se actualiza en la misma transición de

@@ -13,7 +13,7 @@ VALUES a través del registro y del consumidor de Session; no amplía el alcance
 CREATE/DESTROY o al ciclo de pasajeros.
 
 La auditoría C0/C3 del 2026-09-14 seleccionó como macro **Transport CREATE/DESTROY y
-visibilidad por fase**. La implementación candidata en `584-transport-visibility`
+visibilidad por fase**, integrado por PR #901 en `3.4.3` (`bf460aa7`). La implementación
 captura el Transport typed desde el mapa, resuelve sus datos de CREATE en propiedad,
 marca receptores same-phase en add/remove y publica CREATE/OUT-OF-RANGE junto con la
 membresía separada de `Player::m_visibleTransports` fuera del guard. Las regresiones
