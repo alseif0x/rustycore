@@ -39,17 +39,16 @@ guard. PR #873 keeps Player/Unit out of the generic map rail to prevent duplicat
 delivery and owner-only bytes reaching observers, and rechecks the admitted `MapKey`
 before publication. Neither slice migrates the legacy Creature owner. P3.10 is integrated;
 PR #876 adds the bounded Transport VALUES visibility projection without broadening the
-CREATE/lifecycle claim. The fresh 2026-09-14 audit selects the next bounded macro as
-**Transport CREATE/DESTROY and phase-visibility intents**: C++ creates and removes
-transport blocks through `Map::AddToMap`, `Map::SendUpdateTransportVisibility` and
-`Transport::TeleportPassengersAndHideTransport` (`Map.cpp:574-610,1853-1915`,
-`Transport.cpp:630-680`), while Rust currently only advances the typed transport and
-handles login-time CREATE plus VALUES membership. The macro must carry a typed,
-incarnation-safe intent out of `wow-map`, publish after the map guard through Session,
-and update `m_visibleTransports` with the same transition. Seat/offset admission,
-passenger movement, AI/scripts and live capture/DB acceptance remain separate #63/#584
-gates. This is the next implementation boundary; it does not reopen closed issues or
-start Creature-owner migration.
+CREATE/lifecycle claim. The fresh 2026-09-14 audit selected **Transport
+CREATE/DESTROY and phase-visibility intents**, and the implementation candidate is
+now on branch `584-transport-visibility`. C++ creates and removes transport blocks
+through `Map::AddToMap` and `Map::SendUpdateTransportVisibility`
+(`Map.cpp:574-610,1853-1915`); the Rust slice carries typed map snapshots through
+the deferred Session visibility rail and updates `m_visibleTransports` atomically
+with CREATE/OUT-OF-RANGE packets. This candidate deliberately leaves
+`Transport::TeleportPassengersAndHideTransport` map relocation, seat/offset admission,
+passenger movement, AI/scripts and live capture/DB acceptance as separate #63/#584
+gates. It does not reopen closed issues or start Creature-owner migration.
 
 PR #897 closes the next measured P2 owner surface: the remaining production mount-presentation write now uses a named `Player` transition that applies `MountDisplayID` and `UNIT_FLAG_MOUNT` together, following TrinityCore `Unit::Mount` / `Unit::Dismount` (`Entities/Unit/Unit.cpp:7822-7865`). Session retains aura, collision, vehicle-kit and packet side effects; its broad unit-presentation closure is test-only for detached scale fixtures. The Player owner regression, mount spell-state scenarios, package checks, formatting/diff and architecture ratchet pass. This is an ownership closure: full mount gameplay, persistence, captures and live QA remain separate #63/#584 gates. The next #584 macro still comes from a fresh C0–C4 responsibility and consumer audit.
 
@@ -421,18 +420,16 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#743](https://github.com/alseif0x/rustycore/issues/743) | A, group consistency | **Closed/delivered.** GroupRegistry remains authoritative and dropped state-bearing commands converge through the session boundary. |
 | [#787](https://github.com/alseif0x/rustycore/issues/787) | A, session-phase coordination | **Integrated as `d14a9a67` (PR #792; accepted at `76369bda`).** World runs before Map, phase permits remain live through finalization/retirement, and shutdown/replacement barriers are covered by production-linked tests and guarded login/save/relogin QA. |
 
-**Next #584 macro selected by the 2026-09-14 audit:** Transport CREATE/DESTROY and
-phase-visibility intents. The current typed transport owner advances in the map tick,
-and login-time CREATE plus Transport VALUES membership are present, but dynamic map
-entry/exit and phase changes have no production packet consumer. The bounded delivery
-will trace `Map::AddToMap(Transport)`, `Map::SendUpdateTransportVisibility` and
-`Transport::TeleportPassengersAndHideTransport` (`Map.cpp:574-610,1853-1915`,
-`Transport.cpp:630-680`), capture typed create/destroy snapshots with map
-incarnation, publish after releasing the map guard, and update the separate
-`m_visibleTransports` membership in the same Session transition. It includes stale,
-replacement, phase-mismatch and disconnected-recipient tests. Passenger seat/offset
-admission, AI/scripts, taxi routing and live capture/DB acceptance remain explicit
-#63/#584 gates; no Creature-owner migration is included.
+**#584 Transport visibility implementation candidate (2026-09-14):** the typed
+transport owner now feeds CREATE/OUT-OF-RANGE snapshots from canonical map state into
+the deferred Session rail. Add/remove marks same-phase map-reference recipients;
+refresh publishes the packet and the separate `m_visibleTransports` membership in one
+transition, with map/instance/incarnation checks retained by the existing consumer.
+The focused map and bridge regressions plus the `wow-world` check pass on branch
+`584-transport-visibility`. Map relocation via
+`Transport::TeleportPassengersAndHideTransport`, passenger seat/offset admission,
+AI/scripts, taxi routing and live capture/DB acceptance remain explicit #63/#584
+gates; no Creature-owner migration is included.
 
 **Planning delivery:** [#748](https://github.com/alseif0x/rustycore/issues/748) owns
 this documentation/issue reconciliation and its validation. Closing it does not close #49

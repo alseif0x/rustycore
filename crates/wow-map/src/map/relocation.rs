@@ -1047,7 +1047,11 @@ where
             {
                 self.capture_creature_visibility_destroy_recipients_like_cpp(guid)
             } else if remove_from_map_was_in_world {
-                self.mark_nearby_players_for_visibility_like_cpp(guid);
+                if source_kind == Some(AccessorObjectKind::Transport) {
+                    self.mark_transport_players_for_visibility_like_cpp(guid);
+                } else {
+                    self.mark_nearby_players_for_visibility_like_cpp(guid);
+                }
                 Vec::new()
             } else {
                 Vec::new()

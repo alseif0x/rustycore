@@ -246,6 +246,8 @@ impl WorldSession {
             self.visible_area_triggers_from_canonical_map_like_cpp(map_id, &pos, range);
         let canonical_misc_objects =
             self.visible_misc_objects_from_canonical_map_like_cpp(map_id, &pos, range);
+        let canonical_transports = self.visible_transports_from_canonical_map_like_cpp(map_id);
+        let transports_visibility_available = canonical_transports.is_some();
         let visible_other_players =
             self.visible_other_players_from_registry_like_cpp(map_id, &pos, range);
         if self.has_world_map_manager_like_cpp()
@@ -253,6 +255,7 @@ impl WorldSession {
             || canonical_dynamic_objects.is_some()
             || canonical_area_triggers.is_some()
             || canonical_misc_objects.is_some()
+            || canonical_transports.is_some()
             || self.player_registry().is_some()
         {
             let creature_vis_trace = std::env::var_os("RUSTYCORE_CREATURE_VIS_TRACE").is_some();
@@ -305,6 +308,7 @@ impl WorldSession {
             let mut new_visible_scene_objects: HashSet<ObjectGuid> = HashSet::new();
             let mut new_visible_conversations: HashSet<ObjectGuid> = HashSet::new();
             let mut new_visible_players: HashSet<ObjectGuid> = HashSet::new();
+            let mut new_visible_transports: HashSet<ObjectGuid> = HashSet::new();
             let mut update_blocks: Vec<UpdateBlock> = Vec::new();
             let mut out_of_range_guids: Vec<ObjectGuid> = Vec::new();
             let mut created_creatures = 0usize;
@@ -315,6 +319,7 @@ impl WorldSession {
             let mut created_scene_objects = 0usize;
             let mut created_conversations = 0usize;
             let mut created_players = 0usize;
+            let mut created_transports = 0usize;
             let mut initial_visible_creatures_like_cpp = Vec::new();
             for creature in &map_creatures {
                 let guid = creature.guid();
@@ -512,6 +517,31 @@ impl WorldSession {
                 out_of_range_guids.extend(removed_misc_objects);
             }
 
+            if let Some(transports) = canonical_transports {
+                new_visible_transports =
+                    transports.iter().map(|transport| transport.guid).collect();
+                let server_time_ms = crate::session_rules::game_time_ms_like_cpp();
+                for transport in transports {
+                    if !self
+                        .client_visible_transports_like_cpp
+                        .contains(&transport.guid)
+                    {
+                        update_blocks.push(UpdateObject::create_transport_block(
+                            transport,
+                            server_time_ms,
+                        ));
+                        created_transports += 1;
+                    }
+                }
+                let removed_transports: Vec<ObjectGuid> = self
+                    .client_visible_transports_like_cpp
+                    .snapshot_like_cpp()
+                    .into_iter()
+                    .filter(|guid| !new_visible_transports.contains(guid))
+                    .collect();
+                out_of_range_guids.extend(removed_transports);
+            }
+
             for (guid, player) in visible_other_players {
                 new_visible_players.insert(guid);
                 if self.client_visible_guids_like_cpp.contains(&guid) {
@@ -539,61 +569,74 @@ impl WorldSession {
             // address a caster whose out-of-range block is already queued, so
             // publish both under the same write.
             let visibility_like_cpp = self.client_visible_guids_like_cpp.clone();
-            visibility_like_cpp.publish_transition_like_cpp(
-                |guid| {
-                    !guid.is_any_type_creature()
-                        && !guid.is_game_object()
-                        && !guid.is_dynamic_object()
-                        && !guid.is_area_trigger()
-                        && !guid.is_corpse()
-                        && !guid.is_scene_object()
-                        && !guid.is_conversation()
-                        && !guid.is_player()
-                },
-                new_visible_creatures
-                    .iter()
-                    .chain(new_visible_gos.iter())
-                    .chain(new_visible_dynamic_objects.iter())
-                    .chain(new_visible_area_triggers.iter())
-                    .chain(new_visible_corpses.iter())
-                    .chain(new_visible_scene_objects.iter())
-                    .chain(new_visible_conversations.iter())
-                    .chain(new_visible_players.iter())
-                    .copied(),
-                || {
-                    if update_blocks.is_empty() && out_of_range_guids.is_empty() {
-                        return;
-                    }
-                    let update = UpdateObject {
-                        map_id,
-                        num_updates: update_blocks.len() as u32,
-                        destroy_guids: Vec::new(),
-                        out_of_range_guids,
-                        blocks: update_blocks,
-                    };
-                    if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
-                        info!(
-                            map_id,
-                            created_creatures,
-                            created_gameobjects,
-                            created_dynamic_objects,
-                            created_area_triggers,
-                            created_corpses,
-                            created_scene_objects,
-                            created_conversations,
-                            created_players,
-                            "RUST_UPDATEOBJECT visibility_update plan"
-                        );
-                        for line in update.debug_create_summary_like_cpp() {
-                            info!("RUST_UPDATEOBJECT visibility_update {line}");
+            let publish_visibility = || {
+                visibility_like_cpp.publish_transition_like_cpp(
+                    |guid| {
+                        !guid.is_any_type_creature()
+                            && !guid.is_game_object()
+                            && !guid.is_dynamic_object()
+                            && !guid.is_area_trigger()
+                            && !guid.is_corpse()
+                            && !guid.is_scene_object()
+                            && !guid.is_conversation()
+                            && !guid.is_player()
+                    },
+                    new_visible_creatures
+                        .iter()
+                        .chain(new_visible_gos.iter())
+                        .chain(new_visible_dynamic_objects.iter())
+                        .chain(new_visible_area_triggers.iter())
+                        .chain(new_visible_corpses.iter())
+                        .chain(new_visible_scene_objects.iter())
+                        .chain(new_visible_conversations.iter())
+                        .chain(new_visible_players.iter())
+                        .copied(),
+                    || {
+                        if update_blocks.is_empty() && out_of_range_guids.is_empty() {
+                            return;
                         }
-                    }
-                    self.send_packet(&update);
-                    for creature in &initial_visible_creatures_like_cpp {
-                        self.send_initial_visible_packets_for_creature_like_cpp(creature);
-                    }
-                },
-            );
+                        let update = UpdateObject {
+                            map_id,
+                            num_updates: update_blocks.len() as u32,
+                            destroy_guids: Vec::new(),
+                            out_of_range_guids,
+                            blocks: update_blocks,
+                        };
+                        if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
+                            info!(
+                                map_id,
+                                created_creatures,
+                                created_gameobjects,
+                                created_dynamic_objects,
+                                created_area_triggers,
+                                created_corpses,
+                                created_scene_objects,
+                                created_conversations,
+                                created_players,
+                                created_transports,
+                                "RUST_UPDATEOBJECT visibility_update plan"
+                            );
+                            for line in update.debug_create_summary_like_cpp() {
+                                info!("RUST_UPDATEOBJECT visibility_update {line}");
+                            }
+                        }
+                        self.send_packet(&update);
+                        for creature in &initial_visible_creatures_like_cpp {
+                            self.send_initial_visible_packets_for_creature_like_cpp(creature);
+                        }
+                    },
+                );
+            };
+            if transports_visibility_available {
+                let transports_like_cpp = self.client_visible_transports_like_cpp.clone();
+                transports_like_cpp.publish_transition_like_cpp(
+                    |guid| new_visible_transports.contains(guid),
+                    new_visible_transports.iter().copied(),
+                    publish_visibility,
+                );
+            } else {
+                publish_visibility();
+            }
             self.last_visibility_pos = Some(pos);
             debug!(
                 "Visibility updated at ({:.1}, {:.1}): {} creatures / {} GOs in range",

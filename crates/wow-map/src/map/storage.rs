@@ -532,7 +532,11 @@ where
         if record.object().object().is_in_world() {
             let cell = Cell::from_world(position.x, position.y);
             let previous = self.insert_map_object_record(record)?;
-            self.mark_nearby_players_for_visibility_like_cpp(guid);
+            if kind == AccessorObjectKind::Transport {
+                self.mark_transport_players_for_visibility_like_cpp(guid);
+            } else {
+                self.mark_nearby_players_for_visibility_like_cpp(guid);
+            }
             return Ok(AddToMapOutcome {
                 guid,
                 cell: cell.cell_coord(),
@@ -677,7 +681,11 @@ where
                 guid,
                 active_object,
             );
-            self.mark_nearby_players_for_visibility_like_cpp(guid);
+            if kind == AccessorObjectKind::Transport {
+                self.mark_transport_players_for_visibility_like_cpp(guid);
+            } else {
+                self.mark_nearby_players_for_visibility_like_cpp(guid);
+            }
 
             return Ok(AddToMapOutcome {
                 guid,
@@ -798,7 +806,11 @@ where
                 guid,
                 active_object,
             );
-            self.mark_nearby_players_for_visibility_like_cpp(guid);
+            if kind == AccessorObjectKind::Transport {
+                self.mark_transport_players_for_visibility_like_cpp(guid);
+            } else {
+                self.mark_nearby_players_for_visibility_like_cpp(guid);
+            }
 
             return Ok(AddToMapOutcome {
                 guid,
@@ -941,7 +953,11 @@ where
             };
 
         let previous = self.insert_map_object_record(record)?;
-        self.mark_nearby_players_for_visibility_like_cpp(guid);
+        if kind == AccessorObjectKind::Transport {
+            self.mark_transport_players_for_visibility_like_cpp(guid);
+        } else {
+            self.mark_nearby_players_for_visibility_like_cpp(guid);
+        }
         let add_to_map_tail =
             self.represent_add_to_map_post_add_to_world_tail_like_cpp(kind, guid, active_object);
         Ok(AddToMapOutcome {

@@ -62,16 +62,15 @@ and knockback ACK admission/publication is integrated by PR #866
 vehicle/transport seat-offset admission, runtime branches whose mover or consumer is
 not represented, exact packet-order captures and live client/server/DB QA.
 
-La auditoría C0/C3 de 2026-09-14 selecciona el siguiente macro de núcleo:
-**Transport CREATE/DESTROY y visibilidad por fase**. `Map::AddToMap(Transport)`,
-`Map::SendUpdateTransportVisibility` y `Transport::TeleportPassengersAndHideTransport`
-(`Map.cpp:574-610,1853-1915`; `Transport.cpp:630-680`) construyen bloques para
-jugadores de la misma fase y mantienen `Player::m_visibleTransports`. La rama Rust
-actual solo tiene el owner typed, CREATE de login y VALUES membership; el tick no
-publica cambios dinámicos. La entrega debe mover un snapshot de intención con
-incarnation/map key fuera del lock, enviar por Session y actualizar membership en una
-sola transición. Seats/offsets, pasajeros, AI/scripts, taxi y captura/DB en vivo no
-forman parte de esta macro.
+La auditoría C0/C3 de 2026-09-14 seleccionó el macro **Transport CREATE/DESTROY y
+visibilidad por fase**. La implementación candidata en `584-transport-visibility`
+marca los Players de la misma fase desde `Map::AddToMap`/`RemoveFromMap`, toma
+snapshots typed de Transport como datos propios y envía CREATE/OUT-OF-RANGE fuera del
+guard de mapa; `Player::m_visibleTransports` se actualiza en la misma transición de
+Session. Las regresiones focales de mapa y del puente de entidades, el check de
+`wow-world` y fmt/diff pasan. La macro no incluye el traslado de mapa de
+`Transport::TeleportPassengersAndHideTransport`, seats/offsets, pasajeros, AI/scripts,
+taxi ni captura/DB en vivo.
 
 PR #895 closes the next bounded P2 owner surface selected by that audit: production rest-flag, deferred-publication and rest-clock writes now use named `Player` transitions over the Player-owned `PlayerRestState`, following `RestMgr::SetRestFlag` / `RemoveRestFlag` (`RestMgr.cpp:95-122`), `RestMgr::_restTime` (`RestMgr.h:86`) and `Player::SetRestState` (`Player.h:2652`). Session retains packet/application ordering and the generic rest-state adapter is fixture-only under `cfg(test)`. No second authority, lock or clock is introduced. The owner regression, rest-owner scenarios, affected world scenarios, package checks and architecture ratchet pass; quest objective progress, durable persistence, captures and live QA remain outside this structural closure.
 

@@ -29,12 +29,14 @@ delivered directed DESTROY for an ordinary in-world Creature and P3.10 delivered
 receiver-filtered Player/Unit VALUES fanout after `Map::SendObjectUpdates`. PR #876
 also integrates the separate Transport VALUES membership projection through the
 PlayerRegistry and Session consumer; Transport CREATE/DESTROY and passenger lifecycle
-remain separate gates. The next macro is not selected until a fresh audit of the remaining measured responsibilities. Before each
-subsequent implementation child, audit current responsibilities, callers, C++ behavior,
-invariants, dependencies, tests and physical hotspots; then define a finite complete
-outcome and its consumer changes. A crate-focused issue may touch other crates to
-finish its operation. Analyze later responsibilities just in time; do not create a
-speculative issue tree.
+remain separate gates. The 2026-09-14 audit selected Transport CREATE/DESTROY and
+phase visibility as the next bounded macro, and candidate branch
+`584-transport-visibility` now carries its typed map snapshots through the deferred
+Session rail. Before each subsequent implementation child, audit current
+responsibilities, callers, C++ behavior, invariants, dependencies, tests and physical
+hotspots; then define a finite complete outcome and its consumer changes. A
+crate-focused issue may touch other crates to finish its operation. Analyze later
+responsibilities just in time; do not create a speculative issue tree.
 
 This section supersedes older statements below requiring all C0–C4 inside #578.
 Those contracts and historical evidence remain valid inputs to #584; none is marked

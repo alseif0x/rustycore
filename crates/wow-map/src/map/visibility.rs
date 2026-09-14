@@ -144,6 +144,66 @@ where
         marked
     }
 
+    /// Snapshot canonical typed map transports without exposing the map's
+    /// storage guard to a packet/session consumer. `Map::SendInitTransports`
+    /// walks every same-map transport, so this intentionally is not a nearby
+    /// cell query.
+    pub fn typed_transport_guids_like_cpp(&self) -> Vec<ObjectGuid> {
+        let mut guids = self
+            .entity_world
+            .iter()
+            .filter_map(|(guid, record)| {
+                (record.kind() == AccessorObjectKind::Transport && record.transport().is_some())
+                    .then_some(*guid)
+            })
+            .collect::<Vec<_>>();
+        guids.sort();
+        guids
+    }
+
+    /// Resolve the Players that share a phase with a map-owned transport.
+    ///
+    /// C++ `Map::AddToMap(Transport)` and `Map::RemoveFromMap` use the map
+    /// reference walk (`Map.cpp:574-610, 1853-1915`), rather than the
+    /// distance-based cell walk used by ordinary world objects.  Capture only
+    /// owned GUIDs while the map is exclusive; the Session later resolves its
+    /// current registration and publishes the transport block outside this
+    /// guard.
+    pub fn transport_visibility_recipients_like_cpp(
+        &self,
+        transport_guid: ObjectGuid,
+    ) -> Vec<ObjectGuid> {
+        let Some(transport) = self.map_object_record(transport_guid).filter(|record| {
+            record.kind() == AccessorObjectKind::Transport && record.object().object().is_in_world()
+        }) else {
+            return Vec::new();
+        };
+        let transport_world = transport.object();
+        let mut players = self
+            .entity_world
+            .iter()
+            .filter_map(|(guid, record)| {
+                (record.kind() == AccessorObjectKind::Player
+                    && record.object().object().is_in_world()
+                    && record.object().in_same_phase(transport_world))
+                .then_some(*guid)
+            })
+            .collect::<Vec<_>>();
+        players.sort();
+        players
+    }
+
+    /// Mark every same-phase Player selected by the transport map-reference
+    /// walk. Packet delivery remains on the existing deferred visibility rail.
+    pub(super) fn mark_transport_players_for_visibility_like_cpp(
+        &mut self,
+        transport_guid: ObjectGuid,
+    ) -> Vec<ObjectGuid> {
+        let players = self.transport_visibility_recipients_like_cpp(transport_guid);
+        self.mark_player_visibility_guids_like_cpp(&players);
+        players
+    }
+
     /// Capture the nearby in-world Players that may observe a map-owned source
     /// and mark them for the existing deferred visibility rail.
     ///
