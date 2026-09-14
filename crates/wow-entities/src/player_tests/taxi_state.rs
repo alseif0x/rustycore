@@ -8,7 +8,7 @@
 //! (`:80`), and clears them together in `Player::CleanupAfterTaxiFlight`
 //! (`Player.cpp:22019`).
 
-use crate::{PlayerTaxiFlightNodeLikeCpp, PlayerTaxiState};
+use crate::{Player, PlayerTaxiFlightNodeLikeCpp, PlayerTaxiState};
 
 const TAXI_UNIT_FLAGS_LIKE_CPP: u32 = 0b0000_0110;
 
@@ -183,4 +183,31 @@ fn the_represented_parts_build_the_state_the_owner_receives() {
     assert_eq!(state.unit_flags_like_cpp(), TAXI_UNIT_FLAGS_LIKE_CPP);
     assert!(state.mounted_like_cpp());
     assert!(state.known_node_mask_like_cpp().is_empty());
+}
+
+#[test]
+fn player_owns_taxi_flight_advance_and_cleanup_transitions_like_cpp() {
+    let mut player = Player::new(Some(99), false);
+    let state = PlayerTaxiState::from_represented_parts_like_cpp(
+        vec![10],
+        Some(crate::PlayerTaxiFlightStateLikeCpp {
+            current_node: node(571, true),
+            node_after_teleport: Some(node(0, false)),
+        }),
+        TAXI_UNIT_FLAGS_LIKE_CPP,
+        true,
+    );
+    player.replace_taxi_state_like_cpp(state);
+
+    assert_eq!(
+        player
+            .advance_taxi_flight_after_teleport_like_cpp()
+            .map(|node| node.map_id),
+        Some(0)
+    );
+    player.cleanup_after_taxi_flight_like_cpp(TAXI_UNIT_FLAGS_LIKE_CPP);
+    let taxi = player.taxi_state_like_cpp();
+    assert!(taxi.destinations_like_cpp().is_empty());
+    assert!(!taxi.is_in_flight_like_cpp());
+    assert!(!taxi.mounted_like_cpp());
 }

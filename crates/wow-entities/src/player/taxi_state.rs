@@ -31,6 +31,8 @@
 
 use wow_core::Position;
 
+use super::Player;
+
 /// One node of the represented flight path.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PlayerTaxiFlightNodeLikeCpp {
@@ -219,5 +221,28 @@ impl PlayerTaxiState {
         self.flight = None;
         self.mounted = false;
         self.unit_flags &= !taxi_unit_flags;
+    }
+}
+
+impl Player {
+    /// Advance the Player-owned taxi flight after a cross-map teleport.
+    ///
+    /// C++ performs this through `PlayerTaxi::NextTaxiDestination` while the
+    /// Player owns the route; the map/session caller only supplies the
+    /// transition boundary.
+    pub fn advance_taxi_flight_after_teleport_like_cpp(
+        &mut self,
+    ) -> Option<PlayerTaxiFlightNodeLikeCpp> {
+        self.gameplay_state_mut()
+            .taxi
+            .advance_taxi_flight_after_teleport_like_cpp()
+    }
+
+    /// Complete `Player::CleanupAfterTaxiFlight` (`Player.cpp:22019`) over the
+    /// Player-owned route and its represented cleanup projection.
+    pub fn cleanup_after_taxi_flight_like_cpp(&mut self, taxi_unit_flags: u32) {
+        self.gameplay_state_mut()
+            .taxi
+            .cleanup_after_taxi_flight_like_cpp(taxi_unit_flags);
     }
 }
