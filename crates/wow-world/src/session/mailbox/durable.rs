@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex};
 use super::protocol::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyPlayerMeleeResultLikeCppCommand,
     CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,
-    DestroyVisibleCreatureLikeCppCommand, ReconcilePvpCombatExpiryLikeCppCommand,
+    DestroyVisibleObjectLikeCppCommand, ReconcilePvpCombatExpiryLikeCppCommand,
     SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand,
     SendPlayerSpellIfVisibleLikeCppCommand, SessionCommand,
 };
@@ -104,11 +104,11 @@ impl DurableCreatureRuntimeCommandsLikeCpp {
         self.publish_like_cpp(SessionCommand::SendIfVisibleLikeCpp(command))
     }
 
-    pub fn publish_destroy_visible_creature_like_cpp(
+    pub fn publish_destroy_visible_object_like_cpp(
         &mut self,
-        command: DestroyVisibleCreatureLikeCppCommand,
+        command: DestroyVisibleObjectLikeCppCommand,
     ) -> bool {
-        self.publish_like_cpp(SessionCommand::DestroyVisibleCreatureLikeCpp(command))
+        self.publish_like_cpp(SessionCommand::DestroyVisibleObjectLikeCpp(command))
     }
 
     /// Publish START+GO as one queue element so capacity checks and session
@@ -152,7 +152,7 @@ impl DurableCreatureRuntimeCommandsLikeCpp {
                 .unwrap_or(commands.len());
             let after_directed_destroy = commands
                 .iter()
-                .rposition(SessionCommand::is_directed_creature_destroy_like_cpp)
+                .rposition(SessionCommand::is_directed_object_destroy_like_cpp)
                 .map_or(0, |index| index + 1);
             commands.insert(
                 first_visible.max(after_directed_destroy),

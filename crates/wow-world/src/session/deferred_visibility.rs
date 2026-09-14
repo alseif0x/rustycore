@@ -7,23 +7,23 @@ use super::{
     CreatureSpawnCatalogsLikeCpp, PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP,
     SessionState, WorldSession,
 };
-use crate::session::mailbox::DestroyVisibleCreatureLikeCppCommand;
+use crate::session::mailbox::DestroyVisibleObjectLikeCppCommand;
 use wow_entities::ObjectNotifyFlags;
 use wow_map::PlayerVisibilityRefreshIntentLikeCpp;
 
 impl WorldSession {
     /// Apply one map-owned C++ `WorldObject::DestroyForNearbyPlayers` result
     /// after the map guard has been released. The command covers ordinary
-    /// Creature/Pet GUIDs; the session's client-visible set is the final
+    /// map-owned object GUIDs; the session's client-visible set is the final
     /// `HaveAtClient` authority and is mutated atomically with the destroy
     /// packet decision.
-    pub(crate) fn handle_destroy_visible_creature_like_cpp_command_like_cpp(
+    pub(crate) fn handle_destroy_visible_object_like_cpp_command_like_cpp(
         &mut self,
-        command: DestroyVisibleCreatureLikeCppCommand,
+        command: DestroyVisibleObjectLikeCppCommand,
     ) {
         if self.state() != SessionState::LoggedIn
             || self.is_disconnecting()
-            || !command.creature_guid.is_creature_or_pet()
+            || (!command.object_guid.is_creature_or_pet() && !command.object_guid.is_corpse())
             || self.player_map_id_like_cpp() != command.map_id
         {
             return;
@@ -48,12 +48,12 @@ impl WorldSession {
         }
         if !self
             .client_visible_guids_like_cpp
-            .remove(&command.creature_guid)
+            .remove(&command.object_guid)
         {
             return;
         }
         self.send_packet(&wow_packet::packets::update::UpdateObject::destroy_objects(
-            vec![command.creature_guid],
+            vec![command.object_guid],
             command.map_id,
         ));
     }

@@ -55,7 +55,7 @@ fn add_to_map_marks_nearby_players_for_deferred_visibility_like_cpp() {
 }
 
 #[test]
-fn remove_from_map_marks_nearby_pets_for_deferred_visibility_like_cpp() {
+fn remove_from_map_marks_nearby_corpses_for_deferred_visibility_like_cpp() {
     let mut map = test_map();
 
     let mut player = test_player_for_viewpoint(4510201);
@@ -68,9 +68,13 @@ fn remove_from_map_marks_nearby_pets_for_deferred_visibility_like_cpp() {
     map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_player(player).unwrap())
         .unwrap();
 
-    let pet = test_pet(4510202, false);
-    let pet_guid = pet.creature().guid();
-    map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_pet(pet).unwrap())
+    let corpse_guid = ObjectGuid::create_world_object(HighGuid::Corpse, 0, 1, 571, 7, 4510202, 1);
+    let mut corpse = Corpse::new_at(CorpseType::Bones, 1_000);
+    corpse.world_mut().object_mut().create(corpse_guid);
+    corpse.world_mut().set_map(571, 7).unwrap();
+    corpse.world_mut().relocate(Position::xyz(1.0, 2.0, 3.0));
+    corpse.world_mut().object_mut().add_to_world();
+    map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_corpse(corpse).unwrap())
         .unwrap();
     map.get_typed_player_mut(player_guid)
         .unwrap()
@@ -79,7 +83,8 @@ fn remove_from_map_marks_nearby_pets_for_deferred_visibility_like_cpp() {
         .object_mut()
         .reset_all_notifies();
 
-    map.remove_from_map_like_cpp(pet_guid, true).unwrap();
+    let removed = map.remove_from_map_like_cpp(corpse_guid, true).unwrap();
+    assert!(removed.cxx_in_world);
 
     assert!(
         map.map_object(player_guid)
@@ -88,11 +93,11 @@ fn remove_from_map_marks_nearby_pets_for_deferred_visibility_like_cpp() {
             .is_need_notify(ObjectNotifyFlags::VISIBILITY_CHANGED),
         "a nearby Player must be selected before the source is erased"
     );
-    let destroys = map.take_creature_visibility_destroy_recipients_like_cpp();
+    let destroys = map.take_object_visibility_destroy_recipients_like_cpp();
     assert_eq!(destroys.len(), 1);
-    assert_eq!(destroys[0].creature_guid, pet_guid);
+    assert_eq!(destroys[0].object_guid, corpse_guid);
     assert_eq!(destroys[0].recipient_guids, vec![player_guid]);
-    assert!(map.map_object(pet_guid).is_none());
+    assert!(map.map_object(corpse_guid).is_none());
 }
 
 #[test]

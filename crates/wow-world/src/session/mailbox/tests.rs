@@ -90,7 +90,7 @@ fn send_if_visible_like_cpp_command_carries_map_and_instance_id() {
 }
 
 #[test]
-fn destroy_visible_creature_like_cpp_command_carries_incarnation_fence() {
+fn destroy_visible_object_like_cpp_command_carries_incarnation_fence() {
     let creature_guid = ObjectGuid::create_world_object(
         wow_core::guid::HighGuid::Creature,
         0,
@@ -100,19 +100,19 @@ fn destroy_visible_creature_like_cpp_command_carries_incarnation_fence() {
         9_001,
         9_002,
     );
-    let command = DestroyVisibleCreatureLikeCppCommand {
-        creature_guid,
+    let command = DestroyVisibleObjectLikeCppCommand {
+        object_guid: creature_guid,
         map_id: 571,
         instance_id: 7,
         map_incarnation: 42,
     };
     let mut pending = DurableCreatureRuntimeCommandsLikeCpp::default();
-    assert!(pending.publish_destroy_visible_creature_like_cpp(command.clone()));
+    assert!(pending.publish_destroy_visible_object_like_cpp(command.clone()));
     let commands = pending.drain_like_cpp();
-    let [SessionCommand::DestroyVisibleCreatureLikeCpp(actual)] = commands.as_slice() else {
+    let [SessionCommand::DestroyVisibleObjectLikeCpp(actual)] = commands.as_slice() else {
         panic!("expected one directed destroy command");
     };
-    assert_eq!(actual.creature_guid, creature_guid);
+    assert_eq!(actual.object_guid, creature_guid);
     assert_eq!(actual.map_id, 571);
     assert_eq!(actual.instance_id, 7);
     assert_eq!(actual.map_incarnation, 42);

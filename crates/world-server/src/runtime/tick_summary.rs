@@ -18,15 +18,13 @@ pub(crate) struct CanonicalMapObjectValuesUpdateLikeCpp {
     pub(crate) unit_values_update: Option<wow_packet::packets::update::UnitDataValuesDeltaUpdate>,
 }
 
-/// A directed Creature destroy selected by the canonical Map while the source
-/// was still attached. The world loop resolves recipient registrations and
-/// publishes the session command only after releasing map guards.
+/// A directed map-owned object destroy selected while the source was attached.
 #[derive(Debug, Clone)]
-pub(crate) struct CanonicalCreatureVisibilityDestroyLikeCpp {
+pub(crate) struct CanonicalObjectVisibilityDestroyLikeCpp {
     pub(crate) map_id: u32,
     pub(crate) instance_id: u32,
     pub(crate) map_incarnation: u64,
-    pub(crate) creature_guid: wow_core::ObjectGuid,
+    pub(crate) object_guid: wow_core::ObjectGuid,
     pub(crate) recipient_guids: Vec<wow_core::ObjectGuid>,
 }
 
@@ -35,7 +33,7 @@ pub(crate) struct CanonicalSpawnGroupConditionTickSummaryLikeCpp {
     pub(crate) player_visibility_refresh_intents:
         Vec<wow_map::PlayerVisibilityRefreshIntentLikeCpp>,
     pub(crate) object_values_updates: Vec<CanonicalMapObjectValuesUpdateLikeCpp>,
-    pub(crate) creature_visibility_destroys: Vec<CanonicalCreatureVisibilityDestroyLikeCpp>,
+    pub(crate) object_visibility_destroys: Vec<CanonicalObjectVisibilityDestroyLikeCpp>,
     pub(crate) expired_pvp_combat_refs: Vec<(u32, u32, wow_core::ObjectGuid, wow_core::ObjectGuid)>,
     pub(crate) maps_evaluated: usize,
     pub(crate) outcomes: usize,

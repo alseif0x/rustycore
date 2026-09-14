@@ -1042,22 +1042,23 @@ where
                 .map_object_record(guid)
                 .is_some_and(|record| record.object().object().is_in_world());
             let source_kind = self.map_object_record(guid).map(MapObjectRecord::kind);
-            let creature_destroy_recipient_guids =
-                if remove_from_map_was_in_world && guid.is_creature_or_pet() {
-                    self.capture_creature_visibility_destroy_recipients_like_cpp(guid)
-                } else if remove_from_map_was_in_world {
-                    if source_kind == Some(AccessorObjectKind::Transport) {
-                        self.mark_transport_players_for_visibility_like_cpp(guid);
-                    } else {
-                        self.mark_nearby_players_for_visibility_like_cpp(guid);
-                    }
-                    Vec::new()
+            let creature_destroy_recipient_guids = if remove_from_map_was_in_world
+                && (guid.is_creature_or_pet() || guid.is_corpse())
+            {
+                self.capture_object_visibility_destroy_recipients_like_cpp(guid)
+            } else if remove_from_map_was_in_world {
+                if source_kind == Some(AccessorObjectKind::Transport) {
+                    self.mark_transport_players_for_visibility_like_cpp(guid);
                 } else {
-                    Vec::new()
-                };
+                    self.mark_nearby_players_for_visibility_like_cpp(guid);
+                }
+                Vec::new()
+            } else {
+                Vec::new()
+            };
             // C++ `Map::RemoveFromMap` performs the destroy visibility walk
             // while the source is still attached. Mark recipients and retain
-            // the Creature/Pet subset before erasing the canonical record;
+            // the object subset before erasing the canonical record;
             // packet delivery remains outside this map mutation.
             let creature_zone_script_remove = self
                 .map_object_record(guid)
@@ -1134,10 +1135,10 @@ where
                 .reset_map()
                 .map_err(RemoveFromMapError::ResetMap)?;
 
-            if cxx_in_world && guid.is_creature_or_pet() {
-                self.pending_creature_visibility_destroy_recipients_like_cpp
-                    .push(CreatureVisibilityDestroyRecipientsLikeCpp {
-                        creature_guid: guid,
+            if (cxx_in_world && guid.is_creature_or_pet()) || (was_in_world && guid.is_corpse()) {
+                self.pending_object_visibility_destroy_recipients_like_cpp
+                    .push(ObjectVisibilityDestroyRecipientsLikeCpp {
+                        object_guid: guid,
                         recipient_guids: creature_destroy_recipient_guids,
                     });
             }

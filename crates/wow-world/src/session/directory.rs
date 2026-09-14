@@ -20,7 +20,7 @@ use crate::session::SharedCanonicalMapManager;
 use crate::session::mailbox::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyLootMoneyLikeCppCommand,
     ApplyPlayerMeleeResultLikeCppCommand, CreatureAttackStartLikeCppCommand,
-    CreatureAttackStopLikeCppCommand, DestroyVisibleCreatureLikeCppCommand,
+    CreatureAttackStopLikeCppCommand, DestroyVisibleObjectLikeCppCommand,
     DurableCreatureRuntimeCommandsLikeCpp, LootRollCommandIdentityLikeCpp,
     ReconcilePvpCombatExpiryLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
     SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand,
@@ -2060,17 +2060,17 @@ impl PlayerRegistry {
             .unwrap_or(false)
     }
 
-    pub fn publish_current_destroy_visible_creature(
+    pub fn publish_current_destroy_visible_object(
         &self,
         registration: PlayerRegistration,
-        command: DestroyVisibleCreatureLikeCppCommand,
+        command: DestroyVisibleObjectLikeCppCommand,
     ) -> bool {
         self.with_current_durable_runtime(registration)
             .and_then(|durable| {
                 durable
                     .lock()
                     .ok()
-                    .map(|mut durable| durable.publish_destroy_visible_creature_like_cpp(command))
+                    .map(|mut durable| durable.publish_destroy_visible_object_like_cpp(command))
             })
             .unwrap_or(false)
     }
