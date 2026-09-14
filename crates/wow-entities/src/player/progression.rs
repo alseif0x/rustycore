@@ -525,6 +525,49 @@ impl Player {
         self.gameplay_state_mut().rest = state;
     }
 
+    /// C++ `RestMgr::SetRestFlag` (`RestMgr.cpp:95-109`) through the
+    /// Player-owned RestMgr state.
+    pub fn set_rest_flag_like_cpp(
+        &mut self,
+        rest_flag: u32,
+        trigger_id: u32,
+        now: impl FnOnce() -> u64,
+    ) -> bool {
+        self.mutate_rest_state_like_cpp(|state| state.set_flag_like_cpp(rest_flag, trigger_id, now))
+    }
+
+    /// C++ `RestMgr::RemoveRestFlag` (`RestMgr.cpp:112-122`) through the
+    /// Player-owned RestMgr state.
+    pub fn remove_rest_flag_like_cpp(&mut self, rest_flag: u32) -> bool {
+        self.mutate_rest_state_like_cpp(|state| state.remove_flag_like_cpp(rest_flag))
+    }
+
+    /// Hold the C++ resting-flag publication until world entry finishes.
+    pub fn defer_rest_flag_sync_like_cpp(&mut self) {
+        self.mutate_rest_state_like_cpp(|state| state.defer_flag_sync_like_cpp());
+    }
+
+    /// Release deferred resting-flag publication and report whether an update
+    /// is owed to the client.
+    pub fn end_deferred_rest_flag_sync_like_cpp(&mut self) -> bool {
+        self.mutate_rest_state_like_cpp(|state| state.end_deferred_flag_sync_like_cpp())
+    }
+
+    /// Record that the deferred resting-flag update was sent.
+    pub fn clear_deferred_rest_flag_update_like_cpp(&mut self) {
+        self.mutate_rest_state_like_cpp(|state| state.clear_deferred_flag_update_like_cpp());
+    }
+
+    /// Take the deferred resting-flag update marker exactly once.
+    pub fn take_deferred_rest_flag_update_dirty_like_cpp(&mut self) -> bool {
+        self.mutate_rest_state_like_cpp(|state| state.take_deferred_flag_update_like_cpp())
+    }
+
+    /// Set the Player-owned RestMgr clock used by online rest accrual.
+    pub fn set_rest_time_secs_like_cpp(&mut self, rest_time_secs: u64) {
+        self.mutate_rest_state_like_cpp(|state| state.set_rest_time_secs_like_cpp(rest_time_secs));
+    }
+
     /// C++ RestMgr constructor (RestMgr.cpp:26-30) and LoadRestBonus
     /// (Player.cpp:17693). The caller supplies its validated persisted state.
     /// Reset transient location state without replacing loaded Player flags or
