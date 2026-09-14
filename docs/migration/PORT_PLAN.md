@@ -1,8 +1,8 @@
 # RustyCore — Master port and delivery plan
 
-**Reconciled 2026-09-14 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49), with PR #901, #902, #904, #906, #907, #909 and #911 integrated.**
+**Reconciled 2026-09-14 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49), with PR #901, #902, #904, #906, #907, #909, #911 and #913 integrated.**
 Source baseline for this reconciliation: `3.4.3` at
-`0dbf768419338ac7d3bf3974cf20fa7e7fa4c2ad` (PR #911, following #909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`9ec36295344d3faf96733b77bac4686d0a903ec1` (PR #913, following PR #911, #909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -116,14 +116,14 @@ classification leaves 8 exact unresolved production fields and keeps the 647-fie
 membership unchanged (220 production, 427 test fixtures). Architecture check,
 self-test (20/20) and diff validation pass.
 
-The next audited classification assigns `represented_cast_unstuck_enabled_like_cpp`
+PR #913 integrates the audited classification of `represented_cast_unstuck_enabled_like_cpp`
 to the immutable world-configuration family. TrinityCore reads
 `CONFIG_CAST_UNSTUCK` from `World` (`World.h:119`, `World.cpp:1116`) before
 `Spell::EffectStuck` (`Spells/SpellEffects.cpp:3265-3269`); Rust now loads the key
 through `world-server/app.rs`, injects it in
 `SessionRuntimePolicyCapabilitiesLikeCpp`, and the spell consumer only reads the
 policy. The named disabled-policy scenario and world-server config regression
-cover this boundary. The ledger-only classification leaves 7 exact unresolved
+cover this boundary. The code-backed classification leaves 7 exact unresolved
 production fields and keeps the 647-field membership unchanged (220 production,
 427 test fixtures).
 

@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #911/#909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #913/#911/#909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -86,7 +86,7 @@ aura solo lee el switch. Es una clasificación de ledger sin cambio de código,
 paquetes, lock o orden de runtime; el residual productivo exacto queda en 8
 campos. Architecture check, self-test (20/20) y diff validation pasan.
 
-La siguiente macro C0–C4 clasifica `represented_cast_unstuck_enabled_like_cpp`
+PR #913 integra la macro C0–C4 de `represented_cast_unstuck_enabled_like_cpp`
 como configuración inmutable del mundo. TrinityCore lee `CONFIG_CAST_UNSTUCK`
 desde `World` (`World.h:119`, `World.cpp:1116`) antes de
 `Spell::EffectStuck` (`Spells/SpellEffects.cpp:3265-3269`); Rust carga e inyecta
@@ -94,7 +94,7 @@ la misma clave mediante `SessionRuntimePolicyCapabilitiesLikeCpp`, y el
 consumidor de spell solo lee el policy. La prueba de policy desactivada y la
 regresión de configuración cubren la frontera. La clasificación añade el writer
 productivo que faltaba, no crea autoridad duplicada ni cambia el orden de runtime;
-el residual productivo exacto queda en 7 campos.
+el merge `9ec36295344d3faf96733b77bac4686d0a903ec1` deja el residual productivo exacto en 7 campos. Los checks focales, arquitectónicos y de formato pasan.
 
 PR #891 añade el cierre P2 acotado del owner de taxi del Player: el avance de ruta
 tras teletransporte y la limpieza del vuelo pasan a ser transiciones nominales sobre

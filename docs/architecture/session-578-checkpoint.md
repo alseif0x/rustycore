@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #911:** `0dbf768419338ac7d3bf3974cf20fa7e7fa4c2ad`.
+**Integrated head after PR #913:** `9ec36295344d3faf96733b77bac4686d0a903ec1`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -168,7 +168,7 @@ remains 647 fields (220 production, 427 test fixtures). PR #911 integrates this
 ledger classification at merge `0dbf768419338ac7d3bf3974cf20fa7e7fa4c2ad`;
 architecture check, self-test (20/20) and diff validation pass.
 
-## P2 CastUnstuck world-policy classification — candidate, 2026-09-14
+## P2 CastUnstuck world-policy classification — integrated PR #913, 2026-09-14
 
 The next C0–C4 audit classified `represented_cast_unstuck_enabled_like_cpp` as
 immutable world configuration. TrinityCore reads `CONFIG_CAST_UNSTUCK` from
@@ -180,9 +180,11 @@ consumer only reads the resulting policy. The focused disabled-policy scenario
 uses the named setter, and the world-server config regression covers the C++ key.
 The ledger assigns the field to
 `immutable_catalogs_configuration_and_services`; no second authority or runtime
-clock is introduced. Once integrated, the unresolved residual will be 7 exact
+clock is introduced. PR #913 integrates this code-backed classification at merge
+`9ec36295344d3faf96733b77bac4686d0a903ec1`. The unresolved residual is 7 exact
 production fields while the ledger remains 647 fields (220 production, 427 test
-fixtures).
+fixtures). Architecture check, self-test (20/20), focused policy/configuration tests
+and diff validation pass.
 
 ## P2 Player mount presentation owner closure — integrated PR #897, 2026-09-14
 
