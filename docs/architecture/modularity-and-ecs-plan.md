@@ -11,7 +11,8 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `304f482b101ff0ac8600854bd1a4ebb72cec2b5d` (PR #871).
+The current code integration head is `bd5b13d4b885f1887b95c654e2ebdb13f6c70c49` (PR #873,
+following P3.10 PR #871).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
 mutations. #524's relation-query order correction is integrated by PR #803; PR #822/#824/#826/#828 now
@@ -139,13 +140,17 @@ durability, and suppresses the branch for `Unit::IsInFeralForm` (`Unit.cpp:496,
 absent, usable, broken and feral states; aura-backed modifiers, complete combat
 math and live/capture acceptance remain explicit #61 work.
 
-P3.10 / PR #871 completes the measured Player/Unit VALUES fanout boundary under #584. The
+P3.10 / PR #871, corrected by PR #873, completes the measured Player/Unit VALUES fanout
+boundary under #584. The
 Session consumes canonical `Map::SendObjectUpdates` snapshots only after releasing
 map guards; Unit setters enqueue their in-world objects, self updates retain
 owner/active-player fields and observers receive receiver-filtered values behind
 map/instance/incarnation, phase, range and `HaveAtClient` fences. Shared-raid field
 flags, exact packet captures, complete CREATE/Pet/corpse/transport coverage and
-live DB/restart/relogin evidence remain explicit follow-up gates. This does not move
+live DB/restart/relogin evidence remain explicit follow-up gates. The correction keeps
+Player/Unit out of the generic map rail to prevent duplicate delivery and owner-only bytes
+reaching observers, and rechecks the admitted `MapKey` before publication after the map lock
+is released. This does not move
 the legacy Creature owner or imply completion of #584.
 
 ## Architecture program state — 2026-09-14
@@ -156,7 +161,7 @@ semantic, storage and extension contracts; neither document turns a pending task
 an accepted result.
 
 The architecture repair program is reviewed against integrated `3.4.3` at
-`304f482b101ff0ac8600854bd1a4ebb72cec2b5d`. #587/#588/#589 and the subsequent
+`bd5b13d4b885f1887b95c654e2ebdb13f6c70c49`. #587/#588/#589 and the subsequent
 #716/#718/#722/#737 deliveries are integrated and closed in their bounded scopes.
 Their checkpoints retain scoped runtime/capture evidence; they are not reopened by
 the remaining core work or by naming preferences.

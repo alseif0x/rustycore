@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #871:** `304f482b101ff0ac8600854bd1a4ebb72cec2b5d`.
+**Integrated head after PR #873:** `bd5b13d4b885f1887b95c654e2ebdb13f6c70c49`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -131,15 +131,18 @@ relogin QA remain separate gates.
 
 ## P3.10 delivered — Player/Unit VALUES fanout — 2026-09-14
 
-PR #871 integrates this bounded #584 delivery into `3.4.3` at
-`304f482b101ff0ac8600854bd1a4ebb72cec2b5d` (implementation `30157c1f`). The
+PR #871 integrates this bounded #584 delivery into `3.4.3`; PR #873 corrects it at
+`bd5b13d4b885f1887b95c654e2ebdb13f6c70c49` (implementation `30157c1f`, correction
+`5586997d`). The
 Session consumes the canonical Player and Unit snapshots emitted by
 `Map::SendObjectUpdates` after all map guards are released. Unit field setters now
 enqueue their in-world object, self updates retain owner/active-player fields and
 observers receive receiver-filtered Player/Unit values only when the committed
 map/instance/incarnation, phase, range and `HaveAtClient` fences hold. Creature/Pet
 updates use the same path, with packet bytes built before delivery and no map lock
-held across a send.
+held across a send. PR #873 removes Player/Unit from the generic map rail so the
+filtered Session path is their sole publisher, and rechecks the admitted `MapKey`
+before publication after the lock is released.
 
 The three `wow-world` fanout regressions, 27 `wow-entities` unit regressions,
 production `world-server` check, architecture checks and `validation-v2 quick` pass
