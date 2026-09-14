@@ -853,10 +853,7 @@ impl WorldSession {
                 if let (Some(map_id), Some(node)) = (destination_map_id, flight.node_after_teleport)
                 {
                     if self
-                        .mutate_player_taxi_state_like_cpp(|taxi| {
-                            taxi.advance_taxi_flight_after_teleport_like_cpp()
-                        })
-                        .flatten()
+                        .advance_player_taxi_flight_after_teleport_like_cpp()
                         .is_none()
                     {
                         return self.record_move_spline_done_taxi_event_like_cpp(
@@ -901,14 +898,7 @@ impl WorldSession {
             );
         }
 
-        if self
-            .mutate_player_taxi_state_like_cpp(|taxi| {
-                taxi.cleanup_after_taxi_flight_like_cpp(
-                    (UnitFlags::REMOVE_CLIENT_CONTROL | UnitFlags::ON_TAXI).bits(),
-                );
-            })
-            .is_none()
-        {
+        if !self.cleanup_player_after_taxi_flight_like_cpp() {
             return self.record_move_spline_done_taxi_event_like_cpp(
                 spline_id,
                 MoveSplineDoneTaxiActionLikeCpp::IgnoredUnexpectedFinalPath,

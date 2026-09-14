@@ -585,6 +585,7 @@ impl WorldSession {
         }
         canonical
     }
+    #[cfg(test)]
     pub(in crate::session) fn mutate_player_taxi_state_like_cpp<R>(
         &mut self,
         f: impl FnOnce(&mut wow_entities::PlayerTaxiState) -> R,
@@ -599,6 +600,45 @@ impl WorldSession {
         }
         // PlayerTaxi mutates the owning Player's route, not a Session copy.
         self.with_owned_player_mut_like_cpp(|player| f(&mut player.gameplay_state_mut().taxi))
+    }
+    pub(crate) fn advance_player_taxi_flight_after_teleport_like_cpp(
+        &mut self,
+    ) -> Option<wow_entities::PlayerTaxiFlightNodeLikeCpp> {
+        let canonical = self.with_owned_player_mut_like_cpp(
+            wow_entities::Player::advance_taxi_flight_after_teleport_like_cpp,
+        );
+        if let Some(result) = canonical {
+            return result;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_taxi_state_like_cpp(|taxi| {
+                    taxi.advance_taxi_flight_after_teleport_like_cpp()
+                })
+                .flatten();
+        }
+        None
+    }
+    pub(crate) fn cleanup_player_after_taxi_flight_like_cpp(&mut self) -> bool {
+        let taxi_unit_flags = (UnitFlags::REMOVE_CLIENT_CONTROL | UnitFlags::ON_TAXI).bits();
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.cleanup_after_taxi_flight_like_cpp(taxi_unit_flags)
+            })
+            .is_some();
+        if canonical {
+            return true;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_taxi_state_like_cpp(|taxi| {
+                    taxi.cleanup_after_taxi_flight_like_cpp(taxi_unit_flags);
+                })
+                .is_some();
+        }
+        false
     }
     #[cfg(test)]
     pub(crate) fn set_taxi_destinations_like_cpp(&mut self, destinations: Vec<u32>) {
