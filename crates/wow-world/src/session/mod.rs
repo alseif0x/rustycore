@@ -149,20 +149,21 @@ use wow_data::{
     CreatureModelDataStore, CreatureSpellDisableDecisionLikeCpp,
     CreatureTemplateLifecycleStoreLikeCpp, CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry,
     CurrencyTypesStore, DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_MAP, DifficultyStore,
-    DisableMgrLikeCpp, DisableWorldObjectRefLikeCpp, DurabilityCostsStore, DurabilityQualityStore,
-    EmotesStore, EmotesTextStore, ExplorationBaseXpStoreLikeCpp, FishingBaseSkillStoreLikeCpp,
-    GameObjectDisplayInfoStore, GameObjectTemplateLifecycleStoreLikeCpp, GemPropertiesStore,
-    GlyphPropertiesStore, GraveyardStore, HeirloomEntry, HeirloomStore, HotfixBlobCache,
-    ImportPriceStores, ItemAppearanceStore, ItemBonusDb2Store, ItemChildEquipmentEntry,
-    ItemChildEquipmentStore, ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore,
-    ItemEffectStore, ItemExtendedCostStore, ItemLimitCategoryConditionStore,
-    ItemLimitCategoryStore, ItemModifiedAppearanceStore, ItemPriceBaseStore,
-    ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry,
-    ItemRandomSuffixStore, ItemSearchNameStore, ItemSetSpellStore, ItemSetStore,
-    ItemSpecOverrideStore, ItemStatsStore, ItemStore, LfgDungeonStoreLikeCpp, LfgDungeonsStore,
-    LockStore, MapDifficultyStore, MapDifficultyXConditionStore, MapStore, MountCapabilityStore,
-    MountDefinitionStoreLikeCpp, MountStore, MountTypeXCapabilityStore, MountXDisplayStore,
-    MovieStore, NpcSpellClickStoreLikeCpp, PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp,
+    DisableMgrLikeCpp, DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
+    DurabilityQualityStore, EmotesStore, EmotesTextStore, ExplorationBaseXpStoreLikeCpp,
+    FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
+    GameObjectTemplateLifecycleStoreLikeCpp, GemPropertiesStore, GlyphPropertiesStore,
+    GraveyardStore, HeirloomEntry, HeirloomStore, HotfixBlobCache, ImportPriceStores,
+    ItemAppearanceStore, ItemBonusDb2Store, ItemChildEquipmentEntry, ItemChildEquipmentStore,
+    ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore, ItemEffectStore,
+    ItemExtendedCostStore, ItemLimitCategoryConditionStore, ItemLimitCategoryStore,
+    ItemModifiedAppearanceStore, ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore,
+    ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore,
+    ItemSearchNameStore, ItemSetSpellStore, ItemSetStore, ItemSpecOverrideStore, ItemStatsStore,
+    ItemStore, LfgDungeonStoreLikeCpp, LfgDungeonsStore, LockStore, MapDifficultyStore,
+    MapDifficultyXConditionStore, MapStore, MountCapabilityStore, MountDefinitionStoreLikeCpp,
+    MountStore, MountTypeXCapabilityStore, MountXDisplayStore, MovieStore,
+    NpcSpellClickStoreLikeCpp, PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp,
     PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerCreateInfoCastSpellStoreLikeCpp,
@@ -5628,6 +5629,9 @@ pub struct WorldSession {
 
     /// Map and map-difficulty catalogs a session reads. Owned by one type (#670).
     pub(crate) maps: crate::catalogs::map::MapCatalogsLikeCpp,
+    /// C++ `sDungeonEncounterStore`, shared immutable catalog used by
+    /// `Player::IsLockedToDungeonEncounter` during encounter loot filtering.
+    dungeon_encounter_store: Option<Arc<DungeonEncounterStore>>,
     world_safe_loc_store_like_cpp: Option<Arc<WorldSafeLocStore>>,
     access_requirement_store: Option<Arc<AccessRequirementStoreLikeCpp>>,
     lfg_dungeons_store: Option<Arc<LfgDungeonsStore>>,
@@ -7101,7 +7105,10 @@ pub struct WorldSession {
     /// Session-local representation of `GameObject::m_tapList` for personal encounter loot.
     pub(crate) represented_gameobject_tap_lists:
         std::collections::HashMap<wow_core::ObjectGuid, Vec<wow_core::ObjectGuid>>,
-    /// Session-local representation of `Player::IsLockedToDungeonEncounter` for encounter loot.
+    /// Handle-less compatibility for represented encounter-loot fixtures.
+    /// Production `Player::IsLockedToDungeonEncounter` resolves the immutable
+    /// DungeonEncounter catalog and shared InstanceLockMgr.
+    #[cfg(test)]
     pub(crate) represented_locked_dungeon_encounters:
         std::collections::HashSet<(wow_core::ObjectGuid, u32)>,
     /// Session-local per-player money for represented personal encounter loot.
@@ -8867,6 +8874,7 @@ impl WorldSession {
             #[cfg(test)]
             represented_repop_at_graveyard_count: 0,
             represented_gameobject_tap_lists: std::collections::HashMap::new(),
+            #[cfg(test)]
             represented_locked_dungeon_encounters: std::collections::HashSet::new(),
             represented_personal_loot_money: std::collections::HashMap::new(),
             represented_personal_loot_owners: std::collections::HashSet::new(),
@@ -8897,6 +8905,7 @@ impl WorldSession {
             #[cfg(test)]
             pending_teleport: None,
             instance_lock_mgr: None,
+            dungeon_encounter_store: None,
         }
     }
 
