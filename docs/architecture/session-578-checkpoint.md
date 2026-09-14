@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #889:** `e37570c4e1e9feee04aadac6d485f5d1f314ced1`.
+**Integrated head after PR #891:** `faa5964bbdb360adc12e58279ab17b76c76b66b9`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -259,6 +259,22 @@ packet/application effects; the whole-state capability mutator is fixture-only
 under `cfg(test)`. Owner, persistence, spell-state, package and architecture
 checks pass. Durable save/reload, captures and live QA remain outside this slice;
 #584 remains open.
+
+## P2 Player-owned taxi flight transitions — integrated PR #891, 2026-09-14
+
+PR #891 integrates this bounded #584 owner closure into `3.4.3` at
+`faa5964bbdb360adc12e58279ab17b76c76b66b9` (implementation `a2a32586`).
+Post-teleport route advancement and taxi-flight cleanup now call named `Player`
+transitions over `PlayerTaxi`, following `PlayerTaxi::NextTaxiDestination`
+(`PlayerTaxi.h:74`) and `Player::CleanupAfterTaxiFlight` (`Player.cpp:22019`).
+Session retains map admission, spline completion and packet/application effects;
+the generic handle-less taxi mutator is fixture-only under `cfg(test)`.
+
+The Player owner regression, 14 `wow-entities` taxi tests, 11 canonical-access
+scenarios, 13 movement scenarios, package checks, formatting/diff checks and the
+architecture ratchet/self-test pass. Route generation/node admission, teleport
+ordering, persistence, captures and live QA remain separate #584 gameplay gates;
+this slice does not close #584.
 
 ## P2 item-object ownership closure — 2026-09-13
 
