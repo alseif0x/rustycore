@@ -41,6 +41,45 @@ fn make_session_with_send_rx() -> (WorldSession, flume::Receiver<Vec<u8>>) {
     (session, send_rx)
 }
 
+fn install_canonical_player_and_transports_for_test(
+    canonical: &crate::session::SharedCanonicalMapManager,
+    player_guid: ObjectGuid,
+    transport_guids: &[ObjectGuid],
+) {
+    let position = Position::new(10.0, 20.0, 30.0, 0.0);
+    let mut player = wow_entities::Player::new(Some(1), false);
+    player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    player
+        .unit_mut()
+        .world_mut()
+        .set_name("MovementTransportPlayer");
+    player.unit_mut().world_mut().set_map(571, 0).unwrap();
+    player.unit_mut().world_mut().relocate(position);
+    player.unit_mut().world_mut().object_mut().add_to_world();
+
+    let mut manager = canonical.lock().unwrap();
+    let map = manager.create_world_map(571, 0).map_mut();
+    map.insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
+        .unwrap();
+    for (index, guid) in transport_guids.iter().copied().enumerate() {
+        let mut transport = wow_entities::Transport::new();
+        transport.world_mut().object_mut().create(guid);
+        transport.world_mut().set_map(571, 0).unwrap();
+        transport
+            .world_mut()
+            .relocate(Position::new(10.0 + index as f32, 20.0, 30.0, 0.0));
+        transport.world_mut().object_mut().add_to_world();
+        map.insert_map_object_record(
+            wow_entities::MapObjectRecord::new_transport(transport).unwrap(),
+        )
+        .unwrap();
+    }
+}
+
 fn movement_packet(opcode: ClientOpcodes, movement: &MovementInfo) -> wow_packet::WorldPacket {
     let mut inbound = wow_packet::WorldPacket::new_empty();
     inbound.write_uint16(opcode as u16);

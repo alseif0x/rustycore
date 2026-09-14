@@ -2185,6 +2185,18 @@ where
         self.entity_world.get(&guid)?.transport()
     }
 
+    /// Mutably resolve a canonical transport for a movement passenger update.
+    ///
+    /// The map owns the `Transport` passenger set just as TrinityCore's map
+    /// object owns `TransportBase::_passengers`; callers receive only the
+    /// typed transport operation and never a generic object record.
+    pub fn get_typed_transport_mut_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+    ) -> Option<&mut wow_entities::Transport> {
+        self.entity_world.get_mut(&guid)?.transport_mut()
+    }
+
     pub fn get_area_trigger(&self, guid: ObjectGuid) -> Option<&WorldObject> {
         self.map_object_by_kind(guid, &[AccessorObjectKind::AreaTrigger])
     }

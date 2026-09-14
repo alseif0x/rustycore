@@ -34,7 +34,7 @@ use wow_packet::packets::movement::{
 
 use crate::map_manager::zone_and_area_for_position_like_cpp;
 use crate::session::{
-    AreaTriggerCatalogsLikeCpp, ProgressionCatalogsLikeCpp,
+    AreaTriggerCatalogsLikeCpp, MovementTransportMembershipLikeCpp, ProgressionCatalogsLikeCpp,
     SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP, SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP,
     WorldSession,
 };

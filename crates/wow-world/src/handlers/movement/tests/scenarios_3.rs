@@ -4,6 +4,89 @@
 
 use super::*;
 
+#[test]
+fn transport_membership_reconciles_map_owner_on_attach_switch_and_detach_like_cpp() {
+    let mut session = make_session();
+    let canonical = std::sync::Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
+    let player_guid = ObjectGuid::create_player(1, 1_080);
+    let first_transport = ObjectGuid::create_transport(HighGuid::Transport, 1_081);
+    let second_transport = ObjectGuid::create_transport(HighGuid::Transport, 1_082);
+    install_canonical_player_and_transports_for_test(
+        &canonical,
+        player_guid,
+        &[first_transport, second_transport],
+    );
+    session.set_canonical_map_manager(std::sync::Arc::clone(&canonical));
+    session.set_player_guid(Some(player_guid));
+
+    assert_eq!(
+        session.reconcile_player_transport_membership_like_cpp(player_guid, Some(first_transport),),
+        crate::session::MovementTransportMembershipLikeCpp::Attached(first_transport)
+    );
+    {
+        let manager = canonical.lock().unwrap();
+        let map = manager.find_map(571, 0).unwrap().map();
+        assert!(
+            map.get_typed_transport_like_cpp(first_transport)
+                .unwrap()
+                .passengers()
+                .contains(&player_guid)
+        );
+    }
+
+    assert_eq!(
+        session
+            .reconcile_player_transport_membership_like_cpp(player_guid, Some(second_transport),),
+        crate::session::MovementTransportMembershipLikeCpp::Attached(second_transport)
+    );
+    let manager = canonical.lock().unwrap();
+    let map = manager.find_map(571, 0).unwrap().map();
+    assert!(
+        !map.get_typed_transport_like_cpp(first_transport)
+            .unwrap()
+            .passengers()
+            .contains(&player_guid)
+    );
+    assert!(
+        map.get_typed_transport_like_cpp(second_transport)
+            .unwrap()
+            .passengers()
+            .contains(&player_guid)
+    );
+    drop(manager);
+
+    assert_eq!(
+        session.reconcile_player_transport_membership_like_cpp(player_guid, None),
+        crate::session::MovementTransportMembershipLikeCpp::Detached
+    );
+    let manager = canonical.lock().unwrap();
+    let map = manager.find_map(571, 0).unwrap().map();
+    assert!(
+        map.get_typed_transport_like_cpp(second_transport)
+            .unwrap()
+            .passengers()
+            .is_empty()
+    );
+}
+
+#[test]
+fn transport_membership_resets_when_requested_transport_is_not_canonical_like_cpp() {
+    let mut session = make_session();
+    let canonical = std::sync::Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
+    let player_guid = ObjectGuid::create_player(1, 1_083);
+    let missing_transport = ObjectGuid::create_transport(HighGuid::Transport, 1_084);
+    install_canonical_player_and_transports_for_test(&canonical, player_guid, &[]);
+    session.set_canonical_map_manager(canonical);
+    session.set_player_guid(Some(player_guid));
+
+    assert_eq!(
+        session
+            .reconcile_player_transport_membership_like_cpp(player_guid, Some(missing_transport),),
+        crate::session::MovementTransportMembershipLikeCpp::Detached
+    );
+    assert_eq!(session.player_transport_guid_like_cpp(), None);
+}
+
 #[tokio::test]
 async fn handle_move_set_vehicle_rec_ack_does_not_record_generic_ack_like_cpp() {
     let mut session = make_session();

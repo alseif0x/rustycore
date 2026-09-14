@@ -222,6 +222,19 @@ impl WorldSession {
         }
 
         if mover_is_player {
+            let requested_transport_guid = info.transport.as_ref().map(|transport| transport.guid);
+            let transport_membership = self.reconcile_player_transport_membership_like_cpp(
+                mover_guid,
+                requested_transport_guid,
+            );
+            if !matches!(
+                transport_membership,
+                MovementTransportMembershipLikeCpp::Attached(_)
+            ) {
+                // C++ calls MovementInfo::ResetTransport when no transport or
+                // vehicle owns the mover after the add/remove attempt.
+                info.transport = None;
+            }
             self.set_player_transport_info_like_cpp(info.transport.clone());
             self.apply_movement_side_effects_like_cpp(opcode, &info);
         } else if matches!(
