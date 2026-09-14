@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-13 (#851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-14 (#853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `b26ce713b844f1146a7b2952aade4dd532f1a16e` (PR #851).
+The current code integration head is `7c3add2fd5a1df791fcc793295028de553f9346a` (PR #853).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
 mutations. #524's relation-query order correction is integrated by PR #803; PR #822/#824/#826/#828 now
@@ -64,7 +64,15 @@ runtime-only effective-stat snapshot. The packet adapter remains a consumer, not
 mutable authority. This is a bounded F1 delivery; combat consumers, complete aura/regen
 math, reversible equipment lifecycle and live/capture acceptance remain in #61.
 
-## Architecture program state — 2026-09-13
+PR #853 adds a bounded movement admission boundary under #63. The Session handler
+performs only the C++ preconditions and delegates spline finalization to the active
+runtime owner: legacy `MapManager` while that path is live, then the canonical map
+`MoveSpline` projection. The result is fail-closed when finalization is unknown and
+does not deliver packets or mutate movement state under a map guard. This is a
+behavioral correction with focused regressions, not a new movement owner; transport,
+vehicle, non-creature, death/BG/taxi and live capture gates remain in #63.
+
+## Architecture program state — 2026-09-14
 
 The [refactor completion plan](refactor-completion-plan.md) records the detailed
 operation contracts and continuation sequence. This document retains the canonical
@@ -72,7 +80,7 @@ semantic, storage and extension contracts; neither document turns a pending task
 an accepted result.
 
 The architecture repair program is reviewed against integrated `3.4.3` at
-`a96ee54863b4fb9c46dabcf6d01839e5a96529f8`. #587/#588/#589 and the subsequent
+`7c3add2fd5a1df791fcc793295028de553f9346a`. #587/#588/#589 and the subsequent
 #716/#718/#722/#737 deliveries are integrated and closed in their bounded scopes.
 Their checkpoints retain scoped runtime/capture evidence; they are not reopened by
 the remaining core work or by naming preferences.

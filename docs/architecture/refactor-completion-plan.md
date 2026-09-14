@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748 y F1/#61 — 2026-09-13; actualización #524 genérico, SQL hotfix, locale y P2/P3.9/item-object/item-modifier/void-storage — 2026-09-13.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61 y #63 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.9/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -13,8 +13,8 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza integrada, 2026-09-13: PR #851**, en `3.4.3` como
-`b26ce713b844f1146a7b2952aade4dd532f1a16e`. #787 / PR #792 (`d14a9a67`) y
+**Cabeza integrada, 2026-09-14: PR #853**, en `3.4.3` como
+`7c3add2fd5a1df791fcc793295028de553f9346a`. #787 / PR #792 (`d14a9a67`) y
 #584 P2 item-bonus, P2 item-object y P3.1–P3.9 están integrados dentro de esta cabeza.
 La entrega de ownership de modificadores de objetos está integrada mediante PR #839
 (implementación `ecc67603`) y retira la superficie mutante genérica restante. La coordinación World/Map está
@@ -26,7 +26,7 @@ no ordena volver a ejecutar entregas ya integradas. La retirada del escritor
 legado de criaturas y las fases de mapa no representadas siguen en #584.
 
 La base revisada de la entrega anterior fue `3.4.3` en
-`db1250767090a5c951dae96ad6c2a2d5b24873ff`; la base vigente es la cabeza de PR #851
+`db1250767090a5c951dae96ad6c2a2d5b24873ff`; la base vigente es la cabeza de PR #853
 indicada arriba. #133 se cerró el 2026-09-09. Las
 entregas #578, #585, #587, #588, #589, #716, #718, #722 y #737 están integradas y
 cerradas dentro de sus alcances acotados. No se debe esperar otro cierre de #133 ni
@@ -1137,6 +1137,27 @@ stale e invisible de `wow-world` y la prueba de la valla de encarnación del mai
 integración se debe repetir el perfil `validation-v2 final` y actualizar este plan
 con el SHA de integración; el siguiente macro se elige solo después de auditar los
 residuales medidos.
+
+#### Entrega F1 bajo #63 — admisión de teleport y MoveSpline
+
+La auditoría de `MovementHandler::HandleMovementOpcode` confirmó dos retornos
+tempranos de TrinityCore que deben preceder a toda mutación: un `Player` que está
+siendo teletransportado (`Player.h:2170-2172`, combinación de teleport cercano y
+lejano) y cualquier mover cuyo `movespline` no esté finalizado
+(`MovementHandler.cpp:305-335`). PR #853 (`7c3add2f`, implementación `3af90ec2`)
+los aplica en `handlers/movement/ops_1.rs` antes de limpiar emote, mover posición o
+publicar estado. `session/movement/state.rs` consulta primero el runtime
+`MapManager` legado para criaturas/controlados y luego el `MoveSpline` canónico del
+mapa; si no puede demostrar finalización, rechaza la entrada.
+
+Las regresiones fijan que un teleport pendiente no cambia posición, emote ni
+paquetes, y que un spline controlado activo no cambia jugador, tiempo o criatura;
+la ruta positiva existente sigue funcionando. Formato, diff, arquitectura,
+`cargo check` y `validation-v2 final` pasan en el SHA integrado, con 3.878 tests de
+`wow-world` sin fallos. Esto no cierra #63: quedan pasajeros de transportes y
+reset, giro de vehículos, movers no Creature, muerte/BG/taxi, ACK/orden y QA viva
+con capturas. La visibilidad diferida de `MoveInitActiveMoverComplete` pertenece al
+puente ya integrado de #588 y no se duplica.
 
 Qué conservar en cualquier corte P3: residencia/incarnation del Player canónico,
 backpressure y cancelación de la tarea de sesión, transferencia entre mapas, descarga
