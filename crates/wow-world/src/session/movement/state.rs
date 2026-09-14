@@ -970,11 +970,22 @@ impl WorldSession {
         flags: u16,
         persist: bool,
     ) -> bool {
-        let Some(removed) = self.mutate_player_persistent_capability_state_like_cpp(|state| {
-            let removed = (state.at_login_flags & flags) != 0;
-            state.at_login_flags &= !flags;
-            removed
-        }) else {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.remove_at_login_flags_like_cpp(flags));
+        #[cfg(test)]
+        let removed = canonical.or_else(|| {
+            self.player_handle_like_cpp.is_none().then(|| {
+                self.mutate_player_persistent_capability_state_like_cpp(|state| {
+                    let removed = (state.at_login_flags & flags) != 0;
+                    state.at_login_flags &= !flags;
+                    removed
+                })
+                .expect("handle-less fixture capability owner")
+            })
+        });
+        #[cfg(not(test))]
+        let removed = canonical;
+        let Some(removed) = removed else {
             return false;
         };
         if !removed {

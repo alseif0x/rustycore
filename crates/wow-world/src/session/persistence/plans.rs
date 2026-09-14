@@ -468,8 +468,8 @@ impl WorldSession {
     pub(in crate::session) fn player_persistent_capability_state_snapshot_like_cpp(
         &self,
     ) -> Option<wow_entities::PlayerPersistentCapabilityStateLikeCpp> {
-        let canonical = self
-            .with_owned_player_like_cpp(|player| player.gameplay_state().persistent_capabilities);
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.persistent_capability_state_like_cpp());
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(wow_entities::PlayerPersistentCapabilityStateLikeCpp {
@@ -480,24 +480,16 @@ impl WorldSession {
         }
         canonical
     }
+    #[cfg(test)]
     pub(in crate::session) fn mutate_player_persistent_capability_state_like_cpp<R>(
         &mut self,
         mutate: impl FnOnce(&mut wow_entities::PlayerPersistentCapabilityStateLikeCpp) -> R,
     ) -> Option<R> {
         let mut state = self.player_persistent_capability_state_snapshot_like_cpp()?;
         let result = mutate(&mut state);
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.install_persistent_capabilities_like_cpp(state);
-            })
-            .is_some();
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_at_login_flags_like_cpp = state.at_login_flags;
-            self.represented_weapon_proficiency_like_cpp = state.weapon_proficiency;
-            self.represented_armor_proficiency_like_cpp = state.armor_proficiency;
-            return Some(result);
-        }
-        canonical.then_some(result)
+        self.represented_at_login_flags_like_cpp = state.at_login_flags;
+        self.represented_weapon_proficiency_like_cpp = state.weapon_proficiency;
+        self.represented_armor_proficiency_like_cpp = state.armor_proficiency;
+        Some(result)
     }
 }
