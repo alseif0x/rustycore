@@ -66,11 +66,16 @@ Storage world tests pass; DB/restart/relogin durability remains explicitly open.
 The first F1 equipment/stat projection is integrated by PR #851 (`b26ce713`, implementation
 `fb33111c`). A private character stat module now derives the represented equipment inputs
 and publishes one runtime-only `PlayerEffectiveCombatStatsLikeCpp` snapshot owned by
-`Player` at login and equipment recalculation. The packet VALUES adapter split is retained;
-this slice does not make the snapshot a persistence record or claim combat-consumer parity.
-Keep #61 open for exact C++ combat/AP/damage/aura/regen consumers, reversible equipment
-lifecycle and capture/live DB/relogin evidence. F2 (#29/#31) may consume the snapshot only
-after those missing participants are integrated and acceptance is recorded.
+`Player` at login and equipment recalculation. PR #857 (`fd302c35`) makes initial spell
+threat consume the Player-owned AP snapshot with C++ clamp/multiplier order
+(`Spell.cpp:5558-5575`, `Unit.cpp:9165-9180`). PR #858 (`cda7f8a0`) makes melee
+consume Player-owned base/offhand weapon ranges derived by the C++-shaped `wow-data`
+projection. The packet VALUES adapter split is retained; these slices do not make the
+snapshot a persistence record or claim full combat parity. Keep #61 open for aura-backed
+producers, exact AP/damage/aura/regen/expertise/penetration behavior, complete weapon
+admission, reversible equipment lifecycle and capture/live DB/relogin evidence. F2
+(#29/#31) may consume the snapshot only after those missing participants are integrated
+and acceptance is recorded.
 
 The first F1 movement-admission slice is integrated by PR #853
 (`7c3add2f`, implementation `3af90ec2`). It enforces the C++ early returns for
@@ -287,7 +292,7 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#56](https://github.com/alseif0x/rustycore/issues/56) | F3, area-trigger | Bits, conditions, scripts and tavern paths exist; trace residual explore/BG/corpse/transfer semantics. |
 | [#58](https://github.com/alseif0x/rustycore/issues/58) | Superseded by #41 | Preserve timed-active exclusivity and recursive breadcrumb admission as explicit quest criteria. |
 | [#59](https://github.com/alseif0x/rustycore/issues/59) | Superseded by #41 | Preserve acceptance/completion/reward participants and evidence, without redoing #718. |
-| [#61](https://github.com/alseif0x/rustycore/issues/61) | F1, equipment/stats | **Projection integrated by PR #851 (`b26ce713`); issue remains open.** Finish production combat/melee/spell consumers, exact C++ AP/damage/aura/regen/expertise/penetration paths, reversible equip/unequip and broken/repair lifecycle, then capture/live DB/relogin acceptance before accepting combat numbers. |
+| [#61](https://github.com/alseif0x/rustycore/issues/61) | F1, equipment/stats | **Projection and first consumers integrated by PR #851 (`b26ce713`), #857 (`fd302c35`) and #858 (`cda7f8a0`); issue remains open.** Finish aura-backed producers, exact C++ AP/damage/aura/regen/expertise/penetration paths, complete weapon admission, reversible equip/unequip and broken/repair lifecycle, then capture/live DB/relogin acceptance before accepting combat numbers. |
 | [#63](https://github.com/alseif0x/rustycore/issues/63) | F1, movement | **Admission + transport/ACK slices integrated by PR #853/#855/#859/#860/#862/#864 (`2d375ef1`):** pending teleport and unfinished controlled-mover spline fail closed before side effects; canonical Map-owned transport membership switches/detaches safely and resets missing targets; vehicle passenger turning follows the C++ early return; stale transport distance validation covers controlled Creature/Pet movers; `MoveTimeSkipped` and movement-force Apply/Remove/mod-magnitude ACKs validate, advance/check and publish from the active controlled mover. Continue complete seat/offset admission, ordinary speed ACKs, knockback/death/BG/taxi operations, broader mover kinds and live capture/QA; preserve #588 deferred visibility. |
 | [#65](https://github.com/alseif0x/rustycore/issues/65) | L, source-evidence index | Correct finding/issue status and retain exact C++ provenance; not a separate implementation queue or fresh count. |
 | [#99](https://github.com/alseif0x/rustycore/issues/99) | X, module ecosystem | #583 is the selected stateful product; wider language/WIT/hot-reload proposals remain later capability-led planning. |

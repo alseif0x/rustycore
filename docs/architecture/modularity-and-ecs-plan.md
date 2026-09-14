@@ -64,6 +64,15 @@ runtime-only effective-stat snapshot. The packet adapter remains a consumer, not
 mutable authority. This is a bounded F1 delivery; combat consumers, complete aura/regen
 math, reversible equipment lifecycle and live/capture acceptance remain in #61.
 
+PR #857 extends that projection to the initial spell-threat consumer. The Player snapshot
+retains AP and ranged-AP multipliers, and the consumer follows the C++ modifier sum,
+non-negative clamp and multiplier order (`Spell.cpp:5558-5575`, `Unit.cpp:9165-9180`).
+PR #858 extends it to melee weapon ranges: the pass snapshots Player-owned base/offhand
+ranges before the mutable Unit timer transition, using one C++-shaped `wow-data`
+projection for item/AP/delay inputs. Both are bounded consumers; aura-backed producers,
+complete combat math, weapon admission and live/capture acceptance remain explicit #61
+work. No second stat authority, lock or clock is introduced.
+
 PR #853 adds a bounded movement admission boundary under #63. The Session handler
 performs only the C++ preconditions and delegates spline finalization to the active
 runtime owner: legacy `MapManager` while that path is live, then the canonical map
