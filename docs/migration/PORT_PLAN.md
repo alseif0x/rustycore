@@ -63,6 +63,16 @@ full aura gameplay or persistence acceptance; captures, DB/restart/relogin and l
 QA remain explicit later gates. The next #584 macro still requires a fresh C0-C4
 responsibility/consumer audit.
 
+The next bounded P2 owner closure moves represented `TradeData` transitions onto
+`wow-entities::Player`. The candidate names open/clear, state-index, acceptance,
+gold, item-slot and trade-spell operations over `Player::m_trade`, anchored to
+`Player.h:2998`, `TradeHandler.cpp:694-695`, `Player.cpp:12864-12879` and
+`TradeData.cpp:58-150`. Session remains the protocol/application adapter for
+money and inventory admission, packet encoding and partner mailbox delivery; its
+generic whole-state mutator is test-fixture-only. The delivery does not claim
+trade settlement durability, captures or live QA, and the next #584 macro still
+requires a fresh C0-C4 audit after this candidate.
+
 The P2 item-modifier writer residual is integrated by PR #816: the original
 `&mut PlayerItemBonusStateLikeCpp` closure was retired behind a named Player-owned
 resolved-effect operation. The follow-up owner closure was delivered in implementation

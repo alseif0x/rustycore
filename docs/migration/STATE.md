@@ -37,6 +37,19 @@ canonical/detached/replacement aura-authority regression, both package checks,
 formatting/diff checks and architecture ratchet pass. Full aura gameplay, exact
 packet captures, durable DB/restart/relogin and live QA remain separate #584 gates.
 
+**P2 Player-owned trade transitions — 2026-09-14, #584 / implementation candidate
+`584-trade-owner-closure`:** the represented `TradeData` state now has a private
+`wow-entities::Player` owner module with named open/clear, state-index,
+acceptance, gold, item-slot and trade-spell transitions. This follows
+`Player::m_trade` (`Player.h:2998`), creation in `TradeHandler.cpp:694-695`,
+cleanup in `Player.cpp:12864-12879` and `TradeData.cpp:58-150`. Session retains
+money/inventory/catalog admission, packet encoding and partner mailbox delivery;
+its broad trade mutator is available only to handle-less `cfg(test)` fixtures.
+The focused Player owner regressions and the 15-test social scenario suite pass,
+as do the world check, architecture ratchet and formatting/diff checks. This is
+an ownership closure: full trade settlement durability, captures and live QA stay
+with the gameplay acceptance boundary.
+
 **F1 movement knockback-ACK slice — 2026-09-14, #63 / PR #866, merge
 `0079daa81c4955e38031009a24b17b8dbabc7d9b`:** `HandleMoveKnockBackAck` now
 admits a status whose GUID is the active `_player->m_unitMovedByMe`, after the
