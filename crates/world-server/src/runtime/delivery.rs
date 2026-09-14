@@ -98,7 +98,14 @@ pub(crate) fn deliver_canonical_map_object_values_updates_like_cpp(
                 summary.candidates_skipped_wrong_instance += 1;
                 continue;
             }
-            if !recipient.committed_visibility.contains(&update.object_guid) {
+            let recipient_has_object = if update.object_guid.is_mo_transport() {
+                recipient
+                    .committed_visible_transports
+                    .contains(&update.object_guid)
+            } else {
+                recipient.committed_visibility.contains(&update.object_guid)
+            };
+            if !recipient_has_object {
                 summary.candidates_skipped_not_visible += 1;
                 continue;
             }

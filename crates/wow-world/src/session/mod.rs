@@ -7101,7 +7101,8 @@ pub struct WorldSession {
     pub(crate) loaded_player_customizations_like_cpp:
         Box<Vec<wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate>>,
     /// C++ `Player::m_visibleTransports`, maintained by `Map::SendInitTransports`.
-    pub(crate) client_visible_transports_like_cpp: std::collections::HashSet<wow_core::ObjectGuid>,
+    pub(crate) client_visible_transports_like_cpp:
+        crate::session::mailbox::SharedClientVisibleTransportsLikeCpp,
     /// Current C++ `m_movementInfo.transport.guid`, used to exclude the
     /// player's own transport from `Map::SendInitTransports`.
     #[cfg(test)]
@@ -8851,7 +8852,7 @@ impl WorldSession {
             client_visible_guids_like_cpp: SharedClientVisibleGuidsLikeCpp::default(),
             #[cfg(test)]
             loaded_player_customizations_like_cpp: Box::default(),
-            client_visible_transports_like_cpp: std::collections::HashSet::new(),
+            client_visible_transports_like_cpp: Default::default(),
             #[cfg(test)]
             player_transport_login_state_like_cpp: None,
             suppress_creature_movement_queued_at_or_before_like_cpp: None,
@@ -12438,6 +12439,7 @@ impl WorldSession {
                     &self.durable_creature_runtime_commands_like_cpp,
                 ),
                 client_visible_guids_like_cpp: self.client_visible_guids_like_cpp.clone(),
+                client_visible_transports_like_cpp: self.client_visible_transports_like_cpp.clone(),
                 advanced_combat_logging_enabled_like_cpp: Arc::clone(
                     &self.advanced_combat_logging_enabled_like_cpp,
                 ),

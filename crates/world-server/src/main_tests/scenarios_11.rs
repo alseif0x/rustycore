@@ -58,6 +58,47 @@ fn canonical_map_object_values_delivery_uses_committed_visibility_and_phase_like
 }
 
 #[test]
+fn canonical_map_transport_values_delivery_uses_visible_transports_membership_like_cpp() {
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
+    let visible_guid = ObjectGuid::create_player(1, 93);
+    let not_visible_guid = ObjectGuid::create_player(1, 94);
+    let transport_guid = ObjectGuid::create_transport(HighGuid::Transport, 590002);
+    let (visible_info, visible_rx) = make_registry_player_like_cpp(571, 4, Position::ZERO, true);
+    let (not_visible_info, not_visible_rx) =
+        make_registry_player_like_cpp(571, 4, Position::ZERO, true);
+    visible_info
+        .client_visible_transports_like_cpp
+        .insert(transport_guid);
+    registry.register_or_replace(visible_guid, visible_info, Default::default());
+    registry.register_or_replace(not_visible_guid, not_visible_info, Default::default());
+
+    let update = crate::CanonicalMapObjectValuesUpdateLikeCpp {
+        map_id: 571,
+        instance_id: 4,
+        object_guid: transport_guid,
+        packet_bytes: vec![0x52, 0x25],
+        unit_values_update: None,
+    };
+    let summary = crate::deliver_canonical_map_object_values_updates_like_cpp(&[update], &registry);
+
+    assert_eq!(summary.updates_seen, 1);
+    assert_eq!(summary.candidates_seen, 2);
+    assert_eq!(summary.candidates_queued, 1);
+    assert_eq!(summary.candidates_skipped_not_visible, 1);
+    match visible_rx
+        .try_recv()
+        .expect("visible transport receives update")
+    {
+        SessionCommand::SendVisibleObjectValuesUpdate(command) => {
+            assert_eq!(command.object_guid, transport_guid);
+            assert_eq!(command.packet_bytes, vec![0x52, 0x25]);
+        }
+        other => panic!("unexpected command: {other:?}"),
+    }
+    assert!(not_visible_rx.try_recv().is_err());
+}
+
+#[test]
 fn loaded_grid_creature_spawn_group_spawn_record_does_not_require_respawn_timer_like_cpp() {
     let spawn_id = 54_985;
     let entry = 42;

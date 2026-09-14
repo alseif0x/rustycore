@@ -230,6 +230,7 @@ fn broadcast_info_with_command(
         session_phase_tx: crate::session::directory::detached_session_phase_rail_like_cpp(),
         durable_creature_runtime_commands_like_cpp: Default::default(),
         client_visible_guids_like_cpp: Default::default(),
+        client_visible_transports_like_cpp: Default::default(),
         advanced_combat_logging_enabled_like_cpp: Default::default(),
         visibility_refresh_pending_like_cpp: Default::default(),
     }

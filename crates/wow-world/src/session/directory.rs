@@ -25,6 +25,7 @@ use crate::session::mailbox::{
     ReconcilePvpCombatExpiryLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
     SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand,
     SendPlayerSpellIfVisibleLikeCppCommand, SessionCommand, SharedClientVisibleGuidsLikeCpp,
+    SharedClientVisibleTransportsLikeCpp,
 };
 use dashmap::DashMap;
 use std::collections::{HashMap, HashSet};
@@ -75,6 +76,9 @@ pub struct PlayerSessionRegistrationLikeCpp {
     /// is resolved read it here instead of leaving the receiving session to
     /// re-derive visibility from state that moved on in the meantime.
     pub client_visible_guids_like_cpp: SharedClientVisibleGuidsLikeCpp,
+    /// Shared C++ `Player::m_visibleTransports` membership. Transport VALUES
+    /// use this set rather than the ordinary `m_clientGUIDs` visibility set.
+    pub client_visible_transports_like_cpp: SharedClientVisibleTransportsLikeCpp,
     /// Shared C++ advanced-combat-logging preference for this session.
     ///
     /// `WorldObject::SendCombatLogMessage` picks the basic or full `SMSG_SPELL_GO`
@@ -323,6 +327,9 @@ pub struct PlayerRuntimeRecipient {
     pub in_combat: bool,
     pub advanced_combat_logging: bool,
     pub committed_visibility: SharedClientVisibleGuidsLikeCpp,
+    /// Committed transport CREATE membership, equivalent to C++
+    /// `Player::m_visibleTransports`.
+    pub committed_visible_transports: SharedClientVisibleTransportsLikeCpp,
 }
 
 /// Owned online identity used by chat/social lookup. Delivery must use the
@@ -470,6 +477,7 @@ struct PlayerRegistryEntry {
     /// Shared handles read live at resolve time; beside the entry, not in the
     /// projection, so publishing gameplay state cannot replace one (#361).
     client_visible_guids_like_cpp: SharedClientVisibleGuidsLikeCpp,
+    client_visible_transports_like_cpp: SharedClientVisibleTransportsLikeCpp,
     advanced_combat_logging_enabled_like_cpp: Arc<AtomicBool>,
     visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
     /// Durable loot-money coordination for this incarnation.
@@ -570,6 +578,7 @@ impl PlayerRegistry {
             session_phase_tx,
             durable_creature_runtime_commands_like_cpp,
             client_visible_guids_like_cpp,
+            client_visible_transports_like_cpp,
             advanced_combat_logging_enabled_like_cpp,
             visibility_refresh_pending_like_cpp,
         } = registration;
@@ -586,6 +595,7 @@ impl PlayerRegistry {
                 session_phase_tx,
                 durable_creature_runtime_commands_like_cpp,
                 client_visible_guids_like_cpp,
+                client_visible_transports_like_cpp,
                 advanced_combat_logging_enabled_like_cpp,
                 visibility_refresh_pending_like_cpp,
                 durable_loot_money,
@@ -689,7 +699,7 @@ impl PlayerRegistry {
     /// Resolve one current runtime recipient without exposing directory storage.
     #[must_use]
     pub fn runtime_recipient(&self, guid: ObjectGuid) -> Option<PlayerRuntimeRecipient> {
-        let (registration, placement, account_id, logging, visibility) = {
+        let (registration, placement, account_id, logging, visibility, transports) = {
             let entry = self.entries.get(&guid)?;
             (
                 PlayerRegistration {
@@ -702,6 +712,7 @@ impl PlayerRegistry {
                     .advanced_combat_logging_enabled_like_cpp
                     .load(Ordering::Relaxed),
                 entry.client_visible_guids_like_cpp.clone(),
+                entry.client_visible_transports_like_cpp.clone(),
             )
         };
         let (combat_reach, in_combat, liquid_status) =
@@ -728,6 +739,7 @@ impl PlayerRegistry {
             in_combat,
             advanced_combat_logging: logging,
             committed_visibility: visibility,
+            committed_visible_transports: transports,
         })
     }
 
@@ -2188,6 +2200,7 @@ mod tests {
             session_phase_tx: crate::session::directory::detached_session_phase_rail_like_cpp(),
             durable_creature_runtime_commands_like_cpp: Default::default(),
             client_visible_guids_like_cpp: Default::default(),
+            client_visible_transports_like_cpp: Default::default(),
             advanced_combat_logging_enabled_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
         }

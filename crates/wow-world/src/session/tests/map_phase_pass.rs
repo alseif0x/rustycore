@@ -44,6 +44,7 @@ fn register_session_for_phases(session: &mut WorldSession) {
             session_phase_tx: session.session_phase_sender_like_cpp(),
             durable_creature_runtime_commands_like_cpp: Default::default(),
             client_visible_guids_like_cpp: Default::default(),
+            client_visible_transports_like_cpp: Default::default(),
             advanced_combat_logging_enabled_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
         },

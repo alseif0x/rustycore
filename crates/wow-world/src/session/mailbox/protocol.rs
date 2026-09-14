@@ -34,6 +34,11 @@ pub struct SharedClientVisibleGuidsLikeCpp {
     inner: Arc<std::sync::RwLock<HashSet<ObjectGuid>>>,
 }
 
+/// C++ `Player::m_visibleTransports` uses the same generation-safe shared
+/// membership operations as `m_clientGUIDs`, but remains a separate set so a
+/// transport is not mistaken for an ordinary visible object.
+pub type SharedClientVisibleTransportsLikeCpp = SharedClientVisibleGuidsLikeCpp;
+
 impl SharedClientVisibleGuidsLikeCpp {
     fn read_like_cpp(&self) -> std::sync::RwLockReadGuard<'_, HashSet<ObjectGuid>> {
         self.inner
