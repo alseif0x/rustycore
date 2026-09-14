@@ -519,6 +519,21 @@ impl MapObjectRecord {
         }
     }
 
+    pub fn charmer_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        match &self.body {
+            MapObjectBody::Creature(creature) => {
+                creature.unit().subsystems().control.charmer_guid_like_cpp()
+            }
+            MapObjectBody::Pet(pet) => pet
+                .creature()
+                .unit()
+                .subsystems()
+                .control
+                .charmer_guid_like_cpp(),
+            _ => None,
+        }
+    }
+
     pub fn player(&self) -> Option<&Player> {
         match &self.body {
             MapObjectBody::Player(player) => Some(player.as_ref()),

@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #925/#924/#923/#922/#921/#919/#918/#917/#916/#915/#913/#911/#909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.11/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #927/#925/#924/#923/#922/#921/#919/#918/#917/#916/#915/#913/#911/#909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.12/P3.11/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -198,6 +198,20 @@ passes together with the affected package check, formatting and diff checks.
 This is a visibility projection closure only: Pet AI/movement, summon ownership and
 persistence, directed Pet DESTROY, transport/corpse lifecycle, captures and live QA
 remain separate #584/#63 gates.
+
+## P3.12 directed Pet DESTROY — candidate PR #927, 2026-09-14
+
+TrinityCore's generic `Map::RemoveFromMap` calls `WorldObject::DestroyForNearbyPlayers`
+while a unit is still attached (`Map.cpp:934-951`, `Object.cpp:3617-3648`);
+`Pet::RemoveFromWorld` reaches that Unit path (`Pet.cpp:94-101`). The bounded Rust
+change extends the existing pre-erasure recipient capture and deferred directed
+DESTROY command from ordinary Creature to Pet, preserving the charmer exclusion,
+map-incarnation fence and Session `HaveAtClient` gate. No Pet AI, summon, persistence,
+vehicle or transport authority moves.
+
+The focused `wow-map visibility` suite (47 tests) and `wow-world deferred_visibility`
+suite (12 tests, including Creature and Pet directed removal) pass with one Cargo job;
+format, diff and architecture ratchets remain required before merge.
 
 ## P2 Player instance-reset owner — integrated PR #919, 2026-09-14
 
@@ -432,7 +446,7 @@ de microissues:
 | P0 | Herramientas de ownership, imports, bridges y ratchet físico | #716 integrado y cerrado; su evidencia es histórica y no se repite aquí |
 | P1 | Recompensa de misión y contrato durable | #718 integrado y cerrado; no hay evidencia real de DB/restart/relogin |
 | P2 | Fronteras de Player y operaciones completas | #743 y #735 entregados; continúan los residuales por consumidores |
-| P3 | Fases, runtime, lifetime, residencia/incarnation y storage selectivo | #787 entregado; P3.1 retiró el escritor Creature canónico descartado, P3.2 publicó `SendObjectUpdates`, P3.3 corrigió el orden de respawn/condiciones antes de los visitantes, P3.4 conectó la selección cercana de `ObjectUpdater` con producción, P3.5 corrigió el radio de activación por fuente, P3.6 añadió el override de cinemática del Player, P3.7 publica el fanout de visibilidad de relocalización de Creature, P3.8 marca receptores cercanos para admisión/remoción de objetos, P3.9 publica DESTROY dirigido de Creature ordinaria con vallas de encarnación/`HaveAtClient`, P3.10 publica VALUES Player/Unit filtrados por receptor fuera del guard de Map y P3.11 incluye Pets canónicas en la búsqueda de CREATE de Creature conservando las puertas de fase/rango/detección; #873 retira esos dos tipos del rail genérico para evitar duplicados y exposición de campos de propietario; #876 proyecta la membresía separada de Transport para VALUES; #878 cierra las transiciones nominales del mount VehicleKit en Player; #881 cierra
+| P3 | Fases, runtime, lifetime, residencia/incarnation y storage selectivo | #787 entregado; P3.1 retiró el escritor Creature canónico descartado, P3.2 publicó `SendObjectUpdates`, P3.3 corrigió el orden de respawn/condiciones antes de los visitantes, P3.4 conectó la selección cercana de `ObjectUpdater` con producción, P3.5 corrigió el radio de activación por fuente, P3.6 añadió el override de cinemática del Player, P3.7 publica el fanout de visibilidad de relocalización de Creature, P3.8 marca receptores cercanos para admisión/remoción de objetos, P3.9 publica DESTROY dirigido de Creature ordinaria con vallas de encarnación/`HaveAtClient`, P3.10 publica VALUES Player/Unit filtrados por receptor fuera del guard de Map, P3.11 incluye Pets canónicas en la búsqueda de CREATE de Creature y P3.12 extiende DESTROY dirigido a Pets con las mismas vallas; #873 retira esos dos tipos del rail genérico para evitar duplicados y exposición de campos de propietario; #876 proyecta la membresía separada de Transport para VALUES; #878 cierra las transiciones nominales del mount VehicleKit en Player; #881 cierra
 las transiciones nominales de aura sobre el Unit-owned AuraSubsystem; el escritor legado, AI/combat, scripts, FlyByCamera, el runtime/owner lifecycle restante de Pet/corpse/transport, flags shared-raid y los gates de captura siguen pendientes bajo #584 |
 | P4 | Organización física, excepciones y límites semánticos | #584, acompañado por cada operación; la medición de 31 paths permanece histórica |
 | P5 | Producto de módulos M0–M4, nativo/Wasm y Rust/Wasm/C | #583, tras los requisitos core de #584; no bloquea gameplay independiente |

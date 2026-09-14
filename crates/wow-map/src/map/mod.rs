@@ -94,10 +94,7 @@ use wow_entities::{
     VehicleKitRemoveOutcomeLikeCpp, WorldObject, WorldObjectEnvironment, WorldObjectHeightQuery,
 };
 
-/// One map-owned Creature removal and the Players that were eligible for the
-/// C++ `WorldObject::DestroyForNearbyPlayers` walk while the source remained
-/// attached. The session registry resolves each recipient's current
-/// registration before publication.
+/// Map-owned Creature/Pet removal recipients captured before deferred publication.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreatureVisibilityDestroyRecipientsLikeCpp {
     pub creature_guid: ObjectGuid,

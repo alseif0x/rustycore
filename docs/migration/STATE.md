@@ -47,6 +47,17 @@ the projection gap only; Pet AI/movement, summon ownership/persistence, directed
 Pet DESTROY, corpse/transport lifecycle, exact captures and live DB/restart/relogin
 QA remain explicit #584/#63 gates.
 
+**Directed Pet DESTROY candidate — 2026-09-14, #584 / PR #927 candidate:**
+TrinityCore removes ordinary units through `Map::RemoveFromMap` while the source is
+still attached, so `WorldObject::DestroyForNearbyPlayers` can walk nearby Players
+(`Map.cpp:934-951`, `Object.cpp:3617-3648`); `Pet::RemoveFromWorld` follows that
+Unit path (`Pet.cpp:94-101`). Rust now captures Creature/Pet recipients before
+canonical erasure and sends the existing deferred directed DESTROY command for Pet
+GUIDs as well, retaining charmer exclusion, map-incarnation and `HaveAtClient`
+fences. The `wow-map` visibility suite (47 tests) and `wow-world` deferred-visibility
+suite (12 tests, including the Pet case) pass. This does not move Pet AI, summon
+ownership, persistence, vehicle/transport lifecycle or live QA.
+
 **Transport C0/C3 lifecycle integrated — 2026-09-14, PR #901, merge
 `bf460aa7a8ccec0269eea1771a094ef12f0c6109` (implementation `82b2d8d9`):** the bounded
 CREATE/DESTROY and phase-visibility slice is integrated into `3.4.3`. `wow-map` marks same-phase Players

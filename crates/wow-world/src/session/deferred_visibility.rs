@@ -13,17 +13,17 @@ use wow_map::PlayerVisibilityRefreshIntentLikeCpp;
 
 impl WorldSession {
     /// Apply one map-owned C++ `WorldObject::DestroyForNearbyPlayers` result
-    /// after the map guard has been released. The command is intentionally
-    /// narrow: ordinary Creature GUIDs only; the session's client-visible set
-    /// is the final `HaveAtClient` authority and is mutated atomically with the
-    /// destroy packet decision.
+    /// after the map guard has been released. The command covers ordinary
+    /// Creature/Pet GUIDs; the session's client-visible set is the final
+    /// `HaveAtClient` authority and is mutated atomically with the destroy
+    /// packet decision.
     pub(crate) fn handle_destroy_visible_creature_like_cpp_command_like_cpp(
         &mut self,
         command: DestroyVisibleCreatureLikeCppCommand,
     ) {
         if self.state() != SessionState::LoggedIn
             || self.is_disconnecting()
-            || !command.creature_guid.is_creature()
+            || !command.creature_guid.is_creature_or_pet()
             || self.player_map_id_like_cpp() != command.map_id
         {
             return;
