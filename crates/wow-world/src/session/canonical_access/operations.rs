@@ -336,6 +336,13 @@ impl WorldSession {
         };
         manager.player_residence_like_cpp(handle).is_some()
     }
+    #[cfg(test)]
+    pub(in crate::session) fn mutate_player_unit_presentation_like_cpp<R>(
+        &mut self,
+        mutate: impl FnOnce(&mut Player) -> R,
+    ) -> Option<R> {
+        self.with_owned_player_mut_like_cpp(mutate)
+    }
     pub(in crate::session) fn mutate_player_collection_state_like_cpp<R>(
         &mut self,
         mutate: impl FnOnce(&mut wow_entities::PlayerCollectionStateLikeCpp) -> R,
@@ -344,12 +351,6 @@ impl WorldSession {
         let result = mutate(&mut state);
         self.replace_player_collection_state_like_cpp(state)
             .then_some(result)
-    }
-    pub(in crate::session) fn mutate_player_unit_presentation_like_cpp<R>(
-        &mut self,
-        mutate: impl FnOnce(&mut Player) -> R,
-    ) -> Option<R> {
-        self.with_owned_player_mut_like_cpp(mutate)
     }
     /// Read this session's own canonical `Player`.
     ///
