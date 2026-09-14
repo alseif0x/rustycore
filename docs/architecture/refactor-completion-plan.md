@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #869 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.9/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #873 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.10/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -13,9 +13,12 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza integrada, 2026-09-14: PR #869**, en `3.4.3` como
-`abd396a0afcb247b411acbaf0d05d8713b747daf`. PR #866 queda como la entrega previa de knockback ACK; PR #864 queda como la entrega previa de ACK. PR #862 queda como la entrega previa de ACK anterior. PR #853 queda como la entrega previa de admisión. #787 / PR #792 (`d14a9a67`) y
-#584 P2 item-bonus, P2 item-object y P3.1–P3.9 están integrados dentro de esta cabeza.
+**Cabeza de código integrada, 2026-09-14: PR #873**, en `3.4.3` como
+`bd5b13d4b885f1887b95c654e2ebdb13f6c70c49`. PR #873 corrige el fanout P3.10
+integrado por #871 (`304f482b101ff0ac8600854bd1a4ebb72cec2b5d`): Player/Unit
+queda exclusivamente en el rail de Session filtrado por receptor y la sesión
+revalida el `MapKey` después de soltar el guard de Map. PR #866 queda como la entrega previa de knockback ACK; PR #864 queda como la entrega previa de ACK. PR #862 queda como la entrega previa de ACK anterior. PR #853 queda como la entrega previa de admisión. #787 / PR #792 (`d14a9a67`) y
+#584 P2 item-bonus, P2 item-object y P3.1–P3.10 están integrados dentro de esta cabeza.
 La entrega de ownership de modificadores de objetos está integrada mediante PR #839
 (implementación `ecc67603`) y retira la superficie mutante genérica restante. La coordinación World/Map está
 implementada y aceptada localmente en `76369bda`; la corrección mantiene el ACK World pendiente hasta finalizar y
@@ -55,12 +58,17 @@ declined names y las mutaciones de undelete/barber aún no representadas. La ace
 de bytes/captura y la QA viva siguen siendo gates de la issue; la integración remota ya
 está satisfecha.
 
-Las macros P3.7, P3.8 y P3.9 de núcleo bajo #584 quedaron integradas. P3.7 conecta los planes
+Las macros P3.7, P3.8, P3.9 y P3.10 de núcleo bajo #584 quedaron integradas. P3.7 conecta los planes
 de relocalización de criaturas ya calculados con la única vía de publicación de sesiones,
 reutiliza las fuentes lejanas de `ObjectUpdater` y aplica el radio de activación por
 fuente; P3.8 marca los Players cercanos para el mismo rail cuando un objeto entra o sale
 del mapa; P3.9 captura y publica el DESTROY dirigido de una Creature ordinaria con
-vallas de encarnación y `HaveAtClient` después de liberar el guard de Map. La macro P2
+vallas de encarnación y `HaveAtClient` después de liberar el guard de Map. P3.10
+publica los snapshots Player/Unit de `Map::SendObjectUpdates` con filtrado por
+receptor y corrige el enqueue canónico de Unit antes de capturar sus máscaras; el
+envío ocurre fuera del guard de Map. La corrección #873 retira Player/Unit del
+rail genérico de mapa para evitar doble entrega y bytes de propietario sin filtrar,
+y vuelve a comprobar la clave de mapa antes de publicar. La macro P2
 del último escritor genérico de bonos de objeto también quedó
 integrada por PR #816: el estado resuelto se aplica mediante una operación nominal
 del runtime propiedad del Player y se retiró el cierre `&mut` de Session. La siguiente
@@ -166,7 +174,7 @@ de microissues:
 | P0 | Herramientas de ownership, imports, bridges y ratchet físico | #716 integrado y cerrado; su evidencia es histórica y no se repite aquí |
 | P1 | Recompensa de misión y contrato durable | #718 integrado y cerrado; no hay evidencia real de DB/restart/relogin |
 | P2 | Fronteras de Player y operaciones completas | #743 y #735 entregados; continúan los residuales por consumidores |
-| P3 | Fases, runtime, lifetime, residencia/incarnation y storage selectivo | #787 entregado; P3.1 retiró el escritor Creature canónico descartado, P3.2 publicó `SendObjectUpdates`, P3.3 corrigió el orden de respawn/condiciones antes de los visitantes, P3.4 conectó la selección cercana de `ObjectUpdater` con producción, P3.5 corrigió el radio de activación por fuente, P3.6 añadió el override de cinemática del Player, P3.7 publica el fanout de visibilidad de relocalización de Creature, P3.8 marca receptores cercanos para admisión/remoción de objetos y P3.9 publica DESTROY dirigido de Creature ordinaria con vallas de encarnación/`HaveAtClient`; el escritor legado, AI/combat, scripts, FlyByCamera, CREATE/Pet/corpse/transport y los gates de captura siguen pendientes bajo #584 |
+| P3 | Fases, runtime, lifetime, residencia/incarnation y storage selectivo | #787 entregado; P3.1 retiró el escritor Creature canónico descartado, P3.2 publicó `SendObjectUpdates`, P3.3 corrigió el orden de respawn/condiciones antes de los visitantes, P3.4 conectó la selección cercana de `ObjectUpdater` con producción, P3.5 corrigió el radio de activación por fuente, P3.6 añadió el override de cinemática del Player, P3.7 publica el fanout de visibilidad de relocalización de Creature, P3.8 marca receptores cercanos para admisión/remoción de objetos, P3.9 publica DESTROY dirigido de Creature ordinaria con vallas de encarnación/`HaveAtClient` y P3.10 publica VALUES Player/Unit filtrados por receptor fuera del guard de Map; #873 retira esos dos tipos del rail genérico para evitar duplicados y exposición de campos de propietario; el escritor legado, AI/combat, scripts, FlyByCamera, CREATE/Pet/corpse/transport, flags shared-raid y los gates de captura siguen pendientes bajo #584 |
 | P4 | Organización física, excepciones y límites semánticos | #584, acompañado por cada operación; la medición de 31 paths permanece histórica |
 | P5 | Producto de módulos M0–M4, nativo/Wasm y Rust/Wasm/C | #583, tras los requisitos core de #584; no bloquea gameplay independiente |
 | P6 | Auditoría terminal y evidencia integrada | #153, después de #584 y #583; no absorbe implementación |
@@ -1015,7 +1023,11 @@ Las diferencias que quedan, y que son el trabajo P3 real:
    `Map::RemoveFromMap`, marcando `NOTIFY_VISIBILITY_CHANGED` antes de insertar/retirar
    el objeto y dejando la entrega fuera del guard de Map. P3.9 añade la publicación
    dirigida de DESTROY para Creature ordinaria con vallas de encarnación y
-   `HaveAtClient`; CREATE, Pet/corpse/transport, FlyByCamera, scripts y AI/combat
+   `HaveAtClient`. P3.10 añade VALUES Player/Unit filtrados por receptor después de
+   `Map::SendObjectUpdates`, también fuera del guard; la corrección #873 evita que
+   Player/Unit entren además en el rail genérico y revalida la clave de mapa antes
+   del envío. CREATE, Pet/corpse/transport,
+   FlyByCamera, scripts y AI/combat
    siguen teniendo contratos propios y no se introducen en esta macro.
 
 #### Selección P3.1 bajo #584 — retirada del escritor sombra de Creature
@@ -1145,6 +1157,33 @@ stale e invisible de `wow-world` y la prueba de la valla de encarnación del mai
 integración se debe repetir el perfil `validation-v2 final` y actualizar este plan
 con el SHA de integración; el siguiente macro se elige solo después de auditar los
 residuales medidos.
+
+#### Entrega P3.10 bajo #584 — VALUES Player/Unit con filtrado por receptor
+
+PR #871 (`304f482b`, implementación `30157c1f`) integra el consumidor de los
+snapshots Player/Unit que `Map::SendObjectUpdates` captura antes de limpiar sus
+máscaras. Los setters de `Unit` vuelven a encolar el objeto canónico mediante
+`AddToObjectUpdateIfNeeded`, y la sesión aplica el filtrado C++ disponible: el
+Player propio conserva `ActivePlayerData`/campos de propietario, mientras un
+observador recibe solo los campos permitidos; Creature/Pet usa el mismo límite de
+mapa, instancia, encarnación, fase, distancia y `HaveAtClient`. La serialización se
+prepara antes de enviar y ningún guard de Map cruza la entrega.
+
+La regresión cubre tres escenarios de `wow-world`, 27 pruebas de `wow-entities`,
+`cargo check` de `world-server`, formato/diff, arquitectura y `validation-v2 quick`
+en `target/validation-v2/manifests/20260914T072651.033982Z-371881-quick.json`.
+El snapshot compartido de grupo/raid, las capturas exactas, la cobertura completa
+CREATE/Pet/corpse/transport y la QA de DB/restart/relogin siguen fuera del alcance.
+El siguiente macro de #584 requiere una auditoría nueva; esta entrega no migra el
+escritor Creature legacy ni cierra el coordinador.
+
+La corrección posterior quedó integrada por PR #873 (`bd5b13d4`) desde
+`5586997d`. El rail genérico ya no recibe Player/Unit, por lo que no puede duplicar
+la publicación ni transportar bytes de propietario a observadores; la sesión falla
+cerrada si el `MapKey` admitido cambió mientras se soltó el lock. Pasan las dos
+regresiones focalizadas (`map_send_object_updates_` de `wow-world` y la entrega
+genérica de `world-server`), `cargo check --locked -p world-server`, formato/diff y
+`python3 tools/architecture/check_architecture.py check` con un job.
 
 #### Entrega F1 bajo #61 — consumidores de AP y rango de arma
 
