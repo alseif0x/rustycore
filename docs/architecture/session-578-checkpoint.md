@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #883:** `0f79ca837a7417876986cf1803f715a8512b7503`.
+**Integrated head after PR #885:** `19dea8e078f5b7bec827532cefb8f46911e332e7`.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -220,10 +220,11 @@ client-index rule. The 15-test social scenario suite, package checks, formatting
 diff and architecture ratchet pass. This is an ownership closure only: complete
 trade settlement durability, exact captures and live QA remain gameplay gates.
 
-## P2 Player-owned guild membership transitions — implementation candidate, 2026-09-14
+## P2 Player-owned guild membership transitions — integrated PR #885, 2026-09-14
 
-The next bounded #584 owner closure moves represented guild membership and pending
-invitation state onto named `wow-entities::Player` operations. The C++ anchors are
+PR #885 integrates this bounded #584 owner closure into `3.4.3` at
+`19dea8e078f5b7bec827532cefb8f46911e332e7` (implementation `f0d32675`). Represented guild membership and pending invitation
+state now use named `wow-entities::Player` operations. The C++ anchors are
 `Player::SetInGuild` (`Player.cpp:7216`), `SetGuildIdInvited` and `SetGuildRank`
 (`Player.h:1939,1943`). Session retains GuildMgr/cache, protocol and application
 effects; the broad composite guild mutator is fixture-only under `cfg(test)`, and

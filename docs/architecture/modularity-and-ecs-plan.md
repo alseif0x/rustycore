@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `0f79ca837a7417876986cf1803f715a8512b7503` (PR #883,
+The current code integration head is `19dea8e078f5b7bec827532cefb8f46911e332e7` (PR #885,
 following PR #876, P3.10 correction PR #873 and delivery PR #871).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
@@ -71,13 +71,15 @@ partner mailbox; its generic whole-state mutator is fixture-only. Owner and soci
 scenario regressions, package checks, formatting/diff and the architecture ratchet
 pass. Trade settlement durability, captures and live QA remain gameplay gates.
 
-The following bounded P2 owner closure moves represented guild membership and invitation
-transitions onto `wow-entities::Player`. Named membership, invitation, rank and
-clear-invitation operations follow `Player::SetInGuild` (`Player.cpp:7216`),
-`SetGuildIdInvited` and `SetGuildRank` (`Player.h:1939,1943`). Session keeps GuildMgr/cache,
-protocol and application effects; the broad whole-state guild mutator remains only for
-handle-less `cfg(test)` fixtures. This is an owner boundary, not guild-manager/database,
-capture or live-QA completion.
+PR #885 closes the bounded P2 owner surface for represented guild membership and
+invitation transitions onto `wow-entities::Player` at
+`19dea8e078f5b7bec827532cefb8f46911e332e7` (implementation `f0d32675`). Named
+membership, invitation, rank and clear-invitation operations
+follow `Player::SetInGuild` (`Player.cpp:7216`), `SetGuildIdInvited` and `SetGuildRank`
+(`Player.h:1939,1943`). Session keeps GuildMgr/cache, protocol and application
+effects; the broad whole-state guild mutator remains only for handle-less `cfg(test)`
+fixtures. This is an owner boundary, not guild-manager/database, capture or live-QA
+completion.
 
 PR #844 closes one of those measured P2 operations: Void Storage's fixed-slot state and
 its clear/load/mark, lookup, free-slot, add, delete and swap transitions now belong to
