@@ -1,12 +1,33 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`10528d454f8e2b1504e6ed87ee5c1eb0a0d38524` (PR #855, following PR #854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`704dc4cb55652bd8a74974146a843dc3edc4a506` (PR #860, following PR #859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**F1 movement stale-mover transport guard — 2026-09-14, #63 / PR #860, merge
+`704dc4cb55652bd8a74974146a843dc3edc4a506`:** the stale transport distance
+check now resolves the active mover position for Player, legacy controlled
+Creature/Pet and the canonical Creature/Pet fallback before comparing against
+`SIZE_OF_GRIDS`, matching `MovementHandler.cpp:345-350` for every represented
+`Unit`. A focused controlled-mover regression rejects a large stale packet
+without relocation or a second `MoveUpdate`; final validation passes with 3,881
+tests and zero failures. #63 remains open for the remaining transport seat/
+offset admission, death/BG/taxi branches, ACK/order and live client/server/DB
+capture QA.
+
+**F1 movement vehicle-turning slice — 2026-09-14, #63 / PR #859, merge
+`95444be06bd7213529a0656d37c4aaeaa3410489`:** a Player passenger in a seat
+with `VEHICLE_SEAT_FLAG_ALLOW_TURNING` now updates only facing, removes turning
+interrupt auras and returns before relocation or `MoveUpdate` publication,
+matching `MovementHandler.cpp:408-421`. Pre-return fall/landing/flight side
+effects stay before the branch, and the focused regression proves unchanged
+coordinates and no broadcast. Final validation passes with 3,881 tests and
+zero failures. #63 remains open for complete transport offset/seat admission,
+other mover kinds, death/BG/taxi branches, ACK/order and live capture QA.
 
 **F1 movement transport membership slice — 2026-09-14, #63 / PR #855, merge
 `10528d454f8e2b1504e6ed87ee5c1eb0a0d38524`:** the accepted Player movement path now reconciles the canonical Map-owned Transport passenger set before side effects and publication. A transport switch removes the previous passenger first; a valid in-world target is added; a missing or not-in-world target resets transport state. Focused attach/switch/detach/missing-target regressions and the 47-test movement suite pass; `validation-v2 final` passes with 3,880 `wow-world` tests and 0 failures. #63 remains open for vehicle seat/turning, complete offset validation, non-Creature/death/BG/taxi branches, ACK/order and live client/server/DB capture QA.
