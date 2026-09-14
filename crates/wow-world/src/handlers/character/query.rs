@@ -382,7 +382,7 @@ impl WorldSession {
                     (self.player_guid() == Some(*guid)).then(|| {
                         crate::session::directory::PlayerNameQuerySnapshotLikeCpp {
                             guid: *guid,
-                            name: self.player_name_like_cpp().unwrap_or_default().to_string(),
+                            name: self.player_name_like_cpp().unwrap_or_default(),
                             account_id: self.account_id,
                             battlenet_account_id: self.battlenet_account_id(),
                             race: self.player_race_like_cpp(),

@@ -112,7 +112,7 @@ fn player_bootstrap_is_consumed_without_a_second_runtime_owner_like_cpp() {
     ));
 
     assert_eq!(session.player_guid(), Some(guid));
-    assert_eq!(session.player_name_like_cpp(), Some("Jaina"));
+    assert_eq!(session.player_name_like_cpp(), Some("Jaina".to_string()));
     assert_eq!(session.player_position_like_cpp(), Some(start));
     assert_eq!(session.player_map_id_like_cpp(), 571);
     assert_eq!(session.player_race_like_cpp(), 1);
@@ -161,6 +161,49 @@ fn player_bootstrap_is_consumed_without_a_second_runtime_owner_like_cpp() {
     assert_eq!(session.player_guid(), None);
     assert!(!session.player_bootstrap_attached_like_cpp);
 }
+
+#[test]
+fn canonical_player_identity_is_the_post_install_authority_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let guid = ObjectGuid::create_player(1, 4242);
+    session.set_player_guid(Some(guid));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    add_canonical_test_player_on_map(&canonical, guid, Position::ZERO, 571, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+
+    let handle = session.player_handle_like_cpp.expect("canonical handle");
+    canonical
+        .lock()
+        .unwrap()
+        .with_player_mut_like_cpp(handle, |player| {
+            player.unit_mut().world_mut().set_name("CanonicalOwner");
+            player.set_race_class_gender(4, 3, wow_constants::Gender::Female);
+            player.unit_mut().set_level(42);
+        })
+        .expect("canonical player");
+
+    session.player_name = Some("stale fixture name".into());
+    session.player_race = 1;
+    session.player_class = 1;
+    session.player_level = 1;
+    session.player_gender = 0;
+    assert_eq!(
+        session.player_name_like_cpp(),
+        Some("CanonicalOwner".into())
+    );
+    assert_eq!(session.player_race_like_cpp(), 4);
+    assert_eq!(session.player_class_like_cpp(), 3);
+    assert_eq!(session.player_level_like_cpp(), 42);
+    assert_eq!(session.player_gender_like_cpp(), 1);
+
+    session.set_loaded_player_identity_like_cpp(571, 2, 8, 60, 0);
+    assert_eq!(session.player_race_like_cpp(), 2);
+    assert_eq!(session.player_class_like_cpp(), 8);
+    assert_eq!(session.player_level_like_cpp(), 60);
+    assert_eq!(session.player_gender_like_cpp(), 0);
+}
+
 #[test]
 fn gray_level_matches_cpp_formula_and_script_override_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();

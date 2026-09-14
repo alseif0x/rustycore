@@ -600,6 +600,7 @@ impl WorldSession {
             Err(_) => return false,
         };
         self.player_handle_like_cpp = Some(handle);
+        self.player_identity_bootstrap_like_cpp = None;
         true
     }
     /// Apply a heal to the canonical Player owner and return

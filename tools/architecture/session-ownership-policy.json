@@ -1907,8 +1907,10 @@
           "name": "player_class",
           "type": "u8",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_collision_height_like_cpp",
@@ -2029,6 +2031,15 @@
           "name": "player_gender",
           "type": "u8",
           "visibility": "private",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
+          "name": "player_identity_bootstrap_like_cpp",
+          "type": "Option < PlayerIdentityBootstrapLikeCpp >",
+          "visibility": "private",
           "cfg": [],
           "source_class": "production"
         },
@@ -2095,8 +2106,10 @@
           "name": "player_level",
           "type": "u8",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_loading",
@@ -2231,8 +2244,10 @@
           "name": "player_name",
           "type": "Option < String >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_next_level_xp",
@@ -2337,8 +2352,10 @@
           "name": "player_race",
           "type": "u8",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_registry",
@@ -33930,7 +33947,7 @@
           "kind": "method",
           "name": "player_name_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn player_name_like_cpp (& self) -> Option < & str >",
+          "signature": "fn player_name_like_cpp (& self) -> Option < String >",
           "cfg": [],
           "source_class": "production",
           "guards": [

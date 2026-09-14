@@ -2225,7 +2225,6 @@ impl WorldSession {
         let attached_controller = self.ensure_login_player_controller_like_cpp(
             guid,
             self.player_name_like_cpp()
-                .map(ToOwned::to_owned)
                 .unwrap_or_else(|| format!("Player{}", guid.counter())),
             *position,
             map_id as u16,
