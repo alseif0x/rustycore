@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #855 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.9/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #862 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.9/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -13,8 +13,8 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza integrada, 2026-09-14: PR #855**, en `3.4.3` como
-`10528d454f8e2b1504e6ed87ee5c1eb0a0d38524`. PR #853 queda como la entrega previa de admisión. #787 / PR #792 (`d14a9a67`) y
+**Cabeza integrada, 2026-09-14: PR #862**, en `3.4.3` como
+`28762f166d39d69e844b99978bbd72e4085a2739`. PR #853 queda como la entrega previa de admisión. #787 / PR #792 (`d14a9a67`) y
 #584 P2 item-bonus, P2 item-object y P3.1–P3.9 están integrados dentro de esta cabeza.
 La entrega de ownership de modificadores de objetos está integrada mediante PR #839
 (implementación `ecc67603`) y retira la superficie mutante genérica restante. La coordinación World/Map está
@@ -1171,6 +1171,19 @@ regresiones cubren attach, switch, detach y objetivo ausente; el movimiento comp
 queda en 47/47 y el perfil final pasa con 3.880 tests de `wow-world`. #63 sigue abierto
 para seats/turning de vehículos, validación completa de offsets/coordenadas, movers no
 Creature, muerte/BG/taxi, ACK/orden y QA viva con capturas.
+
+#### Entrega F1 bajo #63 — ACK `MoveTimeSkipped` del mover controlado
+
+PR #862 (`28762f16`) completa la frontera de `MovementHandler.cpp:721-739` que
+seguía admitiendo solo el Player. La admisión compara el GUID con el
+`m_unitMovedByMe` activo; el reloj uint32 se incrementa en el Player o en el
+Creature/Pet controlado que realmente mueve, y `MoveSkipTime` se publica desde
+la posición y el GUID de ese mover, como `mover->SendMessageToSet`. La regresión
+controlada prueba el reloj del Creature y la visibilidad del observador. Pasan
+los tests enfocados (2), la suite de movimiento (49), arquitectura, `world-server`
+y `validation-v2 quick` en el manifiesto registrado. Esta entrega no cierra #63:
+quedan ACK/force/knockback/taxi/death/BG restantes, offsets/seats completos,
+otros tipos de mover y QA viva con capturas.
 
 Qué conservar en cualquier corte P3: residencia/incarnation del Player canónico,
 backpressure y cancelación de la tarea de sesión, transferencia entre mapas, descarga

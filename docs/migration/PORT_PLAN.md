@@ -2,7 +2,7 @@
 
 **Reconciled 2026-09-14 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49).**
 Source baseline for this reconciliation: `3.4.3` at
-`10528d454f8e2b1504e6ed87ee5c1eb0a0d38524` (PR #855, following #854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`28762f166d39d69e844b99978bbd72e4085a2739` (PR #862, following #860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -92,6 +92,15 @@ Both slices pass focused regressions and `validation-v2 final` with 3,881 tests 
 zero failures. #63 remains open for complete transport seat/offset admission, other
 mover kinds, death/BG/taxi, ACK/order and live capture/QA; preserve the deferred
 visibility bridge from #588.
+
+PR #862 (`28762f16`) closes the next measured ACK boundary from
+`MovementHandler.cpp:721-739`: `MoveTimeSkipped` now admits the active controlled
+mover, advances that mover's own uint32 movement clock and routes `MoveSkipTime`
+from its position/GUID, matching `mover->SendMessageToSet`. The controlled-mover
+regression, 49-test movement suite, architecture checks, world-server check and
+`validation-v2 quick` pass at the recorded manifest. #63 remains open for the
+remaining ACK/force/knockback/taxi/death/BG operations, complete transport
+seat/offset admission, broader mover kinds and live capture/QA.
 
 Continue the remaining core under #584 by complete operations, execution/lifetime
 boundaries and physical organization. #582 is closed after its decoder-only delivery;
@@ -259,7 +268,7 @@ acceptance retained by the recipient; it does not mark functionality complete.
 | [#58](https://github.com/alseif0x/rustycore/issues/58) | Superseded by #41 | Preserve timed-active exclusivity and recursive breadcrumb admission as explicit quest criteria. |
 | [#59](https://github.com/alseif0x/rustycore/issues/59) | Superseded by #41 | Preserve acceptance/completion/reward participants and evidence, without redoing #718. |
 | [#61](https://github.com/alseif0x/rustycore/issues/61) | F1, equipment/stats | **Projection integrated by PR #851 (`b26ce713`); issue remains open.** Finish production combat/melee/spell consumers, exact C++ AP/damage/aura/regen/expertise/penetration paths, reversible equip/unequip and broken/repair lifecycle, then capture/live DB/relogin acceptance before accepting combat numbers. |
-| [#63](https://github.com/alseif0x/rustycore/issues/63) | F1, movement | **Admission + transport slices integrated by PR #853/#855/#859/#860 (`704dc4cb`):** pending teleport and unfinished controlled-mover spline fail closed before side effects; canonical Map-owned transport membership switches/detaches safely and resets missing targets; vehicle passenger turning follows the C++ early return; stale transport distance validation covers controlled Creature/Pet movers. Continue complete seat/offset admission, other mover kinds, death/BG/taxi, ACK/order and live capture/QA; preserve #588 deferred visibility. |
+| [#63](https://github.com/alseif0x/rustycore/issues/63) | F1, movement | **Admission + transport/ACK slices integrated by PR #853/#855/#859/#860/#862 (`28762f16`):** pending teleport and unfinished controlled-mover spline fail closed before side effects; canonical Map-owned transport membership switches/detaches safely and resets missing targets; vehicle passenger turning follows the C++ early return; stale transport distance validation covers controlled Creature/Pet movers; `MoveTimeSkipped` advances and publishes from the active controlled mover. Continue complete seat/offset admission, remaining ACK/force/knockback/death/BG/taxi operations, broader mover kinds and live capture/QA; preserve #588 deferred visibility. |
 | [#65](https://github.com/alseif0x/rustycore/issues/65) | L, source-evidence index | Correct finding/issue status and retain exact C++ provenance; not a separate implementation queue or fresh count. |
 | [#99](https://github.com/alseif0x/rustycore/issues/99) | X, module ecosystem | #583 is the selected stateful product; wider language/WIT/hot-reload proposals remain later capability-led planning. |
 | [#153](https://github.com/alseif0x/rustycore/issues/153) | X/A, terminal audit | Audit accepted #584/#583 and their evidence; do not absorb known implementation work or await #133 reopening. |

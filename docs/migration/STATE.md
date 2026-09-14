@@ -1,12 +1,26 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`704dc4cb55652bd8a74974146a843dc3edc4a506` (PR #860, following PR #859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`28762f166d39d69e844b99978bbd72e4085a2739` (PR #862, following PR #860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**F1 movement MoveTimeSkipped controlled-mover slice — 2026-09-14, #63 / PR #862, merge
+`28762f166d39d69e844b99978bbd72e4085a2739`:** `HandleMoveTimeSkippedOpcode` now
+validates the packet against the active `m_unitMovedByMe`, advances the Player or
+represented controlled Creature/Pet's own uint32 movement clock, and publishes
+`MoveSkipTime` from that mover's position/GUID. This matches
+`MovementHandler.cpp:721-739`, including `mover->SendMessageToSet`; a focused
+regression proves the controlled mover clock and observer routing. The focused
+slice and movement suite pass (2 and 49 tests), architecture checks and
+`world-server` compilation pass, and `validation-v2 quick` passes at
+`target/validation-v2/manifests/20260914T043604.661090Z-236189-quick.json`.
+#63 remains open for the remaining transport seat/offset admission, other movement
+ACK/force/knockback/taxi/death/BG branches, broader mover coverage and live
+client/server/DB capture QA.
 
 **F1 movement stale-mover transport guard — 2026-09-14, #63 / PR #860, merge
 `704dc4cb55652bd8a74974146a843dc3edc4a506`:** the stale transport distance
