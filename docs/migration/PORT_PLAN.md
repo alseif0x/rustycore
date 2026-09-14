@@ -127,6 +127,21 @@ cover this boundary. The code-backed classification leaves 7 exact unresolved
 production fields and keeps the 647-field membership unchanged (220 production,
 427 test fixtures).
 
+## P2 Player base-stat catalog classification — candidate, 2026-09-14
+
+El siguiente C0–C4 audit clasifica `player_stats` como un catálogo inmutable de
+configuración/servicios, no como autoridad de estado de `WorldSession`. TrinityCore
+mantiene las filas de raza/clase/nivel en `ObjectMgr::_playerInfo` y expone
+`ObjectMgr::GetPlayerLevelInfo` (`Globals/ObjectMgr.h:628-673,1155,1866`,
+`ObjectMgr.cpp:4429-4445`); `Player` solo consulta esa autoridad durante el cálculo
+de sus estadísticas (`Player.cpp:2256-2260,2370-2374`). Rust ya carga el catálogo una
+vez en `world-server/app.rs:2222-2240`, lo compone en la capacidad `SessionInventoryCapabilitiesLikeCpp`
+(`session_resources.rs:65,107`) y lo conserva como `Arc<PlayerStatsStore>` para los
+lectores de estadísticas (`handlers/character/stats.rs:117`, `session_state.rs:1103`).
+El ledger registra la clasificación en `immutable_catalogs_configuration_and_services`;
+no se mueve gameplay, no se crea una autoridad duplicada y el residual exacto queda en
+6 campos hasta la integración.
+
 PR #895 closes the next measured P2 owner surface: production rest-flag, deferred-publication and rest-clock writes now use named transitions on `wow-entities::Player` over `PlayerRestState`, following `RestMgr::SetRestFlag` / `RemoveRestFlag` (`RestMgr.cpp:95-122`), `RestMgr::_restTime` (`RestMgr.h:86`) and `Player::SetRestState` (`Player.h:2652`). Session retains packet/application ordering and its generic rest-state mutator is detached-fixture-only under `cfg(test)`. The Player owner regression, rest-owner scenarios, affected chat/area-trigger/zone scenarios, package checks, formatting/diff and architecture ratchet pass. This is an ownership closure: quest objective progress, durable persistence, captures and live QA remain separate #41/#584 gates. The next #584 macro still comes from a fresh C0–C4 responsibility and consumer audit.
 
 PR #878 closes the next measured P2 owner surface: the Player-owned mount VehicleKit

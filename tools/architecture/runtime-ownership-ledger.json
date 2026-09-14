@@ -631,7 +631,7 @@
       },
       {
         "id": "immutable_catalogs_configuration_and_services",
-        "expected_field_count": 73,
+        "expected_field_count": 74,
         "field_names": [
           "access_requirement_store",
           "area_table_store",
@@ -675,6 +675,7 @@
           "phase_group_store",
           "phase_store",
           "player_condition_store",
+          "player_stats",
           "pvp_item_store",
           "quest_poi_store_like_cpp",
           "quests",
@@ -707,7 +708,7 @@
           "waypoint_path_resolver_like_cpp",
           "world_safe_loc_store_like_cpp"
         ],
-        "current_storage": "#674 completed the catalog extraction the previous deliveries began: the eight quest catalog slots now live in crates/wow-world/src/quest_catalogs.rs, and the chains that rustfmt wrapped in handlers/quest were restructured to bind the store to a local, so that hotspot stayed at its baseline. #670 gave six more catalog domains their own owners - item, creature, map, character, faction and gameobject - so 32 further slots left this struct and the session holds one field per owner. The quest cluster stayed: routing its accesses grows the handlers/quest hotspot, so it needs a delivery that owns those handlers too. The 36 spell and aura catalog slots left this struct under #668: they are now owned by crates/wow-world/src/spell_catalogs.rs (SpellCatalogsLikeCpp), and WorldSession holds exactly one field of that type, so no store slot is mirrored here. The remaining names are the other immutable catalogs, configuration and service handles still held directly. 132 production immutable catalog/configuration/service fields remain on WorldSession. The unused DungeonEncounter Session dependency is deleted; startup loading remains. TraitNodeEntry is required in process-owned PlayerBootstrap and borrowed by login and teleport trait loading, with no Session field, accessor or fixture mirror. The gameobject lifecycle catalog identifier is reconciled to its actual _like_cpp name. Grid-load, hotfix, glyph and talent-tab catalogs are borrowed by their consumers. Fifty former catalog fixture fields are listed only under test_only_fixtures. The remaining production catalog bag is not an approved terminal boundary.",
+        "current_storage": "#674 completed the catalog extraction the previous deliveries began: the eight quest catalog slots now live in crates/wow-world/src/quest_catalogs.rs, and the chains that rustfmt wrapped in handlers/quest were restructured to bind the store to a local, so that hotspot stayed at its baseline. #670 gave six more catalog domains their own owners - item, creature, map, character, faction and gameobject - so 32 further slots left this struct and the session holds one field per owner. The quest cluster stayed: routing its accesses grows the handlers/quest hotspot, so it needs a delivery that owns those handlers too. The 36 spell and aura catalog slots left this struct under #668: they are now owned by crates/wow-world/src/spell_catalogs.rs (SpellCatalogsLikeCpp), and WorldSession holds exactly one field of that type, so no store slot is mirrored here. The remaining names are the other immutable catalogs, configuration and service handles still held directly. #528 already established the typed PlayerBaseStats World capability; this classification records the injected immutable PlayerStatsStore in that same family. 133 production immutable catalog/configuration/service fields remain on WorldSession. The unused DungeonEncounter Session dependency is deleted; startup loading remains. TraitNodeEntry is required in process-owned PlayerBootstrap and borrowed by login and teleport trait loading, with no Session field, accessor or fixture mirror. The gameobject lifecycle catalog identifier is reconciled to its actual _like_cpp name. Grid-load, hotfix, glyph and talent-tab catalogs are borrowed by their consumers. Fifty former catalog fixture fields are listed only under test_only_fixtures. The remaining production catalog bag is not an approved terminal boundary.",
         "sole_writer": "world-server bootstrap constructs the process-wide value; create_session/setters assign the Session handle once. Runtime code should read but not mutate immutable catalogs.",
         "readers": "Handlers and gameplay helpers across wow-world.",
         "clock_lifetime": "Mostly process lifetime; a Session retains Arc handles for its connection lifetime. Generators and mutable services retain their own process-wide owner.",
@@ -1007,17 +1008,16 @@
       },
       {
         "id": "unresolved_world_session_residual",
-        "expected_field_count": 7,
+        "expected_field_count": 6,
         "field_names": [
           "creature_query_cache",
-          "player_stats",
           "represented_capture_point_removed_delivered_like_cpp",
           "represented_dynamic_object_values_updates_delivered_like_cpp",
           "represented_instance_reset_times_like_cpp",
           "represented_locked_dungeon_encounters",
           "represented_seer_guid_like_cpp"
         ],
-        "current_storage": "7 exact production fields remain explicitly unresolved; recent_player_guid_low_like_cpp is classified under the cohesive Session identity family and player_guid under the selected-player binding family. The vmap_indoor_check_like_cpp and represented_cast_unstuck_enabled_like_cpp world configurations are classified with immutable catalogs/configuration/services because C++ reads them from sWorld and Rust injects them once through SessionRuntimePolicyCapabilitiesLikeCpp. The represented_confirmed_pending_binds vector is cfg(test) diagnostic evidence because C++ confirms the bind on Player/InstanceMap. Player identity (name, race, class, level and gender) and the C++ Player::m_swingErrorMsg transition now resolve through the canonical wow_entities::Player after their login/owner boundaries. Fixture fields are classified separately. This residual is not stable Session ownership. #578 must classify and remove the remaining gameplay/catalog authority before #153 can accept the shell.",
+        "current_storage": "6 exact production fields remain explicitly unresolved; recent_player_guid_low_like_cpp is classified under the cohesive Session identity family and player_guid under the selected-player binding family. The vmap_indoor_check_like_cpp, represented_cast_unstuck_enabled_like_cpp and player_stats immutable catalog/configuration/service handles are classified with the immutable catalogs/configuration/services family because C++ reads the first two from sWorld and PlayerStats from ObjectMgr, while Rust injects all three through existing startup capability bundles. The represented_confirmed_pending_binds vector is cfg(test) diagnostic evidence because C++ confirms the bind on Player/InstanceMap. Player identity (name, race, class, level and gender) and the C++ Player::m_swingErrorMsg transition now resolve through the canonical wow_entities::Player after their login/owner boundaries. Fixture fields are classified separately. This residual is not stable Session ownership. #578 must classify and remove the remaining gameplay/catalog authority before #153 can accept the shell.",
         "sole_writer": "WorldSession methods/handlers identified by the syntax and call-site inventory; exact writer must be recorded before moving the field.",
         "readers": "Derived mechanically from field references; semantic readers remain an audit obligation.",
         "clock_lifetime": "Unknown or mixed until classified; no new clock may be inferred.",

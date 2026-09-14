@@ -105,6 +105,21 @@ consumer only reads the policy. The named disabled-policy scenario and config
 regression cover this boundary. This code-backed classification leaves 7 exact
 unresolved production fields without a second authority, lock or clock. Focused policy/configuration tests, architecture check/self-test and diff validation pass.
 
+## P2 Player base-stat catalog classification — candidate, 2026-09-14
+
+The next C0–C4 audit classifies `player_stats` as an immutable catalog/configuration
+service, not WorldSession gameplay authority. TrinityCore keeps race/class/level rows
+in `ObjectMgr::_playerInfo` and exposes `ObjectMgr::GetPlayerLevelInfo`
+(`Globals/ObjectMgr.h:628-673,1155,1866`, `ObjectMgr.cpp:4429-4445`); `Player` only
+queries that authority while calculating its stats (`Player.cpp:2256-2260,2370-2374`).
+Rust already loads the catalog once in `world-server/app.rs:2222-2240`, composes it in
+the `SessionInventoryCapabilitiesLikeCpp` capability (`session_resources.rs:65,107`),
+and retains an `Arc<PlayerStatsStore>` for the existing stat readers
+(`handlers/character/stats.rs:117`, `session_state.rs:1103`). The ledger records the
+classification under `immutable_catalogs_configuration_and_services`; no gameplay
+owner moves and no second authority is introduced. The exact residual is 6 fields
+once integrated.
+
 The finite hecs V2 conformance proof has passed within its recorded laboratory limits.
 That evidence does not install production `hecs` or Wasmtime, prove production storage
 integration, or close the remaining #584 boundaries. #743 and #735 are delivered and
