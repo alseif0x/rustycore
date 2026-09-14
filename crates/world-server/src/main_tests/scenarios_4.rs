@@ -801,6 +801,14 @@ fn vmap_indoor_check_uses_cpp_world_config_key() {
     ));
 }
 #[test]
+fn cast_unstuck_uses_cpp_world_config_key() {
+    let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+    wow_config::load_config_from_str("CastUnstuck = 0\n").expect("config should load");
+
+    let configs = wow_config::load_world_config_values();
+    assert!(!world_config_bool(&configs, "CONFIG_CAST_UNSTUCK", true));
+}
+#[test]
 fn player_start_explored_and_reputation_use_cpp_world_config_keys() {
     let _guard = TEST_LOCK.lock().expect("test lock poisoned");
     wow_config::load_config_from_str(

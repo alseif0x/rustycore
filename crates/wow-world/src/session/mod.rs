@@ -6608,7 +6608,7 @@ pub struct WorldSession {
     /// from a complete source rather than accumulated opportunistically.
     #[cfg(test)]
     represented_override_spells_complete_like_cpp: bool,
-    /// C++ `CONFIG_CAST_UNSTUCK` represented until World config is injected into spell effects.
+    /// C++ `CONFIG_CAST_UNSTUCK` immutable world policy injected into spell effects.
     represented_cast_unstuck_enabled_like_cpp: bool,
     /// C++ `Player::GetDeathTimer()` represented for `Spell::EffectStuck`.
     #[cfg(test)]

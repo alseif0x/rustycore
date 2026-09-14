@@ -5062,6 +5062,7 @@ async fn run_inner(
                 true,
             ),
             vmap_indoor_check: world_config_bool(&world_configs, "CONFIG_VMAP_INDOOR_CHECK", false),
+            cast_unstuck_enabled: world_config_bool(&world_configs, "CONFIG_CAST_UNSTUCK", true),
             quest_low_level_hide_diff: world_config_u32(
                 &world_configs,
                 "CONFIG_QUEST_LOW_LEVEL_HIDE_DIFF",

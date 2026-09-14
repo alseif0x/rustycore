@@ -168,6 +168,22 @@ remains 647 fields (220 production, 427 test fixtures). PR #911 integrates this
 ledger classification at merge `0dbf768419338ac7d3bf3974cf20fa7e7fa4c2ad`;
 architecture check, self-test (20/20) and diff validation pass.
 
+## P2 CastUnstuck world-policy classification — candidate, 2026-09-14
+
+The next C0–C4 audit classified `represented_cast_unstuck_enabled_like_cpp` as
+immutable world configuration. TrinityCore reads `CONFIG_CAST_UNSTUCK` from
+`World` (`World.h:119`, `World.cpp:1116`) before `Spell::EffectStuck`
+(`Spells/SpellEffects.cpp:3265-3269`). Rust now loads the same key from
+`world-server/app.rs`, carries it in `SessionRuntimePolicyCapabilitiesLikeCpp`,
+and injects it once through the Session capability boundary; the spell effect
+consumer only reads the resulting policy. The focused disabled-policy scenario
+uses the named setter, and the world-server config regression covers the C++ key.
+The ledger assigns the field to
+`immutable_catalogs_configuration_and_services`; no second authority or runtime
+clock is introduced. Once integrated, the unresolved residual will be 7 exact
+production fields while the ledger remains 647 fields (220 production, 427 test
+fixtures).
+
 ## P2 Player mount presentation owner closure — integrated PR #897, 2026-09-14
 
 PR #897 integrates the bounded Player mount-presentation owner closure into

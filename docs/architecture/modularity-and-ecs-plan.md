@@ -96,6 +96,15 @@ same key through `SessionRuntimePolicyCapabilitiesLikeCpp`
 only reads the immutable switch. This ledger-only cut leaves 8 exact unresolved
 production fields, with no code, lock, packet or runtime behavior change.
 
+The next C0–C4 classification assigns `represented_cast_unstuck_enabled_like_cpp`
+to the immutable world-configuration family. TrinityCore reads
+`CONFIG_CAST_UNSTUCK` from `World` (`World.h:119`, `World.cpp:1116`) before
+`Spell::EffectStuck` (`Spells/SpellEffects.cpp:3265-3269`); Rust loads and injects
+the same key through `SessionRuntimePolicyCapabilitiesLikeCpp`, and the spell
+consumer only reads the policy. The named disabled-policy scenario and config
+regression cover this boundary. This code-backed classification leaves 7 exact
+unresolved production fields without a second authority, lock or clock.
+
 The finite hecs V2 conformance proof has passed within its recorded laboratory limits.
 That evidence does not install production `hecs` or Wasmtime, prove production storage
 integration, or close the remaining #584 boundaries. #743 and #735 are delivered and
