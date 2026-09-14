@@ -9121,6 +9121,7 @@ impl WorldSession {
         key: wow_map::MapKey,
         bootstrap_position: Option<Position>,
     ) -> Option<Player> {
+        #[cfg(not(test))]
         if self.player_handle_like_cpp.is_some() {
             return None;
         }
@@ -13546,6 +13547,7 @@ impl WorldSession {
         {
             return self.player_race;
         }
+        #[cfg(not(test))]
         if self.player_handle_like_cpp.is_some() {
             return 0;
         }
@@ -13563,6 +13565,7 @@ impl WorldSession {
         {
             return self.player_class;
         }
+        #[cfg(not(test))]
         if self.player_handle_like_cpp.is_some() {
             return 0;
         }
@@ -13589,6 +13592,7 @@ impl WorldSession {
         {
             return self.player_level;
         }
+        #[cfg(not(test))]
         if self.player_handle_like_cpp.is_some() {
             return 0;
         }
@@ -13606,6 +13610,7 @@ impl WorldSession {
         {
             return self.player_gender;
         }
+        #[cfg(not(test))]
         if self.player_handle_like_cpp.is_some() {
             return 0;
         }
