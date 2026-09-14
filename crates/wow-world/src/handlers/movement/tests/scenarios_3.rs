@@ -165,3 +165,86 @@ async fn move_time_skipped_broadcasts_skip_time_to_other_players_like_cpp() {
     );
     assert_eq!(session.player_movement_time_like_cpp(), 125);
 }
+
+#[tokio::test]
+async fn move_time_skipped_updates_and_routes_from_controlled_mover_like_cpp() {
+    let mut session = make_session();
+    let player_guid = ObjectGuid::create_player(1, 44);
+    let mover_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 779, 1_244);
+    let observer_guid = ObjectGuid::create_player(1, 45);
+    let player_position = Position::new(1_000.0, 1_000.0, 0.0, 0.0);
+    let mover_position = Position::new(10.0, 20.0, 0.0, 0.0);
+    let manager = Arc::new(RwLock::new(crate::map_manager::MapManager::new()));
+    let registry = Arc::new(crate::session::directory::PlayerRegistry::default());
+    let (self_tx, _self_rx) = flume::bounded(1);
+    let (observer_tx, _observer_rx) = flume::bounded(1);
+    let (self_command_tx, self_command_rx) = flume::bounded(1);
+    let (observer_command_tx, observer_command_rx) = flume::bounded(1);
+
+    session.set_player_guid(Some(player_guid));
+    session.set_player_moved_unit_guid_like_cpp(mover_guid);
+    session.set_player_position_like_cpp(player_position);
+    session.set_player_registry(Arc::clone(&registry));
+    session.set_map_manager(Arc::clone(&manager));
+
+    let (grid_x, grid_y) =
+        crate::map_manager::world_to_grid_coords(mover_position.x, mover_position.y);
+    manager.write().unwrap().add_creature(
+        0,
+        0,
+        grid_x,
+        grid_y,
+        crate::map_manager::WorldCreature::new(
+            mover_guid,
+            779,
+            mover_position,
+            100,
+            80,
+            1,
+            2,
+            0.0,
+            1,
+            35,
+            0,
+            0,
+        ),
+    );
+
+    let mut self_info = broadcast_info_with_command(player_guid, self_tx, self_command_tx);
+    self_info.placement.position = player_position;
+    registry.register_or_replace(player_guid, self_info, Default::default());
+    let mut observer_info =
+        broadcast_info_with_command(observer_guid, observer_tx, observer_command_tx);
+    observer_info.placement.position = mover_position;
+    registry.register_or_replace(observer_guid, observer_info, Default::default());
+
+    session
+        .handle_move_time_skipped(wow_packet::packets::movement::MoveTimeSkipped {
+            mover_guid,
+            time_skipped: 25,
+        })
+        .await;
+
+    let movement_time = manager
+        .read()
+        .unwrap()
+        .find_creature(0, 0, mover_guid)
+        .expect("controlled mover")
+        .creature
+        .unit()
+        .movement_time_like_cpp();
+    assert_eq!(movement_time, 25);
+    assert!(self_command_rx.try_recv().is_err());
+    let command = observer_command_rx
+        .try_recv()
+        .expect("observer near the controlled mover");
+    let crate::session::mailbox::SessionCommand::SendIfVisibleLikeCpp(command) = command else {
+        panic!("expected SendIfVisibleLikeCpp move-skip-time command");
+    };
+    assert_eq!(command.source_guid, mover_guid);
+    let packet = wow_packet::WorldPacket::from_bytes(&command.packet_bytes);
+    assert_eq!(
+        packet.server_opcode(),
+        Some(wow_constants::ServerOpcodes::MoveSkipTime)
+    );
+}
