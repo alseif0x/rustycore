@@ -7,16 +7,17 @@ use super::*;
 use wow_world::session::directory::detached_session_phase_rail_like_cpp;
 
 #[test]
-fn dungeon_encounter_catalog_is_loaded_without_per_session_retention() {
+fn dungeon_encounter_catalog_is_loaded_as_an_immutable_session_capability() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let app = fs::read_to_string(root.join("src/app.rs")).unwrap();
     let resources = fs::read_to_string(root.join("src/session_resources.rs")).unwrap();
     let session = fs::read_to_string(root.join("../wow-world/src/session/mod.rs")).unwrap();
     assert!(app.contains("wow_data::DungeonEncounterStore::load(&data_dir, &locale)"));
     assert!(app.contains("Failed to load DungeonEncounter.db2"));
-    assert!(!app.contains("dungeon_encounter_store: Arc::clone"));
-    assert!(!resources.contains("dungeon_encounter_store"));
-    assert!(!session.contains("dungeon_encounter_store"));
+    assert!(app.contains("dungeon_encounter_store: Arc::clone(&dungeon_encounter_store)"));
+    assert!(resources.contains("dungeon_encounter_store: Arc<wow_data::DungeonEncounterStore>"));
+    assert!(resources.contains("set_dungeon_encounter_store"));
+    assert!(session.contains("dungeon_encounter_store: Option<Arc<DungeonEncounterStore>>"));
 }
 #[test]
 fn signed_tinyint_quest_required_preserves_cpp_boolean_semantics() {

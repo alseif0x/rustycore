@@ -1422,9 +1422,10 @@ impl WorldSession {
                 .into_iter()
                 .filter(|tapper| {
                     dungeon_encounter_id == 0
-                        || !self
-                            .represented_locked_dungeon_encounters
-                            .contains(&(*tapper, dungeon_encounter_id))
+                        || self.represented_player_is_unlocked_for_dungeon_encounter_like_cpp(
+                            *tapper,
+                            dungeon_encounter_id,
+                        )
                 })
                 .collect::<Vec<_>>();
             if personal_tappers.is_empty() {

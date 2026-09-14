@@ -41,9 +41,9 @@
     },
     {
       "path": "crates/world-server/src/app.rs",
-      "observed_lines": 5652,
-      "ceiling_lines": 5652,
-      "split": "Separate bootstrap catalogs/configuration, dependency construction and task supervision; retain one composition owner and startup order. #703 shortens every catalog and hotfix call site to the grouped module path, a validated reduction from 5652 to 5645 lines; the ceiling is tightened to that figure. #718 adds 6 lines that construct and install the quest-reward durability port, from 5645 to 5651: one required capability, no gameplay authority entering the composition root. #787 adds one inseparable line: the composition root hands the active-session registry to the canonical producer, which needs it to drive the world phase of every session, character screen included (World.cpp:2704).",
+      "observed_lines": 5653,
+      "ceiling_lines": 5653,
+      "split": "Separate bootstrap catalogs/configuration, dependency construction and task supervision; retain one composition owner and startup order. #703 shortens every catalog and hotfix call site to the grouped module path, a validated reduction from 5652 to 5645 lines; the ceiling is tightened to that figure. #718 adds 6 lines that construct and install the quest-reward durability port, from 5645 to 5651: one required capability, no gameplay authority entering the composition root. #787 adds one inseparable line: the composition root hands the active-session registry to the canonical producer, which needs it to drive the world phase of every session, character screen included (World.cpp:2704). #584 adds one required immutable DungeonEncounterStore capability to the existing SessionWorldCatalogCapabilitiesLikeCpp bundle; startup remains the sole composition owner and no gameplay authority enters app.rs.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -524,16 +524,16 @@
     },
     {
       "path": "crates/wow-world/src/handlers/loot/requests.rs",
-      "observed_lines": 2531,
-      "ceiling_lines": 2531,
-      "split": "Separate loot command admission and persistence outcomes by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #756 adds seven inseparable lines: the quest reads that used to touch the state's public fields now name the owner's accessors, which wrap onto their own lines.",
+      "observed_lines": 2544,
+      "ceiling_lines": 2544,
+      "split": "Separate loot command admission and persistence outcomes by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #756 adds seven inseparable lines: the quest reads that used to touch the state's public fields now name the owner's accessors, which wrap onto their own lines. #584 adds the named Player::IsLockedToDungeonEncounter adapter and fail-closed missing-authority handling; the canonical catalog/InstanceLockMgr query remains in the Session binding module and the old set is cfg(test) fixture input only.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/loot/sources.rs",
-      "observed_lines": 3109,
-      "ceiling_lines": 3109,
-      "split": "Separate typed loot source discovery and queries by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order.",
+      "observed_lines": 3110,
+      "ceiling_lines": 3110,
+      "split": "Separate typed loot source discovery and queries by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #584 routes encounter filtering through the canonical Player::IsLockedToDungeonEncounter adapter without adding a source-local authority, lock or clock.",
       "review_checkpoint": "584:C4"
     },
     {

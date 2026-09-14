@@ -4975,6 +4975,7 @@ async fn run_inner(
             fishing_base_skill_store: Arc::clone(&fishing_base_skill_store),
             chr_specialization_store: Arc::clone(&chr_specialization_store),
             map_store: Arc::clone(&map_store),
+            dungeon_encounter_store: Arc::clone(&dungeon_encounter_store),
             world_safe_loc_store: Arc::clone(&world_safe_loc_store),
             map_difficulty_store: Arc::clone(&map_difficulty_store),
             map_difficulty_x_condition_store: Arc::clone(&map_difficulty_x_condition_store),

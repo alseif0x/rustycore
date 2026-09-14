@@ -180,6 +180,14 @@ impl WorldSession {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.maps.store = Some(store);
     }
+    /// Set the immutable C++ `sDungeonEncounterStore` catalog used by
+    /// `Player::IsLockedToDungeonEncounter`.
+    pub fn set_dungeon_encounter_store(&mut self, store: Arc<DungeonEncounterStore>) {
+        self.dungeon_encounter_store = Some(store);
+    }
+    pub(crate) fn dungeon_encounter_store(&self) -> Option<&Arc<DungeonEncounterStore>> {
+        self.dungeon_encounter_store.as_ref()
+    }
     pub(crate) fn map_store(&self) -> Option<&Arc<MapStore>> {
         self.maps.store.as_ref()
     }

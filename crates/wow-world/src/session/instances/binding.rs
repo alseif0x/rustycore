@@ -6,6 +6,57 @@
 use super::*;
 
 impl WorldSession {
+    /// C++ `Player::IsLockedToDungeonEncounter(uint32)`.
+    ///
+    /// The encounter row is immutable process data; the completed mask is
+    /// read from the shared `InstanceLockMgr` for the player's exact canonical
+    /// map and difficulty. A missing/ambiguous authority fails closed for loot
+    /// callers by returning `None`; an unknown encounter or absent active lock
+    /// is a known unlocked state, matching C++.
+    pub(crate) fn player_is_locked_to_dungeon_encounter_like_cpp(
+        &self,
+        player_guid: ObjectGuid,
+        dungeon_encounter_id: u32,
+    ) -> Option<bool> {
+        let store = self.dungeon_encounter_store()?;
+        let Some(encounter) = store.get(dungeon_encounter_id) else {
+            return Some(false);
+        };
+        let bit = u32::try_from(encounter.bit).ok().filter(|bit| *bit < 32)?;
+
+        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let mut residence = None;
+        let mut ambiguous = false;
+        manager.do_for_all_maps(|managed| {
+            if managed.map().get_typed_player(player_guid).is_none() {
+                return;
+            }
+            if residence.is_some() {
+                ambiguous = true;
+            } else {
+                residence = Some((managed.map_id(), managed.difficulty()));
+            }
+        });
+        drop(manager);
+        if ambiguous {
+            return None;
+        }
+        let (map_id, difficulty_id) = residence?;
+        let entries = self.create_map_db2_entries_like_cpp(map_id, difficulty_id)?;
+        let now = u64::try_from(unix_now()).ok()?;
+        let lock_mgr = self.instance_lock_mgr.as_ref()?.read().ok()?;
+        let Some(lock) = lock_mgr.find_active_instance_lock_at(player_guid, &entries, now) else {
+            return Some(false);
+        };
+        Some(
+            (lock
+                .instance_initialization_data()
+                .completed_encounters_mask
+                & (1u32 << bit))
+                != 0,
+        )
+    }
+
     pub(in crate::session) fn prune_expired_instance_reset_times_like_cpp(
         &mut self,
         now_secs: u64,

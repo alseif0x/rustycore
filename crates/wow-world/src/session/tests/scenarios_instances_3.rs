@@ -66,6 +66,77 @@ fn canonical_instance_reset_times_are_owned_by_player_like_cpp() {
 }
 
 #[test]
+fn canonical_player_dungeon_encounter_lock_query_uses_catalog_and_instance_lock_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 91);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "EncounterLockQuery".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        631,
+        1,
+        1,
+        80,
+        0,
+    ));
+    install_create_map_encounter_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+    let entries = session.create_map_db2_entries_like_cpp(631, 3).unwrap();
+    let now = u64::try_from(unix_now()).unwrap_or(0);
+    let mut lock_mgr = wow_instances::InstanceLockMgr::default();
+    lock_mgr
+        .update_instance_lock_for_player_at(
+            player_guid,
+            &entries,
+            wow_instances::InstanceLockUpdateEvent {
+                instance_id: 9001,
+                new_data: String::new(),
+                instance_completed_encounters_mask: 0,
+                completed_encounter_bit: Some(1),
+                entrance_world_safe_loc_id: None,
+            },
+            wow_instances::ResetSchedule::default(),
+            now,
+        )
+        .expect("active encounter lock");
+    session.set_instance_lock_mgr(Arc::new(std::sync::RwLock::new(lock_mgr)));
+    session.set_dungeon_encounter_store(Arc::new(wow_data::DungeonEncounterStore::from_entries([
+        wow_data::DungeonEncounterEntry {
+            id: 733,
+            map_id: 631,
+            difficulty_id: 3,
+            order_index: 0,
+            bit: 1,
+            flags: 0,
+            faction: -1,
+        },
+    ])));
+
+    assert!(
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .is_some()
+    );
+    assert_eq!(
+        session.player_is_locked_to_dungeon_encounter_like_cpp(player_guid, 733),
+        Some(true)
+    );
+    assert_eq!(
+        session.player_is_locked_to_dungeon_encounter_like_cpp(player_guid, u32::MAX),
+        Some(false)
+    );
+    session.set_instance_lock_mgr(Arc::new(std::sync::RwLock::new(
+        wow_instances::InstanceLockMgr::default(),
+    )));
+    assert_eq!(
+        session.player_is_locked_to_dungeon_encounter_like_cpp(player_guid, 733),
+        Some(false)
+    );
+}
+
+#[test]
 fn canonical_instance_count_blocks_new_distinct_instance_like_cpp() {
     let (mut session, _pkt_tx, send_rx) = make_session();
     let canonical = shared_canonical_map_manager();

@@ -490,9 +490,23 @@ impl WorldSession {
         player_guid: ObjectGuid,
         dungeon_encounter_id: u32,
     ) -> bool {
-        !self
-            .represented_locked_dungeon_encounters
-            .contains(&(player_guid, dungeon_encounter_id))
+        if let Some(locked) =
+            self.player_is_locked_to_dungeon_encounter_like_cpp(player_guid, dungeon_encounter_id)
+        {
+            return !locked;
+        }
+        #[cfg(test)]
+        {
+            return !self
+                .represented_locked_dungeon_encounters
+                .contains(&(player_guid, dungeon_encounter_id));
+        }
+        #[cfg(not(test))]
+        {
+            // C++ has a valid Player, DungeonEncounter row and InstanceLockMgr
+            // here. Missing authority is indeterminate and must not grant loot.
+            false
+        }
     }
 
     /// C++ `Loot::FillLoot` calls `FillNotNormalLootFor` for every connected
