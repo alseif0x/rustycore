@@ -116,6 +116,17 @@ classification leaves 8 exact unresolved production fields and keeps the 647-fie
 membership unchanged (220 production, 427 test fixtures). Architecture check,
 self-test (20/20) and diff validation pass.
 
+The next audited classification assigns `represented_cast_unstuck_enabled_like_cpp`
+to the immutable world-configuration family. TrinityCore reads
+`CONFIG_CAST_UNSTUCK` from `World` (`World.h:119`, `World.cpp:1116`) before
+`Spell::EffectStuck` (`Spells/SpellEffects.cpp:3265-3269`); Rust now loads the key
+through `world-server/app.rs`, injects it in
+`SessionRuntimePolicyCapabilitiesLikeCpp`, and the spell consumer only reads the
+policy. The named disabled-policy scenario and world-server config regression
+cover this boundary. The ledger-only classification leaves 7 exact unresolved
+production fields and keeps the 647-field membership unchanged (220 production,
+427 test fixtures).
+
 PR #895 closes the next measured P2 owner surface: production rest-flag, deferred-publication and rest-clock writes now use named transitions on `wow-entities::Player` over `PlayerRestState`, following `RestMgr::SetRestFlag` / `RemoveRestFlag` (`RestMgr.cpp:95-122`), `RestMgr::_restTime` (`RestMgr.h:86`) and `Player::SetRestState` (`Player.h:2652`). Session retains packet/application ordering and its generic rest-state mutator is detached-fixture-only under `cfg(test)`. The Player owner regression, rest-owner scenarios, affected chat/area-trigger/zone scenarios, package checks, formatting/diff and architecture ratchet pass. This is an ownership closure: quest objective progress, durable persistence, captures and live QA remain separate #41/#584 gates. The next #584 macro still comes from a fresh C0–C4 responsibility and consumer audit.
 
 PR #878 closes the next measured P2 owner surface: the Player-owned mount VehicleKit

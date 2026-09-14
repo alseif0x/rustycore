@@ -293,6 +293,8 @@ pub(super) struct SessionRuntimePolicyCapabilitiesLikeCpp {
     pub(super) offhand_check_at_spell_unlearn: bool,
     /// C++ `CONFIG_VMAP_INDOOR_CHECK` / `vmap.enableIndoorCheck`.
     pub(super) vmap_indoor_check: bool,
+    /// C++ `CONFIG_CAST_UNSTUCK` / `CastUnstuck`.
+    pub(super) cast_unstuck_enabled: bool,
     pub(super) quest_low_level_hide_diff: u32,
     pub(super) quest_high_level_hide_diff: u32,
     pub(super) enable_ae_loot: bool,
@@ -503,6 +505,7 @@ impl SessionRuntimePolicyCapabilitiesLikeCpp {
         session.set_reset_schedule_like_cpp(self.reset_schedule);
         session.set_offhand_check_at_spell_unlearn_like_cpp(self.offhand_check_at_spell_unlearn);
         session.set_vmap_indoor_check_like_cpp(self.vmap_indoor_check);
+        session.set_cast_unstuck_enabled_like_cpp(self.cast_unstuck_enabled);
         session.set_enable_ae_loot_like_cpp(self.enable_ae_loot);
         session.set_server_expansion_like_cpp(self.server_expansion);
         session.set_instance_ignore_raid_like_cpp(self.instance_ignore_raid);

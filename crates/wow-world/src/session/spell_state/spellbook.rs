@@ -6,6 +6,10 @@
 use super::*;
 
 impl WorldSession {
+    pub fn set_cast_unstuck_enabled_like_cpp(&mut self, enabled: bool) {
+        self.represented_cast_unstuck_enabled_like_cpp = enabled;
+    }
+
     pub fn set_offhand_check_at_spell_unlearn_like_cpp(&mut self, enabled: bool) {
         self.represented_offhand_check_at_spell_unlearn_like_cpp = enabled;
     }

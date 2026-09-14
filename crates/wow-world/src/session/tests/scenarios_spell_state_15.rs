@@ -312,7 +312,7 @@ async fn spell_stuck_skips_flight_and_disabled_config_like_cpp() {
     );
 
     let (mut disabled_session, _, disabled_rx) = make_session();
-    disabled_session.represented_cast_unstuck_enabled_like_cpp = false;
+    disabled_session.set_cast_unstuck_enabled_like_cpp(false);
     disabled_session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "StuckDisabled".to_string(),

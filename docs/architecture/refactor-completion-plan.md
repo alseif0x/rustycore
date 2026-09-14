@@ -86,6 +86,16 @@ aura solo lee el switch. Es una clasificación de ledger sin cambio de código,
 paquetes, lock o orden de runtime; el residual productivo exacto queda en 8
 campos. Architecture check, self-test (20/20) y diff validation pasan.
 
+La siguiente macro C0–C4 clasifica `represented_cast_unstuck_enabled_like_cpp`
+como configuración inmutable del mundo. TrinityCore lee `CONFIG_CAST_UNSTUCK`
+desde `World` (`World.h:119`, `World.cpp:1116`) antes de
+`Spell::EffectStuck` (`Spells/SpellEffects.cpp:3265-3269`); Rust carga e inyecta
+la misma clave mediante `SessionRuntimePolicyCapabilitiesLikeCpp`, y el
+consumidor de spell solo lee el policy. La prueba de policy desactivada y la
+regresión de configuración cubren la frontera. La clasificación añade el writer
+productivo que faltaba, no crea autoridad duplicada ni cambia el orden de runtime;
+el residual productivo exacto queda en 7 campos.
+
 PR #891 añade el cierre P2 acotado del owner de taxi del Player: el avance de ruta
 tras teletransporte y la limpieza del vuelo pasan a ser transiciones nominales sobre
 `PlayerTaxi`, siguiendo `PlayerTaxi::NextTaxiDestination` (`PlayerTaxi.h:74`) y
