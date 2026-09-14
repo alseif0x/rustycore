@@ -432,7 +432,8 @@ impl WorldSession {
     /// C++ anchors: `SpellEffects.cpp:2237-2261`, `DynamicObject.cpp:209-225`,
     /// `Player.cpp:25344-25387`, `Player.h:2432,2438`, and
     /// `Player.cpp:23343-23349`. Ownership remains canonical `Map::map_objects`;
-    /// sync direction is map outcome -> session represented `m_seer` only.
+    /// the session consumes the outcome for packet publication and test
+    /// fixtures; production visibility derives the seer from Player state.
     pub(in crate::session) fn send_set_viewpoint_target_visibility_like_cpp(
         &mut self,
         dynamic_object_guid: ObjectGuid,
@@ -520,9 +521,14 @@ impl WorldSession {
         // C++ `Player::SetViewpoint(target, true)` orders the direct
         // `UpdateVisibilityOf(target)` after writing `FarsightObject` and before
         // `SetSeer(target)`, so this represented target-only create is consumed
-        // before updating the session-local represented `m_seer`.
+        // before the next visibility read derives the seer from canonical
+        // Player state.
         self.send_set_viewpoint_target_visibility_like_cpp(dynamic_object_guid);
-        self.represented_seer_guid_like_cpp = Some(dynamic_object_guid);
+        self.last_observed_farsight_object_like_cpp = dynamic_object_guid;
+        #[cfg(test)]
+        {
+            self.represented_seer_guid_like_cpp = Some(dynamic_object_guid);
+        }
         player_set_viewpoint.update_visibility_requested
     }
     /// C++ `Spell::EffectAddExtraAttacks`.

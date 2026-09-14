@@ -236,6 +236,34 @@ impl WorldSession {
             data,
         ));
     }
+    /// Resolve the current C++ `Player::m_seer` projection from the canonical
+    /// Player. C++ keeps a pointer, but every Rust consumer in this boundary
+    /// needs only its GUID; `ActivePlayerData::FarsightObject` is the durable
+    /// owner and an empty value means the Player itself.
+    pub(in crate::session) fn current_seer_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        let player_guid = self.player_guid()?;
+        if let Some(farsight) = self.current_canonical_player_farsight_object_value_like_cpp() {
+            if !farsight.is_empty() {
+                return Some(farsight);
+            }
+            #[cfg(test)]
+            if let Some(seer_guid) = self.represented_seer_guid_like_cpp {
+                // Detached fixtures can model the short C++ ordering window
+                // between writing FarsightObject and SetSeer(this).
+                if !seer_guid.is_empty() && seer_guid != player_guid {
+                    return Some(seer_guid);
+                }
+            }
+            return Some(player_guid);
+        }
+
+        #[cfg(test)]
+        return self.represented_seer_guid_like_cpp;
+
+        #[cfg(not(test))]
+        None
+    }
+
     #[cfg(test)]
     pub(crate) fn represented_seer_guid_like_cpp(&self) -> Option<ObjectGuid> {
         self.represented_seer_guid_like_cpp
@@ -265,29 +293,37 @@ impl WorldSession {
     /// cleared the map-owned Player `ActivePlayerData::FarsightObject`.
     ///
     /// Ownership remains one-way: canonical map Player state is the source of
-    /// truth; this helper only mirrors canonical empty farsight into the
-    /// session-local represented `m_seer` and represented VALUES packet.
+    /// truth. The session keeps only a publication fence so a clear VALUES
+    /// packet is emitted once when the map-owned viewpoint disappears.
     pub(crate) fn sync_represented_farsight_clear_from_canonical_like_cpp(&mut self) -> bool {
         let Some(player_guid) = self.player_guid() else {
             return false;
         };
-        let Some(seer_guid) = self.represented_seer_guid_like_cpp else {
-            return false;
-        };
-        if seer_guid.is_empty() || seer_guid == player_guid {
-            return false;
-        }
-
         let Some(canonical_farsight_object) =
             self.current_canonical_player_farsight_object_value_like_cpp()
         else {
             return false;
         };
         if !canonical_farsight_object.is_empty() {
+            self.last_observed_farsight_object_like_cpp = canonical_farsight_object;
             return false;
         }
 
-        self.represented_seer_guid_like_cpp = Some(player_guid);
+        #[cfg(test)]
+        let had_non_player_seer = self
+            .represented_seer_guid_like_cpp
+            .is_some_and(|seer_guid| !seer_guid.is_empty() && seer_guid != player_guid);
+        #[cfg(not(test))]
+        let had_non_player_seer = !self.last_observed_farsight_object_like_cpp.is_empty();
+        if !had_non_player_seer {
+            return false;
+        }
+
+        #[cfg(test)]
+        {
+            self.represented_seer_guid_like_cpp = Some(player_guid);
+        }
+        self.last_observed_farsight_object_like_cpp = ObjectGuid::EMPTY;
         self.send_active_player_farsight_object_values_update_like_cpp(
             player_guid,
             ObjectGuid::EMPTY,

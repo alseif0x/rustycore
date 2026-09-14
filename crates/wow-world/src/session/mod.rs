@@ -7141,9 +7141,17 @@ pub struct WorldSession {
     /// the cutoff to drop movement commands queued before the burst completes
     /// without blocking movement generated after the player is in world.
     pub(crate) suppress_creature_movement_queued_at_or_before_like_cpp: Option<Instant>,
-    /// Represented C++ `Player::m_seer`. This slice keeps only the GUID seam:
-    /// self/player GUID by default, current viewpoint GUID after valid FAR_SIGHT enable.
+    /// Detached-test seam for the C++ `Player::m_seer` projection. Production
+    /// derives the current seer from the canonical map-owned Player's
+    /// `ActivePlayerData::FarsightObject`; this field never participates in
+    /// production ownership or visibility decisions.
+    #[cfg(test)]
     pub(crate) represented_seer_guid_like_cpp: Option<wow_core::ObjectGuid>,
+    /// Last canonical FarsightObject value observed by this Session's
+    /// publication rail. This is a delivery fence, not gameplay authority:
+    /// it lets the session emit the one explicit clear packet required when a
+    /// map-owned viewpoint disappears between map ticks.
+    last_observed_farsight_object_like_cpp: wow_core::ObjectGuid,
     /// Session-local delivery guard for represented DynamicObject VALUES packets
     /// consumed from the last map-owned `Map::SendObjectUpdates` stable snapshot.
     /// Includes the map update generation so repeated `process_pending()` calls
@@ -8885,7 +8893,9 @@ impl WorldSession {
             #[cfg(test)]
             player_transport_login_state_like_cpp: None,
             suppress_creature_movement_queued_at_or_before_like_cpp: None,
+            #[cfg(test)]
             represented_seer_guid_like_cpp: None,
+            last_observed_farsight_object_like_cpp: wow_core::ObjectGuid::EMPTY,
             represented_dynamic_object_values_updates_delivered_like_cpp:
                 std::collections::HashSet::new(),
             represented_player_unit_values_updates_delivered_like_cpp:
@@ -12789,7 +12799,11 @@ impl WorldSession {
         }
         if let Some(guid) = guid {
             self.recent_player_guid_low_like_cpp = guid.counter() as u64;
-            self.represented_seer_guid_like_cpp = Some(guid);
+            self.last_observed_farsight_object_like_cpp = wow_core::ObjectGuid::EMPTY;
+            #[cfg(test)]
+            {
+                self.represented_seer_guid_like_cpp = Some(guid);
+            }
         }
         if guid.is_none() {
             self.player_identity_bootstrap_like_cpp = None;
@@ -12797,7 +12811,11 @@ impl WorldSession {
             {
                 self.player_bootstrap_attached_like_cpp = false;
             }
-            self.represented_seer_guid_like_cpp = None;
+            #[cfg(test)]
+            {
+                self.represented_seer_guid_like_cpp = None;
+            }
+            self.last_observed_farsight_object_like_cpp = wow_core::ObjectGuid::EMPTY;
             // Old registry clones remain permanently closed; a later character
             // selected on this authenticated session receives a fresh fence.
             self.durable_loot_money_persistence_like_cpp =
@@ -12898,7 +12916,11 @@ impl WorldSession {
             self.player_level = controller.level();
             self.player_gender = controller.gender();
         }
-        self.represented_seer_guid_like_cpp = Some(controller.guid());
+        #[cfg(test)]
+        {
+            self.represented_seer_guid_like_cpp = Some(controller.guid());
+        }
+        self.last_observed_farsight_object_like_cpp = wow_core::ObjectGuid::EMPTY;
         #[cfg(test)]
         {
             self.player_bootstrap_attached_like_cpp = true;
@@ -16697,6 +16719,7 @@ impl WorldSession {
 
     pub(crate) fn apply_far_sight_like_cpp(&mut self, enable: bool) {
         if !enable {
+            #[cfg(test)]
             if let Some(player_guid) = self.player_guid() {
                 self.represented_seer_guid_like_cpp = Some(player_guid);
             }
@@ -16708,7 +16731,10 @@ impl WorldSession {
             return;
         };
         if self.canonical_map_has_seer_like_object_like_cpp(target) {
-            self.represented_seer_guid_like_cpp = Some(target);
+            #[cfg(test)]
+            {
+                self.represented_seer_guid_like_cpp = Some(target);
+            }
         } else {
             debug!("CMSG_FAR_SIGHT enable target {:?} is not resoluble", target);
         }

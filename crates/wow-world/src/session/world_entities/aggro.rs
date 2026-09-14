@@ -483,7 +483,7 @@ impl WorldSession {
             return 0.0;
         };
         let seer_guid = self
-            .represented_seer_guid_like_cpp
+            .current_seer_guid_like_cpp()
             .filter(|guid| !guid.is_empty())
             .unwrap_or(player_guid);
 
