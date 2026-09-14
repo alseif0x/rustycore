@@ -10,8 +10,19 @@ impl WorldSession {
         &mut self,
         now_secs: u64,
     ) {
-        self.represented_instance_reset_times_like_cpp
-            .retain(|_, release_time| *release_time > now_secs);
+        if self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.prune_instance_reset_times_like_cpp(now_secs);
+            })
+            .is_some()
+        {
+            return;
+        }
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_instance_reset_times_like_cpp
+                .retain(|_, release_time| *release_time > now_secs);
+        }
     }
     pub(in crate::session) fn cannot_enter_existing_instance_lock_like_cpp(
         &self,

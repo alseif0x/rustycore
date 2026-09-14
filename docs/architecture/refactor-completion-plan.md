@@ -148,6 +148,17 @@ canonical InstanceLockMgr query plus injected DungeonEncounter catalog for
 moving the Player `m_seer`/SetViewpoint lifecycle and every visibility consumer
 (`Player.h:2417,2423`, `Player.cpp:298-300,25344-25395`).
 
+## P2 Player instance-reset owner — candidate PR #919, 2026-09-14
+
+The candidate moves C++ `_instanceResetTimes` into the canonical
+`PlayerGameplayState` (`crates/wow-entities/src/player_gameplay_state.rs:60`) with
+named operations in `player/recent_instances.rs`. Map admission creates the canonical
+Player before farm-limit checks and entry accounting; login hydration and save projection
+read the same owner. The old Session map is `cfg(test)` fixture state only and transfers
+once when a fixture owner is materialized. Owner, instance-count, teleport, package and
+syntax ownership checks pass. The exact production residual is now the locked-encounter
+contract and the Player `m_seer` visibility seam.
+
 PR #891 añade el cierre P2 acotado del owner de taxi del Player: el avance de ruta
 tras teletransporte y la limpieza del vuelo pasan a ser transiciones nominales sobre
 `PlayerTaxi`, siguiendo `PlayerTaxi::NextTaxiDestination` (`PlayerTaxi.h:74`) y

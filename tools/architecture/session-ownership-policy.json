@@ -3657,8 +3657,10 @@
           "name": "represented_instance_reset_times_like_cpp",
           "type": "BTreeMap < u32 , u64 >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_is_outdoors_like_cpp",
@@ -29303,6 +29305,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "instance_reset_times_snapshot_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn instance_reset_times_snapshot_like_cpp (& self ,) -> Option < std :: collections :: BTreeMap < u32 , u64 > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "interrupt_current_channeled_spell_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn interrupt_current_channeled_spell_like_cpp (& mut self , spell_id : i32) -> bool",
@@ -32154,6 +32169,19 @@
           "name": "mutate_cast_execution_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn mutate_cast_execution_like_cpp < R > (& mut self , f : impl FnOnce (& mut wow_entities :: CastExecutionStateLikeCpp) -> R ,) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "mutate_instance_reset_times_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn mutate_instance_reset_times_like_cpp < R > (& mut self , mut f : impl FnMut (& mut std :: collections :: BTreeMap < u32 , u64 >) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -37833,6 +37861,19 @@
           "name": "replace_completed_achievement_ids_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn replace_completed_achievement_ids_like_cpp (& mut self , achievement_ids : impl IntoIterator < Item = u32 > ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "replace_instance_reset_times_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn replace_instance_reset_times_like_cpp (& mut self , rows : impl IntoIterator < Item = (u32 , u64) > ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -76924,7 +76965,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:df078db73779e0c7edfb92609e000d50:len=93193|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:c15e4776be6c9545547e67b06f479238:len=93208|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

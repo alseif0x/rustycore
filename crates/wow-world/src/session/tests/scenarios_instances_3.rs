@@ -29,6 +29,42 @@ fn instance_time_restriction_load_rows_match_cpp_insert_semantics() {
             .contains_key(&99)
     );
 }
+
+#[test]
+fn canonical_instance_reset_times_are_owned_by_player_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 88);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "PlayerInstanceTimes".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        631,
+        1,
+        1,
+        80,
+        0,
+    ));
+    install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+    assert!(
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .is_some()
+    );
+
+    session.add_instance_enter_time_like_cpp(9001, 1_000);
+
+    assert_eq!(
+        session.with_owned_player_like_cpp(|player| {
+            player.instance_reset_times_like_cpp().get(&9001).copied()
+        }),
+        Some(Some(4_600))
+    );
+    assert!(session.represented_instance_reset_times_like_cpp.is_empty());
+}
+
 #[test]
 fn canonical_instance_count_blocks_new_distinct_instance_like_cpp() {
     let (mut session, _pkt_tx, send_rx) = make_session();
@@ -168,10 +204,11 @@ fn canonical_instance_entry_records_enter_time_like_cpp() {
         session.ensure_canonical_world_map_for_current_player_like_cpp(),
         Some(wow_map::CreateMapDecision::Create { key, .. }) if key.instance_id != 0
     ));
-    assert!(
-        session
-            .represented_instance_reset_times_like_cpp
-            .contains_key(&1)
+    assert_eq!(
+        session.with_owned_player_like_cpp(|player| {
+            player.instance_reset_times_like_cpp().contains_key(&1)
+        }),
+        Some(true)
     );
     assert!(send_rx.try_recv().is_err());
 }

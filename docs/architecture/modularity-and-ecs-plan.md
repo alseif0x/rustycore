@@ -156,6 +156,20 @@ and the currently non-injected `DungeonEncounterStore` to reproduce
 `Player::IsLockedToDungeonEncounter` (`Player.cpp:20725-20748`); and the seer GUID is
 Player-owned `m_seer` (`Player.h:2417,2423`, `Player.cpp:298-300,25344-25395`) and
 requires a complete visibility-owner migration.
+
+## P2 Player instance-reset owner — candidate PR #919, 2026-09-14
+
+The candidate moves `_instanceResetTimes` to the canonical
+`PlayerGameplayState` (`crates/wow-entities/src/player_gameplay_state.rs:60`) and
+keeps its C++ load, admission and save operations behind named Player methods in
+`player/recent_instances.rs`. `WorldSession` materializes the canonical owner before
+the map admission checks that read and update the rate-limit map; login hydration and
+persistence projection borrow that owner. The former Session field is `cfg(test)` only,
+with a one-time fixture transfer for old tests. Focused owner, instance-count, teleport,
+package and syntax ownership checks pass. This reduces the exact production residual to
+`represented_locked_dungeon_encounters` and `represented_seer_guid_like_cpp`, which
+remain separate contracts.
+
 The finite hecs V2 conformance proof has passed within its recorded laboratory limits.
 That evidence does not install production `hecs` or Wasmtime, prove production storage
 integration, or close the remaining #584 boundaries. #743 and #735 are delivered and

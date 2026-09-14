@@ -380,8 +380,8 @@ pub(super) fn request(
         None
     };
 
-    let instance_lock_times = session
-        .represented_instance_reset_times_like_cpp
+    let instance_lock_times = game
+        .instance_reset_times
         .iter()
         .map(
             |(&instance_id, &release_time)| PlayerInstanceLockTimeSaveLikeCpp {
