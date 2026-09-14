@@ -87,6 +87,14 @@ Player ownership. This ledger-only cut leaves 9 exact unresolved production
 fields, with no code, lock, packet or runtime behavior change. Architecture check,
 self-test (20/20) and diff validation pass.
 
+The next C0–C4 classification assigns `vmap_indoor_check_like_cpp` to the
+immutable world-configuration family. TrinityCore reads `CONFIG_VMAP_INDOOR_CHECK`
+from process `World` (`World.h:119`, `World.cpp:1116`); Rust loads and injects the
+same key through `SessionRuntimePolicyCapabilitiesLikeCpp`
+(`world-server/app.rs:5064`, `session_resources.rs:295,505`) and the aura consumer
+only reads the immutable switch. This ledger-only cut leaves 8 exact unresolved
+production fields, with no code, lock, packet or runtime behavior change.
+
 The finite hecs V2 conformance proof has passed within its recorded laboratory limits.
 That evidence does not install production `hecs` or Wasmtime, prove production storage
 integration, or close the remaining #584 boundaries. #743 and #735 are delivered and
