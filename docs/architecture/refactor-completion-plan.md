@@ -44,6 +44,13 @@ La regresión del owner, los escenarios de mount, los checks de paquetes y el ra
 de arquitectura pasan. El gameplay completo de montura, persistencia, capturas y QA
 viva siguen siendo gates separados bajo #63/#584.
 
+La auditoría vigente de #63 corrige dos pendientes textuales heredados: los ACK de
+velocidad ordinaria ya siguen `MovementHandler.cpp:468-546` en
+`session/movement/speed.rs`, y el ACK de knockback ya está integrado por PR #866
+según `MovementHandler.cpp:548-559`. Quedan únicamente admisión completa de
+seat/offset de vehículos y transportes, ramas cuyo mover o consumidor aún no está
+representado, capturas exactas de bytes/orden y QA viva cliente-servidor-DB.
+
 PR #895 añade el cierre P2 acotado del owner RestMgr del Player: las escrituras de
 flags de descanso, publicación diferida y reloj pasan por transiciones nominales de
 `Player` sobre `PlayerRestState`, siguiendo `RestMgr::SetRestFlag` / `RemoveRestFlag`
