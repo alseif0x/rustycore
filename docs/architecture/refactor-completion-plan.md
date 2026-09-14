@@ -1,6 +1,6 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #866 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.9/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #869 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.9/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
@@ -13,8 +13,8 @@ la cadencia de `AGENTS.md`.
 
 ## 1. Estado que gobierna el plan
 
-**Cabeza integrada, 2026-09-14: PR #866**, en `3.4.3` como
-`0079daa81c4955e38031009a24b17b8dbabc7d9b`. PR #864 queda como la entrega previa de ACK. PR #862 queda como la entrega previa de ACK anterior. PR #853 queda como la entrega previa de admisión. #787 / PR #792 (`d14a9a67`) y
+**Cabeza integrada, 2026-09-14: PR #869**, en `3.4.3` como
+`abd396a0afcb247b411acbaf0d05d8713b747daf`. PR #866 queda como la entrega previa de knockback ACK; PR #864 queda como la entrega previa de ACK. PR #862 queda como la entrega previa de ACK anterior. PR #853 queda como la entrega previa de admisión. #787 / PR #792 (`d14a9a67`) y
 #584 P2 item-bonus, P2 item-object y P3.1–P3.9 están integrados dentro de esta cabeza.
 La entrega de ownership de modificadores de objetos está integrada mediante PR #839
 (implementación `ecc67603`) y retira la superficie mutante genérica restante. La coordinación World/Map está
@@ -71,9 +71,12 @@ un snapshot runtime de estadísticas efectivas y `handlers/character/stats.rs` c
 la derivación de equipo. PR #857 conecta el consumidor de amenaza de hechizo al AP
 canónico con el orden C++ de suma, clamp y multiplicador (`Spell.cpp:5558-5575`,
 `Unit.cpp:9165-9180`); PR #858 conecta el consumidor cuerpo a cuerpo a los rangos
-base/offhand del Player, derivados por la proyección C++-shaped de `wow-data`.
+base/offhand del Player, derivados por la proyección C++-shaped de `wow-data`. PR #869
+añade la admisión exacta de offhand: `haveOffhandWeapon`/`GetWeaponForAttack`
+(`Unit.cpp:496`, `Player.cpp:9243-9270`) requieren slot de arma, Item canónico no
+roto, y `IsInFeralForm` (`Unit.cpp:8807-8812`) bloquea el ataque.
 La issue sigue abierta para productores de auras, consumidores de combate restantes,
-admisión completa de armas, ciclo reversible y la aceptación reversible/captura/QA
+cálculo completo, ciclo reversible y la aceptación reversible/captura/QA
 descrita en `PORT_PLAN.md`. Después siguen los
 residuales P2/P3/P4 por consumidores, el producto #583 y
 la auditoría #153. Las
@@ -1151,7 +1154,9 @@ no negativo y el orden de multiplicadores de C++ (`Spell.cpp:5558-5575`,
 `Unit.cpp:9165-9180`). PR #858 (`cda7f8a0`) hace que el tick cuerpo a cuerpo tome
 los rangos base/offhand del mismo snapshot antes de la transición mutable del reloj
 de Unit; la derivación de item/AP/retardo vive en una proyección pura de `wow-data`.
-Los consumidores de paquetes y persistencia permanecen separados del snapshot.
+PR #869 (`abd396a0`) añade la admisión canónica de offhand y el veto de forma feral
+en el mismo tick, con pruebas de ausencia, objeto usable, objeto roto y forma
+feral. Los consumidores de paquetes y persistencia permanecen separados del snapshot.
 
 Las regresiones enfocadas de `wow-world`, `wow-entities` y la validación final de
 cada PR pasan en sus manifiestos registrados. Estos son cortes acotados: no cierran
@@ -1232,6 +1237,19 @@ movement handlers, arquitectura, `world-server` y `validation-v2 quick` con el
 manifiesto `target/validation-v2/manifests/20260914T052813.807323Z-281858-quick.json`.
 Esta entrega no cierra #63: quedan ACK de velocidad ordinaria, death/BG/taxi,
 offsets/seats completos, otros movers, capturas y QA viva.
+
+#### Entrega F1 bajo #61 — admisión exacta de arma offhand
+
+PR #869 (`abd396a0`) completa la frontera de admisión que faltaba al consumidor
+cuerpo a cuerpo. `Unit::DoMeleeAttackIfReady` (`Unit.cpp:2140`) solo entra en la
+rama offhand cuando `!IsInFeralForm()` y `haveOffhandWeapon()`; esta última
+resuelve `GetWeaponForAttack` (`Unit.cpp:496`, `Player.cpp:9243-9270`). El Player
+canónico comprueba ahora el registro de slot, el tipo de inventario de arma y el
+objeto Item no roto, y proyecta las formas Cat/Bear/DireBear/GhostWolf
+(`Unit.cpp:8807-8812`). Las regresiones cubren ausencia, objeto usable, objeto
+roto y forma feral; pasan los 26 escenarios `combat_tick_`, `cargo check` de
+`world-server` y el guard de arquitectura. La issue #61 permanece abierta para
+productores de aura, cálculo completo, ciclo reversible de equipo, capturas y QA viva.
 
 Qué conservar en cualquier corte P3: residencia/incarnation del Player canónico,
 backpressure y cancelación de la tarea de sesión, transferencia entre mapas, descarga

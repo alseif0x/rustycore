@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `0079daa81c4955e38031009a24b17b8dbabc7d9b` (PR #866).
+The current code integration head is `abd396a0afcb247b411acbaf0d05d8713b747daf` (PR #869).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
 mutations. #524's relation-query order correction is integrated by PR #803; PR #822/#824/#826/#828 now
@@ -69,9 +69,12 @@ retains AP and ranged-AP multipliers, and the consumer follows the C++ modifier 
 non-negative clamp and multiplier order (`Spell.cpp:5558-5575`, `Unit.cpp:9165-9180`).
 PR #858 extends it to melee weapon ranges: the pass snapshots Player-owned base/offhand
 ranges before the mutable Unit timer transition, using one C++-shaped `wow-data`
-projection for item/AP/delay inputs. Both are bounded consumers; aura-backed producers,
-complete combat math, weapon admission and live/capture acceptance remain explicit #61
-work. No second stat authority, lock or clock is introduced.
+projection for item/AP/delay inputs. PR #869 adds the matching canonical admission
+operation: `Unit::haveOffhandWeapon`/`Player::GetWeaponForAttack` (`Unit.cpp:496`,
+`Player.cpp:9243-9270`) must resolve a weapon inventory type and usable Item object,
+while `Unit::IsInFeralForm` (`Unit.cpp:8807-8812`) blocks the offhand branch. Both are
+bounded consumers; aura-backed producers, complete combat math and live/capture
+acceptance remain explicit #61 work. No second stat authority, lock or clock is introduced.
 
 PR #853 adds a bounded movement admission boundary under #63. The Session handler
 performs only the C++ preconditions and delegates spline finalization to the active
@@ -128,6 +131,14 @@ evidence recorded at the integration candidate. Ordinary speed ACKs, remaining
 transport/death/BG/taxi branches, broader mover kinds, exact captures and live QA
 remain explicit #63 boundaries.
 
+PR #869 completes the measured offhand admission boundary under #61. The melee
+pass now resolves the canonical Player offhand slot and Item object before the
+mutable Unit timer transition, requires a weapon inventory type and usable
+durability, and suppresses the branch for `Unit::IsInFeralForm` (`Unit.cpp:496,
+2140, 8807-8812`; `Player.cpp:9243-9270`). The owner and world regressions cover
+absent, usable, broken and feral states; aura-backed modifiers, complete combat
+math and live/capture acceptance remain explicit #61 work.
+
 ## Architecture program state — 2026-09-14
 
 The [refactor completion plan](refactor-completion-plan.md) records the detailed
@@ -136,7 +147,7 @@ semantic, storage and extension contracts; neither document turns a pending task
 an accepted result.
 
 The architecture repair program is reviewed against integrated `3.4.3` at
-`0079daa81c4955e38031009a24b17b8dbabc7d9b`. #587/#588/#589 and the subsequent
+`abd396a0afcb247b411acbaf0d05d8713b747daf`. #587/#588/#589 and the subsequent
 #716/#718/#722/#737 deliveries are integrated and closed in their bounded scopes.
 Their checkpoints retain scoped runtime/capture evidence; they are not reopened by
 the remaining core work or by naming preferences.
