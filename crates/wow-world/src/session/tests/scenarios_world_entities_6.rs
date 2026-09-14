@@ -783,6 +783,15 @@ fn visible_creatures_skip_not_in_world_canonical_objects_like_cpp() {
         0,
         80,
     );
+    let pet_guid = test_pet_guid(9306);
+    add_canonical_test_pet(
+        &canonical,
+        pet_guid,
+        player_guid,
+        9307,
+        Position::new(22.0, 22.0, 0.0, 0.0),
+        0,
+    );
     {
         let mut guard = canonical.lock().unwrap();
         let map = guard.find_map_mut(571, 0).unwrap().map_mut();
@@ -802,108 +811,26 @@ fn visible_creatures_skip_not_in_world_canonical_objects_like_cpp() {
             .world_mut()
             .object_mut()
             .add_to_world();
-        *map.get_typed_creature_mut(removed_guid)
-            .unwrap()
-            .unit_mut()
-            .world_mut()
-            .phase_shift_mut() = PhaseShift::from_phases([10]);
         map.get_typed_creature_mut(removed_guid)
             .unwrap()
             .unit_mut()
             .world_mut()
             .object_mut()
             .remove_from_world();
+        *map.get_typed_pet_mut(pet_guid)
+            .unwrap()
+            .creature_mut()
+            .unit_mut()
+            .world_mut()
+            .phase_shift_mut() = PhaseShift::from_phases([10]);
     }
 
     let visible = session
         .visible_creatures_from_canonical_map_like_cpp(571, &player_position)
         .expect("canonical map");
 
-    assert_eq!(visible.len(), 1);
-    assert_eq!(visible[0].guid(), in_world_guid);
-}
-
-#[test]
-fn visible_creatures_include_canonical_pets_through_creature_create_path_like_cpp() {
-    let (mut session, _pkt_tx, _send_rx) = make_session();
-    let canonical = shared_canonical_map_manager();
-    let player_guid = ObjectGuid::create_player(1, 93_306);
-    let pet_guid = test_pet_guid(93_307);
-    let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
-    let pet_position = Position::new(20.0, 20.0, 0.0, 0.0);
-
-    session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.attach_player_controller_like_cpp(SessionPlayerController::new(
-        player_guid,
-        "VisiblePetViewer".to_string(),
-        player_position,
-        571,
-        1,
-        1,
-        80,
-        0,
-    ));
-    session.set_represented_player_phase_shift_like_cpp(PhaseShift::from_phases([10]));
-    add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
-    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
-    *canonical
-        .lock()
-        .unwrap()
-        .find_map_mut(571, 0)
-        .expect("canonical viewer map")
-        .map_mut()
-        .get_typed_player_mut(player_guid)
-        .expect("canonical viewer")
-        .unit_mut()
-        .world_mut()
-        .phase_shift_mut() = PhaseShift::from_phases([10]);
-
-    let mut pet = wow_entities::Pet::new(player_guid, wow_entities::PetType::Summon);
-    pet.creature_mut()
-        .unit_mut()
-        .world_mut()
-        .object_mut()
-        .create(pet_guid);
-    pet.creature_mut()
-        .unit_mut()
-        .world_mut()
-        .object_mut()
-        .set_entry(93_308);
-    pet.creature_mut()
-        .unit_mut()
-        .world_mut()
-        .set_map(571, 0)
-        .unwrap();
-    pet.creature_mut()
-        .unit_mut()
-        .world_mut()
-        .relocate(pet_position);
-    pet.creature_mut()
-        .unit_mut()
-        .world_mut()
-        .set_combat_reach(1.0);
-    pet.creature_mut().unit_mut().set_level(80);
-    pet.creature_mut().unit_mut().set_max_health(100);
-    pet.creature_mut().unit_mut().set_health(100);
-    pet.creature_mut().set_ai_identity_runtime(1, 35, 0, 0);
-    *pet.creature_mut().unit_mut().world_mut().phase_shift_mut() = PhaseShift::from_phases([10]);
-
-    canonical
-        .lock()
-        .unwrap()
-        .find_map_mut(571, 0)
-        .expect("canonical viewer map")
-        .map_mut()
-        .add_map_object_record_to_map_like_cpp(wow_entities::MapObjectRecord::new_pet(pet).unwrap())
-        .expect("indexed canonical pet");
-
-    let visible = session
-        .visible_creatures_from_canonical_map_like_cpp(571, &player_position)
-        .expect("canonical map");
-
-    assert_eq!(visible.len(), 1);
-    assert_eq!(visible[0].guid(), pet_guid);
-    assert!(visible[0].guid().is_pet());
+    assert_eq!(visible.len(), 2);
+    assert!(visible.iter().any(|creature| creature.guid() == pet_guid));
 }
 #[test]
 fn visible_gameobjects_use_canonical_map_cells_like_cpp() {

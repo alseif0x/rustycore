@@ -2561,18 +2561,12 @@ fn add_canonical_test_pet_with_visible_aura(
                 .set_visible(slot, aura.aura_ref());
         }
     }
-    pet.creature_mut()
-        .unit_mut()
-        .world_mut()
-        .object_mut()
-        .add_to_world();
-
     canonical
         .lock()
         .unwrap()
         .create_world_map(571, 0)
         .map_mut()
-        .insert_map_object_record(wow_entities::MapObjectRecord::new_pet(pet).unwrap())
+        .add_map_object_record_to_map_like_cpp(wow_entities::MapObjectRecord::new_pet(pet).unwrap())
         .unwrap();
 }
 
@@ -2606,11 +2600,6 @@ fn add_canonical_test_pet_with_number(
     pet.creature_mut().unit_mut().world_mut().relocate(position);
     pet.creature_mut()
         .unit_mut()
-        .world_mut()
-        .object_mut()
-        .add_to_world();
-    pet.creature_mut()
-        .unit_mut()
         .subsystems_mut()
         .control
         .init_charm_info()
@@ -2622,7 +2611,7 @@ fn add_canonical_test_pet_with_number(
         .unwrap()
         .create_world_map(571, 0)
         .map_mut()
-        .insert_map_object_record(wow_entities::MapObjectRecord::new_pet(pet).unwrap())
+        .add_map_object_record_to_map_like_cpp(wow_entities::MapObjectRecord::new_pet(pet).unwrap())
         .unwrap();
 }
 

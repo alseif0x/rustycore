@@ -1,8 +1,8 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #923:** `5f6b1ad83d6ea6adf81368a36384593808632737`.
+**Integrated head after PR #925:** `a1f66c33903ee76b6bb0675177d33e3b283806ed`.
 
-Current exact inventory: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution and the Player `m_seer` visibility projection are integrated; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet.
+Current exact inventory: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution, the Player `m_seer` visibility projection and canonical Pet visibility CREATE discovery are integrated; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -26,7 +26,7 @@ plus any fixes necessary to make that delivered change safe. It does not claim a
 thin Session, full C0–C4 completion, production hecs migration or a finished LFG.
 
 **#584 owns all remaining core C0–C4 work under #133.** It is a coordination epic,
-not another giant implementation PR. P3.8, P3.9 and P3.10 are integrated; P3.9
+not another giant implementation PR. P3.8, P3.9, P3.10 and P3.11 are integrated; P3.9
 delivered directed DESTROY for an ordinary in-world Creature and P3.10 delivered
 receiver-filtered Player/Unit VALUES fanout after `Map::SendObjectUpdates`. PR #876
 also integrates the separate Transport VALUES membership projection through the
@@ -34,7 +34,10 @@ PlayerRegistry and Session consumer; Transport CREATE/DESTROY and passenger life
 remain separate gates. The 2026-09-14 audit selected Transport CREATE/DESTROY and
 phase visibility as the next bounded macro; PR #901 integrates it at
 `bf460aa7a8ccec0269eea1771a094ef12f0c6109` with typed map snapshots carried through
-the deferred Session rail. Before each subsequent implementation child, audit current
+the deferred Session rail. P3.11 includes indexed canonical Pets in the existing
+Creature CREATE discovery query, preserving the phase/range/detection gates and the
+canonical Pet owner; Pet runtime/owner lifecycle and directed Pet DESTROY remain
+separate gates. Before each subsequent implementation child, audit current
 responsibilities, callers, C++ behavior, invariants, dependencies, tests and physical
 hotspots; then define a finite complete outcome and its consumer changes. A
 crate-focused issue may touch other crates to finish its operation. Analyze later
@@ -430,6 +433,23 @@ Shared-raid field flags, exact packet captures, complete CREATE/Pet/corpse/trans
 coverage and live DB/restart/relogin acceptance remain separate #584 gates. PR #876
 now covers the Transport VALUES membership gate specifically; it does not close #584,
 and the next macro still requires a fresh responsibility audit.
+
+## P3.11 canonical Pet visibility CREATE — 2026-09-14, #584 / PR #925, integration `a1f66c33`
+
+The canonical map indexes `AccessorObjectKind::Pet` in the same Creature cell
+family used by TrinityCore's generic `Map::AddToMap` unit path. PR #925 changes
+`visible_creatures_from_canonical_map_like_cpp` to read that entry through
+`with_creature_or_pet_like_cpp`; an in-world Pet therefore reaches the existing
+`WorldCreature::create_data_from_canonical_like_cpp` and Creature CREATE block after
+the normal map, phase, range and detection gates. The source anchors are
+`Map.cpp:530-610` (`UpdateObjectVisibilityOnCreate`) and `Pet.cpp:69-88`
+(`Pet::AddToWorld`/`Unit::AddToWorld`).
+
+`visible_creatures_skip_not_in_world_canonical_objects_like_cpp`
+passes with the affected `wow-world` package check, formatting and diff checks. This
+closes only the canonical Pet visibility projection gap. It does not move Pet AI,
+movement, summon ownership, persistence or directed DESTROY; those, corpse/transport
+lifecycle, exact captures and live DB/restart/relogin QA remain open #584/#63 gates.
 
 ## Transport VALUES membership projection — 2026-09-14
 

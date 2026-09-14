@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-14 (#923 / #922 / #921 / #919 / #918 / #917 / #916 / #915 / #913 / #911 / #909 / #907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-14 (#925 / #924 / #923 / #922 / #921 / #919 / #918 / #917 / #916 / #915 / #913 / #911 / #909 / #907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,9 +11,9 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `5f6b1ad83d6ea6adf81368a36384593808632737` (PR #923, following PR #922/#921, PR #918, PR #917, PR #916, PR #915, PR #913, PR #909, PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
+The current code integration head is `a1f66c33903ee76b6bb0675177d33e3b283806ed` (PR #925, following PR #924/#923, PR #922/#921, PR #918, PR #917, PR #916, PR #915, PR #913, PR #909, PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
 PR #889, PR #876, P3.10 correction PR #873 and delivery PR #871).
-Current exact inventory after PR #923: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution and the Player `m_seer` visibility projection are integrated; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet.
+Current exact inventory after PR #925: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution, the Player `m_seer` visibility projection and canonical Pet visibility CREATE discovery are integrated; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet.
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
 mutations. #524's relation-query order correction is integrated by PR #803; PR #822/#824/#826/#828 now
@@ -189,6 +189,22 @@ authority. FAR_SIGHT (14), GameObject despawn (22), DynamicObject VALUES (15),
 package, ownership syntax, architecture and self-test evidence pass at merge
 `5f6b1ad8`. Full captures, DB/relogin durability and live QA remain gameplay/runtime
 gates under #41/#63/#584.
+
+## P3.11 canonical Pet visibility CREATE — integrated PR #925, 2026-09-14
+
+The canonical map indexes `AccessorObjectKind::Pet` in the same Creature cell
+family used by TrinityCore's generic `Map::AddToMap` unit path. PR #925
+(`a1f66c33`) changes the Session visibility query to use
+`with_creature_or_pet_like_cpp`, so an in-world Pet reaches the existing
+`WorldCreature::create_data_from_canonical_like_cpp` and Creature CREATE block after
+the normal map, phase, range and detection gates. The C++ anchors are
+`Map.cpp:530-610` (`UpdateObjectVisibilityOnCreate`) and `Pet.cpp:69-88`
+(`Pet::AddToWorld`/`Unit::AddToWorld`). The regression
+`visible_creatures_skip_not_in_world_canonical_objects_like_cpp`
+passes together with the affected package check, formatting and diff checks.
+This is a visibility projection closure only: Pet AI/movement, summon ownership and
+persistence, directed Pet DESTROY, transport/corpse lifecycle, captures and live QA
+remain separate #584/#63 gates.
 
 ## P2 Player instance-reset owner — integrated PR #919, 2026-09-14
 
@@ -406,8 +422,15 @@ flags, exact packet captures, complete CREATE/Pet/corpse/transport coverage and
 live DB/restart/relogin evidence remain explicit follow-up gates. The correction keeps
 Player/Unit out of the generic map rail to prevent duplicate delivery and owner-only bytes
 reaching observers, and rechecks the admitted `MapKey` before publication after the map lock
-is released. This does not move
-the legacy Creature owner or imply completion of #584.
+is released. P3.11 then closes the measured canonical Pet CREATE discovery gap:
+`Map::AddToMap` indexes Pets in the Creature cell family, and the Session query
+now reads that common body through `with_creature_or_pet_like_cpp` before applying
+the existing phase/range/detection gates. The regression
+`visible_creatures_skip_not_in_world_canonical_objects_like_cpp`
+covers the indexed in-world case. Pet AI/movement, summon ownership and
+persistence, directed Pet DESTROY, corpse/transport lifecycle, exact captures and
+live QA remain open; this does not move the legacy Creature owner or imply
+completion of #584.
 
 PR #876 closes the next narrow Transport VALUES fanout residual without widening
 that boundary. C++ keeps `Player::m_visibleTransports` separate from ordinary
