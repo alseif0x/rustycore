@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-14 (#878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-14 (#881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `d8cb0594093c25ae618ab2603896fd3e2f7de26d` (PR #878,
+The current code integration head is `2a916c1c429456085e9274a60fcf57138ce12b43` (PR #881,
 following PR #876, P3.10 correction PR #873 and delivery PR #871).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
@@ -51,6 +51,15 @@ Creature/Pet `m_SightDistance` for inactive sources. The remaining P2 operations
 legacy-writer migration and other P3/P4 work follow only after their complete
 consumer contract is audited. No new micro-issues are implied; each macro includes
 its consumers and validation.
+
+PR #881 closes the next bounded P2 owner surface selected by that audit: Player aura
+state no longer has production callers mutating `AuraSubsystem` through a generic
+Session closure. `wow-entities::Player` names visible-aura, authority, tombstone/reset
+and threat-aura transitions over the Unit-owned subsystem, with the generic adapter
+limited to `cfg(test)` fixtures. The C++ ownership anchors are `Unit.h:620-640,
+1226-1260,1825-1844` and `Unit.cpp:680-690`; no second authority, lock or clock is
+introduced. Aura gameplay, packet captures and durable/live acceptance remain outside
+this structural closure.
 
 PR #844 closes one of those measured P2 operations: Void Storage's fixed-slot state and
 its clear/load/mark, lookup, free-slot, add, delete and swap transitions now belong to
@@ -183,7 +192,7 @@ semantic, storage and extension contracts; neither document turns a pending task
 an accepted result.
 
 The architecture repair program is reviewed against integrated `3.4.3` at
-`d8cb0594093c25ae618ab2603896fd3e2f7de26d`. #587/#588/#589 and the subsequent
+`2a916c1c429456085e9274a60fcf57138ce12b43`. #587/#588/#589 and the subsequent
 #716/#718/#722/#737 deliveries are integrated and closed in their bounded scopes.
 Their checkpoints retain scoped runtime/capture evidence; they are not reopened by
 the remaining core work or by naming preferences.
