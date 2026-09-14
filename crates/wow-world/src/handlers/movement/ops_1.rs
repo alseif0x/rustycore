@@ -168,11 +168,7 @@ impl WorldSession {
             self.clear_player_emote_state_on_player_movement_like_cpp();
         }
 
-        let current_mover_position = if mover_is_player {
-            self.player_position_like_cpp()
-        } else {
-            None
-        };
+        let current_mover_position = self.mover_position_like_cpp(mover_guid);
         let new_player_cell_like_cpp =
             mover_is_player.then(|| wow_map::cell_from_world(pos.x, pos.y));
         let old_player_cell_like_cpp = current_mover_position
