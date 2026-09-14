@@ -987,6 +987,23 @@ pasajeros, CREATE/DESTROY, Pet/corpse/Transport, persistencia, capturas ni QA vi
 siguen siendo límites separados de #584/#63. El siguiente macro de #584 vuelve a
 seleccionarse solo después de una auditoría C0–C4 nueva y completa.
 
+#### Entrega P2 bajo #584 — ownership de TradeData del Player
+
+La auditoría de las superficies P2 restantes encontró que el estado representado de
+comercio seguía escribiéndose mediante un cierre genérico de `WorldSession`, aunque
+TrinityCore lo posee en `Player::m_trade` (`Player.h:2998`). La entrega candidata
+añade `crates/wow-entities/src/player/trade.rs` y nombra las transiciones completas
+de apertura/cierre, índices de cliente/servidor, aceptación, oro, slots de objetos y
+hechizo, con anclas `TradeHandler.cpp:694-695`, `Player.cpp:12864-12879` y
+`TradeData.cpp:58-150`.
+
+Session conserva admisión de dinero e inventario, validación de catálogos, paquetes y
+el buzón del participante remoto. El cierre de estado completo queda solo para
+fixtures sin handle bajo `cfg(test)`, sin segundo owner, lock, reloj o espejo de
+producción. Las regresiones del owner cubren las transiciones y el caso de oro no
+asequible; la suite social, checks, formato/diff y ratchet de arquitectura pasan.
+La liquidación durable, las capturas y la QA viva siguen siendo límites funcionales.
+
 #### Contraste P3 de composición y fases — revisión acotada 2026-09-12
 
 **Corrección de la primera versión de esta sección (misma fecha).** La versión

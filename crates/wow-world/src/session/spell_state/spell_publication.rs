@@ -140,7 +140,7 @@ impl WorldSession {
     ) {
         use wow_packet::ServerPacket;
 
-        let Some(Some(mut trade)) = self.player_trade_state_snapshot_like_cpp() else {
+        let Some(Some(trade)) = self.player_trade_state_snapshot_like_cpp() else {
             return;
         };
         if trade.partner_guid != partner_guid {
@@ -150,14 +150,26 @@ impl WorldSession {
             return;
         }
 
-        trade.spell_id = spell_id;
-        trade.spell_cast_item_guid = cast_item_guid;
-        trade.accepted = false;
-        trade.server_state_index = trade.server_state_index.wrapping_add(1);
-        if self
-            .mutate_player_trade_state_like_cpp(|state| *state = Some(trade))
-            .is_none()
-        {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_trade_spell_like_cpp(spell_id, cast_item_guid)
+            })
+            .is_some_and(|changed| changed);
+        #[cfg(test)]
+        let canonical = if !canonical && self.player_handle_like_cpp.is_none() {
+            self.mutate_player_trade_state_like_cpp(|state| {
+                if let Some(state) = state {
+                    state.spell_id = spell_id;
+                    state.spell_cast_item_guid = cast_item_guid;
+                    state.accepted = false;
+                    state.server_state_index = state.server_state_index.wrapping_add(1);
+                }
+            })
+            .is_some()
+        } else {
+            canonical
+        };
+        if !canonical {
             return;
         }
 

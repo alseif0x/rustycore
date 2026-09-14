@@ -15219,31 +15219,63 @@ impl WorldSession {
     pub(crate) fn clear_represented_trade_item_like_cpp(&mut self, trade_slot: u8) {
         use wow_packet::ServerPacket;
 
-        let Some(Some(mut trade)) = self.player_trade_state_snapshot_like_cpp() else {
+        let Some(Some(trade)) = self.player_trade_state_snapshot_like_cpp() else {
             return;
         };
         let partner_guid = trade.partner_guid;
 
-        trade.client_state_index = trade.client_state_index.wrapping_add(1);
-
         if trade_slot >= TRADE_SLOT_COUNT_LIKE_CPP {
-            let _ = self.mutate_player_trade_state_like_cpp(|state| *state = Some(trade));
+            let canonical = self
+                .with_owned_player_mut_like_cpp(|player| {
+                    player.advance_trade_client_state_index_like_cpp()
+                })
+                .is_some_and(|changed| changed);
+            #[cfg(test)]
+            if !canonical && self.player_handle_like_cpp.is_none() {
+                let _ = self.mutate_player_trade_state_like_cpp(|state| {
+                    if let Some(state) = state {
+                        state.client_state_index = state.client_state_index.wrapping_add(1);
+                    }
+                });
+            }
             return;
         }
 
         let slot = trade_slot as usize;
         if trade.items[slot].is_none() {
-            let _ = self.mutate_player_trade_state_like_cpp(|state| *state = Some(trade));
+            let canonical = self
+                .with_owned_player_mut_like_cpp(|player| {
+                    player.advance_trade_client_state_index_like_cpp()
+                })
+                .is_some_and(|changed| changed);
+            #[cfg(test)]
+            if !canonical && self.player_handle_like_cpp.is_none() {
+                let _ = self.mutate_player_trade_state_like_cpp(|state| {
+                    if let Some(state) = state {
+                        state.client_state_index = state.client_state_index.wrapping_add(1);
+                    }
+                });
+            }
             return;
         }
 
-        trade.items[slot] = None;
-        trade.accepted = false;
-        trade.server_state_index = trade.server_state_index.wrapping_add(1);
-        if self
-            .mutate_player_trade_state_like_cpp(|state| *state = Some(trade))
-            .is_none()
-        {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.clear_trade_item_like_cpp(trade_slot))
+            .is_some();
+        #[cfg(test)]
+        let canonical = if !canonical && self.player_handle_like_cpp.is_none() {
+            self.mutate_player_trade_state_like_cpp(|state| {
+                let Some(state) = state else { return };
+                state.client_state_index = state.client_state_index.wrapping_add(1);
+                state.items[slot] = None;
+                state.accepted = false;
+                state.server_state_index = state.server_state_index.wrapping_add(1);
+            })
+            .is_some()
+        } else {
+            canonical
+        };
+        if !canonical {
             return;
         }
 
@@ -15267,7 +15299,7 @@ impl WorldSession {
     ) {
         use wow_packet::ServerPacket;
 
-        let Some(Some(mut trade)) = self.player_trade_state_snapshot_like_cpp() else {
+        let Some(Some(trade)) = self.player_trade_state_snapshot_like_cpp() else {
             return;
         };
         let partner_guid = trade.partner_guid;
@@ -15293,14 +15325,25 @@ impl WorldSession {
             return;
         }
 
-        trade.client_state_index = trade.client_state_index.wrapping_add(1);
-        trade.items[trade_slot as usize] = Some(item.guid);
-        trade.accepted = false;
-        trade.server_state_index = trade.server_state_index.wrapping_add(1);
-        if self
-            .mutate_player_trade_state_like_cpp(|state| *state = Some(trade))
-            .is_none()
-        {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_trade_item_like_cpp(trade_slot, item.guid)
+            })
+            .is_some();
+        #[cfg(test)]
+        let canonical = if !canonical && self.player_handle_like_cpp.is_none() {
+            self.mutate_player_trade_state_like_cpp(|state| {
+                let Some(state) = state else { return };
+                state.client_state_index = state.client_state_index.wrapping_add(1);
+                state.items[trade_slot as usize] = Some(item.guid);
+                state.accepted = false;
+                state.server_state_index = state.server_state_index.wrapping_add(1);
+            })
+            .is_some()
+        } else {
+            canonical
+        };
+        if !canonical {
             return;
         }
 

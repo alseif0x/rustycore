@@ -204,6 +204,21 @@ aura-authority regression, package checks, formatting/diff checks and architectu
 ratchet pass. This does not claim full aura gameplay, exact captures, durable DB or
 live QA, and #584 remains open for the next fresh responsibility audit.
 
+## P2 Player-owned trade transitions — implementation candidate, 2026-09-14
+
+The next measured P2 boundary is the represented `TradeData` state. The candidate
+adds `crates/wow-entities/src/player/trade.rs`, where `Player::m_trade` is mutated
+through named open/clear, state-index, acceptance, gold, item-slot and trade-spell
+operations. The C++ anchors are `Player.h:2998`, `TradeHandler.cpp:694-695`,
+`Player.cpp:12864-12879` and `TradeData.cpp:58-150`. Session keeps money and
+inventory admission, packet construction and partner mailbox delivery; the old
+whole-state mutator is retained only for handle-less `cfg(test)` fixtures.
+
+The owner regressions cover the complete transition set and the unaffordable-gold
+client-index rule. The 15-test social scenario suite, package checks, formatting,
+diff and architecture ratchet pass. This is an ownership closure only: complete
+trade settlement durability, exact captures and live QA remain gameplay gates.
+
 ## P2 item-object ownership closure — 2026-09-13
 
 The corrected #737 inventory identified one remaining production boundary: the generic

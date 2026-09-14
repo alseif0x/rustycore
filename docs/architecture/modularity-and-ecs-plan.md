@@ -61,6 +61,16 @@ limited to `cfg(test)` fixtures. The C++ ownership anchors are `Unit.h:620-640,
 introduced. Aura gameplay, packet captures and durable/live acceptance remain outside
 this structural closure.
 
+The following bounded P2 owner closure moves represented `TradeData` transitions
+onto `wow-entities::Player`. A private `player/trade.rs` module names open/clear,
+state-index, acceptance, gold, item-slot and trade-spell transitions over
+`Player::m_trade` (`Player.h:2998`; `TradeHandler.cpp:694-695`;
+`Player.cpp:12864-12879`; `TradeData.cpp:58-150`). Session remains the
+protocol/application adapter for money and inventory admission, packets and the
+partner mailbox; its generic whole-state mutator is fixture-only. Owner and social
+scenario regressions, package checks, formatting/diff and the architecture ratchet
+pass. Trade settlement durability, captures and live QA remain gameplay gates.
+
 PR #844 closes one of those measured P2 operations: Void Storage's fixed-slot state and
 its clear/load/mark, lookup, free-slot, add, delete and swap transitions now belong to
 the canonical `Player`. Session retains template admission, persistence orchestration and
