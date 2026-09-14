@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-14 (#911 / #909 / #907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-14 (#913 / #911 / #909 / #907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,7 +11,7 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `0dbf768419338ac7d3bf3974cf20fa7e7fa4c2ad` (PR #911, following PR #909, PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
+The current code integration head is `9ec36295344d3faf96733b77bac4686d0a903ec1` (PR #913, following PR #911, PR #909, PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
 PR #889, PR #876, P3.10 correction PR #873 and delivery PR #871).
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
@@ -96,14 +96,14 @@ same key through `SessionRuntimePolicyCapabilitiesLikeCpp`
 only reads the immutable switch. This ledger-only cut leaves 8 exact unresolved
 production fields, with no code, lock, packet or runtime behavior change.
 
-The next C0–C4 classification assigns `represented_cast_unstuck_enabled_like_cpp`
+PR #913 integrates the C0–C4 classification of `represented_cast_unstuck_enabled_like_cpp`
 to the immutable world-configuration family. TrinityCore reads
 `CONFIG_CAST_UNSTUCK` from `World` (`World.h:119`, `World.cpp:1116`) before
 `Spell::EffectStuck` (`Spells/SpellEffects.cpp:3265-3269`); Rust loads and injects
 the same key through `SessionRuntimePolicyCapabilitiesLikeCpp`, and the spell
 consumer only reads the policy. The named disabled-policy scenario and config
 regression cover this boundary. This code-backed classification leaves 7 exact
-unresolved production fields without a second authority, lock or clock.
+unresolved production fields without a second authority, lock or clock. Focused policy/configuration tests, architecture check/self-test and diff validation pass.
 
 The finite hecs V2 conformance proof has passed within its recorded laboratory limits.
 That evidence does not install production `hecs` or Wasmtime, prove production storage
