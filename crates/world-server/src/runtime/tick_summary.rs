@@ -11,8 +11,10 @@ pub(crate) struct CanonicalMapObjectValuesUpdateLikeCpp {
     pub(crate) instance_id: u32,
     pub(crate) object_guid: wow_core::ObjectGuid,
     pub(crate) packet_bytes: Vec<u8>,
-    /// Present only for Unit/Creature/Pet updates so the Session boundary can
-    /// apply viewer-dependent fields such as spell-click NPC flags.
+    /// Compatibility payload for typed Unit/Creature/Pet delivery. The
+    /// canonical map tick leaves Player/Unit snapshots on the Session-side
+    /// receiver-filtered P3.10 path instead of routing them through this
+    /// generic rail; other producers may still populate this field.
     pub(crate) unit_values_update: Option<wow_packet::packets::update::UnitDataValuesDeltaUpdate>,
 }
 

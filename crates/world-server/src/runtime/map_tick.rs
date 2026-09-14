@@ -511,46 +511,12 @@ fn append_map_object_values_updates_like_cpp(
     let instance_id = managed_map.instance_id();
     let updates = managed_map.last_send_object_updates_summary_like_cpp();
 
-    for update in updates.player_values_updates {
-        let Some(packet) = wow_world::entity_update_bridge::player_values_update_to_update_object(
-            update.guid,
-            map_id,
-            &update.values_update,
-        ) else {
-            continue;
-        };
-        summary
-            .object_values_updates
-            .push(CanonicalMapObjectValuesUpdateLikeCpp {
-                map_id,
-                instance_id,
-                object_guid: update.guid,
-                packet_bytes: packet.to_bytes(),
-                unit_values_update: None,
-            });
-    }
-
-    for update in updates.unit_values_updates {
-        let Some(packet_update) =
-            wow_world::entity_update_bridge::unit_values_update_to_packet(&update.values_update)
-        else {
-            continue;
-        };
-        let packet = wow_packet::packets::update::UpdateObject::unit_values_update(
-            update.guid,
-            map_id,
-            packet_update.clone(),
-        );
-        summary
-            .object_values_updates
-            .push(CanonicalMapObjectValuesUpdateLikeCpp {
-                map_id,
-                instance_id,
-                object_guid: update.guid,
-                packet_bytes: packet.to_bytes(),
-                unit_values_update: Some(packet_update),
-            });
-    }
+    // Player/Unit snapshots have viewer-dependent field visibility and are
+    // consumed exclusively by the Session-side P3.10 adapter.  Routing their
+    // unfiltered bytes through this generic rail would duplicate delivery and
+    // expose owner-only Player fields to observers.  Keep the generic rail for
+    // object families whose packet is viewer-independent until each earns its
+    // own typed consumer.
 
     for update in updates.game_object_values_updates {
         let Some(packet) =

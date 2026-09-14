@@ -208,6 +208,13 @@ impl WorldSession {
             }
         }
 
+        // A session can change instance while the map lock is released.  The
+        // snapshot is scoped to the admitted map key; fail closed before any
+        // packet leaves the Session if that key is no longer current.
+        if self.current_canonical_player_map_key_like_cpp() != Some(key) {
+            return 0;
+        }
+
         let mut sent = 0;
         for (source_guid, bytes) in packets {
             // Recheck `HaveAtClient` after dropping the map lock.  A queued
