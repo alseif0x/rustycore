@@ -83,6 +83,20 @@ failures in `scenarios_9` (587 passed, 3 failed); PR #936 then tightened both ph
 policy rows to the exact scanner counts at the current integration head. No packet, SQL,
 clock, lock, persistence order or runtime behavior changed in this physical slice.
 
+The follow-up post-#935 audit selected the remaining game-event state family inside
+the canonical spawn metadata owner. PR #938 (`c5967026`) moves the complete
+game-event transition/cache implementation into the private
+`spawn_store_loader/game_event_runtime.rs` module while keeping every operation as
+an inherent method on `CanonicalSpawnMetadataLikeCpp`. The facade is now 2,627
+lines and the runtime child is 800 lines; the aggregate hotspot remains exactly
+3,427 lines, so no policy ceiling grows. The focused game-event suite remains
+181/181, architecture check/self-test and compile/format/diff gates pass, and the
+full local profile retains only the three pre-existing `scenarios_9` GameObject
+respawn-save failures (587 passed, 3 failed). No owner, packet, SQL, clock, lock,
+persistence order or runtime behavior changed. This closes one navigability family;
+creature/gameobject/addon/spawn-group loading and the remaining #584 C0-C4,
+runtime, capture, DB/relogin and live-QA gates remain open.
+
 The fresh post-#929 audit selected a P4 navigability slice in
 `world-server/src/creature_loaded_grid.rs`. PR #931 keeps its production
 construction/resolution contract in a 797-line facade and moves all 28 tests into
