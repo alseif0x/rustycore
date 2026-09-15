@@ -555,6 +555,21 @@ class coefficients and extra constant but does not claim aura percentage/stat-de
 MP5, complete regen-tick publication, wear-to-broken production or live capture/DB/
 relogin parity; those remain #61 acceptance gates.
 
+The next bounded #61 slice adds the aura-backed percentage producers from
+`Player::UpdateManaRegen` (`StatSystem.cpp:809-812`). The Player-owned effective-stat
+publisher resolves active visible applications through canonical aura state plus
+immutable `SpellInfo`, filters both `SPELL_AURA_MOD_POWER_REGEN_PERCENT` and
+`SPELL_AURA_MOD_MANA_REGEN_PCT` to `POWER_MANA`, and multiplies the spirit producer by
+each C++ `1 + amount / 100` contribution. The focused aura regression and the six
+existing stat-update regressions pass, as does the affected test-aware check for
+`world-server`, `wow-data` and `wow-world`. This is only the percentage producer:
+flat `MOD_POWER_REGEN`, stat-derived MP5, complete tick/publication semantics,
+wear-to-broken production and live capture/DB/relogin parity remain #61 gates.
+Same-effect stack-policy parity needs an explicit aura-application contract before
+it can be claimed. The architecture physical-source check passes, while the runtime
+hotspot ratchet retains the pre-existing Session/character/world-server/Player drift;
+the baseline remains untouched.
+
 The first F1 movement-admission slice is integrated by PR #853
 (`7c3add2f`, implementation `3af90ec2`). It enforces the C++ early returns for
 pending player teleport and unfinished controlled-mover MoveSpline before any

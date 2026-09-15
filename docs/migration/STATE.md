@@ -51,6 +51,22 @@ The architecture physical-source check passes; its runtime hotspot ratchet still
 the pre-existing drift in `session/mod.rs`, character handlers, `world-server/lib.rs` and
 `wow-entities/player/mod.rs`, so no baseline was regenerated.
 
+**#61 aura-backed mana-regeneration percentage projection — 2026-09-15, pending
+implementation on this branch:** the canonical Player stat publisher now applies the
+two C++ percentage producers from `Player::UpdateManaRegen` (`StatSystem.cpp:809-812`):
+`SPELL_AURA_MOD_POWER_REGEN_PERCENT` and `SPELL_AURA_MOD_MANA_REGEN_PCT`, both filtered
+to `POWER_MANA`. The producer resolves canonical visible aura applications against
+immutable `SpellInfo` effect metadata and multiplies each active effect as
+`1 + amount / 100`, preserving loaded applications whose represented-effect shortcut
+is absent. The focused aura regression and the six existing stat-update regressions
+pass; the affected `world-server`, `wow-data` and `wow-world` test-aware check also
+passes. Flat `MOD_POWER_REGEN`, stat-derived MP5, complete tick/publication semantics,
+wear-to-broken production and live capture/DB/relogin evidence remain explicit #61
+gates. Same-effect C++ stack-policy details stay outside this bounded producer until
+the aura application contract carries them explicitly. The architecture physical-source
+check passes; its runtime hotspot ratchet still reports the pre-existing growth in the
+Session, character-handler, world-server and Player roots, so no baseline was regenerated.
+
 **Fresh Creature runtime audit — 2026-09-15:** the current boundary and next
 macro are recorded in
 [`creature-runtime-audit.md`](../architecture/creature-runtime-audit.md).

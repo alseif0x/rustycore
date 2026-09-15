@@ -612,6 +612,43 @@ impl WorldSession {
                 .fold(1.0, |acc, aura| acc * aura.represented_multiplier)
         })
     }
+    /// Resolve a C++ `GetTotalAuraMultiplierByMiscValue` family directly from
+    /// the canonical visible aura applications and their immutable SpellInfo.
+    /// This keeps StatSystem producers independent of packet-only aura mirrors
+    /// and also covers loaded applications whose represented-effect enum is
+    /// intentionally unset.
+    pub(crate) fn resolved_total_aura_multiplier_by_spell_aura_type_and_misc_value_like_cpp(
+        &self,
+        aura_type: i32,
+        misc_value: i32,
+    ) -> Option<f32> {
+        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
+        let spell_store = self.spell_store()?;
+        let mut multiplier = 1.0;
+        for aura in visible_auras.values() {
+            let Some(spell) = spell_store.get(aura.spell_id) else {
+                continue;
+            };
+            for effect in spell.effects().iter().filter(|effect| {
+                effect.effect_aura == aura_type
+                    && effect.effect_misc_value_1 == misc_value
+                    && 1u32
+                        .checked_shl(effect.effect_index)
+                        .is_some_and(|bit| aura.effect_mask & bit != 0)
+            }) {
+                let amount = aura
+                    .represented_effect_amounts
+                    .iter()
+                    .find(|represented| {
+                        u8::try_from(effect.effect_index).ok() == Some(represented.effect_index)
+                    })
+                    .map(|represented| represented.amount)
+                    .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
+                multiplier *= 1.0 + amount as f32 / 100.0;
+            }
+        }
+        Some(multiplier)
+    }
     #[cfg(test)]
     pub(in crate::session) fn total_represented_aura_multiplier_like_cpp(
         &self,
