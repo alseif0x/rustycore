@@ -377,11 +377,23 @@ impl WorldSession {
     pub fn set_combat_ratings_game_table(&mut self, table: Arc<CombatRatingsGameTableLikeCpp>) {
         self.combat_ratings_game_table = Some(table);
     }
+
+    pub fn set_regen_mp_per_spt_game_table(&mut self, table: Arc<RegenMpPerSptGameTableLikeCpp>) {
+        self.regen_mp_per_spt_game_table = Some(table);
+    }
+
     pub(crate) fn combat_rating_multiplier_like_cpp(&self, level: u8, rating: u32) -> f32 {
         self.combat_ratings_game_table
             .as_ref()
             .map(|table| table.rating_multiplier_like_cpp(u16::from(level), rating))
             .unwrap_or(1.0)
+    }
+
+    pub(crate) fn mana_regen_ratio_like_cpp(&self, level: u8, class: u8) -> f32 {
+        self.regen_mp_per_spt_game_table
+            .as_ref()
+            .map(|table| table.mana_regen_ratio_like_cpp(u16::from(level), class))
+            .unwrap_or(0.0)
     }
     pub(in crate::session) fn represented_has_pvp_rules_enabled_like_cpp(&self) -> bool {
         self.player_has_visible_aura_spell_like_cpp(SPELL_PVP_RULES_ENABLED_LIKE_CPP)

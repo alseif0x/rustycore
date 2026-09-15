@@ -55,6 +55,22 @@ pub struct CombatRatingsGameTableLikeCpp {
     rows: Vec<CombatRatingsEntryLikeCpp>,
 }
 
+/// C++ `GtRegenMPPerSptEntry`.
+///
+/// The columns follow the order in TrinityCore's `GameTables.h`, while the
+/// explicit Level column is discarded just like `LoadGameTable` does.  The
+/// row position, rather than the value in that column, is the lookup key.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct RegenMpPerSptEntryLikeCpp {
+    columns: [f32; RegenMpPerSptGameTableLikeCpp::VALUE_COLUMN_COUNT],
+}
+
+/// C++ `sRegenMPPerSptGameTable` used by `Player::OCTRegenMPPerSpirit`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RegenMpPerSptGameTableLikeCpp {
+    rows: Vec<RegenMpPerSptEntryLikeCpp>,
+}
+
 /// C++ `GtShieldBlockRegularEntry`.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct ShieldBlockRegularEntryLikeCpp {
@@ -310,6 +326,115 @@ impl CombatRatingsEntryLikeCpp {
 
     pub fn column(&self, index: usize) -> f32 {
         self.columns.get(index).copied().unwrap_or(0.0)
+    }
+}
+
+impl RegenMpPerSptEntryLikeCpp {
+    pub fn from_columns(columns: [f32; RegenMpPerSptGameTableLikeCpp::VALUE_COLUMN_COUNT]) -> Self {
+        Self { columns }
+    }
+
+    /// C++ `GetRegenGameTableColumnForClass` for the MP-per-spirit table.
+    pub fn mana_regen_ratio_for_class_like_cpp(&self, class: u8) -> f32 {
+        let column = match class {
+            1 => 0,   // Warrior
+            2 => 1,   // Paladin
+            3 => 2,   // Hunter
+            4 => 3,   // Rogue
+            5 => 4,   // Priest
+            6 => 5,   // Death Knight
+            7 => 6,   // Shaman
+            8 => 7,   // Mage
+            9 => 8,   // Warlock
+            10 => 9,  // Monk
+            11 => 10, // Druid
+            _ => return 0.0,
+        };
+        self.columns[column]
+    }
+}
+
+impl RegenMpPerSptGameTableLikeCpp {
+    pub const FILE_NAME: &'static str = "RegenMPPerSpt.txt";
+    pub const VALUE_COLUMN_COUNT: usize = 11;
+
+    pub fn load(data_dir: impl AsRef<Path>) -> Result<Self> {
+        Self::load_from_path(data_dir.as_ref().join("gt").join(Self::FILE_NAME))
+    }
+
+    pub fn load_from_path(path: impl AsRef<Path>) -> Result<Self> {
+        let path = path.as_ref();
+        let content = fs::read_to_string(path)
+            .with_context(|| format!("GameTable file {} cannot be opened.", path.display()))?;
+        Self::parse_like_cpp(&content, path)
+    }
+
+    pub fn from_rows(rows: impl IntoIterator<Item = RegenMpPerSptEntryLikeCpp>) -> Self {
+        let mut stored = Vec::with_capacity(1);
+        stored.push(RegenMpPerSptEntryLikeCpp::default());
+        stored.extend(rows);
+        Self { rows: stored }
+    }
+
+    pub fn row(&self, level: u16) -> Option<&RegenMpPerSptEntryLikeCpp> {
+        self.rows.get(usize::from(level))
+    }
+
+    pub fn mana_regen_ratio_like_cpp(&self, level: u16, class: u8) -> f32 {
+        self.row(level)
+            .map(|row| row.mana_regen_ratio_for_class_like_cpp(class))
+            .unwrap_or(0.0)
+    }
+
+    pub fn len(&self) -> usize {
+        self.rows.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+
+    fn parse_like_cpp(content: &str, path: &Path) -> Result<Self> {
+        let mut lines = content.lines();
+        let Some(headers) = lines.next() else {
+            bail!("GameTable file {} is empty.", path.display());
+        };
+        let column_defs: Vec<&str> = headers
+            .split('\t')
+            .filter(|part| !part.is_empty())
+            .collect();
+        if column_defs.len().saturating_sub(1) != Self::VALUE_COLUMN_COUNT {
+            bail!(
+                "GameTable '{}' has different count of columns {} than expected by size of C++ structure ({}).",
+                path.display(),
+                column_defs.len().saturating_sub(1),
+                Self::VALUE_COLUMN_COUNT
+            );
+        }
+
+        let mut rows = vec![RegenMpPerSptEntryLikeCpp::default()];
+        for raw_line in lines {
+            let line = raw_line.strip_suffix('\r').unwrap_or(raw_line);
+            let mut values: Vec<&str> = line.split('\t').collect();
+            if values.is_empty() || (values.len() == 1 && values[0].is_empty()) {
+                break;
+            }
+            while values.len() > 1 && values.last().is_some_and(|value| value.is_empty()) {
+                values.pop();
+            }
+            if values.len() <= 1 {
+                break;
+            }
+            if values.len() != column_defs.len() {
+                bail!("{} == {}", values.len(), column_defs.len());
+            }
+            let mut columns = [0.0f32; Self::VALUE_COLUMN_COUNT];
+            for (column, raw_value) in columns.iter_mut().zip(values.iter().skip(1)) {
+                *column = parse_float_like_cpp(raw_value);
+            }
+            rows.push(RegenMpPerSptEntryLikeCpp { columns });
+        }
+        Ok(Self { rows })
     }
 }
 
@@ -630,6 +755,25 @@ mod tests {
         dir
     }
 
+    fn write_temp_regen_mp_per_spt(content: &str) -> PathBuf {
+        let mut dir = std::env::temp_dir();
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time")
+            .as_nanos();
+        dir.push(format!(
+            "rustycore-regen-mp-per-spt-{}-{}",
+            std::process::id(),
+            unique
+        ));
+        fs::create_dir_all(dir.join("gt")).expect("create temp gt dir");
+        let path = dir
+            .join("gt")
+            .join(RegenMpPerSptGameTableLikeCpp::FILE_NAME);
+        fs::write(&path, content).expect("write temp RegenMPPerSpt");
+        dir
+    }
+
     #[test]
     fn battle_pet_xp_game_table_loads_rows_by_position_not_id_like_cpp() {
         let dir = write_temp_battle_pet_xp("ID\tWins\tXp\r\n23\t2\t50\r\n99\t3\t40\r\n\r\n");
@@ -780,6 +924,55 @@ mod tests {
     fn combat_ratings_game_table_rejects_wrong_column_count_like_cpp() {
         let dir = write_temp_combat_ratings("Level\tWeaponSkill\n1\t1\n");
         let err = CombatRatingsGameTableLikeCpp::load(&dir).expect_err("column mismatch");
+
+        assert!(err.to_string().contains("different count of columns"));
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn regen_mp_per_spt_game_table_maps_level_and_class_like_cpp() {
+        let dir = write_temp_regen_mp_per_spt(
+            "Level\tWarrior\tPaladin\tHunter\tRogue\tPriest\tDeath Knight\tShaman\tMage\tWarlock\tMonk\tDruid\r\n\
+             80\t0.01\t0.02\t0.03\t0.04\t0.05\t0.06\t0.07\t0.08\t0.09\t0.10\t0.11\r\n",
+        );
+        let table = RegenMpPerSptGameTableLikeCpp::load(&dir).expect("load table");
+
+        assert_eq!(table.len(), 2);
+        assert_eq!(table.mana_regen_ratio_like_cpp(0, 5), 0.0);
+        assert_eq!(table.mana_regen_ratio_like_cpp(1, 1), 0.01);
+        assert_eq!(table.mana_regen_ratio_like_cpp(1, 5), 0.05);
+        assert_eq!(table.mana_regen_ratio_like_cpp(1, 11), 0.11);
+        assert_eq!(table.mana_regen_ratio_like_cpp(1, 12), 0.0);
+        assert_eq!(table.mana_regen_ratio_like_cpp(80, 5), 0.0);
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn regen_mp_per_spt_fixture_level_80_matches_cpp_table() {
+        let data_dir = Path::new("/home/server/woltk-server-core/Data");
+        let path = data_dir
+            .join("gt")
+            .join(RegenMpPerSptGameTableLikeCpp::FILE_NAME);
+        if !path.exists() {
+            eprintln!(
+                "Skipping test: RegenMPPerSpt fixture not found at {}",
+                path.display()
+            );
+            return;
+        }
+
+        let table = RegenMpPerSptGameTableLikeCpp::load(data_dir).expect("load RegenMPPerSpt");
+        assert!(table.mana_regen_ratio_like_cpp(80, 5) > 0.0);
+        assert_eq!(table.mana_regen_ratio_like_cpp(80, 1), 0.0);
+        assert_eq!(table.mana_regen_ratio_like_cpp(80, 4), 0.0);
+    }
+
+    #[test]
+    fn regen_mp_per_spt_game_table_rejects_wrong_column_count_like_cpp() {
+        let dir = write_temp_regen_mp_per_spt("Level\tWarrior\n1\t0.1\n");
+        let err = RegenMpPerSptGameTableLikeCpp::load(&dir).expect_err("column mismatch");
 
         assert!(err.to_string().contains("different count of columns"));
 

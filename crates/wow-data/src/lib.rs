@@ -175,9 +175,10 @@ pub use faction_change::{
 pub use game_tables::{
     BaseMpEntryLikeCpp, BaseMpGameTableLikeCpp, BattlePetXpEntryLikeCpp,
     BattlePetXpGameTableLikeCpp, CombatRatingsEntryLikeCpp, CombatRatingsGameTableLikeCpp,
-    ShieldBlockRegularEntryLikeCpp, ShieldBlockRegularGameTableLikeCpp,
-    battle_pet_xp_per_level_like_cpp, combat_rating_column_for_rating_like_cpp,
-    combat_rating_multiplier_like_cpp, shield_block_regular_column_for_quality_like_cpp,
+    RegenMpPerSptEntryLikeCpp, RegenMpPerSptGameTableLikeCpp, ShieldBlockRegularEntryLikeCpp,
+    ShieldBlockRegularGameTableLikeCpp, battle_pet_xp_per_level_like_cpp,
+    combat_rating_column_for_rating_like_cpp, combat_rating_multiplier_like_cpp,
+    shield_block_regular_column_for_quality_like_cpp,
 };
 pub use game_tele::{
     GameTeleLikeCpp, GameTeleLoadOutcomeLikeCpp, GameTeleLoadReportLikeCpp, GameTeleRowLikeCpp,

@@ -549,6 +549,16 @@ regression and item suites pass (1, 7 and 5 tests), and `world-server` checks in
 7m01s. Aura producers and all remaining combat formula and live/capture gates stay
 explicitly open; no new owner or crate is introduced.
 
+Implementation `9004f5cf` closes the next narrow #61 projection boundary. The composition
+root loads `RegenMPPerSpt.txt` once and passes it through the existing immutable Session
+capability aggregate; `Player` owns the resulting effective snapshot. The snapshot follows
+TrinityCore `Player::OCTRegenMPPerSpirit` (`Player.cpp:5182-5190`) and the spirit portion of
+`Player::UpdateManaRegen` (`StatSystem.cpp:799-827`), while the packet adapter consumes the
+published value and no longer carries class-specific coefficients or a second formula.
+Focused table and character regressions pass, and the production world-server check passes.
+Aura producers, stat-derived MP5 and complete tick publication remain separate behavior
+deliverables under #61; no new owner, lock or crate was introduced.
+
 PR #857 extends that projection to the initial spell-threat consumer. The Player snapshot
 retains AP and ranged-AP multipliers, and the consumer follows the C++ modifier sum,
 non-negative clamp and multiplier order (`Spell.cpp:5558-5575`, `Unit.cpp:9165-9180`).

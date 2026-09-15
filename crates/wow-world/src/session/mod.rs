@@ -168,24 +168,25 @@ use wow_data::{
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerCreateInfoCastSpellStoreLikeCpp,
     PlayerCreateInfoCustomSpellStoreLikeCpp, PlayerCreateInfoStoreLikeCpp, PlayerStatsStore,
-    PvpItemStore, RandPropPointsStore, SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP, ScriptIdLikeCpp,
-    ScriptNameInternerLikeCpp, ShieldBlockRegularGameTableLikeCpp, SkillLineStore,
-    SkillRangeTypeLikeCpp, SkillStore, SkillTiersStoreLikeCpp, SpellAcquisitionCatalogLikeCpp,
-    SpellAreaLikeCpp, SpellAreaStoreLikeCpp, SpellAuraOptionsStore, SpellAuraRestrictionsStore,
-    SpellCategoryStore, SpellChainStoreLikeCpp, SpellCustomAttributeStoreLikeCpp,
-    SpellDurationStore, SpellEquippedItemsEntry, SpellEquippedItemsStore,
-    SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp,
-    SpellItemEnchantmentConditionStore, SpellItemEnchantmentStore, SpellLearnSkillLookupLikeCpp,
-    SpellLearnSkillNodeLikeCpp, SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp,
-    SpellLearnSpellStoreLikeCpp, SpellLevelsStore, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp,
-    SpellMiscStore, SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp,
-    SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore,
-    SpellStore, SpellTargetPositionStoreLikeCpp, SpellTargetRestrictionsStore,
-    SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, SummonPropertiesEntry, TactKeyStore,
-    TalentStore, TalentTabStore, TavernAreaTriggerStoreLikeCpp, ToyStore, TrainerStoreLikeCpp,
-    TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
-    VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
-    WorldSafeLocStore, is_player_meeting_condition_like_cpp,
+    PvpItemStore, RandPropPointsStore, RegenMpPerSptGameTableLikeCpp,
+    SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP, ScriptIdLikeCpp, ScriptNameInternerLikeCpp,
+    ShieldBlockRegularGameTableLikeCpp, SkillLineStore, SkillRangeTypeLikeCpp, SkillStore,
+    SkillTiersStoreLikeCpp, SpellAcquisitionCatalogLikeCpp, SpellAreaLikeCpp,
+    SpellAreaStoreLikeCpp, SpellAuraOptionsStore, SpellAuraRestrictionsStore, SpellCategoryStore,
+    SpellChainStoreLikeCpp, SpellCustomAttributeStoreLikeCpp, SpellDurationStore,
+    SpellEquippedItemsEntry, SpellEquippedItemsStore, SpellGroupStackRuleLikeCpp,
+    SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp, SpellItemEnchantmentConditionStore,
+    SpellItemEnchantmentStore, SpellLearnSkillLookupLikeCpp, SpellLearnSkillNodeLikeCpp,
+    SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp, SpellLearnSpellStoreLikeCpp,
+    SpellLevelsStore, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore,
+    SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore,
+    SpellRangeStore, SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore, SpellStore,
+    SpellTargetPositionStoreLikeCpp, SpellTargetRestrictionsStore, SpellThreatEntryLikeCpp,
+    SpellThreatStoreLikeCpp, SummonPropertiesEntry, TactKeyStore, TalentStore, TalentTabStore,
+    TavernAreaTriggerStoreLikeCpp, ToyStore, TrainerStoreLikeCpp, TransmogSetEntry,
+    TransmogSetItemStore, TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK,
+    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, WorldSafeLocStore,
+    is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, CurvePointStore, CurveStore, FactionEntry, FactionStore,
         FactionTemplateStore, FriendshipRepReactionStore, NumTalentsAtLevelStore,
@@ -5514,6 +5515,9 @@ pub struct WorldSession {
     // C++ `sCombatRatingsGameTable` used by `Player::GetRatingMultiplier`.
     combat_ratings_game_table: Option<Arc<CombatRatingsGameTableLikeCpp>>,
 
+    // C++ `sRegenMPPerSptGameTable` used by `Player::OCTRegenMPPerSpirit`.
+    regen_mp_per_spt_game_table: Option<Arc<RegenMpPerSptGameTableLikeCpp>>,
+
     // C++ `sShieldBlockRegularGameTable` used by `ItemTemplate::GetShieldBlockValue`.
     shield_block_regular_game_table: Option<Arc<ShieldBlockRegularGameTableLikeCpp>>,
 
@@ -7907,6 +7911,7 @@ impl WorldSession {
             #[cfg(test)]
             battle_pet_xp_game_table: None,
             combat_ratings_game_table: None,
+            regen_mp_per_spt_game_table: None,
             shield_block_regular_game_table: None,
             transmog_set_item_store: None,
             #[cfg(test)]
