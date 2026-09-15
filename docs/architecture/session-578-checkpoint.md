@@ -63,6 +63,20 @@ failures (587 passed, 3 failed). No packet, SQL, clock, lock, persistence order 
 runtime behavior changed; the remaining loader families and #584 C0–C4, runtime,
 capture, DB/relogin and live-QA gates remain open.
 
+**P4 GameEventMgr startup-loader navigability integrated — 2026-09-15, #584 / PR #940,
+merge `2959e24565ea786fa507105eb28a519f52b1fa7e`:** the post-#938 audit moved the
+complete GameEventMgr startup loading/validation family to private
+`spawn_store_loader/game_event_loader.rs`. The composition facade is 1,990 lines,
+the loader child 637 and the existing runtime child 800; the measured aggregate
+remains exactly the 3,427-line ceiling. The parent reimports all child helpers as
+`pub(super)` so the existing private fixtures compile without widening public API.
+The focused game-event suite passes 181/181; compile, format/diff, architecture
+check/self-test and final structural gates pass. The full profile retains the
+three pre-existing `scenarios_9` GameObject respawn-save failures (587 passed, 3
+failed). No startup order, owner, packet, SQL, clock, lock, persistence order or
+runtime behavior changed; remaining loader families and #584 C0–C4/runtime/capture/
+DB/relogin/live-QA gates stay open.
+
 ## Current delivery agreement — 2026-09-06, user-approved replan
 
 The user explicitly replaced the single all-core #578 delivery with analyzed,

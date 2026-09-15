@@ -106,6 +106,22 @@ reports the three pre-existing `scenarios_9` GameObject respawn-save failures
 behavior changed; the remaining loader families and #584 C0–C4/runtime/capture/
 DB-relogin/live-QA gates stay open.
 
+**P4 GameEventMgr startup-loader split integrated — 2026-09-15, #584 / PR #940,
+merge `2959e24565ea786fa507105eb28a519f52b1fa7e`:** the post-#938 audit moved
+the complete GameEventMgr startup loading/validation family into private
+`spawn_store_loader/game_event_loader.rs`. Conditions, prerequisites, pools,
+spawn GUIDs, quest relations, NPC flags/vendors and model/equipment validation
+remain the same operations and order; only their physical module changed. The
+composition facade is 1,990 lines and the loader child 637; with the 800-line
+runtime child, the measured spawn-loader aggregate remains at the exact 3,427-line
+ceiling. All 181 game-event tests pass, as do compile, format/diff, architecture
+check/self-test and final structural gates. The full local profile still has the
+three pre-existing `scenarios_9` GameObject respawn-save failures (587 passed, 3
+failed). Parent-private fixture helper paths remain available through `pub(super)`;
+no public API, owner, startup behavior, packet, SQL, clock, lock or persistence
+order changed. Remaining loader families and #584 C0–C4/runtime/capture/DB-relogin/
+live-QA gates remain open.
+
 **Transport C0/C3 lifecycle integrated — 2026-09-14, PR #901, merge
 `bf460aa7a8ccec0269eea1771a094ef12f0c6109` (implementation `82b2d8d9`):** the bounded
 CREATE/DESTROY and phase-visibility slice is integrated into `3.4.3`. `wow-map` marks same-phase Players

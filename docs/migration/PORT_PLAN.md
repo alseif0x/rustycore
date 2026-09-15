@@ -97,6 +97,20 @@ persistence order or runtime behavior changed. This closes one navigability fami
 creature/gameobject/addon/spawn-group loading and the remaining #584 C0-C4,
 runtime, capture, DB/relogin and live-QA gates remain open.
 
+The next post-#938 audit selected the complete GameEventMgr startup loader family.
+PR #940 (`2959e245`) moves condition, prerequisite, pool, spawn-GUID,
+quest-relation, NPC-flag/vendor and model/equipment loading and validation into
+the private `spawn_store_loader/game_event_loader.rs` module. The composition
+facade is now 1,990 lines and the loader child is 637; together with the existing
+800-line runtime child this keeps the measured spawn-loader aggregate at exactly
+3,427 lines. The parent reimports all `pub(super)` helpers so the existing private
+fixtures remain valid without widening public API. Game-event tests remain 181/181;
+architecture, compile, format/diff and final gates pass, while the full profile
+retains the same three pre-existing `scenarios_9` GameObject respawn-save failures
+(587 passed, 3 failed). No startup order, owner, packet, SQL, clock, lock,
+persistence or runtime behavior changed. Remaining creature/gameobject/addon/
+spawn-group loading and the other #584 gates require a fresh audit.
+
 The fresh post-#929 audit selected a P4 navigability slice in
 `world-server/src/creature_loaded_grid.rs`. PR #931 keeps its production
 construction/resolution contract in a 797-line facade and moves all 28 tests into
