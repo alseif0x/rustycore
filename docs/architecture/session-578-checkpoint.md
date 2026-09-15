@@ -105,6 +105,21 @@ failures (587 passed, 3 failed). No startup order, owner, packet, SQL, clock,
 lock, persistence or runtime behavior changed; the remaining addon loader
 family and other #584 gates stay open.
 
+**P4 creature movement metadata navigability integrated — 2026-09-15, #584 / PR
+#946, merge `9698a656b2a3dad320a6f4a3d737d7698a326f79`:** the post-#944 audit
+moved waypoint path/report construction, coordinate and delay normalization,
+default waypoint lookup, creature formation validation and their persistence
+loaders into private `spawn_store_loader/creature_movement_loader.rs`. The
+composition facade is 784 lines and the child 215; with the existing pool,
+object and GameEvent children, the measured spawn-loader aggregate remains
+exactly the 3,427-line ceiling. Public waypoint/formation types and helper paths
+remain available through explicit re-exports and startup order is unchanged.
+Focused spawn-loader tests pass 135/135; compile, format/diff and architecture
+gates pass, while the full profile retains the three pre-existing `scenarios_9`
+GameObject respawn-save failures (587 passed, 3 failed). No gameplay, packet,
+SQL, clock, lock, persistence or runtime behavior changed; the remaining addon
+loader family and residual composition readers require a fresh audit.
+
 ## Current delivery agreement — 2026-09-06, user-approved replan
 
 The user explicitly replaced the single all-core #578 delivery with analyzed,
