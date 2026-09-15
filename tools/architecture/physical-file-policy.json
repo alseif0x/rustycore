@@ -69,8 +69,8 @@
     },
     {
       "path": "crates/world-server/src/runtime/game_events/mod.rs",
-      "observed_lines": 17,
-      "ceiling_lines": 17,
+      "observed_lines": 9,
+      "ceiling_lines": 9,
       "split": "Keep a compact facade with explicit child-module visibility for parent reexports so sibling runtime consumers retain the existing surface; separate game-event despawn, loaded-grid, spawn, bootstrap, scheduler, live-update and consumer responsibilities.",
       "review_checkpoint": "584:C4"
     },
@@ -83,8 +83,8 @@
     },
     {
       "path": "crates/world-server/src/spawn_store_loader.rs",
-      "observed_lines": 3428,
-      "ceiling_lines": 3428,
+      "observed_lines": 3427,
+      "ceiling_lines": 3427,
       "split": "Keep startup composition in this facade while private submodules own game-event/world-state catalog models; continue separating creature, gameobject, addon and spawn-group catalog construction without changing startup or DB ownership.",
       "review_checkpoint": "584:C4"
     },
