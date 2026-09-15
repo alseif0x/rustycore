@@ -555,7 +555,8 @@ class coefficients and extra constant but does not claim aura percentage/stat-de
 MP5, complete regen-tick publication, wear-to-broken production or live capture/DB/
 relogin parity; those remain #61 acceptance gates.
 
-The next bounded #61 slice adds the aura-backed percentage producers from
+PR #959 (`4f7ce25b`, implementation `48218460`) integrated the aura-backed percentage
+producers from
 `Player::UpdateManaRegen` (`StatSystem.cpp:809-812`). The Player-owned effective-stat
 publisher resolves active visible applications through canonical aura state plus
 immutable `SpellInfo`, filters both `SPELL_AURA_MOD_POWER_REGEN_PERCENT` and
@@ -570,7 +571,7 @@ it can be claimed. The architecture physical-source check passes, while the runt
 hotspot ratchet retains the pre-existing Session/character/world-server/Player drift;
 the baseline remains untouched.
 
-The following #61 slice completes the local flat and interrupted portions of
+PR #960 (`96b8ffe3`, implementation `bfe49b2b`) completes the local flat and interrupted portions of
 `Player::UpdateManaRegen` (`StatSystem.cpp:815-826`). The canonical Player publisher
 adds `MOD_POWER_REGEN` to the MP5-equivalent rate, projects each
 `MOD_MANA_REGEN_FROM_STAT` effect with `stat * amount / 500`, and applies the capped
