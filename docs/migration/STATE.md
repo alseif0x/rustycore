@@ -136,6 +136,20 @@ three pre-existing `scenarios_9` GameObject respawn-save failures (587 passed,
 runtime behavior changed; remaining loader families and #584 C0–C4/runtime/
 capture/DB-relogin/live-QA gates remain open.
 
+**P4 object-spawn startup-loader split integrated — 2026-09-15, #584 / PR #944,
+merge `e0a8fae08aa0f2d220330495eb8303125969bd18`:** the post-#942 audit moved
+Creature, GameObject and AreaTrigger spawn-row loading, conversion/validation,
+runtime-row capture and linked-respawn admission to private
+`spawn_store_loader/spawn_object_loader.rs`. The composition facade is 999
+lines and the child 653; with the existing pool and GameEvent children, the
+measured aggregate remains exactly the 3,427-line ceiling. Existing startup
+calls and parent-private fixture paths remain unchanged. Focused spawn-loader
+tests pass 135/135, with architecture, compile, format/diff and structural
+gates passing; the full profile retains the same three pre-existing
+`scenarios_9` GameObject respawn-save failures (587 passed, 3 failed). No
+startup order, owner, packet, SQL, clock, lock, persistence or runtime behavior
+changed; the remaining addon loader family and other #584 gates remain open.
+
 **Transport C0/C3 lifecycle integrated — 2026-09-14, PR #901, merge
 `bf460aa7a8ccec0269eea1771a094ef12f0c6109` (implementation `82b2d8d9`):** the bounded
 CREATE/DESTROY and phase-visibility slice is integrated into `3.4.3`. `wow-map` marks same-phase Players

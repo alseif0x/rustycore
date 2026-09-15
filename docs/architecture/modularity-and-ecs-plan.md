@@ -319,6 +319,21 @@ persistence and runtime behavior remain unchanged. Remaining loader families
 and runtime/capture/DB/relogin/live-QA work require a fresh responsibility
 audit.
 
+## P4 Object-spawn startup navigability — integrated PR #944, 2026-09-15, merge `e0a8fae0`
+
+The post-#942 audit selected the complete object-spawn startup family. Creature,
+GameObject and AreaTrigger row loading, conversion/validation, runtime-row
+capture and linked-respawn admission now live in private
+`spawn_store_loader/spawn_object_loader.rs`. The composition facade is 999 lines
+and the child 653; with the existing pool and GameEvent children, the measured
+spawn-loader aggregate remains at the exact 3,427-line ceiling. Existing startup
+calls and parent-private test paths remain unchanged. Focused spawn-loader tests
+pass 135/135, with compile, format/diff and architecture gates passing; the full
+profile retains the three pre-existing `scenarios_9` GameObject respawn-save
+failures (587 passed, 3 failed). Startup order, ownership, packet, SQL, clock,
+lock, persistence and runtime behavior remain unchanged. The remaining addon
+loader family and runtime/capture/DB/relogin/live-QA work require a fresh audit.
+
 ## P2 Player instance-reset owner — integrated PR #919, 2026-09-14
 
 PR #919 moves `_instanceResetTimes` to the canonical

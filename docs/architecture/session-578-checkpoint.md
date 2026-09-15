@@ -91,6 +91,20 @@ failed). No startup order, owner, packet, SQL, clock, lock, persistence or
 runtime behavior changed; remaining loader families and #584 C0–C4/runtime/
 capture/DB-relogin/live-QA gates stay open.
 
+**P4 object-spawn startup-loader navigability integrated — 2026-09-15, #584 / PR
+#944, merge `e0a8fae08aa0f2d220330495eb8303125969bd18`:** the post-#942 audit
+moved Creature, GameObject and AreaTrigger spawn-row loading, conversion and
+validation, runtime-row capture and linked-respawn admission into private
+`spawn_store_loader/spawn_object_loader.rs`. The composition facade is 999 lines
+and the child 653; with the existing pool and GameEvent children, the measured
+spawn-loader aggregate remains exactly the 3,427-line ceiling. Existing startup
+calls and parent-private fixture access remain unchanged. Focused spawn-loader
+tests pass 135/135; compile, format/diff and architecture gates pass, while the
+full profile retains the three pre-existing `scenarios_9` GameObject respawn-save
+failures (587 passed, 3 failed). No startup order, owner, packet, SQL, clock,
+lock, persistence or runtime behavior changed; the remaining addon loader
+family and other #584 gates stay open.
+
 ## Current delivery agreement — 2026-09-06, user-approved replan
 
 The user explicitly replaced the single all-core #578 delivery with analyzed,
