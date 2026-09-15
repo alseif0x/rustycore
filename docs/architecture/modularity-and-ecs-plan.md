@@ -334,6 +334,22 @@ failures (587 passed, 3 failed). Startup order, ownership, packet, SQL, clock,
 lock, persistence and runtime behavior remain unchanged. The remaining addon
 loader family and runtime/capture/DB/relogin/live-QA work require a fresh audit.
 
+## P4 Creature movement metadata navigability — integrated PR #946, 2026-09-15, merge `9698a656`
+
+The post-#944 audit selected the complete creature movement metadata family.
+Waypoint path/report construction, coordinate and delay normalization, default
+waypoint lookup, creature formation validation and their persistence loaders now
+live in private `spawn_store_loader/creature_movement_loader.rs`. The composition
+facade is 784 lines and the child 215; with the existing pool, object and
+GameEvent children, the measured spawn-loader aggregate remains at the exact
+3,427-line ceiling. Public waypoint/formation types and helper paths remain
+available through explicit re-exports and startup order is unchanged. Focused
+spawn-loader tests pass 135/135, with compile, format/diff and architecture gates
+passing; the full profile retains the three pre-existing `scenarios_9` GameObject
+respawn-save failures (587 passed, 3 failed). No gameplay, packet, SQL, clock,
+lock, persistence or runtime behavior changed. The remaining addon loader family
+and residual composition readers require a fresh audit.
+
 ## P2 Player instance-reset owner — integrated PR #919, 2026-09-14
 
 PR #919 moves `_instanceResetTimes` to the canonical

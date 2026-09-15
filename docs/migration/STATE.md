@@ -150,6 +150,21 @@ gates passing; the full profile retains the same three pre-existing
 startup order, owner, packet, SQL, clock, lock, persistence or runtime behavior
 changed; the remaining addon loader family and other #584 gates remain open.
 
+**P4 creature movement metadata split integrated — 2026-09-15, #584 / PR #946,
+merge `9698a656b2a3dad320a6f4a3d737d7698a326f79`:** the post-#944 audit moved
+waypoint path/report construction, coordinate and delay normalization, default
+waypoint lookup, creature formation validation and their persistence loaders to
+private `spawn_store_loader/creature_movement_loader.rs`. The composition facade
+is 784 lines and the child 215; with the existing pool, object and GameEvent
+children, the measured aggregate remains exactly the 3,427-line ceiling. Public
+waypoint/formation types and helper paths remain available through explicit
+re-exports and startup order is unchanged. Focused spawn-loader tests pass
+135/135, with architecture, compile, format/diff and structural gates passing;
+the full profile retains the same three pre-existing `scenarios_9` GameObject
+respawn-save failures (587 passed, 3 failed). No gameplay, packet, SQL, clock,
+lock, persistence or runtime behavior changed; the remaining addon loader family
+and residual composition readers require a fresh audit.
+
 **Transport C0/C3 lifecycle integrated — 2026-09-14, PR #901, merge
 `bf460aa7a8ccec0269eea1771a094ef12f0c6109` (implementation `82b2d8d9`):** the bounded
 CREATE/DESTROY and phase-visibility slice is integrated into `3.4.3`. `wow-map` marks same-phase Players

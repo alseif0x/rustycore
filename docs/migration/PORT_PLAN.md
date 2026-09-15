@@ -8,7 +8,7 @@ Source baseline for this reconciliation: `3.4.3` at
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
 bounded planning delivery. Administrative consolidation does not count as implementation.
 
-Current exact architecture inventory after PR #944: 649 WorldSession fields (219 production, 430 test fixtures). The locked-encounter authority, Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; no unresolved production WorldSession residual remains in this audited slice. PR #931 also ratifies the P4 physical split of loaded-grid creature tests: the production facade is 797 lines, with 28 regressions in two responsibility-scoped modules plus a shared fixture facade. PR #933 splits the 2,643-line game-event runtime into seven responsibility modules behind a compact facade; all 181 game-event regressions remain registered. Session retains only a one-field publication fence for the explicit FAR_SIGHT clear packet. PR #935 also splits the spawn loader catalog models into two private responsibility modules while preserving startup ownership and public paths. PR #942 continues the same P4 boundary by moving PoolMgr/member validation and spawn-group startup loading into a private child; PR #944 moves the object spawn-row and linked-respawn family without changing the 3,427-line aggregate ceiling.
+Current exact architecture inventory after PR #946: 649 WorldSession fields (219 production, 430 test fixtures). The locked-encounter authority, Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; no unresolved production WorldSession residual remains in this audited slice. PR #931 also ratifies the P4 physical split of loaded-grid creature tests: the production facade is 797 lines, with 28 regressions in two responsibility-scoped modules plus a shared fixture facade. PR #933 splits the 2,643-line game-event runtime into seven responsibility modules behind a compact facade; all 181 game-event regressions remain registered. Session retains only a one-field publication fence for the explicit FAR_SIGHT clear packet. PR #935 also splits the spawn loader catalog models into two private responsibility modules while preserving startup ownership and public paths. PR #942 continues the same P4 boundary by moving PoolMgr/member validation and spawn-group startup loading into a private child; PR #944 moves the object spawn-row and linked-respawn family; PR #946 moves waypoint and formation startup metadata without changing the 3,427-line aggregate ceiling.
 
 The target remains **full functional parity with the TrinityCore-derived WoW 3.4.3
 server**, with the approved native/Wasm module product. A playable milestone is an
@@ -139,6 +139,22 @@ respawn-save failures (587 passed, 3 failed). No startup order, owner, packet,
 SQL, clock, lock, persistence or runtime behavior changed. The remaining
 addon loader family and other #584 C0–C4/runtime/capture/DB/relogin/live-QA
 gates require a fresh audit.
+
+The post-#944 audit selected the complete creature movement metadata family.
+PR #946 (`9698a656`) moves waypoint path/report construction, coordinate and
+delay normalization, default waypoint lookup, creature formation validation and
+their persistence loaders into private
+`spawn_store_loader/creature_movement_loader.rs`. The composition facade is now
+784 lines and the movement child 215; with the existing pool, object and
+GameEvent children, the measured spawn-loader aggregate remains exactly the
+3,427-line ceiling. Public waypoint/formation types and helper paths stay
+available through explicit re-exports, and startup order is unchanged. Focused
+spawn-loader tests pass 135/135; architecture, compile, format/diff and
+structural gates pass, while the full profile retains the same three
+pre-existing `scenarios_9` GameObject respawn-save failures (587 passed, 3
+failed). No gameplay, packet, SQL, clock, lock, persistence or runtime behavior
+changed. The remaining addon loader family and residual composition readers
+require a fresh audit.
 
 The fresh post-#929 audit selected a P4 navigability slice in
 `world-server/src/creature_loaded_grid.rs`. PR #931 keeps its production
