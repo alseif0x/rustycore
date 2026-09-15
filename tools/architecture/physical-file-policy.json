@@ -85,7 +85,7 @@
       "path": "crates/world-server/src/spawn_store_loader.rs",
       "observed_lines": 3427,
       "ceiling_lines": 3427,
-      "split": "Keep startup composition in this facade while private submodules own game-event/world-state catalog models; continue separating creature, gameobject, addon and spawn-group catalog construction without changing startup or DB ownership.",
+      "split": "Keep startup composition in this facade while private submodules own game-event catalog models, game-event runtime/cache transitions and world-state catalog models; continue separating creature, gameobject, addon and spawn-group catalog construction without changing startup or DB ownership.",
       "review_checkpoint": "584:C4"
     },
     {
