@@ -1,8 +1,8 @@
 # Session convergence checkpoint — updated 2026-09-14
 
-**Integrated head after PR #929:** `028185d87fed7b52eb157424d0a9d9d52325b593`.
+**Integrated head after PR #931:** `b2545d50240b2924ebdfea3487f7281a1cf5f852`.
 
-Current exact inventory: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution, the Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet.
+Current exact inventory after PR #931: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution, the Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; the P4 loaded-grid split now keeps a 797-line production facade with 28 tests in scoped modules; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -16,6 +16,15 @@ live QA deferred, not passed. #585 now owns the represented finalization deliver
 and its applicable acceptance; #584 retains other core work. The older open/draft
 status and unfulfilled pre-merge gates below are historical, not instructions to
 reopen #578. #585 does not inherit all C0–C4 or full Login-side SaveToDB parity.
+
+## P4 loaded-grid creature test navigability — integrated PR #931, 2026-09-14, merge `b2545d50`
+
+La auditoría fresca posterior a #929 dividió `creature_loaded_grid.rs`: la fachada
+de producción queda en 797 líneas y `creature_loaded_grid_tests/mod.rs` comparte
+fixtures mientras `builder.rs` y `resolver.rs` conservan las 28 regresiones bajo
+`cfg(test)`. La suite focal pasa 28/28; también pasan fmt/diff,
+`check_architecture.py check` y `self-test`. Este cierre reduce una fila física
+concreta; los demás C0–C4, runtime, capturas y QA viva de #584 permanecen abiertos.
 
 ## Current delivery agreement — 2026-09-06, user-approved replan
 
