@@ -16,11 +16,13 @@ macro are recorded in
 uses `GlobalLegacy` and the canonical `ExternalRuntime` no-op to avoid a second
 timer writer; cloned sync fences protect stale health/loot/incarnation writes,
 but the canonical `runtime_update_plan` still has no production effect
-consumer. The full C++ `Map::Update`/`Creature::Update` operation is therefore
-not converged. Next under #584: **C3.1 — one map-owned Creature runtime outcome
-boundary**, with typed phase input/outcome, authority/incarnation stamps and
-production-linked stale/dropped/death/respawn tests. No mass owner migration or
-timer-only plan consumer is selected.
+consumer. The structural **C3.1 — one map-owned Creature runtime outcome
+boundary** is implemented by `e2ca3df9`: typed tick input/outcome, admitted
+ObjectUpdater Creature stamps, authority/incarnation validation and
+production-linked phase-order, death/respawn and stale-incarnation tests. The
+full C++ `Map::Update`/`Creature::Update` operation is therefore not converged;
+the next behavior vertical must consume this envelope. No mass owner migration
+or timer-only plan consumer is selected.
 
 **#63 movement audit — 2026-09-14:** the current code and TrinityCore anchors show
 that ordinary force-speed ACKs are already implemented in

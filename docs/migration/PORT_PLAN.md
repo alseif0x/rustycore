@@ -21,11 +21,15 @@ Production still has a mutable `WorldCreature` runtime owner and a canonical
 consumers. `RuntimeTickOwner::GlobalLegacy` plus the canonical `ExternalRuntime`
 no-op prevents a second timer writer, but the cloned sync path and the
 `Creature::runtime_update_plan` seam do not constitute a complete C++
-`Map::Update`/`Creature::Update` consumer. The next #584 macro is therefore
-**C3.1 — one map-owned Creature runtime outcome boundary**: a finite
-phase/outcome/authority contract before any owner migration. The first behavior
-vertical after that contract is selected by dependency from #29/#31, then
-#32/#33/#34, with no speculative AI or crate split.
+`Map::Update`/`Creature::Update` consumer. The structural **C3.1 — one
+map-owned Creature runtime outcome boundary** is implemented by commit
+`e2ca3df9`: production captures one typed tick input, routes the six existing
+phases through an explicit boundary, records authority/incarnation and
+publication/DB counts, and has positive plus stale-incarnation regressions.
+This does not retire the legacy owner or claim full Creature parity. The next
+implementation vertical is selected by dependency from #29/#31, then
+#32/#33/#34, with each consumer required to use the C3.1 envelope and no
+speculative AI or crate split.
 
 ## 1. Direction from here
 

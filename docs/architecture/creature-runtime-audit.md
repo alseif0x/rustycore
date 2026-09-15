@@ -1,7 +1,7 @@
 # Creature runtime audit — post-#950
 
 **Audit date:** 2026-09-15  
-**Rust integration head:** `dbf2465a` (PR #951, after #950)  
+**Rust integration head:** `e2ca3df9` (C3.1 implementation candidate, based on #952)
 **Scope:** the remaining #584 C0–C4 boundary around `Map::Update`, Creature
 runtime ownership, effect consumption, persistence and publication.
 
@@ -94,11 +94,11 @@ map plan is not an implementation of `Creature::Update`.
    threat fences must remain until the live owner is moved or the bridge is
    retired. Removing them before that point would reintroduce stale writes.
 
-## Decision and next macro
+## Decision and selected macro
 
 Do not perform a mass `WorldCreature` → `wow-map` move, add a generic context or
 make the canonical plan appear complete by consuming only timer actions. The
-next architecture macro under #584 is:
+selected architecture macro under #584 is:
 
 **C3.1 — one map-owned Creature runtime outcome boundary.**
 
@@ -128,6 +128,44 @@ melee outcome/application (#29 → #31), then aura/proc/effects (#32/#33/#34),
 then scripts and the remaining lifecycle/persistence/capture gates. A behavior
 macro may touch several crates, but it remains one coherent branch/PR with its
 own C++ and live/DB evidence.
+
+## C3.1 implementation evidence — 2026-09-15
+
+The first structural delivery is implemented in `e2ca3df9`:
+
+- `world-server/src/runtime/delivery.rs` now captures one immutable
+  `CreatureRuntimeTickInputLikeCpp` per production tick; its private
+  `runtime/delivery/creature_boundary.rs` submodule owns the typed input and
+  outcome contract. It records the
+  measured `diff_ms`, a monotonic loop epoch, game time, map incarnations and
+  canonical Creature GUIDs admitted by each loaded-grid `ObjectUpdater` set.
+- The production `GlobalLegacy` loop passes that input to one explicit
+  `run_legacy_creature_runtime_tick_with_input_and_deliver_once_like_cpp`
+  boundary. Its output carries the input identity, actual completed phase
+  order, map-incarnation mismatch count, publication events, queued session
+  commands and respawn DB mutations produced/submitted. The compatibility
+  wrapper remains for existing focused callers and captures epoch zero.
+- `wow-map::Map::admitted_creature_guids_like_cpp` exposes only the owned
+  ObjectUpdater snapshot, so the boundary does not copy or publish map storage.
+  Existing lock order and delivery-outside-guard rules are unchanged.
+- `scenarios_13::legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_melee_like_cpp`
+  proves the production-linked phase order, two admitted maps, lifecycle
+  corpse removal, movement publication and melee application. The negative
+  `creature_runtime_boundary_detects_stale_map_incarnation_like_cpp` regression
+  proves replacement-map rejection. Commands used were:
+  `PROTOC=/home/ubuntu/.local/protoc/bin/protoc CARGO_BUILD_JOBS=1 cargo test
+  --locked -p world-server
+  legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_melee_like_cpp
+  --lib` and the corresponding stale-incarnation filter; both passed at the
+  candidate SHA. `cargo check -p world-server`, `cargo fmt --all -- --check`
+  and `git diff --check` also passed.
+
+This is a structural boundary, not completion of `Creature::Update`. The
+legacy owner, per-phase delivery and `ExternalRuntime` fail-closed branch stay
+in place. Dropped channel sends, deferred effect consumers, AI/script hooks,
+complete melee/proc outcomes and live DB/restart/relogin evidence remain
+explicit follow-up gates. The next implementation macro must consume this
+envelope instead of adding another Creature writer.
 
 ## Acceptance boundary
 

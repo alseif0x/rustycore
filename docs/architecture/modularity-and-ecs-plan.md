@@ -49,13 +49,18 @@ skips Creature timer mutation to avoid a second writer. Its
 `runtime_update_plan` is therefore a represented seam with no production effect
 consumer, not a completed `Creature::Update` implementation.
 
-The next #584 macro is **C3.1 — one map-owned Creature runtime outcome boundary**.
-It must establish one map-tick input, typed state/effect/DB/publication outcome,
-authority and incarnation stamps, verified C++ phase order, and production-linked
-stale/dropped/death/respawn tests before either representation is retired. Do not
-move the whole Creature aggregate, add a universal context or consume timer
-actions without their effects. Complete behavior verticals then follow their
-functional owners (#29/#31, #32/#33/#34); #583 remains behind the required core.
+**C3.1 — one map-owned Creature runtime outcome boundary** is implemented by
+`e2ca3df9`. The production loop now captures one typed map-tick input (measured
+diff, epoch, game time, map incarnation and admitted ObjectUpdater Creature
+set), routes the existing six phases through an explicit boundary, and returns
+typed phase, publication, session-command and respawn-DB counters. Positive
+phase-order/death/respawn coverage and a stale-incarnation regression pass.
+This is the structural seam only: the legacy owner, per-phase delivery and
+canonical `ExternalRuntime` guard remain while missing AI/script/effect/proc
+consumers and dropped-delivery acceptance are implemented. Do not move the
+whole Creature aggregate, add a universal context or consume timer actions
+without their effects. Complete behavior verticals then follow their functional
+owners (#29/#31, #32/#33/#34); #583 remains behind the required core.
 
 The #584 Player identity boundary is integrated by PR #904 (`4ad36d42`): name, race, class, level and gender are
 canonical on `wow_entities::Player`/`Unit`/`WorldObject`; a one-way login DTO is
