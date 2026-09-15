@@ -1,8 +1,8 @@
 # RustyCore — Master port and delivery plan
 
-**Reconciled 2026-09-15 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49), with PR #901, #902, #904, #906, #907, #909, #911, #913, #915, #916, #917, #919, #921, #922, #923, #924, #925, #926, #927, #929, #931, #933, #935, #936, #938, #940, #942, #944, #946, #947 and #948 integrated.**
+**Reconciled 2026-09-15 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49), with PR #950, #901, #902, #904, #906, #907, #909, #911, #913, #915, #916, #917, #919, #921, #922, #923, #924, #925, #926, #927, #929, #931, #933, #935, #936, #938, #940, #942, #944, #946, #947 and #948 integrated.**
 Source baseline for this reconciliation: `3.4.3` at
-`861fbc701a6e556f4988ad149e90faa23b3c53f1` (PR #948, following PR #935/#933/#931/#929/#927/#926/#925/#924, PR #922/#921, PR #919, PR #917, PR #916, PR #915, #913, #909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`ef1a7b3daaa4a9c00182cf7e7638a571c70abc47` (PR #950, following PR #948/#935/#933/#931/#929/#927/#926/#925/#924, PR #922/#921, PR #919, PR #917, PR #916, PR #915, #913, #909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -168,12 +168,11 @@ parent-private fixtures. Focused spawn-loader tests pass 135/135; architecture
 check/self-test, compile, format/diff and final physical/hotspot gates pass. The
 full profile retains the same three pre-existing `scenarios_9` GameObject
 respawn-save failures (587 passed, 3 failed). No gameplay, packet, SQL, clock,
-lock, persistence or runtime behavior changed. The syntax-only Session ownership
-checker remains blocked independently by its stale curated
-`crate::runtime::game_events::mirror_loaded_grid_creature_to_legacy_like_cpp`
-anchor after the #933 module split moved the definition to `game_events::grid`;
-this is checker metadata debt, not a #948 behavior failure. The next step is a
-fresh audit of the remaining #584 C0–C4/runtime/capture/DB/relogin/live-QA work.
+lock, persistence or runtime behavior changed. PR #950 reconciles the stale
+Session ownership anchor and the exact syntax, registry and bridge baselines
+after #929/#933; the checker-only suite passes 364/364, syntax-only ownership
+passes, and architecture check/self-test remain green. The next step is a fresh
+audit of the remaining #584 C0–C4/runtime/capture/DB/relogin/live-QA work.
 
 The fresh post-#929 audit selected a P4 navigability slice in
 `world-server/src/creature_loaded_grid.rs`. PR #931 keeps its production

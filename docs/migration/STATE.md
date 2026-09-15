@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-15:** `3.4.3` is at
-`861fbc701a6e556f4988ad149e90faa23b3c53f1` (PR #948 following PR #935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`ef1a7b3daaa4a9c00182cf7e7638a571c70abc47` (PR #950 following PR #948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -177,12 +177,11 @@ and parent-private fixtures. Focused spawn-loader tests pass 135/135; architectu
 check/self-test, compile, format/diff and final physical/hotspot gates pass. The
 full profile retains the same three pre-existing `scenarios_9` GameObject
 respawn-save failures (587 passed, 3 failed). No gameplay, packet, SQL, clock,
-lock, persistence or runtime behavior changed. The syntax-only Session ownership
-checker remains blocked independently by its stale curated
-`crate::runtime::game_events::mirror_loaded_grid_creature_to_legacy_like_cpp`
-anchor after the #933 module split moved the definition to `game_events::grid`;
-this is checker metadata debt, not a #948 behavior failure. The next step is a
-fresh audit of the remaining #584 C0–C4/runtime/capture/DB/relogin/live-QA work.
+lock, persistence or runtime behavior changed. PR #950 reconciles the stale
+Session ownership anchor and exact syntax, registry and bridge baselines after
+#929/#933; the checker-only suite passes 364/364, syntax-only ownership passes,
+and architecture check/self-test remain green. The next step is a fresh audit
+of the remaining #584 C0–C4/runtime/capture/DB/relogin/live-QA work.
 
 **Transport C0/C3 lifecycle integrated — 2026-09-14, PR #901, merge
 `bf460aa7a8ccec0269eea1771a094ef12f0c6109` (implementation `82b2d8d9`):** the bounded
