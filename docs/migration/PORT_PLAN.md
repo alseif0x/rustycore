@@ -543,6 +543,18 @@ regression plus item suites pass (1, 7 and 5 tests), and the production world-se
 check passes in 7m01s. Aura-backed expertise, complete formulas, wear-to-broken
 production and capture/DB/relogin acceptance remain explicit #61 gates.
 
+The following bounded #61 slice is implementation `9004f5cf`: world-server startup
+loads the required C++ `RegenMPPerSpt.txt` table once, and the Session capability graph
+installs that immutable authority on each session. `Player::OCTRegenMPPerSpirit`
+(`Player.cpp:5182-5190`) and `Player::UpdateManaRegen` (`StatSystem.cpp:799-827`) are
+represented by `sqrt(Intellect) * Spirit * ratio[level,class]`; the canonical Player
+snapshot is the sole producer consumed by the VALUES adapter. Three `wow-data` table
+tests and six focused character stat/persistence tests pass, and the production
+`world-server` check passes in 3m02s. This slice removes the incorrect hand-written
+class coefficients and extra constant but does not claim aura percentage/stat-derived
+MP5, complete regen-tick publication, wear-to-broken production or live capture/DB/
+relogin parity; those remain #61 acceptance gates.
+
 The first F1 movement-admission slice is integrated by PR #853
 (`7c3add2f`, implementation `3af90ec2`). It enforces the C++ early returns for
 pending player teleport and unfinished controlled-mover MoveSpline before any

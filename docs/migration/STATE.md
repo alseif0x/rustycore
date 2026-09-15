@@ -35,6 +35,22 @@ no baseline was regenerated. #61 remains open for aura-backed expertise, full
 combat/regen/penetration formulas, wear-to-broken production and capture/DB/relogin
 acceptance.
 
+**#61 C++ mana-regeneration table projection — 2026-09-15, implementation
+`9004f5cf`:** startup now loads `gt/RegenMPPerSpt.txt` once through the world-server
+composition root and installs the immutable table in each `WorldSession`. The canonical
+Player effective-stat snapshot computes spirit regeneration as
+`sqrt(Intellect) * Spirit * ratio[level,class]`, matching `Player::OCTRegenMPPerSpirit`
+(`Player.cpp:5182-5190`) and the spirit branch of `Player::UpdateManaRegen`
+(`StatSystem.cpp:799-827`); the packet adapter consumes that snapshot instead of keeping
+the former hard-coded class coefficients and extra constant. The table parser, class-column
+mapping and level-80 fixture are covered by 3 `wow-data` tests; the focused character
+stat/persistence set passes 6/6, `cargo check -p world-server` passes in 3m02s, and format/
+diff checks pass. Aura percentage modifiers, stat-derived MP5, full regen tick publication,
+wear-to-broken production and live capture/DB/relogin acceptance remain explicit #61 gates.
+The architecture physical-source check passes; its runtime hotspot ratchet still reports
+the pre-existing drift in `session/mod.rs`, character handlers, `world-server/lib.rs` and
+`wow-entities/player/mod.rs`, so no baseline was regenerated.
+
 **Fresh Creature runtime audit — 2026-09-15:** the current boundary and next
 macro are recorded in
 [`creature-runtime-audit.md`](../architecture/creature-runtime-audit.md).
