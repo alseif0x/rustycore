@@ -67,6 +67,21 @@ the aura application contract carries them explicitly. The architecture physical
 check passes; its runtime hotspot ratchet still reports the pre-existing growth in the
 Session, character-handler, world-server and Player roots, so no baseline was regenerated.
 
+**#61 flat and interrupted mana-regeneration aura projection — 2026-09-15, pending
+implementation on this branch:** the same Player-owned producer now completes the
+remaining local `UpdateManaRegen` arithmetic. It adds `MOD_POWER_REGEN` to the flat
+MP5-equivalent rate, adds each `MOD_MANA_REGEN_FROM_STAT` effect as
+`stat * amount / 500`, and applies the capped `MOD_MANA_REGEN_INTERRUPT` percentage
+to the spirit component for the interrupted-combat field (`StatSystem.cpp:815-826`).
+The canonical aura resolver sums modifiers by MiscValue and retains the same immutable
+SpellInfo/visible-application authority used by the percentage path. The combined aura
+regression and six existing stat-update regressions pass; the affected test-aware
+world-server/data/world check, format and diff checks pass. The old `ModPowerRegen`
+packet field remains zero because this C++ path writes `PowerRegenFlatModifier` and
+`PowerRegenInterruptedFlatModifier`; full tick/publication, wear-to-broken production
+and live capture/DB/relogin evidence remain #61 gates. The physical-source architecture
+check passes; the pre-existing runtime hotspot ratchet remains unaltered.
+
 **Fresh Creature runtime audit — 2026-09-15:** the current boundary and next
 macro are recorded in
 [`creature-runtime-audit.md`](../architecture/creature-runtime-audit.md).

@@ -570,6 +570,18 @@ it can be claimed. The architecture physical-source check passes, while the runt
 hotspot ratchet retains the pre-existing Session/character/world-server/Player drift;
 the baseline remains untouched.
 
+The following #61 slice completes the local flat and interrupted portions of
+`Player::UpdateManaRegen` (`StatSystem.cpp:815-826`). The canonical Player publisher
+adds `MOD_POWER_REGEN` to the MP5-equivalent rate, projects each
+`MOD_MANA_REGEN_FROM_STAT` effect with `stat * amount / 500`, and applies the capped
+`MOD_MANA_REGEN_INTERRUPT` percentage to the spirit component for combat interruption.
+The aura resolver retains one canonical visible-application/SpellInfo authority; the
+combined aura regression and six existing stat-update regressions pass, as does the
+affected test-aware check for `world-server`, `wow-data` and `wow-world`. This does not
+populate the legacy `ModPowerRegen` packet field because the C++ path writes the two
+`PowerRegen*` fields; full tick/publication, wear-to-broken production and live
+capture/DB/relogin parity remain #61 gates.
+
 The first F1 movement-admission slice is integrated by PR #853
 (`7c3add2f`, implementation `3af90ec2`). It enforces the C++ early returns for
 pending player teleport and unfinished controlled-mover MoveSpline before any
