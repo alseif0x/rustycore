@@ -14,6 +14,19 @@ The target remains **full functional parity with the TrinityCore-derived WoW 3.4
 server**, with the approved native/Wasm module product. A playable milestone is an
 intermediate acceptance point, not a smaller replacement target.
 
+**Fresh Creature runtime audit, 2026-09-15:** the remaining #584 C0/C3 boundary is
+recorded in [creature-runtime-audit.md](../architecture/creature-runtime-audit.md).
+Production still has a mutable `WorldCreature` runtime owner and a canonical
+`wow-map::Map::entity_world` representation used by visibility and target
+consumers. `RuntimeTickOwner::GlobalLegacy` plus the canonical `ExternalRuntime`
+no-op prevents a second timer writer, but the cloned sync path and the
+`Creature::runtime_update_plan` seam do not constitute a complete C++
+`Map::Update`/`Creature::Update` consumer. The next #584 macro is therefore
+**C3.1 — one map-owned Creature runtime outcome boundary**: a finite
+phase/outcome/authority contract before any owner migration. The first behavior
+vertical after that contract is selected by dependency from #29/#31, then
+#32/#33/#34, with no speculative AI or crate split.
+
 ## 1. Direction from here
 
 **#743 (group state application/reconciliation), #735 (reputation encapsulation) and
@@ -782,9 +795,11 @@ not a durability claim. Unrelated missing gameplay is allocated to its functiona
 ### A3 — Production execution, lifetime and private storage
 
 Trace startup and the current Session/map/legacy calls, using the dated
-[clock/phase trace](../architecture/runtime-clock-phase-trace.md) as a starting point.
-The current source still selects GlobalLegacy for its creature path and starts the
-canonical map loop; that is not by itself a demonstrated double tick.
+[clock/phase trace](../architecture/runtime-clock-phase-trace.md) and the fresh
+[Creature runtime audit](../architecture/creature-runtime-audit.md). The current
+source still selects GlobalLegacy for its creature path and starts the canonical
+map loop; the `ExternalRuntime` branch prevents a second timer writer, but this is
+not by itself C++ phase convergence or a demonstrated complete Creature consumer.
 The #787 coordination contract is accepted. The P2 item-modifier writer is also
 closed as an ownership residual: `PlayerItemModifierRuntimeStateLikeCpp` applies
 resolved state through a named operation and Session no longer lends its bonus
@@ -834,8 +849,13 @@ retirement path for the remaining unrepresented C++ sources. P3.5 closes the
 source-specific Creature/Pet activation-radius mismatch without moving the AI owner.
 P3.6 is a selection correction only; P3.7 is a visibility-intent fanout correction
 only. Neither promotes cinematic movement, script dispatch, directed CREATE/DESTROY
-publication, or Creature AI into the current macro. Define later migration contracts
-from traced consumers under #584, never as a speculative issue per bridge or crate.
+publication, or Creature AI into the current macro. The fresh audit now defines
+C3.1 as the next finite migration contract: typed map-tick input/outcome,
+authority/incarnation fences, one execution order and a production-linked failure
+suite. It must land before retiring the clone bridge or claiming
+`runtime_update_plan` is consumed. Define later behavior contracts from traced
+consumers under #584/#29/#31/#32/#33/#34, never as a speculative issue per bridge
+or crate.
 
 ### A4 — Physical and dependency closeout
 

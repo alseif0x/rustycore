@@ -8,6 +8,20 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**Fresh Creature runtime audit — 2026-09-15:** the current boundary and next
+macro are recorded in
+[`creature-runtime-audit.md`](../architecture/creature-runtime-audit.md).
+`WorldCreature` remains the mutable runtime/AI owner while
+`wow-map::Map::entity_world` supplies visibility and target reads. Production
+uses `GlobalLegacy` and the canonical `ExternalRuntime` no-op to avoid a second
+timer writer; cloned sync fences protect stale health/loot/incarnation writes,
+but the canonical `runtime_update_plan` still has no production effect
+consumer. The full C++ `Map::Update`/`Creature::Update` operation is therefore
+not converged. Next under #584: **C3.1 — one map-owned Creature runtime outcome
+boundary**, with typed phase input/outcome, authority/incarnation stamps and
+production-linked stale/dropped/death/respawn tests. No mass owner migration or
+timer-only plan consumer is selected.
+
 **#63 movement audit — 2026-09-14:** the current code and TrinityCore anchors show
 that ordinary force-speed ACKs are already implemented in
 `session/movement/speed.rs` with the C++ forced-change counter, transport exemption,
