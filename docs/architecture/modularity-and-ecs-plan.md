@@ -286,6 +286,23 @@ runtime behavior changed. The next split must be selected from a fresh C0–C4 a
 remaining catalog families and runtime/capture/DB/relogin/live-QA gates are not
 implied complete.
 
+## P4 GameEventMgr startup-loader navigability — integrated PR #940, 2026-09-15, merge `2959e245`
+
+The post-#938 audit selected the complete startup loading and validation family
+for represented GameEventMgr. Conditions, prerequisites, pools, spawn GUIDs,
+quest relations, NPC flags/vendors and model/equipment validation now live in
+the private `spawn_store_loader/game_event_loader.rs` child. The composition
+facade is 1,990 lines and the loader child 637; together with the existing
+game-event runtime child (800 lines), the measured spawn-loader aggregate remains
+at the exact 3,427-line ceiling. The parent reimports the child helpers as
+`pub(super)` so private fixtures retain their existing paths, while no public API
+is added. The focused game-event suite passes 181/181; compile, format/diff and
+architecture check/self-test/final gates pass. The full local profile still
+records the three pre-existing `scenarios_9` GameObject respawn-save failures
+(587 passed, 3 failed). Startup order, ownership, packet, SQL, clock, lock,
+persistence and runtime behavior remain unchanged. Remaining loader families and
+runtime/capture/DB/relogin/live-QA work require a fresh responsibility audit.
+
 ## P2 Player instance-reset owner — integrated PR #919, 2026-09-14
 
 PR #919 moves `_instanceResetTimes` to the canonical
