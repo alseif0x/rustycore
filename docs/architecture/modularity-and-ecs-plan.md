@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-14 (#931 / #929 / #927 / #925 / #924 / #923 / #922 / #921 / #919 / #918 / #917 / #916 / #915 / #913 / #911 / #909 / #907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-15 (#933 / #931 / #929 / #927 / #925 / #924 / #923 / #922 / #921 / #919 / #918 / #917 / #916 / #915 / #913 / #911 / #909 / #907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,9 +11,9 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `b2545d50240b2924ebdfea3487f7281a1cf5f852` (PR #931, following PR #929/#927/#926/#925/#924/#923, PR #922/#921, PR #918, PR #917, PR #916, PR #915, PR #913, PR #909, PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
+The current code integration head is `ef30bb3e1232c775dcc21ccbc4c91d9196c3e22d` (PR #933, following PR #931/#929/#927/#926/#925/#924/#923, PR #922/#921, PR #918, PR #917, PR #916, PR #915, PR #913, PR #909, PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
 PR #889, PR #876, P3.10 correction PR #873 and delivery PR #871).
-Current exact inventory after PR #931: 649 WorldSession fields (219 production, 430 test fixtures). PR #931 also ratifies the P4 physical split of loaded-grid creature tests: a 797-line production facade and 28 regressions in responsibility-scoped test modules. Encounter-lock resolution, the Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet.
+Current exact inventory after PR #933: 649 WorldSession fields (219 production, 430 test fixtures). PR #931 also ratifies the P4 physical split of loaded-grid creature tests: a 797-line production facade and 28 regressions in responsibility-scoped test modules. PR #933 splits the game-event runtime into seven modules with a compact facade and preserves all 181 game-event regressions. Encounter-lock resolution, the Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet.
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
 mutations. #524's relation-query order correction is integrated by PR #803; PR #822/#824/#826/#828 now
@@ -243,6 +243,16 @@ for a physical split. Its 797-line production facade now mounts the shared
 changed. The focused suite passes 28/28, with format/diff and architecture
 check/self-test evidence at the merged code head. This reduces one physical policy
 row; the remaining C0–C4, runtime, capture and live-QA gates stay in #584.
+
+## P4 game-event runtime navigability — integrated PR #933, 2026-09-15, merge `ef30bb3e`
+
+The fresh post-#931 audit selected the 2,643-line game-event runtime for a physical
+split. `game_events/mod.rs` is a compact facade; `unspawn.rs`, `grid.rs`, `spawn.rs`,
+`bootstrap.rs`, `scheduler.rs`, `live.rs` and `consume.rs` retain the existing
+operations and crate-visible reexports. The focused suite passes 181/181, with
+`cargo check`, fmt/diff and architecture check/self-test evidence. No runtime owner,
+dependency, packet, persistence or behavior changed; the remaining #584 C0–C4,
+runtime, capture and live-QA gates remain open.
 
 ## P2 Player instance-reset owner — integrated PR #919, 2026-09-14
 

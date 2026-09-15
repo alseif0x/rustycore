@@ -1,8 +1,8 @@
-# Session convergence checkpoint — updated 2026-09-14
+# Session convergence checkpoint — updated 2026-09-15
 
-**Integrated head after PR #931:** `b2545d50240b2924ebdfea3487f7281a1cf5f852`.
+**Integrated head after PR #933:** `ef30bb3e1232c775dcc21ccbc4c91d9196c3e22d`.
 
-Current exact inventory after PR #931: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution, the Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; the P4 loaded-grid split now keeps a 797-line production facade with 28 tests in scoped modules; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet.
+Current exact inventory after PR #933: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution, the Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; the P4 loaded-grid split now keeps a 797-line production facade with 28 tests in scoped modules, and PR #933 splits game-events into seven modules behind a compact facade with 181 regressions preserved; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -25,6 +25,15 @@ fixtures mientras `builder.rs` y `resolver.rs` conservan las 28 regresiones bajo
 `cfg(test)`. La suite focal pasa 28/28; también pasan fmt/diff,
 `check_architecture.py check` y `self-test`. Este cierre reduce una fila física
 concreta; los demás C0–C4, runtime, capturas y QA viva de #584 permanecen abiertos.
+
+## P4 game-event runtime navigability — integrated PR #933, 2026-09-15, merge `ef30bb3e`
+
+La auditoría posterior a #931 separó `runtime/game_events.rs` en una fachada compacta
+y siete módulos (`unspawn`, `grid`, `spawn`, `bootstrap`, `scheduler`, `live` y
+`consume`). Las 181 pruebas de game-events pasan; también pasan `cargo check`,
+fmt/diff, `check_architecture.py check` y `self-test`. El cierre es físico y
+conserva las firmas, el reloj y las reexportaciones; los demás C0–C4, runtime,
+capturas y QA viva de #584 permanecen abiertos.
 
 ## Current delivery agreement — 2026-09-06, user-approved replan
 
