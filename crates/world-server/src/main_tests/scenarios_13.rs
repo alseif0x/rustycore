@@ -4,6 +4,47 @@
 //! unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use crate::CreatureRuntimePhaseLikeCpp;
+use crate::{CreatureRuntimeMapStampLikeCpp, CreatureRuntimeTickInputLikeCpp};
+
+#[test]
+fn creature_runtime_boundary_detects_stale_map_incarnation_like_cpp() {
+    let canonical: wow_world::SharedCanonicalMapManager =
+        Arc::new(Mutex::new(wow_map::MapManager::default()));
+    canonical.lock().unwrap().create_world_map(0, 0);
+    let current = canonical
+        .lock()
+        .unwrap()
+        .map_incarnation_like_cpp(wow_map::MapKey::new(0, 0))
+        .expect("test map must have an incarnation");
+    let stale = CreatureRuntimeTickInputLikeCpp {
+        tick_epoch: 7,
+        diff_ms: 50,
+        game_time_secs: 0,
+        map_stamps: vec![CreatureRuntimeMapStampLikeCpp {
+            map_id: 0,
+            instance_id: 0,
+            incarnation: current.saturating_add(1),
+        }],
+        admitted_creatures: Vec::new(),
+    };
+    assert_eq!(
+        stale.current_map_incarnation_mismatches_like_cpp(Some(&canonical)),
+        1
+    );
+    let current_input = CreatureRuntimeTickInputLikeCpp {
+        map_stamps: vec![CreatureRuntimeMapStampLikeCpp {
+            map_id: 0,
+            instance_id: 0,
+            incarnation: current,
+        }],
+        ..stale
+    };
+    assert_eq!(
+        current_input.current_map_incarnation_mismatches_like_cpp(Some(&canonical)),
+        0
+    );
+}
 
 #[test]
 fn creature_melee_damage_delivery_filters_registry_state_like_cpp() {
@@ -743,6 +784,54 @@ async fn legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_mel
         .expect("combined legacy runtime tick task must not panic")
     });
     let outcome = handle.await.expect("combined tick task must complete");
+
+    assert_eq!(outcome.boundary.input.tick_epoch, 0);
+    assert_eq!(outcome.boundary.input.diff_ms, 10);
+    assert_eq!(outcome.boundary.input.map_stamps.len(), 2);
+    assert!(
+        outcome
+            .boundary
+            .input
+            .admitted_creatures
+            .iter()
+            .all(|object| {
+                outcome.boundary.input.map_stamps.iter().any(|map| {
+                    map.map_id == object.map_id
+                        && map.instance_id == object.instance_id
+                        && map.incarnation == object.incarnation
+                })
+            })
+    );
+    assert!(
+        outcome
+            .boundary
+            .input
+            .map_stamps
+            .iter()
+            .any(|stamp| stamp.map_id == 0 && stamp.instance_id == 0)
+    );
+    assert!(
+        outcome
+            .boundary
+            .input
+            .map_stamps
+            .iter()
+            .any(|stamp| stamp.map_id == 1 && stamp.instance_id == 0)
+    );
+    assert_eq!(outcome.boundary.map_incarnation_mismatches, 0);
+    assert_eq!(
+        outcome.boundary.completed_phases,
+        vec![
+            CreatureRuntimePhaseLikeCpp::PlayerMelee,
+            CreatureRuntimePhaseLikeCpp::Lifecycle,
+            CreatureRuntimePhaseLikeCpp::Movement,
+            CreatureRuntimePhaseLikeCpp::Aggro,
+            CreatureRuntimePhaseLikeCpp::Spell,
+            CreatureRuntimePhaseLikeCpp::Melee,
+        ]
+    );
+    assert_eq!(outcome.boundary.publication_events, 2);
+    assert!(outcome.boundary.session_commands >= 7);
 
     assert!(!outcome.lifecycle.skipped_owner_not_global);
     assert_eq!(outcome.lifecycle.maps_seen, 1);

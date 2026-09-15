@@ -1535,6 +1535,139 @@ pub(crate) fn run_legacy_creature_spell_tick_and_deliver_once_like_cpp(
     (outcome, plan_delivery)
 }
 
+/// Phases emitted by the one map-owned Creature runtime boundary.
+///
+/// The order is the order of the current production bridge: the world-session
+/// player pass completes before the map-owned lifecycle/object work, and the
+/// Creature sub-phases then run once on the global owner. Keeping this as a
+/// typed value makes the order testable without treating a helper call or a
+/// timer mutation as a complete C++ `Creature::Update`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CreatureRuntimePhaseLikeCpp {
+    PlayerMelee,
+    Lifecycle,
+    Movement,
+    Aggro,
+    Spell,
+    Melee,
+}
+
+/// The map incarnation captured when one Creature runtime tick starts.
+///
+/// A map key alone can be reused after unload/recreate. The incarnation is
+/// therefore part of the outcome envelope and is rechecked before the caller
+/// considers the tick's deferred work current.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct CreatureRuntimeMapStampLikeCpp {
+    pub map_id: u32,
+    pub instance_id: u32,
+    pub incarnation: u64,
+}
+
+/// A canonical Creature admitted by the map's loaded-grid ObjectUpdater pass.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct CreatureRuntimeObjectStampLikeCpp {
+    pub creature_guid: ObjectGuid,
+    pub map_id: u32,
+    pub instance_id: u32,
+    pub incarnation: u64,
+}
+
+/// Immutable input captured for one global Creature runtime tick.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CreatureRuntimeTickInputLikeCpp {
+    pub tick_epoch: u64,
+    pub diff_ms: u32,
+    pub game_time_secs: i64,
+    pub map_stamps: Vec<CreatureRuntimeMapStampLikeCpp>,
+    pub admitted_creatures: Vec<CreatureRuntimeObjectStampLikeCpp>,
+}
+
+impl CreatureRuntimeTickInputLikeCpp {
+    fn capture_like_cpp(
+        tick_epoch: u64,
+        diff_ms: u32,
+        canonical_map_manager: Option<&SharedCanonicalMapManager>,
+    ) -> Self {
+        let mut map_stamps = Vec::new();
+        let mut admitted_creatures = Vec::new();
+        if let Some(canonical_map_manager) = canonical_map_manager {
+            let manager = canonical_map_manager
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            manager.do_for_all_maps(|managed| {
+                let key = wow_map::MapKey::new(managed.map_id(), managed.instance_id());
+                if let Some(incarnation) = manager.map_incarnation_like_cpp(key) {
+                    map_stamps.push(CreatureRuntimeMapStampLikeCpp {
+                        map_id: key.map_id,
+                        instance_id: key.instance_id,
+                        incarnation,
+                    });
+                    admitted_creatures.extend(
+                        managed
+                            .map()
+                            .admitted_creature_guids_like_cpp()
+                            .into_iter()
+                            .map(|creature_guid| CreatureRuntimeObjectStampLikeCpp {
+                                creature_guid,
+                                map_id: key.map_id,
+                                instance_id: key.instance_id,
+                                incarnation,
+                            }),
+                    );
+                }
+            });
+            map_stamps.sort_unstable();
+            admitted_creatures.sort_unstable();
+        }
+        Self {
+            tick_epoch,
+            diff_ms,
+            game_time_secs: i64::try_from(current_unix_time_secs_like_cpp()).unwrap_or(i64::MAX),
+            map_stamps,
+            admitted_creatures,
+        }
+    }
+
+    pub(crate) fn current_map_incarnation_mismatches_like_cpp(
+        &self,
+        canonical_map_manager: Option<&SharedCanonicalMapManager>,
+    ) -> usize {
+        let Some(canonical_map_manager) = canonical_map_manager else {
+            return 0;
+        };
+        let manager = canonical_map_manager
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        self.map_stamps
+            .iter()
+            .filter(|stamp| {
+                manager
+                    .map_incarnation_like_cpp(wow_map::MapKey::new(stamp.map_id, stamp.instance_id))
+                    != Some(stamp.incarnation)
+            })
+            .count()
+    }
+}
+
+/// Typed state/effect/publication envelope for one Creature runtime tick.
+///
+/// The detailed phase results remain on
+/// [`LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp`] for compatibility with
+/// existing consumers. This envelope is the single boundary metadata shared by
+/// those results: input identity, completed phase order, map-incarnation
+/// validation and the aggregate deferred work it produced.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CreatureRuntimeBoundaryOutcomeLikeCpp {
+    pub input: CreatureRuntimeTickInputLikeCpp,
+    pub completed_phases: Vec<CreatureRuntimePhaseLikeCpp>,
+    pub map_incarnation_mismatches: usize,
+    pub publication_events: usize,
+    pub session_commands: usize,
+    pub db_mutations_produced: usize,
+    pub db_mutations_submitted: usize,
+}
+
 /// Combined single-shot legacy creature runtime bridge.
 ///
 /// This is the production loop body behind the
@@ -1544,6 +1677,7 @@ pub(crate) fn run_legacy_creature_spell_tick_and_deliver_once_like_cpp(
 /// map locks during channel delivery.
 #[derive(Debug)]
 pub(crate) struct LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
+    pub boundary: CreatureRuntimeBoundaryOutcomeLikeCpp,
     pub player_melee: wow_world::session::LegacyPlayerMeleeTickOutcomeLikeCpp,
     pub player_melee_delivery: RuntimePlayerMeleeDeliverySummaryLikeCpp,
     pub lifecycle: wow_world::session::LegacyCreatureLifecycleTickOutcomeLikeCpp,
@@ -1560,14 +1694,14 @@ pub(crate) struct LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
     pub melee_plan_delivery: RuntimeDeliverySummaryLikeCpp,
 }
 
-pub(crate) fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
+pub(crate) fn run_legacy_creature_runtime_tick_with_input_and_deliver_once_like_cpp(
+    input: CreatureRuntimeTickInputLikeCpp,
     legacy_map_manager: &SharedMapManager,
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
     map_store: &wow_data::MapStore,
     mmap_config: &MMapRuntimeConfigLikeCpp,
     mmap_pathfinder: Option<&WorldMMapPathfinderWorkerLikeCpp>,
     aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
-    diff_ms: u32,
     now: std::time::Instant,
     registry: &wow_world::session::directory::PlayerRegistry,
     respawn_db_mutation_order: Option<&SharedRespawnDbMutationOrderLikeCpp>,
@@ -1587,7 +1721,7 @@ pub(crate) fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
             canonical_map_manager,
             registry,
             group_registry,
-            diff_ms,
+            input.diff_ms,
             player_melee_phase_state,
         );
 
@@ -1607,12 +1741,16 @@ pub(crate) fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
             now,
             registry,
         );
+    let db_mutations_produced = lifecycle.respawn_db_mutations.len();
+    let mut db_mutations_submitted = 0;
     if let Some(respawn_db_writer_tx) = respawn_db_writer_tx {
         for mutation in lifecycle.respawn_db_mutations.drain(..) {
             if respawn_db_writer_tx.send(mutation).is_err() {
                 tracing::error!(
                     "Shared respawn DB writer stopped before legacy respawn statement submission"
                 );
+            } else {
+                db_mutations_submitted += 1;
             }
         }
     }
@@ -1623,7 +1761,7 @@ pub(crate) fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
         canonical_map_manager,
         mmap_config,
         mmap_pathfinder,
-        diff_ms,
+        input.diff_ms,
         registry,
     );
     let (aggro, aggro_delivery, aggro_plan_delivery) =
@@ -1646,7 +1784,51 @@ pub(crate) fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
             registry,
         );
 
+    let publication_events = movement.plan.events.len()
+        + aggro.plan.events.len()
+        + spell.plan.events.len()
+        + melee.plan.events.len();
+    let session_commands = lifecycle_delivery.candidates_queued
+        + movement_delivery.candidates_queued
+        + aggro_delivery.candidates_queued
+        + aggro_plan_delivery.candidates_queued
+        + spell_plan_delivery.candidates_queued
+        + melee_delivery.candidates_queued
+        + melee_plan_delivery.candidates_queued
+        + player_melee_delivery.candidates_queued;
+    let map_incarnation_mismatches =
+        input.current_map_incarnation_mismatches_like_cpp(canonical_map_manager);
+    let mut completed_phases = Vec::with_capacity(6);
+    if !player_melee.skipped_owner_not_global {
+        completed_phases.push(CreatureRuntimePhaseLikeCpp::PlayerMelee);
+    }
+    if !lifecycle.skipped_owner_not_global {
+        completed_phases.push(CreatureRuntimePhaseLikeCpp::Lifecycle);
+    }
+    if !movement.skipped_owner_not_global {
+        completed_phases.push(CreatureRuntimePhaseLikeCpp::Movement);
+    }
+    if !aggro.skipped_owner_not_global {
+        completed_phases.push(CreatureRuntimePhaseLikeCpp::Aggro);
+    }
+    if !spell.skipped_owner_not_global {
+        completed_phases.push(CreatureRuntimePhaseLikeCpp::Spell);
+    }
+    if !melee.skipped_owner_not_global {
+        completed_phases.push(CreatureRuntimePhaseLikeCpp::Melee);
+    }
+    let boundary = CreatureRuntimeBoundaryOutcomeLikeCpp {
+        input,
+        completed_phases,
+        map_incarnation_mismatches,
+        publication_events,
+        session_commands,
+        db_mutations_produced,
+        db_mutations_submitted,
+    };
+
     LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
+        boundary,
         player_melee,
         player_melee_delivery,
         lifecycle,
@@ -1662,6 +1844,42 @@ pub(crate) fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
         melee_delivery,
         melee_plan_delivery,
     }
+}
+
+/// Compatibility entry point for focused callers that do not yet own the
+/// loop-level tick envelope. Production uses the explicit-input variant.
+pub(crate) fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
+    legacy_map_manager: &SharedMapManager,
+    canonical_map_manager: Option<&SharedCanonicalMapManager>,
+    map_store: &wow_data::MapStore,
+    mmap_config: &MMapRuntimeConfigLikeCpp,
+    mmap_pathfinder: Option<&WorldMMapPathfinderWorkerLikeCpp>,
+    aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
+    diff_ms: u32,
+    now: std::time::Instant,
+    registry: &wow_world::session::directory::PlayerRegistry,
+    respawn_db_mutation_order: Option<&SharedRespawnDbMutationOrderLikeCpp>,
+    respawn_db_writer_tx: Option<&RespawnDbWriterSenderLikeCpp>,
+    group_registry: Option<&Arc<wow_social::group::GroupRegistry>>,
+    player_melee_phase_state: &SharedPlayerMeleePhaseStateLikeCpp,
+) -> LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
+    let input =
+        CreatureRuntimeTickInputLikeCpp::capture_like_cpp(0, diff_ms, canonical_map_manager);
+    run_legacy_creature_runtime_tick_with_input_and_deliver_once_like_cpp(
+        input,
+        legacy_map_manager,
+        canonical_map_manager,
+        map_store,
+        mmap_config,
+        mmap_pathfinder,
+        aggro_config,
+        now,
+        registry,
+        respawn_db_mutation_order,
+        respawn_db_writer_tx,
+        group_registry,
+        player_melee_phase_state,
+    )
 }
 
 /// Spawn the legacy global creature runtime loop.
@@ -1724,6 +1942,7 @@ pub(crate) fn spawn_legacy_creature_runtime_update_loop_like_cpp(
         // delayed wander re-arming in proportion to scheduler lag. Mirror the
         // canonical loop here.
         let mut last_tick = Instant::now();
+        let mut tick_epoch = 0_u64;
 
         loop {
             interval.tick().await;
@@ -1737,6 +1956,12 @@ pub(crate) fn spawn_legacy_creature_runtime_update_loop_like_cpp(
             if diff_ms == 0 {
                 continue;
             }
+            let tick_input = CreatureRuntimeTickInputLikeCpp::capture_like_cpp(
+                tick_epoch,
+                diff_ms,
+                Some(&canonical_map_manager),
+            );
+            tick_epoch = tick_epoch.saturating_add(1);
             let legacy_for_tick = Arc::clone(&legacy_map_manager);
             let canonical_for_tick = Arc::clone(&canonical_map_manager);
             let map_store_for_tick = Arc::clone(&map_store);
@@ -1750,14 +1975,14 @@ pub(crate) fn spawn_legacy_creature_runtime_update_loop_like_cpp(
             let player_melee_phase_state_for_tick = Arc::clone(&player_melee_phase_state);
 
             let tick_result = tokio::task::spawn_blocking(move || {
-                run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
+                run_legacy_creature_runtime_tick_with_input_and_deliver_once_like_cpp(
+                    tick_input,
                     &legacy_for_tick,
                     Some(&canonical_for_tick),
                     map_store_for_tick.as_ref(),
                     &mmap_config_for_tick,
                     mmap_pathfinder_for_tick.as_deref(),
                     aggro_config_for_tick,
-                    diff_ms,
                     now,
                     registry_for_tick.as_ref(),
                     Some(&respawn_db_mutation_order_for_tick),
@@ -1772,6 +1997,14 @@ pub(crate) fn spawn_legacy_creature_runtime_update_loop_like_cpp(
                 tracing::error!("Legacy global creature runtime tick task panicked; stopping loop");
                 break;
             };
+
+            if outcome.boundary.map_incarnation_mismatches > 0 {
+                tracing::warn!(
+                    tick_epoch = outcome.boundary.input.tick_epoch,
+                    mismatches = outcome.boundary.map_incarnation_mismatches,
+                    "Legacy creature runtime tick observed a map incarnation change after admission"
+                );
+            }
 
             let touched_creatures = outcome.lifecycle.corpses_despawned
                 + outcome.movement.movement_packets

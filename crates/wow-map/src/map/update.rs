@@ -344,6 +344,12 @@ where
         summary
     }
 
+    /// Snapshot the canonical Creature GUIDs admitted to this map's loaded
+    /// grid/object-updater set for the current map tick.
+    pub fn admitted_creature_guids_like_cpp(&self) -> Vec<ObjectGuid> {
+        self.object_updater_creature_guids_like_cpp()
+    }
+
     /// Map-owned seam for C++ `Creature::Update` under `ObjectUpdater`.
     ///
     /// C++ anchors:
