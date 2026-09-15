@@ -1,5 +1,4 @@
 use super::super::*;
-use super::*;
 
 pub(crate) fn consume_game_event_live_update_side_effects_like_cpp(
     manager: &mut wow_map::MapManager,
