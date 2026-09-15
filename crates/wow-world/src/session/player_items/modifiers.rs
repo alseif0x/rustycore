@@ -580,7 +580,18 @@ impl WorldSession {
         let mut item_set_auras = 0usize;
         let mut item_equip_auras = 0usize;
         let mut enchantments = LoadedEquippedItemEnchantmentsOutcomeLikeCpp::default();
-        for (_slot, item_guid) in equipped {
+        for (slot, item_guid) in equipped {
+            // C++ `_ApplyAllItemMods` starts each equipped item with
+            // `_ApplyItemBonuses`. Seed the canonical Player accumulator here
+            // so login and a later equip/swap use exactly the same contribution
+            // path. Broken items are rejected before both static/scaling
+            // bonuses and aura/enchantment effects are considered.
+            if self
+                .resolved_inventory_item_object_like_cpp(item_guid)
+                .is_some_and(|item| !item.is_broken())
+            {
+                self.record_represented_item_mods_like_cpp(item_guid, slot, true);
+            }
             item_set_auras += self.apply_initial_item_set_auras_like_cpp(item_guid);
             item_equip_auras += self.apply_initial_item_equip_auras_like_cpp(item_guid);
             enchantments.append(self.apply_loaded_equipped_item_enchantments_like_cpp(item_guid));
@@ -648,7 +659,17 @@ impl WorldSession {
             ),
         )
     }
-    pub(crate) fn send_represented_item_bonus_player_stat_update_like_cpp(&self) -> bool {
+    pub(crate) fn send_represented_item_bonus_player_stat_update_like_cpp(&mut self) -> bool {
+        // Item changes alter derived stats, vital maxima and weapon ranges
+        // together. Publish the same complete projection consumed by combat;
+        // sending only the raw bonus accumulator would leave the canonical
+        // snapshot stale and could make the client and server disagree after
+        // repair or an equipment-set swap. A raw packet is retained only as a
+        // fixture/early-login fallback when the complete projection cannot yet
+        // be formed; no derived combat snapshot exists in that state.
+        if self.send_stat_update() {
+            return true;
+        }
         let Some(update) = self.represented_item_bonus_player_stat_update_object_like_cpp() else {
             return false;
         };

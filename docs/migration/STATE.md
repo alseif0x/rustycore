@@ -8,6 +8,18 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#61 canonical equipment contribution closure — 2026-09-15, implementation
+`a43f51cf`:** the effective-stat projection no longer sums equipped inventory rows
+alongside the canonical `PlayerItemBonusStateLikeCpp` accumulator. Login now seeds the
+accumulator through the same non-broken-item gate as `_ApplyAllItemMods`, and all represented
+equipment transitions publish the complete Player-owned effective snapshot consumed by
+combat. The focused regression covers equip, unequip, break, repair and login equivalence;
+affected inventory suites pass 7/7, 5/5, 10/10 and 16/16, and `cargo check -p world-server`
+passes. The architecture check remains blocked by the pre-existing `session/mod.rs`
+ratchet drift and was not masked by baseline regeneration. #61 remains open for the
+unimplemented wear-to-broken producer, aura-backed and complete combat formulas, and live
+capture/DB/relogin proof.
+
 **Fresh Creature runtime audit — 2026-09-15:** the current boundary and next
 macro are recorded in
 [`creature-runtime-audit.md`](../architecture/creature-runtime-audit.md).

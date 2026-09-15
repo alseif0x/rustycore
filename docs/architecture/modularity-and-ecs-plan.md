@@ -524,6 +524,20 @@ runtime-only effective-stat snapshot. The packet adapter remains a consumer, not
 mutable authority. This is a bounded F1 delivery; combat consumers, complete aura/regen
 math, reversible equipment lifecycle and live/capture acceptance remain in #61.
 
+The follow-up #61 audit found a second item-stat input in that projection: the character
+handler walked equipped inventory rows even after `PlayerItemBonusStateLikeCpp` had applied
+the same `_ApplyItemBonuses` contribution. Commit `a43f51cf` makes the Player accumulator
+the sole gear-stat source. Login seeds it through `_ApplyAllItemMods` for every loaded,
+non-broken equipment item, and equip/unequip/swap/equipment-set/scaling/repair transitions
+publish one complete effective-stat projection before combat consumes it. The anchors are
+TrinityCore `Player::_ApplyItemBonuses` / `_ApplyAllItemMods` (`Player.cpp:7654, 7688`)
+and the repair reapplication path (`Player.cpp:8575`). The regression
+`equipment_stats_use_one_canonical_contribution_path_like_cpp` covers one contribution,
+broken-item exclusion, repair reapplication and login/equip equivalence. This removes the
+double writer while retaining #61's explicit residuals: aura-backed producers, complete
+AP/damage/regen/expertise/penetration formulas, live wear-to-broken transitions and exact
+capture/DB/relogin evidence.
+
 PR #857 extends that projection to the initial spell-threat consumer. The Player snapshot
 retains AP and ranged-AP multipliers, and the consumer follows the C++ modifier sum,
 non-negative clamp and multiplier order (`Spell.cpp:5558-5575`, `Unit.cpp:9165-9180`).

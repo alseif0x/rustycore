@@ -797,14 +797,12 @@ impl WorldSession {
                 None,
             );
         }
-        if source_leaves_position
+        if (source_leaves_position
             && plan.source_bag == INVENTORY_SLOT_BAG_0
-            && plan.source_slot < 19
+            && plan.source_slot < 19)
+            || represented_item_mods_changed
         {
             self.send_stat_update();
-        }
-        if represented_item_mods_changed {
-            self.send_represented_item_bonus_player_stat_update_like_cpp();
         }
         if source_leaves_position && plan.source_bag == INVENTORY_SLOT_BAG_0 {
             if plan.source_slot < wow_entities::EQUIPMENT_SLOT_END {
@@ -3690,11 +3688,8 @@ impl WorldSession {
                 None,
             );
 
-            if slot < 19 {
+            if slot < 19 || represented_item_mods_changed {
                 self.send_stat_update();
-            }
-            if represented_item_mods_changed {
-                self.send_represented_item_bonus_player_stat_update_like_cpp();
             }
         } else {
             self.send_bag_slot_values_update_like_cpp(bag, slot);
@@ -3705,7 +3700,7 @@ impl WorldSession {
 
     pub(super) fn player_stat_changes_with_represented_item_bonuses_like_cpp(
         &mut self,
-        include_represented_item_bonuses: bool,
+        _include_represented_item_bonuses: bool,
     ) -> Option<(ObjectGuid, PlayerStatChanges)> {
         let player_guid = match self.player_guid() {
             Some(g) => g,
@@ -3720,9 +3715,9 @@ impl WorldSession {
             return None; // Not fully logged in yet
         }
 
-        let gear = self.represented_player_gear_stats_like_cpp(include_represented_item_bonuses)?;
+        let gear = self.represented_player_gear_stats_like_cpp(true)?;
         let projection = self.player_stat_system_projection_like_cpp(race, class, level, &gear)?;
-        self.publish_effective_stats_like_cpp(include_represented_item_bonuses, projection, &gear);
+        self.publish_effective_stats_like_cpp(true, projection, &gear);
         let computed_max_health_u32 = max_health_u32_like_cpp(projection.max_health);
         let (health, max_health_for_update) =
             self.sync_canonical_player_max_health_like_cpp(computed_max_health_u32)?;

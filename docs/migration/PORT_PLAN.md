@@ -515,6 +515,24 @@ and capture/live DB/relogin evidence. F2
 (#29/#31) may consume the snapshot only after those missing participants are integrated
 and acceptance is recorded.
 
+The next #61 audit found that the first projection still had two item-stat inputs:
+`handlers/character/stats.rs` walked equipped inventory rows while the canonical
+`PlayerItemBonusStateLikeCpp` accumulator also supplied `_ApplyItemBonuses`. Commit
+`a43f51cf` removes that double-writer path. `_ApplyAllItemMods` now seeds the canonical
+accumulator for each loaded, non-broken equipment item; equip, unequip, swap, equipment-set,
+scaling and repair transitions publish the same complete effective-stat projection used by
+combat. The change follows TrinityCore `Player::_ApplyItemBonuses` and
+`Player::_ApplyAllItemMods` (`Player.cpp:7654, 7688`) and the equipment repair path
+(`Player.cpp:8575`). The regression
+`equipment_stats_use_one_canonical_contribution_path_like_cpp` proves one contribution on
+equip, removal on break, reapplication on repair and equality between login and post-login
+equip. A `world-server` check passed in 6m52s; the affected item suites pass 7/7, 5/5,
+10/10 and 16/16. The architecture checker still reports the pre-existing
+`session/mod.rs` ratchet drift (+21 production and +142 test lines) with no change in that
+file; its baseline remains untouched. #61 stays open for aura-backed producers, complete
+AP/damage/regen/expertise/penetration formulas, live item-wear break transitions and exact
+capture/DB/relogin acceptance. #29/#31 remain gated on those participants.
+
 The first F1 movement-admission slice is integrated by PR #853
 (`7c3add2f`, implementation `3af90ec2`). It enforces the C++ early returns for
 pending player teleport and unfinished controlled-mover MoveSpline before any
