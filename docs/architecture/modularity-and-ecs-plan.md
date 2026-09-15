@@ -270,6 +270,22 @@ Follow-up PR #936 tightens both physical policy rows to the exact scanner counts
 current integration head. No packet, SQL, clock, lock, persistence order or runtime behavior changed; the
 remaining #584 C0–C4, runtime, capture, DB/relogin and live-QA gates remain open.
 
+## P4 game-event runtime/cache navigability — integrated PR #938, 2026-09-15, merge `c5967026`
+
+The post-#935 audit selected the remaining game-event state family in the canonical
+spawn metadata owner. The complete transition, condition-progress, scheduler,
+quest/vendor-cache and model/equipment-baseline methods now live in the private
+`spawn_store_loader/game_event_runtime.rs` child module. They remain inherent methods
+on `CanonicalSpawnMetadataLikeCpp`, preserving one owner and the existing public
+paths. The parent is 2,627 lines and the child 800 lines; the aggregate remains at
+the exact 3,427-line physical/logical ceiling. The focused game-event suite passes
+181/181, compile, format/diff and architecture check/self-test pass, and the full
+local profile retains the three pre-existing `scenarios_9` GameObject respawn-save
+failures (587 passed, 3 failed). No packet, SQL, clock, lock, persistence order or
+runtime behavior changed. The next split must be selected from a fresh C0–C4 audit;
+remaining catalog families and runtime/capture/DB/relogin/live-QA gates are not
+implied complete.
+
 ## P2 Player instance-reset owner — integrated PR #919, 2026-09-14
 
 PR #919 moves `_instanceResetTimes` to the canonical

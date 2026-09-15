@@ -50,6 +50,19 @@ profile still has three pre-existing `scenarios_9` GameObject respawn-save failu
 exact scanner counts at the current integration head. This is physical organization only; remaining #584 C0–C4,
 runtime, capture, DB/relogin and live-QA gates stay open.
 
+**P4 game-event runtime/cache navigability integrated — 2026-09-15, #584 / PR #938,
+merge `c5967026730b8c95802839f3d48ef083cae4dfac`:** the post-#935 audit moved the
+complete game-event transition and cache family to the private
+`spawn_store_loader/game_event_runtime.rs` module. Its methods remain inherent on
+`CanonicalSpawnMetadataLikeCpp`, preserving canonical ownership and all existing
+public paths. The current facade is 2,627 lines and the child 800, with the
+aggregate hotspot fixed at 3,427 lines. The focused game-event suite passes
+181/181; compile, format/diff and architecture check/self-test pass. The full
+profile retains the three pre-existing `scenarios_9` GameObject respawn-save
+failures (587 passed, 3 failed). No packet, SQL, clock, lock, persistence order or
+runtime behavior changed; the remaining loader families and #584 C0–C4, runtime,
+capture, DB/relogin and live-QA gates remain open.
+
 ## Current delivery agreement — 2026-09-06, user-approved replan
 
 The user explicitly replaced the single all-core #578 delivery with analyzed,

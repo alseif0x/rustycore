@@ -92,6 +92,20 @@ profile still has three pre-existing `scenarios_9` GameObject respawn-save failu
 exact scanner counts at the current head. This is physical organization only; remaining #584 C0–C4,
 runtime, capture, DB/relogin and live-QA gates stay open.
 
+**P4 game-event runtime/cache split integrated — 2026-09-15, #584 / PR #938, merge
+`c5967026730b8c95802839f3d48ef083cae4dfac`:** the post-#935 audit extracted the
+complete game-event state-transition and cache family from
+`spawn_store_loader.rs` into private `spawn_store_loader/game_event_runtime.rs`.
+The implementation remains an inherent impl on `CanonicalSpawnMetadataLikeCpp`,
+so its canonical ownership and public method paths are unchanged. The current
+facade is 2,627 lines and the child is 800; the aggregate hotspot remains at the
+validated 3,427-line ceiling. The 181 game-event tests pass; compile,
+format/diff, architecture check and self-test pass. The full local profile still
+reports the three pre-existing `scenarios_9` GameObject respawn-save failures
+(587 passed, 3 failed). No packet, SQL, clock, lock, persistence order or runtime
+behavior changed; the remaining loader families and #584 C0–C4/runtime/capture/
+DB-relogin/live-QA gates stay open.
+
 **Transport C0/C3 lifecycle integrated — 2026-09-14, PR #901, merge
 `bf460aa7a8ccec0269eea1771a094ef12f0c6109` (implementation `82b2d8d9`):** the bounded
 CREATE/DESTROY and phase-visibility slice is integrated into `3.4.3`. `wow-map` marks same-phase Players
