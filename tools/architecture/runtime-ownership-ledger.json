@@ -1160,7 +1160,7 @@
         "cross_check": "tools/architecture/session-ownership-policy.json#syntax_baseline.session_command.variants"
       },
       "audited_summary": {
-        "variant_count": 38,
+        "variant_count": 41,
         "count_kind": "baseline observation; AST is authoritative"
       },
       "expected_variant_count": 41,
@@ -1195,7 +1195,7 @@
             "ApplyPlayerMeleeResultLikeCpp",
             "CreatureAttackStartLikeCpp",
             "CreatureAttackStopLikeCpp",
-            "DestroyVisibleCreatureLikeCpp",
+            "DestroyVisibleObjectLikeCpp",
             "ReconcilePvpCombatExpiryLikeCpp",
             "SendVisibleObjectValuesUpdate",
             "RefreshVisibleWorldCreaturesLikeCpp",

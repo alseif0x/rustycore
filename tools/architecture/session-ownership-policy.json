@@ -28442,9 +28442,9 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_destroy_visible_creature_like_cpp_command_like_cpp",
+          "name": "handle_destroy_visible_object_like_cpp_command_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn handle_destroy_visible_creature_like_cpp_command_like_cpp (& mut self , command : DestroyVisibleCreatureLikeCppCommand ,)",
+          "signature": "fn handle_destroy_visible_object_like_cpp_command_like_cpp (& mut self , command : DestroyVisibleObjectLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -58388,11 +58388,11 @@
           "source_class": "production"
         },
         {
-          "name": "DestroyVisibleCreatureLikeCpp",
+          "name": "DestroyVisibleObjectLikeCpp",
           "fields": [
             {
               "name": "0",
-              "type": "DestroyVisibleCreatureLikeCppCommand",
+              "type": "DestroyVisibleObjectLikeCppCommand",
               "visibility": "private",
               "cfg": [],
               "source_class": "production"
@@ -59586,20 +59586,13 @@
       {
         "definition": {
           "module": "crate::session::mailbox::protocol",
-          "name": "DestroyVisibleCreatureLikeCppCommand",
+          "name": "DestroyVisibleObjectLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
           "source_class": "production"
         },
         "kind": "struct",
         "fields": [
-          {
-            "name": "creature_guid",
-            "type": "ObjectGuid",
-            "visibility": "pub",
-            "cfg": [],
-            "source_class": "production"
-          },
           {
             "name": "instance_id",
             "type": "u32",
@@ -59617,6 +59610,13 @@
           {
             "name": "map_incarnation",
             "type": "u64",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "object_guid",
+            "type": "ObjectGuid",
             "visibility": "pub",
             "cfg": [],
             "source_class": "production"
@@ -61178,7 +61178,7 @@
       },
       {
         "module": "crate::session::mailbox::protocol",
-        "target": "DestroyVisibleCreatureLikeCppCommand",
+        "target": "DestroyVisibleObjectLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug , PartialEq , Eq)",
         "cfg": [],
@@ -61807,7 +61807,7 @@
           "package": "world-server",
           "module": "crate::runtime::deferred_visibility",
           "source": "crates/world-server/src/runtime/deferred_visibility.rs",
-          "enclosing": "fn deliver_directed_creature_destroy_like_cpp",
+          "enclosing": "fn deliver_directed_object_destroy_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
           "symbol": "registry",
@@ -62481,8 +62481,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "source": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::consume",
+          "source": "crates/world-server/src/runtime/game_events/consume.rs",
           "enclosing": "fn consume_game_event_live_update_side_effects_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
@@ -62494,8 +62494,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "source": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::consume",
+          "source": "crates/world-server/src/runtime/game_events/consume.rs",
           "enclosing": "fn consume_game_event_live_update_side_effects_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "argument_escape",
@@ -62507,8 +62507,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "source": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::consume",
+          "source": "crates/world-server/src/runtime/game_events/consume.rs",
           "enclosing": "fn consume_game_event_live_update_side_effects_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "argument_escape",
@@ -62520,8 +62520,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "source": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::consume",
+          "source": "crates/world-server/src/runtime/game_events/consume.rs",
           "enclosing": "fn consume_game_event_live_update_side_effects_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "argument_escape",
@@ -62533,8 +62533,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "source": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::live",
+          "source": "crates/world-server/src/runtime/game_events/live.rs",
           "enclosing": "fn fanout_game_event_announcement_to_player_sessions_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
@@ -62546,8 +62546,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "source": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::live",
+          "source": "crates/world-server/src/runtime/game_events/live.rs",
           "enclosing": "fn fanout_game_event_announcement_to_player_sessions_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "local_alias",
@@ -62559,8 +62559,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "source": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::live",
+          "source": "crates/world-server/src/runtime/game_events/live.rs",
           "enclosing": "fn fanout_game_event_npc_flag_values_update_to_visible_sessions_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
@@ -62572,8 +62572,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "source": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::live",
+          "source": "crates/world-server/src/runtime/game_events/live.rs",
           "enclosing": "fn fanout_game_event_npc_flag_values_update_to_visible_sessions_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "local_alias",
@@ -62585,8 +62585,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "source": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::live",
+          "source": "crates/world-server/src/runtime/game_events/live.rs",
           "enclosing": "fn fanout_realm_update_world_state_to_player_sessions_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
@@ -62598,8 +62598,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "source": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::live",
+          "source": "crates/world-server/src/runtime/game_events/live.rs",
           "enclosing": "fn fanout_realm_update_world_state_to_player_sessions_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "local_alias",
@@ -62611,8 +62611,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "source": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::live",
+          "source": "crates/world-server/src/runtime/game_events/live.rs",
           "enclosing": "fn fanout_reset_event_seasonal_quests_to_player_sessions_after_db_delete_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
@@ -62624,8 +62624,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "source": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::live",
+          "source": "crates/world-server/src/runtime/game_events/live.rs",
           "enclosing": "fn fanout_reset_event_seasonal_quests_to_player_sessions_after_db_delete_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "argument_escape",
@@ -62637,8 +62637,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "source": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::live",
+          "source": "crates/world-server/src/runtime/game_events/live.rs",
           "enclosing": "fn fanout_reset_event_seasonal_quests_to_player_sessions_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
@@ -62650,8 +62650,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "source": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::live",
+          "source": "crates/world-server/src/runtime/game_events/live.rs",
           "enclosing": "fn fanout_reset_event_seasonal_quests_to_player_sessions_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "local_alias",
@@ -62663,8 +62663,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "source": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::live",
+          "source": "crates/world-server/src/runtime/game_events/live.rs",
           "enclosing": "fn game_event_update_npc_flags_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
@@ -62676,8 +62676,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "source": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::live",
+          "source": "crates/world-server/src/runtime/game_events/live.rs",
           "enclosing": "fn game_event_update_npc_flags_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "argument_escape",
@@ -62689,8 +62689,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "source": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::live",
+          "source": "crates/world-server/src/runtime/game_events/live.rs",
           "enclosing": "fn game_event_update_world_states_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
@@ -62702,8 +62702,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "source": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::live",
+          "source": "crates/world-server/src/runtime/game_events/live.rs",
           "enclosing": "fn game_event_update_world_states_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "argument_escape",
@@ -62863,7 +62863,7 @@
           "enclosing": "fn spawn_canonical_map_update_loop",
           "registry": "PlayerRegistry",
           "operation": "argument_escape",
-          "symbol": "deliver_directed_creature_destroy_like_cpp",
+          "symbol": "deliver_directed_object_destroy_like_cpp",
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "& player_registry",
@@ -70061,8 +70061,64 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "path": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::bootstrap",
+          "path": "crates/world-server/src/runtime/game_events/bootstrap.rs",
+          "enclosing": "fn::register_loaded_instance_ids",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "MapManager",
+              "fingerprint": "fnv1a64x2:6a8ff8984c55ee0c2a76565f50e5525f:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "canonical_map_manager",
+              "fingerprint": "fnv1a64x2:bc1ccf86e6629ce4647fd817847f34e7:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "lock",
+              "fingerprint": "fnv1a64x2:9ee648ec80449e395cc30d7e8204083a:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "type_reference",
+              "symbol": "SharedMapManager",
+              "fingerprint": "fnv1a64x2:7d2c912bd3b9f676e6912fae6fbff8e1:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "legacy_map_manager",
+              "fingerprint": "fnv1a64x2:234341f18e29fa8aff360b65382e3a15:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "method_call",
+              "symbol": "write",
+              "fingerprint": "fnv1a64x2:a626373a31b1ffc23c2542777d666669:len=49",
+              "multiplicity": 1
+            }
+          ],
+          "fingerprint": "signature=fn register_loaded_instance_ids (legacy_map_manager : & SharedMapManager , canonical_map_manager : & Mutex < wow_map :: MapManager > , instance_ids : & [u32] ,)|body=fnv1a64x2:9ef814e985673d1906071c4820174ad4:len=838|evidence=fnv1a64x2:5b5324dfcd876c2266e8ca5cd155f589:len=510",
+          "cfg": [],
+          "multiplicity": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::game_events::consume",
+          "path": "crates/world-server/src/runtime/game_events/consume.rs",
           "enclosing": "fn::consume_game_event_live_update_side_effects_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -70103,8 +70159,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "path": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::grid",
+          "path": "crates/world-server/src/runtime/game_events/grid.rs",
           "enclosing": "fn::ensure_login_player_grid_loaded_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -70215,232 +70271,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "path": "crates/world-server/src/runtime/game_events.rs",
-          "enclosing": "fn::game_event_spawn_creatures_and_gameobjects_for_event_like_cpp",
-          "direction_markers": [
-            "unresolved_dual_side"
-          ],
-          "evidence": [
-            {
-              "side": "canonical",
-              "kind": "type_reference",
-              "symbol": "MapManager",
-              "fingerprint": "fnv1a64x2:6a8ff8984c55ee0c2a76565f50e5525f:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "manager",
-              "fingerprint": "fnv1a64x2:fcb060b47c655668b3e4665c11f30993:len=97",
-              "multiplicity": 2
-            },
-            {
-              "side": "legacy",
-              "kind": "type_reference",
-              "symbol": "SharedMapManager",
-              "fingerprint": "fnv1a64x2:7d2c912bd3b9f676e6912fae6fbff8e1:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
-              "symbol": "legacy_manager",
-              "fingerprint": "fnv1a64x2:5548fa74d2dc3a541b0378b742b93f3f:len=99",
-              "multiplicity": 2
-            }
-          ],
-          "fingerprint": "signature=fn game_event_spawn_creatures_and_gameobjects_for_event_like_cpp (manager : & mut wow_map :: MapManager , legacy_manager : Option < & SharedMapManager > , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp , event_id : i16 ,) -> GameEventCreatureGameObjectSpawnSummaryLikeCpp|body=fnv1a64x2:0ea0ee425e5ca67845d6670dc6670b9b:len=1366|evidence=fnv1a64x2:5edd69cd67171b84ae3a362c7002258f:len=510",
-          "cfg": [],
-          "multiplicity": 1
-        },
-        {
-          "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "path": "crates/world-server/src/runtime/game_events.rs",
-          "enclosing": "fn::game_event_spawn_for_event_like_cpp",
-          "direction_markers": [
-            "unresolved_dual_side"
-          ],
-          "evidence": [
-            {
-              "side": "canonical",
-              "kind": "type_reference",
-              "symbol": "MapManager",
-              "fingerprint": "fnv1a64x2:6a8ff8984c55ee0c2a76565f50e5525f:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "manager",
-              "fingerprint": "fnv1a64x2:fcb060b47c655668b3e4665c11f30993:len=97",
-              "multiplicity": 2
-            },
-            {
-              "side": "legacy",
-              "kind": "type_reference",
-              "symbol": "SharedMapManager",
-              "fingerprint": "fnv1a64x2:7d2c912bd3b9f676e6912fae6fbff8e1:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
-              "symbol": "legacy_manager",
-              "fingerprint": "fnv1a64x2:5548fa74d2dc3a541b0378b742b93f3f:len=99",
-              "multiplicity": 2
-            }
-          ],
-          "fingerprint": "signature=fn game_event_spawn_for_event_like_cpp (manager : & mut wow_map :: MapManager , legacy_manager : Option < & SharedMapManager > , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp , event_id : i16 ,) -> GameEventSpawnForEventSummaryLikeCpp|body=fnv1a64x2:d39232b06e569147e40369f74869966e:len=786|evidence=fnv1a64x2:5edd69cd67171b84ae3a362c7002258f:len=510",
-          "cfg": [],
-          "multiplicity": 1
-        },
-        {
-          "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "path": "crates/world-server/src/runtime/game_events.rs",
-          "enclosing": "fn::game_event_spawn_object_guid_list_for_event_like_cpp",
-          "direction_markers": [
-            "unresolved_dual_side"
-          ],
-          "evidence": [
-            {
-              "side": "canonical",
-              "kind": "type_reference",
-              "symbol": "MapManager",
-              "fingerprint": "fnv1a64x2:6a8ff8984c55ee0c2a76565f50e5525f:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "manager",
-              "fingerprint": "fnv1a64x2:4e67829db448c020520a29115e4640e3:len=48",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "do_for_all_maps_mut",
-              "fingerprint": "fnv1a64x2:a6212f9409ed5f107a17f7e9d785f5bb:len=51",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "type_reference",
-              "symbol": "SharedMapManager",
-              "fingerprint": "fnv1a64x2:7d2c912bd3b9f676e6912fae6fbff8e1:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
-              "symbol": "legacy_manager",
-              "fingerprint": "fnv1a64x2:3d753f351705eafe866eda0900482381:len=49",
-              "multiplicity": 1
-            }
-          ],
-          "fingerprint": "signature=fn game_event_spawn_object_guid_list_for_event_like_cpp (manager : & mut wow_map :: MapManager , legacy_manager : Option < & SharedMapManager > , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp , object_type : wow_map :: SpawnObjectType , spawn_ids : & [wow_map :: SpawnId] ,) -> GameEventObjectSpawnBucketSummaryLikeCpp|body=fnv1a64x2:12443d9367a287f0968a2083255d3c63:len=2631|evidence=fnv1a64x2:368d7ceef2eb0e60f1a83137a2d86de3:len=434",
-          "cfg": [],
-          "multiplicity": 1
-        },
-        {
-          "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "path": "crates/world-server/src/runtime/game_events.rs",
-          "enclosing": "fn::game_event_spawn_pools_for_event_like_cpp",
-          "direction_markers": [
-            "unresolved_dual_side"
-          ],
-          "evidence": [
-            {
-              "side": "canonical",
-              "kind": "type_reference",
-              "symbol": "MapManager",
-              "fingerprint": "fnv1a64x2:6a8ff8984c55ee0c2a76565f50e5525f:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "manager",
-              "fingerprint": "fnv1a64x2:4e67829db448c020520a29115e4640e3:len=48",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "type_reference",
-              "symbol": "SharedMapManager",
-              "fingerprint": "fnv1a64x2:7d2c912bd3b9f676e6912fae6fbff8e1:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
-              "symbol": "legacy_manager",
-              "fingerprint": "fnv1a64x2:3d753f351705eafe866eda0900482381:len=49",
-              "multiplicity": 1
-            }
-          ],
-          "fingerprint": "signature=fn game_event_spawn_pools_for_event_like_cpp (manager : & mut wow_map :: MapManager , legacy_manager : Option < & SharedMapManager > , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp , event_id : i16 ,) -> GameEventPoolEventSpawnSummaryLikeCpp|body=fnv1a64x2:732774a1fa17b496df4ac03a4d98a5f9:len=513|evidence=fnv1a64x2:59b92ed6269ae11561566ab632f865f2:len=341",
-          "cfg": [],
-          "multiplicity": 1
-        },
-        {
-          "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "path": "crates/world-server/src/runtime/game_events.rs",
-          "enclosing": "fn::game_event_spawn_pools_like_cpp",
-          "direction_markers": [
-            "unresolved_dual_side"
-          ],
-          "evidence": [
-            {
-              "side": "canonical",
-              "kind": "type_reference",
-              "symbol": "MapManager",
-              "fingerprint": "fnv1a64x2:6a8ff8984c55ee0c2a76565f50e5525f:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "manager",
-              "fingerprint": "fnv1a64x2:4e67829db448c020520a29115e4640e3:len=48",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "do_for_all_maps_mut",
-              "fingerprint": "fnv1a64x2:680afc96bdfcb8d91aa27ef733ee5f5a:len=51",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "type_reference",
-              "symbol": "SharedMapManager",
-              "fingerprint": "fnv1a64x2:7d2c912bd3b9f676e6912fae6fbff8e1:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
-              "symbol": "legacy_manager",
-              "fingerprint": "fnv1a64x2:3d753f351705eafe866eda0900482381:len=49",
-              "multiplicity": 1
-            }
-          ],
-          "fingerprint": "signature=fn game_event_spawn_pools_like_cpp (manager : & mut wow_map :: MapManager , legacy_manager : Option < & SharedMapManager > , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp , event_pool_ids : & [u32] ,) -> GameEventPoolSpawnSummaryLikeCpp|body=fnv1a64x2:2db90c044c1236ae5b2c9fb624075ae9:len=1886|evidence=fnv1a64x2:7c145dd6d4ae3dbf38abdb298b6d2cf2:len=434",
-          "cfg": [],
-          "multiplicity": 1
-        },
-        {
-          "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "path": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::grid",
+          "path": "crates/world-server/src/runtime/game_events/grid.rs",
           "enclosing": "fn::materialize_loaded_player_grid_records_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -70572,8 +70404,8 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "path": "crates/world-server/src/runtime/game_events.rs",
+          "module": "crate::runtime::game_events::grid",
+          "path": "crates/world-server/src/runtime/game_events/grid.rs",
           "enclosing": "fn::mirror_loaded_grid_creature_to_legacy_like_cpp",
           "direction_markers": [
             "canonical_to_legacy"
@@ -70852,9 +70684,9 @@
         },
         {
           "package": "world-server",
-          "module": "crate::runtime::game_events",
-          "path": "crates/world-server/src/runtime/game_events.rs",
-          "enclosing": "fn::register_loaded_instance_ids",
+          "module": "crate::runtime::game_events::spawn",
+          "path": "crates/world-server/src/runtime/game_events/spawn.rs",
+          "enclosing": "fn::game_event_spawn_creatures_and_gameobjects_for_event_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
           ],
@@ -70869,15 +70701,99 @@
             {
               "side": "canonical",
               "kind": "value_reference",
-              "symbol": "canonical_map_manager",
-              "fingerprint": "fnv1a64x2:bc1ccf86e6629ce4647fd817847f34e7:len=49",
+              "symbol": "manager",
+              "fingerprint": "fnv1a64x2:fcb060b47c655668b3e4665c11f30993:len=97",
+              "multiplicity": 2
+            },
+            {
+              "side": "legacy",
+              "kind": "type_reference",
+              "symbol": "SharedMapManager",
+              "fingerprint": "fnv1a64x2:7d2c912bd3b9f676e6912fae6fbff8e1:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "legacy_manager",
+              "fingerprint": "fnv1a64x2:5548fa74d2dc3a541b0378b742b93f3f:len=99",
+              "multiplicity": 2
+            }
+          ],
+          "fingerprint": "signature=fn game_event_spawn_creatures_and_gameobjects_for_event_like_cpp (manager : & mut wow_map :: MapManager , legacy_manager : Option < & SharedMapManager > , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp , event_id : i16 ,) -> GameEventCreatureGameObjectSpawnSummaryLikeCpp|body=fnv1a64x2:0ea0ee425e5ca67845d6670dc6670b9b:len=1366|evidence=fnv1a64x2:5edd69cd67171b84ae3a362c7002258f:len=510",
+          "cfg": [],
+          "multiplicity": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::game_events::spawn",
+          "path": "crates/world-server/src/runtime/game_events/spawn.rs",
+          "enclosing": "fn::game_event_spawn_for_event_like_cpp",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "MapManager",
+              "fingerprint": "fnv1a64x2:6a8ff8984c55ee0c2a76565f50e5525f:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "manager",
+              "fingerprint": "fnv1a64x2:fcb060b47c655668b3e4665c11f30993:len=97",
+              "multiplicity": 2
+            },
+            {
+              "side": "legacy",
+              "kind": "type_reference",
+              "symbol": "SharedMapManager",
+              "fingerprint": "fnv1a64x2:7d2c912bd3b9f676e6912fae6fbff8e1:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "legacy_manager",
+              "fingerprint": "fnv1a64x2:5548fa74d2dc3a541b0378b742b93f3f:len=99",
+              "multiplicity": 2
+            }
+          ],
+          "fingerprint": "signature=fn game_event_spawn_for_event_like_cpp (manager : & mut wow_map :: MapManager , legacy_manager : Option < & SharedMapManager > , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp , event_id : i16 ,) -> GameEventSpawnForEventSummaryLikeCpp|body=fnv1a64x2:d39232b06e569147e40369f74869966e:len=786|evidence=fnv1a64x2:5edd69cd67171b84ae3a362c7002258f:len=510",
+          "cfg": [],
+          "multiplicity": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::game_events::spawn",
+          "path": "crates/world-server/src/runtime/game_events/spawn.rs",
+          "enclosing": "fn::game_event_spawn_object_guid_list_for_event_like_cpp",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "MapManager",
+              "fingerprint": "fnv1a64x2:6a8ff8984c55ee0c2a76565f50e5525f:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "manager",
+              "fingerprint": "fnv1a64x2:4e67829db448c020520a29115e4640e3:len=48",
               "multiplicity": 1
             },
             {
               "side": "canonical",
               "kind": "method_call",
-              "symbol": "lock",
-              "fingerprint": "fnv1a64x2:9ee648ec80449e395cc30d7e8204083a:len=49",
+              "symbol": "do_for_all_maps_mut",
+              "fingerprint": "fnv1a64x2:a6212f9409ed5f107a17f7e9d785f5bb:len=51",
               "multiplicity": 1
             },
             {
@@ -70890,19 +70806,103 @@
             {
               "side": "legacy",
               "kind": "value_reference",
-              "symbol": "legacy_map_manager",
-              "fingerprint": "fnv1a64x2:234341f18e29fa8aff360b65382e3a15:len=49",
+              "symbol": "legacy_manager",
+              "fingerprint": "fnv1a64x2:3d753f351705eafe866eda0900482381:len=49",
+              "multiplicity": 1
+            }
+          ],
+          "fingerprint": "signature=fn game_event_spawn_object_guid_list_for_event_like_cpp (manager : & mut wow_map :: MapManager , legacy_manager : Option < & SharedMapManager > , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp , object_type : wow_map :: SpawnObjectType , spawn_ids : & [wow_map :: SpawnId] ,) -> GameEventObjectSpawnBucketSummaryLikeCpp|body=fnv1a64x2:12443d9367a287f0968a2083255d3c63:len=2631|evidence=fnv1a64x2:368d7ceef2eb0e60f1a83137a2d86de3:len=434",
+          "cfg": [],
+          "multiplicity": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::game_events::spawn",
+          "path": "crates/world-server/src/runtime/game_events/spawn.rs",
+          "enclosing": "fn::game_event_spawn_pools_for_event_like_cpp",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "MapManager",
+              "fingerprint": "fnv1a64x2:6a8ff8984c55ee0c2a76565f50e5525f:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "manager",
+              "fingerprint": "fnv1a64x2:4e67829db448c020520a29115e4640e3:len=48",
               "multiplicity": 1
             },
             {
               "side": "legacy",
-              "kind": "method_call",
-              "symbol": "write",
-              "fingerprint": "fnv1a64x2:a626373a31b1ffc23c2542777d666669:len=49",
+              "kind": "type_reference",
+              "symbol": "SharedMapManager",
+              "fingerprint": "fnv1a64x2:7d2c912bd3b9f676e6912fae6fbff8e1:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "legacy_manager",
+              "fingerprint": "fnv1a64x2:3d753f351705eafe866eda0900482381:len=49",
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn register_loaded_instance_ids (legacy_map_manager : & SharedMapManager , canonical_map_manager : & Mutex < wow_map :: MapManager > , instance_ids : & [u32] ,)|body=fnv1a64x2:9ef814e985673d1906071c4820174ad4:len=838|evidence=fnv1a64x2:5b5324dfcd876c2266e8ca5cd155f589:len=510",
+          "fingerprint": "signature=fn game_event_spawn_pools_for_event_like_cpp (manager : & mut wow_map :: MapManager , legacy_manager : Option < & SharedMapManager > , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp , event_id : i16 ,) -> GameEventPoolEventSpawnSummaryLikeCpp|body=fnv1a64x2:732774a1fa17b496df4ac03a4d98a5f9:len=513|evidence=fnv1a64x2:59b92ed6269ae11561566ab632f865f2:len=341",
+          "cfg": [],
+          "multiplicity": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::game_events::spawn",
+          "path": "crates/world-server/src/runtime/game_events/spawn.rs",
+          "enclosing": "fn::game_event_spawn_pools_like_cpp",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "MapManager",
+              "fingerprint": "fnv1a64x2:6a8ff8984c55ee0c2a76565f50e5525f:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "manager",
+              "fingerprint": "fnv1a64x2:4e67829db448c020520a29115e4640e3:len=48",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "do_for_all_maps_mut",
+              "fingerprint": "fnv1a64x2:680afc96bdfcb8d91aa27ef733ee5f5a:len=51",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "type_reference",
+              "symbol": "SharedMapManager",
+              "fingerprint": "fnv1a64x2:7d2c912bd3b9f676e6912fae6fbff8e1:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "legacy_manager",
+              "fingerprint": "fnv1a64x2:3d753f351705eafe866eda0900482381:len=49",
+              "multiplicity": 1
+            }
+          ],
+          "fingerprint": "signature=fn game_event_spawn_pools_like_cpp (manager : & mut wow_map :: MapManager , legacy_manager : Option < & SharedMapManager > , canonical_spawn_metadata : & spawn_store_loader :: CanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : & LoadedGridCreatureRespawnCachesLikeCpp , event_pool_ids : & [u32] ,) -> GameEventPoolSpawnSummaryLikeCpp|body=fnv1a64x2:2db90c044c1236ae5b2c9fb624075ae9:len=1886|evidence=fnv1a64x2:7c145dd6d4ae3dbf38abdb298b6d2cf2:len=434",
           "cfg": [],
           "multiplicity": 1
         },
@@ -70965,7 +70965,7 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=fn spawn_canonical_map_update_loop (map_manager : SharedCanonicalMapManager , legacy_map_manager : SharedMapManager , tick_interval_ms : u32 , respawn_condition_interval_ms : u32 , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , condition_store : Arc < wow_data :: ConditionEntriesByTypeStore > , map_store : Arc < wow_data :: MapStore > , game_event_persistence : Arc < dyn GameEventPersistencePortLikeCpp > , respawn_db_writer_tx : RespawnDbWriterSenderLikeCpp , respawn_db_mutation_order : SharedRespawnDbMutationOrderLikeCpp , respawn_db_producer_stop : SharedRespawnDbProducerStopLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , area_trigger_template_store : Arc < wow_data :: AreaTriggerTemplateStore > , mut game_event_scheduler : CanonicalGameEventSchedulerLikeCpp , player_registry : Arc < PlayerRegistry > , active_session_registry : Arc < crate :: ActiveWorldSessionRegistryLikeCpp > , battlemaster_list_store : Arc < wow_data :: BattlemasterListStore > , world_state_mgr : SharedWorldStateMgrLikeCpp ,) -> tokio :: task :: JoinHandle < () >|body=fnv1a64x2:002382f0c353591baf2bb9d130559290:len=24875|evidence=fnv1a64x2:1da20d1cc6815d2701f269442773e582:len=2108",
+          "fingerprint": "signature=fn spawn_canonical_map_update_loop (map_manager : SharedCanonicalMapManager , legacy_map_manager : SharedMapManager , tick_interval_ms : u32 , respawn_condition_interval_ms : u32 , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , condition_store : Arc < wow_data :: ConditionEntriesByTypeStore > , map_store : Arc < wow_data :: MapStore > , game_event_persistence : Arc < dyn GameEventPersistencePortLikeCpp > , respawn_db_writer_tx : RespawnDbWriterSenderLikeCpp , respawn_db_mutation_order : SharedRespawnDbMutationOrderLikeCpp , respawn_db_producer_stop : SharedRespawnDbProducerStopLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , area_trigger_template_store : Arc < wow_data :: AreaTriggerTemplateStore > , mut game_event_scheduler : CanonicalGameEventSchedulerLikeCpp , player_registry : Arc < PlayerRegistry > , active_session_registry : Arc < crate :: ActiveWorldSessionRegistryLikeCpp > , battlemaster_list_store : Arc < wow_data :: BattlemasterListStore > , world_state_mgr : SharedWorldStateMgrLikeCpp ,) -> tokio :: task :: JoinHandle < () >|body=fnv1a64x2:6c1b8476e6bbbcc343661ce436f1f1ec:len=24871|evidence=fnv1a64x2:1da20d1cc6815d2701f269442773e582:len=2108",
           "cfg": [],
           "multiplicity": 1
         },
@@ -80267,8 +80267,8 @@
             {
               "side": "canonical",
               "kind": "method_call",
-              "symbol": "with_creature_like_cpp",
-              "fingerprint": "fnv1a64x2:a5936177e2809419ed352b53d24e7442:len=49",
+              "symbol": "with_creature_or_pet_like_cpp",
+              "fingerprint": "fnv1a64x2:a4fc9ab228f4ea9ad5e3c0e29495d155:len=49",
               "multiplicity": 1
             },
             {
@@ -80321,7 +80321,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn visible_creatures_from_canonical_map_like_cpp (& self , map_id : u16 , position : & wow_core :: Position ,) -> Option < Vec < crate :: map_manager :: WorldCreature > >|body=fnv1a64x2:e1c70c85176efd84ab3bceba8d5bb0f7:len=1988|evidence=fnv1a64x2:7c35bfe0535ad9a83fdf90a7f5beec23:len=3873",
+          "fingerprint": "signature=impl:WorldSession::fn visible_creatures_from_canonical_map_like_cpp (& self , map_id : u16 , position : & wow_core :: Position ,) -> Option < Vec < crate :: map_manager :: WorldCreature > >|body=fnv1a64x2:396fccfbae8c37ca3a722efd267f7b71:len=2004|evidence=fnv1a64x2:cc2a683f2af22915299bf086ef332758:len=3880",
           "cfg": [],
           "multiplicity": 1
         },
