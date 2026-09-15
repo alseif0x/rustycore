@@ -2,6 +2,28 @@
 
 **Integrated head after PR #950:** `ef1a7b3daaa4a9c00182cf7e7638a571c70abc47`.
 
+## Fresh Creature runtime audit — 2026-09-15
+
+The post-#950 audit is detailed in
+[`creature-runtime-audit.md`](creature-runtime-audit.md). It confirms a
+transitional two-representation boundary: `wow-world::WorldCreature` owns the
+mutable runtime/AI and production `GlobalLegacy` phases, while
+`wow-map::Map::entity_world` supplies canonical visibility and target reads.
+Canonical `ExternalRuntime` intentionally skips Creature timer mutation, and
+the health-revision/loot/incarnation fences reject stale cloned snapshots. These
+are safety guards; they do not retire the mirror or consume the canonical
+`runtime_update_plan` actions.
+
+The complete C++ `Map::Update`/`Creature::Update` contract remains unimplemented
+as one Rust operation: just-appeared hooks, `Unit::Update`, threat/focus,
+AI/scripts, melee outcomes/procs, regeneration, corpse/loot work and ordered
+publication are spread across independent passes. The next #584 macro is
+**C3.1 — one map-owned Creature runtime outcome boundary**. Its acceptance is a
+typed map-tick input/outcome with authority/incarnation stamps, verified phase
+order and production-linked stale/dropped/death/respawn tests. No mass owner move
+or timer-only plan consumer is authorized by this audit; functional behavior
+verticals remain #29/#31 then #32/#33/#34.
+
 Current exact inventory after PR #948: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution, the Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; the P4 loaded-grid split now keeps a 797-line production facade with 28 tests in scoped modules, and PR #933 splits game-events into seven modules behind a compact facade with 181 regressions preserved; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet. PR #935 also splits the spawn-loader catalog models into private responsibility modules while preserving startup ownership and public paths. PR #948 then moves the final residual linked-respawn, GameEvent prefix/suffix and spawn-group member adapters into the existing object, GameEvent and pool children; the parent facade is 730 lines and the aggregate remains exactly 3,427 lines.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition

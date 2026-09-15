@@ -38,6 +38,25 @@ startup/live DB/relogin evidence, production locale/EffectPoints consumers and l
 spending/mutation and starter-build behavior. Neither issue
 changes the #584 → #583 → #153 architecture gate.
 
+## Current Creature runtime boundary — audit 2026-09-15
+
+The fresh post-#950 audit is recorded in
+[`creature-runtime-audit.md`](creature-runtime-audit.md). `WorldCreature` in
+`wow-world` remains the mutable runtime/AI owner while `wow-map::Map::entity_world`
+is the canonical visibility/target representation. Production selects
+`RuntimeTickOwner::GlobalLegacy`; the canonical map's `ExternalRuntime` branch
+skips Creature timer mutation to avoid a second writer. Its
+`runtime_update_plan` is therefore a represented seam with no production effect
+consumer, not a completed `Creature::Update` implementation.
+
+The next #584 macro is **C3.1 — one map-owned Creature runtime outcome boundary**.
+It must establish one map-tick input, typed state/effect/DB/publication outcome,
+authority and incarnation stamps, verified C++ phase order, and production-linked
+stale/dropped/death/respawn tests before either representation is retired. Do not
+move the whole Creature aggregate, add a universal context or consume timer
+actions without their effects. Complete behavior verticals then follow their
+functional owners (#29/#31, #32/#33/#34); #583 remains behind the required core.
+
 The #584 Player identity boundary is integrated by PR #904 (`4ad36d42`): name, race, class, level and gender are
 canonical on `wow_entities::Player`/`Unit`/`WorldObject`; a one-way login DTO is
 consumed before owner publication, and Session identity fields are test fixtures
