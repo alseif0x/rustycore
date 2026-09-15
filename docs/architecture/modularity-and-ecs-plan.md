@@ -1,6 +1,6 @@
 # Native/Wasm modules, shared hooks and selective hecs — execution plan
 
-**Plan synchronization, 2026-09-15 (#936 / #935 / #933 / #931 / #929 / #927 / #925 / #924 / #923 / #922 / #921 / #919 / #918 / #917 / #916 / #915 / #913 / #911 / #909 / #907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
+**Plan synchronization, 2026-09-15 (#948 / #936 / #935 / #933 / #931 / #929 / #927 / #925 / #924 / #923 / #922 / #921 / #919 / #918 / #917 / #916 / #915 / #913 / #911 / #909 / #907 / #906 / #904 / #902 / #901 / #899 / #897 / #895 / #891 / #889 / #887 / #881 / #878 / #876 / #871 / #866 / #864 / #862 / #860 / #859 / #855 / #854 / #853 / #851 / #848 / #846 / #844 / #808 / #748):** `PORT_PLAN.md` and GitHub #49 are the
 general direction and issue scope. This document is the technical authority for
 module, ownership, dependency and acceptance contracts; it is not a rival execution
 plan. #133 was closed on 2026-09-09. #578/#585/#587/#588/#589/#716/#718/#722/#737
@@ -11,9 +11,9 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
-The current code integration head is `47258ebe138ebb66cc4eac50ab6c74a0f782f319` (PR #936, following PR #935/#933/#931/#929/#927/#926/#925/#924/#923, PR #922/#921, PR #918, PR #917, PR #916, PR #915, PR #913, PR #909, PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
+The current code integration head is `861fbc701a6e556f4988ad149e90faa23b3c53f1` (PR #948, following PR #935/#933/#931/#929/#927/#926/#925/#924/#923, PR #922/#921, PR #918, PR #917, PR #916, PR #915, PR #913, PR #909, PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
 PR #889, PR #876, P3.10 correction PR #873 and delivery PR #871).
-Current exact inventory after PR #935: 649 WorldSession fields (219 production, 430 test fixtures). PR #931 also ratifies the P4 physical split of loaded-grid creature tests: a 797-line production facade and 28 regressions in responsibility-scoped test modules. PR #933 splits the game-event runtime into seven modules with a compact facade and preserves all 181 game-event regressions. Encounter-lock resolution, the Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet. PR #935 also splits the spawn-loader catalog models into private responsibility modules while preserving startup ownership and public paths.
+Current exact inventory after PR #948: 649 WorldSession fields (219 production, 430 test fixtures). PR #931 also ratifies the P4 physical split of loaded-grid creature tests: a 797-line production facade and 28 regressions in responsibility-scoped test modules. PR #933 splits the game-event runtime into seven modules with a compact facade and preserves all 181 game-event regressions. Encounter-lock resolution, the Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet. PR #935 also splits the spawn-loader catalog models into private responsibility modules while preserving startup ownership and public paths. PR #948 moves the remaining linked-respawn, GameEvent prefix/suffix and spawn-group member adapters into the existing object, GameEvent and pool children; the parent facade is 730 lines and the aggregate remains exactly 3,427 lines.
 #582 is closed after its decoder-only delivery. #486's implementation is integrated
 by PR #807 and remains open only for its capture/live gate and unrepresented admin
 mutations. #524's relation-query order correction is integrated by PR #803; PR #822/#824/#826/#828 now
@@ -349,6 +349,26 @@ passing; the full profile retains the three pre-existing `scenarios_9` GameObjec
 respawn-save failures (587 passed, 3 failed). No gameplay, packet, SQL, clock,
 lock, persistence or runtime behavior changed. The remaining addon loader family
 and residual composition readers require a fresh audit.
+
+## P4 Spawn-loader residual adapter closure — integrated PR #948, 2026-09-15, merge `861fbc70`
+
+The post-#946 audit moved the linked-respawn row conversion into
+`spawn_store_loader/spawn_object_loader.rs`, the GameEvent world prefix/suffix
+adapters into `spawn_store_loader/game_event_loader.rs`, and spawn-group member
+persistence adaptation into `spawn_store_loader/pool_loader.rs`. The composition
+facade is 730 lines; the object, pool, GameEvent loader, movement and runtime
+children are 661, 358, 663, 215 and 800 lines, preserving the exact 3,427-line
+aggregate. Existing scoped imports preserve startup order, public paths and
+parent-private fixtures. Focused spawn-loader tests pass 135/135; compile,
+architecture check/self-test, format/diff and final physical/hotspot gates pass.
+The full profile retains the three pre-existing `scenarios_9` GameObject
+respawn-save failures (587 passed, 3 failed). No startup order, ownership,
+packet, SQL, clock, lock, persistence or runtime behavior changed. The syntax-only
+Session ownership checker remains blocked independently by its stale curated
+`crate::runtime::game_events::mirror_loaded_grid_creature_to_legacy_like_cpp`
+anchor after the #933 module split moved the definition to `game_events::grid`;
+this is checker metadata debt, not a #948 behavior failure. Remaining #584
+C0–C4/runtime/capture/DB/relogin/live-QA work requires a fresh audit.
 
 ## P2 Player instance-reset owner — integrated PR #919, 2026-09-14
 

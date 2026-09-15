@@ -1,14 +1,14 @@
 # RustyCore — Master port and delivery plan
 
-**Reconciled 2026-09-15 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49), with PR #901, #902, #904, #906, #907, #909, #911, #913, #915, #916, #917, #919, #921, #922, #923, #924, #925, #926, #927, #929, #931, #933, #935 and #936 integrated.**
+**Reconciled 2026-09-15 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49), with PR #901, #902, #904, #906, #907, #909, #911, #913, #915, #916, #917, #919, #921, #922, #923, #924, #925, #926, #927, #929, #931, #933, #935, #936, #938, #940, #942, #944, #946, #947 and #948 integrated.**
 Source baseline for this reconciliation: `3.4.3` at
-`47258ebe138ebb66cc4eac50ab6c74a0f782f319` (PR #936, following PR #935/#933/#931/#929/#927/#926/#925/#924, PR #922/#921, PR #919, PR #917, PR #916, PR #915, #913, #909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`861fbc701a6e556f4988ad149e90faa23b3c53f1` (PR #948, following PR #935/#933/#931/#929/#927/#926/#925/#924, PR #922/#921, PR #919, PR #917, PR #916, PR #915, #913, #909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
 bounded planning delivery. Administrative consolidation does not count as implementation.
 
-Current exact architecture inventory after PR #946: 649 WorldSession fields (219 production, 430 test fixtures). The locked-encounter authority, Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; no unresolved production WorldSession residual remains in this audited slice. PR #931 also ratifies the P4 physical split of loaded-grid creature tests: the production facade is 797 lines, with 28 regressions in two responsibility-scoped modules plus a shared fixture facade. PR #933 splits the 2,643-line game-event runtime into seven responsibility modules behind a compact facade; all 181 game-event regressions remain registered. Session retains only a one-field publication fence for the explicit FAR_SIGHT clear packet. PR #935 also splits the spawn loader catalog models into two private responsibility modules while preserving startup ownership and public paths. PR #942 continues the same P4 boundary by moving PoolMgr/member validation and spawn-group startup loading into a private child; PR #944 moves the object spawn-row and linked-respawn family; PR #946 moves waypoint and formation startup metadata without changing the 3,427-line aggregate ceiling.
+Current exact architecture inventory after PR #948: 649 WorldSession fields (219 production, 430 test fixtures). The locked-encounter authority, Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; no unresolved production WorldSession residual remains in this audited slice. PR #931 also ratifies the P4 physical split of loaded-grid creature tests: the production facade is 797 lines, with 28 regressions in two responsibility-scoped modules plus a shared fixture facade. PR #933 splits the 2,643-line game-event runtime into seven responsibility modules behind a compact facade; all 181 game-event regressions remain registered. Session retains only a one-field publication fence for the explicit FAR_SIGHT clear packet. PR #935 also splits the spawn loader catalog models into two private responsibility modules while preserving startup ownership and public paths. PR #942 continues the same P4 boundary by moving PoolMgr/member validation and spawn-group startup loading into a private child; PR #944 moves the object spawn-row and linked-respawn family; PR #946 moves waypoint and formation startup metadata without changing the 3,427-line aggregate ceiling. PR #948 moves the linked-respawn row adapter, GameEvent world prefix/suffix adapters and spawn-group member adapter into the existing object, GameEvent and pool children; the composition facade is 730 lines, the object child 661, the pool child 358 and the GameEvent loader child 663, while the aggregate remains exactly 3,427 lines.
 
 The target remains **full functional parity with the TrinityCore-derived WoW 3.4.3
 server**, with the approved native/Wasm module product. A playable milestone is an
@@ -155,6 +155,25 @@ pre-existing `scenarios_9` GameObject respawn-save failures (587 passed, 3
 failed). No gameplay, packet, SQL, clock, lock, persistence or runtime behavior
 changed. The remaining addon loader family and residual composition readers
 require a fresh audit.
+
+The post-#946 residual audit selected the remaining startup readers that still lived
+physically in the spawn-loader parent. PR #948 (`861fbc70`) moves the linked-respawn
+row conversion into `spawn_object_loader.rs`, the GameEvent world prefix/suffix
+adapters into `game_event_loader.rs`, and spawn-group member persistence adaptation
+into `pool_loader.rs`. The composition facade is now 730 lines; the object, pool,
+GameEvent loader, movement and runtime children are 661, 358, 663, 215 and 800
+lines respectively, and the measured aggregate remains exactly the 3,427-line
+ceiling. Existing `pub(super)` paths preserve startup order, public APIs and
+parent-private fixtures. Focused spawn-loader tests pass 135/135; architecture
+check/self-test, compile, format/diff and final physical/hotspot gates pass. The
+full profile retains the same three pre-existing `scenarios_9` GameObject
+respawn-save failures (587 passed, 3 failed). No gameplay, packet, SQL, clock,
+lock, persistence or runtime behavior changed. The syntax-only Session ownership
+checker remains blocked independently by its stale curated
+`crate::runtime::game_events::mirror_loaded_grid_creature_to_legacy_like_cpp`
+anchor after the #933 module split moved the definition to `game_events::grid`;
+this is checker metadata debt, not a #948 behavior failure. The next step is a
+fresh audit of the remaining #584 C0–C4/runtime/capture/DB/relogin/live-QA work.
 
 The fresh post-#929 audit selected a P4 navigability slice in
 `world-server/src/creature_loaded_grid.rs`. PR #931 keeps its production
