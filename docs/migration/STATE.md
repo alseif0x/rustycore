@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-15:** `3.4.3` is at
-`581eb19e8602d02ff593f89997fc495eb0f36e34` (PR #955 following docs-only PR #954 and PR #953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`96b8ffe31212cee1bb4ac179b5b3bcfcf8e70f44` (PR #960 following PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -51,8 +51,8 @@ The architecture physical-source check passes; its runtime hotspot ratchet still
 the pre-existing drift in `session/mod.rs`, character handlers, `world-server/lib.rs` and
 `wow-entities/player/mod.rs`, so no baseline was regenerated.
 
-**#61 aura-backed mana-regeneration percentage projection — 2026-09-15, pending
-implementation on this branch:** the canonical Player stat publisher now applies the
+**#61 aura-backed mana-regeneration percentage projection — 2026-09-15, implementation
+`48218460`, integrated by PR #959 (`4f7ce25b`):** the canonical Player stat publisher now applies the
 two C++ percentage producers from `Player::UpdateManaRegen` (`StatSystem.cpp:809-812`):
 `SPELL_AURA_MOD_POWER_REGEN_PERCENT` and `SPELL_AURA_MOD_MANA_REGEN_PCT`, both filtered
 to `POWER_MANA`. The producer resolves canonical visible aura applications against
@@ -67,8 +67,8 @@ the aura application contract carries them explicitly. The architecture physical
 check passes; its runtime hotspot ratchet still reports the pre-existing growth in the
 Session, character-handler, world-server and Player roots, so no baseline was regenerated.
 
-**#61 flat and interrupted mana-regeneration aura projection — 2026-09-15, pending
-implementation on this branch:** the same Player-owned producer now completes the
+**#61 flat and interrupted mana-regeneration aura projection — 2026-09-15, implementation
+`bfe49b2b`, integrated by PR #960 (`96b8ffe3`):** the same Player-owned producer now completes the
 remaining local `UpdateManaRegen` arithmetic. It adds `MOD_POWER_REGEN` to the flat
 MP5-equivalent rate, adds each `MOD_MANA_REGEN_FROM_STAT` effect as
 `stat * amount / 500`, and applies the capped `MOD_MANA_REGEN_INTERRUPT` percentage
