@@ -1,12 +1,12 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
-**Sincronización de la entrega #748, F1/#61/#63 y PR #931/#929/#927/#925/#924/#923/#922/#921/#919/#918/#917/#916/#915/#913/#911/#909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-14; actualización #524 genérico, SQL hotfix, locale y P2/P3.13/P3.12/P3.11/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
+**Sincronización de la entrega #748, F1/#61/#63 y PR #933/#931/#929/#927/#925/#924/#923/#922/#921/#919/#918/#917/#916/#915/#913/#911/#909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-15; actualización #524 genérico, SQL hotfix, locale y P2/P3.13/P3.12/P3.11/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
 anclas C++, orden de ejecución y criterios de aceptación de la arquitectura.
 
-Estado exacto tras PR #931 (`b2545d50`, código integrado en `b2545d50240b2924ebdfea3487f7281a1cf5f852`): 649 campos de WorldSession (219 de producción, 430 fixtures). El P4 de navegabilidad separa los tests de loaded-grid en una fachada de producción de 797 líneas y módulos de construcción/resolución. El lock de encuentros, la proyección de visibilidad `Player::m_seer`, la búsqueda de CREATE para Pets canónicas y el DESTROY dirigido genérico de Creature/Pet/Corpse ya usan la autoridad canónica; no queda un residual productivo de WorldSession en este corte auditado. Session conserva un único cerrojo de publicación para el paquete explícito de limpieza FAR_SIGHT.
+Estado exacto tras PR #933 (`ef30bb3e`, código integrado en `ef30bb3e1232c775dcc21ccbc4c91d9196c3e22d`): 649 campos de WorldSession (219 de producción, 430 fixtures). El P4 de navegabilidad separa los tests de loaded-grid en una fachada de producción de 797 líneas y módulos de construcción/resolución. PR #933 separa el runtime de game-events en siete módulos detrás de una fachada de 9 líneas, preservando 181 regresiones. El lock de encuentros, la proyección de visibilidad `Player::m_seer`, la búsqueda de CREATE para Pets canónicas y el DESTROY dirigido genérico de Creature/Pet/Corpse ya usan la autoridad canónica; no queda un residual productivo de WorldSession en este corte auditado. Session conserva un único cerrojo de publicación para el paquete explícito de limpieza FAR_SIGHT.
 
 PR #881 añade el cierre nominal de las mutaciones de aura del Player sobre el `AuraSubsystem`
 propiedad de su Unit; la superficie genérica de Session queda limitada a fixtures `cfg(test)`.
@@ -236,6 +236,15 @@ de fixtures y los módulos `builder.rs`/`resolver.rs` conservan las 28 regresion
 con `cfg(test)` explícito. La suite pasa 28/28 y también pasan fmt/diff y los
 ratchets de arquitectura. No cambió comportamiento, autoridad ni dependencias; el
 terminal físico global y los gates C0–C4/runtime/capturas de #584 siguen abiertos.
+
+## P4 game-event runtime navigability — integrated PR #933, 2026-09-15, merge `ef30bb3e`
+
+La auditoría posterior a #931 dividió el runtime de eventos de 2.643 líneas en
+`game_events/mod.rs` y siete módulos de responsabilidad: `unspawn`, `grid`, `spawn`,
+`bootstrap`, `scheduler`, `live` y `consume`. Se conservan las reexportaciones y
+las 181 regresiones; pasan `cargo check`, fmt/diff y los ratchets de arquitectura.
+No cambió comportamiento, autoridad ni dependencias; el terminal físico global y
+los gates C0–C4/runtime/capturas de #584 siguen abiertos.
 
 ## P2 Player instance-reset owner — integrated PR #919, 2026-09-14
 

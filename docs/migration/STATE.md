@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Integration head — 2026-09-14:** `3.4.3` is at
-`b2545d50240b2924ebdfea3487f7281a1cf5f852` (PR #931 following PR #929/#927/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+**Integration head — 2026-09-15:** `3.4.3` is at
+`ef30bb3e1232c775dcc21ccbc4c91d9196c3e22d` (PR #933 following PR #931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -68,6 +68,14 @@ mounts `creature_loaded_grid_tests/mod.rs`; its builder/resolver children retain
 no runtime owner, dependency, packet, persistence or behavior changed. Focused
 world-server tests pass 28/28; format/diff and architecture check/self-test pass.
 The global physical terminal remains open for other #584 entries.
+
+**P4 game-event runtime split integrated — 2026-09-15, #584 / PR #933, merge `ef30bb3e`:**
+`crates/world-server/src/runtime/game_events.rs` is now a compact facade over seven
+responsibility modules (unspawn, grid, spawn, bootstrap, scheduler, live update and
+consume). The complete 181-test game-event suite remains green; `cargo check`,
+format/diff and architecture check/self-test pass. No runtime owner, dependency,
+packet, persistence or behavior changed. The global physical terminal and remaining
+C0–C4/runtime/capture/DB/relogin/live-QA gates remain open.
 
 **Transport C0/C3 lifecycle integrated — 2026-09-14, PR #901, merge
 `bf460aa7a8ccec0269eea1771a094ef12f0c6109` (implementation `82b2d8d9`):** the bounded
