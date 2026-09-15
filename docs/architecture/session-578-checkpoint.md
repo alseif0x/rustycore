@@ -1,8 +1,8 @@
 # Session convergence checkpoint — updated 2026-09-15
 
-**Integrated head after PR #936:** `47258ebe138ebb66cc4eac50ab6c74a0f782f319`.
+**Integrated head after PR #948:** `861fbc701a6e556f4988ad149e90faa23b3c53f1`.
 
-Current exact inventory after PR #935: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution, the Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; the P4 loaded-grid split now keeps a 797-line production facade with 28 tests in scoped modules, and PR #933 splits game-events into seven modules behind a compact facade with 181 regressions preserved; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet. PR #935 also splits the spawn-loader catalog models into private responsibility modules while preserving startup ownership and public paths.
+Current exact inventory after PR #948: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution, the Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; the P4 loaded-grid split now keeps a 797-line production facade with 28 tests in scoped modules, and PR #933 splits game-events into seven modules behind a compact facade with 181 regressions preserved; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet. PR #935 also splits the spawn-loader catalog models into private responsibility modules while preserving startup ownership and public paths. PR #948 then moves the final residual linked-respawn, GameEvent prefix/suffix and spawn-group member adapters into the existing object, GameEvent and pool children; the parent facade is 730 lines and the aggregate remains exactly 3,427 lines.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -119,6 +119,26 @@ gates pass, while the full profile retains the three pre-existing `scenarios_9`
 GameObject respawn-save failures (587 passed, 3 failed). No gameplay, packet,
 SQL, clock, lock, persistence or runtime behavior changed; the remaining addon
 loader family and residual composition readers require a fresh audit.
+
+## P4 Spawn-loader residual adapter closure — integrated PR #948, 2026-09-15, merge `861fbc701a6e556f4988ad149e90faa23b3c53f1`
+
+The post-#946 audit moved the linked-respawn row conversion into
+`spawn_store_loader/spawn_object_loader.rs`, the GameEvent world prefix/suffix
+adapters into `spawn_store_loader/game_event_loader.rs`, and spawn-group member
+persistence adaptation into `spawn_store_loader/pool_loader.rs`. The composition
+facade is 730 lines; the object, pool, GameEvent loader, movement and runtime
+children are 661, 358, 663, 215 and 800 lines, preserving the exact 3,427-line
+aggregate. Existing scoped imports preserve startup order, public paths and
+parent-private fixtures. Focused spawn-loader tests pass 135/135; compile,
+architecture check/self-test, format/diff and final physical/hotspot gates pass.
+The full profile retains the three pre-existing `scenarios_9` GameObject
+respawn-save failures (587 passed, 3 failed). No startup order, ownership,
+packet, SQL, clock, lock, persistence or runtime behavior changed. The syntax-only
+Session ownership checker remains blocked independently by its stale curated
+`crate::runtime::game_events::mirror_loaded_grid_creature_to_legacy_like_cpp`
+anchor after the #933 module split moved the definition to `game_events::grid`;
+this is checker metadata debt, not a #948 behavior failure. Remaining #584
+C0–C4/runtime/capture/DB/relogin/live-QA work requires a fresh audit.
 
 ## Current delivery agreement — 2026-09-06, user-approved replan
 

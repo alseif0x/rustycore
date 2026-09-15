@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-15:** `3.4.3` is at
-`47258ebe138ebb66cc4eac50ab6c74a0f782f319` (PR #936 following PR #935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`861fbc701a6e556f4988ad149e90faa23b3c53f1` (PR #948 following PR #935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -164,6 +164,25 @@ the full profile retains the same three pre-existing `scenarios_9` GameObject
 respawn-save failures (587 passed, 3 failed). No gameplay, packet, SQL, clock,
 lock, persistence or runtime behavior changed; the remaining addon loader family
 and residual composition readers require a fresh audit.
+
+**P4 spawn-loader residual adapter closure integrated — 2026-09-15, #584 / PR
+#948, merge `861fbc701a6e556f4988ad149e90faa23b3c53f1`:** the post-#946 audit
+moved the linked-respawn row conversion into `spawn_object_loader.rs`, the
+GameEvent world prefix/suffix adapters into `game_event_loader.rs`, and the
+spawn-group member persistence adapter into `pool_loader.rs`. The composition
+facade is 730 lines; the object, pool, GameEvent loader, movement and runtime
+children are 661, 358, 663, 215 and 800 lines, with the measured aggregate still
+exactly 3,427 lines. Existing scoped imports preserve startup order, public paths
+and parent-private fixtures. Focused spawn-loader tests pass 135/135; architecture
+check/self-test, compile, format/diff and final physical/hotspot gates pass. The
+full profile retains the same three pre-existing `scenarios_9` GameObject
+respawn-save failures (587 passed, 3 failed). No gameplay, packet, SQL, clock,
+lock, persistence or runtime behavior changed. The syntax-only Session ownership
+checker remains blocked independently by its stale curated
+`crate::runtime::game_events::mirror_loaded_grid_creature_to_legacy_like_cpp`
+anchor after the #933 module split moved the definition to `game_events::grid`;
+this is checker metadata debt, not a #948 behavior failure. The next step is a
+fresh audit of the remaining #584 C0–C4/runtime/capture/DB/relogin/live-QA work.
 
 **Transport C0/C3 lifecycle integrated — 2026-09-14, PR #901, merge
 `bf460aa7a8ccec0269eea1771a094ef12f0c6109` (implementation `82b2d8d9`):** the bounded
