@@ -1,8 +1,8 @@
 # Session convergence checkpoint — updated 2026-09-15
 
-**Integrated head after PR #933:** `ef30bb3e1232c775dcc21ccbc4c91d9196c3e22d`.
+**Integrated head after PR #936:** `47258ebe138ebb66cc4eac50ab6c74a0f782f319`.
 
-Current exact inventory after PR #933: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution, the Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; the P4 loaded-grid split now keeps a 797-line production facade with 28 tests in scoped modules, and PR #933 splits game-events into seven modules behind a compact facade with 181 regressions preserved; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet.
+Current exact inventory after PR #935: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution, the Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; the P4 loaded-grid split now keeps a 797-line production facade with 28 tests in scoped modules, and PR #933 splits game-events into seven modules behind a compact facade with 181 regressions preserved; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet. PR #935 also splits the spawn-loader catalog models into private responsibility modules while preserving startup ownership and public paths.
 
 PR #846 and PR #848 also complete the current bounded TraitMgr SQL composition
 outside this checkpoint: the 24 base Trait/`SpecSetMember` tables and the
@@ -34,6 +34,21 @@ y siete módulos (`unspawn`, `grid`, `spawn`, `bootstrap`, `scheduler`, `live` y
 fmt/diff, `check_architecture.py check` y `self-test`. El cierre es físico y
 conserva las firmas, el reloj y las reexportaciones; los demás C0–C4, runtime,
 capturas y QA viva de #584 permanecen abiertos.
+
+**P4 spawn catalog navigability integrated — 2026-09-15, #584 / PR #935, merge
+`c922fd60d71018a0502954a6ddffe151401e48bf`:** the post-#933 audit split the
+5,125-line `world-server/src/spawn_store_loader.rs` by responsibility. Startup
+composition, DB ownership and spawn conversion remain in the 3,427-line facade;
+GameEventMgr catalog models and WorldStateMgr startup/index rules now live in
+`spawn_store_loader/game_event_catalog.rs` (1,355 lines) and
+`world_state_catalog.rs` (345 lines), with the existing public paths reexported.
+The published #933 runtime child modules are crate-visible to their parent reexports,
+restoring the integration compile contract. The focused game-event suite passes
+181/181; compile, format/diff and architecture check/self-test pass. The full local
+profile still has three pre-existing `scenarios_9` GameObject respawn-save failures
+(587 passed, 3 failed). Follow-up PR #936 tightens both physical policy rows to the
+exact scanner counts at the current integration head. This is physical organization only; remaining #584 C0–C4,
+runtime, capture, DB/relogin and live-QA gates stay open.
 
 ## Current delivery agreement — 2026-09-06, user-approved replan
 
