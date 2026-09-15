@@ -125,6 +125,7 @@ impl WorldSession {
     /// The snapshot is derived and is intentionally not a persistence record.
     pub(crate) fn publish_player_effective_combat_stats_like_cpp(
         &self,
+        level: u8,
         projection: PlayerStatSystemProjectionLikeCpp,
         gear: &RepresentedPlayerGearStatsLikeCpp,
     ) {
@@ -137,6 +138,14 @@ impl WorldSession {
             gear.weapon_damage,
             gear.base_attack_time,
         );
+        // C++ `Player::UpdateExpertise` stores the non-negative combat-rating
+        // contribution in both active-player weapon fields
+        // (`StatSystem.cpp:759-783`). Aura expertise is intentionally added by
+        // the aura producer when that runtime is ported; this projection owns
+        // the equipment/rating portion only.
+        let expertise = (gear.combat_ratings[23] as f32
+            * self.combat_rating_multiplier_like_cpp(level, 23))
+        .max(0.0);
         let stats = PlayerEffectiveCombatStatsLikeCpp {
             stats: projection.stats,
             stat_pos_buff: projection.stat_pos_buff,
@@ -164,6 +173,9 @@ impl WorldSession {
             mana_regen_combat: gear.mana_regen_bonus as f32 / 5.0,
             health_regen: gear.health_regen_bonus,
             spell_penetration: gear.spell_penetration_bonus,
+            mainhand_expertise: expertise,
+            offhand_expertise: expertise,
+            combat_rating_expertise: expertise,
             shield_block: i32::try_from(gear.shield_block_value)
                 .unwrap_or(i32::MAX)
                 .saturating_add(gear.shield_block_base_mod),
@@ -185,6 +197,7 @@ impl WorldSession {
 
     pub(super) fn publish_effective_stats_like_cpp(
         &self,
+        level: u8,
         _include_represented_item_bonuses: bool,
         projection: PlayerStatSystemProjectionLikeCpp,
         gear: &RepresentedPlayerGearStatsLikeCpp,
@@ -193,6 +206,6 @@ impl WorldSession {
         // projection. The boolean remains at the adapter boundary for
         // compatibility with callers that already name the C++ option, but a
         // second inventory-derived path is deliberately impossible here.
-        self.publish_player_effective_combat_stats_like_cpp(projection, gear);
+        self.publish_player_effective_combat_stats_like_cpp(level, projection, gear);
     }
 }

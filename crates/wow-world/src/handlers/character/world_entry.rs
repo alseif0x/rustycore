@@ -2621,7 +2621,7 @@ impl WorldSession {
     ) -> Option<(PlayerCombatStats, i32, i32)> {
         let gear = self.represented_player_gear_stats_like_cpp(true)?;
         let projection = self.player_stat_system_projection_like_cpp(race, class, level, &gear)?;
-        self.publish_player_effective_combat_stats_like_cpp(projection, &gear);
+        self.publish_player_effective_combat_stats_like_cpp(level, projection, &gear);
         let weapon_damage = wow_data::player::effective_weapon_damage_ranges_like_cpp(
             projection,
             gear.weapon_damage,

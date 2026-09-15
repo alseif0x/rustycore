@@ -3717,7 +3717,7 @@ impl WorldSession {
 
         let gear = self.represented_player_gear_stats_like_cpp(true)?;
         let projection = self.player_stat_system_projection_like_cpp(race, class, level, &gear)?;
-        self.publish_effective_stats_like_cpp(true, projection, &gear);
+        self.publish_effective_stats_like_cpp(level, true, projection, &gear);
         let computed_max_health_u32 = max_health_u32_like_cpp(projection.max_health);
         let (health, max_health_for_update) =
             self.sync_canonical_player_max_health_like_cpp(computed_max_health_u32)?;
@@ -3775,8 +3775,17 @@ impl WorldSession {
             0.0
         };
 
-        let expertise_value =
-            gear.combat_ratings[23] as f32 * self.combat_rating_multiplier_like_cpp(level, 23);
+        // The packet adapter consumes the just-published Player snapshot so
+        // combat and VALUES publication cannot derive different expertise.
+        // Keep the raw calculation only for test/early-login sessions that
+        // have no canonical Player owner yet.
+        let expertise_value = self
+            .canonical_player_effective_combat_stats_like_cpp()
+            .map(|stats| stats.combat_rating_expertise)
+            .unwrap_or_else(|| {
+                (gear.combat_ratings[23] as f32 * self.combat_rating_multiplier_like_cpp(level, 23))
+                    .max(0.0)
+            });
 
         // ── Shield block value (from STR, for shield classes) ──
         let mut shield_block_value = match class {

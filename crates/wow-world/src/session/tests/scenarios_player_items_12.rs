@@ -101,6 +101,24 @@ async fn equipment_stats_use_one_canonical_contribution_path_like_cpp() {
         "C++ Player::_ApplyItemBonuses contributes the item exactly once"
     );
 
+    // C++ `Player::UpdateExpertise` derives the active-player expertise
+    // fields from combat-rating expertise. The value must be published on the
+    // same Player snapshot as the rest of the equipment projection.
+    assert!(session.apply_represented_item_bonus_action_state_like_cpp(
+        ApplyEnchantmentEffectAction::RatingModifier {
+            rating: wow_entities::ApplyEnchantmentCombatRating::Expertise,
+            amount: 46,
+            apply: true,
+        }
+    ));
+    let _ = session.send_stat_update();
+    let equipped = session
+        .canonical_player_effective_combat_stats_like_cpp()
+        .expect("equipped expertise projection");
+    assert_eq!(equipped.mainhand_expertise, 46.0);
+    assert_eq!(equipped.offhand_expertise, 46.0);
+    assert_eq!(equipped.combat_rating_expertise, 46.0);
+
     session.apply_inventory_item_remove_side_effects_like_cpp(
         INVENTORY_SLOT_BAG_0,
         wow_entities::EQUIPMENT_SLOT_CHEST,
@@ -115,6 +133,13 @@ async fn equipment_stats_use_one_canonical_contribution_path_like_cpp() {
         unequipped.stats[wow_constants::Stats::Strength as usize],
         10
     );
+    assert!(session.apply_represented_item_bonus_action_state_like_cpp(
+        ApplyEnchantmentEffectAction::RatingModifier {
+            rating: wow_entities::ApplyEnchantmentCombatRating::Expertise,
+            amount: 46,
+            apply: false,
+        }
+    ));
 
     // `_ApplyAllItemMods` must reject a broken item before it reaches the
     // canonical accumulator, exactly as the C++ `Item::IsBroken` gate does.

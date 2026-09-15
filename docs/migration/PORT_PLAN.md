@@ -533,6 +533,16 @@ file; its baseline remains untouched. #61 stays open for aura-backed producers, 
 AP/damage/regen/expertise/penetration formulas, live item-wear break transitions and exact
 capture/DB/relogin acceptance. #29/#31 remain gated on those participants.
 
+The next bounded #61 slice is implementation `48378050`: the canonical Player
+effective-stat publisher now derives equipment/rating expertise once from the C++
+`GetRatingBonusValue(CR_EXPERTISE)` path and its level-specific CombatRatings
+multiplier (`Player.cpp:5189-5209`, `StatSystem.cpp:759-783`). Mainhand, offhand and
+aggregate expertise in the Player snapshot are consumed by the VALUES adapter, while
+the raw fallback remains limited to handle-less fixtures. The canonical equipment
+regression plus item suites pass (1, 7 and 5 tests), and the production world-server
+check passes in 7m01s. Aura-backed expertise, complete formulas, wear-to-broken
+production and capture/DB/relogin acceptance remain explicit #61 gates.
+
 The first F1 movement-admission slice is integrated by PR #853
 (`7c3add2f`, implementation `3af90ec2`). It enforces the C++ early returns for
 pending player teleport and unfinished controlled-mover MoveSpline before any
