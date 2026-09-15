@@ -19,7 +19,8 @@ use super::Player;
 /// crate supplies the data/catalog inputs and replaces it through the named
 /// Player operation below. Fields not yet backed by the 3.4.3 aura/runtime
 /// catalogs retain their explicit zero/default value until that producer is
-/// ported.
+/// ported. Equipment/rating expertise is populated by the world stat
+/// projection; aura expertise remains a separate producer.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PlayerEffectiveCombatStatsLikeCpp {
     pub stats: [i32; 5],

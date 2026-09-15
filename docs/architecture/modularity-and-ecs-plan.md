@@ -538,6 +538,17 @@ double writer while retaining #61's explicit residuals: aura-backed producers, c
 AP/damage/regen/expertise/penetration formulas, live wear-to-broken transitions and exact
 capture/DB/relogin evidence.
 
+Implementation `48378050` closes the next narrow projection boundary under #61. The
+Player-owned effective snapshot derives the equipment/rating contribution to
+mainhand, offhand and aggregate expertise through the C++
+`GetRatingBonusValue(CR_EXPERTISE)` and `UpdateExpertise` paths
+(`Player.cpp:5189-5209`, `StatSystem.cpp:759-783`). The packet adapter reads that
+snapshot and keeps a raw calculation only for handle-less fixtures, so production
+does not maintain a second expertise derivation. The focused canonical equipment
+regression and item suites pass (1, 7 and 5 tests), and `world-server` checks in
+7m01s. Aura producers and all remaining combat formula and live/capture gates stay
+explicitly open; no new owner or crate is introduced.
+
 PR #857 extends that projection to the initial spell-threat consumer. The Player snapshot
 retains AP and ranged-AP multipliers, and the consumer follows the C++ modifier sum,
 non-negative clamp and multiplier order (`Spell.cpp:5558-5575`, `Unit.cpp:9165-9180`).

@@ -20,6 +20,21 @@ ratchet drift and was not masked by baseline regeneration. #61 remains open for 
 unimplemented wear-to-broken producer, aura-backed and complete combat formulas, and live
 capture/DB/relogin proof.
 
+**#61 canonical equipment expertise publication — 2026-09-15, implementation
+`48378050`:** the complete Player snapshot now derives the equipment/rating portion
+of mainhand, offhand and aggregate expertise from the canonical expertise rating and
+the level-specific `CombatRatings` multiplier. The VALUES adapter consumes that
+snapshot, retaining its raw calculation only for handle-less test/early-login
+fixtures. This follows `Player::GetRatingMultiplier` / `GetRatingBonusValue`
+(`Player.cpp:5189-5209`) and `Player::UpdateExpertise`
+(`StatSystem.cpp:759-783`); aura expertise remains a separate producer gate.
+The focused canonical equipment regression and item suites pass (1, 7 and 5 tests),
+format/diff checks pass and `cargo check -p world-server` passes in 7m01s. The
+architecture ratchet still has the previously recorded `session/mod.rs` drift;
+no baseline was regenerated. #61 remains open for aura-backed expertise, full
+combat/regen/penetration formulas, wear-to-broken production and capture/DB/relogin
+acceptance.
+
 **Fresh Creature runtime audit — 2026-09-15:** the current boundary and next
 macro are recorded in
 [`creature-runtime-audit.md`](../architecture/creature-runtime-audit.md).
