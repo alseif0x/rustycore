@@ -1,14 +1,14 @@
 # RustyCore — Master port and delivery plan
 
-**Reconciled 2026-09-14 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49), with PR #901, #902, #904, #906, #907, #909, #911, #913, #915, #916, #917, #919, #921, #922, #923, #924, #925, #926, #927 and #929 integrated.**
+**Reconciled 2026-09-14 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49), with PR #901, #902, #904, #906, #907, #909, #911, #913, #915, #916, #917, #919, #921, #922, #923, #924, #925, #926, #927, #929 and #931 integrated.**
 Source baseline for this reconciliation: `3.4.3` at
-`028185d87fed7b52eb157424d0a9d9d52325b593` (PR #929, following PR #927/#926/#925/#924, PR #922/#921, PR #919, PR #917, PR #916, PR #915, #913, #909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`b2545d50240b2924ebdfea3487f7281a1cf5f852` (PR #931, following PR #929/#927/#926/#925/#924, PR #922/#921, PR #919, PR #917, PR #916, PR #915, #913, #909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
 bounded planning delivery. Administrative consolidation does not count as implementation.
 
-Current exact architecture inventory after PR #929: 649 WorldSession fields (219 production, 430 test fixtures). The locked-encounter authority, Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; no unresolved production WorldSession residual remains in this audited slice. Session retains only a one-field publication fence for the explicit FAR_SIGHT clear packet.
+Current exact architecture inventory after PR #931: 649 WorldSession fields (219 production, 430 test fixtures). The locked-encounter authority, Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; no unresolved production WorldSession residual remains in this audited slice. PR #931 also ratifies the P4 physical split of loaded-grid creature tests: the production facade is 797 lines, with 28 regressions in two responsibility-scoped modules plus a shared fixture facade. Session retains only a one-field publication fence for the explicit FAR_SIGHT clear packet.
 
 The target remains **full functional parity with the TrinityCore-derived WoW 3.4.3
 server**, with the approved native/Wasm module product. A playable milestone is an
@@ -59,6 +59,14 @@ with CREATE/OUT-OF-RANGE packets. This candidate deliberately leaves
 `Transport::TeleportPassengersAndHideTransport` map relocation, seat/offset admission,
 passenger movement, AI/scripts and live capture/DB acceptance as separate #63/#584
 gates. It does not reopen closed issues or start Creature-owner migration.
+
+The fresh post-#929 audit selected a P4 navigability slice in
+`world-server/src/creature_loaded_grid.rs`. PR #931 keeps its production
+construction/resolution contract in a 797-line facade and moves all 28 tests into
+`creature_loaded_grid_tests/{builder,resolver}.rs`, preserving registration and
+`cfg(test)` attribution. No runtime owner, dependency, packet or persistence
+boundary changes. The next #584 macro again requires a fresh C0–C4 audit; the
+remaining runtime/lifecycle/capture gates are not implied to be complete.
 
 PR #897 closes the next measured P2 owner surface: the remaining production mount-presentation write now uses a named `Player` transition that applies `MountDisplayID` and `UNIT_FLAG_MOUNT` together, following TrinityCore `Unit::Mount` / `Unit::Dismount` (`Entities/Unit/Unit.cpp:7822-7865`). Session retains aura, collision, vehicle-kit and packet side effects; its broad unit-presentation closure is test-only for detached scale fixtures. The Player owner regression, mount spell-state scenarios, package checks, formatting/diff and architecture ratchet pass. This is an ownership closure: full mount gameplay, persistence, captures and live QA remain separate #63/#584 gates. The next #584 macro still comes from a fresh C0–C4 responsibility and consumer audit.
 

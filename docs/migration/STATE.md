@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-14:** `3.4.3` is at
-`028185d87fed7b52eb157424d0a9d9d52325b593` (PR #929 following PR #927/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`b2545d50240b2924ebdfea3487f7281a1cf5f852` (PR #931 following PR #929/#927/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -60,6 +60,14 @@ and `HaveAtClient` fences. The `wow-map` visibility suite (47 tests), `wow-world
 deferred-visibility suite (12 tests), mailbox suite (16 tests), package check and
 architecture checks pass. Pet AI, summon ownership, corpse reclaim/persistence/loot,
 vehicle/transport lifecycle and live QA remain separate gates.
+
+**P4 loaded-grid test split integrated — 2026-09-14, #584 / PR #931, merge `b2545d50`:**
+`crates/world-server/src/creature_loaded_grid.rs` now keeps 797 production lines and
+mounts `creature_loaded_grid_tests/mod.rs`; its builder/resolver children retain all
+28 regressions under explicit `cfg(test)`. This is a physical navigability closure:
+no runtime owner, dependency, packet, persistence or behavior changed. Focused
+world-server tests pass 28/28; format/diff and architecture check/self-test pass.
+The global physical terminal remains open for other #584 entries.
 
 **Transport C0/C3 lifecycle integrated — 2026-09-14, PR #901, merge
 `bf460aa7a8ccec0269eea1771a094ef12f0c6109` (implementation `82b2d8d9`):** the bounded
