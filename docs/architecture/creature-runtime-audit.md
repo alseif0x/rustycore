@@ -134,7 +134,9 @@ own C++ and live/DB evidence.
 The first structural delivery is implemented in `e2ca3df9`:
 
 - `world-server/src/runtime/delivery.rs` now captures one immutable
-  `CreatureRuntimeTickInputLikeCpp` per production tick. It records the
+  `CreatureRuntimeTickInputLikeCpp` per production tick; its private
+  `runtime/delivery/creature_boundary.rs` submodule owns the typed input and
+  outcome contract. It records the
   measured `diff_ms`, a monotonic loop epoch, game time, map incarnations and
   canonical Creature GUIDs admitted by each loaded-grid `ObjectUpdater` set.
 - The production `GlobalLegacy` loop passes that input to one explicit
