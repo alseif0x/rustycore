@@ -1315,6 +1315,13 @@ with the added lifecycle/recovery risk before approving an implementation.
 
 ### Current delivery sequence
 
+The active F1 stat lane keeps one canonical Player producer. The mana-regeneration
+percentage slice reads canonical visible aura applications and immutable spell metadata
+from the Session capability graph, then publishes the result through the existing
+Player-owned effective combat snapshot. It does not create a packet-only aura mirror,
+second stat writer or universal context; flat regen/MP5 and lifecycle producers remain
+separate responsibilities until their C++ contracts and consumers are audited.
+
 | Macro / epic | Deliverable and completion gate | Dependencies |
 | --- | --- | --- |
 | #584 core / C0–C4 | Complete each core responsibility with canonical ownership, consumers, physical navigability, lifecycle/persistence and scoped acceptance; the finite hecs V2 proof is already passed within lab limits | Closed predecessors provide evidence; no #133 reopening and no new micro-issue per helper |

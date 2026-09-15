@@ -50,6 +50,21 @@ impl WorldSession {
             * self.mana_regen_ratio_like_cpp(level, class)
     }
 
+    pub(super) fn mana_regen_aura_multiplier_like_cpp(&self) -> f32 {
+        let mana = PowerType::Mana as i32;
+        self.resolved_total_aura_multiplier_by_spell_aura_type_and_misc_value_like_cpp(
+            wow_data::spell::aura_types::SPELL_AURA_MOD_POWER_REGEN_PERCENT,
+            mana,
+        )
+        .unwrap_or(1.0)
+            * self
+                .resolved_total_aura_multiplier_by_spell_aura_type_and_misc_value_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_MANA_REGEN_PCT,
+                    mana,
+                )
+                .unwrap_or(1.0)
+    }
+
     pub(super) fn represented_player_gear_stats_like_cpp(
         &self,
         _include_represented_item_bonuses: bool,
@@ -167,7 +182,7 @@ impl WorldSession {
             level,
             self.player_class_like_cpp(),
             projection.stats,
-        );
+        ) * self.mana_regen_aura_multiplier_like_cpp();
         let stats = PlayerEffectiveCombatStatsLikeCpp {
             stats: projection.stats,
             stat_pos_buff: projection.stat_pos_buff,
