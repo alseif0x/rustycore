@@ -77,6 +77,20 @@ failed). No startup order, owner, packet, SQL, clock, lock, persistence order or
 runtime behavior changed; remaining loader families and #584 C0–C4/runtime/capture/
 DB/relogin/live-QA gates stay open.
 
+**P4 pool and spawn-group startup-loader navigability integrated — 2026-09-15,
+#584 / PR #942, merge `77ca1c64fdca504172bf47c07b43a3a6a9d2aaf8`:** the
+post-#940 audit moved PoolMgr templates and member loading, relation/map/final
+validation, autospawn candidates and spawn-group template construction into
+private `spawn_store_loader/pool_loader.rs`. The composition facade is 1,652
+lines and the child 338; the measured spawn-loader aggregate remains exactly
+the 3,427-line ceiling. The public helper path and parent-private fixture
+access remain unchanged. Focused pool tests pass 29/29; compile, format/diff
+and architecture gates pass, while the full profile retains the three
+pre-existing `scenarios_9` GameObject respawn-save failures (587 passed, 3
+failed). No startup order, owner, packet, SQL, clock, lock, persistence or
+runtime behavior changed; remaining loader families and #584 C0–C4/runtime/
+capture/DB-relogin/live-QA gates stay open.
+
 ## Current delivery agreement — 2026-09-06, user-approved replan
 
 The user explicitly replaced the single all-core #578 delivery with analyzed,

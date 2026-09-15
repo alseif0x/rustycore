@@ -303,6 +303,22 @@ records the three pre-existing `scenarios_9` GameObject respawn-save failures
 persistence and runtime behavior remain unchanged. Remaining loader families and
 runtime/capture/DB/relogin/live-QA work require a fresh responsibility audit.
 
+## P4 PoolMgr and spawn-group startup navigability — integrated PR #942, 2026-09-15, merge `77ca1c64`
+
+The post-#940 audit selected the complete pool and spawn-group startup family.
+Pool templates and members, relation/map/final validation, autospawn candidates
+and spawn-group template construction now live in private
+`spawn_store_loader/pool_loader.rs`. The composition facade is 1,652 lines and
+the child 338; with the existing game-event children, the measured spawn-loader
+aggregate remains at the exact 3,427-line ceiling. The public helper path and
+parent-private fixtures remain unchanged. Focused pool tests pass 29/29, with
+compile, format/diff and architecture gates passing; the full profile retains
+the three pre-existing `scenarios_9` GameObject respawn-save failures (587
+passed, 3 failed). Startup order, ownership, packet, SQL, clock, lock,
+persistence and runtime behavior remain unchanged. Remaining loader families
+and runtime/capture/DB/relogin/live-QA work require a fresh responsibility
+audit.
+
 ## P2 Player instance-reset owner — integrated PR #919, 2026-09-14
 
 PR #919 moves `_instanceResetTimes` to the canonical
