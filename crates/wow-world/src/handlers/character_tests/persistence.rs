@@ -616,7 +616,8 @@ fn login_stat_update_derives_and_syncs_loaded_enchantment_bonuses_like_cpp() {
     );
     assert_eq!(changes.mana_regen_combat, 5.0);
     assert_eq!(changes.mana_regen_mp5, 0.0);
-    assert!(changes.mana_regen > changes.mana_regen_combat);
+    let expected_spirit_regen = 40.0_f32.sqrt() * 30.0 * 0.003345;
+    assert!((changes.mana_regen - (5.0 + expected_spirit_regen)).abs() < 0.0001);
     assert_eq!(
         session.canonical_player_health_snapshot_like_cpp(),
         Some((13, 13))

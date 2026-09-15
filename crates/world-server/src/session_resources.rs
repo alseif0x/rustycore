@@ -7,6 +7,7 @@
 
 use std::sync::Arc;
 
+use anyhow::{Context, Result};
 use wow_network::SocketTimeoutsLikeCpp;
 use wow_social::group::{GroupRegistry, PendingInvites};
 use wow_world::session::directory::PlayerRegistry;
@@ -14,6 +15,15 @@ use wow_world::session::mailbox::GameEventQuestCompleteCommandLikeCpp;
 use wow_world::{
     LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, ReputationRatesLikeCpp, WorldSession,
 };
+
+pub(super) fn load_regen(
+    data_dir: impl AsRef<std::path::Path>,
+) -> Result<Arc<wow_data::RegenMpPerSptGameTableLikeCpp>> {
+    Ok(Arc::new(
+        wow_data::RegenMpPerSptGameTableLikeCpp::load(data_dir)
+            .context("Failed to load gt/RegenMPPerSpt.txt - check DataDir config")?,
+    ))
+}
 
 /// Application-owned resources used to construct a `WorldSession`.
 ///
@@ -58,6 +68,7 @@ pub(super) struct SessionInventoryCapabilitiesLikeCpp {
     pub(super) heirloom_store: Arc<wow_data::HeirloomStore>,
     pub(super) toy_store: Arc<wow_data::ToyStore>,
     pub(super) combat_ratings_game_table: Arc<wow_data::CombatRatingsGameTableLikeCpp>,
+    pub(super) regen_mp_per_spt_game_table: Arc<wow_data::RegenMpPerSptGameTableLikeCpp>,
     pub(super) shield_block_regular_game_table: Arc<wow_data::ShieldBlockRegularGameTableLikeCpp>,
     pub(super) transmog_set_item_store: Arc<wow_data::TransmogSetItemStore>,
     pub(super) item_limit_category_store: Arc<wow_data::ItemLimitCategoryStore>,
@@ -97,6 +108,7 @@ impl SessionInventoryCapabilitiesLikeCpp {
         session.set_heirloom_store(Arc::clone(&self.heirloom_store));
         session.set_toy_store(Arc::clone(&self.toy_store));
         session.set_combat_ratings_game_table(Arc::clone(&self.combat_ratings_game_table));
+        session.set_regen_mp_per_spt_game_table(Arc::clone(&self.regen_mp_per_spt_game_table));
         session
             .set_shield_block_regular_game_table(Arc::clone(&self.shield_block_regular_game_table));
         session.set_transmog_set_item_store(Arc::clone(&self.transmog_set_item_store));

@@ -3753,28 +3753,6 @@ impl WorldSession {
             })
             .unwrap_or((computed_max_power0, computed_max_power0));
 
-        // Mana regeneration is outside DATASTATS.1's audited fields; preserve
-        // the existing represented bridge until the regen GameTables land.
-        // spirit_regen = 0.001 + sqrt(INT) * SPI * class_coeff
-        let class_regen_coeff: f32 = match class {
-            2 => 0.044,  // Paladin
-            3 => 0.030,  // Hunter
-            5 => 0.033,  // Priest
-            7 => 0.044,  // Shaman
-            8 => 0.035,  // Mage
-            9 => 0.033,  // Warlock
-            11 => 0.044, // Druid
-            _ => 0.0,    // Warrior, Rogue, DK (no mana)
-        };
-        let spirit_regen = if class_regen_coeff > 0.0 {
-            0.001
-                + (projection.stats[3] as f32).max(0.0).sqrt()
-                    * projection.stats[4] as f32
-                    * class_regen_coeff
-        } else {
-            0.0
-        };
-
         // The packet adapter consumes the just-published Player snapshot so
         // combat and VALUES publication cannot derive different expertise.
         // Keep the raw calculation only for test/early-login sessions that
@@ -3798,6 +3776,23 @@ impl WorldSession {
         // C++ `Player::UpdateManaRegen` stores MP5 bonuses as per-second
         // values in both normal and interrupted flat regen fields.
         let represented_mana_regen_per_second = gear.mana_regen_bonus as f32 / 5.0;
+        let (mana_regen, mana_regen_combat, mana_regen_mp5) = self
+            .canonical_player_effective_combat_stats_like_cpp()
+            .map(|stats| {
+                (
+                    stats.mana_regen,
+                    stats.mana_regen_combat,
+                    stats.mana_regen_mp5,
+                )
+            })
+            .unwrap_or_else(|| {
+                (
+                    self.mana_regen_from_stats_like_cpp(level, class, projection.stats)
+                        + represented_mana_regen_per_second,
+                    represented_mana_regen_per_second,
+                    0.0,
+                )
+            });
 
         let changes = PlayerStatChanges {
             health,
@@ -3831,9 +3826,9 @@ impl WorldSession {
             ranged_crit_pct: projection.ranged_crit_pct,
             spell_crit_pct: projection.spell_crit_pct,
             // Mana regen
-            mana_regen: spirit_regen + represented_mana_regen_per_second,
-            mana_regen_combat: represented_mana_regen_per_second,
-            mana_regen_mp5: 0.0,
+            mana_regen,
+            mana_regen_combat,
+            mana_regen_mp5,
             // Expertise
             mainhand_expertise: expertise_value,
             offhand_expertise: expertise_value,
@@ -3875,7 +3870,7 @@ impl WorldSession {
             projection.dodge_pct,
             projection.parry_pct,
             expertise_value,
-            spirit_regen
+            mana_regen
         );
 
         Some((player_guid, changes))

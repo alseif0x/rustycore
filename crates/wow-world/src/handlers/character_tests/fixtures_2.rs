@@ -366,6 +366,14 @@ pub(super) fn set_priest_level80_stats(session: &mut WorldSession, base_mana: u3
     session.set_chr_classes_store(Arc::new(ChrClassesStore::from_entries([chr_class_entry(
         5, 0,
     )])));
+    let mut regen_columns = [0.0; wow_data::RegenMpPerSptGameTableLikeCpp::VALUE_COLUMN_COUNT];
+    regen_columns[4] = 0.003345; // TrinityCore Data/gt/RegenMPPerSpt.txt, level 80 Priest
+    let regen_row = wow_data::RegenMpPerSptEntryLikeCpp::from_columns(regen_columns);
+    let mut regen_rows = vec![wow_data::RegenMpPerSptEntryLikeCpp::default(); 79];
+    regen_rows.push(regen_row);
+    session.set_regen_mp_per_spt_game_table(Arc::new(
+        wow_data::RegenMpPerSptGameTableLikeCpp::from_rows(regen_rows),
+    ));
 }
 
 pub(super) fn total_stat_percentage_spell_store_like_cpp(
@@ -473,6 +481,17 @@ pub(super) fn attach_stat_update_player_with_mana_and_health(
     current_health: u32,
     max_health: u32,
 ) {
+    // The synthetic map-owned Player starts with zero identity fields. Keep
+    // the login identity that the fixture installed on the session and apply
+    // it after adoption so stat projections read the same canonical owner as
+    // production does after Player::LoadFromDB.
+    let identity = (
+        session.player_map_id_like_cpp(),
+        session.player_race_like_cpp(),
+        session.player_class_like_cpp(),
+        session.player_level_like_cpp(),
+        session.player_gender_like_cpp(),
+    );
     let mut player = wow_entities::Player::new(Some(1), false);
     player
         .unit_mut()
@@ -501,6 +520,11 @@ pub(super) fn attach_stat_update_player_with_mana_and_health(
         session.adopt_registered_canonical_player_fixture_like_cpp(),
         "stat fixture must register the same map-owned Player identity as production"
     );
+    if identity.1 != 0 && identity.2 != 0 && identity.3 != 0 {
+        session.set_loaded_player_identity_like_cpp(
+            identity.0, identity.1, identity.2, identity.3, identity.4,
+        );
+    }
 }
 
 pub(super) fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes> {
