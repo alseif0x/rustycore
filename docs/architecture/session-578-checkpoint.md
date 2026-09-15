@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-15
 
-**Integrated head after PR #948:** `861fbc701a6e556f4988ad149e90faa23b3c53f1`.
+**Integrated head after PR #950:** `ef1a7b3daaa4a9c00182cf7e7638a571c70abc47`.
 
 Current exact inventory after PR #948: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution, the Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; the P4 loaded-grid split now keeps a 797-line production facade with 28 tests in scoped modules, and PR #933 splits game-events into seven modules behind a compact facade with 181 regressions preserved; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet. PR #935 also splits the spawn-loader catalog models into private responsibility modules while preserving startup ownership and public paths. PR #948 then moves the final residual linked-respawn, GameEvent prefix/suffix and spawn-group member adapters into the existing object, GameEvent and pool children; the parent facade is 730 lines and the aggregate remains exactly 3,427 lines.
 
@@ -133,12 +133,11 @@ parent-private fixtures. Focused spawn-loader tests pass 135/135; compile,
 architecture check/self-test, format/diff and final physical/hotspot gates pass.
 The full profile retains the three pre-existing `scenarios_9` GameObject
 respawn-save failures (587 passed, 3 failed). No startup order, ownership,
-packet, SQL, clock, lock, persistence or runtime behavior changed. The syntax-only
-Session ownership checker remains blocked independently by its stale curated
-`crate::runtime::game_events::mirror_loaded_grid_creature_to_legacy_like_cpp`
-anchor after the #933 module split moved the definition to `game_events::grid`;
-this is checker metadata debt, not a #948 behavior failure. Remaining #584
-C0–C4/runtime/capture/DB/relogin/live-QA work requires a fresh audit.
+packet, SQL, clock, lock, persistence or runtime behavior changed. PR #950
+reconciles the stale Session ownership anchor and exact syntax, registry and
+bridge baselines after #929/#933; the checker-only suite passes 364/364,
+syntax-only ownership passes, and architecture check/self-test remain green.
+Remaining #584 C0–C4/runtime/capture/DB/relogin/live-QA work requires a fresh audit.
 
 ## Current delivery agreement — 2026-09-06, user-approved replan
 
