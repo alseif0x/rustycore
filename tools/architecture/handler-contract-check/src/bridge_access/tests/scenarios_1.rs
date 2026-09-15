@@ -301,7 +301,7 @@ fn bridge_hiding_macros_fail_closed_but_transparent_arguments_are_visible() {
 fn curated_anchor_records_its_declared_direction() {
     let baseline = inventory_bridge_accesses(&[BridgeSource {
         package: "world-server",
-        module: "crate::runtime::game_events",
+        module: "crate::runtime::game_events::grid",
         source_path: "src/session.rs",
         inherited_cfg: &[],
         source: r#"
