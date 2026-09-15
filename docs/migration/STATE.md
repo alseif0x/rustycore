@@ -122,6 +122,20 @@ no public API, owner, startup behavior, packet, SQL, clock, lock or persistence
 order changed. Remaining loader families and #584 C0–C4/runtime/capture/DB-relogin/
 live-QA gates remain open.
 
+**P4 pool and spawn-group startup-loader split integrated — 2026-09-15, #584 / PR #942,
+merge `77ca1c64fdca504172bf47c07b43a3a6a9d2aaf8`:** the post-#940 audit moved
+PoolMgr templates and member loading, relation/map/final validation, autospawn
+candidates and spawn-group template construction to private
+`spawn_store_loader/pool_loader.rs`. The composition facade is 1,652 lines and
+the child 338; the measured aggregate remains exactly the 3,427-line ceiling.
+The public spawn-group helper path and parent-private fixture access remain
+unchanged. Focused pool tests pass 29/29, with architecture, compile,
+format/diff and structural gates passing; the full profile retains the same
+three pre-existing `scenarios_9` GameObject respawn-save failures (587 passed,
+3 failed). No startup order, owner, packet, SQL, clock, lock, persistence or
+runtime behavior changed; remaining loader families and #584 C0–C4/runtime/
+capture/DB-relogin/live-QA gates remain open.
+
 **Transport C0/C3 lifecycle integrated — 2026-09-14, PR #901, merge
 `bf460aa7a8ccec0269eea1771a094ef12f0c6109` (implementation `82b2d8d9`):** the bounded
 CREATE/DESTROY and phase-visibility slice is integrated into `3.4.3`. `wow-map` marks same-phase Players
