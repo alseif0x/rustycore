@@ -543,40 +543,6 @@ pub struct AreaTriggerSpawnRuntimeRowLikeCpp {
     pub spell_for_visuals: Option<i32>,
 }
 
-fn linked_respawn_row_like_cpp(row: LinkedRespawnDbRow) -> LinkedRespawnRowLikeCpp {
-    LinkedRespawnRowLikeCpp {
-        guid: row.guid,
-        linked_guid: row.linked_guid,
-        link_type: row.link_type,
-    }
-}
-
-async fn load_game_event_world_prefix_like_cpp(
-    persistence: &dyn GameEventWorldCatalogPersistencePortLikeCpp,
-) -> Result<GameEventWorldCatalogPrefixLikeCpp> {
-    match persistence.load_prefix_like_cpp().await {
-        GameEventWorldCatalogLoadOutcomeLikeCpp::Loaded(rows) => Ok(rows),
-        GameEventWorldCatalogLoadOutcomeLikeCpp::Failed { reason } => {
-            bail!("GameEvent startup World catalog prefix failed: {reason}")
-        }
-    }
-}
-
-async fn load_game_event_condition_saves_then_world_suffix_like_cpp(
-    game_event_persistence: &dyn wow_persistence::GameEventPersistencePortLikeCpp,
-    world_catalog: &dyn GameEventWorldCatalogPersistencePortLikeCpp,
-    game_events: &mut GameEventDataStoreLikeCpp,
-    report: &mut CanonicalSpawnStoreLoadReport,
-) -> Result<GameEventWorldCatalogSuffixLikeCpp> {
-    load_game_event_condition_saves_like_cpp(game_event_persistence, game_events, report).await?;
-    match world_catalog.load_suffix_like_cpp().await {
-        GameEventWorldCatalogLoadOutcomeLikeCpp::Loaded(rows) => Ok(rows),
-        GameEventWorldCatalogLoadOutcomeLikeCpp::Failed { reason } => {
-            bail!("GameEvent startup World catalog suffix failed: {reason}")
-        }
-    }
-}
-
 pub async fn load_canonical_spawn_store_like_cpp(
     spawn_persistence: &dyn CanonicalSpawnCatalogPersistencePortLikeCpp,
     game_event_persistence: &dyn wow_persistence::GameEventPersistencePortLikeCpp,
@@ -757,26 +723,6 @@ pub async fn load_canonical_spawn_store_like_cpp(
             .with_creature_formations_like_cpp(creature_formations),
         report,
     ))
-}
-
-async fn load_spawn_group_members_like_cpp(
-    persistence: &dyn CanonicalSpawnCatalogPersistencePortLikeCpp,
-) -> Result<Vec<SpawnGroupMemberRow>> {
-    match persistence.load_spawn_group_members_like_cpp().await {
-        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Loaded(rows) => Ok(rows
-            .into_iter()
-            .map(
-                |row: SpawnGroupMemberPersistenceRowLikeCpp| SpawnGroupMemberRow {
-                    group_id: row.group_id,
-                    spawn_type: row.spawn_type,
-                    spawn_id: row.spawn_id,
-                },
-            )
-            .collect()),
-        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Failed { reason } => {
-            bail!("canonical spawn-group member catalog failed: {reason}")
-        }
-    }
 }
 
 #[cfg(test)]
