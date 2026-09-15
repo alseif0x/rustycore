@@ -1,5 +1,4 @@
 use super::super::*;
-use super::*;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct GameEventObjectSpawnBucketSummaryLikeCpp {
