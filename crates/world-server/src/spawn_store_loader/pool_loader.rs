@@ -336,3 +336,23 @@ pub fn spawn_group_templates_for_spawn_store(
         .or_insert_with(SpawnGroupTemplateData::legacy_group);
     templates
 }
+
+pub(super) async fn load_spawn_group_members_like_cpp(
+    persistence: &dyn CanonicalSpawnCatalogPersistencePortLikeCpp,
+) -> Result<Vec<SpawnGroupMemberRow>> {
+    match persistence.load_spawn_group_members_like_cpp().await {
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Loaded(rows) => Ok(rows
+            .into_iter()
+            .map(
+                |row: SpawnGroupMemberPersistenceRowLikeCpp| SpawnGroupMemberRow {
+                    group_id: row.group_id,
+                    spawn_type: row.spawn_type,
+                    spawn_id: row.spawn_id,
+                },
+            )
+            .collect()),
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Failed { reason } => {
+            bail!("canonical spawn-group member catalog failed: {reason}")
+        }
+    }
+}

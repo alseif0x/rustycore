@@ -139,6 +139,14 @@ pub(super) async fn load_linked_respawns_like_cpp(
 
     Ok(linked_store)
 }
+
+pub(super) fn linked_respawn_row_like_cpp(row: LinkedRespawnDbRow) -> LinkedRespawnRowLikeCpp {
+    LinkedRespawnRowLikeCpp {
+        guid: row.guid,
+        linked_guid: row.linked_guid,
+        link_type: row.link_type,
+    }
+}
 pub(super) fn apply_linked_respawn_row_like_cpp(
     row: LinkedRespawnRowLikeCpp,
     store: &SpawnStore,

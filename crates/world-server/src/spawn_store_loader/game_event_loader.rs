@@ -5,6 +5,32 @@
 
 use super::*;
 
+pub(super) async fn load_game_event_world_prefix_like_cpp(
+    persistence: &dyn GameEventWorldCatalogPersistencePortLikeCpp,
+) -> Result<GameEventWorldCatalogPrefixLikeCpp> {
+    match persistence.load_prefix_like_cpp().await {
+        GameEventWorldCatalogLoadOutcomeLikeCpp::Loaded(rows) => Ok(rows),
+        GameEventWorldCatalogLoadOutcomeLikeCpp::Failed { reason } => {
+            bail!("GameEvent startup World catalog prefix failed: {reason}")
+        }
+    }
+}
+
+pub(super) async fn load_game_event_condition_saves_then_world_suffix_like_cpp(
+    game_event_persistence: &dyn wow_persistence::GameEventPersistencePortLikeCpp,
+    world_catalog: &dyn GameEventWorldCatalogPersistencePortLikeCpp,
+    game_events: &mut GameEventDataStoreLikeCpp,
+    report: &mut CanonicalSpawnStoreLoadReport,
+) -> Result<GameEventWorldCatalogSuffixLikeCpp> {
+    load_game_event_condition_saves_like_cpp(game_event_persistence, game_events, report).await?;
+    match world_catalog.load_suffix_like_cpp().await {
+        GameEventWorldCatalogLoadOutcomeLikeCpp::Loaded(rows) => Ok(rows),
+        GameEventWorldCatalogLoadOutcomeLikeCpp::Failed { reason } => {
+            bail!("GameEvent startup World catalog suffix failed: {reason}")
+        }
+    }
+}
+
 pub(super) fn load_game_event_pool_ids_like_cpp(
     rows: Vec<GameEventPoolRowLikeCpp>,
     game_event_sizing: GameEventSizingLikeCpp,
