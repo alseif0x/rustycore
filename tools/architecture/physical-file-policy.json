@@ -68,10 +68,10 @@
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/world-server/src/runtime/game_events.rs",
-      "observed_lines": 2643,
-      "ceiling_lines": 2643,
-      "split": "Separate game-event state coordination, map application and delivery tests; preserve the admitted clock.",
+      "path": "crates/world-server/src/runtime/game_events/mod.rs",
+      "observed_lines": 9,
+      "ceiling_lines": 9,
+      "split": "Keep a compact facade and separate game-event despawn, loaded-grid, spawn, bootstrap, scheduler, live-update and consumer responsibilities; preserve the admitted clock and all reexports.",
       "review_checkpoint": "584:C4"
     },
     {
