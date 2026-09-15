@@ -1,6 +1,6 @@
 # Session convergence checkpoint — updated 2026-09-15
 
-**Integrated head after PR #950:** `ef1a7b3daaa4a9c00182cf7e7638a571c70abc47`.
+**Integrated head after PR #953:** `507f3cfa7c34bc96a5173b107929fa6ff21ac0d4`.
 
 ## Fresh Creature runtime audit — 2026-09-15
 

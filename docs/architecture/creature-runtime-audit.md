@@ -1,7 +1,7 @@
-# Creature runtime audit — post-#950
+# Creature runtime audit — post-#953
 
 **Audit date:** 2026-09-15  
-**Rust integration head:** `e2ca3df9` (C3.1 implementation candidate, based on #952)
+**Rust integration head:** `507f3cfa` (PR #953; implementation candidate `e2ca3df9`)
 **Scope:** the remaining #584 C0–C4 boundary around `Map::Update`, Creature
 runtime ownership, effect consumption, persistence and publication.
 
