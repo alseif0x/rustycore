@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-15:** `3.4.3` is at
-`ef30bb3e1232c775dcc21ccbc4c91d9196c3e22d` (PR #933 following PR #931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`47258ebe138ebb66cc4eac50ab6c74a0f782f319` (PR #936 following PR #935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -76,6 +76,21 @@ consume). The complete 181-test game-event suite remains green; `cargo check`,
 format/diff and architecture check/self-test pass. No runtime owner, dependency,
 packet, persistence or behavior changed. The global physical terminal and remaining
 C0–C4/runtime/capture/DB/relogin/live-QA gates remain open.
+
+**P4 spawn catalog navigability integrated — 2026-09-15, #584 / PR #935, merge
+`c922fd60d71018a0502954a6ddffe151401e48bf`:** the post-#933 audit split the
+5,125-line `world-server/src/spawn_store_loader.rs` by responsibility. Startup
+composition, DB ownership and spawn conversion remain in the 3,427-line facade;
+GameEventMgr catalog models and WorldStateMgr startup/index rules now live in
+`spawn_store_loader/game_event_catalog.rs` (1,355 lines) and
+`world_state_catalog.rs` (345 lines), with the existing public paths reexported.
+The published #933 runtime child modules are crate-visible to their parent reexports,
+restoring the integration compile contract. The focused game-event suite passes
+181/181; compile, format/diff and architecture check/self-test pass. The full local
+profile still has three pre-existing `scenarios_9` GameObject respawn-save failures
+(587 passed, 3 failed). Follow-up PR #936 tightens the two physical policy rows to the
+exact scanner counts at the current head. This is physical organization only; remaining #584 C0–C4,
+runtime, capture, DB/relogin and live-QA gates stay open.
 
 **Transport C0/C3 lifecycle integrated — 2026-09-14, PR #901, merge
 `bf460aa7a8ccec0269eea1771a094ef12f0c6109` (implementation `82b2d8d9`):** the bounded
