@@ -17,12 +17,13 @@ are safety guards; they do not retire the mirror or consume the canonical
 The complete C++ `Map::Update`/`Creature::Update` contract remains unimplemented
 as one Rust operation: just-appeared hooks, `Unit::Update`, threat/focus,
 AI/scripts, melee outcomes/procs, regeneration, corpse/loot work and ordered
-publication are spread across independent passes. The next #584 macro is
-**C3.1 — one map-owned Creature runtime outcome boundary**. Its acceptance is a
-typed map-tick input/outcome with authority/incarnation stamps, verified phase
-order and production-linked stale/dropped/death/respawn tests. No mass owner move
-or timer-only plan consumer is authorized by this audit; functional behavior
-verticals remain #29/#31 then #32/#33/#34.
+publication are spread across independent passes. The structural **C3.1 — one
+map-owned Creature runtime outcome boundary** is implemented by `e2ca3df9`.
+It captures typed map-tick input, admitted Creature stamps and phase output in
+the production bridge; the positive lifecycle/movement/melee regression and
+negative stale-incarnation regression pass. This does not retire the legacy
+owner or consume the canonical plan. Remaining behavior verticals are selected
+by dependency from #29/#31 then #32/#33/#34, and must consume this envelope.
 
 Current exact inventory after PR #948: 649 WorldSession fields (219 production, 430 test fixtures). Encounter-lock resolution, the Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; the P4 loaded-grid split now keeps a 797-line production facade with 28 tests in scoped modules, and PR #933 splits game-events into seven modules behind a compact facade with 181 regressions preserved; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet. PR #935 also splits the spawn-loader catalog models into private responsibility modules while preserving startup ownership and public paths. PR #948 then moves the final residual linked-respawn, GameEvent prefix/suffix and spawn-group member adapters into the existing object, GameEvent and pool children; the parent facade is 730 lines and the aggregate remains exactly 3,427 lines.
 
