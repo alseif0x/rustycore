@@ -1096,7 +1096,7 @@ impl WorldSession {
     pub(super) fn player_stat_changes_like_cpp(
         &mut self,
     ) -> Option<(ObjectGuid, PlayerStatChanges)> {
-        self.player_stat_changes_with_represented_item_bonuses_like_cpp(false)
+        self.player_stat_changes_with_represented_item_bonuses_like_cpp(true)
     }
 
     pub(crate) fn level_up_stat_deltas_like_cpp(&self, new_level: u8) -> Option<(i32, [i32; 5])> {
@@ -1121,7 +1121,9 @@ impl WorldSession {
     ///
     /// Called after equip/desequip changes to gear slots (0-18).
     pub(crate) fn send_stat_update(&mut self) -> bool {
-        let Some((player_guid, changes)) = self.player_stat_changes_like_cpp() else {
+        let Some((player_guid, changes)) =
+            self.player_stat_changes_with_represented_item_bonuses_like_cpp(true)
+        else {
             return false;
         };
 

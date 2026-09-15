@@ -5,6 +5,187 @@
 
 use super::*;
 
+#[tokio::test]
+async fn equipment_stats_use_one_canonical_contribution_path_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 61_001);
+    let item_guid = ObjectGuid::create_item(1, 61_001);
+    let item_id = 61_001;
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+    session.set_player_stats(Arc::new(wow_data::PlayerStatsStore::from_entries([(
+        (1, 5, 80),
+        wow_data::PlayerLevelStats {
+            strength: 10,
+            agility: 10,
+            stamina: 10,
+            intellect: 40,
+            spirit: 30,
+            base_mana: 1_000,
+        },
+    )])));
+    session.set_chr_classes_store(Arc::new(
+        wow_data::character_progression::ChrClassesStore::from_entries([{
+            let mut entry = wow_data::character_progression::ChrClassesEntry::default();
+            entry.id = 5;
+            entry
+        }]),
+    ));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+    session.set_spell_store(Arc::new(wow_data::SpellStore::new()));
+    session.set_item_stats_store(Arc::new(ItemStatsStore::from_parts(
+        [(
+            item_id,
+            ItemStatEntry {
+                stats: std::array::from_fn(|index| {
+                    if index == 0 {
+                        (wow_constants::ItemModType::Strength as i8, 10)
+                    } else {
+                        (wow_constants::ItemModType::None as i8, 0)
+                    }
+                }),
+                resistances: [0; 7],
+                armor: 0,
+            },
+        )],
+        [],
+    )));
+    let item = session.make_inventory_item_object(
+        item_guid,
+        item_id,
+        player_guid,
+        1,
+        0,
+        ItemContext::None,
+        wow_entities::EQUIPMENT_SLOT_CHEST,
+    );
+    session.insert_inventory_item_object(item);
+    session.insert_inventory_item_like_cpp(
+        wow_entities::EQUIPMENT_SLOT_CHEST,
+        InventoryItem {
+            guid: item_guid,
+            entry_id: item_id,
+            db_guid: item_guid.counter() as u64,
+            inventory_type: Some(InventoryType::Chest as u8),
+        },
+    );
+    // A post-login equip applies `_ApplyItemBonuses` to the Player owner once.
+    assert!(
+        session
+            .resolved_inventory_item_object_like_cpp(item_guid)
+            .is_some()
+    );
+    let changed = session.apply_inventory_item_store_side_effects_like_cpp(
+        INVENTORY_SLOT_BAG_0,
+        wow_entities::EQUIPMENT_SLOT_CHEST,
+        item_guid,
+    );
+    assert!(changed);
+    assert_eq!(
+        (
+            session.player_race_like_cpp(),
+            session.player_class_like_cpp(),
+            session.player_level_like_cpp()
+        ),
+        (1, 5, 80)
+    );
+    assert!(session.player_stats().is_some());
+    let _ = session.send_stat_update();
+    let equipped = session
+        .canonical_player_effective_combat_stats_like_cpp()
+        .expect("equipped stat projection");
+    assert_eq!(
+        equipped.stats[wow_constants::Stats::Strength as usize],
+        20,
+        "C++ Player::_ApplyItemBonuses contributes the item exactly once"
+    );
+
+    session.apply_inventory_item_remove_side_effects_like_cpp(
+        INVENTORY_SLOT_BAG_0,
+        wow_entities::EQUIPMENT_SLOT_CHEST,
+        item_guid,
+        &[],
+    );
+    let _ = session.send_stat_update();
+    let unequipped = session
+        .canonical_player_effective_combat_stats_like_cpp()
+        .expect("unequipped stat projection");
+    assert_eq!(
+        unequipped.stats[wow_constants::Stats::Strength as usize],
+        10
+    );
+
+    // `_ApplyAllItemMods` must reject a broken item before it reaches the
+    // canonical accumulator, exactly as the C++ `Item::IsBroken` gate does.
+    assert!(
+        session.update_inventory_item_object_like_cpp(item_guid, |item| {
+            item.set_max_durability(10);
+            item.set_durability(0);
+        })
+    );
+    let _ = session.apply_initial_loaded_item_mods_like_cpp(&[item_guid]);
+    let _ = session.send_stat_update();
+    let broken = session
+        .canonical_player_effective_combat_stats_like_cpp()
+        .expect("broken-item stat projection");
+    assert_eq!(
+        broken.stats[wow_constants::Stats::Strength as usize],
+        10,
+        "a broken item contributes no static stats during login"
+    );
+
+    // A repaired item then follows the same login path and produces the same
+    // projection as equipping it after login.
+    assert!(
+        session.update_inventory_item_object_like_cpp(item_guid, |item| {
+            item.set_durability(10);
+        })
+    );
+    let _ = session.apply_initial_loaded_item_mods_like_cpp(&[item_guid]);
+    let _ = session.send_stat_update();
+    let loaded = session
+        .canonical_player_effective_combat_stats_like_cpp()
+        .expect("loaded stat projection");
+    assert_eq!(
+        loaded.stats[wow_constants::Stats::Strength as usize],
+        equipped.stats[wow_constants::Stats::Strength as usize]
+    );
+
+    // A broken equipped item removes its contribution; the durability repair
+    // path reapplies it and publishes the same complete projection.
+    session.record_represented_item_mods_like_cpp(
+        item_guid,
+        wow_entities::EQUIPMENT_SLOT_CHEST,
+        false,
+    );
+    assert!(
+        session.update_inventory_item_object_like_cpp(item_guid, |item| {
+            item.set_durability(0);
+        })
+    );
+    let _ = session.send_stat_update();
+    assert_eq!(
+        session
+            .canonical_player_effective_combat_stats_like_cpp()
+            .expect("broken stat projection")
+            .stats[wow_constants::Stats::Strength as usize],
+        10
+    );
+    assert!(
+        session
+            .repair_inventory_item_durability_like_cpp(item_guid, false, 1.0, 1.0)
+            .await
+    );
+    assert_eq!(
+        session
+            .canonical_player_effective_combat_stats_like_cpp()
+            .expect("repaired stat projection")
+            .stats[wow_constants::Stats::Strength as usize],
+        20
+    );
+}
+
 #[test]
 fn send_new_item_plan_direct_routes_item_push_result_to_realm_like_cpp() {
     let (mut session, _, send_rx) = make_session();

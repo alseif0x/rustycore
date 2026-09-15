@@ -36,73 +36,44 @@ pub(crate) struct RepresentedPlayerGearStatsLikeCpp {
 impl WorldSession {
     pub(super) fn represented_player_gear_stats_like_cpp(
         &self,
-        include_represented_item_bonuses: bool,
+        _include_represented_item_bonuses: bool,
     ) -> Option<RepresentedPlayerGearStatsLikeCpp> {
         let mut gear = RepresentedPlayerGearStatsLikeCpp::default();
-        if let Some(item_stats_store) = self.item_stats_store() {
-            for (slot, inventory_item) in self.resolved_inventory_items_like_cpp()? {
-                if slot >= 19 {
-                    continue;
-                }
-                let Some(entry) = item_stats_store.get(inventory_item.entry_id) else {
-                    continue;
-                };
-                let base_stats = entry.base_stat_bonuses();
-                for (target, amount) in gear.stats.iter_mut().zip(base_stats) {
-                    *target = target.saturating_add(amount);
-                }
-                gear.attack_power = gear.attack_power.saturating_add(entry.attack_power_bonus());
-                gear.ranged_attack_power = gear
-                    .ranged_attack_power
-                    .saturating_add(entry.ranged_attack_power_bonus());
-                gear.health = gear.health.saturating_add(entry.health_bonus());
-                gear.mana = gear.mana.saturating_add(entry.mana_bonus());
-                for (target, amount) in gear
-                    .combat_ratings
-                    .iter_mut()
-                    .zip(entry.combat_rating_bonuses())
-                {
-                    *target = target.saturating_add(amount);
-                }
-                gear.spell_power = gear.spell_power.saturating_add(entry.spell_power_bonus());
-                gear.armor = gear.armor.saturating_add(entry.armor);
-                for (target, amount) in gear.resistances.iter_mut().zip(entry.resistances) {
-                    *target = target.saturating_add(i32::from(amount));
-                }
-            }
+        // C++ keeps the result of `_ApplyItemBonuses` on Player and uses that
+        // accumulator for every subsequent stat calculation. Reading the
+        // inventory here as well would count an item once through its sparse
+        // row and again through the canonical Player modifier state after an
+        // equip/swap. Login seeds the same accumulator before this projection,
+        // so this is the single contribution path for every lifecycle.
+        let bonuses = self.resolved_item_bonus_state_like_cpp()?;
+        for (target, amount) in gear.stats.iter_mut().zip(bonuses.stats_base) {
+            *target = target.saturating_add(amount);
         }
-
-        if include_represented_item_bonuses {
-            let bonuses = self.resolved_item_bonus_state_like_cpp()?;
-            for (target, amount) in gear.stats.iter_mut().zip(bonuses.stats_base) {
-                *target = target.saturating_add(amount);
-            }
-            gear.attack_power = gear.attack_power.saturating_add(bonuses.attack_power_total);
-            gear.ranged_attack_power = gear
-                .ranged_attack_power
-                .saturating_add(bonuses.ranged_attack_power_total);
-            gear.health = gear.health.saturating_add(bonuses.health_base);
-            gear.mana = gear.mana.saturating_add(bonuses.mana_base);
-            for (target, amount) in gear.combat_ratings.iter_mut().zip(bonuses.combat_ratings) {
-                *target = target.saturating_add(amount);
-            }
-            gear.spell_power = gear.spell_power.saturating_add(bonuses.spell_power_bonus);
-            gear.armor = gear
-                .armor
-                .saturating_add(bonuses.armor_base)
-                .saturating_add(bonuses.armor_total)
-                .saturating_add(bonuses.resistances_base[0]);
-            for (target, amount) in gear.resistances.iter_mut().zip(bonuses.resistances_base) {
-                *target = target.saturating_add(amount);
-            }
-            gear.mana_regen_bonus = bonuses.mana_regen_bonus;
-            gear.health_regen_bonus = bonuses.health_regen_bonus;
-            gear.spell_penetration_bonus = bonuses.spell_penetration_bonus;
-            gear.shield_block_base_mod = bonuses.shield_block_base_mod;
-            gear.shield_block_value = bonuses.shield_block_value;
-            gear.weapon_damage = bonuses.weapon_damage;
-            gear.base_attack_time = bonuses.base_attack_time;
+        gear.attack_power = gear.attack_power.saturating_add(bonuses.attack_power_total);
+        gear.ranged_attack_power = gear
+            .ranged_attack_power
+            .saturating_add(bonuses.ranged_attack_power_total);
+        gear.health = gear.health.saturating_add(bonuses.health_base);
+        gear.mana = gear.mana.saturating_add(bonuses.mana_base);
+        for (target, amount) in gear.combat_ratings.iter_mut().zip(bonuses.combat_ratings) {
+            *target = target.saturating_add(amount);
         }
+        gear.spell_power = gear.spell_power.saturating_add(bonuses.spell_power_bonus);
+        gear.armor = gear
+            .armor
+            .saturating_add(bonuses.armor_base)
+            .saturating_add(bonuses.armor_total)
+            .saturating_add(bonuses.resistances_base[0]);
+        for (target, amount) in gear.resistances.iter_mut().zip(bonuses.resistances_base) {
+            *target = target.saturating_add(amount);
+        }
+        gear.mana_regen_bonus = bonuses.mana_regen_bonus;
+        gear.health_regen_bonus = bonuses.health_regen_bonus;
+        gear.spell_penetration_bonus = bonuses.spell_penetration_bonus;
+        gear.shield_block_base_mod = bonuses.shield_block_base_mod;
+        gear.shield_block_value = bonuses.shield_block_value;
+        gear.weapon_damage = bonuses.weapon_damage;
+        gear.base_attack_time = bonuses.base_attack_time;
 
         Some(gear)
     }
@@ -214,22 +185,14 @@ impl WorldSession {
 
     pub(super) fn publish_effective_stats_like_cpp(
         &self,
-        include_represented_item_bonuses: bool,
+        _include_represented_item_bonuses: bool,
         projection: PlayerStatSystemProjectionLikeCpp,
         gear: &RepresentedPlayerGearStatsLikeCpp,
     ) {
-        if include_represented_item_bonuses {
-            self.publish_player_effective_combat_stats_like_cpp(projection, gear);
-        } else {
-            let race = self.player_race_like_cpp();
-            let class = self.player_class_like_cpp();
-            let level = self.player_level_like_cpp();
-            if let Some(full_gear) = self.represented_player_gear_stats_like_cpp(true)
-                && let Some(full_projection) =
-                    self.player_stat_system_projection_like_cpp(race, class, level, &full_gear)
-            {
-                self.publish_player_effective_combat_stats_like_cpp(full_projection, &full_gear);
-            }
-        }
+        // The canonical Player accumulator is always the source for this
+        // projection. The boolean remains at the adapter boundary for
+        // compatibility with callers that already name the C++ option, but a
+        // second inventory-derived path is deliberately impossible here.
+        self.publish_player_effective_combat_stats_like_cpp(projection, gear);
     }
 }
