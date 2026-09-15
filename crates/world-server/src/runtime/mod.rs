@@ -15,7 +15,9 @@ mod world_session_pass;
 pub(crate) use world_session_pass::run_world_phase_session_passes_like_cpp;
 
 pub(super) use delivery::*;
-pub(super) use game_events::*;
+pub(super) use game_events::{
+    bootstrap::*, consume::*, grid::*, live::*, scheduler::*, spawn::*, unspawn::*,
+};
 pub(super) use map::*;
 pub(crate) use map_tick::*;
 pub(crate) use tick_summary::*;
