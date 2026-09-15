@@ -660,51 +660,82 @@ fn login_stat_update_derives_and_syncs_loaded_enchantment_bonuses_like_cpp() {
 }
 
 #[test]
-fn mana_regen_applies_canonical_percentage_aura_like_cpp() {
-    let (mut session, _send_rx) = make_session_with_send_capacity(2);
+fn mana_regen_applies_canonical_aura_producers_like_cpp() {
+    let (mut session, _send_rx) = make_session_with_send_capacity(8);
     let player_guid = ObjectGuid::create_player(1, 86);
     session.set_player_guid(Some(player_guid));
     session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
     set_priest_level80_stats(&mut session, 1000, 40);
     attach_stat_update_player_with_mana_and_health(&mut session, player_guid, 777, 1320, 77, 110);
 
-    let spell_id = 90_087;
     let mut spell_store = wow_data::SpellStore::new();
-    spell_store.insert(
-        spell_id,
-        wow_data::SpellInfo {
+    for (spell_id, aura_type, amount, misc_value) in [
+        (
+            90_087,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_MANA_REGEN_PCT,
+            50,
+            PowerType::Mana as i32,
+        ),
+        (
+            90_088,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_POWER_REGEN,
+            10,
+            PowerType::Mana as i32,
+        ),
+        (
+            90_089,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_MANA_REGEN_FROM_STAT,
+            25,
+            3,
+        ),
+        (
+            90_090,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_MANA_REGEN_INTERRUPT,
+            20,
+            0,
+        ),
+    ] {
+        spell_store.insert(
             spell_id,
-            cast_time_ms: 0,
-            cooldown_ms: 0,
-            recovery_time_ms: 0,
-            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
-            effect_base_points: 50,
-            effect_bonus_coefficient: 0.0,
-            aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_MANA_REGEN_PCT),
-            display_flags: 0,
-            requires_spell_focus: 0,
-            power_costs: Vec::new(),
-            effects: vec![wow_data::SpellEffectInfo {
-                effect_index: 0,
-                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
-                effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_MANA_REGEN_PCT,
-                effect_base_points: 50,
-                effect_misc_value_1: PowerType::Mana as i32,
-                ..Default::default()
-            }],
-        },
-    );
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: amount,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(aura_type),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: aura_type,
+                    effect_base_points: amount,
+                    effect_misc_value_1: misc_value,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
     session.set_spell_store(Arc::new(spell_store));
     session.set_state(crate::session::SessionState::LoggedIn);
-    session
-        .apply_aura(spell_id, player_guid, 30_000, 1)
-        .expect("apply mana regeneration percentage aura");
+    for spell_id in [90_087, 90_088, 90_089, 90_090] {
+        session
+            .apply_aura(spell_id, player_guid, 30_000, 1)
+            .expect("apply mana regeneration aura");
+    }
 
     let (_, changes) = session
         .player_stat_changes_with_represented_item_bonuses_like_cpp(true)
         .expect("stat changes with mana regeneration aura");
     let spirit_regen = 40.0_f32.sqrt() * 30.0 * 0.003345;
-    assert!((changes.mana_regen - spirit_regen * 1.5).abs() < 0.0001);
+    let expected_mp5 = 10.0 / 5.0 + 40.0 * 25.0 / 500.0;
+    assert!((changes.mana_regen - (spirit_regen * 1.5 + expected_mp5)).abs() < 0.0001);
+    assert!((changes.mana_regen_combat - (expected_mp5 + spirit_regen * 1.5 * 0.2)).abs() < 0.0001);
+    assert_eq!(changes.mana_regen_mp5, 0.0);
 }
 
 #[test]

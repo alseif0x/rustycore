@@ -65,6 +65,43 @@ impl WorldSession {
                 .unwrap_or(1.0)
     }
 
+    pub(super) fn mana_regen_mp5_from_auras_like_cpp(&self, stats: [i32; 5]) -> f32 {
+        let mana = PowerType::Mana as i32;
+        let flat = self
+            .resolved_total_aura_modifier_by_spell_aura_type_and_misc_value_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_POWER_REGEN,
+                mana,
+            )
+            .unwrap_or(0) as f32
+            / 5.0;
+        let from_stat = self
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_MANA_REGEN_FROM_STAT,
+            )
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|(stat_index, amount)| {
+                usize::try_from(stat_index)
+                    .ok()
+                    .and_then(|index| stats.get(index).copied())
+                    .map(|stat| stat as f32 * amount as f32 / 500.0)
+            })
+            .sum::<f32>();
+        flat + from_stat
+    }
+
+    pub(super) fn mana_regen_interrupt_modifier_like_cpp(&self) -> f32 {
+        self.resolved_aura_effects_by_spell_aura_type_like_cpp(
+            wow_data::spell::aura_types::SPELL_AURA_MOD_MANA_REGEN_INTERRUPT,
+        )
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(_, amount)| amount)
+        .sum::<i32>()
+        .min(100) as f32
+            / 100.0
+    }
+
     pub(super) fn represented_player_gear_stats_like_cpp(
         &self,
         _include_represented_item_bonuses: bool,
@@ -177,12 +214,15 @@ impl WorldSession {
         let expertise = (gear.combat_ratings[23] as f32
             * self.combat_rating_multiplier_like_cpp(level, 23))
         .max(0.0);
-        let mana_regen_flat = gear.mana_regen_bonus as f32 / 5.0;
+        let mana_regen_mp5 = gear.mana_regen_bonus as f32 / 5.0
+            + self.mana_regen_mp5_from_auras_like_cpp(projection.stats);
         let mana_regen_from_spirit = self.mana_regen_from_stats_like_cpp(
             level,
             self.player_class_like_cpp(),
             projection.stats,
         ) * self.mana_regen_aura_multiplier_like_cpp();
+        let mana_regen_combat =
+            mana_regen_mp5 + mana_regen_from_spirit * self.mana_regen_interrupt_modifier_like_cpp();
         let stats = PlayerEffectiveCombatStatsLikeCpp {
             stats: projection.stats,
             stat_pos_buff: projection.stat_pos_buff,
@@ -206,8 +246,8 @@ impl WorldSession {
             max_ranged_damage: weapon_damage[2][1],
             combat_ratings: gear.combat_ratings,
             spell_power: gear.spell_power,
-            mana_regen: mana_regen_from_spirit + mana_regen_flat,
-            mana_regen_combat: mana_regen_flat,
+            mana_regen: mana_regen_from_spirit + mana_regen_mp5,
+            mana_regen_combat,
             health_regen: gear.health_regen_bonus,
             spell_penetration: gear.spell_penetration_bonus,
             mainhand_expertise: expertise,
