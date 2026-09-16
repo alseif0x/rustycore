@@ -77,8 +77,12 @@ pub const SPELL_EFFECT_SUMMON_OBJECT_SLOT1: u32 = 104;
 pub const SPELL_EFFECT_SURVEY: u32 = 105;
 pub const SPELL_EFFECT_CHANGE_RAID_MARKER: u32 = 106;
 pub const SPELL_EFFECT_SHOW_CORPSE_LOOT: u32 = 107;
+/// C++ `SPELL_EFFECT_DURABILITY_DAMAGE` (`SharedDefines.h:1257`).
+pub const SPELL_EFFECT_DURABILITY_DAMAGE: u32 = 111;
 pub const SPELL_EFFECT_112: u32 = 112;
 pub const SPELL_EFFECT_ATTACK_ME: u32 = 114;
+/// C++ `SPELL_EFFECT_DURABILITY_DAMAGE_PCT` (`SharedDefines.h:1261`).
+pub const SPELL_EFFECT_DURABILITY_DAMAGE_PCT: u32 = 115;
 /// C++ `SPELL_EFFECT_SKILL`; `SpellMgr::LoadSpellLearnSkills` derives
 /// `mSpellLearnSkills` from this effect.
 pub const SPELL_EFFECT_SKILL: u32 = 118;

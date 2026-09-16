@@ -38,8 +38,72 @@ impl WorldSession {
         percent: f64,
         inventory: bool,
     ) -> usize {
+        let targets = self.represented_durability_targets_like_cpp(inventory);
+        let mut affected = 0;
+        for (guid, slot, equipped) in targets {
+            if self.apply_represented_durability_loss_item_like_cpp(guid, slot, equipped, percent) {
+                affected += 1;
+            }
+        }
+        affected
+    }
+    /// C++ `Player::DurabilityPointsLossAll` (`Player.cpp:4566-4588`).
+    pub(in crate::session) fn apply_represented_durability_points_loss_all_like_cpp(
+        &mut self,
+        points: i32,
+        inventory: bool,
+    ) -> usize {
+        let targets = self.represented_durability_targets_like_cpp(inventory);
+        let mut affected = 0;
+        for (guid, slot, equipped) in targets {
+            if self.apply_represented_durability_points_loss_like_cpp(
+                guid,
+                slot,
+                equipped,
+                i64::from(points),
+            ) {
+                affected += 1;
+            }
+        }
+        affected
+    }
+    /// C++ `Spell::EffectDurabilityDamage` slot branch: one top-level
+    /// `INVENTORY_SLOT_BAG_0` slot, resolved through `GetItemByPos`.
+    pub(in crate::session) fn apply_represented_durability_points_loss_at_slot_like_cpp(
+        &mut self,
+        slot: u8,
+        points: i32,
+    ) -> bool {
+        let Some(item) = self.resolved_inventory_item_like_cpp(slot) else {
+            return false;
+        };
+        let equipped = is_equipment_packed_pos(make_item_pos(INVENTORY_SLOT_BAG_0, slot));
+        self.apply_represented_durability_points_loss_like_cpp(
+            item.guid,
+            slot,
+            equipped,
+            i64::from(points),
+        )
+    }
+    /// C++ `Spell::EffectDurabilityDamagePCT` slot branch.
+    pub(in crate::session) fn apply_represented_durability_loss_at_slot_like_cpp(
+        &mut self,
+        slot: u8,
+        percent: f64,
+    ) -> bool {
+        let Some(item) = self.resolved_inventory_item_like_cpp(slot) else {
+            return false;
+        };
+        let equipped = is_equipment_packed_pos(make_item_pos(INVENTORY_SLOT_BAG_0, slot));
+        self.apply_represented_durability_loss_item_like_cpp(item.guid, slot, equipped, percent)
+    }
+    /// The `DurabilityLossAll`/`DurabilityPointsLossAll` target set.
+    fn represented_durability_targets_like_cpp(
+        &self,
+        inventory: bool,
+    ) -> Vec<(ObjectGuid, u8, bool)> {
         let Some(items) = self.resolved_inventory_item_objects_like_cpp() else {
-            return 0;
+            return Vec::new();
         };
         let inventory_end = INVENTORY_SLOT_ITEM_START
             .saturating_add(
@@ -47,7 +111,7 @@ impl WorldSession {
                     .unwrap_or(0),
             )
             .min(INVENTORY_SLOT_ITEM_END);
-        let targets: Vec<(ObjectGuid, u8, bool)> = items
+        items
             .iter()
             .filter_map(|(guid, item)| {
                 let slot = item.slot();
@@ -62,14 +126,7 @@ impl WorldSession {
                 }
                 inventory.then_some((*guid, slot, false))
             })
-            .collect();
-        let mut affected = 0;
-        for (guid, slot, equipped) in targets {
-            if self.apply_represented_durability_loss_item_like_cpp(guid, slot, equipped, percent) {
-                affected += 1;
-            }
-        }
-        affected
+            .collect()
     }
     /// C++ `Player::DurabilityLoss` (`Player.cpp:4546-4562`).
     fn apply_represented_durability_loss_item_like_cpp(
@@ -89,7 +146,12 @@ impl WorldSession {
         let percent =
             percent / f64::from(self.represented_durability_loss_aura_multiplier_like_cpp());
         let points = ((f64::from(max_durability) * percent) as u32).max(1);
-        self.apply_represented_durability_points_loss_like_cpp(item_guid, slot, equipped, points)
+        self.apply_represented_durability_points_loss_like_cpp(
+            item_guid,
+            slot,
+            equipped,
+            i64::from(points),
+        )
     }
     /// C++ `Player::DurabilityPointsLoss` (`Player.cpp:4590-4620`).
     ///
@@ -101,7 +163,7 @@ impl WorldSession {
         item_guid: ObjectGuid,
         slot: u8,
         equipped: bool,
-        points: u32,
+        points: i64,
     ) -> bool {
         if self.represented_prevent_durability_loss_like_cpp() {
             return false;
@@ -111,7 +173,7 @@ impl WorldSession {
         };
         let max_durability = i64::from(item.data().max_durability);
         let old_durability = i64::from(item.data().durability);
-        let new_durability = (old_durability - i64::from(points)).clamp(0, max_durability);
+        let new_durability = (old_durability - points).clamp(0, max_durability);
         if old_durability == new_durability {
             return false;
         }
@@ -128,6 +190,53 @@ impl WorldSession {
             self.record_represented_item_mods_like_cpp(item_guid, slot, true);
         }
         updated
+    }
+    /// C++ `Spell::EffectDurabilityDamage` (`SpellEffects.cpp:4316-4352`).
+    pub(in crate::session) fn apply_durability_damage_effect_like_cpp(
+        &mut self,
+        damage: i32,
+        slot: i32,
+        target_guid: ObjectGuid,
+    ) {
+        if self.player_guid() != Some(target_guid) {
+            return;
+        }
+        if slot < 0 {
+            self.apply_represented_durability_points_loss_all_like_cpp(damage, slot < -1);
+            return;
+        }
+        let Ok(slot) = u8::try_from(slot) else {
+            return;
+        };
+        if slot >= INVENTORY_SLOT_BAG_END {
+            return;
+        }
+        self.apply_represented_durability_points_loss_at_slot_like_cpp(slot, damage);
+    }
+    /// C++ `Spell::EffectDurabilityDamagePCT` (`SpellEffects.cpp:4354-4373`).
+    pub(in crate::session) fn apply_durability_damage_pct_effect_like_cpp(
+        &mut self,
+        damage: i32,
+        slot: i32,
+        target_guid: ObjectGuid,
+    ) {
+        if self.player_guid() != Some(target_guid) {
+            return;
+        }
+        if slot < 0 {
+            self.apply_represented_durability_loss_all_like_cpp(
+                f64::from(damage) / 100.0,
+                slot < -1,
+            );
+            return;
+        }
+        let Ok(slot) = u8::try_from(slot) else {
+            return;
+        };
+        if slot >= INVENTORY_SLOT_BAG_END || damage <= 0 {
+            return;
+        }
+        self.apply_represented_durability_loss_at_slot_like_cpp(slot, f64::from(damage) / 100.0);
     }
     /// C++ `GetTotalAuraMultiplier(SPELL_AURA_MOD_DURABILITY_LOSS)`.
     fn represented_durability_loss_aura_multiplier_like_cpp(&self) -> f32 {

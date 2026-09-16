@@ -489,6 +489,22 @@ impl WorldSession {
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PROFICIENCY => {
                     self.apply_proficiency_effect_like_cpp(spell_id)?;
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DURABILITY_DAMAGE => {
+                    self.apply_durability_damage_effect_like_cpp(
+                        direct_effect_base_points,
+                        direct_effect_misc_value_1,
+                        target_guid,
+                    );
+                }
+                x if x
+                    == wow_data::spell::spell_effect_types::SPELL_EFFECT_DURABILITY_DAMAGE_PCT =>
+                {
+                    self.apply_durability_damage_pct_effect_like_cpp(
+                        direct_effect_base_points,
+                        direct_effect_misc_value_1,
+                        target_guid,
+                    );
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR => {
                     self.apply_give_honor_effect_like_cpp(direct_effect_base_points, target_guid)?;
                 }
@@ -1030,7 +1046,10 @@ impl WorldSession {
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT2
                 || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_BIND
-                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS => {}
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DURABILITY_DAMAGE
+                || x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DURABILITY_DAMAGE_PCT => {
+            }
             _ => {
                 debug!("Spell effect type {} not yet implemented", effect_type);
             }
