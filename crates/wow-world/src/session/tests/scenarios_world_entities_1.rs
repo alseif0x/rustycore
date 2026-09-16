@@ -551,7 +551,11 @@ async fn apply_creature_melee_damage_command_replay_after_resurrection_is_suppre
     session
         .process_represented_session_commands_like_cpp()
         .await;
-    assert_eq!(send_rx.drain().count(), 2);
+    assert_eq!(
+        send_rx.drain().count(),
+        3,
+        "AttackerStateUpdate + HealthUpdate + the C++ Unit::Kill durability loss message"
+    );
 
     session
         .mutate_canonical_player_like_cpp(|player| {
@@ -598,6 +602,99 @@ async fn apply_creature_melee_damage_command_replay_after_resurrection_is_suppre
         presented_before
     );
     assert!(send_rx.try_recv().is_err(), "replay emits no packets");
+}
+#[tokio::test]
+async fn apply_creature_melee_damage_command_lethal_publishes_durability_loss_like_cpp() {
+    let (mut session, _, send_rx) = make_session();
+    let attacker_guid =
+        ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1016);
+    let victim_guid = ObjectGuid::create_player(1, 7010);
+    session.state = SessionState::LoggedIn;
+    session.set_player_guid(Some(victim_guid));
+    session.set_player_map_position_like_cpp(571, Position::ZERO);
+    session.set_player_health_like_cpp(100, 100);
+    let committed_revision = install_committed_canonical_player_health_for_melee_test_like_cpp(
+        &mut session,
+        victim_guid,
+        0,
+        wow_constants::DeathState::JustDied,
+    );
+    session
+        .session_command_tx()
+        .try_send(SessionCommand::ApplyCreatureMeleeDamageLikeCpp(
+            ApplyCreatureMeleeDamageLikeCppCommand {
+                attacker_guid,
+                victim_guid,
+                map_id: 571,
+                instance_id: 0,
+                damage: 100,
+                over_damage: 0,
+                target_level: 80,
+                victim_health_after: 0,
+                victim_health_state_revision_after: committed_revision,
+            },
+        ))
+        .expect("lethal command queued");
+
+    session
+        .process_represented_session_commands_like_cpp()
+        .await;
+
+    assert!(
+        drain_server_opcodes(&send_rx).contains(&ServerOpcodes::DurabilityDamageDeath),
+        "C++ Unit::Kill applies the creature-killer PvE durability loss on a lethal hit"
+    );
+}
+#[tokio::test]
+async fn apply_creature_melee_damage_command_battleground_skips_durability_like_cpp() {
+    let (mut session, _, send_rx) = make_session();
+    let attacker_guid =
+        ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1017);
+    let victim_guid = ObjectGuid::create_player(1, 7011);
+    session.state = SessionState::LoggedIn;
+    session.set_player_guid(Some(victim_guid));
+    session.set_player_map_position_like_cpp(571, Position::ZERO);
+    session.set_player_health_like_cpp(100, 100);
+    let committed_revision = install_committed_canonical_player_health_for_melee_test_like_cpp(
+        &mut session,
+        victim_guid,
+        0,
+        wow_constants::DeathState::JustDied,
+    );
+    assert!(
+        session.adopt_registered_canonical_player_fixture_like_cpp(),
+        "battleground fixture adopts the map-owned Player handle"
+    );
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player.set_battleground_type_id_like_cpp(1);
+        })
+        .expect("canonical player carries the battleground state");
+    session
+        .session_command_tx()
+        .try_send(SessionCommand::ApplyCreatureMeleeDamageLikeCpp(
+            ApplyCreatureMeleeDamageLikeCppCommand {
+                attacker_guid,
+                victim_guid,
+                map_id: 571,
+                instance_id: 0,
+                damage: 100,
+                over_damage: 0,
+                target_level: 80,
+                victim_health_after: 0,
+                victim_health_state_revision_after: committed_revision,
+            },
+        ))
+        .expect("lethal battleground command queued");
+
+    session
+        .process_represented_session_commands_like_cpp()
+        .await;
+
+    assert!(
+        !drain_server_opcodes(&send_rx).contains(&ServerOpcodes::DurabilityDamageDeath),
+        "C++ Unit::Kill skips the creature-killer durability branch inside a battleground"
+    );
 }
 #[tokio::test]
 async fn durable_creature_runtime_rail_is_drained_by_session_update_like_cpp() {

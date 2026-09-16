@@ -517,9 +517,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/loot/handlers.rs",
-      "observed_lines": 2369,
-      "ceiling_lines": 2369,
-      "split": "Separate loot packet adaptation by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #743 removes the 116-line group command application block, which was not a loot responsibility; it now lives in `handlers/group/commands.rs` beside the group operations that produce those commands. The ceiling is tightened to the reduced size. #584 Transport VALUES adds a typed visibility projection and keeps the command gate beside the packet adaptation; no new authority or lock is introduced.",
+      "observed_lines": 2372,
+      "ceiling_lines": 2372,
+      "split": "Separate loot packet adaptation by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #743 removes the 116-line group command application block, which was not a loot responsibility; it now lives in `handlers/group/commands.rs` beside the group operations that produce those commands. The ceiling is tightened to the reduced size. #584 Transport VALUES adds a typed visibility projection and keeps the command gate beside the packet adaptation; no new authority or lock is introduced. #61 adds 3 lines to the represented creature-melee victim handler: the C++ `Unit::Kill` durability producer is one call into `durability.rs`, with the packet and gate kept outside this adapter.",
       "review_checkpoint": "584:C4"
     },
     {

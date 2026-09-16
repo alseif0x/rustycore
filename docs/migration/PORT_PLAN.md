@@ -33,6 +33,16 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 creature-kill durability loss — 2026-09-16, implementation `7d33d742`:**
+the creature-melee victim handler now runs the C++ `Unit::Kill` player-victim
+durability branch (`Unit.cpp:10639-10648`): the PvE gate
+`durabilityLoss && !player && !InBattleground()` applies
+`DurabilityLossAll(baseLoss, false)` and publishes the C++
+`baseLoss - baseLoss * MOD_DURABILITY_LOSS multiplier` message before the melee
+result presentation. This completes the general creature producer of the F1
+durability chain; the player-killer PvP branch and `SetPvPDeath` remain explicit
+#61 gates.
+
 **#61 durability-damage spell effects — 2026-09-16, implementation `5759b474`:**
 the represented direct spell-effect dispatch now handles
 `SPELL_EFFECT_DURABILITY_DAMAGE` (111) and
