@@ -330,7 +330,8 @@ pub use unit::{
     UNIT_DATA_TARGET_BIT, UNIT_DATA_VIRTUAL_ITEMS_FIRST_BIT, UNIT_DATA_VIRTUAL_ITEMS_PARENT_BIT,
     UNIT_DATA_VIS_FLAGS_BIT, UNIT_DATA_WILD_BATTLE_PET_LEVEL_BIT, Unit,
     UnitAddToWorldOutcomeLikeCpp, UnitAttackContextLikeCpp, UnitAttackStartOutcome,
-    UnitAttackStopOutcome, UnitDataUpdate, UnitDataValues, UnitRemoveFromWorldOutcomeLikeCpp,
+    UnitAttackStopOutcome, UnitDataUpdate, UnitDataValues, UnitPowerRegenInputLikeCpp,
+    UnitPowerRegenOutcomeLikeCpp, UnitPowerRegenStateLikeCpp, UnitRemoveFromWorldOutcomeLikeCpp,
     UnitSharedVisionSetWorldObjectRequestLikeCpp, UnitValuesUpdate,
     UnitVisibilityDetectionStateLikeCpp,
 };

@@ -166,6 +166,14 @@ impl WorldSession {
             if self.creature_tick % 2 == 0 && owner == RuntimeTickOwner::Session {
                 self.tick_combat_sync();
             }
+            // C++ `Player::Update` runs `RegenerateAll()` after
+            // `DoMeleeAttackIfReady` for every living in-world player. The
+            // canonical Player owns the accumulators; this session pass is the
+            // single writer and consumes the published stat snapshot.
+            self.tick_player_mana_regeneration_like_cpp(
+                diff_ms,
+                catalogs.creature_spawns.power_types.as_ref(),
+            );
             // Aura expiry tick every 4 ticks (~200ms) — always, regardless of owner.
             if self.creature_tick % 4 == 0 {
                 self.tick_auras();

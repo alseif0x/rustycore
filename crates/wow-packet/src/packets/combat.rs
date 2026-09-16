@@ -245,6 +245,34 @@ impl ServerPacket for HealthUpdate {
     }
 }
 
+// ── PowerUpdate (SMSG_POWER_UPDATE) ──────────────────────────────
+
+/// Direct power update sent by C++ `Unit::SetPower` when an in-world unit's
+/// power changes.
+///
+/// C++ anchor: `WorldPackets::Combat::PowerUpdate::Write`
+/// (`CombatPackets.cpp:104-116`) writes the packed `Guid`, a `uint32` count,
+/// then for each entry `int32(Power)` followed by `uint8(PowerType)`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PowerUpdate {
+    pub guid: ObjectGuid,
+    /// `(power value, power type)` entries in `Powers` order.
+    pub powers: Vec<(i32, u8)>,
+}
+
+impl ServerPacket for PowerUpdate {
+    const OPCODE: ServerOpcodes = ServerOpcodes::PowerUpdate;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.guid);
+        pkt.write_uint32(self.powers.len() as u32);
+        for (power, power_type) in &self.powers {
+            pkt.write_int32(*power);
+            pkt.write_uint8(*power_type);
+        }
+    }
+}
+
 // ── SpellInstakillLog (SMSG_SPELL_INSTAKILL_LOG) ─────────────────
 
 /// Combat-log packet emitted by C++ `Spell::EffectInstaKill` before
@@ -467,6 +495,27 @@ mod tests {
         );
         assert_eq!(pkt.read_packed_guid().expect("guid"), guid);
         assert_eq!(pkt.read_int64().expect("health"), 83);
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn power_update_writes_guid_count_and_power_type_pairs_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 0x0102_0304_0506_0708);
+        let bytes = PowerUpdate {
+            guid,
+            powers: vec![(4321, 0)],
+        }
+        .to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::PowerUpdate as u16
+        );
+        assert_eq!(pkt.read_packed_guid().expect("guid"), guid);
+        assert_eq!(pkt.read_uint32().expect("count"), 1);
+        assert_eq!(pkt.read_int32().expect("power"), 4321);
+        assert_eq!(pkt.read_uint8().expect("power type"), 0);
         assert!(pkt.is_empty());
     }
 

@@ -478,6 +478,43 @@ impl PartialEq for HealthStateRevisionLikeCpp {
     }
 }
 
+/// C++ `Player::m_regenTimer`, `m_regenTimerCount`, `m_powerFraction` and the
+/// two interrupt timestamps.
+///
+/// C++ keeps the timers on `Player` and the MP5 mark on `Unit`. RustyCore
+/// stores the aggregated runtime bookkeeping on the canonical `Unit` so the
+/// `Player` struct definition (a reviewed physical-file ceiling) does not grow;
+/// a Player is a Unit and the represented consumer is the Player's single
+/// regeneration writer. The state is never persisted and is recreated with the
+/// entity on login.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct UnitPowerRegenStateLikeCpp {
+    /// C++ `Player::m_regenTimer`, the diff accumulated for the current call.
+    pub timer_ms: u32,
+    /// C++ `Player::m_regenTimerCount`, the two-second publication accumulator.
+    pub timer_count_ms: u32,
+    /// C++ `Player::m_powerFraction`, one fractional carry per power slot.
+    pub power_fraction: [f32; MAX_POWERS_PER_CLASS],
+    /// C++ `Unit::_regenMP5InterruptStartTime`, read by
+    /// `Unit::IsPowerRegenInterruptedByMP5Rule`.
+    pub regen_mp5_interrupt_start_ms: u32,
+    /// C++ `Player::m_regenInterruptTimestamp`, read by the
+    /// `PowerTypeFlags::UseRegenInterrupt` branch.
+    pub regen_interrupt_timestamp_ms: u32,
+}
+
+impl Default for UnitPowerRegenStateLikeCpp {
+    fn default() -> Self {
+        Self {
+            timer_ms: 0,
+            timer_count_ms: 0,
+            power_fraction: [0.0; MAX_POWERS_PER_CLASS],
+            regen_mp5_interrupt_start_ms: 0,
+            regen_interrupt_timestamp_ms: 0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Unit {
     pub(super) world: WorldObject,
@@ -511,6 +548,8 @@ pub struct Unit {
     pub(super) power_index: [Option<usize>; MAX_POWERS],
     pub(super) visibility_detection: UnitVisibilityDetectionStateLikeCpp,
     pub(super) subsystems: UnitSubsystems,
+    /// Power-regeneration tick bookkeeping (C++ Player/Unit runtime fields).
+    pub(super) power_regen: UnitPowerRegenStateLikeCpp,
 }
 
 pub(super) fn power_slot(power: PowerType) -> Option<usize> {

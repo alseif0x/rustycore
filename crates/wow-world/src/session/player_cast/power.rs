@@ -215,6 +215,19 @@ impl WorldSession {
                         .unit_mut()
                         .set_power(power_type, current.saturating_sub(cost.amount));
                 }
+                // C++ `Spell::TakePower`: after paying a mana cost, mark the
+                // MP5 regeneration interrupt start (`Spell.cpp:5444-5445`),
+                // consumed by `Player::Regenerate`'s five-second rule.
+                if power_costs
+                    .iter()
+                    .any(|cost| cost.power_type == PowerType::Mana as i8 && cost.amount != 0)
+                {
+                    player
+                        .unit_mut()
+                        .set_mp5_regeneration_interrupt_start_like_cpp(
+                            crate::session_rules::game_time_ms_like_cpp(),
+                        );
+                }
                 let after_power = power_costs
                     .iter()
                     .filter_map(|cost| {

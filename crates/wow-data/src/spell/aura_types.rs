@@ -92,6 +92,9 @@ pub const SPELL_AURA_MOD_DETAUNT: i32 = 221;
 pub const SPELL_AURA_PERIODIC_DUMMY: i32 = 226;
 pub const SPELL_AURA_PROC_TRIGGER_SPELL_WITH_VALUE: i32 = 231;
 pub const SPELL_AURA_MOD_EXPERTISE: i32 = 240;
+/// C++ `AuraType::SPELL_AURA_PREVENT_REGENERATE_POWER` (`SpellAuraDefines.h:389`).
+/// Its effect amount is the `Powers` value whose regeneration it blocks.
+pub const SPELL_AURA_PREVENT_REGENERATE_POWER: i32 = 294;
 pub const SPELL_AURA_ABILITY_IGNORE_AURASTATE: i32 = 262;
 pub const SPELL_AURA_MOD_SCHOOL_MASK_DAMAGE_FROM_CASTER: i32 = 270;
 pub const SPELL_AURA_MOD_SPELL_DAMAGE_FROM_CASTER: i32 = 271;
