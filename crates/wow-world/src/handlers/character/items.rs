@@ -3757,12 +3757,15 @@ impl WorldSession {
         // combat and VALUES publication cannot derive different expertise.
         // Keep the raw calculation only for test/early-login sessions that
         // have no canonical Player owner yet.
-        let expertise_value = self
+        let (mainhand_expertise, offhand_expertise) = self
             .canonical_player_effective_combat_stats_like_cpp()
-            .map(|stats| stats.combat_rating_expertise)
+            .map(|stats| (stats.mainhand_expertise, stats.offhand_expertise))
             .unwrap_or_else(|| {
-                (gear.combat_ratings[23] as f32 * self.combat_rating_multiplier_like_cpp(level, 23))
-                    .max(0.0)
+                let rating = (gear.combat_ratings[23] as f32
+                    * self.combat_rating_multiplier_like_cpp(level, 23))
+                .trunc()
+                .max(0.0);
+                (rating, rating)
             });
 
         // ── Shield block value (from STR, for shield classes) ──
@@ -3830,11 +3833,13 @@ impl WorldSession {
             mana_regen_combat,
             mana_regen_mp5,
             // Expertise
-            mainhand_expertise: expertise_value,
-            offhand_expertise: expertise_value,
-            // Extended parent 38 fields
+            mainhand_expertise,
+            offhand_expertise,
+            // Extended parent 38 fields. C++ never writes
+            // `RangedExpertise`/`CombatRatingExpertise`, so they keep their
+            // zero create value.
             ranged_expertise: 0.0,
-            combat_rating_expertise: expertise_value,
+            combat_rating_expertise: 0.0,
             dodge_from_attr: projection.dodge_from_attr,
             parry_from_attr: projection.parry_from_attr,
             offhand_crit_pct: projection.offhand_crit_pct,
@@ -3869,7 +3874,7 @@ impl WorldSession {
             projection.spell_crit_pct[0],
             projection.dodge_pct,
             projection.parry_pct,
-            expertise_value,
+            mainhand_expertise,
             mana_regen
         );
 
