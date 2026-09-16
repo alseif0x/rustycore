@@ -33,6 +33,19 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 aura-backed per-attack expertise — 2026-09-16, implementation `a3345bc9`:**
+`Player::UpdateExpertise` (`StatSystem.cpp:759-786`) now runs in the character
+stat projection: the truncated combat-rating bonus plus the
+`SPELL_AURA_MOD_EXPERTISE` sum filtered by
+`SpellInfo::IsItemFitToSpellRequirements` (`SpellInfo.cpp:1757-1768`) for the
+weapon of each attack, clamped at zero and written to
+`MainhandExpertise`/`OffhandExpertise` separately. Same-effect stack groups are
+folded like `Unit::GetTotalAuraModifier` (`Unit.cpp:4818-4850`), and the
+unwritten `RangedExpertise`/`CombatRatingExpertise` fields keep their zero
+create value. This completes the equipment/aura half of the F1 stat projection
+without a new Session field or clock and without changing the
+#584 → #583 → #153 architecture gate.
+
 **#61 food/drink regeneration emote visual — 2026-09-16, implementation `73c67a9a`:**
 the regeneration tick now completes C++ `Player::RegenerateAll`'s tail
 (`Player.cpp:1609-1678`): `m_foodEmoteTimerCount` accumulates `m_regenTimer` on

@@ -101,9 +101,11 @@ async fn equipment_stats_use_one_canonical_contribution_path_like_cpp() {
         "C++ Player::_ApplyItemBonuses contributes the item exactly once"
     );
 
-    // C++ `Player::UpdateExpertise` derives the active-player expertise
-    // fields from combat-rating expertise. The value must be published on the
-    // same Player snapshot as the rest of the equipment projection.
+    // C++ `Player::UpdateExpertise` derives `MainhandExpertise` from the
+    // combat-rating bonus; `RangedExpertise`/`CombatRatingExpertise` are never
+    // written by C++ and keep their zero create value. The values must be
+    // published on the same Player snapshot as the rest of the equipment
+    // projection.
     assert!(session.apply_represented_item_bonus_action_state_like_cpp(
         ApplyEnchantmentEffectAction::RatingModifier {
             rating: wow_entities::ApplyEnchantmentCombatRating::Expertise,
@@ -117,7 +119,8 @@ async fn equipment_stats_use_one_canonical_contribution_path_like_cpp() {
         .expect("equipped expertise projection");
     assert_eq!(equipped.mainhand_expertise, 46.0);
     assert_eq!(equipped.offhand_expertise, 46.0);
-    assert_eq!(equipped.combat_rating_expertise, 46.0);
+    assert_eq!(equipped.ranged_expertise, 0.0);
+    assert_eq!(equipped.combat_rating_expertise, 0.0);
 
     session.apply_inventory_item_remove_side_effects_like_cpp(
         INVENTORY_SLOT_BAG_0,
@@ -349,4 +352,163 @@ fn send_item_enchant_time_update_plan_sends_cpp_packet() {
     session.send_item_enchant_time_update_plan(owner_guid, &update);
 
     assert_eq!(send_rx.try_recv().unwrap(), expected);
+}
+
+#[tokio::test]
+async fn expertise_aura_modifiers_filter_by_weapon_fit_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 61_100);
+    let weapon_guid = ObjectGuid::create_item(1, 61_100);
+    let weapon_id = 61_100u32;
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+    session.set_player_stats(Arc::new(wow_data::PlayerStatsStore::from_entries([(
+        (1, 5, 80),
+        wow_data::PlayerLevelStats {
+            strength: 10,
+            agility: 10,
+            stamina: 10,
+            intellect: 40,
+            spirit: 30,
+            base_mana: 1_000,
+        },
+    )])));
+    session.set_chr_classes_store(Arc::new(
+        wow_data::character_progression::ChrClassesStore::from_entries([{
+            let mut entry = wow_data::character_progression::ChrClassesEntry::default();
+            entry.id = 5;
+            entry
+        }]),
+    ));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+    session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
+        id: weapon_id,
+        class_id: ItemClass::Weapon as u8,
+        subclass_id: ItemSubClassWeapon::Axe as u8,
+        material: 0,
+        inventory_type: InventoryType::WeaponMainhand as i8,
+        sheathe_type: 0,
+        random_select: 0,
+        random_suffix_group_id: 0,
+        scaling_stat_distribution_id: 0,
+        scaling_stat_value: 0,
+    }])));
+    session.set_item_stats_store(Arc::new(ItemStatsStore::from_parts(
+        [(
+            weapon_id,
+            ItemStatEntry {
+                stats: std::array::from_fn(|_| (wow_constants::ItemModType::None as i8, 0)),
+                resistances: [0; 7],
+                armor: 0,
+            },
+        )],
+        [],
+    )));
+    let weapon = session.make_inventory_item_object(
+        weapon_guid,
+        weapon_id,
+        player_guid,
+        1,
+        0,
+        ItemContext::None,
+        wow_entities::EQUIPMENT_SLOT_MAINHAND,
+    );
+    session.insert_inventory_item_object(weapon);
+    session.insert_inventory_item_like_cpp(
+        wow_entities::EQUIPMENT_SLOT_MAINHAND,
+        InventoryItem {
+            guid: weapon_guid,
+            entry_id: weapon_id,
+            db_guid: weapon_guid.counter() as u64,
+            inventory_type: Some(InventoryType::WeaponMainhand as u8),
+        },
+    );
+
+    // Four `SPELL_AURA_MOD_EXPERTISE` producers: item-neutral, axe-fit,
+    // sword-only (must not match the equipped axe) and armor-only (must not
+    // match a weapon).
+    let mut spell_store = wow_data::SpellStore::new();
+    for (spell_id, amount) in [(90_300, 30), (90_301, 20), (90_302, 40), (90_303, 10)] {
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: amount,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_EXPERTISE),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_EXPERTISE,
+                    effect_base_points: amount,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    session.set_spell_store(Arc::new(spell_store));
+    session.set_spell_equipped_items_store(Arc::new(SpellEquippedItemsStore::from_entries([
+        SpellEquippedItemsEntry {
+            id: 1,
+            spell_id: 90_301,
+            equipped_item_class: ItemClass::Weapon as i8,
+            equipped_item_inv_types: 0,
+            equipped_item_subclass: 1_i32 << (ItemSubClassWeapon::Axe as u32),
+        },
+        SpellEquippedItemsEntry {
+            id: 2,
+            spell_id: 90_302,
+            equipped_item_class: ItemClass::Weapon as i8,
+            equipped_item_inv_types: 0,
+            equipped_item_subclass: 1_i32 << (ItemSubClassWeapon::Sword as u32),
+        },
+        SpellEquippedItemsEntry {
+            id: 3,
+            spell_id: 90_303,
+            equipped_item_class: ItemClass::Armor as i8,
+            equipped_item_inv_types: 0,
+            equipped_item_subclass: 0,
+        },
+    ])));
+    session.set_state(crate::session::SessionState::LoggedIn);
+    for spell_id in [90_300, 90_301, 90_302, 90_303] {
+        session
+            .apply_aura(spell_id, player_guid, 30_000, 1)
+            .expect("apply expertise aura");
+    }
+
+    let _ = session.send_stat_update();
+    let stats = session
+        .canonical_player_effective_combat_stats_like_cpp()
+        .expect("aura expertise projection");
+    assert_eq!(
+        stats.mainhand_expertise, 50.0,
+        "item-neutral (30) plus axe-fit (20) auras apply to the equipped mainhand axe"
+    );
+    assert_eq!(
+        stats.offhand_expertise, 30.0,
+        "without an offhand weapon only the item-neutral aura applies"
+    );
+    assert_eq!(stats.ranged_expertise, 0.0);
+    assert_eq!(stats.combat_rating_expertise, 0.0);
+
+    // Removing the aura removes its contribution on the next projection.
+    let slot = session
+        .visible_aura_slot_for_spell_like_cpp(90_301)
+        .expect("axe-fit aura slot");
+    session.remove_aura(slot).expect("remove axe-fit aura");
+    let _ = session.send_stat_update();
+    let stats = session
+        .canonical_player_effective_combat_stats_like_cpp()
+        .expect("post-removal expertise projection");
+    assert_eq!(stats.mainhand_expertise, 30.0);
+    assert_eq!(stats.offhand_expertise, 30.0);
 }

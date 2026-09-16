@@ -206,14 +206,26 @@ impl WorldSession {
             gear.weapon_damage,
             gear.base_attack_time,
         );
-        // C++ `Player::UpdateExpertise` stores the non-negative combat-rating
-        // contribution in both active-player weapon fields
-        // (`StatSystem.cpp:759-783`). Aura expertise is intentionally added by
-        // the aura producer when that runtime is ported; this projection owns
-        // the equipment/rating portion only.
-        let expertise = (gear.combat_ratings[23] as f32
+        // C++ `Player::UpdateExpertise` (`StatSystem.cpp:759-786`) truncates the
+        // combat-rating bonus to `int32`, adds the `SPELL_AURA_MOD_EXPERTISE`
+        // sum whose spell is fit for that attack's weapon, clamps at zero and
+        // writes `MainhandExpertise`/`OffhandExpertise` per attack.
+        // `ActivePlayerData::RangedExpertise`/`CombatRatingExpertise` are never
+        // written by C++ (`UpdateExpertise` returns early for `RANGED_ATTACK`)
+        // and stay at their zero create value.
+        let rating_expertise = (gear.combat_ratings[23] as f32
             * self.combat_rating_multiplier_like_cpp(level, 23))
-        .max(0.0);
+        .trunc();
+        let mainhand_expertise = (rating_expertise
+            + self.represented_expertise_aura_modifier_like_cpp(
+                wow_constants::WeaponAttackType::BaseAttack,
+            ) as f32)
+            .max(0.0);
+        let offhand_expertise = (rating_expertise
+            + self.represented_expertise_aura_modifier_like_cpp(
+                wow_constants::WeaponAttackType::OffAttack,
+            ) as f32)
+            .max(0.0);
         let mana_regen_mp5 = gear.mana_regen_bonus as f32 / 5.0
             + self.mana_regen_mp5_from_auras_like_cpp(projection.stats);
         let mana_regen_from_spirit = self.mana_regen_from_stats_like_cpp(
@@ -250,9 +262,10 @@ impl WorldSession {
             mana_regen_combat,
             health_regen: gear.health_regen_bonus,
             spell_penetration: gear.spell_penetration_bonus,
-            mainhand_expertise: expertise,
-            offhand_expertise: expertise,
-            combat_rating_expertise: expertise,
+            mainhand_expertise,
+            offhand_expertise,
+            ranged_expertise: 0.0,
+            combat_rating_expertise: 0.0,
             shield_block: i32::try_from(gear.shield_block_value)
                 .unwrap_or(i32::MAX)
                 .saturating_add(gear.shield_block_base_mod),
