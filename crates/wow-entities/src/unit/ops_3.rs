@@ -127,14 +127,39 @@ impl Unit {
         self.power_regen.power_fraction[index] = 0.0;
     }
 
-    /// C++ `Player::RegenerateAll` accumulator update for one tick:
-    /// `m_regenTimer += p_time; m_regenTimerCount += m_regenTimer`.
+    /// C++ `Player::Update` + `Player::RegenerateAll` accumulator update for one
+    /// tick (`Player.cpp:1047-1051`, `1611-1612`):
+    /// `m_regenTimer += p_time; m_regenTimerCount += m_regenTimer;
+    /// m_foodEmoteTimerCount += m_regenTimer`.
+    ///
+    /// The food/drink emote accumulator is deliberately independent from the
+    /// two-second health window, matching the C++ comment that the visual runs
+    /// on its own five-second timer that is not reset when the aura applies.
     pub fn accumulate_power_regen_timer_like_cpp(&mut self, diff_ms: u32) {
         self.power_regen.timer_ms = self.power_regen.timer_ms.saturating_add(diff_ms);
         self.power_regen.timer_count_ms = self
             .power_regen
             .timer_count_ms
             .saturating_add(self.power_regen.timer_ms);
+        self.power_regen.food_emote_timer_ms = self
+            .power_regen
+            .food_emote_timer_ms
+            .saturating_add(self.power_regen.timer_ms);
+    }
+
+    /// C++ `Player::RegenerateAll` food/drink emote gate:
+    /// `if (m_foodEmoteTimerCount >= 5000)` (`Player.cpp:1650`).
+    #[must_use]
+    pub fn food_emote_timer_ready_like_cpp(&self) -> bool {
+        self.power_regen.food_emote_timer_ms >= 5_000
+    }
+
+    /// C++ `Player::RegenerateAll` food/drink emote tail:
+    /// `m_foodEmoteTimerCount -= 5000` (`Player.cpp:1677`).
+    pub fn finish_food_emote_tick_like_cpp(&mut self) {
+        if self.power_regen.food_emote_timer_ms >= 5_000 {
+            self.power_regen.food_emote_timer_ms -= 5_000;
+        }
     }
 
     /// C++ `Player::RegenerateAll` health gate reads the accumulated
@@ -469,6 +494,28 @@ mod tests {
         unit.finish_power_regen_tick_like_cpp();
         assert_eq!(unit.power_regen.timer_count_ms, 0);
         assert_eq!(unit.power_regen.timer_ms, 0);
+    }
+
+    #[test]
+    fn food_emote_timer_consumes_five_second_windows_like_cpp() {
+        let mut unit = mana_unit(100, 1_000);
+        assert!(!unit.food_emote_timer_ready_like_cpp());
+
+        for _ in 0..4 {
+            unit.accumulate_power_regen_timer_like_cpp(1_000);
+            unit.finish_power_regen_tick_like_cpp();
+        }
+        assert_eq!(unit.power_regen.food_emote_timer_ms, 4_000);
+        assert!(!unit.food_emote_timer_ready_like_cpp());
+
+        // The fifth second crosses the independent emote window; C++ subtracts
+        // one five-second window and leaves the remainder in place.
+        unit.accumulate_power_regen_timer_like_cpp(1_000);
+        unit.finish_power_regen_tick_like_cpp();
+        assert!(unit.food_emote_timer_ready_like_cpp());
+        unit.finish_food_emote_tick_like_cpp();
+        assert_eq!(unit.power_regen.food_emote_timer_ms, 0);
+        assert!(!unit.food_emote_timer_ready_like_cpp());
     }
 
     #[test]
