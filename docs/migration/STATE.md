@@ -8,6 +8,39 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#61 fall-death item durability loss (`Player::EnvironmentalDamage` →
+`DurabilityPointsLoss`) — 2026-09-16, implementation `c8059a85`:** the
+represented durability chain now runs on a lethal fall.
+`apply_represented_durability_loss_all_like_cpp` walks the equipment slots (and,
+when `inventory`, the backpack and bag contents) exactly like
+`Player::DurabilityLossAll` (`Player.cpp:4522-4544`), applies the
+`SPELL_AURA_MOD_DURABILITY_LOSS` multiplier and the `max(1, ...)` floor per
+item, and honours `SPELL_AURA_PREVENT_DURABILITY_LOSS`. It reproduces
+`Player::DurabilityPointsLoss` (`Player.cpp:4590-4620`): reaching 0 durability
+removes the equipped item's mods *before* the durability write so the
+represented `_ApplyItemMods` gate still sees the item as unbroken, and a repair
+restores them. The fall-to-death branch of `Player::EnvironmentalDamage`
+(`Player.cpp:655-670`) now publishes `SMSG_DURABILITY_DAMAGE_DEATH` through the
+new `DurabilityDamageDeath` packet (`MiscPackets.cpp:481-486`).
+`DurabilityLoss.OnDeath`/`RATE_DURABILITY_LOSS_ON_DEATH` (`World.cpp:710-721`)
+is a registry row loaded by the composition root and installed through
+`SessionRuntimePolicyCapabilitiesLikeCpp`; C++'s out-of-range 0.0 behaviour is
+reproduced rather than repaired. Focused coverage: the wow-packet layout test,
+the wow-config registry count/key test (353 rows, 50 Float), the world-server
+`durability_loss_on_death_rate_uses_cpp_world_config_key_like_cpp` config test,
+the `durability_points_loss_breaks_and_removes_equipped_item_mods_like_cpp`
+break/mod-removal test and the `fall_death_applies_item_durability_loss_message_like_cpp`
+producer test; format, `git diff --check`, the physical ratchet plus its 20-test
+suite and `validation-v2 quick` (manifest
+`20260916T211452.247049Z-2046069-quick.json`, 553.7 s) pass. The physical policy
+records the reviewed one-line `app.rs` composition delta. The runtime hotspot and
+Session syntax-ownership ratchets keep their pre-existing drift and were not
+regenerated. #61 remains open for the general `Unit::Kill` PvE/PvP producer,
+`SPELL_EFFECT_DURABILITY_DAMAGE`/`DURABILITY_DAMAGE_PCT`, the remaining
+`RatesForPower` entries, alternate powers, rune regeneration,
+`IsPolymorphed`/`m_transformSpell`, observer `SendMessageToSet` parity and live
+DB/restart/relogin QA.
+
 **#61 C++ regeneration rates — 2026-09-16, implementation `bf3794f0`,
 integrated as `fbed40ea` by PR #968:** the
 regeneration tick no longer hardcodes `rate: 1.0`/`rate_health: 1.0`; it

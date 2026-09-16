@@ -33,6 +33,18 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 fall-death item durability loss — 2026-09-16, implementation `c8059a85`:**
+the represented `Player::DurabilityLossAll`/`DurabilityLoss`/`DurabilityPointsLoss`
+chain (`Player.cpp:4522-4620`) now runs on the fall-to-death branch of
+`Player::EnvironmentalDamage` (`Player.cpp:655-670`): equipment loses
+`DurabilityLoss.OnDeath` percent with the `MOD_DURABILITY_LOSS` multiplier and
+the `PREVENT_DURABILITY_LOSS` gate, a 0-durability item loses its mods before
+the durability write, and `SMSG_DURABILITY_DAMAGE_DEATH` is published. The rate
+is a config-registry row installed through the runtime policy bundle. The
+general `Unit::Kill` PvE/PvP producer and durability-damage spells remain
+explicit #61 gates. This advances the F1 item/stat vertical without changing the
+#584 → #583 → #153 architecture gate.
+
 **#61 C++ regeneration rates — 2026-09-16, implementation `bf3794f0`:** the
 regeneration tick now consumes the C++ `World::setRegenRate` values
 (`World.cpp:615-623`) through `PlayerRegenerationRatesLikeCpp` instead of
