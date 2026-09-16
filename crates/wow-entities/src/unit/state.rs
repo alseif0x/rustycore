@@ -478,8 +478,8 @@ impl PartialEq for HealthStateRevisionLikeCpp {
     }
 }
 
-/// C++ `Player::m_regenTimer`, `m_regenTimerCount`, `m_powerFraction` and the
-/// two interrupt timestamps.
+/// C++ `Player::m_regenTimer`, `m_regenTimerCount`, `m_foodEmoteTimerCount`,
+/// `m_powerFraction` and the two interrupt timestamps.
 ///
 /// C++ keeps the timers on `Player` and the MP5 mark on `Unit`. RustyCore
 /// stores the aggregated runtime bookkeeping on the canonical `Unit` so the
@@ -493,6 +493,9 @@ pub struct UnitPowerRegenStateLikeCpp {
     pub timer_ms: u32,
     /// C++ `Player::m_regenTimerCount`, the two-second publication accumulator.
     pub timer_count_ms: u32,
+    /// C++ `Player::m_foodEmoteTimerCount`, the independent five-second
+    /// food/drink visual-kit accumulator.
+    pub food_emote_timer_ms: u32,
     /// C++ `Player::m_powerFraction`, one fractional carry per power slot.
     pub power_fraction: [f32; MAX_POWERS_PER_CLASS],
     /// C++ `Unit::_regenMP5InterruptStartTime`, read by
@@ -508,6 +511,7 @@ impl Default for UnitPowerRegenStateLikeCpp {
         Self {
             timer_ms: 0,
             timer_count_ms: 0,
+            food_emote_timer_ms: 0,
             power_fraction: [0.0; MAX_POWERS_PER_CLASS],
             regen_mp5_interrupt_start_ms: 0,
             regen_interrupt_timestamp_ms: 0,

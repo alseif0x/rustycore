@@ -33,6 +33,18 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 food/drink regeneration emote visual — 2026-09-16, implementation `73c67a9a`:**
+the regeneration tick now completes C++ `Player::RegenerateAll`'s tail
+(`Player.cpp:1609-1678`): `m_foodEmoteTimerCount` accumulates `m_regenTimer` on
+its own five-second timer and, on crossing 5000ms, publishes
+`SPELL_VISUAL_KIT_FOOD` (406) for a Standing `SPELL_AURA_MOD_REGEN` or
+`SPELL_VISUAL_KIT_DRINK` (438) for a Standing `SPELL_AURA_MOD_POWER_REGEN`
+through `Unit::SendPlaySpellVisualKit` (`Unit.cpp:11566-11574`). The accumulator
+is a canonical `Unit` field and the session tick keeps the single writer, so the
+regeneration vertical now covers the timer/health/power/emote phases without a
+new Session field or clock. This continues the F1 regeneration vertical without
+changing the #584 → #583 → #153 architecture gate.
+
 **#61 observer `SMSG_POWER_UPDATE` fan-out — 2026-09-16, implementation `06ef4fd2`:**
 the owner power publication now mirrors `Unit::SetPower`'s
 `SendMessageToSet(packet, true)` (`Unit.cpp:9287-9312`): the owner gets its own

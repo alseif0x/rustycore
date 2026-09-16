@@ -7,12 +7,13 @@
 //!
 //! C++ calls `Player::Update` from the map's `ObjectUpdater` phase
 //! (`Map.cpp:711`), which runs `m_regenTimer += p_time; RegenerateAll()`
-//! (`Player.cpp:1047-1051`). `Player::RegenerateAll` (`Player.cpp:1609-1670`)
-//! accumulates the two-second window, regenerates every represented power and
-//! then runs `Player::RegenerateHealth` (`Player.cpp:1842-1882`) while the
-//! window is pending. RustyCore keeps a session-owned player tick (the same
-//! boundary already used for `DoMeleeAttackIfReady`), driven with the canonical
-//! world/map tick diff, and owns the single writer for both transitions.
+//! (`Player.cpp:1047-1051`). `Player::RegenerateAll` (`Player.cpp:1609-1678`)
+//! accumulates the two-second window, regenerates every represented power, runs
+//! `Player::RegenerateHealth` (`Player.cpp:1842-1882`) while the window is
+//! pending, and finally emits the independent five-second food/drink visual.
+//! RustyCore keeps a session-owned player tick (the same boundary already used
+//! for `DoMeleeAttackIfReady`), driven with the canonical world/map tick diff,
+//! and owns the single writer for all three transitions.
 //!
 //! The already-published `PlayerEffectiveCombatStatsLikeCpp` is the sole
 //! source for `PowerRegenFlatModifier`/`PowerRegenInterruptedFlatModifier` and
@@ -22,6 +23,12 @@ use super::*;
 
 /// C++ `PowerTypeFlags::UseRegenInterrupt` (`DBCEnums.h:1799`).
 const POWER_TYPE_FLAG_USE_REGEN_INTERRUPT_LIKE_CPP: i16 = 0x0002;
+
+/// C++ `SPELL_VISUAL_KIT_FOOD` (`SharedDefines.h:397`).
+const SPELL_VISUAL_KIT_FOOD_LIKE_CPP: i32 = 406;
+
+/// C++ `SPELL_VISUAL_KIT_DRINK` (`SharedDefines.h:398`).
+const SPELL_VISUAL_KIT_DRINK_LIKE_CPP: i32 = 438;
 
 /// The aura modifiers C++ `Player::RegenerateHealth` reads for one tick.
 struct HealthRegenAuraInputsLikeCpp {
@@ -107,7 +114,94 @@ fn resolve_health_regeneration_input_like_cpp(
     })
 }
 
+/// C++ `Player::RegenerateAll` food/drink selector (`Player.cpp:1650-1657`).
+///
+/// C++ iterates `GetAuraEffectsByType(auraType)` and keeps any effect whose
+/// `SpellInfo` carries `SpellAuraInterruptFlags::Standing`. A visible
+/// application only contributes when it carries an active effect of `aura_type`,
+/// and the spell's difficulty-specific aura interrupt flags are resolved with
+/// the current map difficulty exactly like the StandState interrupt path.
+fn has_standing_interruptible_aura_of_type_like_cpp(
+    session: &WorldSession,
+    aura_type: i32,
+) -> bool {
+    let Some(visible_auras) = session.resolved_player_visible_auras_like_cpp() else {
+        return false;
+    };
+    let Some(spell_store) = session.spell_store() else {
+        return false;
+    };
+    let difficulty_id = session
+        .current_canonical_player_map_difficulty_id_like_cpp()
+        .unwrap_or(0);
+    let difficulty_store = session.difficulty_store().map(AsRef::as_ref);
+    visible_auras.values().any(|aura| {
+        let carries_effect = spell_store.get(aura.spell_id).is_some_and(|spell| {
+            spell.effects().iter().any(|effect| {
+                effect.effect_aura == aura_type
+                    && 1u32
+                        .checked_shl(effect.effect_index)
+                        .is_some_and(|bit| aura.effect_mask & bit != 0)
+            })
+        });
+        carries_effect
+            && spell_store
+                .aura_interrupt_flags_for_difficulty_like_cpp(
+                    aura.spell_id,
+                    difficulty_id,
+                    difficulty_store,
+                )
+                .is_some_and(|known| {
+                    known[0] & wow_entities::SPELL_AURA_INTERRUPT_FLAG_STANDING_LIKE_CPP != 0
+                })
+    })
+}
+
+/// C++ `Player::RegenerateAll` food/drink decision (`Player.cpp:1658-1676`):
+/// food wins over drink when both a Standing `SPELL_AURA_MOD_REGEN` and a
+/// Standing `SPELL_AURA_MOD_POWER_REGEN` are active, and no aura means no
+/// visual.
+fn represented_food_emote_kit_like_cpp(session: &WorldSession) -> Option<i32> {
+    if has_standing_interruptible_aura_of_type_like_cpp(
+        session,
+        wow_data::spell::aura_types::SPELL_AURA_MOD_REGEN,
+    ) {
+        return Some(SPELL_VISUAL_KIT_FOOD_LIKE_CPP);
+    }
+    if has_standing_interruptible_aura_of_type_like_cpp(
+        session,
+        wow_data::spell::aura_types::SPELL_AURA_MOD_POWER_REGEN,
+    ) {
+        return Some(SPELL_VISUAL_KIT_DRINK_LIKE_CPP);
+    }
+    None
+}
+
 impl WorldSession {
+    /// C++ `Unit::SendPlaySpellVisualKit` (`Unit.cpp:11566-11574`) as reached
+    /// from `Player::RegenerateAll`: the packet carries the Player GUID with
+    /// `KitType = 0` and `Duration = 0`, and `SendMessageToSet(packet, true)`
+    /// delivers it to the Player itself plus the nearby observers. This owner
+    /// session sends its own copy and fans the identical bytes out through the
+    /// realm visibility rail, the same split already used for
+    /// `SMSG_POWER_UPDATE`.
+    pub(in crate::session) fn send_player_food_emote_visual_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        kit_record_id: i32,
+    ) {
+        use wow_packet::ServerPacket;
+        let packet = wow_packet::packets::spell::PlaySpellVisualKit {
+            unit: guid,
+            kit_record_id,
+            kit_type: 0,
+            duration: 0,
+            mounted_visual: false,
+        };
+        self.send_packet(&packet);
+        self.broadcast_player_packet_to_visible_set_realm_like_cpp(packet.to_bytes());
+    }
+
     /// One `Player::RegenerateAll` step for the canonical Player, using
     /// `diff_ms` as the C++ `m_regenTimer`.
     ///
@@ -230,8 +324,9 @@ impl WorldSession {
             });
         }
 
-        let published = self.with_owned_player_mut_for_power_like_cpp(|player| {
-            // C++ `m_regenTimer += p_time; m_regenTimerCount += m_regenTimer`.
+        let outcome = self.with_owned_player_mut_for_power_like_cpp(|player| {
+            // C++ `m_regenTimer += p_time; m_regenTimerCount += m_regenTimer;
+            // m_foodEmoteTimerCount += m_regenTimer`.
             player
                 .unit_mut()
                 .accumulate_power_regen_timer_like_cpp(diff_ms);
@@ -272,10 +367,19 @@ impl WorldSession {
             }
 
             player.unit_mut().finish_power_regen_tick_like_cpp();
-            published
+
+            // C++ `if (m_foodEmoteTimerCount >= 5000)` block. The accumulator
+            // and its one-window subtraction live on the canonical Unit; the
+            // aura-driven kit selection and publication run after the mutation
+            // boundary, like the power updates.
+            let food_emote_ready = player.unit().food_emote_timer_ready_like_cpp();
+            if food_emote_ready {
+                player.unit_mut().finish_food_emote_tick_like_cpp();
+            }
+            (published, food_emote_ready)
         });
 
-        let Some(published) = published else {
+        let Some((published, food_emote_ready)) = outcome else {
             return;
         };
         let Some(guid) = self.player_guid() else {
@@ -285,6 +389,13 @@ impl WorldSession {
             // C++ `Unit::SetPower` sends one `SMSG_POWER_UPDATE` per changed
             // power on the publication boundary.
             self.send_player_power_update_like_cpp(guid, power, new_power);
+        }
+
+        // C++ `SendPlaySpellVisualKit` for the food/drink emote. The visual is
+        // emitted only on the five-second boundary and only when a Standing
+        // regen aura is still active.
+        if food_emote_ready && let Some(kit_record_id) = represented_food_emote_kit_like_cpp(self) {
+            self.send_player_food_emote_visual_like_cpp(guid, kit_record_id);
         }
     }
 
