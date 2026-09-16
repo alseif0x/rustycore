@@ -1,14 +1,15 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-16:** `3.4.3` is at
-`4206ab00334ac018a1cae92bfe665ba2616e0307` (PR #966, the #61 non-mana power-regeneration loop, following PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`fbed40ea99da21f83450002efdb72ac067e5b2e0` (PR #968, the #61 C++ regeneration rates, following PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
-**#61 C++ regeneration rates — 2026-09-16, implementation `bf3794f0`:** the
+**#61 C++ regeneration rates — 2026-09-16, implementation `bf3794f0`,
+integrated as `fbed40ea` by PR #968:** the
 regeneration tick no longer hardcodes `rate: 1.0`/`rate_health: 1.0`; it
 consumes the C++ `World::setRegenRate` values (`World.cpp:615-623`).
 `PlayerRegenerationRatesLikeCpp` (`session_policy.rs`) carries `RATE_HEALTH`,
