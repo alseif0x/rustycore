@@ -33,6 +33,12 @@ struct HealthRegenAuraInputsLikeCpp {
     mod_health_regen_in_combat: i32,
 }
 
+/// One represented power prepared for the C++ `RegenerateAll` power loop.
+struct RepresentedPowerRegenLikeCpp {
+    power: PowerType,
+    input: wow_entities::UnitPowerRegenInputLikeCpp,
+}
+
 /// Resolve the C++ `Player::RegenerateHealth` aura and game-table inputs from
 /// the canonical Player and the published effective-stat snapshot. A missing
 /// spell store or visible-aura map is treated as "no auras", matching the
@@ -129,19 +135,22 @@ impl WorldSession {
         // C++ `HasAuraTypeWithValue(SPELL_AURA_PREVENT_REGENERATE_POWER, power)`:
         // the aura effect amount is the `Powers` value it blocks. The check
         // gates only that power; the timer and health window still advance.
-        let mana = PowerType::Mana;
-        let mana_prevented = self
+        let prevented_powers = self
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_PREVENT_REGENERATE_POWER,
             )
-            .map(|effects| {
-                effects
-                    .into_iter()
-                    .any(|(_, amount)| amount == i32::from(mana as i8))
-            })
-            .unwrap_or(false);
+            .unwrap_or_default();
+        let power_regen_percent_effects = self
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_POWER_REGEN_PERCENT,
+            )
+            .unwrap_or_default();
+        let power_regen_flat_effects = self
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_POWER_REGEN,
+            )
+            .unwrap_or_default();
 
-        let power_entry = power_types.get_by_power_type_like_cpp(mana as i8);
         let stats = self.canonical_player_effective_combat_stats_like_cpp();
         let health_input = match (stats.as_ref(), regen_game_tables) {
             (Some(stats), Some(regen_game_tables)) => {
@@ -151,43 +160,100 @@ impl WorldSession {
         };
         let now_ms = crate::session_rules::game_time_ms_like_cpp();
 
-        let outcome = self.with_owned_player_mut_for_power_like_cpp(|player| {
+        // C++ `for (Powers power = POWER_MANA; power < MAX_POWERS; ...)`: every
+        // power with a represented index gets one `Regenerate` call. Only the
+        // primary power index is represented today, so an alternate power is
+        // skipped exactly like a `GetPowerIndex` miss.
+        let represented_powers = self
+            .with_owned_player_like_cpp(|player| {
+                (0..wow_entities::MAX_POWERS as i8)
+                    .filter_map(|raw| <PowerType as num_traits::FromPrimitive>::from_i8(raw))
+                    .filter(|power| player.unit().get_power_index(*power).is_some())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+
+        let mut prepared = Vec::new();
+        for power in represented_powers {
+            let power_value = i32::from(power as i8);
+            if prevented_powers
+                .iter()
+                .any(|(_, amount)| *amount == power_value)
+            {
+                continue;
+            }
+            let Some(power_entry) = power_types.get_by_power_type_like_cpp(power as i8) else {
+                continue;
+            };
+            // C++ `UpdateManaRegen` folds the aura/stat producers into the
+            // published mana fields; other powers read the UnitData flat field
+            // (zero until the rune producer is ported) and the miss-value auras.
+            let (power_regen_flat, power_regen_interrupted) = if power == PowerType::Mana {
+                match stats.as_ref() {
+                    Some(stats) => (stats.mana_regen, stats.mana_regen_combat),
+                    None => continue,
+                }
+            } else {
+                (0.0, 0.0)
+            };
+            let power_regen_percent_multiplier = power_regen_percent_effects
+                .iter()
+                .filter(|(misc_value, _)| *misc_value == power_value)
+                .fold(1.0, |acc, (_, amount)| acc * (1.0 + *amount as f32 / 100.0));
+            let power_regen_flat_aura = power_regen_flat_effects
+                .iter()
+                .filter(|(misc_value, _)| *misc_value == power_value)
+                .map(|(_, amount)| *amount)
+                .sum();
+            prepared.push(RepresentedPowerRegenLikeCpp {
+                power,
+                input: wow_entities::UnitPowerRegenInputLikeCpp {
+                    diff_ms,
+                    regen_peace: power_entry.regen_peace,
+                    regen_combat: power_entry.regen_combat,
+                    min_power: power_entry.min_power,
+                    center_power: power_entry.center_power,
+                    use_regen_interrupt: power_entry.flags
+                        & POWER_TYPE_FLAG_USE_REGEN_INTERRUPT_LIKE_CPP
+                        != 0,
+                    regen_interrupt_time_ms: power_entry.regen_interrupt_time_ms,
+                    power_regen_flat,
+                    power_regen_interrupted,
+                    interrupted_by_mp5_rule: false,
+                    // C++ `sWorld->getRate(RatesForPower[power])`; the config
+                    // override is tracked separately in `cpp-config-keys.tsv`
+                    // and defaults to 1.0 here.
+                    rate: 1.0,
+                    power_regen_percent_multiplier,
+                    power_regen_flat_aura,
+                    now_ms,
+                },
+            });
+        }
+
+        let published = self.with_owned_player_mut_for_power_like_cpp(|player| {
             // C++ `m_regenTimer += p_time; m_regenTimerCount += m_regenTimer`.
             player
                 .unit_mut()
                 .accumulate_power_regen_timer_like_cpp(diff_ms);
 
-            let power_outcome = if mana_prevented {
-                None
-            } else if let (Some(power_entry), Some(stats)) = (power_entry, stats.as_ref()) {
-                let interrupted = player
-                    .unit()
-                    .is_power_regen_interrupted_by_mp5_rule_like_cpp(now_ms);
-                Some(player.unit_mut().regenerate_power_like_cpp(
-                    mana,
-                    wow_entities::UnitPowerRegenInputLikeCpp {
-                        diff_ms,
-                        regen_peace: power_entry.regen_peace,
-                        regen_combat: power_entry.regen_combat,
-                        min_power: power_entry.min_power,
-                        center_power: power_entry.center_power,
-                        use_regen_interrupt: power_entry.flags
-                            & POWER_TYPE_FLAG_USE_REGEN_INTERRUPT_LIKE_CPP
-                            != 0,
-                        regen_interrupt_time_ms: power_entry.regen_interrupt_time_ms,
-                        power_regen_flat: stats.mana_regen,
-                        power_regen_interrupted: stats.mana_regen_combat,
-                        interrupted_by_mp5_rule: interrupted,
-                        // C++ `sWorld->getRate(RATE_POWER_MANA)`; the config
-                        // override is tracked separately in
-                        // `cpp-config-keys.tsv` and defaults to 1.0 here.
-                        rate: 1.0,
-                        now_ms,
-                    },
-                ))
-            } else {
-                None
-            };
+            let mut published = Vec::new();
+            for represented in &prepared {
+                let mut input = represented.input;
+                input.interrupted_by_mp5_rule = represented.power == PowerType::Mana
+                    && player
+                        .unit()
+                        .is_power_regen_interrupted_by_mp5_rule_like_cpp(now_ms);
+                if let wow_entities::UnitPowerRegenOutcomeLikeCpp::Applied {
+                    power: new_power,
+                    publish: true,
+                } = player
+                    .unit_mut()
+                    .regenerate_power_like_cpp(represented.power, input)
+                {
+                    published.push((represented.power, new_power));
+                }
+            }
 
             // C++ `if (m_regenTimerCount >= 2000)` health branch. The gate is
             // kept explicit so the `RegenerateHealth` call sites match
@@ -207,18 +273,19 @@ impl WorldSession {
             }
 
             player.unit_mut().finish_power_regen_tick_like_cpp();
-            power_outcome
+            published
         });
 
-        if let Some(wow_entities::UnitPowerRegenOutcomeLikeCpp::Applied {
-            power: new_power,
-            publish: true,
-        }) = outcome.flatten()
-        {
-            let Some(guid) = self.player_guid() else {
-                return;
-            };
-            self.send_player_power_update_like_cpp(guid, mana, new_power);
+        let Some(published) = published else {
+            return;
+        };
+        let Some(guid) = self.player_guid() else {
+            return;
+        };
+        for (power, new_power) in published {
+            // C++ `Unit::SetPower` sends one `SMSG_POWER_UPDATE` per changed
+            // power on the publication boundary.
+            self.send_player_power_update_like_cpp(guid, power, new_power);
         }
     }
 

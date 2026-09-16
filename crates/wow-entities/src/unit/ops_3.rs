@@ -82,6 +82,12 @@ pub struct UnitPowerRegenInputLikeCpp {
     pub interrupted_by_mp5_rule: bool,
     /// C++ `sWorld->getRate(RATE_POWER_MANA)` family multiplier.
     pub rate: f32,
+    /// C++ `GetTotalAuraMultiplierByMiscValue(SPELL_AURA_MOD_POWER_REGEN_PERCENT, power)`
+    /// for the non-mana powers.
+    pub power_regen_percent_multiplier: f32,
+    /// C++ `GetTotalAuraModifierByMiscValue(SPELL_AURA_MOD_POWER_REGEN, power)`
+    /// for the non-mana powers.
+    pub power_regen_flat_aura: i32,
     pub now_ms: u32,
 }
 
@@ -183,6 +189,20 @@ impl Unit {
             (input.regen_peace + input.power_regen_flat) * 0.001 * input.diff_ms as f32
         };
         add_value *= input.rate;
+
+        // C++ `if (power != POWER_MANA)` aura producers. Mana regen is
+        // calculated in `Player::UpdateManaRegen` and already folded into the
+        // published `PowerRegenFlatModifier`/`PowerRegenInterruptedFlatModifier`.
+        if power != PowerType::Mana {
+            add_value *= input.power_regen_percent_multiplier;
+            // C++ `(power != POWER_ENERGY) ? m_regenTimerCount : m_regenTimer`.
+            let flat_timer_ms = if power != PowerType::Energy {
+                self.power_regen.timer_count_ms
+            } else {
+                self.power_regen.timer_ms
+            };
+            add_value += input.power_regen_flat_aura as f32 * flat_timer_ms as f32 / (5.0 * 1000.0);
+        }
 
         let mut min_power = input.min_power;
         let mut max_power = self.get_max_power(power);
@@ -398,6 +418,8 @@ mod tests {
             power_regen_interrupted: 0.0,
             interrupted_by_mp5_rule: false,
             rate: 1.0,
+            power_regen_percent_multiplier: 1.0,
+            power_regen_flat_aura: 0,
             now_ms: 0,
         }
     }
@@ -659,5 +681,105 @@ mod tests {
         let mut unit = health_unit(1_000, 1_000);
         assert_eq!(unit.regenerate_health_like_cpp(health_input(999.0)), 0);
         assert_eq!(unit.data().health, 1_000);
+    }
+
+    fn power_unit(power: PowerType, current: i32, max: i32) -> Unit {
+        let mut unit = Unit::new(true);
+        unit.set_power_index(power, Some(0));
+        unit.set_max_power(power, max);
+        unit.set_power(power, current);
+        unit.clear_unit_data_changes();
+        unit
+    }
+
+    fn non_mana_input(regen_peace: f32, diff_ms: u32) -> UnitPowerRegenInputLikeCpp {
+        UnitPowerRegenInputLikeCpp {
+            diff_ms,
+            regen_peace,
+            regen_combat: 0.0,
+            min_power: 0,
+            center_power: 0,
+            use_regen_interrupt: false,
+            regen_interrupt_time_ms: 0,
+            power_regen_flat: 0.0,
+            power_regen_interrupted: 0.0,
+            interrupted_by_mp5_rule: false,
+            rate: 1.0,
+            power_regen_percent_multiplier: 1.0,
+            power_regen_flat_aura: 0,
+            now_ms: 0,
+        }
+    }
+
+    #[test]
+    fn non_mana_regeneration_applies_percent_and_flat_aura_like_cpp() {
+        let mut unit = power_unit(PowerType::Energy, 50, 100);
+        unit.accumulate_power_regen_timer_like_cpp(1_000);
+        let mut input = non_mana_input(10.0, 1_000);
+        input.power_regen_percent_multiplier = 1.5;
+        input.power_regen_flat_aura = 5;
+
+        // C++ `10 * 1.5 + 5 * m_regenTimer / 5000 = 15 + 1` for Energy.
+        assert_eq!(
+            unit.regenerate_power_like_cpp(PowerType::Energy, input),
+            UnitPowerRegenOutcomeLikeCpp::Applied {
+                power: 66,
+                publish: false
+            }
+        );
+        assert_eq!(unit.get_power(PowerType::Energy), 66);
+    }
+
+    #[test]
+    fn non_mana_regeneration_uses_the_energy_timer_for_the_flat_aura_like_cpp() {
+        let mut unit = power_unit(PowerType::Energy, 50, 100);
+        unit.accumulate_power_regen_timer_like_cpp(1_000);
+        unit.accumulate_power_regen_timer_like_cpp(1_000);
+
+        let mut input = non_mana_input(0.0, 2_000);
+        input.power_regen_flat_aura = 5;
+        // C++ Energy uses `m_regenTimer` (2000): `5 * 2000 / 5000 = 2`.
+        assert_eq!(
+            unit.regenerate_power_like_cpp(PowerType::Energy, input),
+            UnitPowerRegenOutcomeLikeCpp::Applied {
+                power: 52,
+                publish: true
+            }
+        );
+    }
+
+    #[test]
+    fn non_mana_regeneration_uses_the_accumulated_window_for_other_powers_like_cpp() {
+        let mut unit = power_unit(PowerType::Rage, 50, 100);
+        unit.accumulate_power_regen_timer_like_cpp(1_000);
+        unit.accumulate_power_regen_timer_like_cpp(1_000);
+
+        let mut input = non_mana_input(0.0, 2_000);
+        input.power_regen_flat_aura = 5;
+        // C++ non-Energy uses `m_regenTimerCount` (3000): `5 * 3000 / 5000 = 3`.
+        assert_eq!(
+            unit.regenerate_power_like_cpp(PowerType::Rage, input),
+            UnitPowerRegenOutcomeLikeCpp::Applied {
+                power: 53,
+                publish: true
+            }
+        );
+    }
+
+    #[test]
+    fn mana_regeneration_ignores_the_non_mana_aura_producers_like_cpp() {
+        let mut unit = mana_unit(100, 1_000);
+        unit.accumulate_power_regen_timer_like_cpp(1_000);
+        let mut input = mana_input(10.0, 1_000);
+        input.power_regen_percent_multiplier = 99.0;
+        input.power_regen_flat_aura = 99;
+
+        assert_eq!(
+            unit.regenerate_power_like_cpp(PowerType::Mana, input),
+            UnitPowerRegenOutcomeLikeCpp::Applied {
+                power: 110,
+                publish: false
+            }
+        );
     }
 }

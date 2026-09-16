@@ -1159,3 +1159,126 @@ fn health_regeneration_tick_suppresses_in_combat_without_modifiers_like_cpp() {
         "in combat without a during-combat aura there is no health regeneration"
     );
 }
+
+fn power_type_store_like_cpp(
+    power: PowerType,
+    regen_peace: f32,
+    regen_combat: f32,
+) -> wow_data::character_progression::PowerTypeStore {
+    wow_data::character_progression::PowerTypeStore::from_entries([
+        wow_data::character_progression::PowerTypeEntry {
+            id: 0,
+            name_global_string_tag: String::new(),
+            cost_global_string_tag: String::new(),
+            power_type_enum: power as i8,
+            min_power: 0,
+            max_base_power: 0,
+            center_power: 0,
+            default_power: 0,
+            display_modifier: 1,
+            regen_interrupt_time_ms: 0,
+            regen_peace,
+            regen_combat,
+            flags: 0,
+        },
+    ])
+}
+
+fn set_represented_primary_power_like_cpp(
+    session: &mut WorldSession,
+    power: PowerType,
+    current: i32,
+    max: i32,
+) {
+    assert!(
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                for raw in 0..wow_entities::MAX_POWERS as i8 {
+                    if let Some(candidate) = <PowerType as num_traits::FromPrimitive>::from_i8(raw)
+                    {
+                        player.unit_mut().set_power_index(candidate, None);
+                    }
+                }
+                player.unit_mut().set_power_index(power, Some(0));
+                player.unit_mut().set_max_power(power, max);
+                player.unit_mut().set_power(power, current);
+            })
+            .is_some()
+    );
+}
+
+#[test]
+fn non_mana_power_regeneration_tick_decays_rage_like_cpp() {
+    let (mut session, send_rx) = make_session_with_send_capacity(16);
+    let player_guid = ObjectGuid::create_player(1, 92);
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    attach_stat_update_player_with_mana_and_health(
+        &mut session,
+        player_guid,
+        100,
+        1_000,
+        100,
+        1_000,
+    );
+    assert!(
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().world_mut().object_mut().add_to_world();
+            })
+            .is_some()
+    );
+    set_represented_primary_power_like_cpp(&mut session, PowerType::Rage, 50, 100);
+    publish_health_regen_snapshot_like_cpp(&mut session, 0, 0);
+    // C++ `PowerTypeEntry.RegenPeace` for rage is a per-second decay.
+    let power_types = power_type_store_like_cpp(PowerType::Rage, -1.0, 0.0);
+
+    session.tick_player_regeneration_like_cpp(2_000, &power_types, None);
+
+    assert_eq!(
+        session.canonical_player_power_snapshot_like_cpp(PowerType::Rage),
+        Some((48, 100)),
+        "the non-mana power loop decays the represented rage power"
+    );
+    assert!(
+        drain_server_opcodes(&send_rx).contains(&wow_constants::ServerOpcodes::PowerUpdate),
+        "crossing the two-second boundary publishes SMSG_POWER_UPDATE for the decayed power"
+    );
+}
+
+#[test]
+fn non_mana_power_regeneration_tick_throttles_energy_like_cpp() {
+    let (mut session, send_rx) = make_session_with_send_capacity(16);
+    let player_guid = ObjectGuid::create_player(1, 93);
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 4, 80, 0);
+    attach_stat_update_player_with_mana_and_health(
+        &mut session,
+        player_guid,
+        100,
+        1_000,
+        100,
+        1_000,
+    );
+    assert!(
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().world_mut().object_mut().add_to_world();
+            })
+            .is_some()
+    );
+    set_represented_primary_power_like_cpp(&mut session, PowerType::Energy, 50, 100);
+    publish_health_regen_snapshot_like_cpp(&mut session, 0, 0);
+    let power_types = power_type_store_like_cpp(PowerType::Energy, 10.0, 0.0);
+
+    session.tick_player_regeneration_like_cpp(1_000, &power_types, None);
+
+    assert_eq!(
+        session.canonical_player_power_snapshot_like_cpp(PowerType::Energy),
+        Some((60, 100))
+    );
+    assert!(
+        !drain_server_opcodes(&send_rx).contains(&wow_constants::ServerOpcodes::PowerUpdate),
+        "energy regeneration is throttled before the 2000ms boundary"
+    );
+}
