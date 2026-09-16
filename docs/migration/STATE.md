@@ -8,6 +8,36 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#61 food/drink regeneration emote visual — 2026-09-16, implementation
+`73c67a9a`:** the regeneration tick now completes the tail of C++
+`Player::RegenerateAll` (`Player.cpp:1609-1678`). `m_foodEmoteTimerCount`
+accumulates `m_regenTimer` beside the two-second health window and stays
+independent from it — it is never reset when the aura applies, matching the C++
+comment and sniff behaviour. Crossing 5000ms publishes `SPELL_VISUAL_KIT_FOOD`
+(406, `SharedDefines.h:397`) when an active `SPELL_AURA_MOD_REGEN` spell carries
+`SpellAuraInterruptFlags::Standing`, otherwise `SPELL_VISUAL_KIT_DRINK` (438,
+`SharedDefines.h:398`) for a Standing `SPELL_AURA_MOD_POWER_REGEN`, then
+subtracts one five-second window; food wins over drink when both apply. The
+accumulator lives on the canonical `UnitPowerRegenStateLikeCpp`, the session tick
+keeps the single writer, and the kit selection reads the canonical visible
+applications plus the difficulty-resolved interrupt word used by the StandState
+interrupt path. The packet is `Unit::SendPlaySpellVisualKit`
+(`Unit.cpp:11566-11574`) with `KitType = 0`/`Duration = 0`, delivered as one realm
+copy for the owner plus the existing position-based visibility fan-out, the same
+`SendMessageToSet(packet, true)` split as `SMSG_POWER_UPDATE`. No new
+`WorldSession` field, lock or clock. Focused coverage: a new wow-entities
+five-second-window timer test and three end-to-end regeneration tests (food
+preferred over drink, drink-only, and suppression when no Standing flag is
+present); `wow-world --lib persistence::` (104), the pre-existing regeneration
+suite (7) and `wow-entities --lib unit::ops_3` (19) stay green; format,
+`git diff --check`, the physical ratchet and `validation-v2 quick` (manifest
+`20260916T221447.629046Z-2067328-quick.json`, 74.9 s) pass. `validation-v2 final`
+stops at the pre-existing runtime hotspot LOC ratchet, which keeps its drift and
+was not regenerated. #61 remains open for the player-killer (PvP)
+`CONFIG_DURABILITY_LOSS_IN_PVP` branch and `SetPvPDeath`, the remaining
+`RatesForPower` entries, alternate powers, rune regeneration,
+`IsPolymorphed`/`m_transformSpell`, and live DB/restart/relogin QA.
+
 **#61 observer `SMSG_POWER_UPDATE` fan-out — 2026-09-16, implementation
 `06ef4fd2`, integrated as `93532597` by PR #976:** the owner power publication now mirrors C++
 `Unit::SetPower`'s `SendMessageToSet(packet, true)` (`Unit.cpp:9287-9312`). The
