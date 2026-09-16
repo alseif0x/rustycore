@@ -803,3 +803,58 @@ fn reentry_denies_a_residence_stamped_server_triggered_cast_like_cpp() {
         "the stale prepared cast is dropped rather than retained"
     );
 }
+
+#[test]
+fn player_power_update_fans_out_to_visible_observers_like_cpp() {
+    let canonical = shared_canonical_map_manager();
+    let source_guid = ObjectGuid::create_player(1, 58_920);
+    let observer_guid = ObjectGuid::create_player(1, 58_921);
+    let source_position = Position::ZERO;
+    let (mut source, _, source_rx) = make_session();
+    install_canonical_player(
+        &mut source,
+        &canonical,
+        source_guid,
+        571,
+        0,
+        source_position,
+    );
+    source.set_player_map_position_like_cpp(571, source_position);
+    add_canonical_test_player_on_map(&canonical, observer_guid, source_position, 571, 0);
+    let registry = Arc::new(PlayerRegistry::new());
+    assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
+    source.set_player_registry(Arc::clone(&registry));
+
+    let (observer_send_tx, _observer_send_rx) = flume::unbounded();
+    let (observer_command_tx, observer_command_rx) = flume::unbounded();
+    let mut observer_info =
+        broadcast_info_with_command(observer_guid, observer_send_tx, observer_command_tx);
+    observer_info.placement.map_id = 571;
+    observer_info.placement.instance_id = 0;
+    observer_info.placement.position = source_position;
+    let mut observer_visibility = SharedClientVisibleGuidsLikeCpp::default();
+    observer_visibility.insert(source_guid);
+    observer_info.client_visible_guids_like_cpp = observer_visibility;
+    registry.register_or_replace(observer_guid, observer_info, Default::default());
+
+    source.send_player_power_update_like_cpp(source_guid, wow_constants::PowerType::Mana, 42);
+
+    // C++ `Unit::SetPower` sends the owner its own packet first.
+    let own = source_rx.try_recv().expect("owner power update");
+    assert_eq!(
+        u16::from_le_bytes([own[0], own[1]]),
+        ServerOpcodes::PowerUpdate as u16
+    );
+    // ...and `SendMessageToSet(packet, true)` also queues it for observers that
+    // already have the source Player at client.
+    let command = observer_command_rx
+        .try_recv()
+        .expect("observer realm-visible power update");
+    let SessionCommand::SendRealmIfVisibleLikeCpp(command) = command else {
+        panic!("expected SendRealmIfVisibleLikeCpp, got {command:?}");
+    };
+    assert_eq!(command.source_guid, source_guid);
+    assert_eq!(command.map_id, 571);
+    assert_eq!(command.instance_id, 0);
+    assert_eq!(command.packet_bytes, own);
+}
