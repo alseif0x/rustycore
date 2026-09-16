@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 observer `SMSG_POWER_UPDATE` fan-out — 2026-09-16, implementation `06ef4fd2`:**
+the owner power publication now mirrors `Unit::SetPower`'s
+`SendMessageToSet(packet, true)` (`Unit.cpp:9287-9312`): the owner gets its own
+packet and the same bytes are queued for nearby observers through the existing
+realm visibility rail, excluding the source. This closes the observer
+packet-type parity gate for the represented regeneration publication without a
+new Session field or clock.
+
 **#61 creature-kill durability loss — 2026-09-16, implementation `7d33d742`:**
 the creature-melee victim handler now runs the C++ `Unit::Kill` player-victim
 durability branch (`Unit.cpp:10639-10648`): the PvE gate

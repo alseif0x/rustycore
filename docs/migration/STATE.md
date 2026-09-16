@@ -8,6 +8,25 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#61 observer `SMSG_POWER_UPDATE` fan-out — 2026-09-16, implementation
+`06ef4fd2`:** the owner power publication now mirrors C++
+`Unit::SetPower`'s `SendMessageToSet(packet, true)` (`Unit.cpp:9287-9312`). The
+owner session still receives its own `SMSG_POWER_UPDATE`; the same serialized
+bytes are queued for the nearby observers through the existing position-based
+realm visibility rail via
+`broadcast_player_packet_to_visible_set_realm_like_cpp`, which excludes the
+source so each session gets exactly one packet. No new `WorldSession` field,
+lock, clock or public API. Focused coverage: a new player-publication test
+registers a visible observer and asserts the realm-visible command carries the
+identical bytes, while the cast-lifecycle (13), regeneration (7) and durability
+(14) suites stay green; format, `git diff --check`, the physical ratchet and
+`validation-v2 quick` (manifest
+`20260916T220112.859778Z-2062121-quick.json`, 72.7 s) pass. #61 remains open for
+the player-killer (PvP) `CONFIG_DURABILITY_LOSS_IN_PVP` branch and `SetPvPDeath`,
+the remaining `RatesForPower` entries, alternate powers, rune regeneration,
+`IsPolymorphed`/`m_transformSpell`, aura-backed expertise and live
+DB/restart/relogin QA.
+
 **#61 creature-kill durability loss (`Unit::Kill`) — 2026-09-16, implementation
 `7d33d742`, integrated as `1dd3ba5b` by PR #974:** the creature-melee victim handler now runs the C++ `Unit::Kill`
 player-victim durability branch (`Unit.cpp:10639-10648`). `over_damage >= 0` is
