@@ -120,6 +120,27 @@ impl WorldSession {
             true,
         );
     }
+    /// C++ `WorldObject::SendMessageToSet(packet, true)` for a Player source.
+    ///
+    /// The owner session sends its own copy separately; this queues the same
+    /// bytes for the nearby observers that already have the Player at client.
+    /// The recipient range uses the represented Player's current position, and
+    /// the source GUID is deliberately excluded, matching the C++ self-send
+    /// split already used for creature publication.
+    pub(crate) fn broadcast_player_packet_to_visible_set_realm_like_cpp(&self, bytes: Vec<u8>) {
+        let (Some(source_guid), Some(source_position)) =
+            (self.player_guid(), self.player_position_like_cpp())
+        else {
+            return;
+        };
+        self.broadcast_creature_packet_from_position_to_visible_set_and_connection_like_cpp(
+            source_guid,
+            source_position,
+            bytes,
+            true,
+            false,
+        );
+    }
     fn broadcast_creature_packet_to_visible_set_and_connection_like_cpp(
         &self,
         source_guid: ObjectGuid,
