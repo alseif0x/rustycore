@@ -583,7 +583,8 @@ populate the legacy `ModPowerRegen` packet field because the C++ path writes the
 `PowerRegen*` fields; full tick/publication, wear-to-broken production and live
 capture/DB/relogin parity remain #61 gates.
 
-The next #61 slice (implementation `5bc59ddb`) gives the published regen snapshot a real
+The next #61 slice (implementation `5bc59ddb`, integrated as `d74381ec` by PR #962)
+gives the published regen snapshot a real
 consumer. A session-owned tick with the canonical world/map diff runs the C++
 `Player::Update → RegenerateAll → Regenerate(POWER_MANA)` chain
 (`Player.cpp:1047-1051,1609-1681,1681-1827`): it accumulates
