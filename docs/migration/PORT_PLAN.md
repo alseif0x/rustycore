@@ -33,6 +33,18 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 C++ regeneration rates — 2026-09-16, implementation `bf3794f0`:** the
+regeneration tick now consumes the C++ `World::setRegenRate` values
+(`World.cpp:615-623`) through `PlayerRegenerationRatesLikeCpp` instead of
+hardcoding 1.0: `Rate.Health` scales `RegenerateHealth` and the
+`RatesForPower`-mapped `Rate.Mana`/`Rate.Rage.Loss`/`Rate.Focus`/`Rate.Energy`/
+`Rate.RunicPower.Loss` scale `Regenerate`. The six keys are registry rows
+resolved by the composition root and attached to
+`SessionHandlerCatalogsLikeCpp` (no new Session field). The `RatesForPower`
+entries for unrepresented powers remain an explicit boundary. This continues the
+F1 regeneration vertical without changing the #584 → #583 → #153 architecture
+gate.
+
 **#61 non-mana power-regeneration loop — 2026-09-16, implementation `2387c04b`:**
 the canonical session tick now walks the complete C++
 `for (power = POWER_MANA; power < MAX_POWERS; ...)` loop

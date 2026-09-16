@@ -329,6 +329,21 @@ pub(crate) fn repair_cost_rate_like_cpp(configs: &WorldConfigSet) -> f32 {
     world_config_f32(configs, "RATE_REPAIRCOST", 1.0).max(0.0)
 }
 
+/// C++ `World::setRegenRate` values (`World.cpp:615-623`) consumed by
+/// `Player::Regenerate` and `Player::RegenerateHealth`.
+pub(crate) fn player_regeneration_rates_like_cpp(
+    configs: &WorldConfigSet,
+) -> wow_world::PlayerRegenerationRatesLikeCpp {
+    wow_world::PlayerRegenerationRatesLikeCpp {
+        health: world_config_f32(configs, "RATE_HEALTH", 1.0),
+        mana: world_config_f32(configs, "RATE_POWER_MANA", 1.0),
+        rage_loss: world_config_f32(configs, "RATE_POWER_RAGE_LOSS", 1.0),
+        focus: world_config_f32(configs, "RATE_POWER_FOCUS", 1.0),
+        energy: world_config_f32(configs, "RATE_POWER_ENERGY", 1.0),
+        runic_power_loss: world_config_f32(configs, "RATE_POWER_RUNIC_POWER_LOSS", 1.0),
+    }
+}
+
 pub(crate) fn reset_schedule_like_cpp(configs: &WorldConfigSet) -> ResetSchedule {
     ResetSchedule {
         hour: world_config_u8(configs, "CONFIG_RESET_SCHEDULE_HOUR", 8),

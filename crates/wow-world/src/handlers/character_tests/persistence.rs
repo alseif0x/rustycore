@@ -911,7 +911,12 @@ fn mana_regeneration_tick_suppresses_then_publishes_power_like_cpp() {
 
     // First second: the two-second publication boundary has not been reached,
     // so the value changes without an SMSG_POWER_UPDATE.
-    session.tick_player_regeneration_like_cpp(1_000, &power_types, None);
+    session.tick_player_regeneration_like_cpp(
+        1_000,
+        &power_types,
+        None,
+        &crate::PlayerRegenerationRatesLikeCpp::default(),
+    );
     assert_eq!(
         session.canonical_player_power_snapshot_like_cpp(PowerType::Mana),
         Some((110, 1_000))
@@ -922,7 +927,12 @@ fn mana_regeneration_tick_suppresses_then_publishes_power_like_cpp() {
     );
 
     // Second second: the boundary is crossed and the packet is sent.
-    session.tick_player_regeneration_like_cpp(1_000, &power_types, None);
+    session.tick_player_regeneration_like_cpp(
+        1_000,
+        &power_types,
+        None,
+        &crate::PlayerRegenerationRatesLikeCpp::default(),
+    );
     assert_eq!(
         session.canonical_player_power_snapshot_like_cpp(PowerType::Mana),
         Some((120, 1_000))
@@ -957,7 +967,12 @@ fn mana_regeneration_tick_uses_interrupted_rate_under_the_mp5_rule_like_cpp() {
     publish_mana_regen_snapshot_like_cpp(&mut session, 10.0, 4.0);
     let power_types = mana_power_type_store_like_cpp(0.0, 0.0);
 
-    session.tick_player_regeneration_like_cpp(1_000, &power_types, None);
+    session.tick_player_regeneration_like_cpp(
+        1_000,
+        &power_types,
+        None,
+        &crate::PlayerRegenerationRatesLikeCpp::default(),
+    );
 
     assert_eq!(
         session.canonical_player_power_snapshot_like_cpp(PowerType::Mana),
@@ -1100,14 +1115,24 @@ fn health_regeneration_tick_heals_the_represented_player_like_cpp() {
 
     // C++ `RegenerateAll` only runs `RegenerateHealth` once the two-second
     // window is pending.
-    session.tick_player_regeneration_like_cpp(1_000, &power_types, Some(&tables));
+    session.tick_player_regeneration_like_cpp(
+        1_000,
+        &power_types,
+        Some(&tables),
+        &crate::PlayerRegenerationRatesLikeCpp::default(),
+    );
     assert_eq!(
         session.canonical_player_health_snapshot_like_cpp(),
         Some((100, 1_000)),
         "the health branch waits for the 2000ms window"
     );
 
-    session.tick_player_regeneration_like_cpp(1_000, &power_types, Some(&tables));
+    session.tick_player_regeneration_like_cpp(
+        1_000,
+        &power_types,
+        Some(&tables),
+        &crate::PlayerRegenerationRatesLikeCpp::default(),
+    );
     assert_eq!(
         session.canonical_player_health_snapshot_like_cpp(),
         Some((102, 1_000))
@@ -1151,7 +1176,12 @@ fn health_regeneration_tick_suppresses_in_combat_without_modifiers_like_cpp() {
     let tables = health_regen_game_tables_like_cpp(0.1, 0.2);
     let power_types = mana_power_type_store_like_cpp(0.0, 0.0);
 
-    session.tick_player_regeneration_like_cpp(2_000, &power_types, Some(&tables));
+    session.tick_player_regeneration_like_cpp(
+        2_000,
+        &power_types,
+        Some(&tables),
+        &crate::PlayerRegenerationRatesLikeCpp::default(),
+    );
 
     assert_eq!(
         session.canonical_player_health_snapshot_like_cpp(),
@@ -1233,7 +1263,12 @@ fn non_mana_power_regeneration_tick_decays_rage_like_cpp() {
     // C++ `PowerTypeEntry.RegenPeace` for rage is a per-second decay.
     let power_types = power_type_store_like_cpp(PowerType::Rage, -1.0, 0.0);
 
-    session.tick_player_regeneration_like_cpp(2_000, &power_types, None);
+    session.tick_player_regeneration_like_cpp(
+        2_000,
+        &power_types,
+        None,
+        &crate::PlayerRegenerationRatesLikeCpp::default(),
+    );
 
     assert_eq!(
         session.canonical_player_power_snapshot_like_cpp(PowerType::Rage),
@@ -1271,7 +1306,12 @@ fn non_mana_power_regeneration_tick_throttles_energy_like_cpp() {
     publish_health_regen_snapshot_like_cpp(&mut session, 0, 0);
     let power_types = power_type_store_like_cpp(PowerType::Energy, 10.0, 0.0);
 
-    session.tick_player_regeneration_like_cpp(1_000, &power_types, None);
+    session.tick_player_regeneration_like_cpp(
+        1_000,
+        &power_types,
+        None,
+        &crate::PlayerRegenerationRatesLikeCpp::default(),
+    );
 
     assert_eq!(
         session.canonical_player_power_snapshot_like_cpp(PowerType::Energy),
@@ -1280,5 +1320,78 @@ fn non_mana_power_regeneration_tick_throttles_energy_like_cpp() {
     assert!(
         !drain_server_opcodes(&send_rx).contains(&wow_constants::ServerOpcodes::PowerUpdate),
         "energy regeneration is throttled before the 2000ms boundary"
+    );
+}
+
+fn publish_regen_snapshot_like_cpp(
+    session: &mut WorldSession,
+    spirit: i32,
+    health_regen: i32,
+    mana_regen: f32,
+    mana_regen_combat: f32,
+) {
+    let mut stats = session
+        .canonical_player_effective_combat_stats_like_cpp()
+        .unwrap_or_default();
+    stats.stats[4] = spirit;
+    stats.health_regen = health_regen;
+    stats.mana_regen = mana_regen;
+    stats.mana_regen_combat = mana_regen_combat;
+    assert!(
+        session
+            .mutate_canonical_player_like_cpp(
+                |player| player.replace_effective_combat_stats_like_cpp(stats)
+            )
+            .is_some()
+    );
+}
+
+#[test]
+fn regeneration_rates_scale_mana_and_health_like_cpp() {
+    let (mut session, _send_rx) = make_session_with_send_capacity(16);
+    let player_guid = ObjectGuid::create_player(1, 94);
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+    attach_stat_update_player_with_mana_and_health(
+        &mut session,
+        player_guid,
+        100,
+        1_000,
+        100,
+        1_000,
+    );
+    assert!(
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().world_mut().object_mut().add_to_world();
+                // Keep the five-second rule inactive regardless of process uptime.
+                player
+                    .unit_mut()
+                    .set_mp5_regeneration_interrupt_start_like_cpp(
+                        crate::session_rules::game_time_ms_like_cpp().wrapping_sub(10_000),
+                    );
+            })
+            .is_some()
+    );
+    // `OCTRegenHPPerSpirit` = 20 * 0.1 = 2.0; `Rate.Health = 2` doubles it and
+    // `Rate.Mana = 2` doubles the published flat mana regeneration.
+    publish_regen_snapshot_like_cpp(&mut session, 20, 0, 10.0, 0.0);
+    let tables = health_regen_game_tables_like_cpp(0.1, 0.2);
+    let rates = crate::PlayerRegenerationRatesLikeCpp {
+        health: 2.0,
+        mana: 2.0,
+        ..crate::PlayerRegenerationRatesLikeCpp::default()
+    };
+    let power_types = mana_power_type_store_like_cpp(0.0, 0.0);
+
+    session.tick_player_regeneration_like_cpp(2_000, &power_types, Some(&tables), &rates);
+
+    assert_eq!(
+        session.canonical_player_power_snapshot_like_cpp(PowerType::Mana),
+        Some((140, 1_000))
+    );
+    assert_eq!(
+        session.canonical_player_health_snapshot_like_cpp(),
+        Some((104, 1_000))
     );
 }

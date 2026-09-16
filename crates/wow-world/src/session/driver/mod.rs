@@ -175,6 +175,7 @@ impl WorldSession {
                 diff_ms,
                 catalogs.creature_spawns.power_types.as_ref(),
                 regen_game_tables.as_deref(),
+                catalogs.player_regeneration_rates.as_ref(),
             );
             // Aura expiry tick every 4 ticks (~200ms) — always, regardless of owner.
             if self.creature_tick % 4 == 0 {
@@ -372,6 +373,7 @@ impl WorldSession {
             chat_policy: Arc::new(self.chat_policy_catalogs_for_test_like_cpp()),
             group_invite_policy: Arc::new(self.group_invite_policy_for_test_like_cpp()),
             support_feature_policy: Arc::new(self.support_feature_policy_for_test_like_cpp()),
+            player_regeneration_rates: empty_catalogs.player_regeneration_rates,
             bank_bag_slot_prices: self
                 .bank_bag_slot_prices_store
                 .clone()

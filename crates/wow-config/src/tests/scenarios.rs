@@ -422,7 +422,7 @@ fn test_load_config_with_fallbacks_uses_lowercase_before_legacy_name() {
 #[test]
 fn test_world_config_registry_covers_cpp_inventory() {
     let registry = world_config_registry();
-    assert_eq!(registry.len(), 346);
+    assert_eq!(registry.len(), 352);
     assert_eq!(
         registry
             .iter()
@@ -435,7 +435,7 @@ fn test_world_config_registry_covers_cpp_inventory() {
             .iter()
             .filter(|entry| entry.kind == WorldConfigKind::Float)
             .count(),
-        43
+        49
     );
     assert_eq!(
         registry
@@ -484,6 +484,24 @@ fn test_world_config_registry_covers_cpp_inventory() {
             .iter()
             .find(|entry| entry.enum_name == enum_name)
             .expect("rest rate must be represented");
+        assert_eq!(entry.key.as_deref(), Some(key));
+        assert_eq!(
+            entry.default_value.as_ref(),
+            Some(&WorldConfigValue::Float(1.0))
+        );
+    }
+    for (enum_name, key) in [
+        ("RATE_HEALTH", "Rate.Health"),
+        ("RATE_POWER_MANA", "Rate.Mana"),
+        ("RATE_POWER_RAGE_LOSS", "Rate.Rage.Loss"),
+        ("RATE_POWER_FOCUS", "Rate.Focus"),
+        ("RATE_POWER_ENERGY", "Rate.Energy"),
+        ("RATE_POWER_RUNIC_POWER_LOSS", "Rate.RunicPower.Loss"),
+    ] {
+        let entry = registry
+            .iter()
+            .find(|entry| entry.enum_name == enum_name)
+            .expect("regeneration rate must be represented");
         assert_eq!(entry.key.as_deref(), Some(key));
         assert_eq!(
             entry.default_value.as_ref(),

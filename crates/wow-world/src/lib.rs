@@ -55,7 +55,8 @@ pub use map_manager::{
 pub use session::{MMapRuntimeConfigLikeCpp, SharedCanonicalMapManager, WorldSession};
 pub use session_policy::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
-    LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, ReputationRatesLikeCpp,
+    LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, PlayerRegenerationRatesLikeCpp,
+    ReputationRatesLikeCpp,
 };
 
 pub use battle_pet_account::{BattlePetAccountAttachmentLikeCpp, BattlePetAccountRegistryLikeCpp};
