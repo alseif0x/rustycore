@@ -329,6 +329,19 @@ pub(crate) fn repair_cost_rate_like_cpp(configs: &WorldConfigSet) -> f32 {
     world_config_f32(configs, "RATE_REPAIRCOST", 1.0).max(0.0)
 }
 
+/// C++ `RATE_DURABILITY_LOSS_ON_DEATH` (`World.cpp:710-721`), loaded as the
+/// fraction consumed by `Player::DurabilityLossAll`.
+///
+/// C++ forces the value to 0.0 when the configured percentage is outside
+/// `0..=100`; that legacy behaviour is reproduced rather than repaired.
+pub(crate) fn durability_loss_on_death_rate_like_cpp(configs: &WorldConfigSet) -> f32 {
+    let percent = world_config_f32(configs, "RATE_DURABILITY_LOSS_ON_DEATH", 10.0);
+    if !(0.0..=100.0).contains(&percent) {
+        return 0.0;
+    }
+    percent / 100.0
+}
+
 /// C++ `World::setRegenRate` values (`World.cpp:615-623`) consumed by
 /// `Player::Regenerate` and `Player::RegenerateHealth`.
 pub(crate) fn player_regeneration_rates_like_cpp(

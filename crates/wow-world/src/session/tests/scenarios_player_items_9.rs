@@ -814,3 +814,123 @@ async fn open_item_wrapped_without_has_loot_does_not_generate_loot_like_cpp() {
             .is_some_and(|item| !item.loot_generated() && item.is_wrapped())
     );
 }
+
+#[test]
+fn durability_points_loss_breaks_and_removes_equipped_item_mods_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 43);
+    let weapon_guid = ObjectGuid::create_item(1, 903);
+    session.set_player_guid(Some(player_guid));
+    session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
+        id: 300,
+        class_id: ItemClass::Weapon as u8,
+        subclass_id: 0,
+        material: 0,
+        inventory_type: InventoryType::Weapon as i8,
+        sheathe_type: 0,
+        random_select: 0,
+        random_suffix_group_id: 0,
+        scaling_stat_distribution_id: 0,
+        scaling_stat_value: 0,
+    }])));
+    session.set_item_stats_store(Arc::new(
+        ItemStatsStore::from_stats_sparse_and_random_property_templates(
+            [(
+                300,
+                ItemStatEntry {
+                    stats: [
+                        (ItemModType::Strength as i8, 12),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                    ],
+                    resistances: [0; 7],
+                    armor: 0,
+                },
+            )],
+            [(
+                300,
+                ItemSparseTemplateEntry {
+                    flags: [0; 4],
+                    bag_family: 0,
+                    start_quest_id: 0,
+                    stackable: 1,
+                    max_count: 0,
+                    lock_id: 0,
+                    required_reputation_rank: 0,
+                    sell_price: 0,
+                    buy_price: 0,
+                    vendor_stack_count: 1,
+                    price_variance: 1.0,
+                    price_random_value: 0.0,
+                    max_durability: 50,
+                    other_faction_item_id: 0,
+                    content_tuning_id: 0,
+                    player_level_to_item_level_curve_id: 0,
+                    limit_category: 0,
+                    instance_bound: 0,
+                    zone_bound: [0; 2],
+                    required_reputation_faction: 0,
+                    allowable_class: 0,
+                    required_expansion: 0,
+                    bonding: ItemBondingType::None as u8,
+                    container_slots: 0,
+                    inventory_type: InventoryType::Weapon as i8,
+                },
+            )],
+            [(
+                300,
+                ItemRandomPropertyTemplateEntry {
+                    item_level: 57,
+                    quality: ItemQuality::Rare as i8,
+                    inventory_type: InventoryType::Weapon as i8,
+                },
+            )],
+        ),
+    ));
+    session.inventory_items.insert(
+        EQUIPMENT_SLOT_MAINHAND,
+        InventoryItem {
+            guid: weapon_guid,
+            entry_id: 300,
+            db_guid: weapon_guid.counter() as u64,
+            inventory_type: Some(InventoryType::Weapon as u8),
+        },
+    );
+    // 5 of 50 durability: the minimum one-point fall loss breaks the item.
+    let weapon = session.make_inventory_item_object(
+        weapon_guid,
+        300,
+        player_guid,
+        1,
+        5,
+        ItemContext::None,
+        EQUIPMENT_SLOT_MAINHAND,
+    );
+    session.insert_inventory_item_object(weapon);
+
+    let affected = session.apply_represented_durability_loss_all_like_cpp(0.1, false);
+
+    assert_eq!(affected, 1);
+    assert_eq!(
+        session.inventory_item_objects_like_cpp()[&weapon_guid]
+            .data()
+            .durability,
+        0
+    );
+    assert_eq!(
+        session.represented_item_mod_reapply_events_like_cpp(),
+        &[RepresentedItemModsReapplyEventLikeCpp {
+            item_guid: weapon_guid,
+            slot: EQUIPMENT_SLOT_MAINHAND,
+            apply: false,
+        }],
+        "C++ `DurabilityPointsLoss` removes equipped item mods before the durability write"
+    );
+}
