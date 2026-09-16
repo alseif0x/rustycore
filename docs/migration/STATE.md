@@ -1,14 +1,15 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-16:** `3.4.3` is at
-`381038dd38ea178044daf9e2a6c7e04e79333096` (PR #964, the #61 health-regeneration tick, following PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`4206ab00334ac018a1cae92bfe665ba2616e0307` (PR #966, the #61 non-mana power-regeneration loop, following PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
-**#61 non-mana power-regeneration loop — 2026-09-16, implementation `2387c04b`:**
+**#61 non-mana power-regeneration loop — 2026-09-16, implementation `2387c04b`,
+integrated as `4206ab00` by PR #966:**
 the session tick now walks the complete C++ `RegenerateAll` power loop
 (`Player.cpp:1614`): it iterates `POWER_MANA..MAX_POWERS`, skips powers without a
 represented index, and applies one `Player::Regenerate` per power, so a
