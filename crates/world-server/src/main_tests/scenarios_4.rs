@@ -705,6 +705,46 @@ MaxRecruitAFriendBonusDistance = 45
     assert_eq!(rates.recruit_a_friend_distance, 45.0);
 }
 #[test]
+fn player_regeneration_rates_use_cpp_world_config_keys() {
+    let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+    wow_config::load_config_from_str(
+        r#"
+Rate.Health = 2.5
+Rate.Mana = 3
+Rate.Rage.Loss = 0.5
+Rate.Focus = 1.25
+Rate.Energy = 4
+Rate.RunicPower.Loss = 0.75
+"#,
+    )
+    .expect("config should load");
+
+    let configs = wow_config::load_world_config_values();
+    let rates = player_regeneration_rates_like_cpp(&configs);
+    assert_eq!(rates.health, 2.5);
+    assert_eq!(rates.mana, 3.0);
+    assert_eq!(rates.rage_loss, 0.5);
+    assert_eq!(rates.focus, 1.25);
+    assert_eq!(rates.energy, 4.0);
+    assert_eq!(rates.runic_power_loss, 0.75);
+    assert_eq!(
+        rates.rate_for_power_like_cpp(wow_constants::PowerType::Mana),
+        Some(3.0)
+    );
+    assert_eq!(
+        rates.rate_for_power_like_cpp(wow_constants::PowerType::Rage),
+        Some(0.5)
+    );
+    assert_eq!(
+        rates.rate_for_power_like_cpp(wow_constants::PowerType::RunicPower),
+        Some(0.75)
+    );
+    assert_eq!(
+        rates.rate_for_power_like_cpp(wow_constants::PowerType::Happiness),
+        None
+    );
+}
+#[test]
 fn repair_cost_rate_uses_cpp_world_config_key_and_clamps_negative_like_cpp() {
     let _guard = TEST_LOCK.lock().expect("test lock poisoned");
     wow_config::load_config_from_str("Rate.RepairCost = 2.5\n").expect("config should load");

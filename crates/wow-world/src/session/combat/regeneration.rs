@@ -47,6 +47,7 @@ fn resolve_health_regeneration_input_like_cpp(
     session: &WorldSession,
     stats: &wow_entities::PlayerEffectiveCombatStatsLikeCpp,
     regen_game_tables: &wow_data::RegenGameTablesLikeCpp,
+    rates: &PlayerRegenerationRatesLikeCpp,
 ) -> Option<wow_entities::UnitHealthRegenInputLikeCpp> {
     let (is_in_combat, is_stand_state) = session.canonical_player_snapshot_like_cpp(|player| {
         (
@@ -82,9 +83,8 @@ fn resolve_health_regeneration_input_like_cpp(
 
     Some(wow_entities::UnitHealthRegenInputLikeCpp {
         level: session.player_level_like_cpp(),
-        // C++ `sWorld->getRate(RATE_HEALTH)`; the config override is tracked
-        // separately in `cpp-config-keys.tsv` and defaults to 1.0 here.
-        rate_health: 1.0,
+        // C++ `sWorld->getRate(RATE_HEALTH)`.
+        rate_health: rates.health,
         is_in_combat,
         is_stand_state,
         oct_regen_hp_per_spirit,
@@ -120,6 +120,7 @@ impl WorldSession {
         diff_ms: u32,
         power_types: &wow_data::character_progression::PowerTypeStore,
         regen_game_tables: Option<&wow_data::RegenGameTablesLikeCpp>,
+        rates: &PlayerRegenerationRatesLikeCpp,
     ) {
         // C++ `Player::Update` guards the regen block with `IsAlive()`; the map
         // loop additionally requires `IsInWorld()`.
@@ -154,7 +155,7 @@ impl WorldSession {
         let stats = self.canonical_player_effective_combat_stats_like_cpp();
         let health_input = match (stats.as_ref(), regen_game_tables) {
             (Some(stats), Some(regen_game_tables)) => {
-                resolve_health_regeneration_input_like_cpp(self, stats, regen_game_tables)
+                resolve_health_regeneration_input_like_cpp(self, stats, regen_game_tables, rates)
             }
             _ => None,
         };
@@ -220,10 +221,8 @@ impl WorldSession {
                     power_regen_flat,
                     power_regen_interrupted,
                     interrupted_by_mp5_rule: false,
-                    // C++ `sWorld->getRate(RatesForPower[power])`; the config
-                    // override is tracked separately in `cpp-config-keys.tsv`
-                    // and defaults to 1.0 here.
-                    rate: 1.0,
+                    // C++ `sWorld->getRate(RatesForPower[power])`.
+                    rate: rates.rate_for_power_like_cpp(power).unwrap_or(1.0),
                     power_regen_percent_multiplier,
                     power_regen_flat_aura,
                     now_ms,

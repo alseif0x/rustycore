@@ -66,6 +66,59 @@ impl Default for ReputationRatesLikeCpp {
     }
 }
 
+/// C++ `World::rate_values` subset consumed by `Player::Regenerate` and
+/// `Player::RegenerateHealth` (`World.cpp:615-623`, `Player.cpp:1681-1747`,
+/// `Player.cpp:1842-1882`).
+///
+/// C++ `RatesForPower` only maps a subset of `Powers`; the remaining entries
+/// use `MAX_RATES` (no multiplication), which [`Self::rate_for_power_like_cpp`]
+/// returns as `None`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerRegenerationRatesLikeCpp {
+    /// C++ `RATE_HEALTH` (`Rate.Health`).
+    pub health: f32,
+    /// C++ `RATE_POWER_MANA` (`Rate.Mana`).
+    pub mana: f32,
+    /// C++ `RATE_POWER_RAGE_LOSS` (`Rate.Rage.Loss`).
+    pub rage_loss: f32,
+    /// C++ `RATE_POWER_FOCUS` (`Rate.Focus`).
+    pub focus: f32,
+    /// C++ `RATE_POWER_ENERGY` (`Rate.Energy`).
+    pub energy: f32,
+    /// C++ `RATE_POWER_RUNIC_POWER_LOSS` (`Rate.RunicPower.Loss`).
+    pub runic_power_loss: f32,
+}
+
+impl Default for PlayerRegenerationRatesLikeCpp {
+    fn default() -> Self {
+        Self {
+            health: 1.0,
+            mana: 1.0,
+            rage_loss: 1.0,
+            focus: 1.0,
+            energy: 1.0,
+            runic_power_loss: 1.0,
+        }
+    }
+}
+
+impl PlayerRegenerationRatesLikeCpp {
+    /// C++ `RatesForPower[power]`: `Some(rate)` for the represented powers and
+    /// `None` for the `MAX_RATES` entries. Unrepresented powers (soul shards,
+    /// lunar power, combo points, ...) remain an explicit boundary.
+    #[must_use]
+    pub fn rate_for_power_like_cpp(&self, power: wow_constants::PowerType) -> Option<f32> {
+        match power {
+            wow_constants::PowerType::Mana => Some(self.mana),
+            wow_constants::PowerType::Rage => Some(self.rage_loss),
+            wow_constants::PowerType::Focus => Some(self.focus),
+            wow_constants::PowerType::Energy => Some(self.energy),
+            wow_constants::PowerType::RunicPower => Some(self.runic_power_loss),
+            _ => None,
+        }
+    }
+}
+
 /// C++ `ChatLevelReq.*` process policy value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChatLevelRequirementsLikeCpp {

@@ -107,7 +107,8 @@ use crate::session::mailbox::{
 };
 use crate::session_policy::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
-    LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, ReputationRatesLikeCpp,
+    LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, PlayerRegenerationRatesLikeCpp,
+    ReputationRatesLikeCpp,
 };
 use wow_ai::{
     CURRENT_EXPANSION_LIKE_CPP, CreatureAiCanAttackInputLikeCpp, CreatureAiKindLikeCpp,
@@ -672,6 +673,9 @@ pub struct SessionHandlerCatalogsLikeCpp {
     pub chat_policy: Arc<ChatPolicyCatalogsLikeCpp>,
     pub group_invite_policy: Arc<GroupInvitePolicyLikeCpp>,
     pub support_feature_policy: Arc<SupportFeaturePolicyLikeCpp>,
+    /// C++ `sWorld->getRate(...)` subset consumed by `Player::Regenerate` and
+    /// `Player::RegenerateHealth`.
+    pub player_regeneration_rates: Arc<PlayerRegenerationRatesLikeCpp>,
     pub bank_bag_slot_prices: Arc<BankBagSlotPricesStore>,
     pub adventure_map_pois: Arc<AdventureMapPoiStore>,
     /// C++ sQuestInfoStore: borrowed by questgiver queries, never installed by dispatch.
@@ -709,6 +713,7 @@ impl Default for SessionHandlerCatalogsLikeCpp {
             chat_policy: Arc::new(ChatPolicyCatalogsLikeCpp::default()),
             group_invite_policy: Arc::new(GroupInvitePolicyLikeCpp::default()),
             support_feature_policy: Arc::new(SupportFeaturePolicyLikeCpp::default()),
+            player_regeneration_rates: Arc::new(PlayerRegenerationRatesLikeCpp::default()),
             bank_bag_slot_prices: Arc::new(BankBagSlotPricesStore::from_entries([])),
             adventure_map_pois: Arc::new(AdventureMapPoiStore::from_entries([])),
             quest_info: Arc::new(QuestInfoStore::from_entries([])),

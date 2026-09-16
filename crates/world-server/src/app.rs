@@ -4843,6 +4843,9 @@ async fn run_inner(
                         &cfg_categories_store,
                     ),
                 }),
+                player_regeneration_rates: Arc::new(player_regeneration_rates_like_cpp(
+                    &world_configs,
+                )),
                 bank_bag_slot_prices: Arc::clone(&bank_bag_slot_prices_store),
                 adventure_map_pois: Arc::clone(&adventure_map_poi_store),
                 battlemaster_lists: Arc::clone(&battlemaster_list_typed_store),
