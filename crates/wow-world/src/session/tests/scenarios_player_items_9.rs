@@ -815,12 +815,13 @@ async fn open_item_wrapped_without_has_loot_does_not_generate_loot_like_cpp() {
     );
 }
 
-#[test]
-fn durability_points_loss_breaks_and_removes_equipped_item_mods_like_cpp() {
-    let (mut session, _, _) = make_session();
-    let player_guid = ObjectGuid::create_player(1, 43);
-    let weapon_guid = ObjectGuid::create_item(1, 903);
-    session.set_player_guid(Some(player_guid));
+/// Equip one 50-max-durability weapon in the mainhand for durability scenarios.
+fn equip_durability_test_weapon_like_cpp(
+    session: &mut WorldSession,
+    player_guid: ObjectGuid,
+    weapon_guid: ObjectGuid,
+    durability: u32,
+) {
     session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
         id: 300,
         class_id: ItemClass::Weapon as u8,
@@ -903,17 +904,59 @@ fn durability_points_loss_breaks_and_removes_equipped_item_mods_like_cpp() {
             inventory_type: Some(InventoryType::Weapon as u8),
         },
     );
-    // 5 of 50 durability: the minimum one-point fall loss breaks the item.
     let weapon = session.make_inventory_item_object(
         weapon_guid,
         300,
         player_guid,
         1,
-        5,
+        durability,
         ItemContext::None,
         EQUIPMENT_SLOT_MAINHAND,
     );
     session.insert_inventory_item_object(weapon);
+}
+
+fn durability_spell_store_like_cpp(
+    spell_id: i32,
+    effect: u32,
+    damage: i32,
+    slot: i32,
+) -> wow_data::SpellStore {
+    let mut store = wow_data::SpellStore::new();
+    store.insert(
+        spell_id,
+        wow_data::SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: effect,
+            effect_base_points: damage,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect,
+                effect_base_points: damage,
+                effect_misc_value_1: slot,
+                ..Default::default()
+            }],
+        },
+    );
+    store
+}
+
+#[test]
+fn durability_points_loss_breaks_and_removes_equipped_item_mods_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 43);
+    let weapon_guid = ObjectGuid::create_item(1, 903);
+    session.set_player_guid(Some(player_guid));
+    // 5 of 50 durability: the minimum one-point loss breaks the item.
+    equip_durability_test_weapon_like_cpp(&mut session, player_guid, weapon_guid, 5);
 
     let affected = session.apply_represented_durability_loss_all_like_cpp(0.1, false);
 
@@ -932,5 +975,63 @@ fn durability_points_loss_breaks_and_removes_equipped_item_mods_like_cpp() {
             apply: false,
         }],
         "C++ `DurabilityPointsLoss` removes equipped item mods before the durability write"
+    );
+}
+
+#[tokio::test]
+async fn durability_damage_spell_effect_reduces_equipped_items_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let spell_id = 90_200_i32;
+    let player_guid = ObjectGuid::create_player(1, 44);
+    let weapon_guid = ObjectGuid::create_item(1, 904);
+    session.set_player_guid(Some(player_guid));
+    equip_durability_test_weapon_like_cpp(&mut session, player_guid, weapon_guid, 50);
+    session.set_spell_store(Arc::new(durability_spell_store_like_cpp(
+        spell_id,
+        wow_data::spell::spell_effect_types::SPELL_EFFECT_DURABILITY_DAMAGE,
+        7,
+        -1,
+    )));
+
+    session
+        .execute_spell(spell_id, player_guid)
+        .await
+        .expect("represented durability-damage spell should execute");
+
+    assert_eq!(
+        session.inventory_item_objects_like_cpp()[&weapon_guid]
+            .data()
+            .durability,
+        43,
+        "C++ EffectDurabilityDamage slot < 0 calls DurabilityPointsLossAll"
+    );
+}
+
+#[tokio::test]
+async fn durability_damage_pct_spell_effect_reduces_the_targeted_slot_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let spell_id = 90_201_i32;
+    let player_guid = ObjectGuid::create_player(1, 45);
+    let weapon_guid = ObjectGuid::create_item(1, 905);
+    session.set_player_guid(Some(player_guid));
+    equip_durability_test_weapon_like_cpp(&mut session, player_guid, weapon_guid, 50);
+    session.set_spell_store(Arc::new(durability_spell_store_like_cpp(
+        spell_id,
+        wow_data::spell::spell_effect_types::SPELL_EFFECT_DURABILITY_DAMAGE_PCT,
+        20,
+        i32::from(EQUIPMENT_SLOT_MAINHAND),
+    )));
+
+    session
+        .execute_spell(spell_id, player_guid)
+        .await
+        .expect("represented durability-damage-pct spell should execute");
+
+    assert_eq!(
+        session.inventory_item_objects_like_cpp()[&weapon_guid]
+            .data()
+            .durability,
+        40,
+        "C++ EffectDurabilityDamagePCT slot >= 0 calls DurabilityLoss on that slot"
     );
 }
