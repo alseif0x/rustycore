@@ -129,6 +129,19 @@ impl WorldSession {
             );
             if killed_player {
                 self.send_player_health_values_update_like_cpp(player_guid, 0);
+                // C++ `Player::EnvironmentalDamage` fall-to-death branch
+                // (`Player.cpp:663-670`): item durability loss plus the loss
+                // message. Non-fall environmental damage never wears items.
+                let loss_rate = self.durability_loss_on_death_rate_like_cpp();
+                if loss_rate > 0.0 {
+                    self.apply_represented_durability_loss_all_like_cpp(
+                        f64::from(loss_rate),
+                        false,
+                    );
+                    self.send_packet(&wow_packet::packets::misc::DurabilityDamageDeath {
+                        percent: (loss_rate * 100.0) as i32,
+                    });
+                }
             }
         }
 

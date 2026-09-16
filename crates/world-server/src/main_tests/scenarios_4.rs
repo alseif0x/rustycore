@@ -757,6 +757,27 @@ fn repair_cost_rate_uses_cpp_world_config_key_and_clamps_negative_like_cpp() {
     assert_eq!(repair_cost_rate_like_cpp(&configs), 0.0);
 }
 #[test]
+fn durability_loss_on_death_rate_uses_cpp_world_config_key_like_cpp() {
+    let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+    wow_config::load_config_from_str("DurabilityLoss.OnDeath = 25\n").expect("config should load");
+
+    let configs = wow_config::load_world_config_values();
+    assert_eq!(
+        crate::durability_loss_on_death_rate_like_cpp(&configs),
+        0.25
+    );
+
+    // C++ `World.cpp:710-721` forces the value to 0.0 when the configured
+    // percentage is outside 0..=100.
+    wow_config::load_config_from_str("DurabilityLoss.OnDeath = 150\n").expect("config should load");
+    let configs = wow_config::load_world_config_values();
+    assert_eq!(crate::durability_loss_on_death_rate_like_cpp(&configs), 0.0);
+
+    wow_config::load_config_from_str("").expect("config should load");
+    let configs = wow_config::load_world_config_values();
+    assert_eq!(crate::durability_loss_on_death_rate_like_cpp(&configs), 0.1);
+}
+#[test]
 fn reset_schedule_uses_cpp_world_config_defaults_and_keys() {
     let _guard = TEST_LOCK.lock().expect("test lock poisoned");
     wow_config::load_config_from_str("").expect("config should load");

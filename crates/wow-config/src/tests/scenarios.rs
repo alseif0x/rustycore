@@ -422,7 +422,7 @@ fn test_load_config_with_fallbacks_uses_lowercase_before_legacy_name() {
 #[test]
 fn test_world_config_registry_covers_cpp_inventory() {
     let registry = world_config_registry();
-    assert_eq!(registry.len(), 352);
+    assert_eq!(registry.len(), 353);
     assert_eq!(
         registry
             .iter()
@@ -435,7 +435,7 @@ fn test_world_config_registry_covers_cpp_inventory() {
             .iter()
             .filter(|entry| entry.kind == WorldConfigKind::Float)
             .count(),
-        49
+        50
     );
     assert_eq!(
         registry
@@ -508,6 +508,18 @@ fn test_world_config_registry_covers_cpp_inventory() {
             Some(&WorldConfigValue::Float(1.0))
         );
     }
+    let durability_loss = registry
+        .iter()
+        .find(|entry| entry.enum_name == "RATE_DURABILITY_LOSS_ON_DEATH")
+        .expect("durability loss on death must be represented");
+    assert_eq!(
+        durability_loss.key.as_deref(),
+        Some("DurabilityLoss.OnDeath")
+    );
+    assert_eq!(
+        durability_loss.default_value.as_ref(),
+        Some(&WorldConfigValue::Float(10.0))
+    );
 }
 
 #[test]

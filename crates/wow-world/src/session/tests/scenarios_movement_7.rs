@@ -652,6 +652,64 @@ fn logout_save_snapshot_uses_fall_damage_synced_to_canonical_health_like_cpp() {
     assert_eq!(session.player_health_like_cpp(), damaged_health);
 }
 #[test]
+fn fall_death_applies_item_durability_loss_message_like_cpp() {
+    let (mut session, _, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 75);
+    let position = Position::new(77.0, 88.0, 99.0, 2.5);
+
+    canonical.lock().unwrap().create_world_map(571, 0);
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+        wow_data::MapEntry {
+            id: 571,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        },
+    ])));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "Faller".to_string(),
+        position,
+        571,
+        1,
+        3,
+        80,
+        0,
+    ));
+    let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(100);
+        })
+        .unwrap();
+    session.set_player_health_like_cpp(100, 100);
+    session.set_durability_loss_on_death_rate_like_cpp(0.1);
+    session.set_fall_information_like_cpp(1_200, 1_000.0);
+    let mut fall_land = wow_packet::packets::movement::MovementInfo::default();
+    fall_land.position.z = 100.0;
+    fall_land.jump.fall_time = 1_500;
+
+    let fall = session
+        .handle_fall_like_cpp(&fall_land)
+        .expect("lethal fall damage should apply");
+
+    assert!(fall.final_damage > 0);
+    assert_eq!(
+        session.canonical_player_health_snapshot_like_cpp(),
+        Some((0, 100))
+    );
+    assert!(
+        drain_server_opcodes(&send_rx).contains(&ServerOpcodes::DurabilityDamageDeath),
+        "C++ Player::EnvironmentalDamage sends the durability loss message on fall death"
+    );
+}
+#[test]
 fn logout_save_snapshot_falls_back_to_session_position_without_canonical_player_like_cpp() {
     let (mut session, _, _) = make_session();
     let canonical = shared_canonical_map_manager();
