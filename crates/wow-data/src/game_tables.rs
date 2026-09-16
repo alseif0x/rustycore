@@ -9,6 +9,9 @@ use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 
+mod regen;
+pub use regen::*;
+
 /// C++ `GtBattlePetXPEntry`.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct BattlePetXpEntryLikeCpp {
@@ -53,22 +56,6 @@ pub struct CombatRatingsEntryLikeCpp {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CombatRatingsGameTableLikeCpp {
     rows: Vec<CombatRatingsEntryLikeCpp>,
-}
-
-/// C++ `GtRegenMPPerSptEntry`.
-///
-/// The columns follow the order in TrinityCore's `GameTables.h`, while the
-/// explicit Level column is discarded just like `LoadGameTable` does.  The
-/// row position, rather than the value in that column, is the lookup key.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
-pub struct RegenMpPerSptEntryLikeCpp {
-    columns: [f32; RegenMpPerSptGameTableLikeCpp::VALUE_COLUMN_COUNT],
-}
-
-/// C++ `sRegenMPPerSptGameTable` used by `Player::OCTRegenMPPerSpirit`.
-#[derive(Debug, Clone, PartialEq)]
-pub struct RegenMpPerSptGameTableLikeCpp {
-    rows: Vec<RegenMpPerSptEntryLikeCpp>,
 }
 
 /// C++ `GtShieldBlockRegularEntry`.
@@ -326,115 +313,6 @@ impl CombatRatingsEntryLikeCpp {
 
     pub fn column(&self, index: usize) -> f32 {
         self.columns.get(index).copied().unwrap_or(0.0)
-    }
-}
-
-impl RegenMpPerSptEntryLikeCpp {
-    pub fn from_columns(columns: [f32; RegenMpPerSptGameTableLikeCpp::VALUE_COLUMN_COUNT]) -> Self {
-        Self { columns }
-    }
-
-    /// C++ `GetRegenGameTableColumnForClass` for the MP-per-spirit table.
-    pub fn mana_regen_ratio_for_class_like_cpp(&self, class: u8) -> f32 {
-        let column = match class {
-            1 => 0,   // Warrior
-            2 => 1,   // Paladin
-            3 => 2,   // Hunter
-            4 => 3,   // Rogue
-            5 => 4,   // Priest
-            6 => 5,   // Death Knight
-            7 => 6,   // Shaman
-            8 => 7,   // Mage
-            9 => 8,   // Warlock
-            10 => 9,  // Monk
-            11 => 10, // Druid
-            _ => return 0.0,
-        };
-        self.columns[column]
-    }
-}
-
-impl RegenMpPerSptGameTableLikeCpp {
-    pub const FILE_NAME: &'static str = "RegenMPPerSpt.txt";
-    pub const VALUE_COLUMN_COUNT: usize = 11;
-
-    pub fn load(data_dir: impl AsRef<Path>) -> Result<Self> {
-        Self::load_from_path(data_dir.as_ref().join("gt").join(Self::FILE_NAME))
-    }
-
-    pub fn load_from_path(path: impl AsRef<Path>) -> Result<Self> {
-        let path = path.as_ref();
-        let content = fs::read_to_string(path)
-            .with_context(|| format!("GameTable file {} cannot be opened.", path.display()))?;
-        Self::parse_like_cpp(&content, path)
-    }
-
-    pub fn from_rows(rows: impl IntoIterator<Item = RegenMpPerSptEntryLikeCpp>) -> Self {
-        let mut stored = Vec::with_capacity(1);
-        stored.push(RegenMpPerSptEntryLikeCpp::default());
-        stored.extend(rows);
-        Self { rows: stored }
-    }
-
-    pub fn row(&self, level: u16) -> Option<&RegenMpPerSptEntryLikeCpp> {
-        self.rows.get(usize::from(level))
-    }
-
-    pub fn mana_regen_ratio_like_cpp(&self, level: u16, class: u8) -> f32 {
-        self.row(level)
-            .map(|row| row.mana_regen_ratio_for_class_like_cpp(class))
-            .unwrap_or(0.0)
-    }
-
-    pub fn len(&self) -> usize {
-        self.rows.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.rows.is_empty()
-    }
-
-    fn parse_like_cpp(content: &str, path: &Path) -> Result<Self> {
-        let mut lines = content.lines();
-        let Some(headers) = lines.next() else {
-            bail!("GameTable file {} is empty.", path.display());
-        };
-        let column_defs: Vec<&str> = headers
-            .split('\t')
-            .filter(|part| !part.is_empty())
-            .collect();
-        if column_defs.len().saturating_sub(1) != Self::VALUE_COLUMN_COUNT {
-            bail!(
-                "GameTable '{}' has different count of columns {} than expected by size of C++ structure ({}).",
-                path.display(),
-                column_defs.len().saturating_sub(1),
-                Self::VALUE_COLUMN_COUNT
-            );
-        }
-
-        let mut rows = vec![RegenMpPerSptEntryLikeCpp::default()];
-        for raw_line in lines {
-            let line = raw_line.strip_suffix('\r').unwrap_or(raw_line);
-            let mut values: Vec<&str> = line.split('\t').collect();
-            if values.is_empty() || (values.len() == 1 && values[0].is_empty()) {
-                break;
-            }
-            while values.len() > 1 && values.last().is_some_and(|value| value.is_empty()) {
-                values.pop();
-            }
-            if values.len() <= 1 {
-                break;
-            }
-            if values.len() != column_defs.len() {
-                bail!("{} == {}", values.len(), column_defs.len());
-            }
-            let mut columns = [0.0f32; Self::VALUE_COLUMN_COUNT];
-            for (column, raw_value) in columns.iter_mut().zip(values.iter().skip(1)) {
-                *column = parse_float_like_cpp(raw_value);
-            }
-            rows.push(RegenMpPerSptEntryLikeCpp { columns });
-        }
-        Ok(Self { rows })
     }
 }
 

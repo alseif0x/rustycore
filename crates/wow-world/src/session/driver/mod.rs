@@ -170,9 +170,11 @@ impl WorldSession {
             // `DoMeleeAttackIfReady` for every living in-world player. The
             // canonical Player owns the accumulators; this session pass is the
             // single writer and consumes the published stat snapshot.
-            self.tick_player_mana_regeneration_like_cpp(
+            let regen_game_tables = self.regen_game_tables.clone();
+            self.tick_player_regeneration_like_cpp(
                 diff_ms,
                 catalogs.creature_spawns.power_types.as_ref(),
+                regen_game_tables.as_deref(),
             );
             // Aura expiry tick every 4 ticks (~200ms) — always, regardless of owner.
             if self.creature_tick % 4 == 0 {

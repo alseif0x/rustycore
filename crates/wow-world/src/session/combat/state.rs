@@ -378,8 +378,8 @@ impl WorldSession {
         self.combat_ratings_game_table = Some(table);
     }
 
-    pub fn set_regen_mp_per_spt_game_table(&mut self, table: Arc<RegenMpPerSptGameTableLikeCpp>) {
-        self.regen_mp_per_spt_game_table = Some(table);
+    pub fn set_regen_game_tables(&mut self, tables: Arc<RegenGameTablesLikeCpp>) {
+        self.regen_game_tables = Some(tables);
     }
 
     pub(crate) fn combat_rating_multiplier_like_cpp(&self, level: u8, rating: u32) -> f32 {
@@ -390,9 +390,9 @@ impl WorldSession {
     }
 
     pub(crate) fn mana_regen_ratio_like_cpp(&self, level: u8, class: u8) -> f32 {
-        self.regen_mp_per_spt_game_table
+        self.regen_game_tables
             .as_ref()
-            .map(|table| table.mana_regen_ratio_like_cpp(u16::from(level), class))
+            .map(|tables| tables.mana_regen_ratio_like_cpp(u16::from(level), class))
             .unwrap_or(0.0)
     }
     pub(in crate::session) fn represented_has_pvp_rules_enabled_like_cpp(&self) -> bool {
