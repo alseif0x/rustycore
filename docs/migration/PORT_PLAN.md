@@ -33,6 +33,15 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 durability-damage spell effects — 2026-09-16, implementation `5759b474`:**
+the represented direct spell-effect dispatch now handles
+`SPELL_EFFECT_DURABILITY_DAMAGE` (111) and
+`SPELL_EFFECT_DURABILITY_DAMAGE_PCT` (115) (`SpellEffects.cpp:4316-4373`),
+reusing the integrated `DurabilityPointsLossAll`/`DurabilityLoss` functions, the
+`INVENTORY_SLOT_BAG_0` slot branch and the `TYPEID_PLAYER` target guard. This
+completes the spell producer of the F1 durability chain; the general
+`Unit::Kill` PvE/PvP producer remains an explicit #61 gate.
+
 **#61 fall-death item durability loss — 2026-09-16, implementation `c8059a85`:**
 the represented `Player::DurabilityLossAll`/`DurabilityLoss`/`DurabilityPointsLoss`
 chain (`Player.cpp:4522-4620`) now runs on the fall-to-death branch of

@@ -8,6 +8,26 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#61 durability-damage spell effects — 2026-09-16, implementation `5759b474`:**
+the represented direct spell-effect dispatch now handles
+`SPELL_EFFECT_DURABILITY_DAMAGE` (111) and
+`SPELL_EFFECT_DURABILITY_DAMAGE_PCT` (115) for the represented player target
+(`SpellEffects.cpp:4316-4373`). Effect 111 calls
+`Player::DurabilityPointsLossAll(damage, misc < -1)` when `MiscValue < 0` and
+`Player::DurabilityPointsLoss` on the `INVENTORY_SLOT_BAG_0` slot otherwise;
+effect 115 calls `Player::DurabilityLossAll(damage / 100, misc < -1)` /
+`Player::DurabilityLoss`. Both reuse the integrated broken-item mod-removal
+ordering and the `SPELL_AURA_PREVENT_DURABILITY_LOSS` gate, and only the
+represented player target is processed like C++'s `TYPEID_PLAYER` guard. Focused
+coverage: two new end-to-end `execute_spell` tests plus the existing
+break/mod-removal and fall-producer regressions (`cargo test -p wow-world --lib
+durability`: 12 passed); format, `git diff --check`, the physical ratchet and
+`validation-v2 quick` (manifest
+`20260916T213346.613171Z-2052499-quick.json`, 150.2 s) pass. #61 remains open for
+the general `Unit::Kill` PvE/PvP producer, the remaining `RatesForPower` entries,
+alternate powers, rune regeneration, `IsPolymorphed`/`m_transformSpell`, observer
+`SendMessageToSet` parity and live DB/restart/relogin QA.
+
 **#61 fall-death item durability loss (`Player::EnvironmentalDamage` →
 `DurabilityPointsLoss`) — 2026-09-16, implementation `c8059a85`, integrated as
 `68bfce47` by PR #970:** the
