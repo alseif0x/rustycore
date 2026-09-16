@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-16:** `3.4.3` is at
-`fbed40ea99da21f83450002efdb72ac067e5b2e0` (PR #968, the #61 C++ regeneration rates, following PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`68bfce479d60d1c6dffd98f154b854a5784e5c20` (PR #970, the #61 fall-death item durability loss, following PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -9,7 +9,8 @@ by the stateful module product #583 and the independent audit #153. #582 and
 the residual acceptance explicitly stated below.
 
 **#61 fall-death item durability loss (`Player::EnvironmentalDamage` →
-`DurabilityPointsLoss`) — 2026-09-16, implementation `c8059a85`:** the
+`DurabilityPointsLoss`) — 2026-09-16, implementation `c8059a85`, integrated as
+`68bfce47` by PR #970:** the
 represented durability chain now runs on a lethal fall.
 `apply_represented_durability_loss_all_like_cpp` walks the equipment slots (and,
 when `inventory`, the backpack and bag contents) exactly like
