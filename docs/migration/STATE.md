@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-16:** `3.4.3` is at
-`93d9172633740c696579153f3f308e4de4799eb7` (PR #972, the #61 durability-damage spell effects, following PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`1dd3ba5b918611ba7d840f648d1b44d502520cd2` (PR #974, the #61 creature-kill durability loss, following PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -9,7 +9,7 @@ by the stateful module product #583 and the independent audit #153. #582 and
 the residual acceptance explicitly stated below.
 
 **#61 creature-kill durability loss (`Unit::Kill`) — 2026-09-16, implementation
-`7d33d742`:** the creature-melee victim handler now runs the C++ `Unit::Kill`
+`7d33d742`, integrated as `1dd3ba5b` by PR #974:** the creature-melee victim handler now runs the C++ `Unit::Kill`
 player-victim durability branch (`Unit.cpp:10639-10648`). `over_damage >= 0` is
 the represented kill signal (the map already committed the lethal swing), and the
 PvE condition `durabilityLoss && !player && !victim->InBattleground()` skips a
