@@ -8,6 +8,28 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#61 creature-kill durability loss (`Unit::Kill`) — 2026-09-16, implementation
+`7d33d742`:** the creature-melee victim handler now runs the C++ `Unit::Kill`
+player-victim durability branch (`Unit.cpp:10639-10648`). `over_damage >= 0` is
+the represented kill signal (the map already committed the lethal swing), and the
+PvE condition `durabilityLoss && !player && !victim->InBattleground()` skips a
+battleground victim. `apply_represented_durability_loss_on_death_like_cpp` calls
+`Player::DurabilityLossAll(baseLoss, false)` and returns the
+`SMSG_DURABILITY_DAMAGE_DEATH` percent C++ derives as
+`baseLoss - baseLoss * GetTotalAuraMultiplier(MOD_DURABILITY_LOSS)`; the C++
+`uint32` truncation (0 with no aura) is reproduced rather than repaired. The loss
+message is published before the melee result presentation, matching `Unit::Kill`
+running inside `DealMeleeDamage`. Focused coverage: two new creature-melee
+command tests (lethal publishes the loss, battleground skips it) plus the four
+existing command regressions; the durability and durability-spell suites stay
+green (`wow-world --lib durability`: 14 passed); format, `git diff --check`, the
+physical ratchet plus its 20-test suite and `validation-v2 quick` (manifest
+`20260916T214822.691938Z-2057566-quick.json`, 77.2 s) pass. #61 remains open for
+the player-killer (PvP) `CONFIG_DURABILITY_LOSS_IN_PVP` branch and `SetPvPDeath`,
+the remaining `RatesForPower` entries, alternate powers, rune regeneration,
+`IsPolymorphed`/`m_transformSpell`, observer `SendMessageToSet` parity and live
+DB/restart/relogin QA.
+
 **#61 durability-damage spell effects — 2026-09-16, implementation `5759b474`,
 integrated as `93d91726` by PR #972:**
 the represented direct spell-effect dispatch now handles
