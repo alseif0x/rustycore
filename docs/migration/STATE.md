@@ -8,6 +8,39 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#61 health-regeneration tick (`Player::RegenerateAll` → `RegenerateHealth`) —
+2026-09-16, implementation `fbd8755e`:** the session-owned tick now runs the
+complete C++ `Player::Update → RegenerateAll` step. It accumulates
+`m_regenTimer`/`m_regenTimerCount` for every living in-world player regardless
+of mana prevention or power representation, regenerates the represented primary
+power, and runs the two-second `RegenerateHealth` branch on the canonical
+`Unit`. `Unit::regenerate_health_like_cpp` reproduces the C++ formula
+(`Player.cpp:1842-1882`): `OCTRegenHPPerSpirit` with the 50-Spirit split and the
+`OCTRegenHP.txt`/`RegenHPPerSpt.txt` level/class ratios
+(`Player.cpp:5162-5180`), the `RATE_HEALTH` under-15 level multiplier, the
+out-of-combat `SPELL_AURA_MOD_HEALTH_REGEN_PERCENT` multiplier and
+`SPELL_AURA_MOD_REGEN * 0.4` flat term, the in-combat
+`SPELL_AURA_MOD_REGEN_DURING_COMBAT` `ApplyPct`, the non-stand `1.5x` factor,
+`SPELL_AURA_MOD_HEALTH_REGEN_IN_COMBAT`, `m_baseHealthRegen / 2.5`, the `int32`
+truncation and the `Unit::ModifyHealth` clamp (`Unit.cpp:8115-8155`). Positive
+regen marks `UnitData::Health`, which the canonical map's `SendObjectUpdates`
+publishes; C++ sends no explicit packet for a positive delta. `wow-data` now
+owns the moved `RegenMPPerSpt` family plus the new `RegenHPPerSpt` and
+`OCTRegenHP` tables in `game_tables/regen.rs` behind `RegenGameTablesLikeCpp`
+(`GameTables.h:124-165,302-330`, `GameTables.cpp:128,130`); the composition root
+loads the bundle once and installs it on the Session, replacing the single MP
+table field. Focused coverage: 7 `wow-entities` formula tests, 9 `wow-data`
+regen-table tests and 2 production-shaped `wow-world` tick tests (window gating
++ in-combat suppression); format, `git diff --check` and `cargo check -p
+world-server` pass. The architecture syntax ownership baseline remains the
+pre-existing stale set from #958/#962 and was not regenerated; this slice
+renames the already-unreviewed mana-regen Session field/setter and adds the
+health tick method, so `session-ownership-check --syntax-only` stays red on the
+same drift. #61 remains open for `IsPolymorphed`/`m_transformSpell`, alternate
+powers, `Rate.Health`/`Rate.Mana` config overrides, observer
+`SendMessageToSet` packet-type parity, productive wear-to-broken, aura-backed
+expertise and live DB/restart/relogin QA.
+
 **#61 mana-regeneration tick and `SMSG_POWER_UPDATE` publication — 2026-09-16,
 implementation `5bc59ddb`, integrated as `d74381ec` by PR #962:** the canonical
 Player snapshot now drives the C++

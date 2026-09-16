@@ -33,6 +33,18 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 health-regeneration tick — 2026-09-16, implementation `fbd8755e`:** the
+canonical session tick now runs the complete C++ `Player::RegenerateAll`
+step, including the two-second `RegenerateHealth` branch. `wow-data` owns the
+`RegenMPPerSpt`/`RegenHPPerSpt`/`OCTRegenHP` tables behind
+`RegenGameTablesLikeCpp`; `Unit::regenerate_health_like_cpp` reproduces the
+formula, aura producers, `int32` truncation and `ModifyHealth` clamp from
+`Player.cpp:1842-1882,5162-5180` and `Unit.cpp:8115-8155`. This advances the F1
+effected-stat/regeneration vertical without changing the #584 → #583 → #153
+architecture gate. `IsPolymorphed`/`m_transformSpell`, alternate powers,
+rate overrides, observer `SendMessageToSet` parity and live QA remain open #61
+gates.
+
 **#743 (group state application/reconciliation), #735 (reputation encapsulation) and
 #787 (World/Map session-phase coordination) are delivered and accepted within their
 recorded scopes.** P3.8, P3.9, P3.10, P3.11, P3.12 and P3.13 are integrated bounded visibility corrections
