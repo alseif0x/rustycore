@@ -8,6 +8,35 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#61 mana-regeneration tick and `SMSG_POWER_UPDATE` publication — 2026-09-16,
+implementation `5bc59ddb`:** the canonical Player snapshot now drives the C++
+`Player::Update → RegenerateAll → Regenerate(POWER_MANA)` chain instead of only
+publishing the regen fields. A session-owned tick (the same `Player::Update`
+boundary already used for `DoMeleeAttackIfReady`) runs with the canonical
+world/map diff, accumulates `m_regenTimer`/`m_regenTimerCount`, and consumes the
+published `PlayerEffectiveCombatStatsLikeCpp::mana_regen`/`mana_regen_combat`,
+the DB2 `PowerTypeEntry` (`RegenPeace`, `RegenCombat`, `MinPower`, `CenterPower`,
+`Flags`, `RegenInterruptTimeMS`) and the five-second MP5 rule
+(`_regenMP5InterruptStartTime`). The operation reproduces the `m_powerFraction`
+carry, the min/max clamp, the `m_regenTimerCount >= 2000 || forcesSetPower`
+publication boundary, the throttled `ClearChanged` write (the suppressed setter
+does not queue a packet) and the new `PowerUpdate`
+(`SMSG_POWER_UPDATE`, `CombatPackets.cpp:104-116`) on the boundary.
+`Spell::TakePower` (`Spell.cpp:5444-5445`) now arms the five-second rule, and
+`SPELL_AURA_PREVENT_REGENERATE_POWER` (`SpellAuraDefines.h:389`) is resolved from
+the canonical visible auras. The regen runtime state lives on the canonical
+`Unit` (C++ keeps the timers on `Player` and the MP5 mark on `Unit`) so the
+reviewed `player/mod.rs` physical ceiling is preserved. Focused coverage: 6
+`wow-entities` regeneration tests, the `wow-packet` `PowerUpdate` layout test and
+3 production-shaped `wow-world` tests (throttle/publish, interrupted rate,
+mana-cost MP5 producer); format, `git diff --check` and the affected
+entity/packet/world checks pass. The architecture physical-source ratchet passes;
+the runtime hotspot ratchet keeps its pre-existing `session/mod.rs`,
+`character/mod.rs`, `world-server/lib.rs` and `player/mod.rs` growth and was not
+regenerated. #61 remains open for health regeneration, non-mana powers, the
+`Rate.Mana` config override, observer `SendMessageToSet` packet-type parity,
+productive wear-to-broken and live DB/restart/relogin QA.
+
 **#61 canonical equipment contribution closure — 2026-09-15, implementation
 `a43f51cf`:** the effective-stat projection no longer sums equipped inventory rows
 alongside the canonical `PlayerItemBonusStateLikeCpp` accumulator. Login now seeds the

@@ -227,6 +227,21 @@ impl WorldSession {
             health: health.min(i64::MAX as u64) as i64,
         });
     }
+    /// C++ `Unit::SetPower`'s `SMSG_POWER_UPDATE` publication
+    /// (`Unit.cpp:9287-9312`). C++ also marks the changed `UnitData::Power`
+    /// field, which the canonical Player setter already did; the map's
+    /// `SendObjectUpdates` phase carries the observer VALUES snapshot.
+    pub(in crate::session) fn send_player_power_update_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        power: PowerType,
+        value: i32,
+    ) {
+        self.send_packet(&wow_packet::packets::combat::PowerUpdate {
+            guid,
+            powers: vec![(value, power as u8)],
+        });
+    }
     #[cfg(test)]
     pub fn set_power_type_store(&mut self, store: Arc<PowerTypeStore>) {
         self.power_type_store = Some(store);

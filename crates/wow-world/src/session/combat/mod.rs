@@ -6,5 +6,6 @@ use super::*;
 mod damage;
 mod death;
 mod melee;
+mod regeneration;
 mod state;
 mod vitals;

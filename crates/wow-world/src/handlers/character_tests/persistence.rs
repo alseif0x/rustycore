@@ -842,3 +842,190 @@ fn loaded_refund_metadata_matches_cpp_load_cleanup() {
         LoadedItemRefundDecision::None
     );
 }
+
+fn mana_power_type_store_like_cpp(
+    regen_peace: f32,
+    regen_combat: f32,
+) -> wow_data::character_progression::PowerTypeStore {
+    wow_data::character_progression::PowerTypeStore::from_entries([
+        wow_data::character_progression::PowerTypeEntry {
+            id: 0,
+            name_global_string_tag: String::new(),
+            cost_global_string_tag: String::new(),
+            power_type_enum: PowerType::Mana as i8,
+            min_power: 0,
+            max_base_power: 0,
+            center_power: 0,
+            default_power: 0,
+            display_modifier: 1,
+            regen_interrupt_time_ms: 0,
+            regen_peace,
+            regen_combat,
+            flags: 0,
+        },
+    ])
+}
+
+fn publish_mana_regen_snapshot_like_cpp(
+    session: &mut WorldSession,
+    mana_regen: f32,
+    mana_regen_combat: f32,
+) {
+    let mut stats = session
+        .canonical_player_effective_combat_stats_like_cpp()
+        .unwrap_or_default();
+    stats.mana_regen = mana_regen;
+    stats.mana_regen_combat = mana_regen_combat;
+    assert!(
+        session
+            .mutate_canonical_player_like_cpp(
+                |player| player.replace_effective_combat_stats_like_cpp(stats)
+            )
+            .is_some()
+    );
+}
+
+#[test]
+fn mana_regeneration_tick_suppresses_then_publishes_power_like_cpp() {
+    let (mut session, send_rx) = make_session_with_send_capacity(16);
+    let player_guid = ObjectGuid::create_player(1, 87);
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+    attach_stat_update_player_with_mana_and_health(&mut session, player_guid, 100, 1_000, 100, 100);
+    assert!(
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().world_mut().object_mut().add_to_world();
+                // Keep the five-second rule inactive regardless of process uptime.
+                player
+                    .unit_mut()
+                    .set_mp5_regeneration_interrupt_start_like_cpp(
+                        crate::session_rules::game_time_ms_like_cpp().wrapping_sub(10_000),
+                    );
+            })
+            .is_some()
+    );
+    // The canonical snapshot is the sole source for the flat regen fields.
+    publish_mana_regen_snapshot_like_cpp(&mut session, 10.0, 3.0);
+    let power_types = mana_power_type_store_like_cpp(0.0, 0.0);
+
+    // First second: the two-second publication boundary has not been reached,
+    // so the value changes without an SMSG_POWER_UPDATE.
+    session.tick_player_mana_regeneration_like_cpp(1_000, &power_types);
+    assert_eq!(
+        session.canonical_player_power_snapshot_like_cpp(PowerType::Mana),
+        Some((110, 1_000))
+    );
+    assert!(
+        !drain_server_opcodes(&send_rx).contains(&wow_constants::ServerOpcodes::PowerUpdate),
+        "throttled regeneration must not publish before 2000ms"
+    );
+
+    // Second second: the boundary is crossed and the packet is sent.
+    session.tick_player_mana_regeneration_like_cpp(1_000, &power_types);
+    assert_eq!(
+        session.canonical_player_power_snapshot_like_cpp(PowerType::Mana),
+        Some((120, 1_000))
+    );
+    assert!(
+        drain_server_opcodes(&send_rx).contains(&wow_constants::ServerOpcodes::PowerUpdate),
+        "crossing the 2000ms boundary publishes SMSG_POWER_UPDATE"
+    );
+}
+
+#[test]
+fn mana_regeneration_tick_uses_interrupted_rate_under_the_mp5_rule_like_cpp() {
+    let (mut session, _send_rx) = make_session_with_send_capacity(16);
+    let player_guid = ObjectGuid::create_player(1, 88);
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+    attach_stat_update_player_with_mana_and_health(&mut session, player_guid, 100, 1_000, 100, 100);
+    assert!(
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().world_mut().object_mut().add_to_world();
+                // A cast paid mana one second ago, so the five-second rule is
+                // active and the interrupted flat rate applies.
+                player
+                    .unit_mut()
+                    .set_mp5_regeneration_interrupt_start_like_cpp(
+                        crate::session_rules::game_time_ms_like_cpp().wrapping_sub(1_000),
+                    );
+            })
+            .is_some()
+    );
+    publish_mana_regen_snapshot_like_cpp(&mut session, 10.0, 4.0);
+    let power_types = mana_power_type_store_like_cpp(0.0, 0.0);
+
+    session.tick_player_mana_regeneration_like_cpp(1_000, &power_types);
+
+    assert_eq!(
+        session.canonical_player_power_snapshot_like_cpp(PowerType::Mana),
+        Some((104, 1_000)),
+        "the interrupted flat modifier is consumed while the MP5 rule holds"
+    );
+}
+
+#[test]
+fn paying_a_mana_cost_arms_the_five_second_mp5_rule_like_cpp() {
+    let (mut session, _send_rx) = make_session_with_send_capacity(16);
+    let player_guid = ObjectGuid::create_player(1, 89);
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+    attach_stat_update_player_with_mana_and_health(&mut session, player_guid, 500, 1_000, 100, 100);
+    // Keep the five-second rule inactive until the cast exercises the producer.
+    assert!(
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .set_mp5_regeneration_interrupt_start_like_cpp(
+                        crate::session_rules::game_time_ms_like_cpp().wrapping_sub(10_000),
+                    );
+            })
+            .is_some()
+    );
+    assert!(!session.represented_player_mp5_regen_interrupted_like_cpp());
+
+    let spell = wow_data::SpellInfo {
+        spell_id: 90_091,
+        cast_time_ms: 0,
+        cooldown_ms: 0,
+        recovery_time_ms: 0,
+        effect_type: 0,
+        effect_base_points: 0,
+        effect_bonus_coefficient: 0.0,
+        aura_type: None,
+        display_flags: 0,
+        requires_spell_focus: 0,
+        power_costs: vec![wow_data::SpellPowerCostInfoLikeCpp {
+            order_index: 0,
+            power_type: PowerType::Mana as i8,
+            mana_cost: 50,
+            mana_cost_per_level: 0,
+            mana_per_second: 0,
+            power_cost_pct: 0.0,
+            power_cost_max_pct: 0.0,
+            power_pct_per_second: 0.0,
+            required_aura_spell_id: 0,
+            optional_cost: 0,
+        }],
+        effects: Vec::new(),
+    };
+    let visual = wow_packet::packets::spell::SpellCastVisual {
+        spell_visual_id: 0,
+        script_visual_id: 0,
+    };
+
+    assert!(session.take_spell_power_like_cpp(&spell, ObjectGuid::EMPTY, spell.spell_id, &visual));
+    assert_eq!(
+        session
+            .canonical_player_power_snapshot_like_cpp(PowerType::Mana)
+            .map(|(current, _)| current),
+        Some(450)
+    );
+    assert!(
+        session.represented_player_mp5_regen_interrupted_like_cpp(),
+        "Spell::TakePower arms the five-second MP5 rule after a mana cost"
+    );
+}

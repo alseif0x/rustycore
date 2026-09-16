@@ -583,6 +583,25 @@ populate the legacy `ModPowerRegen` packet field because the C++ path writes the
 `PowerRegen*` fields; full tick/publication, wear-to-broken production and live
 capture/DB/relogin parity remain #61 gates.
 
+The next #61 slice (implementation `5bc59ddb`) gives the published regen snapshot a real
+consumer. A session-owned tick with the canonical world/map diff runs the C++
+`Player::Update → RegenerateAll → Regenerate(POWER_MANA)` chain
+(`Player.cpp:1047-1051,1609-1681,1681-1827`): it accumulates
+`m_regenTimer`/`m_regenTimerCount`, reads the canonical
+`PlayerEffectiveCombatStatsLikeCpp::mana_regen`/`mana_regen_combat` plus the DB2
+`PowerTypeEntry` scalars, carries `m_powerFraction`, clamps at min/max and publishes at
+the `m_regenTimerCount >= 2000 || forcesSetPower` boundary. The throttled branch writes
+current power under `DoWithSuppressingObjectUpdates`/`ClearChanged`, while the boundary
+sends the new `SMSG_POWER_UPDATE` (`CombatPackets.cpp:104-116`). `Spell::TakePower`
+(`Spell.cpp:5444-5445`) arms the five-second MP5 rule and
+`SPELL_AURA_PREVENT_REGENERATE_POWER` is resolved from canonical visible auras. Regen
+runtime state lives on the canonical `Unit` to preserve the reviewed `player/mod.rs`
+physical ceiling. Six `wow-entities` regen tests, the `wow-packet` layout test and three
+production-shaped `wow-world` tests pass; the physical-source ratchet passes and the
+pre-existing runtime hotspot drift is not regenerated. Health regeneration, non-mana
+powers, `Rate.Mana` config override, observer `SendMessageToSet` packet-type parity,
+wear-to-broken production and live capture/DB/relogin parity remain #61 gates.
+
 The first F1 movement-admission slice is integrated by PR #853
 (`7c3add2f`, implementation `3af90ec2`). It enforces the C++ early returns for
 pending player teleport and unfinished controlled-mover MoveSpline before any

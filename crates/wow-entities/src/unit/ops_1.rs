@@ -43,6 +43,7 @@ impl Unit {
             power_index: [None; MAX_POWERS],
             visibility_detection: UnitVisibilityDetectionStateLikeCpp::default(),
             subsystems: UnitSubsystems::default(),
+            power_regen: UnitPowerRegenStateLikeCpp::default(),
         };
         unit.set_power_index(PowerType::Mana, Some(0));
         unit

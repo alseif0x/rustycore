@@ -1318,9 +1318,14 @@ with the added lifecycle/recovery risk before approving an implementation.
 The active F1 stat lane keeps one canonical Player producer. The mana-regeneration
 percentage slice reads canonical visible aura applications and immutable spell metadata
 from the Session capability graph, then publishes the result through the existing
-Player-owned effective combat snapshot. It does not create a packet-only aura mirror,
-second stat writer or universal context; lifecycle producers remain separate
-responsibilities until their C++ contracts and consumers are audited.
+Player-owned effective combat snapshot. Implementation `5bc59ddb` adds the consumer:
+a session-owned tick runs `Player::Update → RegenerateAll → Regenerate(POWER_MANA)`
+against that snapshot, keeping `m_regenTimer`/`m_powerFraction` on the canonical
+`Unit` so the reviewed `player/mod.rs` physical ceiling is preserved, and publishes
+`SMSG_POWER_UPDATE` at the two-second boundary while throttling the field write in
+between. It does not create a packet-only aura mirror, second stat writer or universal
+context; lifecycle producers remain separate responsibilities until their C++ contracts
+and consumers are audited.
 
 | Macro / epic | Deliverable and completion gate | Dependencies |
 | --- | --- | --- |

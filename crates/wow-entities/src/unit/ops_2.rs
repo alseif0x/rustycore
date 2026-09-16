@@ -733,6 +733,27 @@ impl Unit {
             self.mark_unit_data_array(UNIT_DATA_POWER_PARENT_BIT, UNIT_DATA_POWER_FIRST_BIT, index);
         }
     }
+    /// C++ `Player::Regenerate` throttled write: `SetUpdateFieldValue` for
+    /// `UnitData::Power` followed by `ClearChanged` inside
+    /// `Object::DoWithSuppressingObjectUpdates` (`Player.cpp:1813-1820`).
+    ///
+    /// The value stays current for `GetPower`, but the element is not left in
+    /// the change mask and the object is not queued, so no power packet is sent
+    /// before the two-second publication boundary.
+    pub fn set_power_suppressing_object_update_like_cpp(
+        &mut self,
+        power: PowerType,
+        mut value: i32,
+    ) {
+        let Some(index) = self.get_power_index(power) else {
+            return;
+        };
+        let max = self.data.max_power[index];
+        if value > max {
+            value = max;
+        }
+        self.data.power[index] = value;
+    }
     pub fn set_max_power(&mut self, power: PowerType, value: i32) {
         let Some(index) = self.get_power_index(power) else {
             return;
