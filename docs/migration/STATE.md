@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Integration head — 2026-09-15:** `3.4.3` is at
-`96b8ffe31212cee1bb4ac179b5b3bcfcf8e70f44` (PR #960 following PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+**Integration head — 2026-09-16:** `3.4.3` is at
+`d74381ec68261eaeeba9ba966dd993afe461dec7` (PR #962, following the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -9,7 +9,8 @@ by the stateful module product #583 and the independent audit #153. #582 and
 the residual acceptance explicitly stated below.
 
 **#61 mana-regeneration tick and `SMSG_POWER_UPDATE` publication — 2026-09-16,
-implementation `5bc59ddb`:** the canonical Player snapshot now drives the C++
+implementation `5bc59ddb`, integrated as `d74381ec` by PR #962:** the canonical
+Player snapshot now drives the C++
 `Player::Update → RegenerateAll → Regenerate(POWER_MANA)` chain instead of only
 publishing the regen fields. A session-owned tick (the same `Player::Update`
 boundary already used for `DoMeleeAttackIfReady`) runs with the canonical
