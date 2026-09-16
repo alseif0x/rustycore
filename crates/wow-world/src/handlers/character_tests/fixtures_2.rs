@@ -371,9 +371,11 @@ pub(super) fn set_priest_level80_stats(session: &mut WorldSession, base_mana: u3
     let regen_row = wow_data::RegenMpPerSptEntryLikeCpp::from_columns(regen_columns);
     let mut regen_rows = vec![wow_data::RegenMpPerSptEntryLikeCpp::default(); 79];
     regen_rows.push(regen_row);
-    session.set_regen_mp_per_spt_game_table(Arc::new(
+    session.set_regen_game_tables(Arc::new(wow_data::RegenGameTablesLikeCpp::from_tables(
         wow_data::RegenMpPerSptGameTableLikeCpp::from_rows(regen_rows),
-    ));
+        wow_data::RegenHpPerSptGameTableLikeCpp::from_rows([]),
+        wow_data::OctRegenHpGameTableLikeCpp::from_rows([]),
+    )));
 }
 
 pub(super) fn total_stat_percentage_spell_store_like_cpp(

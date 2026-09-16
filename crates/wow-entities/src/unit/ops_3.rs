@@ -131,6 +131,13 @@ impl Unit {
             .saturating_add(self.power_regen.timer_ms);
     }
 
+    /// C++ `Player::RegenerateAll` health gate reads the accumulated
+    /// two-second window before it subtracts one window.
+    #[must_use]
+    pub fn power_regen_timer_ready_like_cpp(&self) -> bool {
+        self.power_regen.timer_count_ms >= 2_000
+    }
+
     /// C++ `Player::RegenerateAll` tail for the mana power: after the power
     /// loop C++ subtracts one two-second window and resets `m_regenTimer`.
     pub fn finish_power_regen_tick_like_cpp(&mut self) {
@@ -240,6 +247,126 @@ impl Unit {
             power: cur_value,
             publish,
         }
+    }
+}
+
+// ── Health regeneration (C++ `Player::RegenerateHealth`) ─────────
+//
+// C++ runs this from the `Player::RegenerateAll` two-second window
+// (`Player.cpp:1643-1647`) and applies the result through `Unit::ModifyHealth`
+// (`Unit.cpp:8115-8155`). The canonical `Unit` owns the health transition; the
+// world layer resolves the DB2/game-table and aura inputs and supplies them.
+// The polymorph branch depends on C++ `Unit::m_transformSpell`
+// (`Unit.cpp:9993-10000`), which Rust does not represent yet; callers pass
+// `is_polymorphed: false` until that transform state is ported.
+
+/// The non-`Unit` inputs C++ `Player::RegenerateHealth` reads once.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct UnitHealthRegenInputLikeCpp {
+    pub level: u8,
+    /// C++ `sWorld->getRate(RATE_HEALTH)`.
+    pub rate_health: f32,
+    /// C++ `Unit::IsInCombat()` / `HasUnitFlag(UNIT_FLAG_IN_COMBAT)`.
+    pub is_in_combat: bool,
+    /// C++ `Unit::IsStandState()`.
+    pub is_stand_state: bool,
+    /// C++ `Player::OCTRegenHPPerSpirit()`.
+    pub oct_regen_hp_per_spirit: f32,
+    /// Sum of `SPELL_AURA_MOD_REGEN` effects.
+    pub aura_mod_regen: i32,
+    /// `GetTotalAuraMultiplier(SPELL_AURA_MOD_HEALTH_REGEN_PERCENT)`.
+    pub aura_health_regen_percent: f32,
+    /// `HasAuraType(SPELL_AURA_MOD_REGEN_DURING_COMBAT)`.
+    pub has_mod_regen_during_combat: bool,
+    /// Sum of `SPELL_AURA_MOD_REGEN_DURING_COMBAT` effects.
+    pub aura_mod_regen_during_combat: i32,
+    /// `HasAuraType(SPELL_AURA_MOD_HEALTH_REGEN_IN_COMBAT)`, which is a
+    /// presence check in the `RegenerateAll` gate even when the sum is zero.
+    pub has_mod_health_regen_in_combat: bool,
+    /// Sum of `SPELL_AURA_MOD_HEALTH_REGEN_IN_COMBAT` effects.
+    pub aura_mod_health_regen_in_combat: i32,
+    /// C++ `Player::m_baseHealthRegen`.
+    pub base_health_regen: i32,
+    /// C++ `Unit::IsPolymorphed()`. Always false until the transform spell is
+    /// represented on the canonical `Unit`.
+    pub is_polymorphed: bool,
+}
+
+impl Unit {
+    /// C++ `Player::RegenerateHealth` (`Player.cpp:1842-1882`).
+    ///
+    /// Returns the health gain reported by `Unit::ModifyHealth`. A full-health
+    /// or non-positive result performs no write.
+    pub fn regenerate_health_like_cpp(&mut self, input: UnitHealthRegenInputLikeCpp) -> i64 {
+        let cur_value = self.data.health;
+        let max_value = self.data.max_health;
+        if cur_value >= max_value {
+            return 0;
+        }
+
+        let mut health_increase_rate = input.rate_health;
+        if input.level < 15 {
+            health_increase_rate = input.rate_health * (2.066 - f32::from(input.level) * 0.066);
+        }
+
+        let mut add_value = 0.0f32;
+        if input.is_polymorphed {
+            add_value = max_value as f32 / 3.0;
+        } else if !input.is_in_combat || input.has_mod_regen_during_combat {
+            add_value = input.oct_regen_hp_per_spirit * health_increase_rate;
+
+            if !input.is_in_combat {
+                add_value *= input.aura_health_regen_percent;
+                add_value += input.aura_mod_regen as f32 * 0.4;
+            } else if input.has_mod_regen_during_combat {
+                // C++ `ApplyPct` (`Util.h:90-93`) = `base * pct / 100`.
+                add_value = add_value * input.aura_mod_regen_during_combat as f32 / 100.0;
+            }
+
+            if !input.is_stand_state {
+                add_value *= 1.5;
+            }
+        }
+
+        add_value += input.aura_mod_health_regen_in_combat as f32;
+        add_value += input.base_health_regen as f32 / 2.5;
+
+        if add_value < 0.0 {
+            add_value = 0.0;
+        }
+
+        // C++ `ModifyHealth(int32(addValue))` truncates toward zero.
+        self.modify_health_like_cpp(add_value as i64)
+    }
+
+    /// C++ `Unit::ModifyHealth` (`Unit.cpp:8115-8155`). Positive changes rely
+    /// on the `UnitData::Health` field; C++ only sends the explicit
+    /// `SMSG_HEALTH_UPDATE` on a negative delta.
+    pub fn modify_health_like_cpp(&mut self, delta: i64) -> i64 {
+        if delta == 0 {
+            return 0;
+        }
+
+        let cur_health = self.data.health.min(i64::MAX as u64) as i64;
+        let value = delta + cur_health;
+        if value <= 0 {
+            self.set_health(0);
+            return -cur_health;
+        }
+
+        let max_health = self.data.max_health.min(i64::MAX as u64) as i64;
+        let gain;
+        if value < max_health {
+            self.set_health(value as u64);
+            gain = value - cur_health;
+        } else if cur_health != max_health {
+            self.set_health(max_health as u64);
+            gain = max_health - cur_health;
+        } else {
+            gain = 0;
+        }
+
+        gain
     }
 }
 
@@ -423,5 +550,114 @@ mod tests {
                 .unit_data_changes_mask()
                 .is_set(UNIT_DATA_POWER_FIRST_BIT)
         );
+    }
+
+    fn health_unit(current: u32, max: u32) -> Unit {
+        let mut unit = Unit::new(true);
+        unit.set_max_health(u64::from(max));
+        unit.set_health(u64::from(current));
+        unit
+    }
+
+    fn health_input(spirit_regen: f32) -> UnitHealthRegenInputLikeCpp {
+        UnitHealthRegenInputLikeCpp {
+            level: 80,
+            rate_health: 1.0,
+            is_in_combat: false,
+            is_stand_state: true,
+            oct_regen_hp_per_spirit: spirit_regen,
+            aura_mod_regen: 0,
+            aura_health_regen_percent: 1.0,
+            has_mod_regen_during_combat: false,
+            aura_mod_regen_during_combat: 0,
+            has_mod_health_regen_in_combat: false,
+            aura_mod_health_regen_in_combat: 0,
+            base_health_regen: 0,
+            is_polymorphed: false,
+        }
+    }
+
+    #[test]
+    fn health_regeneration_uses_spirit_rate_and_clamps_at_max_like_cpp() {
+        let mut unit = health_unit(100, 1_000);
+        assert_eq!(unit.regenerate_health_like_cpp(health_input(10.0)), 10);
+        assert_eq!(unit.data().health, 110);
+        assert!(unit.unit_data_changes_mask().is_set(UNIT_DATA_HEALTH_BIT));
+
+        assert_eq!(unit.regenerate_health_like_cpp(health_input(999.0)), 890);
+        assert_eq!(unit.data().health, 1_000);
+    }
+
+    #[test]
+    fn health_regeneration_uses_the_under_15_level_rate_like_cpp() {
+        let mut unit = health_unit(100, 1_000);
+        let mut input = health_input(10.0);
+        input.level = 10;
+        input.rate_health = 2.0;
+
+        // C++ `2.0 * (2.066 - 10 * 0.066) = 2.812`, truncated to 28.
+        assert_eq!(unit.regenerate_health_like_cpp(input), 28);
+        assert_eq!(unit.data().health, 128);
+    }
+
+    #[test]
+    fn health_regeneration_applies_percent_and_flat_regen_like_cpp() {
+        let mut unit = health_unit(100, 1_000);
+        let mut input = health_input(10.0);
+        input.aura_health_regen_percent = 1.5;
+        input.aura_mod_regen = 10;
+
+        // `10 * 1.5 + 10 * 0.4 = 19`.
+        assert_eq!(unit.regenerate_health_like_cpp(input), 19);
+        assert_eq!(unit.data().health, 119);
+    }
+
+    #[test]
+    fn health_regeneration_multiplies_non_standing_state_like_cpp() {
+        let mut unit = health_unit(100, 1_000);
+        let mut input = health_input(10.0);
+        input.is_stand_state = false;
+
+        assert_eq!(unit.regenerate_health_like_cpp(input), 15);
+        assert_eq!(unit.data().health, 115);
+    }
+
+    #[test]
+    fn health_regeneration_in_combat_needs_the_during_combat_aura_like_cpp() {
+        let mut unit = health_unit(100, 1_000);
+        let mut suppressed = health_input(10.0);
+        suppressed.is_in_combat = true;
+        assert_eq!(unit.regenerate_health_like_cpp(suppressed), 0);
+        assert_eq!(unit.data().health, 100);
+
+        let mut during_combat = health_input(10.0);
+        during_combat.is_in_combat = true;
+        during_combat.has_mod_regen_during_combat = true;
+        during_combat.aura_mod_regen_during_combat = 50;
+        // C++ `ApplyPct(10, 50) = 5`.
+        assert_eq!(unit.regenerate_health_like_cpp(during_combat), 5);
+        assert_eq!(unit.data().health, 105);
+    }
+
+    #[test]
+    fn health_regeneration_adds_always_on_modifiers_like_cpp() {
+        let mut unit = health_unit(100, 1_000);
+        let mut input = health_input(10.0);
+        input.is_in_combat = true;
+        input.has_mod_regen_during_combat = true;
+        input.aura_mod_regen_during_combat = 100;
+        input.aura_mod_health_regen_in_combat = 3;
+        input.base_health_regen = 5;
+
+        // `10 * 100 / 100 + 3 + 5 / 2.5 = 15`.
+        assert_eq!(unit.regenerate_health_like_cpp(input), 15);
+        assert_eq!(unit.data().health, 115);
+    }
+
+    #[test]
+    fn health_regeneration_does_nothing_at_full_health_like_cpp() {
+        let mut unit = health_unit(1_000, 1_000);
+        assert_eq!(unit.regenerate_health_like_cpp(health_input(999.0)), 0);
+        assert_eq!(unit.data().health, 1_000);
     }
 }

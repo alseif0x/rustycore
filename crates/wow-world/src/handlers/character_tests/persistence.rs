@@ -911,7 +911,7 @@ fn mana_regeneration_tick_suppresses_then_publishes_power_like_cpp() {
 
     // First second: the two-second publication boundary has not been reached,
     // so the value changes without an SMSG_POWER_UPDATE.
-    session.tick_player_mana_regeneration_like_cpp(1_000, &power_types);
+    session.tick_player_regeneration_like_cpp(1_000, &power_types, None);
     assert_eq!(
         session.canonical_player_power_snapshot_like_cpp(PowerType::Mana),
         Some((110, 1_000))
@@ -922,7 +922,7 @@ fn mana_regeneration_tick_suppresses_then_publishes_power_like_cpp() {
     );
 
     // Second second: the boundary is crossed and the packet is sent.
-    session.tick_player_mana_regeneration_like_cpp(1_000, &power_types);
+    session.tick_player_regeneration_like_cpp(1_000, &power_types, None);
     assert_eq!(
         session.canonical_player_power_snapshot_like_cpp(PowerType::Mana),
         Some((120, 1_000))
@@ -957,7 +957,7 @@ fn mana_regeneration_tick_uses_interrupted_rate_under_the_mp5_rule_like_cpp() {
     publish_mana_regen_snapshot_like_cpp(&mut session, 10.0, 4.0);
     let power_types = mana_power_type_store_like_cpp(0.0, 0.0);
 
-    session.tick_player_mana_regeneration_like_cpp(1_000, &power_types);
+    session.tick_player_regeneration_like_cpp(1_000, &power_types, None);
 
     assert_eq!(
         session.canonical_player_power_snapshot_like_cpp(PowerType::Mana),
@@ -1027,5 +1027,135 @@ fn paying_a_mana_cost_arms_the_five_second_mp5_rule_like_cpp() {
     assert!(
         session.represented_player_mp5_regen_interrupted_like_cpp(),
         "Spell::TakePower arms the five-second MP5 rule after a mana cost"
+    );
+}
+
+fn publish_health_regen_snapshot_like_cpp(
+    session: &mut WorldSession,
+    spirit: i32,
+    health_regen: i32,
+) {
+    let mut stats = session
+        .canonical_player_effective_combat_stats_like_cpp()
+        .unwrap_or_default();
+    stats.stats[4] = spirit;
+    stats.health_regen = health_regen;
+    assert!(
+        session
+            .mutate_canonical_player_like_cpp(
+                |player| player.replace_effective_combat_stats_like_cpp(stats)
+            )
+            .is_some()
+    );
+}
+
+/// Build `sOCTRegenHPGameTable` / `sRegenHPPerSptGameTable` level-80 Priest
+/// rows and an empty `sRegenMPPerSptGameTable`.
+fn health_regen_game_tables_like_cpp(
+    base_ratio: f32,
+    more_ratio: f32,
+) -> wow_data::RegenGameTablesLikeCpp {
+    let mut base_columns = [0.0; wow_data::OctRegenHpGameTableLikeCpp::VALUE_COLUMN_COUNT];
+    base_columns[4] = base_ratio; // Priest column
+    let mut more_columns = [0.0; wow_data::RegenHpPerSptGameTableLikeCpp::VALUE_COLUMN_COUNT];
+    more_columns[4] = more_ratio;
+    let mut base_rows = vec![wow_data::OctRegenHpEntryLikeCpp::default(); 79];
+    base_rows.push(wow_data::OctRegenHpEntryLikeCpp::from_columns(base_columns));
+    let mut more_rows = vec![wow_data::RegenHpPerSptEntryLikeCpp::default(); 79];
+    more_rows.push(wow_data::RegenHpPerSptEntryLikeCpp::from_columns(
+        more_columns,
+    ));
+    wow_data::RegenGameTablesLikeCpp::from_tables(
+        wow_data::RegenMpPerSptGameTableLikeCpp::from_rows([]),
+        wow_data::RegenHpPerSptGameTableLikeCpp::from_rows(more_rows),
+        wow_data::OctRegenHpGameTableLikeCpp::from_rows(base_rows),
+    )
+}
+
+#[test]
+fn health_regeneration_tick_heals_the_represented_player_like_cpp() {
+    let (mut session, _send_rx) = make_session_with_send_capacity(16);
+    let player_guid = ObjectGuid::create_player(1, 90);
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+    attach_stat_update_player_with_mana_and_health(
+        &mut session,
+        player_guid,
+        100,
+        1_000,
+        100,
+        1_000,
+    );
+    assert!(
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().world_mut().object_mut().add_to_world();
+            })
+            .is_some()
+    );
+    // `OCTRegenHPPerSpirit` = Spirit(20) * 0.1 + 0 * 0.2 = 2.0.
+    publish_health_regen_snapshot_like_cpp(&mut session, 20, 0);
+    let tables = health_regen_game_tables_like_cpp(0.1, 0.2);
+    let power_types = mana_power_type_store_like_cpp(0.0, 0.0);
+
+    // C++ `RegenerateAll` only runs `RegenerateHealth` once the two-second
+    // window is pending.
+    session.tick_player_regeneration_like_cpp(1_000, &power_types, Some(&tables));
+    assert_eq!(
+        session.canonical_player_health_snapshot_like_cpp(),
+        Some((100, 1_000)),
+        "the health branch waits for the 2000ms window"
+    );
+
+    session.tick_player_regeneration_like_cpp(1_000, &power_types, Some(&tables));
+    assert_eq!(
+        session.canonical_player_health_snapshot_like_cpp(),
+        Some((102, 1_000))
+    );
+    assert!(
+        session
+            .mutate_canonical_player_like_cpp(|player| player
+                .unit()
+                .unit_data_changes_mask()
+                .is_set(wow_entities::UNIT_DATA_HEALTH_BIT))
+            .unwrap_or(false),
+        "the health write marks the UnitData field for the next VALUES update"
+    );
+}
+
+#[test]
+fn health_regeneration_tick_suppresses_in_combat_without_modifiers_like_cpp() {
+    let (mut session, _send_rx) = make_session_with_send_capacity(16);
+    let player_guid = ObjectGuid::create_player(1, 91);
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+    attach_stat_update_player_with_mana_and_health(
+        &mut session,
+        player_guid,
+        100,
+        1_000,
+        100,
+        1_000,
+    );
+    assert!(
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().world_mut().object_mut().add_to_world();
+                let mut flags = player.unit().unit_flags_like_cpp();
+                flags.insert(wow_constants::unit::UnitFlags::IN_COMBAT);
+                player.unit_mut().set_unit_flags_like_cpp(flags);
+            })
+            .is_some()
+    );
+    publish_health_regen_snapshot_like_cpp(&mut session, 20, 0);
+    let tables = health_regen_game_tables_like_cpp(0.1, 0.2);
+    let power_types = mana_power_type_store_like_cpp(0.0, 0.0);
+
+    session.tick_player_regeneration_like_cpp(2_000, &power_types, Some(&tables));
+
+    assert_eq!(
+        session.canonical_player_health_snapshot_like_cpp(),
+        Some((100, 1_000)),
+        "in combat without a during-combat aura there is no health regeneration"
     );
 }

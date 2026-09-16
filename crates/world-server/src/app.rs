@@ -4877,7 +4877,7 @@ async fn run_inner(
             heirloom_store: Arc::clone(&heirloom_store),
             toy_store: Arc::clone(&toy_store),
             combat_ratings_game_table: Arc::clone(&combat_ratings_game_table),
-            regen_mp_per_spt_game_table: crate::session_resources::load_regen(&data_dir)?,
+            regen_game_tables: crate::session_resources::load_regen_game_tables(&data_dir)?,
             shield_block_regular_game_table: Arc::clone(&shield_block_regular_game_table),
             transmog_set_item_store: Arc::clone(&transmog_set_item_store),
             item_limit_category_store: Arc::clone(&item_limit_category_store),

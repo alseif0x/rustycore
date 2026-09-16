@@ -330,10 +330,10 @@ pub use unit::{
     UNIT_DATA_TARGET_BIT, UNIT_DATA_VIRTUAL_ITEMS_FIRST_BIT, UNIT_DATA_VIRTUAL_ITEMS_PARENT_BIT,
     UNIT_DATA_VIS_FLAGS_BIT, UNIT_DATA_WILD_BATTLE_PET_LEVEL_BIT, Unit,
     UnitAddToWorldOutcomeLikeCpp, UnitAttackContextLikeCpp, UnitAttackStartOutcome,
-    UnitAttackStopOutcome, UnitDataUpdate, UnitDataValues, UnitPowerRegenInputLikeCpp,
-    UnitPowerRegenOutcomeLikeCpp, UnitPowerRegenStateLikeCpp, UnitRemoveFromWorldOutcomeLikeCpp,
-    UnitSharedVisionSetWorldObjectRequestLikeCpp, UnitValuesUpdate,
-    UnitVisibilityDetectionStateLikeCpp,
+    UnitAttackStopOutcome, UnitDataUpdate, UnitDataValues, UnitHealthRegenInputLikeCpp,
+    UnitPowerRegenInputLikeCpp, UnitPowerRegenOutcomeLikeCpp, UnitPowerRegenStateLikeCpp,
+    UnitRemoveFromWorldOutcomeLikeCpp, UnitSharedVisionSetWorldObjectRequestLikeCpp,
+    UnitValuesUpdate, UnitVisibilityDetectionStateLikeCpp,
 };
 pub use unit_subsystems::{
     ACT_COMMAND_LIKE_CPP, ACT_DISABLED_LIKE_CPP, ACT_ENABLED_LIKE_CPP, ACT_PASSIVE_LIKE_CPP,
