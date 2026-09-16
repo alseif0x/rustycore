@@ -33,6 +33,20 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 non-mana power-regeneration loop — 2026-09-16, implementation `2387c04b`:**
+the canonical session tick now walks the complete C++
+`for (power = POWER_MANA; power < MAX_POWERS; ...)` loop
+(`Player.cpp:1614,1681-1747`), so the represented primary rage/energy/focus/
+runic-power is regenerated from its DB2 `PowerTypeEntry` with the
+`MOD_POWER_REGEN_PERCENT`/`MOD_POWER_REGEN` aura producers and the
+`m_regenTimerCount`-vs-`m_regenTimer` energy split. Mana keeps the published
+`UpdateManaRegen` inputs and skips those producers. One `SMSG_POWER_UPDATE` is
+published per changed power on the two-second boundary. This continues the F1
+effected-stat/regeneration vertical without changing the #584 → #583 → #153
+architecture gate. Rate overrides, alternate powers, rune regeneration,
+`IsPolymorphed`/`m_transformSpell`, observer `SendMessageToSet` parity and live
+QA remain open #61 gates.
+
 **#61 health-regeneration tick — 2026-09-16, implementation `fbd8755e`:** the
 canonical session tick now runs the complete C++ `Player::RegenerateAll`
 step, including the two-second `RegenerateHealth` branch. `wow-data` owns the

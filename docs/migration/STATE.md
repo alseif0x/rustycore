@@ -8,6 +8,31 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#61 non-mana power-regeneration loop — 2026-09-16, implementation `2387c04b`:**
+the session tick now walks the complete C++ `RegenerateAll` power loop
+(`Player.cpp:1614`): it iterates `POWER_MANA..MAX_POWERS`, skips powers without a
+represented index, and applies one `Player::Regenerate` per power, so a
+rage/energy/focus/runic-power primary is regenerated or decayed from its DB2
+`PowerTypeEntry` instead of being ignored. `Unit::regenerate_power_like_cpp` now
+applies the non-mana aura producers from `Player.cpp:1745-1747`:
+`GetTotalAuraMultiplierByMiscValue(SPELL_AURA_MOD_POWER_REGEN_PERCENT, power)`
+and the flat `SPELL_AURA_MOD_POWER_REGEN` modifier scaled by `m_regenTimerCount`
+for every power except energy, which uses `m_regenTimer`; mana keeps reading the
+published `UpdateManaRegen` fields and skips those producers exactly like C++. The
+tick resolves the per-power DB2 entry, the `SPELL_AURA_PREVENT_REGENERATE_POWER`
+value check and both misc-value aura families once, then publishes one
+`SMSG_POWER_UPDATE` per changed power on the two-second boundary. Focused
+coverage: 4 new `wow-entities` tests (percent/flat aura, energy timer selection,
+accumulated window for other powers, mana exclusion) and 2 production-shaped
+`wow-world` tick tests (rage decay, energy throttle); format, `git diff --check`,
+the physical-source ratchet and `cargo check -p world-server` pass. The runtime
+hotspot and Session syntax-ownership ratchets keep their pre-existing drift and
+were not regenerated. #61 remains open for `RatesForPower`/`sWorld->getRate`
+config overrides, alternate powers beyond the represented primary,
+`UpdateAllRunesRegen`/rune cooldowns, `IsPolymorphed`/`m_transformSpell`, the
+observer `SendMessageToSet` `SetPower` parity, productive wear-to-broken and live
+DB/restart/relogin QA.
+
 **#61 health-regeneration tick (`Player::RegenerateAll` → `RegenerateHealth`) —
 2026-09-16, implementation `fbd8755e`, integrated as `381038dd` by PR #964:** the
 session-owned tick now runs the
