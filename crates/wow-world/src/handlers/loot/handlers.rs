@@ -1658,6 +1658,9 @@ impl WorldSession {
         ) else {
             return;
         };
+        // C++ `Unit::Kill` applies the creature-killer durability loss while
+        // the lethal damage is applied, before the melee result presentation.
+        self.publish_creature_melee_death_durability_loss_like_cpp(command.over_damage);
 
         use wow_packet::packets::combat::{
             AttackerStateUpdate, HIT_INFO_NORMAL_SWING, HealthUpdate, VICTIM_STATE_HIT,

@@ -254,6 +254,50 @@ impl WorldSession {
         )
         .is_some_and(|effects| !effects.is_empty())
     }
+    /// C++ `Unit::Kill` player-victim durability branch (`Unit.cpp:10639-10648`).
+    ///
+    /// Applies `Player::DurabilityLossAll(baseLoss, false)` and returns the
+    /// `SMSG_DURABILITY_DAMAGE_DEATH` percent C++ derives as
+    /// `baseLoss - baseLoss * GetTotalAuraMultiplier(MOD_DURABILITY_LOSS)`.
+    /// C++ truncates that value to `uint32`, so with no aura the message percent
+    /// is 0; that legacy behaviour is reproduced rather than repaired.
+    pub(crate) fn apply_represented_durability_loss_on_death_like_cpp(&mut self) -> u32 {
+        let base_loss = f64::from(self.durability_loss_on_death_rate_like_cpp());
+        let multiplier = f64::from(self.represented_durability_loss_aura_multiplier_like_cpp());
+        let loss = (base_loss - base_loss * multiplier) as u32;
+        self.apply_represented_durability_loss_all_like_cpp(base_loss, false);
+        loss
+    }
+    /// C++ `Unit::Kill` creature-killer durability branch (`Unit.cpp:10639-10648`).
+    ///
+    /// The map commits the lethal swing before delivery, so `over_damage >= 0`
+    /// is the represented kill signal. C++ applies the PvE condition
+    /// `durabilityLoss && !player && !victim->InBattleground()`; a battleground
+    /// victim is skipped. The loss message is published before the melee result
+    /// presentation, matching the C++ order inside `DealMeleeDamage`.
+    pub(crate) fn publish_creature_melee_death_durability_loss_like_cpp(
+        &mut self,
+        over_damage: i32,
+    ) {
+        if over_damage < 0 || self.represented_player_in_battleground_like_cpp() {
+            return;
+        }
+        let loss = self.apply_represented_durability_loss_on_death_like_cpp();
+        self.send_packet(&wow_packet::packets::misc::DurabilityDamageDeath {
+            percent: loss as i32,
+        });
+    }
+    /// C++ `Player::InBattleground` (`Player.h:2335`) read through the canonical
+    /// Player's represented battleground state.
+    #[must_use]
+    pub(crate) fn represented_player_in_battleground_like_cpp(&self) -> bool {
+        self.with_owned_player_like_cpp(|player| {
+            player
+                .battleground_state_like_cpp()
+                .in_battleground_like_cpp()
+        })
+        .unwrap_or(false)
+    }
     /// Get the durability cost store reference.
     pub fn durability_costs_store(&self) -> Option<&Arc<DurabilityCostsStore>> {
         self.durability_costs_store.as_ref()
