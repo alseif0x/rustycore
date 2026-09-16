@@ -8,6 +8,45 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#61 aura-backed per-attack expertise (`Player::UpdateExpertise`) — 2026-09-16,
+implementation `a3345bc9`:** the character stat projection now derives
+`MainhandExpertise`/`OffhandExpertise` like C++
+`Player::UpdateExpertise` (`StatSystem.cpp:759-786`): the combat-rating bonus is
+truncated to `int32`, each attack adds the `SPELL_AURA_MOD_EXPERTISE` sum whose
+spell is fit for that attack's weapon, and the result is clamped at zero.
+`represented_expertise_aura_modifier_like_cpp` mirrors
+`GetTotalAuraModifier(SPELL_AURA_MOD_EXPERTISE, predicate)` including the
+`SPELL_GROUP_STACK_RULE_EXCLUSIVE_SAME_EFFECT` grouping, resolves the weapon
+through `Player::GetWeaponForAttack(attack, true)` (`Player.cpp:9243-9270`,
+equipped and not broken) and filters each aura through
+`SpellInfo::IsItemFitToSpellRequirements` (`SpellInfo.cpp:1757-1768`) against the
+represented `SpellEquippedItems` row, so the two weapons can select different
+auras. Two adjacent C++ corrections land with the same owner: the rating bonus
+is truncated like `int32(GetRatingBonusValue(CR_EXPERTISE))`, and
+`ActivePlayerData::RangedExpertise`/`CombatRatingExpertise` keep their zero
+create value because C++ never writes them (`UpdateFields.cpp:2889-2893`,
+`UpdateFields.h:655-658`). A new
+`resolved_aura_effect_amounts_by_spell_like_cpp` exposes the owning spell id
+next to each aura amount for the filter predicate. No new `WorldSession` field,
+lock or clock. Focused coverage: a new end-to-end test equips a mainhand axe and
+applies item-neutral, axe-fit, sword-only and armor-only expertise auras,
+asserting the per-attack filtering and the removal path; the existing
+equipment-projection test asserts the zero `RangedExpertise`/
+`CombatRatingExpertise` create values; `wow-world --lib persistence::` (104),
+`scenarios_player_items_1` (47) and `scenarios_player_items_12` (6) stay green;
+format, `git diff --check`, the physical ratchet and `validation-v2 quick`
+(manifest `20260916T233915.554585Z-2091574-quick.json`, 57.6 s) pass. The full
+`wow-world --lib` suite is not usable on this host because several unrelated
+pre-existing async tests hang (for example
+`scenarios_player_items_8::repair_item_handler_requires_repair_npc_and_repairs_single_item_like_cpp`,
+reproduced on unmodified `3.4.3`), and `validation-v2 final` stops at the
+pre-existing runtime hotspot LOC ratchet, which keeps its drift and was not
+regenerated. #61 remains open for the player-killer (PvP)
+`CONFIG_DURABILITY_LOSS_IN_PVP` branch and `SetPvPDeath`, alternate powers, rune
+regeneration and `IsPolymorphed`/`m_transformSpell` (blocked on representing
+the spell-family flags that classify `SPELL_SPECIFIC_MAGE_POLYMORPH`), plus live
+DB/restart/relogin QA.
+
 **#61 food/drink regeneration emote visual — 2026-09-16, implementation
 `73c67a9a`, integrated as `c2608254` by PR #978:** the regeneration tick now completes the tail of C++
 `Player::RegenerateAll` (`Player.cpp:1609-1678`). `m_foodEmoteTimerCount`
