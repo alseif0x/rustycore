@@ -8,6 +8,33 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#61 C++ regeneration rates — 2026-09-16, implementation `bf3794f0`:** the
+regeneration tick no longer hardcodes `rate: 1.0`/`rate_health: 1.0`; it
+consumes the C++ `World::setRegenRate` values (`World.cpp:615-623`).
+`PlayerRegenerationRatesLikeCpp` (`session_policy.rs`) carries `RATE_HEALTH`,
+`RATE_POWER_MANA`, `RATE_POWER_RAGE_LOSS`, `RATE_POWER_FOCUS`,
+`RATE_POWER_ENERGY` and `RATE_POWER_RUNIC_POWER_LOSS`, maps them through the
+C++ `RatesForPower` table (`Player.cpp:1681-1747`) and defaults every field to
+1.0 like `sWorld->getRate`. The six keys are now rows of
+`cpp-world-config-registry.tsv`; the composition root resolves them from the
+already-loaded `WorldConfigSet` and attaches the immutable value to
+`SessionHandlerCatalogsLikeCpp`, so no new `WorldSession` field or second
+authority appears. `Rate.Health` scales the `RegenerateHealth` spirit component
+and the per-power rate scales `Regenerate` before the aura producers, exactly as
+C++. The physical policy records the reviewed 3-line composition delta for
+`app.rs`. Focused coverage: the wow-config registry count/key test (352 rows, 49
+Float), the world-server `player_regeneration_rates_use_cpp_world_config_keys`
+config test and the `regeneration_rates_scale_mana_and_health_like_cpp` tick
+test; format, `git diff --check`, the physical ratchet plus its 20-test unit
+suite and `validation-v2 quick` (manifest
+`20260916T204201.787414Z-2033943-quick.json`, 523.7 s) pass. The runtime hotspot
+and Session syntax-ownership ratchets keep their pre-existing drift and were not
+regenerated. #61 remains open for the remaining `RatesForPower` entries of
+unrepresented powers (soul shards, lunar power, combo points, ...), alternate
+powers beyond the represented primary, `UpdateAllRunesRegen`/rune cooldowns,
+`IsPolymorphed`/`m_transformSpell`, observer `SendMessageToSet` parity and live
+DB/restart/relogin QA.
+
 **#61 non-mana power-regeneration loop — 2026-09-16, implementation `2387c04b`,
 integrated as `4206ab00` by PR #966:**
 the session tick now walks the complete C++ `RegenerateAll` power loop
