@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-16:** `3.4.3` is at
-`d74381ec68261eaeeba9ba966dd993afe461dec7` (PR #962, following the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`381038dd38ea178044daf9e2a6c7e04e79333096` (PR #964, the #61 health-regeneration tick, following PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
@@ -9,7 +9,8 @@ by the stateful module product #583 and the independent audit #153. #582 and
 the residual acceptance explicitly stated below.
 
 **#61 health-regeneration tick (`Player::RegenerateAll` → `RegenerateHealth`) —
-2026-09-16, implementation `fbd8755e`:** the session-owned tick now runs the
+2026-09-16, implementation `fbd8755e`, integrated as `381038dd` by PR #964:** the
+session-owned tick now runs the
 complete C++ `Player::Update → RegenerateAll` step. It accumulates
 `m_regenTimer`/`m_regenTimerCount` for every living in-world player regardless
 of mana prevention or power representation, regenerates the represented primary
