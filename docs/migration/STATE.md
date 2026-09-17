@@ -1,12 +1,43 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`08f0bd3c3caa8ea9d01d3190dd0f41b89d96b251` (PR #1065, the #61 shapeshift form ownership and `CombatRoundTime`, following PR #1063, the #61 attack-speed aura application, PR #1061, the #61 `CONFIG_STATS_LIMITS_*` caps, PR #1059, the #61 `BonusCoefficientFromAP` table term, PR #1057, the #61 `SpellHealingPctDone` completion, PR #1055, the #61 remaining `SpellDamagePctDone` terms, PR #1053, the #61 health-derived unit aura states, PR #1051, the #61 mechanic-based damage multipliers, PR #1049, the #61 versus-aurastate damage multiplier, following PR #1047, the creature missing-health heal scaling, PR #1045, the versus-creature-type damage multiplier, PR #1043, the missing-health healing scaling, PR #1041, the `SpellHealingBonusTaken`, PR #1039, the victim `ModHealing` term, PR #1037, the direct-heal spell-power bonus, PR #1035, the school damage percentage, PR #1033, the caster spell-power damage bonus, PR #1031, the weapon-enchantment damage term, PR #1029, the ranged weapon fit, PR #1027, the `Unit::UpdateDamageDoneMods` representation, PR #1025, the `UpdateDamagePctDoneMods` representation, PR #1023, the `VersatilityBonus` publication, PR #1021, the override percentage publication, PR #1019, the `ModTargetResistance`/spell-penetration publication, PR #1017, the `ModHealingDonePercent` publication, PR #1015, the `ModDamageDonePercent` publication, PR #1013, the narrow values-update negative spell field, PR #1011, the spell field wire publication, PR #1009, the spell damage/healing done producers, PR #1007, the override-attack-power-by-spell-power aura, PR #1005, the seven stale `wow-world --lib` expectations, PR #1003, the quest party fixture identity fix, PR #1001, the save-snapshot manager-lock re-entry fix, PR #999, the session reputation-closure lock re-entry deadlock fix, PR #997, the collection appearance `CanUseItem` template gates, PR #995, the collection appearance weapon-proficiency gate, PR #993, the #61 attack power aura producers, PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`14b07630b0b9895ef94ffc0c6b7ba3b2b1d8f491` (PR #1067, the #61 form-change item effect refresh, following PR #1065, the #61 shapeshift form ownership and `CombatRoundTime`, PR #1063, the #61 attack-speed aura application, PR #1061, the #61 `CONFIG_STATS_LIMITS_*` caps, PR #1059, the #61 `BonusCoefficientFromAP` table term, PR #1057, the #61 `SpellHealingPctDone` completion, PR #1055, the #61 remaining `SpellDamagePctDone` terms, PR #1053, the #61 health-derived unit aura states, PR #1051, the #61 mechanic-based damage multipliers, PR #1049, the #61 versus-aurastate damage multiplier, following PR #1047, the creature missing-health heal scaling, PR #1045, the versus-creature-type damage multiplier, PR #1043, the missing-health healing scaling, PR #1041, the `SpellHealingBonusTaken`, PR #1039, the victim `ModHealing` term, PR #1037, the direct-heal spell-power bonus, PR #1035, the school damage percentage, PR #1033, the caster spell-power damage bonus, PR #1031, the weapon-enchantment damage term, PR #1029, the ranged weapon fit, PR #1027, the `Unit::UpdateDamageDoneMods` representation, PR #1025, the `UpdateDamagePctDoneMods` representation, PR #1023, the `VersatilityBonus` publication, PR #1021, the override percentage publication, PR #1019, the `ModTargetResistance`/spell-penetration publication, PR #1017, the `ModHealingDonePercent` publication, PR #1015, the `ModDamageDonePercent` publication, PR #1013, the narrow values-update negative spell field, PR #1011, the spell field wire publication, PR #1009, the spell damage/healing done producers, PR #1007, the override-attack-power-by-spell-power aura, PR #1005, the seven stale `wow-world --lib` expectations, PR #1003, the quest party fixture identity fix, PR #1001, the save-snapshot manager-lock re-entry fix, PR #999, the session reputation-closure lock re-entry deadlock fix, PR #997, the collection appearance `CanUseItem` template gates, PR #995, the collection appearance weapon-proficiency gate, PR #993, the #61 attack power aura producers, PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#61 form-change item effect refresh — 2026-09-17, implementation
+`5c427e5c`, integrated as `14b07630` by PR #1067:** C++
+`Player::InitDataForForm` (`Player.cpp:22093-22094`) calls
+`Player::UpdateEquipSpellsAtFormChange` on every shapeshift apply and removal:
+each equipped item runs `ApplyItemEquipSpell(item, false, true)` and
+`(item, true, true)` so spells whose `Stances` no longer fit are dropped and the
+now-fitting ones are applied, and the item-set auras replay under the new form.
+The represented `apply_represented_item_set_aura_refresh_events_like_cpp`
+planner existed but nothing outside tests ever called it, so item-set and equip
+spells gated by a form were inert.
+`refresh_represented_item_effects_at_form_change_like_cpp` now removes the
+equipped items' spell auras the new form rejects (matching on the item caster
+GUID), re-applies each item's equip spells through the existing form-aware
+`apply_initial_item_equip_auras_like_cpp`, and replays the item-set auras with
+`form_change = true`; `sync_represented_shapeshift_form_like_cpp` runs it
+between the attack-time update and the stat republish. Boundary:
+`HandleShapeshiftBoosts` (the form's bonus spells) and the form display/
+power-type switch remain unrepresented. Evidence: two new scenarios equip an
+item carrying a cat-form-gated `ItemEffect` equip spell and a two-piece set
+bonus gated the same way, then assert both auras appear when the form aura is
+applied and disappear when it is removed; wow-data --lib 753/0, wow-entities
+--lib 940/0 and wow-world --lib 3953/0/1 pass, as do format, `git diff --check`,
+the physical ratchet and `validation-v2 quick` (manifest
+`20260917T085935.668738Z-2566293-quick.json`). No live DB/restart/relogin QA.
+#61 stays open for the Shadow Bite per-DoT term, the blocked victim-side
+`SpellDamageBonusTaken`/`MeleeDamageBonusTaken` chains (creature aura producers
+are absent), the ranged/offhand attack-type selection for the AP term, the
+offhand-damage aura scale, `HandleShapeshiftBoosts`, the player-killer (PvP)
+`CONFIG_DURABILITY_LOSS_IN_PVP` branch, alternate powers, rune regeneration and
+live DB/restart/relogin QA.
 
 **#61 shapeshift form ownership and `CombatRoundTime` — 2026-09-17,
 implementation `eddc62de`, integrated as `08f0bd3c` by PR #1065:** C++
