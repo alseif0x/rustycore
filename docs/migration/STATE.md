@@ -57,6 +57,25 @@ the target build's negative crushing band, and live DB/restart/relogin QA. The
 next unit should be the `ExpectedStat` consumer, whose store already exists in
 `wow-data` with no consumer.
 
+**#29 melee immunity gate discovery — 2026-09-17, no code change:** the claim
+that the melee band table and its inputs are complete in both directions needs
+one qualification. C++ `Unit::CalculateMeleeDamage` starts with a physical
+immunity check (`Unit.cpp:1315-1324`): when
+`victim->IsImmunedToDamage(SpellSchoolMask(DamageSchoolMask))` holds, the swing
+returns `HITINFO_NORMALSWING` with `VICTIMSTATE_IS_IMMUNE` and zero damage before
+any damage roll or band. The represented table has no immunity input at all, and
+`wow-packet` has neither `HIT_INFO_NORMALSWING` (`0x0`) nor
+`VICTIM_STATE_IS_IMMUNE` (`7`); `wow-entities` exposes only the vehicle immunity
+structures, so no `IsImmunedToDamage` producer exists yet. Reachability differs
+by direction: a player victim's school-immunity auras have a represented
+producer, so creature→player immunity is reachable and currently deals damage;
+a creature victim's immunities depend on the represented aura/immunity
+registry, which has no producer today. The next melee-adjacent unit is therefore
+the immunity gate: publish the two packet constants, resolve the victim's
+`schema`-school immunity from its auras (checking the represented immunity
+registry first), add an `is_immune_to_damage` victim fact and the early return in
+both owners, and cover it with a pure plus production runtime scenario.
+
 **#29 ExpectedStat table load — 2026-09-17, implementation `179e9b92`,
 integrated as `7bab6a40` by PR #1144:** C++ `Player::GetBlockPercent`
 (`Player.cpp:25288-25298`) reads

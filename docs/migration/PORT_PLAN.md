@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 melee immunity gate discovery — 2026-09-17, no code change:** C++
+`CalculateMeleeDamage`'s physical immunity gate (`Unit.cpp:1315-1324`,
+`HITINFO_NORMALSWING` + `VICTIMSTATE_IS_IMMUNE`, zero damage) has no represented
+input, so a creature→player swing against a school-immune player still deals
+damage; the packet constants and an `IsImmunedToDamage` producer are the next
+melee-adjacent unit. This qualifies the previous "complete in both directions"
+claim.
+
 **#29 ExpectedStat table load — 2026-09-17, implementation `179e9b92`:** the
 `ExpectedStat` DB2 table is now loaded at startup and its
 `armor_constant_like_cpp(level, expansion)` lookup (row, `(lvl, -2)` fallback,
