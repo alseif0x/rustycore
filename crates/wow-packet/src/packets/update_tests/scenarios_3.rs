@@ -35,6 +35,7 @@ fn active_player_stats_values_update_matches_cpp_common_runtime_masks() {
         armor: 0,
         combat_ratings,
         mod_damage_done_pos: [0, 123, 123, 123, 123, 123, 123],
+        mod_damage_done_neg: [0, -10, -20, -30, -40, -50, -60],
         mod_healing_done_pos: 123,
         block_pct: 1.0,
         dodge_pct: 2.0,
@@ -64,16 +65,20 @@ fn active_player_stats_values_update_matches_cpp_common_runtime_masks() {
     write_active_player_data_values_update(&mut values, &[], &[], Some(&stats), None);
 
     let bytes = values.into_data();
-    assert_eq!(&bytes[0..4], &[0x07, 0x01, 0x06, 0x00]); // blocks 0,1,2,8,17,18
+    assert_eq!(&bytes[0..4], &[0x07, 0x03, 0x06, 0x00]); // blocks 0,1,2,8,9,17,18
     assert_eq!(&bytes[4..6], &[0x00, 0x00]);
     assert_eq!(&bytes[6..10], &[0x00, 0x00, 0x00, 0x01]);
     // block 1 = 0xFFFBFFF0: bits 4,5 + bits 6..31 EXCEPT bit 18 (field 50,
     // ShieldBlockCritPercentage, reserved in the 54261 client grammar).
     assert_eq!(&bytes[10..14], &[0xFF, 0xFB, 0xFF, 0xF0]);
     assert_eq!(&bytes[14..18], &[0x00, 0x00, 0x00, 0x3F]);
-    assert_eq!(&bytes[18..22], &[0x0F, 0xFF, 0xE0, 0x00]);
-    assert_eq!(&bytes[22..26], &[0xC0, 0x00, 0x00, 0x00]);
-    assert_eq!(&bytes[26..30], &[0x7F, 0xFF, 0xFF, 0xFF]);
+    // block 8 = 0xFFFFE000: parent 269, SpellCrit 14-20, ModDmgDonePos 21-27
+    // and ModDmgDoneNeg bits 284-287 at 28-31.
+    assert_eq!(&bytes[18..22], &[0xFF, 0xFF, 0xE0, 0x00]);
+    // block 9 = 0x00000007: ModDmgDoneNeg bits 288-290.
+    assert_eq!(&bytes[22..26], &[0x00, 0x00, 0x00, 0x07]);
+    assert_eq!(&bytes[26..30], &[0xC0, 0x00, 0x00, 0x00]);
+    assert_eq!(&bytes[30..34], &[0x7F, 0xFF, 0xFF, 0xFF]);
 
     let expertise = 13.0f32.to_le_bytes();
     let values_start = bytes
@@ -95,13 +100,27 @@ fn active_player_stats_values_update_matches_cpp_common_runtime_masks() {
     // reserved and not emitted, so skip 30 floats (not 31) to reach SpellCrit.
     offset += 30 * 4;
 
-    for expected in [6.0f32, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0] {
+    for (index, expected) in [6.0f32, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]
+        .into_iter()
+        .enumerate()
+    {
         assert_eq!(
             f32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap()),
             expected
         );
         offset += 4;
-        offset += 4; // ModDamageDonePos for the same school.
+        assert_eq!(
+            i32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap()),
+            stats.mod_damage_done_pos[index],
+            "ModDamageDonePos for school {index}"
+        );
+        offset += 4;
+        assert_eq!(
+            i32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap()),
+            stats.mod_damage_done_neg[index],
+            "ModDamageDoneNeg for school {index}"
+        );
+        offset += 4;
     }
 
     assert_eq!(

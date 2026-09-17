@@ -3822,6 +3822,7 @@ impl WorldSession {
             armor: projection.armor,
             combat_ratings: gear.combat_ratings,
             mod_damage_done_pos: projection.mod_damage_done_pos,
+            mod_damage_done_neg: projection.mod_damage_done_neg,
             mod_healing_done_pos: projection.mod_healing_done_pos,
             block_pct: projection.block_pct,
             dodge_pct: projection.dodge_pct,

@@ -85,6 +85,7 @@ fn zeroed_stat_changes() -> PlayerStatChanges {
         armor: 0,
         combat_ratings: [0; 32],
         mod_damage_done_pos: [0; 7],
+        mod_damage_done_neg: [0; 7],
         mod_healing_done_pos: 0,
         block_pct: 0.0,
         dodge_pct: 0.0,
