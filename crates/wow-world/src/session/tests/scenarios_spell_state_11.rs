@@ -1013,27 +1013,77 @@ async fn spell_direct_heal_applies_spell_power_and_healing_percent_like_cpp() {
             ..Default::default()
         },
     ])));
-    let heal_spell = wow_data::SpellInfo {
-        spell_id,
-        cast_time_ms: 0,
-        cooldown_ms: 0,
-        recovery_time_ms: 0,
-        effect_type: 0,
-        effect_base_points: 0,
-        effect_bonus_coefficient: 0.5,
-        aura_type: None,
-        display_flags: 0,
-        requires_spell_focus: 0,
-        power_costs: Vec::new(),
-        effects: vec![wow_data::SpellEffectInfo {
-            effect_index: 0,
-            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL,
-            effect_base_points: 100,
-            ..Default::default()
-        }],
-    };
+
+    // The heal plus the victim `SPELL_AURA_MOD_HEALING` (40 holy) and the
+    // `SPELL_AURA_MOD_HEALING_PCT` -50/+25 auras applied below.
     let mut spell_store = wow_data::SpellStore::new();
-    spell_store.insert(spell_id, heal_spell.clone());
+    spell_store.insert(
+        spell_id,
+        wow_data::SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.5,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL,
+                effect_base_points: 100,
+                ..Default::default()
+            }],
+        },
+    );
+    for (aura_spell_id, aura_type, misc_value, amount) in [
+        (
+            90_950_i32,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING,
+            1 << 1,
+            40,
+        ),
+        (
+            90_951_i32,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_PCT,
+            0,
+            -50,
+        ),
+        (
+            90_952_i32,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_PCT,
+            0,
+            25,
+        ),
+    ] {
+        spell_store.insert(
+            aura_spell_id,
+            wow_data::SpellInfo {
+                spell_id: aura_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: amount,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(aura_type),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: aura_type,
+                    effect_misc_value_1: misc_value,
+                    effect_base_points: amount,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
     session.set_spell_store(Arc::new(spell_store));
 
     session
@@ -1047,36 +1097,8 @@ async fn spell_direct_heal_applies_spell_power_and_healing_percent_like_cpp() {
     // C++ `SpellHealingBonusDone` also adds the victim's
     // `SPELL_AURA_MOD_HEALING` by school mask; the self-heal victim is the
     // session player, whose auras are represented.
-    let aura_spell_id = 90_950_i32;
-    let mut spell_store = wow_data::SpellStore::new();
-    spell_store.insert(spell_id, heal_spell);
-    spell_store.insert(
-        aura_spell_id,
-        wow_data::SpellInfo {
-            spell_id: aura_spell_id,
-            cast_time_ms: 0,
-            cooldown_ms: 0,
-            recovery_time_ms: 0,
-            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
-            effect_base_points: 40,
-            effect_bonus_coefficient: 0.0,
-            aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING),
-            display_flags: 0,
-            requires_spell_focus: 0,
-            power_costs: Vec::new(),
-            effects: vec![wow_data::SpellEffectInfo {
-                effect_index: 0,
-                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
-                effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING,
-                effect_misc_value_1: 1 << 1,
-                effect_base_points: 40,
-                ..Default::default()
-            }],
-        },
-    );
-    session.set_spell_store(Arc::new(spell_store));
     session
-        .apply_aura(aura_spell_id, guid, 30_000, 1)
+        .apply_aura(90_950, guid, 30_000, 1)
         .expect("apply victim healing aura");
     session
         .execute_spell(spell_id, guid)
@@ -1085,6 +1107,21 @@ async fn spell_direct_heal_applies_spell_power_and_healing_percent_like_cpp() {
 
     // The second cast: `int32((100 + int32(140 * 0.5)) * 1.5) = 255`.
     assert_eq!(session.player_health_like_cpp(), 580);
+
+    // C++ `SpellHealingBonusTaken`: the most negative (-50) and most positive
+    // (+25) `SPELL_AURA_MOD_HEALING_PCT` amounts multiply the received heal.
+    for aura_spell_id in [90_951_i32, 90_952_i32] {
+        session
+            .apply_aura(aura_spell_id, guid, 30_000, 1)
+            .expect("apply healing taken aura");
+    }
+    session
+        .execute_spell(spell_id, guid)
+        .await
+        .expect("third represented direct heal should apply the taken modifiers");
+
+    // The third cast: `int32(255 * (1 - 0.5) * (1 + 0.25)) = 159`.
+    assert_eq!(session.player_health_like_cpp(), 739);
 }
 
 #[tokio::test]

@@ -64,6 +64,11 @@ impl WorldSession {
         heal_amount: u32,
     ) -> Result<(), &'static str> {
         let player_guid = self.player_guid().ok_or("No player GUID")?;
+        let heal_amount = if spell_id.is_some() {
+            self.represented_spell_healing_bonus_taken_like_cpp(target_guid, heal_amount)
+        } else {
+            heal_amount
+        };
         // Si target es el mismo jugador
         if target_guid == player_guid {
             let Some((current, healed, _, effective_heal)) =
@@ -599,6 +604,44 @@ impl WorldSession {
             }
         }
         Some(benefit)
+    }
+
+    /// C++ `Unit::SpellHealingBonusTaken` (`Unit.cpp:7231-7239`): the most
+    /// positive and most negative active `SPELL_AURA_MOD_HEALING_PCT` (118)
+    /// amounts, each applied with `AddPct`, to healing the unit receives.
+    ///
+    /// Boundary: only the session player's auras are represented, so creature
+    /// targets keep the raw amount; the Nourish druid case is not modelled.
+    fn represented_spell_healing_bonus_taken_like_cpp(
+        &self,
+        target_guid: ObjectGuid,
+        heal_amount: u32,
+    ) -> u32 {
+        if Some(target_guid) != self.player_guid() {
+            return heal_amount;
+        }
+        let amounts = self
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_PCT,
+            )
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(_, amount)| amount);
+        let mut taken_total_mod = 1.0_f32;
+        let mut min_negative = 0i32;
+        let mut max_positive = 0i32;
+        for amount in amounts {
+            min_negative = min_negative.min(amount);
+            max_positive = max_positive.max(amount);
+        }
+        if min_negative != 0 {
+            taken_total_mod *= 1.0 + min_negative as f32 / 100.0;
+        }
+        if max_positive != 0 {
+            taken_total_mod *= 1.0 + max_positive as f32 / 100.0;
+        }
+        let taken = heal_amount as f32 * taken_total_mod;
+        u32::try_from(taken.max(0.0).min(u32::MAX as f32) as u32).unwrap_or(u32::MAX)
     }
 
     /// C++ `SpellInfo::GetSchoolMask()` as loaded from the spell's
