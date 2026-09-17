@@ -685,6 +685,44 @@ impl WorldSession {
         }
         Some(effects)
     }
+    /// Resolve active aura effects of `aura_type` with both C++ misc values and
+    /// the amount. Several `UnitMods` producers (`HandleAuraModResistance`,
+    /// `HandleModResistanceOfStatPercent`) select by `GetMiscValue()` and read
+    /// `GetMiscValueB()`, so callers need `(misc_value, misc_value_b, amount)`.
+    pub(crate) fn resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(
+        &self,
+        aura_type: i32,
+    ) -> Option<Vec<(i32, i32, i32)>> {
+        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
+        let spell_store = self.spell_store()?;
+        let mut effects = Vec::new();
+        for aura in visible_auras.values() {
+            let Some(spell) = spell_store.get(aura.spell_id) else {
+                continue;
+            };
+            for effect in spell.effects().iter().filter(|effect| {
+                effect.effect_aura == aura_type
+                    && 1u32
+                        .checked_shl(effect.effect_index)
+                        .is_some_and(|bit| aura.effect_mask & bit != 0)
+            }) {
+                let amount = aura
+                    .represented_effect_amounts
+                    .iter()
+                    .find(|represented| {
+                        u8::try_from(effect.effect_index).ok() == Some(represented.effect_index)
+                    })
+                    .map(|represented| represented.amount)
+                    .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
+                effects.push((
+                    effect.effect_misc_value_1,
+                    effect.effect_misc_value_2,
+                    amount,
+                ));
+            }
+        }
+        Some(effects)
+    }
     /// Whether the represented application carries an active
     /// `SPELL_AURA_TRANSFORM` effect, the trigger C++ routes to
     /// `AuraEffect::HandleAuraTransform`.

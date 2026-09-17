@@ -100,6 +100,22 @@ pub struct PlayerStatSystemInputLikeCpp {
     pub gear_health: i32,
     pub gear_mana: i32,
     pub gear_armor: i32,
+    /// C++ `GetPctModifierValue(UNIT_MOD_ARMOR, BASE_PCT)` from
+    /// `SPELL_AURA_MOD_BASE_RESISTANCE_PCT` effects carrying the normal school
+    /// mask.
+    pub armor_base_pct: f32,
+    /// C++ `GetFlatModifierValue(UNIT_MOD_ARMOR, TOTAL_VALUE)` from
+    /// `SPELL_AURA_MOD_RESISTANCE`/`SPELL_AURA_MOD_BASE_RESISTANCE` effects
+    /// carrying the normal school mask.
+    pub armor_flat_aura: i32,
+    /// `SPELL_AURA_MOD_RESISTANCE_OF_STAT_PERCENT` amounts carrying the normal
+    /// school mask, aggregated per `MiscValueB` stat index (`CalculatePct`).
+    pub armor_of_stat_percent: [i32; 5],
+    /// C++ `GetPctModifierValue(UNIT_MOD_ARMOR, TOTAL_PCT)` from
+    /// `SPELL_AURA_MOD_RESISTANCE_PCT` effects carrying the normal school mask.
+    pub armor_total_pct: f32,
+    /// C++ `GetTotalAuraMultiplier(SPELL_AURA_MOD_BONUS_ARMOR_PCT)`.
+    pub armor_bonus_pct: f32,
     pub gear_attack_power: i32,
     pub gear_ranged_attack_power: i32,
     pub rating_bonuses: [f32; 32],
@@ -292,6 +308,22 @@ pub fn calculate_player_stat_system_like_cpp(
         0.0
     };
 
+    // C++ `Player::UpdateArmor` (`StatSystem.cpp:251-276`): the item
+    // `BASE_VALUE` is scaled by the base-resistance percentage, the agility
+    // term and the aura `TOTAL_VALUE`/`MOD_RESISTANCE_OF_STAT_PERCENT` terms
+    // follow, and the `TOTAL_PCT`/`MOD_BONUS_ARMOR_PCT` multipliers apply last.
+    // `SetArmor(int32(value), ...)` truncates toward zero.
+    let mut armor = input.gear_armor as f32 * input.armor_base_pct;
+    armor += stats[1] as f32 * 2.0;
+    armor += input.armor_flat_aura as f32;
+    for (stat_index, amount) in input.armor_of_stat_percent.iter().enumerate() {
+        if *amount != 0 {
+            armor += stats[stat_index] as f32 * *amount as f32 / 100.0;
+        }
+    }
+    armor = armor * input.armor_total_pct * input.armor_bonus_pct;
+    let armor = armor as i32;
+
     PlayerStatSystemProjectionLikeCpp {
         stats,
         stat_pos_buff,
@@ -300,7 +332,7 @@ pub fn calculate_player_stat_system_like_cpp(
         base_mana,
         max_health,
         max_mana,
-        armor: stats[1].saturating_mul(2).saturating_add(input.gear_armor),
+        armor,
         attack_power,
         attack_power_mod_pos: input.gear_attack_power,
         ranged_attack_power,
@@ -601,6 +633,11 @@ mod tests {
             gear_health: 100,
             gear_mana: 50,
             gear_armor: 25,
+            armor_base_pct: 1.0,
+            armor_flat_aura: 0,
+            armor_of_stat_percent: [0; 5],
+            armor_total_pct: 1.0,
+            armor_bonus_pct: 1.0,
             gear_attack_power: 17,
             gear_ranged_attack_power: 4,
             rating_bonuses: [0.0; 32],
@@ -618,6 +655,49 @@ mod tests {
         assert_eq!(projection.total_attack_power, -3);
         assert_eq!(projection.ranged_attack_power, -10);
         assert_eq!(projection.ranged_attack_power_mod_pos, 21);
+    }
+
+    #[test]
+    fn stat_system_applies_cpp_armor_aura_producers_order_like_cpp() {
+        // C++ `Player::UpdateArmor` (`StatSystem.cpp:251-276`): item BASE_VALUE
+        // scaled by BASE_PCT, plus agility, plus the aura flat TOTAL_VALUE and
+        // `MOD_RESISTANCE_OF_STAT_PERCENT` terms, then TOTAL_PCT and
+        // `MOD_BONUS_ARMOR_PCT`, truncated by `int32(value)`.
+        let projection = calculate_player_stat_system_like_cpp(PlayerStatSystemInputLikeCpp {
+            base: PlayerLevelStats {
+                strength: 10,
+                agility: 12,
+                stamina: 30,
+                intellect: 40,
+                spirit: 20,
+                base_mana: 155,
+            },
+            class: 5,
+            level: 80,
+            attack_power_per_strength: 0,
+            attack_power_per_agility: 0,
+            ranged_attack_power_per_agility: 0,
+            stat_total_multipliers: [1.0; 5],
+            stat_buff_total_multipliers: [1.0; 5],
+            gear_stats: [0; 5],
+            gear_health: 0,
+            gear_mana: 0,
+            gear_armor: 100,
+            armor_base_pct: 1.5,
+            armor_flat_aura: 40,
+            // 50% of the final Agility (12) is added before the multipliers.
+            armor_of_stat_percent: [0, 50, 0, 0, 0],
+            armor_total_pct: 1.25,
+            armor_bonus_pct: 1.1,
+            gear_attack_power: 0,
+            gear_ranged_attack_power: 0,
+            rating_bonuses: [0.0; 32],
+            can_parry: false,
+            can_block: false,
+        });
+
+        // ((100 * 1.5) + 12 * 2 + 40 + 12 * 50 / 100) * 1.25 * 1.1 = 302.5
+        assert_eq!(projection.armor, 302);
     }
 
     #[test]
@@ -643,6 +723,11 @@ mod tests {
             gear_health: 0,
             gear_mana: 0,
             gear_armor: 0,
+            armor_base_pct: 1.0,
+            armor_flat_aura: 0,
+            armor_of_stat_percent: [0; 5],
+            armor_total_pct: 1.0,
+            armor_bonus_pct: 1.0,
             gear_attack_power: 0,
             gear_ranged_attack_power: 0,
             rating_bonuses,
@@ -684,6 +769,11 @@ mod tests {
             gear_health: 0,
             gear_mana: 0,
             gear_armor: 0,
+            armor_base_pct: 1.0,
+            armor_flat_aura: 0,
+            armor_of_stat_percent: [0; 5],
+            armor_total_pct: 1.0,
+            armor_bonus_pct: 1.0,
             gear_attack_power: 0,
             gear_ranged_attack_power: 0,
             rating_bonuses: [0.0; 32],
@@ -720,6 +810,11 @@ mod tests {
             gear_health: 0,
             gear_mana: 0,
             gear_armor: 0,
+            armor_base_pct: 1.0,
+            armor_flat_aura: 0,
+            armor_of_stat_percent: [0; 5],
+            armor_total_pct: 1.0,
+            armor_bonus_pct: 1.0,
             gear_attack_power: 0,
             gear_ranged_attack_power: 0,
             rating_bonuses: [0.0; 32],
