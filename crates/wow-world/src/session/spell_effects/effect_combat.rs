@@ -532,7 +532,7 @@ impl WorldSession {
     /// the current map difficulty and its `FallbackDifficultyID` chain. `false`
     /// when the represented store is unavailable, so callers keep their
     /// un-gated behaviour instead of failing closed on missing metadata.
-    fn represented_spell_has_attribute_like_cpp(
+    pub(in crate::session) fn represented_spell_has_attribute_like_cpp(
         &self,
         spell_id: i32,
         attribute_word: usize,

@@ -12,6 +12,9 @@ mod catalog;
 mod cooldown;
 mod effects;
 mod mount_aura;
+mod shapeshift;
+
+pub(crate) use aura::RepresentedShapeshiftMutationLikeCpp;
 mod spell;
 mod spell_click;
 mod spell_publication;

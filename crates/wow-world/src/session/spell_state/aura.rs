@@ -362,11 +362,6 @@ impl WorldSession {
             .unwrap_or(0)
     }
 
-    /// C++ `Player::GetShapeshiftForm`'s `SpellShapeshiftFormEntry`:
-    /// `Player::CalculateMinMaxDamage` (`StatSystem.cpp:461-467`) rescales the
-    /// base weapon damage and `Player::_ApplyWeaponDamage` (`Player.cpp:8018-8020`)
-    /// suppresses the item-delay attack time while a form carries a
-    /// `CombatRoundTime`. `None` when no form, no store, or a zero field.
     /// Whether any effect of the spell applies `SPELL_AURA_MOD_SHAPESHIFT`, the
     /// gate for the C++ form-change recalculation.
     pub(crate) fn represented_spell_has_mod_shapeshift_effect_like_cpp(
@@ -387,33 +382,46 @@ impl WorldSession {
     /// (`SpellAuraEffects.cpp:1838-1866`): applying a `SPELL_AURA_MOD_SHAPESHIFT`
     /// aura sets the unit's form to the effect's `GetMiscValue`, and removing it
     /// clears the form only when no other active aura still applies one.
+    ///
+    /// The returned mutation tells the caller which
+    /// `HandleShapeshiftBoosts` branch to run: the applied form, or the removed
+    /// form together with the form that remains.
     pub(in crate::session) fn sync_represented_shapeshift_form_ownership_like_cpp(
         &mut self,
         mutated_spell_id: i32,
-    ) -> bool {
+    ) -> Option<RepresentedShapeshiftMutationLikeCpp> {
         let Some(store) = self.spell_store().cloned() else {
-            return false;
+            return None;
         };
         if !self.represented_spell_has_mod_shapeshift_effect_like_cpp(mutated_spell_id) {
-            return false;
+            return None;
         }
+        let mutated_form = store
+            .get(mutated_spell_id)
+            .and_then(shapeshift_form_of_spell_like_cpp);
         if self.player_has_visible_aura_spell_like_cpp(mutated_spell_id) == Some(true) {
-            let Some(form_id) = store
-                .get(mutated_spell_id)
-                .and_then(shapeshift_form_of_spell_like_cpp)
-            else {
-                return false;
-            };
-            return self.set_represented_shapeshift_form_like_cpp(form_id);
+            let form_id = mutated_form?;
+            self.set_represented_shapeshift_form_like_cpp(form_id);
+            return Some(RepresentedShapeshiftMutationLikeCpp::Applied { form_id });
         }
         let remaining_form = self
             .resolved_player_visible_auras_like_cpp()
             .unwrap_or_default()
             .into_values()
             .find_map(|aura| shapeshift_form_of_spell_like_cpp(store.get(aura.spell_id)?));
-        self.set_represented_shapeshift_form_like_cpp(remaining_form.unwrap_or(0))
+        let new_form = remaining_form.unwrap_or(0);
+        self.set_represented_shapeshift_form_like_cpp(new_form);
+        Some(RepresentedShapeshiftMutationLikeCpp::Removed {
+            removed_form: mutated_form.unwrap_or(0),
+            new_form,
+        })
     }
 
+    /// C++ `Player::GetShapeshiftForm`'s `SpellShapeshiftFormEntry`:
+    /// `Player::CalculateMinMaxDamage` (`StatSystem.cpp:461-467`) rescales the
+    /// base weapon damage and `Player::_ApplyWeaponDamage` (`Player.cpp:8018-8020`)
+    /// suppresses the item-delay attack time while a form carries a
+    /// `CombatRoundTime`. `None` when no form, no store, or a zero field.
     pub(crate) fn represented_shapeshift_combat_round_time_like_cpp(&self) -> Option<f32> {
         let form_id = self.represented_shapeshift_form_like_cpp()?;
         let store = self.spell_catalogs.spell_shapeshift_form_store()?;
@@ -1227,4 +1235,14 @@ fn shapeshift_form_of_spell_like_cpp(spell: &wow_data::SpellInfo) -> Option<u32>
         .iter()
         .find(|effect| effect.is_mod_shapeshift_aura_like_cpp())
         .and_then(|effect| u32::try_from(effect.effect_misc_value_1).ok())
+}
+
+/// Direction of one represented `SPELL_AURA_MOD_SHAPESHIFT` mutation, the input
+/// the C++ `HandleShapeshiftBoosts` branches need.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedShapeshiftMutationLikeCpp {
+    /// The aura was applied and its form now owns `GetShapeshiftForm()`.
+    Applied { form_id: u32 },
+    /// The aura was removed; `new_form` is the form that remains, `0` when none.
+    Removed { removed_form: u32, new_form: u32 },
 }

@@ -53,6 +53,7 @@ pub mod registry;
 mod social;
 mod spell_effects;
 mod spell_state;
+pub(crate) use spell_state::RepresentedShapeshiftMutationLikeCpp;
 mod taxi;
 mod test_support;
 mod trainer_acquisition;

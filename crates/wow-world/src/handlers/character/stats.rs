@@ -668,9 +668,26 @@ impl WorldSession {
     /// C++ `Player::InitDataForForm` plus the `UpdateDamagePhysical` refresh at
     /// a shapeshift aura apply/removal: reinstall the base attack times and
     /// republish the weapon ranges the form rescales.
-    pub(crate) fn sync_represented_shapeshift_form_like_cpp(&mut self) {
+    pub(crate) fn sync_represented_shapeshift_form_like_cpp(
+        &mut self,
+        mutation: crate::session::RepresentedShapeshiftMutationLikeCpp,
+    ) {
         if !self.apply_represented_shapeshift_base_attack_time_like_cpp() {
             return;
+        }
+        // C++ `AuraEffect::HandleShapeshiftBoosts`
+        // (`SpellAuraEffects.cpp:1394-1464`) owns the form's bonus spells and
+        // the stance-gated self-aura sweep on both directions.
+        match mutation {
+            crate::session::RepresentedShapeshiftMutationLikeCpp::Applied { form_id } => {
+                self.apply_represented_shapeshift_boosts_like_cpp(form_id);
+            }
+            crate::session::RepresentedShapeshiftMutationLikeCpp::Removed {
+                removed_form,
+                new_form,
+            } => {
+                self.remove_represented_shapeshift_boosts_like_cpp(removed_form, new_form);
+            }
         }
         // C++ `Player::InitDataForForm` (`Player.cpp:22093-22094`) refreshes the
         // equipped items' form-gated spells and item-set auras before
