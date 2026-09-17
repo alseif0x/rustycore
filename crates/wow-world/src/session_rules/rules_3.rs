@@ -12,7 +12,7 @@
 use crate::session::*;
 use std::collections::HashMap;
 use wow_data::SpellStore;
-use wow_entities::AuraApplicationLikeCpp;
+use wow_entities::{AppliedAuraRef, AuraApplicationLikeCpp};
 
 /// C++ `Unit::GetAuraEffectsByType(auraType)` for one Unit's applied auras:
 /// every active effect of the requested aura type as `(MiscValue, amount)`.
@@ -74,62 +74,185 @@ pub(crate) fn represented_autoattack_damage_multiplier_like_cpp(
     })
 }
 
-/// C++ `Unit::MeleeDamageBonusDone`'s victim-creature-type terms
+/// C++ `Unit::MeleeDamageBonusDone`'s victim-state terms
 /// (`Unit.cpp:7558-7650`) for the represented attacker: the flat
 /// `SPELL_AURA_MOD_DAMAGE_DONE_CREATURE` benefit, the
 /// `SPELL_AURA_MOD_MELEE_ATTACK_POWER_VERSUS` bonus converted with
-/// `GetAPMultiplier`, and the `SPELL_AURA_MOD_DAMAGE_DONE_VERSUS` multiplier.
+/// `GetAPMultiplier`, the `SPELL_AURA_MOD_DAMAGE_DONE_VERSUS` multiplier, plus
+/// the victim's `HasAuraState` (`SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE`)
+/// and `HasAuraWithMechanic`
+/// (`SPELL_AURA_MOD_DAMAGE_PERCENT_DONE_BY_TARGET_AURA_MECHANIC`) multipliers.
 /// `(DoneFlatBenefit, DoneTotalMod)`.
 ///
 /// Boundary: the victim's `SPELL_AURA_MELEE_ATTACK_POWER_ATTACKER_BONUS`
 /// (165) / `SPELL_AURA_RANGED_ATTACK_POWER_ATTACKER_BONUS` (127) term has no
 /// represented creature-aura producer, so only the attacker's side is folded.
-pub(crate) fn melee_damage_bonus_done_creature_type_like_cpp(
+pub(crate) fn melee_damage_bonus_done_like_cpp(
     attacker_auras: &HashMap<u8, AuraApplicationLikeCpp>,
     spell_store: &SpellStore,
     creature_type_mask: u32,
+    victim_aura_state_mask: u32,
+    victim_mechanic_mask: u64,
     is_ranged: bool,
     attack_power_multiplier: f32,
 ) -> (i32, f32) {
-    if creature_type_mask == 0 {
-        return (0, 1.0);
-    }
     let matches = |misc_value: i32| misc_value & creature_type_mask as i32 != 0;
-    let mut flat = player_aura_effects_by_spell_aura_type_like_cpp(
-        attacker_auras,
-        spell_store,
-        wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_CREATURE,
-    )
-    .into_iter()
-    .filter(|(misc_value, _)| matches(*misc_value))
-    .map(|(_, amount)| amount)
-    .sum::<i32>();
-    let versus_aura_type = if is_ranged {
-        wow_data::spell::aura_types::SPELL_AURA_MOD_RANGED_ATTACK_POWER_VERSUS
-    } else {
-        wow_data::spell::aura_types::SPELL_AURA_MOD_MELEE_ATTACK_POWER_VERSUS
-    };
-    let ap_bonus = player_aura_effects_by_spell_aura_type_like_cpp(
-        attacker_auras,
-        spell_store,
-        versus_aura_type,
-    )
-    .into_iter()
-    .filter(|(misc_value, _)| matches(*misc_value))
-    .map(|(_, amount)| amount)
-    .sum::<i32>();
-    if ap_bonus != 0 {
-        flat = flat.saturating_add((ap_bonus as f32 / 3.5 * attack_power_multiplier) as i32);
+    let mut flat = 0_i32;
+    if creature_type_mask != 0 {
+        flat = player_aura_effects_by_spell_aura_type_like_cpp(
+            attacker_auras,
+            spell_store,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_CREATURE,
+        )
+        .into_iter()
+        .filter(|(misc_value, _)| matches(*misc_value))
+        .map(|(_, amount)| amount)
+        .sum::<i32>();
+        let versus_aura_type = if is_ranged {
+            wow_data::spell::aura_types::SPELL_AURA_MOD_RANGED_ATTACK_POWER_VERSUS
+        } else {
+            wow_data::spell::aura_types::SPELL_AURA_MOD_MELEE_ATTACK_POWER_VERSUS
+        };
+        let ap_bonus = player_aura_effects_by_spell_aura_type_like_cpp(
+            attacker_auras,
+            spell_store,
+            versus_aura_type,
+        )
+        .into_iter()
+        .filter(|(misc_value, _)| matches(*misc_value))
+        .map(|(_, amount)| amount)
+        .sum::<i32>();
+        if ap_bonus != 0 {
+            flat = flat.saturating_add((ap_bonus as f32 / 3.5 * attack_power_multiplier) as i32);
+        }
     }
-    let done_total_mod = player_aura_effects_by_spell_aura_type_like_cpp(
-        attacker_auras,
-        spell_store,
-        wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS,
-    )
-    .into_iter()
-    .filter(|(misc_value, _)| matches(*misc_value))
-    .fold(1.0_f32, |total, (_, amount)| {
-        total * (1.0 + amount as f32 / 100.0)
-    });
+    let mut done_total_mod = 1.0_f32;
+    if creature_type_mask != 0 {
+        done_total_mod *= player_aura_effects_by_spell_aura_type_like_cpp(
+            attacker_auras,
+            spell_store,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS,
+        )
+        .into_iter()
+        .filter(|(misc_value, _)| matches(*misc_value))
+        .fold(1.0_f32, |total, (_, amount)| {
+            total * (1.0 + amount as f32 / 100.0)
+        });
+    }
+    // C++ `Unit::MeleeDamageBonusDone`'s "bonus against aurastate"
+    // (`Unit.cpp:7634-7640`).
+    if victim_aura_state_mask != 0 {
+        done_total_mod *= player_aura_effects_by_spell_aura_type_like_cpp(
+            attacker_auras,
+            spell_store,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE,
+        )
+        .into_iter()
+        .filter(|(misc_value, _)| {
+            u32::try_from(*misc_value)
+                .ok()
+                .and_then(|state| state.checked_sub(1))
+                .and_then(|bit| 1_u32.checked_shl(bit))
+                .is_some_and(|bit| victim_aura_state_mask & bit != 0)
+        })
+        .fold(1.0_f32, |total, (_, amount)| {
+            total * (1.0 + amount as f32 / 100.0)
+        });
+    }
+    // C++ `Unit::MeleeDamageBonusDone`'s "bonus against target aura mechanic"
+    // (`Unit.cpp:7642-7648`).
+    if victim_mechanic_mask != 0 {
+        done_total_mod *= player_aura_effects_by_spell_aura_type_like_cpp(
+            attacker_auras,
+            spell_store,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE_BY_TARGET_AURA_MECHANIC,
+        )
+        .into_iter()
+        .filter(|(misc_value, _)| {
+            (1..64).contains(misc_value) && victim_mechanic_mask & (1_u64 << *misc_value) != 0
+        })
+        .fold(1.0_f32, |total, (_, amount)| {
+            total * (1.0 + amount as f32 / 100.0)
+        });
+    }
     (flat, done_total_mod)
+}
+
+/// C++ `Unit::HasAuraWithMechanic` (`Unit.cpp:4714-4729`) over a canonical
+/// Player's `AuraApplication` map: the union of each application's
+/// `SpellInfo::Mechanic` and its applied `IsEffect()` slots' mechanics, read at
+/// the application's own difficulty.
+pub(crate) fn aura_application_mechanic_mask_like_cpp(
+    auras: &HashMap<u8, AuraApplicationLikeCpp>,
+    spell_store: &SpellStore,
+    difficulty_store: Option<&wow_data::DifficultyStore>,
+) -> u64 {
+    auras.values().fold(0_u64, |mask, aura| {
+        mask | spell_mechanic_mask_like_cpp(
+            spell_store,
+            difficulty_store,
+            aura.spell_id,
+            aura.difficulty_id,
+            aura.effect_mask,
+        )
+    })
+}
+
+/// C++ `Unit::HasAuraWithMechanic` over a creature's `AppliedAuraRef` list.
+/// Those refs do not retain a difficulty, so the caller supplies the one it
+/// resolves the rest of the victim's state with.
+pub(crate) fn applied_aura_mechanic_mask_like_cpp(
+    applied_auras: &[AppliedAuraRef],
+    spell_store: &SpellStore,
+    difficulty_id: u8,
+    difficulty_store: Option<&wow_data::DifficultyStore>,
+) -> u64 {
+    applied_auras.iter().fold(0_u64, |mask, aura| {
+        mask | spell_mechanic_mask_like_cpp(
+            spell_store,
+            difficulty_store,
+            i32::try_from(aura.spell_id).unwrap_or(0),
+            difficulty_id,
+            aura.effect_mask,
+        )
+    })
+}
+
+/// The mechanic bits one `AuraApplication`/`AppliedAuraRef` contributes: its
+/// spell's own `Mechanic` plus every applied `IsEffect()` slot that carries one.
+fn spell_mechanic_mask_like_cpp(
+    spell_store: &SpellStore,
+    difficulty_store: Option<&wow_data::DifficultyStore>,
+    spell_id: i32,
+    difficulty_id: u8,
+    effect_mask: u32,
+) -> u64 {
+    let Some(metadata) =
+        spell_store.hit_metadata_for_difficulty_like_cpp(spell_id, difficulty_id, difficulty_store)
+    else {
+        return 0;
+    };
+    let mut mask = mechanic_bit_like_cpp(i32::from(metadata.spell_mechanic)).unwrap_or(0);
+    let effects =
+        spell_store.effects_for_difficulty_like_cpp(spell_id, difficulty_id, difficulty_store);
+    for (effect_index, mechanic) in metadata.effect_mechanics {
+        if !(1..32).contains(&effect_index) || effect_mask & (1_u32 << effect_index) == 0 {
+            continue;
+        }
+        let is_effect = effects.is_some_and(|effects| {
+            effects
+                .iter()
+                .any(|effect| effect.effect_index == effect_index && effect.effect != 0)
+        });
+        if is_effect {
+            mask |= mechanic_bit_like_cpp(mechanic).unwrap_or(0);
+        }
+    }
+    mask
+}
+
+/// C++ `UI64LIT(1) << mechanic` for a positive mechanic; `None` for the unset
+/// or out-of-range value a malformed row could carry.
+fn mechanic_bit_like_cpp(mechanic: i32) -> Option<u64> {
+    (1..64).contains(&mechanic).then(|| 1_u64 << mechanic)
 }

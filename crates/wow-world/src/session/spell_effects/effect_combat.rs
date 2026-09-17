@@ -718,18 +718,24 @@ impl WorldSession {
     /// represented target: the union of every applied aura's
     /// `SpellInfo::Mechanic` and the mechanics of its applied effects, `0` when
     /// the target cannot be resolved.
-    fn represented_target_mechanic_mask_like_cpp(&self, target_guid: ObjectGuid) -> u64 {
+    pub(in crate::session) fn represented_target_mechanic_mask_like_cpp(
+        &self,
+        target_guid: ObjectGuid,
+    ) -> u64 {
+        let Some(spell_store) = self.spell_store() else {
+            return 0;
+        };
+        let difficulty_store = self.difficulty_store();
+        let difficulty_store = difficulty_store.map(AsRef::as_ref);
         if Some(target_guid) == self.player_guid() {
             let Some(auras) = self.resolved_player_visible_auras_like_cpp() else {
                 return 0;
             };
-            return auras.values().fold(0_u64, |mask, aura| {
-                mask | self.represented_aura_mechanic_mask_like_cpp(
-                    aura.spell_id,
-                    aura.difficulty_id,
-                    aura.effect_mask,
-                )
-            });
+            return crate::session_rules::aura_application_mechanic_mask_like_cpp(
+                &auras,
+                spell_store,
+                difficulty_store,
+            );
         }
         let Some(manager) = self.map_manager.as_ref() else {
             return 0;
@@ -756,66 +762,21 @@ impl WorldSession {
                 .applied_auras
                 .clone()
         };
-        applied_auras.iter().fold(0_u64, |mask, aura| {
-            mask | self.represented_aura_mechanic_mask_like_cpp(
-                i32::try_from(aura.spell_id).unwrap_or(0),
-                difficulty_id,
-                aura.effect_mask,
-            )
-        })
-    }
-
-    /// The mechanic bits contributed by one represented `AuraApplication`, as
-    /// C++ `Unit::HasAuraWithMechanic` reads them from the owning `SpellInfo`
-    /// and its `IsEffect()` slots.
-    ///
-    /// The player path uses the application's stored difficulty; a creature's
-    /// `AppliedAuraRef` does not retain one, so the current map difficulty is
-    /// used there.
-    fn represented_aura_mechanic_mask_like_cpp(
-        &self,
-        spell_id: i32,
-        difficulty_id: u8,
-        effect_mask: u32,
-    ) -> u64 {
-        let Some(spell_store) = self.spell_store() else {
-            return 0;
-        };
-        let difficulty_store = self.difficulty_store().map(AsRef::as_ref);
-        let Some(metadata) = spell_store.hit_metadata_for_difficulty_like_cpp(
-            spell_id,
+        crate::session_rules::applied_aura_mechanic_mask_like_cpp(
+            &applied_auras,
+            spell_store,
             difficulty_id,
             difficulty_store,
-        ) else {
-            return 0;
-        };
-        let mut mask =
-            represented_mechanic_bit_like_cpp(i32::from(metadata.spell_mechanic)).unwrap_or(0);
-        let effects =
-            spell_store.effects_for_difficulty_like_cpp(spell_id, difficulty_id, difficulty_store);
-        for (effect_index, mechanic) in metadata.effect_mechanics {
-            let applied =
-                (1..32).contains(&effect_index) && effect_mask & (1_u32 << effect_index) != 0;
-            if !applied {
-                continue;
-            }
-            // C++ `SpellEffectInfo::IsEffect()`: `Effect != SPELL_EFFECT_NONE`.
-            let is_effect = effects.is_some_and(|effects| {
-                effects
-                    .iter()
-                    .any(|effect| effect.effect_index == effect_index && effect.effect != 0)
-            });
-            if is_effect {
-                mask |= represented_mechanic_bit_like_cpp(mechanic).unwrap_or(0);
-            }
-        }
-        mask
+        )
     }
 
     /// C++ `Unit::HasAuraState` for the represented target: the target's
     /// `m_unitData->AuraState`, i.e. its aura-driven bits plus the alive-health
     /// bits `Unit::Update` maintains. `0` when the target cannot be resolved.
-    fn represented_target_aura_state_mask_like_cpp(&self, target_guid: ObjectGuid) -> u32 {
+    pub(in crate::session) fn represented_target_aura_state_mask_like_cpp(
+        &self,
+        target_guid: ObjectGuid,
+    ) -> u32 {
         self.represented_unit_aura_state_mask_like_cpp(target_guid)
     }
 

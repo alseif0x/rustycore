@@ -1150,3 +1150,195 @@ fn white_swing_applies_creature_type_melee_bonus_like_cpp() {
         "C++ MeleeDamageBonusDone"
     );
 }
+
+#[test]
+fn white_swing_applies_victim_aurastate_and_mechanic_melee_bonus_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    let guid = test_creature_guid(18_032);
+    let player = ObjectGuid::create_player(1, 86);
+    // C++ `MECHANIC_STUN` (`SharedDefines.h:2552`).
+    const MECHANIC_STUN: i32 = 12;
+    // The victim aura carrier: a creature aura whose `SpellInfo::Mechanic` is
+    // the STUN mechanic, so `Unit::HasAuraWithMechanic(1 << 12)` matches.
+    const VICTIM_MECHANIC_SPELL: i32 = 70_001;
+
+    canonical.lock().unwrap().create_world_map(0, 0);
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+        wow_data::MapEntry {
+            id: 0,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        },
+    ])));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player,
+        "VictimState".to_string(),
+        Position::new(10.0, 10.0, 0.0, 0.0),
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            let unit = player.unit_mut();
+            unit.set_attacking(Some(guid));
+            unit.set_target(guid);
+            unit.add_unit_state(UnitState::MELEE_ATTACKING.bits());
+            unit.set_base_attack_time_like_cpp(WeaponAttackType::BaseAttack, 2_000);
+            unit.set_attack_timer(WeaponAttackType::BaseAttack, 0);
+            unit.set_weapon_damage(WeaponAttackType::BaseAttack, 7.0, 7.0);
+        })
+        .unwrap();
+    session.combat_target = Some(guid);
+    session.in_combat = true;
+    register_test_creature(&mut session, manager.clone(), guid, 40);
+    session
+        .mutate_world_creature(guid, |creature| {
+            creature.enter_combat(player);
+            creature.creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+        })
+        .unwrap();
+
+    let mut spell_store = wow_data::SpellStore::new();
+    for (spell_id, aura, amount, misc) in [
+        (
+            91_100_i32,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE,
+            100,
+            i32::from(wow_entities::AURA_STATE_WOUNDED_20_PERCENT),
+        ),
+        (
+            91_101_i32,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE_BY_TARGET_AURA_MECHANIC,
+            100,
+            MECHANIC_STUN,
+        ),
+        (
+            91_102_i32,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE_BY_TARGET_AURA_MECHANIC,
+            100,
+            13,
+        ),
+    ] {
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: amount,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(aura),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: aura,
+                    effect_misc_value_1: misc,
+                    effect_base_points: amount,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    spell_store.insert_spell_hit_metadata_for_difficulty_like_cpp(
+        VICTIM_MECHANIC_SPELL,
+        0,
+        wow_data::SpellHitMetadataLikeCpp {
+            spell_mechanic: MECHANIC_STUN as i8,
+            ..Default::default()
+        },
+    );
+    session.set_spell_store(Arc::new(spell_store));
+
+    let swing = |session: &mut WorldSession| {
+        // Hoisted: the bonus resolves the canonical snapshot, so it must not run
+        // inside the mutable owner borrow.
+        let melee_damage_bonus = session.represented_melee_damage_bonus_like_cpp();
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .set_attack_timer(WeaponAttackType::BaseAttack, 0);
+                take_canonical_player_attack_swings_like_cpp(
+                    player,
+                    0,
+                    true,
+                    true,
+                    true,
+                    melee_damage_bonus,
+                )
+            })
+            .flatten()
+            .map(|(swings, _)| swings)
+    };
+
+    // At full health the wounded-aurastate aura misses and no creature aura
+    // carries the mechanic, so both terms stay neutral.
+    session
+        .apply_aura(91_100, player, 30_000, 1)
+        .expect("apply versus-aurastate aura");
+    session
+        .apply_aura(91_101, player, 30_000, 1)
+        .expect("apply versus-mechanic aura");
+    session
+        .apply_aura(91_102, player, 30_000, 1)
+        .expect("apply non-matching versus-mechanic aura");
+    let healthy = session.represented_melee_damage_bonus_like_cpp();
+    assert_eq!(healthy[0].flat, 0);
+    assert_eq!(healthy[0].pct, 1.0);
+
+    // C++ `Unit::Update` sets `AURA_STATE_WOUNDED_20_PERCENT` for a living unit
+    // below 20% health; 7/40 is below it.
+    session
+        .mutate_world_creature(guid, |creature| {
+            creature.creature.unit_mut().set_health(7);
+        })
+        .expect("wounded victim");
+    let wounded = session.represented_melee_damage_bonus_like_cpp();
+    assert_eq!(wounded[0].flat, 0);
+    assert_eq!(wounded[0].pct, 2.0);
+
+    // The victim's STUN aura completes `HasAuraWithMechanic(1 << 12)`; the
+    // FREEZE-misc aura does not.
+    session
+        .mutate_world_creature(guid, |creature| {
+            creature
+                .creature
+                .unit_mut()
+                .subsystems_mut()
+                .auras
+                .add_applied(wow_entities::AppliedAuraRef::new(
+                    VICTIM_MECHANIC_SPELL as u32,
+                    player,
+                    0,
+                    0,
+                ));
+        })
+        .expect("victim mechanic aura");
+    let stunned = session.represented_melee_damage_bonus_like_cpp();
+    assert_eq!(stunned[0].flat, 0);
+    assert_eq!(stunned[0].pct, 4.0);
+
+    // `((7 + 0) * 4.0)`.
+    assert_eq!(
+        swing(&mut session),
+        Some(vec![28]),
+        "C++ MeleeDamageBonusDone"
+    );
+}
