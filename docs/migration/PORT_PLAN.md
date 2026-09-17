@@ -33,6 +33,12 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 controlled-victim avoidance gate — 2026-09-17, implementation `f15252bd`:**
+a `UNIT_STATE_CONTROLLED` victim can no longer dodge, parry or block, matching
+C++ `Unit::RollMeleeOutcomeAgainst`; `IsNonMeleeSpellCast` stays unrepresented
+because the creature runtime tracks no current spell slots. wow-world 3983/0/1,
+world-server 594/0/0; no live DB/restart/relogin QA.
+
 **#29 ignore-dual-wield hit-penalty aura — 2026-09-17, implementation
 `2b93a741`:** the +19% dual-wield miss penalty now applies only while
 `SPELL_AURA_IGNORE_DUAL_WIELD_HIT_PENALTY` (458) is absent, resolved from the
