@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 shapeshift form ownership and `CombatRoundTime` — 2026-09-17,
+implementation `eddc62de`:** applying a `SPELL_AURA_MOD_SHAPESHIFT` aura now owns
+the represented form, `Player::InitDataForForm`'s attack times are installed and
+`CalculateMinMaxDamage`'s `CombatRoundTime` weapon rescale applies; the
+`_ApplyWeaponDamage` feral/disarm and item-delay gates use real values. Form
+boost spells, display and equip-spell refresh remain open. wow-data --lib 753/0,
+wow-entities --lib 940/0, wow-world --lib 3951/0/1; no live DB/restart/relogin QA.
+
 **#61 attack-speed aura application — 2026-09-17, implementation
 `dc8dac1b`:** the attack-speed aura handlers now write the represented
 `modAttackSpeedPct` and the swing timer reads it, including the C++ non-inverse
