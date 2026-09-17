@@ -404,55 +404,57 @@ fn melee_attack_table_outcome_effects_match_calculate_melee_damage_like_cpp() {
 
     assert_eq!(
         melee_outcome_damage_like_cpp(Outcome::Evade, 100, 80, 80, 1.0),
-        (0, 0)
+        (0, 0, 100)
     );
     assert_eq!(
         melee_outcome_damage_like_cpp(Outcome::Miss, 100, 80, 80, 1.0),
-        (0, 0)
+        (0, 0, 100)
     );
     assert_eq!(
         melee_outcome_damage_like_cpp(Outcome::Dodge, 100, 80, 80, 1.0),
-        (0, 0)
+        (0, 0, 100)
     );
     assert_eq!(
         melee_outcome_damage_like_cpp(Outcome::Parry, 100, 80, 80, 1.0),
-        (0, 0)
+        (0, 0, 100)
     );
     assert_eq!(
         melee_outcome_damage_like_cpp(Outcome::Hit, 100, 80, 80, 1.0),
-        (100, 0)
+        (100, 0, 100)
     );
     assert_eq!(
+        // C++ assigns `OriginalDamage` after the doubling, so a critical swing
+        // publishes the doubled value as its original too (`Unit.cpp:1370-1378`).
         melee_outcome_damage_like_cpp(Outcome::Crit, 100, 80, 80, 1.0),
-        (200, 0)
+        (200, 0, 200)
     );
     assert_eq!(
         melee_outcome_damage_like_cpp(Outcome::Crit, 100, 80, 80, 2.0),
-        (400, 0)
+        (400, 0, 400)
     );
     // C++ `CalculatePct(damage, GetBlockPercent)` with the flat 30% creature
     // base (`Unit.h:947`).
     assert_eq!(
         melee_outcome_damage_like_cpp(Outcome::Block, 100, 80, 80, 1.0),
-        (70, 30)
+        (70, 30, 100)
     );
     assert_eq!(
         melee_outcome_damage_like_cpp(Outcome::Block, 7, 80, 80, 1.0),
-        (5, 2)
+        (5, 2, 7)
     );
     // C++ `leveldif = min(victimLevel - attackerLevel, 3)` then
     // `reducePercent = 1 - leveldif * 0.1`.
     assert_eq!(
         melee_outcome_damage_like_cpp(Outcome::Glancing, 100, 80, 81, 1.0),
-        (90, 0)
+        (90, 0, 100)
     );
     assert_eq!(
         melee_outcome_damage_like_cpp(Outcome::Glancing, 100, 80, 84, 1.0),
-        (70, 0)
+        (70, 0, 100)
     );
     assert_eq!(
         melee_outcome_damage_like_cpp(Outcome::Glancing, 100, 80, 90, 1.0),
-        (70, 0)
+        (70, 0, 100)
     );
 
     assert_eq!(
@@ -1573,6 +1575,9 @@ fn white_swing_applies_victim_critical_chance_auras_like_cpp() {
     assert_eq!(facts.1.crit_chance_vs_target_health_pct, 100.0);
     let swings = swing(&mut session).expect("white swing");
     assert_eq!(swings[0].damage, 14);
+    // C++ assigns `OriginalDamage` after the doubling, so the critical swing
+    // publishes the doubled value as its original too (`Unit.cpp:1362-1375`).
+    assert_eq!(swings[0].original_damage, 14);
     assert_eq!(
         swings[0].hit_info,
         HIT_INFO_AFFECTS_VICTIM | HIT_INFO_CRITICAL_HIT
@@ -1585,6 +1590,7 @@ fn white_swing_applies_victim_critical_chance_auras_like_cpp() {
         .expect("apply crit-damage-bonus aura");
     let swings = swing(&mut session).expect("white swing");
     assert_eq!(swings[0].damage, 28);
+    assert_eq!(swings[0].original_damage, 28);
     assert_eq!(
         swings[0].hit_info,
         HIT_INFO_AFFECTS_VICTIM | HIT_INFO_CRITICAL_HIT
