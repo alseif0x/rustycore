@@ -184,7 +184,9 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
         .expect("apply hit-chance aura");
     let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
     assert_eq!(outcome.swings_ready, 1);
-    assert_eq!(outcome.melee_outcomes_unrepresented, 1);
+    // The represented table resolves every outcome, so nothing is left to the
+    // pre-table bridge.
+    assert_eq!(outcome.melee_outcomes_unrepresented, 0);
     assert_eq!(outcome.canonical_hits, 1);
     assert_eq!(outcome.commands.len(), 1);
     assert_eq!(outcome.commands[0].damage, 10);
