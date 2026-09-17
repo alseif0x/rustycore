@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 creature-victim parry scenario — 2026-09-17, implementation `292e8ca4`:**
+the runtime scenario now covers the last creature-victim band: `parry_pct = 100`
+yields no hit, no damage and `VICTIMSTATE_PARRY` decoded from the plan-event
+packet. All six creature-victim bands (miss, dodge, parry, evade, block, crit)
+now have production runtime coverage. wow-world 3990/0/1 (three runs),
+world-server 594/0/0, wow-packet 744/0.
+
 **#29 creature-victim evade scenario — 2026-09-17, implementation `772895c2`:**
 the runtime scenario proves the evade short-circuit (`MELEE_HIT_EVADE` before
 every band, no hit, no damage, `HITINFO_MISS | HITINFO_SWINGNOHITSOUND` on the
