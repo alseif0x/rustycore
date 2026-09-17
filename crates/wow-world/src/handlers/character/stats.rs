@@ -615,6 +615,66 @@ impl WorldSession {
         )
     }
 
+    /// C++ `Player::InitDataForForm` (`Player.cpp:22076-22098`) base attack
+    /// times: a form with `CombatRoundTime` drives both melee attacks and
+    /// leaves the ranged attack at `BASE_ATTACK_TIME`; otherwise the equipped
+    /// weapon delays (`SetRegularAttackTime`) apply.
+    pub(crate) fn apply_represented_shapeshift_base_attack_time_like_cpp(&mut self) -> bool {
+        let regular = self
+            .represented_player_gear_stats_like_cpp(true)
+            .map(|gear| gear.base_attack_time);
+        let combat_round_time = self.represented_shapeshift_combat_round_time_like_cpp();
+        self.mutate_canonical_player_like_cpp(|player| {
+            let unit = player.unit_mut();
+            let (base, offhand, ranged) = match combat_round_time {
+                Some(round_time) => (round_time as u32, round_time as u32, 2_000),
+                None => {
+                    let Some(regular) = regular else {
+                        return;
+                    };
+                    // C++ `Player::SetRegularAttackTime` only writes an attack
+                    // whose equipped weapon declares a delay; every other attack
+                    // keeps its current time.
+                    let current = unit.base_attack_speed();
+                    (
+                        if regular[0] > 0 {
+                            regular[0]
+                        } else {
+                            current[0]
+                        },
+                        if regular[1] > 0 {
+                            regular[1]
+                        } else {
+                            current[1]
+                        },
+                        if regular[2] > 0 {
+                            regular[2]
+                        } else {
+                            current[2]
+                        },
+                    )
+                }
+            };
+            unit.set_base_attack_time_like_cpp(wow_constants::WeaponAttackType::BaseAttack, base);
+            unit.set_base_attack_time_like_cpp(wow_constants::WeaponAttackType::OffAttack, offhand);
+            unit.set_base_attack_time_like_cpp(
+                wow_constants::WeaponAttackType::RangedAttack,
+                ranged,
+            );
+        })
+        .is_some()
+    }
+
+    /// C++ `Player::InitDataForForm` plus the `UpdateDamagePhysical` refresh at
+    /// a shapeshift aura apply/removal: reinstall the base attack times and
+    /// republish the weapon ranges the form rescales.
+    pub(crate) fn sync_represented_shapeshift_form_like_cpp(&mut self) {
+        if !self.apply_represented_shapeshift_base_attack_time_like_cpp() {
+            return;
+        }
+        let _ = self.send_stat_update();
+    }
+
     /// C++ `CONFIG_STATS_LIMITS_*` (`World.cpp:1664-1668`): cap the block,
     /// dodge, parry and crit percentages at the point
     /// `Player::UpdateBlockPercentage`/`UpdateDodgePercentage`/
@@ -661,6 +721,7 @@ impl WorldSession {
             projection,
             gear.weapon_damage,
             gear.base_attack_time,
+            self.represented_shapeshift_combat_round_time_like_cpp(),
         );
         // C++ `Player::UpdateExpertise` (`StatSystem.cpp:759-786`) truncates the
         // combat-rating bonus to `int32`, adds the `SPELL_AURA_MOD_EXPERTISE`

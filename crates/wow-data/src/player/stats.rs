@@ -361,14 +361,22 @@ pub struct PlayerStatSystemProjectionLikeCpp {
     pub weapon_damage_flat: [f32; 3],
 }
 
-/// C++ `Unit::CalculateMinMaxDamage` for the represented player weapon
-/// ranges. Item ranges replace the base MINDAMAGE/MAXDAMAGE values and the
-/// attack-power term uses the equipped delay; an empty range retains the
-/// unarmed 1/2 values and the two-second C++ default multiplier.
+/// C++ `Player::CalculateMinMaxDamage` (`StatSystem.cpp:428-478`) for the
+/// represented player weapon ranges. Item ranges replace the base
+/// MINDAMAGE/MAXDAMAGE values and the attack-power term uses the equipped
+/// delay; an empty range retains the unarmed 1/2 values and the two-second C++
+/// default multiplier.
+///
+/// `shapeshift_combat_round_time` is the active
+/// `SpellShapeshiftFormEntry::CombatRoundTime` (`StatSystem.cpp:461-467`): a
+/// feral form rescales the base weapon damage by
+/// `CombatRoundTime / 1000 / GetAPMultiplier` before the attack-power term is
+/// added back.
 pub fn effective_weapon_damage_ranges_like_cpp(
     projection: PlayerStatSystemProjectionLikeCpp,
     weapon_damage: [[f32; 2]; 3],
     base_attack_time: [u32; 3],
+    shapeshift_combat_round_time: Option<f32>,
 ) -> [[f32; 2]; 3] {
     let total_ap = projection.total_attack_power.max(0) as f32;
     let total_ranged_ap = projection.total_ranged_attack_power.max(0) as f32;
@@ -401,6 +409,14 @@ pub fn effective_weapon_damage_ranges_like_cpp(
         } else {
             [1.0, 2.0]
         };
+        let [weapon_min, weapon_max] =
+            match shapeshift_combat_round_time.filter(|round_time| *round_time > 0.0) {
+                Some(round_time) => {
+                    let scale = round_time / 1000.0 / attack_power_multiplier;
+                    [weapon_min * scale, weapon_max * scale]
+                }
+                None => [weapon_min, weapon_max],
+            };
         let ap_component = attack_power / 14.0 * attack_power_multiplier;
         // C++ `Unit::CalculateMinMaxDamage`: `((weapon + baseValue) * basePct +
         // totalValue) * totalPct`; the represented `totalPct` is the
@@ -1568,11 +1584,36 @@ mod tests {
         };
         let projection = calculate_player_stat_system_like_cpp(input);
         // `CalculateMinMaxDamage`: `((weapon 10 + ap 0) * 1.0 + flat) * pct`.
-        let ranges =
-            effective_weapon_damage_ranges_like_cpp(projection, [[10.0, 20.0]; 3], [2_000; 3]);
+        let ranges = effective_weapon_damage_ranges_like_cpp(
+            projection,
+            [[10.0, 20.0]; 3],
+            [2_000; 3],
+            None,
+        );
         assert_eq!(ranges[0], [45.0, 60.0]);
         assert_eq!(ranges[1], [37.5, 45.0]);
         assert_eq!(ranges[2], [10.0, 20.0]);
+
+        // C++ `Player::CalculateMinMaxDamage` (`StatSystem.cpp:461-467`) rescales
+        // the base weapon damage by `CombatRoundTime / 1000 / GetAPMultiplier`
+        // while a feral form is active. With a 2 s delay the multiplier is 2.0,
+        // so a 1000 ms round time halves the weapon part before the
+        // attack-power term is added back.
+        let feral = effective_weapon_damage_ranges_like_cpp(
+            projection,
+            [[20.0, 40.0]; 3],
+            [2_000; 3],
+            Some(1_000.0),
+        );
+        assert_eq!(feral[0], [45.0, 60.0]);
+        // A zero round time is the unshaped branch.
+        let unchanged = effective_weapon_damage_ranges_like_cpp(
+            projection,
+            [[20.0, 40.0]; 3],
+            [2_000; 3],
+            Some(0.0),
+        );
+        assert_eq!(unchanged[0], [60.0, 90.0]);
     }
 
     #[test]

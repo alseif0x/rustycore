@@ -362,6 +362,65 @@ impl WorldSession {
             .unwrap_or(0)
     }
 
+    /// C++ `Player::GetShapeshiftForm`'s `SpellShapeshiftFormEntry`:
+    /// `Player::CalculateMinMaxDamage` (`StatSystem.cpp:461-467`) rescales the
+    /// base weapon damage and `Player::_ApplyWeaponDamage` (`Player.cpp:8018-8020`)
+    /// suppresses the item-delay attack time while a form carries a
+    /// `CombatRoundTime`. `None` when no form, no store, or a zero field.
+    /// Whether any effect of the spell applies `SPELL_AURA_MOD_SHAPESHIFT`, the
+    /// gate for the C++ form-change recalculation.
+    pub(crate) fn represented_spell_has_mod_shapeshift_effect_like_cpp(
+        &self,
+        spell_id: i32,
+    ) -> bool {
+        self.spell_store()
+            .and_then(|store| store.get(spell_id))
+            .is_some_and(|spell| {
+                spell
+                    .effects()
+                    .iter()
+                    .any(wow_data::SpellEffectInfo::is_mod_shapeshift_aura_like_cpp)
+            })
+    }
+
+    /// C++ `AuraEffect::HandleAuraModShapeshift` form ownership
+    /// (`SpellAuraEffects.cpp:1838-1866`): applying a `SPELL_AURA_MOD_SHAPESHIFT`
+    /// aura sets the unit's form to the effect's `GetMiscValue`, and removing it
+    /// clears the form only when no other active aura still applies one.
+    pub(in crate::session) fn sync_represented_shapeshift_form_ownership_like_cpp(
+        &mut self,
+        mutated_spell_id: i32,
+    ) -> bool {
+        let Some(store) = self.spell_store().cloned() else {
+            return false;
+        };
+        if !self.represented_spell_has_mod_shapeshift_effect_like_cpp(mutated_spell_id) {
+            return false;
+        }
+        if self.player_has_visible_aura_spell_like_cpp(mutated_spell_id) == Some(true) {
+            let Some(form_id) = store
+                .get(mutated_spell_id)
+                .and_then(shapeshift_form_of_spell_like_cpp)
+            else {
+                return false;
+            };
+            return self.set_represented_shapeshift_form_like_cpp(form_id);
+        }
+        let remaining_form = self
+            .resolved_player_visible_auras_like_cpp()
+            .unwrap_or_default()
+            .into_values()
+            .find_map(|aura| shapeshift_form_of_spell_like_cpp(store.get(aura.spell_id)?));
+        self.set_represented_shapeshift_form_like_cpp(remaining_form.unwrap_or(0))
+    }
+
+    pub(crate) fn represented_shapeshift_combat_round_time_like_cpp(&self) -> Option<f32> {
+        let form_id = self.represented_shapeshift_form_like_cpp()?;
+        let store = self.spell_catalogs.spell_shapeshift_form_store()?;
+        let form = store.get(form_id)?;
+        (form.combat_round_time > 0).then(|| f32::from(form.combat_round_time))
+    }
+
     /// C++ `AuraEffect::HandleModAttackSpeed`/`HandleModMeleeSpeedPct`/
     /// `HandleModCombatSpeedPct`/`HandleAuraModRangedHaste`
     /// (`SpellAuraEffects.cpp:4353-4393`): the per-attack `m_modAttackSpeedPct`
@@ -1158,4 +1217,14 @@ impl WorldSession {
                 .sum()
         })
     }
+}
+
+/// The `GetMiscValue` of a spell's first `SPELL_AURA_MOD_SHAPESHIFT` effect, the
+/// C++ `ShapeshiftForm` the aura installs.
+fn shapeshift_form_of_spell_like_cpp(spell: &wow_data::SpellInfo) -> Option<u32> {
+    spell
+        .effects()
+        .iter()
+        .find(|effect| effect.is_mod_shapeshift_aura_like_cpp())
+        .and_then(|effect| u32::try_from(effect.effect_misc_value_1).ok())
 }

@@ -949,3 +949,73 @@ async fn represented_haste_aura_scales_attack_time_multiplier_like_cpp() {
         [1.0, 1.0, 1.0]
     );
 }
+
+#[tokio::test]
+async fn represented_shapeshift_combat_round_time_sets_form_attack_time_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 77);
+    session.player_guid = Some(player_guid);
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let form_id = 8_u32;
+    let spell_id = 90_993_i32;
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        spell_id,
+        represented_aura_spell_like_cpp(
+            spell_id,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_SHAPESHIFT,
+            form_id as i32,
+            0,
+        ),
+    );
+    session.set_spell_store(Arc::new(spell_store));
+    session.set_spell_shapeshift_form_store(Arc::new(
+        wow_data::SpellShapeshiftFormStore::from_entries([wow_data::SpellShapeshiftFormEntry {
+            id: form_id,
+            name: "Dire Bear Form".to_string(),
+            creature_type: 0,
+            flags: 0,
+            attack_icon_file_id: 0,
+            bonus_action_bar: 0,
+            combat_round_time: 1_000,
+            damage_variance: 0.0,
+            mount_type_id: 0,
+            creature_display_id: [0; 4],
+            preset_spell_id: [0; wow_data::MAX_SHAPESHIFT_SPELLS],
+        }]),
+    ));
+
+    assert_eq!(
+        session.represented_shapeshift_combat_round_time_like_cpp(),
+        None
+    );
+
+    session
+        .apply_aura(spell_id, player_guid, 30_000, 1)
+        .expect("apply shapeshift aura");
+    // C++ `Player::GetShapeshiftForm` now resolves the form and
+    // `InitDataForForm` writes its `CombatRoundTime` to both melee attacks.
+    assert_eq!(
+        session.represented_shapeshift_combat_round_time_like_cpp(),
+        Some(1_000.0)
+    );
+    let formed = session
+        .canonical_player_snapshot_like_cpp(|player| player.unit().base_attack_speed())
+        .expect("canonical player");
+    assert_eq!(formed[0], 1_000);
+    assert_eq!(formed[1], 1_000);
+    assert_eq!(formed[2], 2_000);
+
+    session.remove_aura(0).expect("remove shapeshift aura");
+    assert_eq!(
+        session.represented_shapeshift_combat_round_time_like_cpp(),
+        None
+    );
+    let restored = session
+        .canonical_player_snapshot_like_cpp(|player| player.unit().base_attack_speed())
+        .expect("canonical player");
+    // C++ `Player::SetRegularAttackTime` only writes an attack whose equipped
+    // weapon declares a delay, so this unarmed fixture keeps the form's melee
+    // time while the ranged arm stays at `BASE_ATTACK_TIME`.
+    assert_eq!(restored, [1_000, 1_000, 2_000]);
+}
