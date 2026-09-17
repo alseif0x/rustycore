@@ -33,6 +33,18 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 spell damage and healing done producers — 2026-09-17, implementation
+`92f0f550`:** `Player::UpdateSpellDamageAndHealingBonus` (`StatSystem.cpp:171-197`)
+is produced from the C++ `Unit::SpellBaseDamageBonusDone`/`SpellBaseHealingBonusDone`
+terms (`Unit.cpp:6860-6890`, `7282-7315`, auras 13/135/174/175) plus the
+`SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT` (366) pass, so
+`SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT` (404) now reads the real
+`min(ModHealingDonePos, ModDamageDonePos[HOLY..MAX])`. The canonical Player
+publishes `mod_damage_done_pos`/`neg` and `mod_healing_done_pos`; the packet
+adapters still send the scalar `spell_power`, which is the next publication
+unit. `wow-data --lib` 751/0, `wow-entities --lib` 940/0, `wow-world --lib`
+3926/0/1; no live DB/restart/relogin QA.
+
 **#61 override attack power by spell power — 2026-09-17, implementation
 `8ee397c5`:** `Player::UpdateAttackPowerAndDamage` (`StatSystem.cpp:333-403`)
 now applies the `SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT`
