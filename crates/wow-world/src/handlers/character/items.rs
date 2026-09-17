@@ -3824,6 +3824,7 @@ impl WorldSession {
             mod_damage_done_pos: projection.mod_damage_done_pos,
             mod_damage_done_neg: projection.mod_damage_done_neg,
             mod_healing_done_pos: projection.mod_healing_done_pos,
+            mod_damage_done_percent: projection.mod_damage_done_percent,
             block_pct: projection.block_pct,
             dodge_pct: projection.dodge_pct,
             parry_pct: projection.parry_pct,

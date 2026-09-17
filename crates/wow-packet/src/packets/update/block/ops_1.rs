@@ -659,6 +659,7 @@ impl UpdateObject {
             mod_damage_done_pos: combat.mod_damage_done_pos,
             mod_damage_done_neg: combat.mod_damage_done_neg,
             mod_healing_done_pos: combat.mod_healing_done_pos,
+            mod_damage_done_percent: combat.mod_damage_done_percent,
             visible_items,
             customizations: Vec::new(),
             inv_slots,

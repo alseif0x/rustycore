@@ -37,6 +37,7 @@ fn active_player_stats_values_update_matches_cpp_common_runtime_masks() {
         mod_damage_done_pos: [0, 123, 123, 123, 123, 123, 123],
         mod_damage_done_neg: [0, -10, -20, -30, -40, -50, -60],
         mod_healing_done_pos: 123,
+        mod_damage_done_percent: [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0],
         block_pct: 1.0,
         dodge_pct: 2.0,
         parry_pct: 3.0,
@@ -75,8 +76,9 @@ fn active_player_stats_values_update_matches_cpp_common_runtime_masks() {
     // block 8 = 0xFFFFE000: parent 269, SpellCrit 14-20, ModDmgDonePos 21-27
     // and ModDmgDoneNeg bits 284-287 at 28-31.
     assert_eq!(&bytes[18..22], &[0xFF, 0xFF, 0xE0, 0x00]);
-    // block 9 = 0x00000007: ModDmgDoneNeg bits 288-290.
-    assert_eq!(&bytes[22..26], &[0x00, 0x00, 0x00, 0x07]);
+    // block 9 = 0x000003FF: ModDmgDoneNeg bits 288-290 and ModDmgDonePct
+    // bits 291-297.
+    assert_eq!(&bytes[22..26], &[0x00, 0x00, 0x03, 0xFF]);
     assert_eq!(&bytes[26..30], &[0xC0, 0x00, 0x00, 0x00]);
     assert_eq!(&bytes[30..34], &[0x7F, 0xFF, 0xFF, 0xFF]);
 
@@ -119,6 +121,12 @@ fn active_player_stats_values_update_matches_cpp_common_runtime_masks() {
             i32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap()),
             stats.mod_damage_done_neg[index],
             "ModDamageDoneNeg for school {index}"
+        );
+        offset += 4;
+        assert_eq!(
+            f32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap()),
+            stats.mod_damage_done_percent[index],
+            "ModDamageDonePercent for school {index}"
         );
         offset += 4;
     }
