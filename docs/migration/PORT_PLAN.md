@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 creature missing-health heal scaling — 2026-09-17, implementation
+`5011ad4a`:** the aura-354 missing-health scaling now resolves the target's
+health percentage for creatures as well as the session player, so creature heals
+scale with the victim's missing health. The `IsAffectingSpell` family gate stays
+open. wow-data --lib 752/0, wow-world --lib 3935/0/1; no live DB/restart/relogin
+QA.
+
 **#61 versus-creature-type damage multiplier — 2026-09-17, implementation
 `7f2aa52c`:** `SPELL_AURA_MOD_DAMAGE_DONE_VERSUS` (168) now multiplies direct
 spell damage using the victim creature's template type
