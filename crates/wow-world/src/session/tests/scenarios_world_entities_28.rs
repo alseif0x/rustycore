@@ -1100,6 +1100,11 @@ fn legacy_creature_melee_tick_once_mitigates_creature_victim_like_cpp() {
             wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE,
             -5_000,
         ),
+        (
+            91_202,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+            5,
+        ),
     ] {
         spell_store.insert(
             spell_id,
@@ -1135,6 +1140,20 @@ fn legacy_creature_melee_tick_once_mitigates_creature_victim_like_cpp() {
         .unwrap()
         .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
+    // The victim's `+5` restricts the flat 5.0 miss band to zero, so the
+    // mitigation stages stay deterministic.
+    canonical
+        .lock()
+        .unwrap()
+        .find_map_mut(0, 0)
+        .unwrap()
+        .map_mut()
+        .with_creature_mut_like_cpp(victim_guid, |victim| {
+            victim.unit_mut().subsystems_mut().auras.add_applied(
+                wow_entities::AppliedAuraRef::new(91_202, attacker_guid, 0, 1),
+            );
+        })
+        .unwrap();
     let victim_health = |canonical: &SharedCanonicalMapManager| {
         canonical
             .lock()
@@ -1194,4 +1213,173 @@ fn legacy_creature_melee_tick_once_mitigates_creature_victim_like_cpp() {
     let outcome = tick(&mut session);
     assert_eq!(outcome.canonical_creature_hits, 1);
     assert_eq!(before - victim_health(&canonical), 15);
+}
+
+/// C++ `Unit::RollMeleeOutcomeAgainst`'s miss band for a creature victim under
+/// the global creature runtime.
+///
+/// `MeleeSpellMissChance` (`Unit.cpp:11652-11685`) starts from the victim's flat
+/// `GetUnitMissChance()` of `5.0` and subtracts the attacker's
+/// `SPELL_AURA_MOD_HIT_CHANCE` sum and the victim's
+/// `SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE` sum; the miss arm publishes
+/// `HITINFO_MISS` with `VICTIMSTATE_INTACT`, zero dealt damage and no health
+/// transition (`Unit.cpp:1348-1355`).
+#[test]
+fn legacy_creature_melee_tick_once_resolves_creature_victim_miss_like_cpp() {
+    use crate::map_manager::RuntimeTickOwner;
+    use wow_packet::packets::combat::{HIT_INFO_AFFECTS_VICTIM, HIT_INFO_MISS};
+
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    canonical.lock().unwrap().create_world_map(0, 0);
+    let attacker_guid = test_creature_guid(91_210);
+    let victim_guid = test_creature_guid(91_211);
+
+    let (mut session, _, _) = make_session();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    register_test_creature(&mut session, manager.clone(), attacker_guid, 25);
+    register_test_creature(&mut session, manager.clone(), victim_guid, 1_000);
+    {
+        let mut guard = canonical.lock().unwrap();
+        let map = guard.find_map_mut(0, 0).unwrap().map_mut();
+        map.get_typed_creature_mut(victim_guid)
+            .unwrap()
+            .unit_mut()
+            .set_level(80);
+        map.get_typed_creature_mut(victim_guid)
+            .unwrap()
+            .set_combat_log_stats_like_cpp(wow_entities::CreatureCombatLogStatsLikeCpp {
+                armor: 5_000,
+                ..Default::default()
+            });
+        map.get_typed_creature_mut(attacker_guid)
+            .unwrap()
+            .unit_mut()
+            .set_level(80);
+    }
+    session
+        .mutate_world_creature(attacker_guid, |creature| {
+            creature.creature.unit_mut().set_level(80);
+            creature.creature.ai_ownership_mut().min_damage = 10;
+            creature.creature.ai_ownership_mut().max_damage = 10;
+            creature.enter_combat(victim_guid);
+            creature.creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+        })
+        .unwrap();
+
+    let mut spell_store = wow_data::SpellStore::new();
+    for (spell_id, amount) in [(91_220_i32, 5_i32), (91_221, -200)] {
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: amount,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+                ),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura:
+                        wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+                    effect_base_points: amount,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+        spell_store: Some(Arc::new(spell_store)),
+        ..Default::default()
+    };
+    let apply_victim_aura = |canonical: &SharedCanonicalMapManager, spell_id: u32| {
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .with_creature_mut_like_cpp(victim_guid, |victim| {
+                victim.unit_mut().subsystems_mut().auras.add_applied(
+                    wow_entities::AppliedAuraRef::new(spell_id, attacker_guid, 0, 1),
+                );
+            })
+            .unwrap();
+    };
+    let victim_health = |canonical: &SharedCanonicalMapManager| {
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .with_creature_like_cpp(victim_guid, |victim| victim.unit().data().health)
+            .unwrap()
+    };
+    let tick = |session: &mut WorldSession| {
+        session
+            .mutate_world_creature(attacker_guid, |creature| {
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            })
+            .unwrap();
+        run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config)
+    };
+    let wire_hit_info = |outcome: &crate::session::LegacyCreatureMeleeTickOutcomeLikeCpp| {
+        let event = outcome
+            .plan
+            .events
+            .iter()
+            .find(|event| {
+                event.packet_bytes.len() > 2
+                    && u16::from_le_bytes([event.packet_bytes[0], event.packet_bytes[1]])
+                        == wow_constants::ServerOpcodes::AttackerStateUpdate as u16
+            })
+            .expect("attacker state update event");
+        let mut packet = wow_packet::world_packet::WorldPacket::from_bytes(&event.packet_bytes);
+        packet.read_uint16().expect("opcode");
+        packet.read_bit().expect("has_log_data");
+        let info_len = packet.read_uint32().expect("attackRoundInfo size") as usize;
+        let info_bytes = packet.read_bytes(info_len).expect("attackRoundInfo bytes");
+        let mut attack_round_info = wow_packet::world_packet::WorldPacket::from_bytes(&info_bytes);
+        attack_round_info.read_uint32().expect("hitInfo")
+    };
+
+    manager
+        .write()
+        .unwrap()
+        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+    // `+5` cancels the flat 5.0, so the mitigated `ceil(10 * 0.752873) = 8`
+    // lands.
+    apply_victim_aura(&canonical, 91_220_u32);
+    let outcome = tick(&mut session);
+    assert_eq!(outcome.melee_outcomes_unrepresented, 0);
+    assert_eq!(outcome.canonical_creature_hits, 1);
+    assert_eq!(1_000 - victim_health(&canonical), 8);
+    assert_eq!(wire_hit_info(&outcome), HIT_INFO_AFFECTS_VICTIM);
+
+    // The `-200` sum makes the miss band cover the whole roll: no health
+    // transition and the miss presentation on the wire.
+    apply_victim_aura(&canonical, 91_221_u32);
+    let before = victim_health(&canonical);
+    let outcome = tick(&mut session);
+    assert_eq!(outcome.melee_outcomes_unrepresented, 0);
+    assert_eq!(outcome.canonical_creature_hits, 0, "a miss commits no hit");
+    assert_eq!(victim_health(&canonical), before);
+    assert!(outcome.plan.events.iter().any(|event| {
+        event.packet_bytes.len() > 2
+            && u16::from_le_bytes([event.packet_bytes[0], event.packet_bytes[1]])
+                == wow_constants::ServerOpcodes::AttackerStateUpdate as u16
+    }));
+    assert_eq!(wire_hit_info(&outcome), HIT_INFO_MISS);
 }

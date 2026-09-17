@@ -302,7 +302,8 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
 
         let apply = |canonical_manager: &mut wow_map::MapManager,
                      swing: &PendingCreatureSwingLikeCpp,
-                     damage| {
+                     damage,
+                     presentation: Option<(u32, u8)>| {
             if swing.victim_guid.is_player() {
                 apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
                     canonical_manager,
@@ -326,11 +327,12 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     swing.attacker_can_state_update,
                     swing.victim_guid,
                     damage,
+                    presentation,
                 )
             }
         };
 
-        match apply(&mut canonical_manager, &swing, None) {
+        match apply(&mut canonical_manager, &swing, None, None) {
             CreatureMeleeApplyResultLikeCpp::Ready => {}
             CreatureMeleeApplyResultLikeCpp::Hit { .. } => {
                 unreachable!("melee precondition validation must not mutate canonical health")
@@ -402,6 +404,11 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         let mut victim_state = wow_packet::packets::combat::VICTIM_STATE_HIT;
         let mut original_damage = damage;
         let mut avoided_outcome = None;
+        // The creature-victim branch publishes through the compatibility
+        // bridge, so it carries its own presentation and avoid flag.
+        let mut creature_victim_presentation: Option<(u32, u8)> = None;
+        let mut creature_victim_avoided = false;
+        let mut outcome_represented = false;
         let damage = if swing.victim_guid.is_player() {
             match config.spell_store.as_deref() {
                 Some(spell_store) => {
@@ -666,6 +673,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                             hit_info = info;
                             victim_state = state;
                             original_damage = original;
+                            outcome_represented = true;
                             if matches!(
                                 rolled,
                                 crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Evade
@@ -750,24 +758,80 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                 crate::session_rules::melee_damage_taken_apply_like_cpp(
                                     taken, damage,
                                 );
-                            crate::session_rules::armor_reduced_damage_like_cpp(
-                                after_taken,
-                                attacker.creature.level(),
-                                victim_level,
-                                victim_armor,
-                                // CR_ARMOR_PENETRATION is a player-attacker
-                                // rating.
-                                0.0,
-                                normal_misc_sum(
-                                    wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE,
-                                ) as i32,
-                                normal_misc_sum(
-                                    wow_data::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST,
-                                ),
-                                // A creature victim's bypass aura needs a
-                                // represented creature-aura producer.
-                                0.0,
+                            let mitigated =
+                                crate::session_rules::armor_reduced_damage_like_cpp(
+                                    after_taken,
+                                    attacker.creature.level(),
+                                    victim_level,
+                                    victim_armor,
+                                    // CR_ARMOR_PENETRATION is a player-attacker
+                                    // rating.
+                                    0.0,
+                                    normal_misc_sum(
+                                        wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE,
+                                    ) as i32,
+                                    normal_misc_sum(
+                                        wow_data::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST,
+                                    ),
+                                    // A creature victim's bypass aura needs a
+                                    // represented creature-aura producer.
+                                    0.0,
+                                );
+                            // C++ `Unit::RollMeleeOutcomeAgainst`
+                            // (`Unit.cpp:2272-2310`). Boundary: a creature
+                            // victim's own avoidance and critical facts are a
+                            // follow-up, so this slice resolves the miss band
+                            // from its
+                            // `SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE` sum.
+                            let victim_hit_chance_aura_pct = victim_effects
+                                .iter()
+                                .filter(|effect| {
+                                    effect.aura_type
+                                        == wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE
+                                })
+                                .map(|effect| effect.amount as f32)
+                                .sum::<f32>();
+                            let attacker_facts =
+                                crate::session_rules::RepresentedMeleeAttackerFactsLikeCpp {
+                                    level: attacker.creature.level(),
+                                    crit_damage_multiplier: 1.0,
+                                    ..Default::default()
+                                };
+                            let victim_facts =
+                                crate::session_rules::RepresentedMeleeVictimFactsLikeCpp {
+                                    level: victim_level,
+                                    is_creature: true,
+                                    is_stand_state: true,
+                                    attacker_melee_hit_chance_pct: victim_hit_chance_aura_pct,
+                                    ..Default::default()
+                                };
+                            let inputs = crate::session_rules::melee_outcome_inputs_like_cpp(
+                                &attacker_facts,
+                                &victim_facts,
+                            );
+                            let rolled =
+                                crate::session_rules::rolled_melee_outcome_like_cpp(&inputs[0]);
+                            let (info, state) =
+                                crate::session_rules::melee_outcome_presentation_like_cpp(
+                                    rolled, false,
+                                );
+                            creature_victim_presentation = Some((info, state));
+                            creature_victim_avoided = matches!(
+                                rolled,
+                                crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Evade
+                                    | crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Miss
+                                    | crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Dodge
+                                    | crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Parry
+                            );
+                            outcome_represented = true;
+                            crate::session_rules::melee_outcome_damage_like_cpp(
+                                rolled,
+                                mitigated,
+                                attacker_facts.level,
+                                victim_facts.level,
+                                attacker_facts.crit_damage_multiplier,
                             )
+                            .0
                         }
                         None => damage,
                     }
@@ -775,7 +839,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                 None => damage,
             }
         };
-        if avoided_outcome.is_none() {
+        if !outcome_represented {
             outcome.melee_outcomes_unrepresented += 1;
         }
 
@@ -837,7 +901,12 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
             over_damage,
             target_level,
             events,
-        ) = match apply(&mut canonical_manager, &swing, Some(damage)) {
+        ) = match apply(
+            &mut canonical_manager,
+            &swing,
+            Some(damage),
+            creature_victim_presentation,
+        ) {
             CreatureMeleeApplyResultLikeCpp::Hit {
                 victim_applied_damage,
                 victim_health_before,
@@ -920,7 +989,9 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                 },
             );
         } else {
-            outcome.canonical_creature_hits += 1;
+            if !creature_victim_avoided {
+                outcome.canonical_creature_hits += 1;
+            }
             outcome.plan.events.extend(events);
             if victim_health_state_revision_after != victim_health_state_revision_before {
                 creature_victim_syncs.push(CreatureVictimCompatibilitySyncLikeCpp {
