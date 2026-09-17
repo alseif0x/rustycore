@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`53240ffdbe57882762ef3eca7af1b7854644852b` (PR #1103, the #29 original-damage
-publication, following PR #1101, the #29 melee evade
+`d31af69977175214d3084089418db2a5654f931a` (PR #1105, the #29
+critical-damage-bonus aura, following PR #1103, the #29 original-damage
+publication, PR #1101, the #29 melee evade
 outcome, PR #1099, the #29 controlled-victim
 avoidance gate, PR #1097, the #29 ignore-dual-wield
 hit-penalty aura, PR #1095, the #29 victim conditional
@@ -21,6 +22,31 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 critical-damage-bonus aura — 2026-09-17, implementation `16151cba`,
+integrated as `d31af699` by PR #1105:** C++ `Unit::CalculateMeleeDamage`'s
+`MELEE_HIT_CRIT` branch (`Unit.cpp:1362-1375`) doubles the post-armour damage
+and then multiplies it by
+`GetTotalAuraMultiplierByMiscMask(SPELL_AURA_MOD_CRIT_DAMAGE_BONUS, schoolMask)`;
+the represented crit only doubled, which was the documented boundary of the
+attack-table unit. The aura constant was added to the data crate,
+`RepresentedMeleeAttackerFactsLikeCpp` gained
+`crit_damage_multiplier` (the normal-school multiplier, `1.0` with no aura),
+`melee_outcome_damage_like_cpp` gained the matching parameter and scales its
+crit arm by it, and both owners (session path and map-owned `GlobalLegacy`
+runtime) resolve the multiplier as the product of `1 + amount/100` over the
+attacker's `SPELL_AURA_MOD_CRIT_DAMAGE_BONUS` auras whose misc covers the
+normal school. Evidence: the damage-switch case pins `200` at multiplier `1.0`
+and `400` at `2.0`, and the forced-crit session scenario
+`white_swing_applies_victim_critical_chance_auras_like_cpp` extends from 14 to
+28 damage once a `+100 %` aura is applied; wow-packet 744/0, wow-data 753/0,
+wow-entities 940/0, wow-world 3984/0/1 and world-server 594/0/0 pass; format,
+`git diff --check` and the physical ratchet pass (one recorded one-line
+`session/mod.rs` ceiling growth), and `validation-v2 quick` (manifest
+`20260917T155306.337559Z-2985789-quick.json`) passes. Remaining boundary: the
+spell-school-specific multiplier for a non-normal school is not represented
+because the white swing is always normal school, and no live DB/restart/relogin
+QA. #29 remains open for the remaining spell/melee math.
 
 **#29 original-damage publication — 2026-09-17, implementation `3d16476e`,
 integrated as `53240ffd` by PR #1103:** C++ `AttackerStateUpdate::Write`

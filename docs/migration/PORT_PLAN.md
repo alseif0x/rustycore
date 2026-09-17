@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 critical-damage-bonus aura — 2026-09-17, implementation `16151cba`:** a
+critical white swing now scales its doubled damage by the attacker's
+`SPELL_AURA_MOD_CRIT_DAMAGE_BONUS` multiplier, resolved in both the session
+path and the map-owned `GlobalLegacy` runtime; the damage switch pins 200 at
+`1.0` and 400 at `2.0`, and the forced-crit scenario goes from 14 to 28 with a
+`+100 %` aura. wow-packet 744/0, wow-data 753/0, wow-entities 940/0, wow-world
+3984/0/1, world-server 594/0/0; no live DB/restart/relogin QA.
+
 **#29 original-damage publication — 2026-09-17, implementation `3d16476e`:** the
 attacker-state packet now serializes the post-armour `OriginalDamage` the C++
 outcome switch scales, so avoided/glancing/blocked swings keep the value the
