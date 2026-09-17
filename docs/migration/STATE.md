@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`4cbaceccbf6c3394e70c7f2e9036be40694cda2c` (PR #1093, the #29 victim avoidance
-auras, following PR #1091, the #29 victim-side melee
+`d3583610968219ce18e22cf933045f62899d3832` (PR #1095, the #29 victim conditional
+critical-chance auras, following PR #1093, the #29 victim avoidance
+auras, PR #1091, the #29 victim-side melee
 damage-taken chain, PR #1089, the #29 melee block band,
 PR #1087, the #29 melee attack
 table, PR #1085, the #29 white-swing armour
@@ -16,6 +17,35 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 victim conditional critical-chance auras — 2026-09-17, implementation
+`accffc17`, integrated as `d3583610` by PR #1095:** C++
+`Unit::GetUnitCriticalChanceTaken` (`Unit.cpp:2424-2452`) adds the victim's
+`SPELL_AURA_MOD_CRIT_CHANCE_VERSUS_TARGET_HEALTH` (183) while
+`!HealthBelowPct(MiscValueB)` holds and its
+`SPELL_AURA_MOD_CRIT_CHANCE_FOR_CASTER` (306) while the attacker is the caster,
+on top of the melee-crit sums delivered by PR #1093.
+`AppliedAuraEffectLikeCpp` now carries the effect's `MiscValueB`, and
+`RepresentedMeleeVictimFactsLikeCpp` gained
+`crit_chance_vs_target_health_pct` and `crit_chance_for_caster_pct`, folded into
+the crit band by `melee_outcome_inputs_like_cpp`; both owners apply the C++
+predicates from the creature's health percentage and the attacker GUID. Boundary:
+the `SPELL_AURA_MOD_CRIT_CHANCE_FOR_CASTER_PET` branch needs a `TempSummon`
+attacker, which the represented player swing is not. Evidence: the fact test pins
+crit 25 from the two conditional sums,
+`white_swing_applies_victim_critical_chance_auras_like_cpp` proves a foreign
+caster's aura is ignored and the attacker's own applies (7 damage normal, 14 with
+`HITINFO_CRITICALHIT` from the 100% target-health aura), and the production owner
+`map_owned_player_melee_applies_victim_critical_chance_auras_like_cpp` holds the
+map-owned tick to the same crit; wow-packet 744/0, wow-data 753/0, wow-entities
+940/0, wow-world 3982/0/1 and world-server 594/0/0 pass; format,
+`git diff --check` and the physical ratchet pass without new ceiling growth, and
+`validation-v2 quick` (manifest `20260917T150133.551794Z-2926042-quick.json`)
+passes. `validation-v2 final` stops only at the pre-existing `hotspot-ratchet`
+baseline failure (manifest `20260917T150216.515054Z-2926250-final.json`). No live
+DB/restart/relogin QA. The victim-side attack-table terms are now complete apart
+from the casting/control avoidance gate; #29 remains open for the remaining
+spell/melee math.
 
 **#29 victim avoidance auras — 2026-09-17, implementation `28622fb0`, integrated
 as `4cbacecc` by PR #1093:** C++

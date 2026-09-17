@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 victim conditional critical-chance auras — 2026-09-17, implementation
+`accffc17`:** the crit band now folds the victim's
+`SPELL_AURA_MOD_CRIT_CHANCE_VERSUS_TARGET_HEALTH` (with C++'s
+`!HealthBelowPct(MiscValueB)` predicate) and `SPELL_AURA_MOD_CRIT_CHANCE_FOR_CASTER`
+(attacker-restricted); the `FOR_CASTER_PET` branch needs a TempSummon attacker and
+stays out of scope. wow-world 3982/0/1, world-server 594/0/0; no live
+DB/restart/relogin QA.
+
 **#29 victim avoidance auras — 2026-09-17, implementation `28622fb0`:** the melee
 attack table now folds the victim's dodge/parry/block percentage auras, its
 attacker-melee-hit-chance and attacker-melee-crit-chance auras and the
