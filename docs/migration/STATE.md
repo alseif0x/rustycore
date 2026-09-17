@@ -1,12 +1,45 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`343be766beedf0066696b522318ac6e275a80556` (PR #1005, the seven stale `wow-world --lib` expectations, following PR #1003, the quest party fixture identity fix, PR #1001, the save-snapshot manager-lock re-entry fix, PR #999, the session reputation-closure lock re-entry deadlock fix, PR #997, the collection appearance `CanUseItem` template gates, PR #995, the collection appearance weapon-proficiency gate, PR #993, the #61 attack power aura producers, PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`12efaf8f853b6e9b3ca552bbe3e0519902afac63` (PR #1007, the #61 override-attack-power-by-spell-power aura, following PR #1005, the seven stale `wow-world --lib` expectations, PR #1003, the quest party fixture identity fix, PR #1001, the save-snapshot manager-lock re-entry fix, PR #999, the session reputation-closure lock re-entry deadlock fix, PR #997, the collection appearance `CanUseItem` template gates, PR #995, the collection appearance weapon-proficiency gate, PR #993, the #61 attack power aura producers, PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#61 override attack power by spell power — 2026-09-17, implementation
+`8ee397c5`, integrated as `12efaf8f` by PR #1007:** the last unrepresented branch
+of `Player::UpdateAttackPowerAndDamage` (`StatSystem.cpp:333-403`) is applied:
+while `SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT` (`SpellAuraDefines.h:499`) is
+active, C++ skips the strength/agility/level base and sets `BASE_VALUE` for both
+the melee and the ranged unit mod to `CalculatePct(float(minSpellPower),
+OverrideAPBySpellPowerPercent)` (`StatSystem.cpp:341-379`), where `minSpellPower`
+is `min(ModHealingDonePos, ModDamageDonePos[HOLY..MAX])`.
+`PlayerStatSystemInputLikeCpp` now carries
+`attack_power_override_by_spell_power: Option<(i32, f32)>`; the pure stat system
+replaces both bases when it is `Some`, preserving the `int32(base_attPower)`
+truncation, and otherwise keeps the previous arithmetic. The producer sums every
+active effect amount, mirroring the `ApplyModUpdateFieldValue` accumulator in
+`AuraEffect::HandleOverrideAttackPowerBySpellPower`
+(`SpellAuraEffects.cpp:3785-3796`); C++ tests `HasAuraType`, so an active effect
+whose summed percent is zero still overrides. The minimum spell power is the
+represented item spell power that `Player::ApplySpellPowerBonus`
+(`StatSystem.cpp:153-168`) publishes to `ModHealingDonePos` and the magic
+`ModDamageDonePos` entries; the `SPELL_AURA_MOD_DAMAGE_DONE`/`MOD_HEALING_DONE`
+producers that would widen those fields remain a separate gate. The override
+reaches the existing consumers unchanged: `Unit::GetTotalAttackPowerValue`
+(threat) and `effective_weapon_damage_ranges_like_cpp`
+(`Unit::CalculateMinMaxDamage`). Evidence: a pure stat-system test pins the
+replacement, truncation and zero-percent presence rule, an end-to-end session
+test moves the baseline 220/-10 to 200/200 with 1,000 spell power and two
+stacking 15+5 percent effects; `wow-data --lib` 750/0, `wow-world --lib`
+3925/0/1, format, `git diff --check`, the physical ratchet and `validation-v2
+quick` (manifest `20260917T025325.633908Z-2197184-quick.json`) pass. No live
+DB/restart/relogin QA. #61 stays open for the player-killer (PvP)
+`CONFIG_DURABILITY_LOSS_IN_PVP` branch and `SetPvPDeath`, alternate powers, rune
+regeneration, the spell damage/healing done producers and live
+DB/restart/relogin QA.
 
 **Seven stale `wow-world --lib` expectations — 2026-09-17, implementation
 `2534b97e`, integrated as `343be766` by PR #1005 (test harness, not gameplay
@@ -193,8 +226,10 @@ packet test pins the create-block multipliers; `wow-data stat_system` (8),
 `scenarios_world_entities_24` (11) and `scenarios_spell_state_22` (9) stay green;
 format, `git diff --check`, the physical ratchet and `validation-v2 quick`
 (manifest `20260917T010221.921007Z-2129573-quick.json`, 76.3 s) pass.
-`SPELL_AURA_MOD_ATTACK_POWER_OF_ARMOR` and `SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT`
-remain separate gates, the `GetTotalAuraMultiplier` same-effect stack-rule
+`SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT` is implemented by the
+override-attack-power entry above (it has no `SPELL_AURA_MOD_ATTACK_POWER_OF_ARMOR`
+counterpart in this 3.4.3 source), and the same-effect stack-rule question
+remains, the `GetTotalAuraMultiplier` same-effect stack-rule
 grouping is not applied (consistent with the older aura helpers), the full
 `wow-world --lib` suite stays unusable on this host because several unrelated
 pre-existing async tests hang, and `validation-v2 final` stops at the

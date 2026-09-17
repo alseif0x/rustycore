@@ -33,6 +33,19 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 override attack power by spell power — 2026-09-17, implementation
+`8ee397c5`:** `Player::UpdateAttackPowerAndDamage` (`StatSystem.cpp:333-403`)
+now applies the `SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT`
+(`SpellAuraDefines.h:499`) branch: while the aura is active, both attack mods
+replace the strength/agility/level base with
+`CalculatePct(min(ModHealingDonePos, ModDamageDonePos[HOLY..MAX]), percent)`
+(`StatSystem.cpp:341-379`), with the amount accumulated like
+`HandleOverrideAttackPowerBySpellPower` (`SpellAuraEffects.cpp:3785-3796`). The
+existing threat and `CalculateMinMaxDamage` consumers are reused unchanged;
+`wow-data --lib` 750/0 and `wow-world --lib` 3925/0/1. The
+`SPELL_AURA_MOD_DAMAGE_DONE`/`MOD_HEALING_DONE` producers remain the next gate,
+and there is no live DB/restart/relogin QA.
+
 **Seven stale `wow-world --lib` expectations — 2026-09-17, implementation
 `2534b97e`:** the seven scenarios left red by PR #1003 were reproduced on clean
 base `6b46be23` and corrected as harness/expectation defects, not production
