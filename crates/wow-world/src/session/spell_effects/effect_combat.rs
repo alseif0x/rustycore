@@ -500,28 +500,49 @@ impl WorldSession {
     /// `int32(max(float(healamount + int32(SpellBaseHealingBonusDone(schoolMask)
     /// * BonusCoefficient)) * DoneTotalMod, 0.0f))`.
     ///
-    /// Boundaries: the victim `SPELL_AURA_MOD_HEALING` term, the
-    /// `BonusCoefficientFromAP` table, the periodic-leech suppression, the
-    /// spell-mod coefficient adjustment and the scripted handlers are not
-    /// modelled; creature casters keep the raw value, and a missing
-    /// `SpellMisc` row or canonical snapshot fails closed.
+    /// Boundaries: the victim `SPELL_AURA_MOD_HEALING` term is only applied
+    /// when the victim is the session player, because creature auras are not
+    /// represented; the `BonusCoefficientFromAP` table, the periodic-leech
+    /// suppression, the spell-mod coefficient adjustment and the scripted
+    /// handlers are not modelled either. Creature casters keep the raw value,
+    /// and a missing `SpellMisc` row or canonical snapshot fails closed.
     pub(in crate::session) fn represented_spell_healing_bonus_done_like_cpp(
         &self,
         spell_id: i32,
         caster_guid: ObjectGuid,
+        target_guid: ObjectGuid,
         coefficient: f32,
         base_heal: u32,
     ) -> u32 {
-        if caster_guid != self.player_guid().unwrap_or(ObjectGuid::EMPTY) {
+        let Some(player_guid) = self.player_guid() else {
+            return base_heal;
+        };
+        if caster_guid != player_guid {
             return base_heal;
         }
         let Some(school_mask) = self.represented_spell_school_mask_like_cpp(spell_id) else {
             return base_heal;
         };
-        let Some(benefit) = self.represented_spell_base_healing_bonus_done_like_cpp(school_mask)
+        let Some(mut benefit) =
+            self.represented_spell_base_healing_bonus_done_like_cpp(school_mask)
         else {
             return base_heal;
         };
+        if target_guid == player_guid {
+            // C++ `DoneAdvertisedBenefit += victim->
+            // GetTotalAuraModifierByMiscMask(SPELL_AURA_MOD_HEALING,
+            // spellProto->GetSchoolMask())`.
+            benefit = benefit.saturating_add(
+                self.resolved_aura_effects_by_spell_aura_type_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING,
+                )
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|(misc_value, _)| misc_value & i32::from(school_mask) != 0)
+                .map(|(_, amount)| amount)
+                .sum::<i32>(),
+            );
+        }
         let Some(snapshot) = self.canonical_player_effective_combat_stats_like_cpp() else {
             return base_heal;
         };

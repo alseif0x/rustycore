@@ -151,6 +151,11 @@ pub const SPELL_AURA_MOD_SPEED_NO_CONTROL: i32 = 373;
 pub const SPELL_AURA_MOD_MANA_REGEN_PCT: i32 = 379;
 pub const SPELL_AURA_SCHOOL_HEAL_ABSORB: i32 = 301;
 pub const SPELL_AURA_IGNORE_SPELL_COOLDOWN: i32 = 383;
+/// C++ `AuraType::SPELL_AURA_MOD_HEALING` (`SpellAuraDefines.h:210`): the
+/// victim-side flat healing modifier that `Unit::SpellHealingBonusDone`
+/// (`Unit.cpp:7123-7124`) adds through
+/// `GetTotalAuraModifierByMiscMask`.
+pub const SPELL_AURA_MOD_HEALING: i32 = 115;
 /// C++ `AuraType::SPELL_AURA_MOD_HEALING_DONE` (`SpellAuraDefines.h:230`):
 /// flat healing bonus read by `Unit::SpellBaseHealingBonusDone`
 /// (`Unit.cpp:7282-7315`).
