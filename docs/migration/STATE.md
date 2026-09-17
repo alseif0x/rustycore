@@ -1,12 +1,42 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`c3645a795b6661db3fcfb2c14b43bcfe25e760d9` (PR #1015, the #61 `ModDamageDonePercent` publication, following PR #1013, the narrow values-update negative spell field, PR #1011, the spell field wire publication, PR #1009, the spell damage/healing done producers, PR #1007, the override-attack-power-by-spell-power aura, PR #1005, the seven stale `wow-world --lib` expectations, PR #1003, the quest party fixture identity fix, PR #1001, the save-snapshot manager-lock re-entry fix, PR #999, the session reputation-closure lock re-entry deadlock fix, PR #997, the collection appearance `CanUseItem` template gates, PR #995, the collection appearance weapon-proficiency gate, PR #993, the #61 attack power aura producers, PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`98a45d75a7412775cda4999a546230335aa5ac0d` (PR #1017, the #61 `ModHealingDonePercent` publication, following PR #1015, the `ModDamageDonePercent` publication, PR #1013, the narrow values-update negative spell field, PR #1011, the spell field wire publication, PR #1009, the spell damage/healing done producers, PR #1007, the override-attack-power-by-spell-power aura, PR #1005, the seven stale `wow-world --lib` expectations, PR #1003, the quest party fixture identity fix, PR #1001, the save-snapshot manager-lock re-entry fix, PR #999, the session reputation-closure lock re-entry deadlock fix, PR #997, the collection appearance `CanUseItem` template gates, PR #995, the collection appearance weapon-proficiency gate, PR #993, the #61 attack power aura producers, PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#61 `ModHealingDonePercent` publication — 2026-09-17, implementation
+`cbbb3a49`, integrated as `98a45d75` by PR #1017:** `Player::UpdateHealingDonePercentMod`
+(`StatSystem.cpp:588-599`) is now produced: the value starts at 1.0, multiplies
+`1 + amount/100` over every active `SPELL_AURA_MOD_HEALING_DONE_PERCENT` (136)
+effect and is clamped at zero, matching the re-run from
+`AuraEffect::HandleModHealingDonePct` (`SpellAuraEffects.cpp:3645-3654`).
+`represented_spell_bonus_like_cpp` computes it, `PlayerSpellBonusInputLikeCpp`
+carries `healing_done_percent` with a manual `Default` of 1.0,
+`PlayerStatSystemProjectionLikeCpp` exposes `mod_healing_done_percent` and
+`PlayerEffectiveCombatStatsLikeCpp` publishes it. `PlayerCombatStats` and
+`PlayerCreateData` carry `mod_healing_done_pct` so the create block writes the
+real multiplier instead of 1.0, and `PlayerStatChanges`'s existing field is fed
+from the projection for the narrow values update (bit 61, already emitted).
+Boundary: `ModHealingPercent`, `ModPeriodicHealingDonePercent` and
+`ModSpellPowerPercent` have no C++ writer and keep their 1.0 create value, while
+`ModTargetResistance`/`ModTargetPhysicalResistance` (aura 123 plus the item
+spell-penetration term) remain hardcoded and are the next gate. Evidence: the
+wow-data test pins the projection copy; the extended session test drives aura 136
+twice on a level-80 priest to `(1+0.5)*(1+1.0) = 3.0`; `scenarios_spell_state_22`
+pins the 1.0 create value; the `scenarios_3` byte test locates parent-38 field 21
+(bit 61) and asserts the emitted multiplier; wow-data --lib 751/0, wow-entities
+--lib 940/0, wow-world --lib 3926/0/1 and wow-packet --lib 742/0; format,
+`git diff --check`, the physical ratchet (two explained fixture ceilings:
+`update_tests/mod.rs` 207→208 and `world_entry.rs` 2775→2776) and
+`validation-v2 quick` (manifest `20260917T034615.374132Z-2251853-quick.json`)
+pass. No live DB/restart/relogin QA. #61 stays open for the target
+resistance/spell-penetration fields, the melee damage percentage consumer, the
+player-killer (PvP) `CONFIG_DURABILITY_LOSS_IN_PVP` branch and `SetPvPDeath`,
+alternate powers, rune regeneration and live DB/restart/relogin QA.
 
 **#61 `ModDamageDonePercent` publication — 2026-09-17, implementation
 `b11a04cb`, integrated as `c3645a79` by PR #1015:** the last per-school
@@ -34,7 +64,8 @@ and wow-packet --lib 742/0; format, `git diff --check`, the physical ratchet (tw
 explained fixture ceilings: `update_tests/mod.rs` 205→207 and `world_entry.rs`
 2774→2775) and `validation-v2 quick` (manifest
 `20260917T033705.720788Z-2239874-quick.json`) pass. No live DB/restart/relogin QA.
-#61 stays open for the melee damage percentage consumer, the player-killer (PvP)
+#61 stays open for the target resistance/spell-penetration fields, the melee
+damage percentage consumer, the player-killer (PvP)
 `CONFIG_DURABILITY_LOSS_IN_PVP` branch and `SetPvPDeath`, alternate powers, rune
 regeneration and live DB/restart/relogin QA.
 
