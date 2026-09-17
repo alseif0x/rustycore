@@ -72,9 +72,21 @@ producer, so creature→player immunity is reachable and currently deals damage;
 a creature victim's immunities depend on the represented aura/immunity
 registry, which has no producer today. The next melee-adjacent unit is therefore
 the immunity gate: publish the two packet constants, resolve the victim's
-`schema`-school immunity from its auras (checking the represented immunity
-registry first), add an `is_immune_to_damage` victim fact and the early return in
-both owners, and cover it with a pure plus production runtime scenario.
+normal-school immunity from its auras, add an `is_immune_to_damage` victim fact
+and the early return in both owners, and cover it with a pure plus production
+runtime scenario. The C++ semantics were read exactly this round and pin the
+implementation: `Unit::IsImmunedToDamage(SpellSchoolMask)`
+(`Unit.cpp:7320-7336`) returns true only when `(GetSchoolImmunityMask() &
+schoolMask) == schoolMask` or `(GetDamageImmunityMask() & schoolMask) ==
+schoolMask`, i.e. the victim must be immune to *every* school in the mask — for a
+white swing that is `SPELL_SCHOOL_MASK_NORMAL` (`0x01`), whose source is a
+`SPELL_AURA_SCHOOL_IMMUNITY` (39) effect whose `MiscValue` covers `0x01`;
+`GetDamageImmunityMask`'s `IMMUNITY_DAMAGE` map has no represented producer and
+is a boundary. The packet semantics are equally specific: the immune block sets
+`HitInfo |= HITINFO_NORMALSWING` (which is `0x0`) and `TargetState =
+VICTIMSTATE_IS_IMMUNE`, then returns *before* the `HITINFO_AFFECTS_VICTIM` line,
+so a main-hand immune swing publishes `hitInfo == 0` with `VICTIMSTATE_IS_IMMUNE`
+and zero damage — not the miss flags and not `AFFECTS_VICTIM`.
 
 **#29 ExpectedStat table load — 2026-09-17, implementation `179e9b92`,
 integrated as `7bab6a40` by PR #1144:** C++ `Player::GetBlockPercent`
