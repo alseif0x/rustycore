@@ -21,6 +21,23 @@ pub const SPELL_AURA_MOD_STEALTH: i32 = 16;
 pub const SPELL_AURA_MOD_STEALTH_DETECT: i32 = 17;
 pub const SPELL_AURA_MOD_INVISIBILITY: i32 = 18;
 pub const SPELL_AURA_MOD_RESISTANCE: i32 = 22;
+/// C++ `AuraType::SPELL_AURA_MOD_BASE_RESISTANCE` (`SpellAuraDefines.h:178`):
+/// flat resistance added through the `TOTAL_VALUE` unit modifier, the same
+/// route as `SPELL_AURA_MOD_RESISTANCE`.
+pub const SPELL_AURA_MOD_BASE_RESISTANCE: i32 = 83;
+/// C++ `AuraType::SPELL_AURA_MOD_RESISTANCE_PCT` (`SpellAuraDefines.h:196`):
+/// `TOTAL_PCT` resistance multiplier selected by the school mask.
+pub const SPELL_AURA_MOD_RESISTANCE_PCT: i32 = 101;
+/// C++ `AuraType::SPELL_AURA_MOD_BASE_RESISTANCE_PCT`
+/// (`SpellAuraDefines.h:237`): `BASE_PCT` resistance multiplier.
+pub const SPELL_AURA_MOD_BASE_RESISTANCE_PCT: i32 = 142;
+/// C++ `AuraType::SPELL_AURA_MOD_RESISTANCE_OF_STAT_PERCENT`
+/// (`SpellAuraDefines.h:277`): percentage of the `MiscValueB` stat added as
+/// resistance for the schools in `MiscValue`.
+pub const SPELL_AURA_MOD_RESISTANCE_OF_STAT_PERCENT: i32 = 182;
+/// C++ `AuraType::SPELL_AURA_MOD_BONUS_ARMOR_PCT` (`SpellAuraDefines.h:561`):
+/// final multiplier on bonus armor.
+pub const SPELL_AURA_MOD_BONUS_ARMOR_PCT: i32 = 466;
 pub const SPELL_AURA_MOD_ROOT: i32 = 26;
 pub const SPELL_AURA_MOD_SILENCE: i32 = 27;
 pub const SPELL_AURA_MOD_STAT: i32 = 29;

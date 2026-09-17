@@ -12,6 +12,9 @@
 
 use super::*;
 
+/// C++ `SPELL_SCHOOL_MASK_NORMAL` (`SharedDefines.h:329`).
+const SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP: i32 = 1;
+
 #[derive(Debug, Clone, Default)]
 pub(crate) struct RepresentedPlayerGearStatsLikeCpp {
     pub(super) stats: [i32; 5],
@@ -102,6 +105,60 @@ impl WorldSession {
             / 100.0
     }
 
+    /// C++ `GetTotalAuraMultiplier`/`GetTotalAuraMultiplierByMiscMask` as used
+    /// by `Player::UpdateArmor` (`StatSystem.cpp:251-276`). The two resistance
+    /// percentages select the normal school mask;
+    /// `SPELL_AURA_MOD_BONUS_ARMOR_PCT` has no mask and counts every effect.
+    fn represented_armor_aura_multiplier_like_cpp(&self, aura_type: i32) -> f32 {
+        self.resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|(misc_value, _)| {
+                aura_type == wow_data::spell::aura_types::SPELL_AURA_MOD_BONUS_ARMOR_PCT
+                    || *misc_value & SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP != 0
+            })
+            .fold(1.0, |acc, (_, amount)| acc * (1.0 + amount as f32 / 100.0))
+    }
+
+    /// C++ `GetFlatModifierValue(UNIT_MOD_ARMOR, TOTAL_VALUE)`: the flat
+    /// `TOTAL_VALUE` contributions of the two flat-resistance aura types whose
+    /// school mask includes the normal school.
+    fn represented_armor_aura_flat_like_cpp(&self) -> i32 {
+        [
+            wow_data::spell::aura_types::SPELL_AURA_MOD_RESISTANCE,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_BASE_RESISTANCE,
+        ]
+        .into_iter()
+        .filter_map(|aura_type| self.resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type))
+        .flatten()
+        .filter(|(misc_value, _)| *misc_value & SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP != 0)
+        .map(|(_, amount)| amount)
+        .sum()
+    }
+
+    /// C++ `Player::UpdateArmor`'s `SPELL_AURA_MOD_RESISTANCE_OF_STAT_PERCENT`
+    /// loop, aggregated per `MiscValueB` stat index so the stat system can apply
+    /// `CalculatePct` against the final stat values.
+    fn represented_armor_of_stat_percent_like_cpp(&self) -> [i32; 5] {
+        let mut per_stat = [0i32; 5];
+        for (school_mask, stat_index, amount) in self
+            .resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_RESISTANCE_OF_STAT_PERCENT,
+            )
+            .unwrap_or_default()
+        {
+            if school_mask & SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP == 0 {
+                continue;
+            }
+            if let Ok(index) = usize::try_from(stat_index)
+                && index < per_stat.len()
+            {
+                per_stat[index] = per_stat[index].saturating_add(amount);
+            }
+        }
+        per_stat
+    }
+
     pub(super) fn represented_player_gear_stats_like_cpp(
         &self,
         _include_represented_item_bonuses: bool,
@@ -178,6 +235,17 @@ impl WorldSession {
                 gear_health: gear.health,
                 gear_mana: gear.mana,
                 gear_armor: gear.armor,
+                armor_base_pct: self.represented_armor_aura_multiplier_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_BASE_RESISTANCE_PCT,
+                ),
+                armor_flat_aura: self.represented_armor_aura_flat_like_cpp(),
+                armor_of_stat_percent: self.represented_armor_of_stat_percent_like_cpp(),
+                armor_total_pct: self.represented_armor_aura_multiplier_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_RESISTANCE_PCT,
+                ),
+                armor_bonus_pct: self.represented_armor_aura_multiplier_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_BONUS_ARMOR_PCT,
+                ),
                 gear_attack_power: gear.attack_power,
                 gear_ranged_attack_power: gear.ranged_attack_power,
                 rating_bonuses,

@@ -512,3 +512,124 @@ async fn expertise_aura_modifiers_filter_by_weapon_fit_like_cpp() {
     assert_eq!(stats.mainhand_expertise, 30.0);
     assert_eq!(stats.offhand_expertise, 30.0);
 }
+
+#[tokio::test]
+async fn armor_aura_producers_follow_update_armor_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 61_200);
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+    session.set_player_stats(Arc::new(wow_data::PlayerStatsStore::from_entries([(
+        (1, 5, 80),
+        wow_data::PlayerLevelStats {
+            strength: 10,
+            agility: 10,
+            stamina: 10,
+            intellect: 40,
+            spirit: 30,
+            base_mana: 1_000,
+        },
+    )])));
+    session.set_chr_classes_store(Arc::new(
+        wow_data::character_progression::ChrClassesStore::from_entries([{
+            let mut entry = wow_data::character_progression::ChrClassesEntry::default();
+            entry.id = 5;
+            entry
+        }]),
+    ));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+
+    // C++ 3.4.3 aura types consumed by `Player::UpdateArmor`
+    // (`StatSystem.cpp:251-276`).
+    let mut spell_store = wow_data::SpellStore::new();
+    for (spell_id, aura_type, misc_value, misc_value_b, amount) in [
+        (90_400, 22, 1, 0, 300),  // MOD_RESISTANCE, normal mask
+        (90_401, 22, 4, 0, 500),  // MOD_RESISTANCE, fire mask only
+        (90_402, 101, 1, 0, 50),  // MOD_RESISTANCE_PCT, normal mask
+        (90_403, 466, 0, 0, 100), // MOD_BONUS_ARMOR_PCT
+        (90_404, 182, 1, 1, 100), // MOD_RESISTANCE_OF_STAT_PERCENT, agility
+    ] {
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: amount,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(aura_type),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: aura_type,
+                    effect_base_points: amount,
+                    effect_misc_value_1: misc_value,
+                    effect_misc_value_2: misc_value_b,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    session.set_spell_store(Arc::new(spell_store));
+    session.set_state(crate::session::SessionState::LoggedIn);
+
+    let armor = |session: &WorldSession| {
+        session
+            .canonical_player_effective_combat_stats_like_cpp()
+            .expect("armor projection")
+            .armor
+    };
+
+    let _ = session.send_stat_update();
+    // No items: C++ `Player::UpdateArmor` armor is Agility * 2.
+    assert_eq!(armor(&session), 20);
+
+    // Flat `SPELL_AURA_MOD_RESISTANCE` with the normal mask adds directly.
+    session
+        .apply_aura(90_400, player_guid, 30_000, 1)
+        .expect("apply armor aura");
+    let _ = session.send_stat_update();
+    assert_eq!(armor(&session), 320);
+
+    // A fire-mask flat aura does not change the physical armor.
+    session
+        .apply_aura(90_401, player_guid, 30_000, 1)
+        .expect("apply fire resistance aura");
+    let _ = session.send_stat_update();
+    assert_eq!(armor(&session), 320);
+
+    let normal_slot = session
+        .visible_aura_slot_for_spell_like_cpp(90_400)
+        .expect("armor aura slot");
+    session.remove_aura(normal_slot).expect("remove armor aura");
+    let _ = session.send_stat_update();
+    assert_eq!(armor(&session), 20, "removing the aura restores the armor");
+
+    // `SPELL_AURA_MOD_RESISTANCE_PCT` scales the whole armor value.
+    session
+        .apply_aura(90_402, player_guid, 30_000, 1)
+        .expect("apply armor percentage aura");
+    let _ = session.send_stat_update();
+    assert_eq!(armor(&session), 30);
+
+    // `SPELL_AURA_MOD_BONUS_ARMOR_PCT` applies last.
+    session
+        .apply_aura(90_403, player_guid, 30_000, 1)
+        .expect("apply bonus armor aura");
+    let _ = session.send_stat_update();
+    assert_eq!(armor(&session), 60);
+
+    // `SPELL_AURA_MOD_RESISTANCE_OF_STAT_PERCENT` adds 100% of Agility before
+    // the percentage multipliers.
+    session
+        .apply_aura(90_404, player_guid, 30_000, 1)
+        .expect("apply resistance-of-stat aura");
+    let _ = session.send_stat_update();
+    assert_eq!(armor(&session), 90);
+}
