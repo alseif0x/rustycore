@@ -49,9 +49,10 @@ use wow_data::PlayerCreatePositionLikeCpp;
 use wow_data::{
     ConditionEntriesByTypeStore, ConditionId, CurrencyTypesStore, HotfixRecordStatus,
     ItemExtendedCostStore, PlayerConditionContextLikeCpp, PlayerConditionStore,
-    PlayerCreateInfoLikeCpp, PlayerStatSystemInputLikeCpp, PlayerStatSystemProjectionLikeCpp,
-    TaxiPathNodeEntry, TaxiPathNodeStore, calculate_player_stat_system_like_cpp,
-    hotfix_locale_mask, is_player_meeting_condition_like_cpp,
+    PlayerCreateInfoLikeCpp, PlayerSpellBonusInputLikeCpp, PlayerStatSystemInputLikeCpp,
+    PlayerStatSystemProjectionLikeCpp, TaxiPathNodeEntry, TaxiPathNodeStore,
+    calculate_player_stat_system_like_cpp, hotfix_locale_mask,
+    is_player_meeting_condition_like_cpp,
 };
 use wow_entities::{
     BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START, Corpse, CorpseCustomizationChoice,

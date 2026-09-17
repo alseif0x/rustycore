@@ -81,6 +81,33 @@ impl PlayerLevelStats {
     }
 }
 
+/// C++ `Player::UpdateSpellDamageAndHealingBonus` inputs
+/// (`StatSystem.cpp:171-197`) built from `Unit::SpellBaseDamageBonusDone` and
+/// `Unit::SpellBaseHealingBonusDone` (`Unit.cpp:6860-6890`, `7282-7315`).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct PlayerSpellBonusInputLikeCpp {
+    /// C++ `Player::GetBaseSpellPowerBonus()`: the item/enchant spell power
+    /// `Player::ApplySpellPowerBonus` (`StatSystem.cpp:153-168`) accumulates.
+    pub base_spell_power: i32,
+    /// `GetTotalAuraModifierByMiscMask(SPELL_AURA_MOD_DAMAGE_DONE, 1 << school)`
+    /// per school; index 0 is never published by C++.
+    pub damage_done_flat: [i32; 7],
+    /// Negative `SPELL_AURA_MOD_DAMAGE_DONE` sums per school
+    /// (`ActivePlayerData::ModDamageDoneNeg`).
+    pub damage_done_neg: [i32; 7],
+    /// `SPELL_AURA_MOD_SPELL_DAMAGE_OF_STAT_PERCENT` sums per school and stat
+    /// (the effect `MiscValue` is the school mask, `MiscValueB` the stat).
+    pub damage_of_stat_percent: [[i32; 5]; 7],
+    /// `GetTotalAuraModifier(SPELL_AURA_MOD_HEALING_DONE, SPELL_SCHOOL_MASK_ALL)`.
+    pub healing_done_flat: i32,
+    /// `SPELL_AURA_MOD_SPELL_HEALING_OF_STAT_PERCENT` sums per stat index (the
+    /// effect `MiscValue` is the stat).
+    pub healing_of_stat_percent: [i32; 5],
+    /// `ActivePlayerData::OverrideSpellPowerByAPPercent`; `> 0` replaces both
+    /// bonuses with `CalculatePct(GetTotalAttackPowerValue(BASE_ATTACK), pct)`.
+    pub override_spell_power_by_ap_pct: f32,
+}
+
 /// Inputs currently represented by Rust for C++ `Player::UpdateAllStats`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PlayerStatSystemInputLikeCpp {
@@ -147,11 +174,13 @@ pub struct PlayerStatSystemInputLikeCpp {
     /// `SPELL_AURA_MOD_RANGED_ATTACK_POWER_PCT` (167).
     pub ranged_attack_power_total_pct: f32,
     /// C++ `Player::UpdateAttackPowerAndDamage` (`StatSystem.cpp:341-379`):
-    /// `Some((min(ModHealingDonePos, ModDamageDonePos[HOLY..MAX]),
-    /// ActivePlayerData::OverrideAPBySpellPowerPercent))` while
-    /// `SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT` is active. `None` keeps the
-    /// strength/agility/level base for both attack mods.
-    pub attack_power_override_by_spell_power: Option<(i32, f32)>,
+    /// `Some(ActivePlayerData::OverrideAPBySpellPowerPercent)` while
+    /// `SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT` is active. Both attack mods
+    /// then read `CalculatePct(min(ModHealingDonePos, ModDamageDonePos[HOLY..MAX]),
+    /// percent)`; `None` keeps the strength/agility/level base.
+    pub attack_power_override_by_spell_power_pct: Option<f32>,
+    /// C++ `Player::UpdateSpellDamageAndHealingBonus` producers.
+    pub spell_bonus: PlayerSpellBonusInputLikeCpp,
     pub rating_bonuses: [f32; 32],
     pub can_parry: bool,
     pub can_block: bool,
@@ -187,6 +216,13 @@ pub struct PlayerStatSystemProjectionLikeCpp {
     pub ranged_crit_pct: f32,
     pub offhand_crit_pct: f32,
     pub spell_crit_pct: [f32; 7],
+    /// C++ `ActivePlayerData::ModDamageDonePos[7]`; index 0 stays unwritten and
+    /// each magic school is `max(SpellBaseDamageBonusDone(1 << school) - Neg, 0)`.
+    pub mod_damage_done_pos: [i32; 7],
+    /// C++ `ActivePlayerData::ModDamageDoneNeg[7]`.
+    pub mod_damage_done_neg: [i32; 7],
+    /// C++ `ActivePlayerData::ModHealingDonePos`.
+    pub mod_healing_done_pos: i32,
 }
 
 /// C++ `Unit::CalculateMinMaxDamage` for the represented player weapon
@@ -319,13 +355,65 @@ pub fn calculate_player_stat_system_like_cpp(
         3 | 4 | 7 | 11 => f32::from(input.level) * 2.0 - 20.0,
         _ => -20.0,
     };
+    // C++ `Player::UpdateAllStats` (`StatSystem.cpp:199-222`) runs
+    // `UpdateAttackPowerAndDamage` before `UpdateSpellDamageAndHealingBonus`, so
+    // the attack-power override reads the spell fields of the previous pass.
+    // `Unit::SpellBaseDamageBonusDone` (`Unit.cpp:6860-6890`) and
+    // `SpellBaseHealingBonusDone` (`7282-7315`) add the base spell power, the
+    // `SPELL_AURA_MOD_DAMAGE_DONE`/`MOD_HEALING_DONE` flat sums and the
+    // stat-percent auras; `SetUpdateFieldStatValue` clamps the published fields
+    // at zero.
+    let stat_percent = |amount: i32, stat_index: i32| -> i32 {
+        usize::try_from(stat_index)
+            .ok()
+            .and_then(|index| stats.get(index).copied())
+            .map(|stat| (stat as f32 * amount as f32 / 100.0) as i32)
+            .unwrap_or(0)
+    };
+    let damage_bonus = |school: usize| -> i32 {
+        let mut benefit = input.spell_bonus.damage_done_flat[school]
+            .saturating_add(input.spell_bonus.base_spell_power);
+        for (stat_index, amount) in input.spell_bonus.damage_of_stat_percent[school]
+            .iter()
+            .enumerate()
+        {
+            benefit = benefit.saturating_add(stat_percent(*amount, stat_index as i32));
+        }
+        benefit
+    };
+    let healing_bonus = || -> i32 {
+        let mut benefit = input
+            .spell_bonus
+            .healing_done_flat
+            .saturating_add(input.spell_bonus.base_spell_power);
+        if base_mana > 0 {
+            // C++ `GetPowerIndex(POWER_MANA) != MAX_POWERS` adds the intellect
+            // term; the class base-mana row represents that mana slot.
+            benefit = benefit.saturating_add(stats[3].max(0));
+        }
+        for (stat_index, amount) in input.spell_bonus.healing_of_stat_percent.iter().enumerate() {
+            benefit = benefit.saturating_add(stat_percent(*amount, stat_index as i32));
+        }
+        benefit
+    };
+    let mod_damage_done_neg = input.spell_bonus.damage_done_neg;
+    let mut mod_damage_done_pos = [0i32; 7];
+    for (school, positive) in mod_damage_done_pos.iter_mut().enumerate().skip(1) {
+        *positive = (damage_bonus(school) - mod_damage_done_neg[school]).max(0);
+    }
+    let mut mod_healing_done_pos = healing_bonus().max(0);
+
     // C++ `Player::UpdateAttackPowerAndDamage` (`StatSystem.cpp:341-379`):
     // while `SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT` is active, both the
     // melee and the ranged unit mod replace the strength/agility/level base
     // with `CalculatePct(float(minSpellPower), percent)` truncated by the
     // `int32(base_attPower)` store.
-    let (attack_power, ranged_attack_power) = match input.attack_power_override_by_spell_power {
-        Some((min_spell_power, percent)) => {
+    let (attack_power, ranged_attack_power) = match input.attack_power_override_by_spell_power_pct {
+        Some(percent) => {
+            let min_spell_power = mod_damage_done_pos
+                .iter()
+                .skip(1)
+                .fold(mod_healing_done_pos, |min, value| min.min(*value));
             let overridden = (min_spell_power as f32 * percent / 100.0) as i32;
             (overridden, overridden)
         }
@@ -359,6 +447,21 @@ pub fn calculate_player_stat_system_like_cpp(
     let total_ranged_attack_power =
         (ranged_attack_power.saturating_add(ranged_attack_power_mod_pos)).max(0) as f32
             * input.ranged_attack_power_total_pct;
+
+    // C++ `Unit::SpellBaseDamageBonusDone`/`SpellBaseHealingBonusDone` short
+    // circuit to `int32(CalculatePct(GetTotalAttackPowerValue(BASE_ATTACK),
+    // percent) + 0.5f)` while `SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT` is
+    // active (`StatSystem.cpp:154-168`, `417-418` re-runs this pass after the
+    // attack-power update above).
+    if input.spell_bonus.override_spell_power_by_ap_pct > 0.0 {
+        let overridden = (total_attack_power * input.spell_bonus.override_spell_power_by_ap_pct
+            / 100.0
+            + 0.5) as i32;
+        for (school, positive) in mod_damage_done_pos.iter_mut().enumerate().skip(1) {
+            *positive = (overridden - mod_damage_done_neg[school]).max(0);
+        }
+        mod_healing_done_pos = overridden.max(0);
+    }
 
     let rating = |index: usize| input.rating_bonuses.get(index).copied().unwrap_or(0.0);
     // C++ `Player::UpdateAllCritPercentages`/`UpdateCritPercentage`
@@ -438,6 +541,9 @@ pub fn calculate_player_stat_system_like_cpp(
         ranged_crit_pct,
         offhand_crit_pct,
         spell_crit_pct: [spell_crit; 7],
+        mod_damage_done_pos,
+        mod_damage_done_neg,
+        mod_healing_done_pos,
     }
 }
 
@@ -737,7 +843,8 @@ mod tests {
             attack_power_total_pct: 1.0,
             ranged_attack_power_flat_aura: 0,
             ranged_attack_power_total_pct: 1.0,
-            attack_power_override_by_spell_power: None,
+            attack_power_override_by_spell_power_pct: None,
+            spell_bonus: PlayerSpellBonusInputLikeCpp::default(),
             rating_bonuses: [0.0; 32],
             can_parry: false,
             can_block: false,
@@ -805,7 +912,8 @@ mod tests {
             attack_power_total_pct: 1.5,
             ranged_attack_power_flat_aura: 40,
             ranged_attack_power_total_pct: 2.0,
-            attack_power_override_by_spell_power: None,
+            attack_power_override_by_spell_power_pct: None,
+            spell_bonus: PlayerSpellBonusInputLikeCpp::default(),
             rating_bonuses: [0.0; 32],
             can_parry: false,
             can_block: false,
@@ -869,7 +977,8 @@ mod tests {
             attack_power_total_pct: 1.0,
             ranged_attack_power_flat_aura: 0,
             ranged_attack_power_total_pct: 1.0,
-            attack_power_override_by_spell_power: None,
+            attack_power_override_by_spell_power_pct: None,
+            spell_bonus: PlayerSpellBonusInputLikeCpp::default(),
             rating_bonuses: [0.0; 32],
             can_parry: false,
             can_block: false,
@@ -923,7 +1032,8 @@ mod tests {
             attack_power_total_pct: 1.0,
             ranged_attack_power_flat_aura: 0,
             ranged_attack_power_total_pct: 1.0,
-            attack_power_override_by_spell_power: None,
+            attack_power_override_by_spell_power_pct: None,
+            spell_bonus: PlayerSpellBonusInputLikeCpp::default(),
             rating_bonuses: [0.0; 32],
             can_parry: true,
             can_block: true,
@@ -990,7 +1100,8 @@ mod tests {
             attack_power_total_pct: 1.0,
             ranged_attack_power_flat_aura: 0,
             ranged_attack_power_total_pct: 1.0,
-            attack_power_override_by_spell_power: None,
+            attack_power_override_by_spell_power_pct: None,
+            spell_bonus: PlayerSpellBonusInputLikeCpp::default(),
             rating_bonuses: [0.0; 32],
             can_parry: false,
             can_block: false,
@@ -1044,7 +1155,8 @@ mod tests {
             attack_power_total_pct: 1.0,
             ranged_attack_power_flat_aura: 0,
             ranged_attack_power_total_pct: 1.0,
-            attack_power_override_by_spell_power: None,
+            attack_power_override_by_spell_power_pct: None,
+            spell_bonus: PlayerSpellBonusInputLikeCpp::default(),
             rating_bonuses,
             can_parry: true,
             can_block: true,
@@ -1102,7 +1214,8 @@ mod tests {
             attack_power_total_pct: 1.0,
             ranged_attack_power_flat_aura: 0,
             ranged_attack_power_total_pct: 1.0,
-            attack_power_override_by_spell_power: None,
+            attack_power_override_by_spell_power_pct: None,
+            spell_bonus: PlayerSpellBonusInputLikeCpp::default(),
             rating_bonuses: [0.0; 32],
             can_parry: false,
             can_block: false,
@@ -1155,7 +1268,8 @@ mod tests {
             attack_power_total_pct: 1.0,
             ranged_attack_power_flat_aura: 0,
             ranged_attack_power_total_pct: 1.0,
-            attack_power_override_by_spell_power: None,
+            attack_power_override_by_spell_power_pct: None,
+            spell_bonus: PlayerSpellBonusInputLikeCpp::default(),
             rating_bonuses: [0.0; 32],
             can_parry: false,
             can_block: false,
@@ -1206,7 +1320,8 @@ mod tests {
             attack_power_total_pct: 1.0,
             ranged_attack_power_flat_aura: 0,
             ranged_attack_power_total_pct: 1.0,
-            attack_power_override_by_spell_power: None,
+            attack_power_override_by_spell_power_pct: None,
+            spell_bonus: PlayerSpellBonusInputLikeCpp::default(),
             rating_bonuses: [0.0; 32],
             can_parry: false,
             can_block: false,
@@ -1218,7 +1333,11 @@ mod tests {
         // C++ `CalculatePct(1234.0f, 12.5f)` = 154.25, truncated by the
         // `int32(base_attPower)` store; both attack mods share the base.
         let overridden = calculate_player_stat_system_like_cpp(PlayerStatSystemInputLikeCpp {
-            attack_power_override_by_spell_power: Some((1_234, 12.5)),
+            attack_power_override_by_spell_power_pct: Some(12.5),
+            spell_bonus: PlayerSpellBonusInputLikeCpp {
+                base_spell_power: 1_234,
+                ..Default::default()
+            },
             ..input
         });
         assert_eq!(overridden.attack_power, 154);
@@ -1227,10 +1346,97 @@ mod tests {
         // `HasAuraType` presence alone overrides: an active effect whose summed
         // percent is zero yields `CalculatePct(spellPower, 0.0) == 0`.
         let zeroed = calculate_player_stat_system_like_cpp(PlayerStatSystemInputLikeCpp {
-            attack_power_override_by_spell_power: Some((1_234, 0.0)),
+            attack_power_override_by_spell_power_pct: Some(0.0),
+            spell_bonus: PlayerSpellBonusInputLikeCpp {
+                base_spell_power: 1_234,
+                ..Default::default()
+            },
             ..input
         });
         assert_eq!(zeroed.attack_power, 0);
         assert_eq!(zeroed.ranged_attack_power, 0);
+    }
+
+    #[test]
+    fn stat_system_publishes_spell_damage_and_healing_bonuses_like_cpp() {
+        let input = PlayerStatSystemInputLikeCpp {
+            base: PlayerLevelStats {
+                strength: 10,
+                agility: 10,
+                stamina: 10,
+                intellect: 40,
+                spirit: 30,
+                base_mana: 1_000,
+            },
+            class: 5,
+            level: 80,
+            attack_power_per_strength: 0,
+            attack_power_per_agility: 0,
+            ranged_attack_power_per_agility: 0,
+            stat_total_multipliers: [1.0; 5],
+            stat_buff_total_multipliers: [1.0; 5],
+            gear_stats: [0; 5],
+            gear_health: 0,
+            gear_mana: 0,
+            gear_armor: 0,
+            armor_base_pct: 1.0,
+            armor_flat_aura: 0,
+            armor_of_stat_percent: [0; 5],
+            armor_total_pct: 1.0,
+            armor_bonus_pct: 1.0,
+            spell_dodge_pct: 0.0,
+            spell_parry_pct: 0.0,
+            spell_block_pct: 0.0,
+            crit_mainhand_aura_pct: 0.0,
+            crit_offhand_aura_pct: 0.0,
+            crit_ranged_aura_pct: 0.0,
+            spell_crit_aura_pct: 0.0,
+            gear_attack_power: 0,
+            gear_ranged_attack_power: 0,
+            attack_power_flat_aura: 0,
+            attack_power_total_pct: 1.0,
+            ranged_attack_power_flat_aura: 0,
+            ranged_attack_power_total_pct: 1.0,
+            attack_power_override_by_spell_power_pct: None,
+            spell_bonus: PlayerSpellBonusInputLikeCpp {
+                base_spell_power: 100,
+                // School 1 (holy) has a +30 aura; school 2 (fire) has a +20
+                // aura and a -50 aura, so the C++ net sum is -30 while the
+                // negative field is -50.
+                damage_done_flat: [0, 30, -30, 0, 0, 0, 0],
+                damage_done_neg: [0, 0, -50, 0, 0, 0, 0],
+                damage_of_stat_percent: [[0; 5]; 7],
+                healing_done_flat: 40,
+                healing_of_stat_percent: [0; 5],
+                override_spell_power_by_ap_pct: 0.0,
+            },
+            rating_bonuses: [0.0; 32],
+            can_parry: false,
+            can_block: false,
+        };
+        let projection = calculate_player_stat_system_like_cpp(input);
+        assert_eq!(projection.mod_damage_done_pos[0], 0);
+        // Holy: 100 base + 30 aura.
+        assert_eq!(projection.mod_damage_done_pos[1], 130);
+        // Fire: (100 - 30) - (-50) leaves the +20 aura.
+        assert_eq!(projection.mod_damage_done_pos[2], 120);
+        assert_eq!(projection.mod_damage_done_neg[2], -50);
+        // Healing: 100 base + 40 aura + max(0, intellect 40).
+        assert_eq!(projection.mod_healing_done_pos, 180);
+
+        // `SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT` replaces both bonuses with
+        // `int32(CalculatePct(GetTotalAttackPowerValue(BASE_ATTACK), pct) + 0.5)`:
+        // melee AP is `max(0, -20 + 500) = 480`, so 50% rounds to 240.
+        let overridden = calculate_player_stat_system_like_cpp(PlayerStatSystemInputLikeCpp {
+            attack_power_flat_aura: 500,
+            spell_bonus: PlayerSpellBonusInputLikeCpp {
+                override_spell_power_by_ap_pct: 50.0,
+                ..input.spell_bonus
+            },
+            ..input
+        });
+        assert_eq!(overridden.mod_damage_done_pos[1], 240);
+        assert_eq!(overridden.mod_damage_done_pos[2], 290);
+        assert_eq!(overridden.mod_healing_done_pos, 240);
     }
 }
