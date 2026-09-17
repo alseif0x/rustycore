@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 critical original-damage correction — 2026-09-17, implementation
+`87b8132f`:** `melee_outcome_damage_like_cpp` now returns C++'s per-arm
+`(Damage, Blocked, OriginalDamage)` triple, so a critical swing publishes the
+doubled value as its original (`Unit.cpp:1362-1375`) and the avoided, glancing
+and block arms keep the post-armour value; the forced-crit scenario asserts
+`original_damage == damage` at 14/14 and 28/28. wow-world 3984/0/1, wow-packet
+744/0, wow-entities 940/0, world-server 594/0/0; no live DB/restart/relogin QA.
+
 **#29 critical-damage-bonus aura — 2026-09-17, implementation `16151cba`:** a
 critical white swing now scales its doubled damage by the attacker's
 `SPELL_AURA_MOD_CRIT_DAMAGE_BONUS` multiplier, resolved in both the session

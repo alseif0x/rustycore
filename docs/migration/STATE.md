@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`d31af69977175214d3084089418db2a5654f931a` (PR #1105, the #29
-critical-damage-bonus aura, following PR #1103, the #29 original-damage
+`e533de81ac45f0afc6992c584ecf885607aca589` (PR #1107, the #29 critical
+original-damage correction, following PR #1105, the #29
+critical-damage-bonus aura, PR #1103, the #29 original-damage
 publication, PR #1101, the #29 melee evade
 outcome, PR #1099, the #29 controlled-victim
 avoidance gate, PR #1097, the #29 ignore-dual-wield
@@ -22,6 +23,32 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 critical original-damage correction — 2026-09-17, implementation `87b8132f`,
+integrated as `e533de81` by PR #1107:** C++ `Unit::CalculateMeleeDamage` assigns
+`damageInfo->OriginalDamage` inside the outcome switch (`Unit.cpp:1343-1440`),
+not once before it: the evade, miss, dodge, parry, glancing and block arms keep
+the post-armour value, while the critical arm assigns it *after* doubling and
+after the `SPELL_AURA_MOD_CRIT_DAMAGE_BONUS` multiplier (`Unit.cpp:1362-1375`),
+so a critical swing serializes the doubled value as its original too. The shared
+swing captured `original_damage` before the switch, so every represented crit
+published a pre-crit original the C++ never writes, and the original-damage
+publication entry's blanket "post-armour value the outcome switch then scales"
+comment over-generalized the assignment.
+`melee_outcome_damage_like_cpp` now mirrors the switch's `(Damage, Blocked,
+OriginalDamage)` triple per arm and
+`represented_white_swing_damage_like_cpp` consumes it instead of capturing the
+value itself; the function's stale doc comment, which still claimed the crit
+multiplier was unrepresented after PR #1105 added it, is corrected at the same
+time. Evidence: the damage-switch test pins `(200, 0, 200)` and `(400, 0, 400)`
+for crits, `(90, 0, 100)` for a glancing reduction and `(70, 30, 100)` for a
+block, and the forced-crit session scenario asserts `original_damage == damage`
+(14/14, then 28/28 after the `+100 %` aura) beside the existing missed-swing
+`7`; wow-world 3984/0/1, wow-packet 744/0, wow-entities 940/0 and world-server
+594/0/0 pass; format, `git diff --check` and the physical ratchet pass without
+ceiling growth (`session/mod.rs` shrank to 18980), and `validation-v2 quick`
+(manifest `20260917T160321.888716Z-2997013-quick.json`) passes. No live
+DB/restart/relogin QA. #29 remains open for the remaining spell/melee math.
 
 **#29 critical-damage-bonus aura — 2026-09-17, implementation `16151cba`,
 integrated as `d31af699` by PR #1105:** C++ `Unit::CalculateMeleeDamage`'s
