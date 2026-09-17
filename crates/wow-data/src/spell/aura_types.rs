@@ -151,6 +151,11 @@ pub const SPELL_AURA_MOD_SPEED_NO_CONTROL: i32 = 373;
 pub const SPELL_AURA_MOD_MANA_REGEN_PCT: i32 = 379;
 pub const SPELL_AURA_SCHOOL_HEAL_ABSORB: i32 = 301;
 pub const SPELL_AURA_IGNORE_SPELL_COOLDOWN: i32 = 383;
+/// C++ `AuraType::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS`
+/// (`SpellAuraDefines.h:263`): `Unit::SpellDamagePctDone` multiplies spell damage
+/// by the aura multiplier matching the victim's creature type bit
+/// (`Unit::GetCreatureTypeMask`, `Unit.cpp:8796-8800`).
+pub const SPELL_AURA_MOD_DAMAGE_DONE_VERSUS: i32 = 168;
 /// C++ `AuraType::SPELL_AURA_MOD_HEALING_DONE_PCT_VERSUS_TARGET_HEALTH`
 /// (`SpellAuraDefines.h:449`): `Unit::SpellHealingPctDone` (`Unit.cpp:7224-7227`)
 /// scales healing done by the target's missing health percentage.

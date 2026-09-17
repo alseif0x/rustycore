@@ -462,6 +462,7 @@ impl WorldSession {
         &self,
         spell_id: i32,
         caster_guid: ObjectGuid,
+        target_guid: ObjectGuid,
         coefficient: f32,
         base_damage: u32,
     ) -> u32 {
@@ -475,7 +476,8 @@ impl WorldSession {
         else {
             return base_damage;
         };
-        let Some(done_total_mod) = self.represented_spell_damage_pct_done_like_cpp(school_mask)
+        let Some(done_total_mod) =
+            self.represented_spell_damage_pct_done_like_cpp(school_mask, target_guid)
         else {
             return base_damage;
         };
@@ -484,11 +486,21 @@ impl WorldSession {
         u32::try_from(damage.max(0.0).min(u32::MAX as f32) as u32).unwrap_or(u32::MAX)
     }
 
-    /// C++ `Unit::SpellDamagePctDone` (`Unit.cpp:6683-6772`) player branch's
-    /// `maxModDamagePercentSchool`: the highest published
-    /// `ActivePlayerData::ModDamageDonePercent` among the spell's schools, which
-    /// `AuraEffect::HandleModDamagePercentDone` maintains.
-    fn represented_spell_damage_pct_done_like_cpp(&self, school_mask: u8) -> Option<f32> {
+    /// C++ `Unit::SpellDamagePctDone` (`Unit.cpp:6683-6772`) player branch: the
+    /// `maxModDamagePercentSchool` term (the highest published
+    /// `ActivePlayerData::ModDamageDonePercent` among the spell's schools) times
+    /// the `SPELL_AURA_MOD_DAMAGE_DONE_VERSUS` (168) multiplier for the victim's
+    /// creature type.
+    ///
+    /// Boundary: the aurastate (303), target-aura-mechanic (249) and
+    /// `MOD_DAMAGE_DONE_FOR_MECHANIC` terms plus the family scripts remain
+    /// unrepresented, and a target whose creature type is unavailable keeps only
+    /// the school percentage.
+    fn represented_spell_damage_pct_done_like_cpp(
+        &self,
+        school_mask: u8,
+        target_guid: ObjectGuid,
+    ) -> Option<f32> {
         let snapshot = self.canonical_player_effective_combat_stats_like_cpp()?;
         let mask = u32::from(school_mask);
         let mut max_mod = 0.0_f32;
@@ -497,7 +509,54 @@ impl WorldSession {
                 max_mod = max_mod.max(*percent);
             }
         }
+        let creature_type_mask = self.represented_target_creature_type_mask_like_cpp(target_guid);
+        if creature_type_mask != 0 {
+            for (misc_value, amount) in self
+                .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS,
+                )
+                .unwrap_or_default()
+            {
+                if misc_value & creature_type_mask as i32 != 0 {
+                    max_mod *= 1.0 + amount as f32 / 100.0;
+                }
+            }
+        }
         Some(max_mod)
+    }
+
+    /// C++ `Unit::GetCreatureTypeMask` (`Unit.cpp:8796-8800`): the bit of the
+    /// victim creature's template type, `0` for players or when the template is
+    /// unavailable.
+    fn represented_target_creature_type_mask_like_cpp(&self, target_guid: ObjectGuid) -> u32 {
+        let Some(manager) = self.map_manager.as_ref() else {
+            return 0;
+        };
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let entry = {
+            let manager = manager
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let Some(creature) =
+                manager.find_creature(self.player_map_id_like_cpp(), instance_id, target_guid)
+            else {
+                return 0;
+            };
+            creature.create_data.entry
+        };
+        self.creature_template_lifecycle_store_like_cpp()
+            .and_then(|store| store.get(entry))
+            .map(|template| {
+                if template.creature_type >= 1 {
+                    1_u32 << (template.creature_type - 1)
+                } else {
+                    0
+                }
+            })
+            .unwrap_or(0)
     }
 
     /// C++ `Unit::SpellHealingBonusDone` (`Unit.cpp:7100-7183`) for the
