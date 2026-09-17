@@ -1384,6 +1384,35 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
         attack_round_info.read_uint32().expect("hitInfo")
     };
 
+    // Decode `victimState` sequentially: hitInfo, both packed guids, damage,
+    // original, over, the sub-damage flag and then the victim state.
+    let wire_victim_state = |outcome: &crate::session::LegacyCreatureMeleeTickOutcomeLikeCpp| {
+        let event = outcome
+            .plan
+            .events
+            .iter()
+            .find(|event| {
+                event.packet_bytes.len() > 2
+                    && u16::from_le_bytes([event.packet_bytes[0], event.packet_bytes[1]])
+                        == wow_constants::ServerOpcodes::AttackerStateUpdate as u16
+            })
+            .expect("attacker state update event");
+        let mut packet = wow_packet::world_packet::WorldPacket::from_bytes(&event.packet_bytes);
+        packet.read_uint16().expect("opcode");
+        packet.read_bit().expect("has_log_data");
+        let info_len = packet.read_uint32().expect("attackRoundInfo size") as usize;
+        let info_bytes = packet.read_bytes(info_len).expect("attackRoundInfo bytes");
+        let mut info = wow_packet::world_packet::WorldPacket::from_bytes(&info_bytes);
+        info.read_uint32().expect("hitInfo");
+        info.read_packed_guid().expect("attacker");
+        info.read_packed_guid().expect("victim");
+        info.read_int32().expect("damage");
+        info.read_int32().expect("original damage");
+        info.read_int32().expect("over damage");
+        info.read_uint8().expect("sub damage");
+        info.read_uint8().expect("victim state")
+    };
+
     // Decode the appended `int32(BlockAmount)` exactly like the packet
     // writer's own block test.
     let wire_blocked = |outcome: &crate::session::LegacyCreatureMeleeTickOutcomeLikeCpp| {
@@ -1450,6 +1479,31 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
     assert_eq!(outcome.melee_outcomes_unrepresented, 0);
     assert_eq!(outcome.canonical_creature_hits, 0, "a dodge commits no hit");
     assert_eq!(victim_health(&canonical), before);
+
+    // C++ `GetUnitParryChance`'s creature base (`CreatureAvoidanceLikeCpp`) is
+    // the next avoidance band; a parry publishes `VICTIMSTATE_PARRY`.
+    canonical
+        .lock()
+        .unwrap()
+        .find_map_mut(0, 0)
+        .unwrap()
+        .map_mut()
+        .with_creature_mut_like_cpp(victim_guid, |victim| {
+            victim.set_avoidance_like_cpp(wow_entities::CreatureAvoidanceLikeCpp {
+                parry_pct: 100.0,
+                ..Default::default()
+            });
+        })
+        .unwrap();
+    let before = victim_health(&canonical);
+    let outcome = tick(&mut session);
+    assert_eq!(outcome.melee_outcomes_unrepresented, 0);
+    assert_eq!(outcome.canonical_creature_hits, 0, "a parry commits no hit");
+    assert_eq!(victim_health(&canonical), before);
+    assert_eq!(
+        wire_victim_state(&outcome),
+        wow_packet::packets::combat::VICTIM_STATE_PARRY
+    );
 
     // C++ `RollMeleeOutcomeAgainst` returns `MELEE_HIT_EVADE` before every band
     // when the creature victim is evading (`Unit.cpp:2274-2275`), and
