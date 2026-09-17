@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 ignore-target-resist armour term — 2026-09-17, implementation
+`73140a7c`:** `CalcArmorReducedDamage`'s attacker
+`SPELL_AURA_MOD_IGNORE_TARGET_RESIST` sum now shrinks the victim's armour with
+`std::floor(AddPct(armor, -amount))` between the target-resistance sum and the
+CR_ARMOR_PENETRATION rating, in both owners; the armour test pins 860/1000/671
+and the production-owner runtime scenario reaches 860. wow-world 3985/0/1,
+wow-entities 940/0, world-server 594/0/0; no live DB/restart/relogin QA.
+
 **#29 critical original-damage correction — 2026-09-17, implementation
 `87b8132f`:** `melee_outcome_damage_like_cpp` now returns C++'s per-arm
 `(Damage, Blocked, OriginalDamage)` triple, so a critical swing publishes the
