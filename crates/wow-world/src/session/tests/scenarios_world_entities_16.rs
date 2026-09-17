@@ -83,7 +83,6 @@ fn creature_questgiver_ender_relation_precedes_starter_like_cpp() {
 #[test]
 fn quest_giver_query_creature_inactive_ender_falls_through_to_same_starter_like_cpp() {
     let (mut session, _pkt_tx, send_rx) = make_session();
-    session.set_player_level_like_cpp(1);
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 99);
     let source_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 779, 24);
@@ -93,6 +92,9 @@ fn quest_giver_query_creature_inactive_ender_falls_through_to_same_starter_like_
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
     adopt_live_canonical_test_player_for_interaction_like_cpp(&mut session);
+    // The canonical owner carries the level that `Player::CanTakeQuest` reads;
+    // apply it after adoption like `Player::LoadFromDB` does.
+    session.set_player_level_like_cpp(1);
     add_canonical_test_creature(
         &canonical,
         source_guid,
@@ -601,10 +603,12 @@ fn quest_giver_query_creature_starter_relation_allows_matching_details_like_cpp(
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
     session.set_player_guid(Some(player_guid));
     session.set_player_map_position_like_cpp(571, position);
-    session.set_player_level_like_cpp(1);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
     adopt_live_canonical_test_player_for_interaction_like_cpp(&mut session);
+    // The canonical owner carries the level that `Player::CanTakeQuest` reads;
+    // apply it after adoption like `Player::LoadFromDB` does.
+    session.set_player_level_like_cpp(1);
     add_canonical_test_creature(
         &canonical,
         source_guid,

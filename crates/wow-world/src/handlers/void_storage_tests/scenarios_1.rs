@@ -81,6 +81,14 @@ fn login_load_adds_default_void_item_appearance_like_cpp() {
         .world_mut()
         .object_mut()
         .add_to_world();
+    // C++ `CollectionMgr::CanAddAppearance` requires the learned
+    // `Player::GetWeaponProficiency` mask (`CollectionMgr.cpp:675-687`). A real
+    // character learns its class proficiency spells on its first login
+    // (`CharacterHandler.cpp:1284-1288` casting `playercreateinfo_cast_spell`),
+    // and `SPELL_EFFECT_PROFICIENCY` runs `Player::AddWeaponProficiency`
+    // (`SpellEffects.cpp:1785-1804`, `Player.h:1433`). The fixture seeds the
+    // same one-handed-sword mask directly on the canonical Player it installs.
+    canonical_player.add_weapon_proficiency_like_cpp(1_u32 << (ItemSubClassWeapon::Sword as u32));
     canonical
         .lock()
         .unwrap()

@@ -736,9 +736,17 @@ async fn durable_creature_runtime_rail_is_drained_by_session_update_like_cpp() {
 
     assert_eq!(session.player_health_like_cpp(), 0);
     assert!(!session.player_is_alive_like_cpp());
-    let packet = send_rx.recv().unwrap();
+    // C++ `Unit::Kill` applies the creature-killer durability loss while the
+    // lethal damage is applied (`Unit.cpp:10639-10648`) and only afterwards
+    // does the victim session present the new health value.
+    let durability_packet = send_rx.recv().unwrap();
     assert_eq!(
-        u16::from_le_bytes([packet[0], packet[1]]),
+        u16::from_le_bytes([durability_packet[0], durability_packet[1]]),
+        ServerOpcodes::DurabilityDamageDeath as u16
+    );
+    let health_packet = send_rx.recv().unwrap();
+    assert_eq!(
+        u16::from_le_bytes([health_packet[0], health_packet[1]]),
         ServerOpcodes::HealthUpdate as u16
     );
 }
