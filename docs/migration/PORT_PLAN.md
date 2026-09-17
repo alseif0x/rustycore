@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 narrow values-update negative spell field — 2026-09-17, implementation
+`a7c53527`:** `PlayerStatChanges` gains `mod_damage_done_neg[7]` and the narrow
+values writer sets the C++ mask bits 284-290 and emits the per-school negative
+value, closing the last gap of the spell-field publication; `ModDamageDonePercent`
+(291-297) remains outside this runtime writer. wow-packet --lib 742/0,
+wow-world --lib 3926/0/1; no live DB/restart/relogin QA.
+
 **#61 spell damage and healing field wire publication — 2026-09-17,
 implementation `9847962e`:** `PlayerCombatStats`, `PlayerCreateData` and
 `PlayerStatChanges` replace the scalar `spell_power` with
