@@ -8,6 +8,30 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**Represented quest-share party fixture identity — 2026-09-17, implementation
+`05d0d5e4` (test harness, not gameplay progress):** `install_represented_party`
+registered the receiver and only then adopted the synthetic canonical Player,
+whose identity had never been set. Since the registry movement publication
+snapshots `player_level_like_cpp()` (the canonical owner's level, C++
+`Unit::GetLevel`), every later `sync_player_registry_state_like_cpp()` overwrote
+the registry level with 0 and the represented `SatisfyQuestMinLevel` gate rejected
+the receiver with `QUEST_PUSH_REASON_LOW_LEVEL` (22) before the intended
+prerequisite, reputation, level or expansion branches ran; 21
+`push_quest_to_party` scenarios were red for that artificial reason. The fixture
+now re-applies the loaded identity after adoption, matching
+`Player::LoadFromDB`, which builds the canonical Player with its identity before
+the session registers; production behavior is unchanged. Evidence:
+`wow-world --lib` moves from 3896 passed/28 failed to **3917 passed/7 failed**,
+`push_quest_to_party` 49/49 green; format, `git diff --check`, the physical
+ratchet and `validation-v2 quick` (manifest
+`20260917T022350.040983Z-2176206-quick.json`, 37.9 s) pass. The 7 remaining
+`wow-world --lib` failures — `reputation_retention`,
+`movement_fall_land_lethal`, `void_storage` login appearance,
+`scenarios_persistence_2` logout snapshot, two `scenarios_world_entities_16`
+quest-giver queries and `scenarios_world_entities_1` durable creature rail —
+each need their own reproduction and C++ contrast and remain an open defect track.
+No live DB/restart/relogin QA.
+
 **Save-snapshot manager-lock re-entry — 2026-09-17, implementation `f55d9ef3`, integrated as `ac592c5f` by PR #1001:**
 `fixture_player_save_to_db_snapshot_like_cpp` held the canonical map-manager lock
 for its `do_for_all_maps` scan and resolved `self.player_level_like_cpp()` inside
