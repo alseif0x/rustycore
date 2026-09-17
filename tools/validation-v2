@@ -574,6 +574,9 @@ def audit_steps(base_commit: str, jobs: int) -> list[dict[str, object]]:
         (
             "architecture-policy-check",
             ["python3", "tools/architecture/check_architecture.py", "check"],
+            # The exhaustive session ownership ratchet is an independent
+            # acceptance; a policy breach must not hide its verdict.
+            "session-persistence-ratchet",
         ),
         ("workspace-format", ["cargo", "fmt", "--all", "--check"]),
         (
@@ -639,7 +642,13 @@ def audit_steps(base_commit: str, jobs: int) -> list[dict[str, object]]:
             ],
         ),
     ]
-    steps = [{"section": section, "argv": argv} for section, argv in commands]
+    steps: list[dict[str, object]] = []
+    for command in commands:
+        section, argv = command[0], command[1]
+        step: dict[str, object] = {"section": section, "argv": argv}
+        if len(command) == 3:
+            step["continue_to_section_on_failure"] = command[2]
+        steps.append(step)
     argv_values = [tuple(step["argv"]) for step in steps]
     if len(set(argv_values)) != len(argv_values):
         raise ValueError("audit plan contains duplicate commands")
@@ -877,7 +886,15 @@ def enable_architecture_acceptance(plan: dict[str, object], jobs: int) -> None:
     ]
     remaining = [step for step in plan["planned_steps"] if step["argv"] not in [*covered, ownership]]
     steps = [
-        {"section": "architecture-policy-acceptance", "argv": combined},
+        # The policy check and the syntax-ownership check are independent
+        # acceptances, and the policy check fails first on a known ratchet
+        # breach; without the declaration its red step would hide the ownership
+        # verdict, which is how the syntax baseline drifted unnoticed.
+        {
+            "section": "architecture-policy-acceptance",
+            "argv": combined,
+            "continue_to_section_on_failure": "session-syntax-acceptance",
+        },
         {"section": "session-syntax-acceptance", "argv": ownership},
         *remaining,
     ]
@@ -1108,8 +1125,18 @@ def run_steps(
     timeout: int,
     outcomes: list[dict[str, object]] | None = None,
 ) -> tuple[list[dict[str, object]], int]:
+    """Run the planned steps, stopping at the first failure.
+
+    A step may declare `continue_to_section_on_failure`: its failure must not
+    hide an independent acceptance that a later step carries, so the run keeps
+    executing steps until that named section has completed, then stops with the
+    first failure's exit code. Without the declaration the ordinary fail-fast
+    budget is unchanged.
+    """
     if outcomes is None:
         outcomes = []
+    failure_code = 0
+    continue_until: str | None = None
     for step in steps:
         section = step.get("section")
         command = step.get("argv")
@@ -1126,9 +1153,18 @@ def run_steps(
                 recorded["section"] = section
             raise
         outcome["section"] = section
+        if outcome["status"] != "passed" and failure_code == 0:
+            failure_code = failed_exit_code(outcome)
+        if continue_until is not None:
+            if section == continue_until:
+                return outcomes, failure_code
+            continue
         if outcome["status"] != "passed":
-            return outcomes, failed_exit_code(outcome)
-    return outcomes, 0
+            target = step.get("continue_to_section_on_failure")
+            if not isinstance(target, str) or not target:
+                return outcomes, failure_code
+            continue_until = target
+    return outcomes, failure_code
 
 
 def manifest_problems(document: object) -> list[str]:
