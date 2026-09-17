@@ -5,7 +5,9 @@
 mod rules_1;
 mod rules_2;
 mod rules_3;
+mod rules_4;
 
 pub(crate) use rules_1::*;
 pub(crate) use rules_2::*;
 pub(crate) use rules_3::*;
+pub(crate) use rules_4::*;

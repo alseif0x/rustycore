@@ -772,6 +772,13 @@ impl WorldSession {
             as f32
             * self.combat_rating_multiplier_like_cpp(level, u32::from(armor_penetration_rating)))
         .clamp(0.0, 100.0);
+        // C++ `Player::UpdateMeleeHitChances` (`StatSystem.cpp:743-746`).
+        let melee_hit_chance_pct = 7.5
+            + gear.combat_ratings[usize::from(crate::session_rules::CR_HIT_MELEE_LIKE_CPP)] as f32
+                * self.combat_rating_multiplier_like_cpp(
+                    level,
+                    u32::from(crate::session_rules::CR_HIT_MELEE_LIKE_CPP),
+                );
         let mana_regen_mp5 = gear.mana_regen_bonus as f32 / 5.0
             + self.mana_regen_mp5_from_auras_like_cpp(projection.stats);
         let mana_regen_from_spirit = self.mana_regen_from_stats_like_cpp(
@@ -810,6 +817,7 @@ impl WorldSession {
             mod_damage_done_percent: projection.mod_damage_done_percent,
             mod_healing_done_percent: projection.mod_healing_done_percent,
             armor_penetration_pct,
+            melee_hit_chance_pct,
             mod_target_resistance: projection.mod_target_resistance,
             mod_target_physical_resistance: projection.mod_target_physical_resistance,
             weapon_damage_pct: projection.weapon_damage_pct,

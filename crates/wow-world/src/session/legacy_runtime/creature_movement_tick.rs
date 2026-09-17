@@ -665,7 +665,7 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
 ) -> CreatureMeleeApplyResultLikeCpp {
     use wow_packet::ServerPacket;
     use wow_packet::packets::combat::{
-        AttackerStateUpdate, HIT_INFO_FAKE_DAMAGE, HIT_INFO_NORMAL_SWING, VICTIM_STATE_HIT,
+        AttackerStateUpdate, HIT_INFO_AFFECTS_VICTIM, HIT_INFO_FAKE_DAMAGE, VICTIM_STATE_HIT,
     };
 
     let Some(managed) = canonical_map_manager.find_map_mut(map_id, instance_id) else {
@@ -740,7 +740,7 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
                 attacker_is_player_controlled,
                 damage,
             );
-            let mut hit_info = HIT_INFO_NORMAL_SWING;
+            let mut hit_info = HIT_INFO_AFFECTS_VICTIM;
             if victim.should_fake_damage_from_like_cpp(true, attacker_is_player_controlled) {
                 hit_info |= HIT_INFO_FAKE_DAMAGE;
             }

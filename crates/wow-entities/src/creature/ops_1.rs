@@ -71,6 +71,7 @@ impl Creature {
             is_contested_guard_faction: false,
             spell_focus: CreatureSpellFocusStateLikeCpp::default(),
             combat_log_stats: CreatureCombatLogStatsLikeCpp::default(),
+            avoidance_like_cpp: CreatureAvoidanceLikeCpp::default(),
             loot_lifecycle_revision: 0,
             loot_authority: OwnedLootAuthority::new(),
             shared_loot: None,
@@ -211,6 +212,32 @@ impl Creature {
             record.stats.max_damage,
         );
         self.combat_log_stats = record.stats.combat_log;
+        // C++ `Creature::UpdateLevelDependantStats` (`Creature.cpp:1626-1628`)
+        // seeds `UNIT_MOD_ARMOR` from the template; `Unit::GetUnitDodgeChance`
+        // and friends then read the flat creature bases unless the unit is a
+        // totem or the template forbids the avoidance.
+        let flags_extra = CreatureFlagsExtra::from_bits_truncate(template.flags_extra);
+        self.avoidance_like_cpp = CreatureAvoidanceLikeCpp {
+            dodge_pct: if self.has_unit_type_mask_like_cpp(UNIT_MASK_TOTEM) {
+                0.0
+            } else {
+                3.0
+            },
+            parry_pct: if self.has_unit_type_mask_like_cpp(UNIT_MASK_TOTEM)
+                || flags_extra.contains(CreatureFlagsExtra::NO_PARRY)
+            {
+                0.0
+            } else {
+                6.0
+            },
+            block_pct: if self.has_unit_type_mask_like_cpp(UNIT_MASK_TOTEM)
+                || flags_extra.contains(CreatureFlagsExtra::NO_BLOCK)
+            {
+                0.0
+            } else {
+                3.0
+            },
+        };
         self.set_melee_damage_school_like_cpp(template.damage_school);
         self.ai_ownership.home_position = home_position;
         self.ai_ownership.move_target = None;

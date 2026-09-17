@@ -274,7 +274,7 @@ impl WorldSession {
     pub(crate) fn run_combat_tick(&mut self) -> RuntimeOutput {
         use wow_packet::ServerPacket;
         use wow_packet::packets::combat::{
-            AttackerStateUpdate, HIT_INFO_NORMAL_SWING, SAttackStop, VICTIM_STATE_HIT,
+            AttackerStateUpdate, HIT_INFO_AFFECTS_VICTIM, SAttackStop, VICTIM_STATE_HIT,
         };
         use wow_packet::packets::movement::MonsterMoveStop;
 
@@ -436,14 +436,20 @@ impl WorldSession {
                         .set_last_damaged_target_like_cpp(Some(combat_target));
                 });
             }
-            for (dmg, over_damage) in &swings {
+            for (index, (dmg, over_damage)) in swings.iter().enumerate() {
+                let (hit_info, victim_state) = canonical_swing_damages
+                    .as_deref()
+                    .and_then(|swings| swings.get(index))
+                    .map_or((HIT_INFO_AFFECTS_VICTIM, VICTIM_STATE_HIT), |swing| {
+                        (swing.hit_info, swing.victim_state)
+                    });
                 let state_update = AttackerStateUpdate {
                     attacker: player_guid,
                     victim: combat_target,
-                    hit_info: HIT_INFO_NORMAL_SWING,
+                    hit_info,
                     damage: *dmg as i32,
                     over_damage: *over_damage,
-                    victim_state: VICTIM_STATE_HIT,
+                    victim_state,
                     school_mask: 1,
                     target_level,
                     expansion: 2,
@@ -459,6 +465,7 @@ impl WorldSession {
         // emitting combat packets.
         let Some(PlayerMeleeCreatureHitLikeCpp {
             swings,
+            swing_presentations,
             entry: target_entry,
             level: target_level,
             died: now_dead,
@@ -494,14 +501,18 @@ impl WorldSession {
             }
         }
 
-        for (dmg, _swing_killed, over_damage) in &swings {
+        for (index, (dmg, _swing_killed, over_damage)) in swings.iter().enumerate() {
+            let (hit_info, victim_state) = swing_presentations
+                .get(index)
+                .copied()
+                .unwrap_or((HIT_INFO_AFFECTS_VICTIM, VICTIM_STATE_HIT));
             let state_update = AttackerStateUpdate {
                 attacker: player_guid,
                 victim: combat_target,
-                hit_info: HIT_INFO_NORMAL_SWING,
+                hit_info,
                 damage: *dmg as i32,
                 over_damage: *over_damage,
-                victim_state: VICTIM_STATE_HIT,
+                victim_state,
                 school_mask: 1,
                 target_level,
                 expansion: 2,

@@ -10,6 +10,8 @@
 //! not session behaviour. Bodies and signatures are unchanged.
 
 pub(crate) const CR_ARMOR_PENETRATION_LIKE_CPP: u8 = 24;
+/// C++ `CombatRating::CR_HIT_MELEE` (`Unit.h:310`).
+pub(crate) const CR_HIT_MELEE_LIKE_CPP: u8 = 5;
 use crate::session::*;
 use std::sync::OnceLock;
 use std::time::Instant;

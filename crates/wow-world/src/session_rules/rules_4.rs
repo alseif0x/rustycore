@@ -1,0 +1,343 @@
+// Copyright (c) 2026 alseif0x
+// RustyCore — WoW WotLK 3.4.3 server in Rust
+// Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! Represented melee attack-table rules (#29).
+//!
+//! C++ `Unit::RollMeleeOutcomeAgainst` (`Unit.cpp:2272-2378`) and the outcome
+//! switch in `Unit::CalculateMeleeDamage` (`Unit.cpp:1343-1440`), separated from
+//! the `rules_3` damage-bonus family because they own a different transition.
+
+/// C++ `MeleeHitOutcome` (`UnitDefines.h:389-403`) restricted to the outcomes
+/// the represented table can publish. `Block` is absent on purpose: the
+/// represented `AttackerStateUpdate` does not port the conditional `blocked`
+/// and `unk` fields C++ appends for `HITINFO_BLOCK` (`CombatLogPackets.cpp:373,
+/// 397`), so the block band stays out of the roll until that wire field exists.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedMeleeOutcomeLikeCpp {
+    /// C++ `MELEE_HIT_MISS`.
+    Miss,
+    /// C++ `MELEE_HIT_DODGE`.
+    Dodge,
+    /// C++ `MELEE_HIT_PARRY`.
+    Parry,
+    /// C++ `MELEE_HIT_GLANCING`.
+    Glancing,
+    /// C++ `MELEE_HIT_CRIT`.
+    Crit,
+    /// C++ `MELEE_HIT_NORMAL`.
+    Hit,
+}
+
+/// The per-attack-type percentages C++ `Unit::RollMeleeOutcomeAgainst` reads,
+/// already resolved by the swing owner.
+///
+/// C++ works in 1/10000 units and truncates each percentage with
+/// `int32(chance * 100.0f)`; a band whose value is zero is skipped without
+/// consuming probability, and a band is only offered when the matching
+/// `canDodge`/`canParryOrBlock` gate holds.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub(crate) struct RepresentedMeleeOutcomeInputsLikeCpp {
+    /// `MeleeSpellMissChance(victim, attType, nullptr)`.
+    pub miss_chance_pct: f32,
+    /// `GetUnitDodgeChance(attType, victim)`.
+    pub dodge_chance_pct: f32,
+    /// `GetUnitParryChance(attType, victim)`.
+    pub parry_chance_pct: f32,
+    /// `(10 + 10 * (victimLevel - attackerLevel))` when C++'s glancing
+    /// eligibility holds, otherwise zero.
+    pub glancing_chance_pct: f32,
+    /// `GetUnitCriticalChanceAgainst(attType, victim)` plus the attacker's
+    /// `SPELL_AURA_MOD_AUTOATTACK_CRIT_CHANCE` sum.
+    pub crit_chance_pct: f32,
+    /// C++ `canDodge`: the victim can dodge this attack.
+    pub can_dodge: bool,
+    /// C++ `canParryOrBlock`: the victim faces the attacker.
+    pub can_parry: bool,
+}
+
+impl RepresentedMeleeOutcomeInputsLikeCpp {
+    /// No represented avoidance: every band is empty, so the table always
+    /// returns `Hit` (the pre-table represented behaviour).
+    pub(crate) const NONE: Self = Self {
+        miss_chance_pct: 0.0,
+        dodge_chance_pct: 0.0,
+        parry_chance_pct: 0.0,
+        glancing_chance_pct: 0.0,
+        crit_chance_pct: 0.0,
+        can_dodge: false,
+        can_parry: false,
+    };
+}
+
+/// C++ `urand(0, 9999)`'s inclusive upper bound.
+pub(crate) const MELEE_OUTCOME_ROLL_MAX_LIKE_CPP: u32 = 9_999;
+
+/// C++ `int32(chance * 100.0f)`: a percentage in the table's 1/10000 units.
+fn chance_units_like_cpp(percent: f32) -> i32 {
+    (percent * 100.0) as i32
+}
+
+/// C++ `Unit::RollMeleeOutcomeAgainst`'s band order for one already-drawn roll:
+/// `MISS > DODGE > PARRY > GLANCING > BLOCK > CRIT > HIT`.
+///
+/// `roll` is the caller's `urand(0, 9999)`; keeping it a parameter makes the
+/// table deterministic for tests while the owners draw it per landed swing.
+pub(crate) fn melee_outcome_like_cpp(
+    inputs: &RepresentedMeleeOutcomeInputsLikeCpp,
+    roll: i32,
+) -> RepresentedMeleeOutcomeLikeCpp {
+    let mut sum = 0_i32;
+    let mut band = |percent: f32, allowed: bool, outcome: RepresentedMeleeOutcomeLikeCpp| {
+        if !allowed {
+            return None;
+        }
+        let units = chance_units_like_cpp(percent);
+        if units > 0
+            && roll < {
+                sum += units;
+                sum
+            }
+        {
+            return Some(outcome);
+        }
+        None
+    };
+
+    // 1. MISS.
+    if let Some(outcome) = band(
+        inputs.miss_chance_pct,
+        true,
+        RepresentedMeleeOutcomeLikeCpp::Miss,
+    ) {
+        return outcome;
+    }
+    // 2. DODGE.
+    if let Some(outcome) = band(
+        inputs.dodge_chance_pct,
+        inputs.can_dodge,
+        RepresentedMeleeOutcomeLikeCpp::Dodge,
+    ) {
+        return outcome;
+    }
+    // 3. PARRY.
+    if let Some(outcome) = band(
+        inputs.parry_chance_pct,
+        inputs.can_parry,
+        RepresentedMeleeOutcomeLikeCpp::Parry,
+    ) {
+        return outcome;
+    }
+    // 4. GLANCING (eligibility is resolved by the owner into the percentage).
+    if let Some(outcome) = band(
+        inputs.glancing_chance_pct,
+        true,
+        RepresentedMeleeOutcomeLikeCpp::Glancing,
+    ) {
+        return outcome;
+    }
+    // 5. BLOCK is not represented; see `RepresentedMeleeOutcomeLikeCpp`.
+    // 6. CRIT.
+    if let Some(outcome) = band(
+        inputs.crit_chance_pct,
+        true,
+        RepresentedMeleeOutcomeLikeCpp::Crit,
+    ) {
+        return outcome;
+    }
+    // 7. CRUSHING needs a creature attacker (`IsControlledByPlayer()` is false);
+    // 8. HIT.
+    RepresentedMeleeOutcomeLikeCpp::Hit
+}
+
+/// C++ `urand(0, 9999)` then [`melee_outcome_like_cpp`]; the owners call this
+/// once per landed swing, never for a timer that is not ready.
+pub(crate) fn rolled_melee_outcome_like_cpp(
+    inputs: &RepresentedMeleeOutcomeInputsLikeCpp,
+) -> RepresentedMeleeOutcomeLikeCpp {
+    let roll = i32::try_from(wow_core::urand_like_cpp(0, MELEE_OUTCOME_ROLL_MAX_LIKE_CPP))
+        .unwrap_or_default();
+    melee_outcome_like_cpp(inputs, roll)
+}
+
+/// C++ `Unit::CalculateMeleeDamage`'s outcome switch (`Unit.cpp:1343-1440`) for
+/// the represented swing.
+///
+/// Boundaries: the critical-hit `SPELL_AURA_MOD_CRIT_DAMAGE_BONUS` multiplier
+/// and the crushing 150% branch are not represented; those inputs are absent
+/// from the represented table.
+pub(crate) fn melee_outcome_damage_like_cpp(
+    outcome: RepresentedMeleeOutcomeLikeCpp,
+    damage: u32,
+    attacker_level: u8,
+    victim_level: u8,
+) -> u32 {
+    match outcome {
+        RepresentedMeleeOutcomeLikeCpp::Miss
+        | RepresentedMeleeOutcomeLikeCpp::Dodge
+        | RepresentedMeleeOutcomeLikeCpp::Parry => 0,
+        RepresentedMeleeOutcomeLikeCpp::Glancing => {
+            let mut level_difference = i32::from(victim_level) - i32::from(attacker_level);
+            if level_difference > 3 {
+                level_difference = 3;
+            }
+            let reduce_percent = 1.0 - level_difference as f32 * 0.1;
+            (reduce_percent * damage as f32) as u32
+        }
+        RepresentedMeleeOutcomeLikeCpp::Crit => damage.saturating_mul(2),
+        RepresentedMeleeOutcomeLikeCpp::Hit => damage,
+    }
+}
+
+/// C++ `CalcDamageInfo::HitInfo` and `TargetState` for one represented outcome
+/// (`UnitDefines.h:440-465`, `Unit.h:45-55`), including the `HITINFO_OFFHAND`
+/// the offhand branch sets before the table and the `HITINFO_AFFECTS_VICTIM`
+/// C++ adds to every non-miss outcome.
+pub(crate) fn melee_outcome_presentation_like_cpp(
+    outcome: RepresentedMeleeOutcomeLikeCpp,
+    offhand: bool,
+) -> (u32, u8) {
+    use wow_packet::packets::combat::{
+        HIT_INFO_AFFECTS_VICTIM, HIT_INFO_CRITICAL_HIT, HIT_INFO_GLANCING, HIT_INFO_MISS,
+        HIT_INFO_OFFHAND, VICTIM_STATE_DODGE, VICTIM_STATE_HIT, VICTIM_STATE_INTACT,
+        VICTIM_STATE_PARRY,
+    };
+
+    let mut hit_info = if offhand { HIT_INFO_OFFHAND } else { 0 };
+    let victim_state = match outcome {
+        RepresentedMeleeOutcomeLikeCpp::Miss => {
+            hit_info |= HIT_INFO_MISS;
+            VICTIM_STATE_INTACT
+        }
+        RepresentedMeleeOutcomeLikeCpp::Dodge => {
+            hit_info |= HIT_INFO_AFFECTS_VICTIM;
+            VICTIM_STATE_DODGE
+        }
+        RepresentedMeleeOutcomeLikeCpp::Parry => {
+            hit_info |= HIT_INFO_AFFECTS_VICTIM;
+            VICTIM_STATE_PARRY
+        }
+        RepresentedMeleeOutcomeLikeCpp::Glancing => {
+            hit_info |= HIT_INFO_AFFECTS_VICTIM | HIT_INFO_GLANCING;
+            VICTIM_STATE_HIT
+        }
+        RepresentedMeleeOutcomeLikeCpp::Crit => {
+            hit_info |= HIT_INFO_AFFECTS_VICTIM | HIT_INFO_CRITICAL_HIT;
+            VICTIM_STATE_HIT
+        }
+        RepresentedMeleeOutcomeLikeCpp::Hit => {
+            hit_info |= HIT_INFO_AFFECTS_VICTIM;
+            VICTIM_STATE_HIT
+        }
+    };
+    (hit_info, victim_state)
+}
+
+/// Attacker-side facts the swing owner resolves once per swing, in the form
+/// C++ `Unit::RollMeleeOutcomeAgainst` reads them.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub(crate) struct RepresentedMeleeAttackerFactsLikeCpp {
+    /// `GetLevelForTarget(victim)`.
+    pub level: u8,
+    /// `haveOffhandWeapon() && !IsInFeralForm() && !HasAuraType(
+    /// SPELL_AURA_IGNORE_DUAL_WIELD_HIT_PENALTY)`.
+    pub dual_wielding: bool,
+    /// C++ `m_modMeleeHitChance`: `7.5 + GetRatingBonusValue(CR_HIT_MELEE)`.
+    pub melee_hit_chance_pct: f32,
+    /// The attacker's `SPELL_AURA_MOD_HIT_CHANCE` sum.
+    pub hit_chance_aura_pct: f32,
+    /// `GetUnitCriticalChanceDone`: `CritPercentage` for the base attack and
+    /// `OffhandCritPercentage` for the offhand.
+    pub crit_pct: [f32; 2],
+    /// The attacker's `SPELL_AURA_MOD_AUTOATTACK_CRIT_CHANCE` sum.
+    pub autoattack_crit_aura_pct: f32,
+    /// `Player::GetExpertiseDodgeOrParryReduction(attType)`: the published
+    /// `MainhandExpertise`/`OffhandExpertise` divided by four.
+    pub expertise_reduction_pct: [f32; 2],
+}
+
+/// Victim-side facts the swing owner resolves once per swing. A represented
+/// player victim is not supported by this unit: the session owner cannot read
+/// another player's snapshot, so only creature victims contribute a table.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub(crate) struct RepresentedMeleeVictimFactsLikeCpp {
+    /// `victim->GetLevelForTarget(attacker)`.
+    pub level: u8,
+    /// Whether the victim is a creature (the only represented avoidance source).
+    pub is_creature: bool,
+    /// C++ `victim->IsTotem()`: totems have no dodge, parry or block.
+    pub is_totem: bool,
+    /// C++ `GetUnitDodgeChance`'s creature base (`CreatureBaseStats`-seeded),
+    /// before the victim-level bonus and the attacker's expertise reduction.
+    pub dodge_pct: f32,
+    /// C++ `GetUnitParryChance`'s creature base; zero when the template carries
+    /// `CREATURE_FLAG_EXTRA_NO_PARRY`.
+    pub parry_pct: f32,
+    /// C++ `canParryOrBlock`: `victim->HasInArc(M_PI, attacker)`. C++
+    /// `canDodge` is true for every creature victim outside casting/control,
+    /// which the represented model does not resolve yet.
+    pub faces_attacker: bool,
+}
+
+/// C++ `Unit::RollMeleeOutcomeAgainst` (`Unit.cpp:2272-2310`) chance assembly
+/// for both represented melee attack types.
+pub(crate) fn melee_outcome_inputs_like_cpp(
+    attacker: &RepresentedMeleeAttackerFactsLikeCpp,
+    victim: &RepresentedMeleeVictimFactsLikeCpp,
+) -> [RepresentedMeleeOutcomeInputsLikeCpp; 2] {
+    // The represented table needs a creature victim: a canonical-player victim's
+    // avoidance lives in that player's session, so it keeps the pre-table
+    // behaviour rather than inventing a band, exactly like the creature-only
+    // armour rule.
+    if !victim.is_creature {
+        return [RepresentedMeleeOutcomeInputsLikeCpp::NONE; 2];
+    }
+    // C++ `GetUnitMissChance()` is a flat 5.0 for every unit.
+    let mut miss_chance_pct = 5.0;
+    if attacker.dual_wielding {
+        miss_chance_pct += 19.0;
+    }
+    miss_chance_pct -= attacker.melee_hit_chance_pct;
+    miss_chance_pct -= attacker.hit_chance_aura_pct;
+    // C++ `MeleeSpellMissChance` ends with `std::max(missChance, 0.f)`.
+    let miss_chance_pct = miss_chance_pct.max(0.0);
+
+    let level_difference = i32::from(victim.level) - i32::from(attacker.level);
+    let level_bonus = if level_difference > 0 {
+        1.5 * level_difference as f32
+    } else {
+        0.0
+    };
+
+    let mut dodge_chance_pct = 0.0;
+    let mut parry_chance_pct = 0.0;
+    if victim.is_creature && !victim.is_totem {
+        // C++ `GetUnitDodgeChance`/`GetUnitParryChance` creature branches; the
+        // victim's `MOD_DODGE_PERCENT`/`MOD_PARRY_PERCENT` auras still have no
+        // represented producer.
+        dodge_chance_pct = victim.dodge_pct + level_bonus;
+        parry_chance_pct = victim.parry_pct + level_bonus;
+    }
+
+    // C++ glancing: player/pet attacker against a non-player victim more than
+    // three levels higher.
+    let glancing_chance_pct = if victim.is_creature && attacker.level + 3 < victim.level {
+        (10 + 10 * (i32::from(victim.level) - i32::from(attacker.level))) as f32
+    } else {
+        0.0
+    };
+
+    std::array::from_fn(|index| {
+        let expertise_reduction_pct = attacker.expertise_reduction_pct[index];
+        RepresentedMeleeOutcomeInputsLikeCpp {
+            miss_chance_pct,
+            dodge_chance_pct: (dodge_chance_pct - expertise_reduction_pct).max(0.0),
+            parry_chance_pct: (parry_chance_pct - expertise_reduction_pct).max(0.0),
+            glancing_chance_pct,
+            crit_chance_pct: attacker.crit_pct[index] + attacker.autoattack_crit_aura_pct,
+            can_dodge: victim.is_creature,
+            can_parry: victim.is_creature && victim.faces_attacker,
+        }
+    })
+}

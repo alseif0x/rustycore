@@ -123,7 +123,7 @@ fn legacy_creature_melee_tick_once_preserves_sparring_damage_clamp_like_cpp() {
 #[test]
 fn legacy_creature_melee_tick_once_preserves_fake_damage_wire_like_cpp() {
     use crate::map_manager::RuntimeTickOwner;
-    use wow_packet::packets::combat::{HIT_INFO_FAKE_DAMAGE, HIT_INFO_NORMAL_SWING};
+    use wow_packet::packets::combat::{HIT_INFO_AFFECTS_VICTIM, HIT_INFO_FAKE_DAMAGE};
     let manager = shared_map_manager();
     let canonical = shared_canonical_map_manager();
     let victim = test_creature_guid(91_032);
@@ -193,7 +193,7 @@ fn legacy_creature_melee_tick_once_preserves_fake_damage_wire_like_cpp() {
     let mut attack_round_info = wow_packet::world_packet::WorldPacket::from_bytes(&info_bytes);
     assert_eq!(
         attack_round_info.read_uint32().expect("hitInfo"),
-        HIT_INFO_NORMAL_SWING | HIT_INFO_FAKE_DAMAGE
+        HIT_INFO_AFFECTS_VICTIM | HIT_INFO_FAKE_DAMAGE
     );
     let health = canonical
         .lock()

@@ -848,6 +848,17 @@ impl Creature {
     pub fn set_combat_log_stats_like_cpp(&mut self, stats: CreatureCombatLogStatsLikeCpp) {
         self.combat_log_stats = stats;
     }
+
+    /// The creature's represented base dodge/parry/block.
+    pub const fn avoidance_like_cpp(&self) -> CreatureAvoidanceLikeCpp {
+        self.avoidance_like_cpp
+    }
+
+    /// Replace the represented base avoidance, the way
+    /// `Creature::UpdateLevelDependantStats` seeds it.
+    pub fn set_avoidance_like_cpp(&mut self, avoidance: CreatureAvoidanceLikeCpp) {
+        self.avoidance_like_cpp = avoidance;
+    }
     /// C++ `SpellCastLogData::Initialize` selects ranged AP only for the
     /// hunter unit class and base-attack AP for every other class.
     pub fn combat_log_attack_power_like_cpp(&self) -> i32 {

@@ -75,7 +75,7 @@ pub use creature::{
     CREATURE_NOPATH_EVADE_TIME_MS, CREATURE_REGEN_INTERVAL_MS, CREATURE_TAPPERS_SOFT_CAP, Creature,
     CreatureAddToWorldVehicleResetContextLikeCpp, CreatureAddonAuraApplicationLikeCpp,
     CreatureAddonLifecycleRecordLikeCpp, CreatureAiOwnershipState, CreatureAiState,
-    CreatureAimInitializeOutcomeLikeCpp, CreatureCombatLogStatsLikeCpp,
+    CreatureAimInitializeOutcomeLikeCpp, CreatureAvoidanceLikeCpp, CreatureCombatLogStatsLikeCpp,
     CreatureCreateLifecycleRecord, CreatureFormationInfoLikeCpp, CreatureLifecycleMetadata,
     CreatureLifecyclePlan, CreatureLifecycleStats, CreatureLifecycleStep,
     CreatureLoadFromDbLifecycleRecord, CreatureModelDimensions, CreatureMovementInform,

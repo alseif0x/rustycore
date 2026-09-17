@@ -18246,7 +18246,14 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
     within_los: bool,
     melee_damage_bonus: [RepresentedMeleeDamageBonusLikeCpp; 2],
     armor_mitigation: combat::RepresentedArmorMitigationLikeCpp,
-) -> Option<(Vec<u32>, Option<Option<u8>>)> {
+    outcome_facts: (
+        crate::session_rules::RepresentedMeleeAttackerFactsLikeCpp,
+        crate::session_rules::RepresentedMeleeVictimFactsLikeCpp,
+    ),
+) -> Option<(
+    Vec<combat::RepresentedMeleeSwingLikeCpp>,
+    Option<Option<u8>>,
+)> {
     // C++ `Unit::MeleeDamageBonusDone`'s `SPELL_AURA_MOD_AUTOATTACK_DAMAGE`
     // product, written by the owning session and read here by both owners.
     let autoattack_damage_multiplier = player.unit().mod_autoattack_damage_pct_like_cpp();
@@ -18327,6 +18334,8 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
                         autoattack_damage_multiplier,
                         melee_damage_bonus[0],
                         armor_mitigation,
+                        outcome_facts,
+                        false,
                     ));
                 }
             }
@@ -18357,6 +18366,8 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
                     autoattack_damage_multiplier,
                     melee_damage_bonus[1],
                     armor_mitigation,
+                    outcome_facts,
+                    true,
                 ));
             }
             unit.reset_attack_timer_like_cpp(WeaponAttackType::OffAttack);
@@ -18483,15 +18494,20 @@ fn begin_combat_ref_on_map_like_cpp(
 /// overkills — is unchanged.
 fn apply_player_melee_to_canonical_player_like_cpp(
     victim: &mut wow_entities::Player,
-    damages: &[u32],
+    swings: &[combat::RepresentedMeleeSwingLikeCpp],
 ) -> Option<(Vec<(u32, i32)>, u8)> {
     if !victim.unit().is_alive() {
         return None;
     }
     let target_level = victim.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8;
     let mut sent_swings = Vec::new();
-    for dmg in damages {
-        let damage = (*dmg).max(1);
+    for swing in swings {
+        // C++ `DealMeleeDamage` applies nothing for a missed or avoided swing.
+        if swing.damage == 0 {
+            sent_swings.push((0, -1));
+            continue;
+        }
+        let damage = swing.damage;
         let health_before = victim.unit().data().health;
         let health_after = health_before.saturating_sub(u64::from(damage));
         victim.unit_mut().set_health(health_after);
@@ -18516,6 +18532,8 @@ fn apply_player_melee_to_canonical_player_like_cpp(
 pub(crate) struct PlayerMeleeCreatureHitLikeCpp {
     /// `(damage, killed, over_damage)` per swing, in swing order.
     pub swings: Vec<(u32, bool, i32)>,
+    /// `(hit_info, victim_state)` per swing, index-aligned with `swings`.
+    pub swing_presentations: Vec<(u32, u8)>,
     pub entry: u32,
     pub level: u8,
     pub died: bool,
@@ -18527,25 +18545,50 @@ pub(crate) struct PlayerMeleeCreatureHitLikeCpp {
 /// same arithmetic as the session owner (#28): C++ `CalculateMeleeDamage`
 /// (`Unit.cpp:1326-1334`) rolls `CalculateDamage`, passes it through
 /// `MeleeDamageBonusDone` and applies `CalcArmorReducedDamage`.
+#[allow(clippy::too_many_arguments)]
 fn represented_white_swing_damage_like_cpp(
     min_damage: f32,
     max_damage: f32,
     autoattack_damage_multiplier: f32,
     melee_damage_bonus: RepresentedMeleeDamageBonusLikeCpp,
     armor_mitigation: combat::RepresentedArmorMitigationLikeCpp,
-) -> u32 {
+    outcome_facts: (
+        crate::session_rules::RepresentedMeleeAttackerFactsLikeCpp,
+        crate::session_rules::RepresentedMeleeVictimFactsLikeCpp,
+    ),
+    offhand: bool,
+) -> combat::RepresentedMeleeSwingLikeCpp {
     let rolled = crate::session_rules::white_swing_roll_like_cpp(min_damage, max_damage) as f32;
     let damage = (rolled + melee_damage_bonus.flat as f32)
         * melee_damage_bonus.pct
         * autoattack_damage_multiplier;
-    crate::session_rules::armor_reduced_damage_like_cpp(
+    let damage = crate::session_rules::armor_reduced_damage_like_cpp(
         damage.max(1.0).round() as u32,
         armor_mitigation.attacker_level,
         armor_mitigation.victim_level,
         armor_mitigation.victim_armor,
         armor_mitigation.armor_penetration_pct,
         armor_mitigation.target_resistance_normal_aura,
-    )
+    );
+    // C++ rolls the attack table after mitigation and before the outcome
+    // switch (`Unit.cpp:1341-1343`).
+    let outcome_inputs =
+        crate::session_rules::melee_outcome_inputs_like_cpp(&outcome_facts.0, &outcome_facts.1);
+    let outcome =
+        crate::session_rules::rolled_melee_outcome_like_cpp(&outcome_inputs[usize::from(offhand)]);
+    let damage = crate::session_rules::melee_outcome_damage_like_cpp(
+        outcome,
+        damage,
+        armor_mitigation.attacker_level,
+        armor_mitigation.victim_level,
+    );
+    let (hit_info, victim_state) =
+        crate::session_rules::melee_outcome_presentation_like_cpp(outcome, offhand);
+    combat::RepresentedMeleeSwingLikeCpp {
+        damage,
+        hit_info,
+        victim_state,
+    }
 }
 
 /// C++ `Unit::GetAPMultiplier(attType, normalized = false)` clamped by

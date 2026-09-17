@@ -183,6 +183,8 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
         // session owner applies the same creature-only rule.
         let mut victim_armor = 0_i32;
         let mut victim_level = 0_u8;
+        let mut victim_outcome_facts =
+            crate::session_rules::RepresentedMeleeVictimFactsLikeCpp::default();
         let victim_runtime = if let Some(creature) = legacy_manager.find_creature_mut(
             attacker.map_id,
             attacker.instance_id,
@@ -214,6 +216,14 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
             });
             victim_armor = creature.creature.combat_log_stats_like_cpp().armor;
             victim_level = creature.level();
+            victim_outcome_facts = crate::session_rules::RepresentedMeleeVictimFactsLikeCpp {
+                level: victim_level,
+                is_creature: true,
+                is_totem: creature.creature.is_totem_unit_type_like_cpp(),
+                dodge_pct: creature.creature.avoidance_like_cpp().dodge_pct,
+                parry_pct: creature.creature.avoidance_like_cpp().parry_pct,
+                faces_attacker: false,
+            };
             victim_creature_type_mask = config
                 .creature_template_lifecycle_store
                 .as_ref()
@@ -269,6 +279,9 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
         );
         let facing_target =
             is_unit_facing_target_for_melee_like_cpp(attacker_position, victim_position);
+        // C++ `canParryOrBlock`: `victim->HasInArc(M_PI, attacker)`.
+        victim_outcome_facts.faces_attacker =
+            is_unit_facing_target_for_melee_like_cpp(victim_position, attacker_position);
 
         // The timer is consumed here, after range and facing, exactly where the
         // session consumed it. C++ `Unit::MeleeDamageBonusDone`'s auto-attack
@@ -277,7 +290,7 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
         // C++ `Unit::MeleeDamageBonusDone` resolves the victim-creature-type
         // terms per swing from the attacker's auras; the map-owned path uses the
         // same receiver-free rule as the session.
-        let (melee_damage_bonus, armor_mitigation) = match (
+        let (melee_damage_bonus, armor_mitigation, outcome_facts) = match (
             map.get_typed_player(attacker.player_guid),
             config.spell_store.as_deref(),
         ) {
@@ -325,11 +338,45 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                     );
                     crate::session::RepresentedMeleeDamageBonusLikeCpp { flat, pct }
                 });
-                (bonus, armor_mitigation)
+                let stats = attacker_player.effective_combat_stats_like_cpp();
+                let aura_sum = |aura_type: i32| -> f32 {
+                    crate::session_rules::player_aura_effects_by_spell_aura_type_like_cpp(
+                        auras,
+                        spell_store,
+                        aura_type,
+                    )
+                    .into_iter()
+                    .map(|(_, amount)| amount as f32)
+                    .sum()
+                };
+                let attacker_outcome_facts =
+                    crate::session_rules::RepresentedMeleeAttackerFactsLikeCpp {
+                        level: attacker_player.level_like_cpp(),
+                        dual_wielding: attacker_player.has_offhand_weapon_for_attack_like_cpp()
+                            && !attacker_player.is_in_feral_form_like_cpp(),
+                        melee_hit_chance_pct: stats.melee_hit_chance_pct,
+                        hit_chance_aura_pct: aura_sum(
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_HIT_CHANCE,
+                        ),
+                        crit_pct: [stats.crit_pct, stats.offhand_crit_pct],
+                        autoattack_crit_aura_pct: aura_sum(
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_AUTOATTACK_CRIT_CHANCE,
+                        ),
+                        expertise_reduction_pct: [
+                            stats.mainhand_expertise / 4.0,
+                            stats.offhand_expertise / 4.0,
+                        ],
+                    };
+                (
+                    bonus,
+                    armor_mitigation,
+                    (attacker_outcome_facts, victim_outcome_facts),
+                )
             }
             _ => (
                 [crate::session::RepresentedMeleeDamageBonusLikeCpp::NONE; 2],
                 crate::session::combat::RepresentedArmorMitigationLikeCpp::NONE,
+                Default::default(),
             ),
         };
         let Some(player) = map.get_typed_player_mut(attacker.player_guid) else {
@@ -344,6 +391,7 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
             true,
             melee_damage_bonus,
             armor_mitigation,
+            outcome_facts,
         );
         let Some((damages, swing_error_update)) = swing_result else {
             continue;
@@ -389,10 +437,18 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
             command.swings = hit
                 .swings
                 .iter()
-                .map(|(damage, _killed, over_damage)| {
+                .enumerate()
+                .map(|(index, (damage, _killed, over_damage))| {
+                    let (hit_info, victim_state) = hit
+                        .swing_presentations
+                        .get(index)
+                        .copied()
+                        .unwrap_or((0, 0));
                     crate::session::mailbox::PlayerMeleeSwingLikeCpp {
                         damage: *damage,
                         over_damage: *over_damage,
+                        hit_info,
+                        victim_state,
                     }
                 })
                 .collect();
@@ -435,12 +491,18 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
             command.target_level = target_level;
             command.swings = swings
                 .into_iter()
-                .map(
-                    |(damage, over_damage)| crate::session::mailbox::PlayerMeleeSwingLikeCpp {
+                .enumerate()
+                .map(|(index, (damage, over_damage))| {
+                    let (hit_info, victim_state) = damages
+                        .get(index)
+                        .map_or((0, 0), |swing| (swing.hit_info, swing.victim_state));
+                    crate::session::mailbox::PlayerMeleeSwingLikeCpp {
                         damage,
                         over_damage,
-                    },
-                )
+                        hit_info,
+                        victim_state,
+                    }
+                })
                 .collect();
         }
         outcome.commands.push(command);

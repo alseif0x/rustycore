@@ -1663,7 +1663,7 @@ impl WorldSession {
         self.publish_creature_melee_death_durability_loss_like_cpp(command.over_damage);
 
         use wow_packet::packets::combat::{
-            AttackerStateUpdate, HIT_INFO_NORMAL_SWING, HealthUpdate, VICTIM_STATE_HIT,
+            AttackerStateUpdate, HIT_INFO_AFFECTS_VICTIM, HealthUpdate, VICTIM_STATE_HIT,
         };
         // Visibility can change after the map-owned swing commits. It gates
         // only the attacker-facing combat packet, never authoritative victim
@@ -1675,7 +1675,7 @@ impl WorldSession {
             self.send_packet(&AttackerStateUpdate {
                 attacker: command.attacker_guid,
                 victim: command.victim_guid,
-                hit_info: HIT_INFO_NORMAL_SWING,
+                hit_info: HIT_INFO_AFFECTS_VICTIM,
                 damage: command.damage.min(i32::MAX as u32) as i32,
                 over_damage: command.over_damage,
                 victim_state: VICTIM_STATE_HIT,

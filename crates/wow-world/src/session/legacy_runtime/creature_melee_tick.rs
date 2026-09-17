@@ -15,7 +15,7 @@ pub(in crate::session) fn apply_player_melee_to_legacy_creature_like_cpp(
     creature: &mut crate::map_manager::WorldCreature,
     player_guid: ObjectGuid,
     tap_group_guids: &[ObjectGuid],
-    canonical_damages: Option<&[u32]>,
+    canonical_swings: Option<&[crate::session::combat::RepresentedMeleeSwingLikeCpp]>,
 ) -> Option<PlayerMeleeCreatureHitLikeCpp> {
     if !creature.is_alive() {
         return None;
@@ -23,25 +23,38 @@ pub(in crate::session) fn apply_player_melee_to_legacy_creature_like_cpp(
     if creature.state() != wow_entities::CreatureAiState::InCombat {
         creature.enter_combat(player_guid);
     }
-    let damages: Vec<u32> = match canonical_damages {
-        Some(damages) => damages.to_vec(),
+    let damages: Vec<crate::session::combat::RepresentedMeleeSwingLikeCpp> = match canonical_swings
+    {
+        Some(swings) => swings.to_vec(),
         None => {
             if !creature.can_swing() {
                 return None;
             }
-            vec![creature.roll_damage()?.max(1)]
+            vec![
+                crate::session::combat::RepresentedMeleeSwingLikeCpp::hit_like_cpp(
+                    creature.roll_damage()?.max(1),
+                ),
+            ]
         }
     };
     let entry = creature.entry();
     let level = creature.level();
     let mut swings = Vec::new();
+    let mut swing_presentations = Vec::new();
     let mut died = false;
     let mut move_stop = None;
-    for dmg in damages {
+    for swing in damages {
         if !creature.is_alive() {
             break;
         }
-        let damage = dmg.max(1);
+        let damage = swing.damage;
+        // C++ `DealMeleeDamage` applies nothing for a missed or avoided swing:
+        // no damage, no tap and no threat.
+        if damage == 0 {
+            swings.push((0, false, -1));
+            swing_presentations.push((swing.hit_info, swing.victim_state));
+            continue;
+        }
         let health_before = creature.current_hp();
         creature
             .creature
@@ -59,6 +72,7 @@ pub(in crate::session) fn apply_player_melee_to_legacy_creature_like_cpp(
             .combat
             .add_threat(player_guid, damage as f32);
         swings.push((damage, died, over_damage));
+        swing_presentations.push((swing.hit_info, swing.victim_state));
         if died {
             let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
             combat.clear_threat();
@@ -69,12 +83,13 @@ pub(in crate::session) fn apply_player_melee_to_legacy_creature_like_cpp(
             break;
         }
     }
-    if canonical_damages.is_none() {
+    if canonical_swings.is_none() {
         creature.record_swing();
     }
     let values_update = creature.creature.unit().values_update();
     Some(PlayerMeleeCreatureHitLikeCpp {
         swings,
+        swing_presentations,
         entry,
         level,
         died,

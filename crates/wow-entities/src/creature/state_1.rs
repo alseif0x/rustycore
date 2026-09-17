@@ -237,6 +237,20 @@ pub struct CreatureCombatLogStatsLikeCpp {
     pub armor: i32,
 }
 
+/// C++ `Unit::GetUnitDodgeChance`/`GetUnitParryChance`/`GetUnitBlockChance`
+/// creature base values (`Unit.cpp:2313-2360`), before the victim-level bonus
+/// and the attacker's expertise reduction.
+///
+/// `Creature::UpdateLevelDependantStats` seeds them from `CreatureBaseStats`
+/// only for a real loaded template, so a directly constructed fixture starts at
+/// zero exactly like every other unseeded derived snapshot.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct CreatureAvoidanceLikeCpp {
+    pub dodge_pct: f32,
+    pub parry_pct: f32,
+    pub block_pct: f32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CreatureLifecycleStats {
     pub max_health: u64,

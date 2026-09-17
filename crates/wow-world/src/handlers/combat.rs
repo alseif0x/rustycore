@@ -70,7 +70,7 @@ impl WorldSession {
     ) {
         use wow_packet::ServerPacket;
         use wow_packet::packets::combat::{
-            AttackerStateUpdate, HIT_INFO_NORMAL_SWING, VICTIM_STATE_HIT,
+            AttackerStateUpdate, HIT_INFO_AFFECTS_VICTIM, VICTIM_STATE_HIT,
         };
         use wow_packet::packets::movement::MonsterMoveStop;
 
@@ -105,10 +105,10 @@ impl WorldSession {
                     &AttackerStateUpdate {
                         attacker: command.attacker_guid,
                         victim: victim_guid,
-                        hit_info: HIT_INFO_NORMAL_SWING,
+                        hit_info: swing.hit_info,
                         damage: swing.damage as i32,
                         over_damage: swing.over_damage,
-                        victim_state: VICTIM_STATE_HIT,
+                        victim_state: swing.victim_state,
                         school_mask: 1,
                         target_level: command.target_level,
                         expansion: 2,
