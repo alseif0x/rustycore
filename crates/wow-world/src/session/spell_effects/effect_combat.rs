@@ -443,15 +443,15 @@ impl WorldSession {
         .await
     }
     /// C++ `Unit::SpellDamageBonusDone` (`Unit.cpp:6623-6680`) for the
-    /// represented player-caster `SPELL_DIRECT_DAMAGE` flat term:
+    /// represented player-caster `SPELL_DIRECT_DAMAGE`:
     /// `int32(max((pdamage + int32(SpellBaseDamageBonusDone(schoolMask) *
-    /// BonusCoefficient)) * DoneTotalMod, 0))` with `DoneTotalMod` currently
-    /// `1.0`.
+    /// BonusCoefficient)) * DoneTotalMod, 0))`.
     ///
-    /// Boundaries: `SpellDamagePctDone` (the school `max ModDamageDonePercent`
-    /// and the versus/aurastate/mechanic multipliers) is not modelled yet, and
-    /// the represented model stores one `BonusCoefficient` per spell rather than
-    /// per `SpellEffectInfo`; creature casters keep the raw value. A spell whose
+    /// Boundaries: `SpellDamagePctDone`'s versus-creature-type, aurastate and
+    /// target-aura-mechanic multipliers plus the `MOD_DAMAGE_DONE_FOR_MECHANIC`
+    /// and family-scripted terms are not modelled yet; the represented model
+    /// stores one `BonusCoefficient` per spell rather than per
+    /// `SpellEffectInfo`; creature casters keep the raw value. A spell whose
     /// `SpellMisc.SchoolMask` is unavailable also keeps the raw value.
     pub(in crate::session) fn represented_spell_damage_bonus_done_like_cpp(
         &self,
@@ -470,9 +470,29 @@ impl WorldSession {
         else {
             return base_damage;
         };
+        let Some(done_total_mod) = self.represented_spell_damage_pct_done_like_cpp(school_mask)
+        else {
+            return base_damage;
+        };
         let done_total = (benefit as f32 * coefficient) as i32;
-        let damage = i64::from(base_damage) + i64::from(done_total);
-        u32::try_from(damage.max(0)).unwrap_or(u32::MAX)
+        let damage = (base_damage as f32 + done_total as f32) * done_total_mod;
+        u32::try_from(damage.max(0.0).min(u32::MAX as f32) as u32).unwrap_or(u32::MAX)
+    }
+
+    /// C++ `Unit::SpellDamagePctDone` (`Unit.cpp:6683-6772`) player branch's
+    /// `maxModDamagePercentSchool`: the highest published
+    /// `ActivePlayerData::ModDamageDonePercent` among the spell's schools, which
+    /// `AuraEffect::HandleModDamagePercentDone` maintains.
+    fn represented_spell_damage_pct_done_like_cpp(&self, school_mask: u8) -> Option<f32> {
+        let snapshot = self.canonical_player_effective_combat_stats_like_cpp()?;
+        let mask = u32::from(school_mask);
+        let mut max_mod = 0.0_f32;
+        for (school, percent) in snapshot.mod_damage_done_percent.iter().enumerate() {
+            if mask & (1_u32 << school) != 0 {
+                max_mod = max_mod.max(*percent);
+            }
+        }
+        Some(max_mod)
     }
 
     /// C++ `SpellInfo::GetSchoolMask()` as loaded from the spell's
