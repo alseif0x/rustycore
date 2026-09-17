@@ -79,6 +79,7 @@ fn creature_melee_damage_delivery_filters_registry_state_like_cpp() {
             victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
             original_damage: 5,
             absorbed: 0,
+            mana_spent: 0,
             absorb_consumptions: Vec::new(),
         };
     let commands = vec![
@@ -134,6 +135,7 @@ fn creature_melee_damage_delivery_poisoned_durable_rail_counts_send_failed_like_
             victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
             original_damage: 5,
             absorbed: 0,
+            mana_spent: 0,
             absorb_consumptions: Vec::new(),
         },
     ];
@@ -170,6 +172,7 @@ fn creature_melee_damage_delivery_preserves_every_swing_when_general_queue_is_fu
         victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
         original_damage: 5,
         absorbed: 0,
+        mana_spent: 0,
         absorb_consumptions: Vec::new(),
     };
     command_tx

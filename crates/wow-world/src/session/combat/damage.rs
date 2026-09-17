@@ -54,6 +54,7 @@ impl WorldSession {
         attacker_guid: ObjectGuid,
         victim_guid: ObjectGuid,
         original_damage: i32,
+        mana_spent: u32,
         consumptions: &[crate::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp],
     ) {
         for consumption in consumptions {
@@ -86,6 +87,21 @@ impl WorldSession {
                 // C++ `Remove(AURA_REMOVE_BY_ENEMY_SPELL)`; the session's aura
                 // transition owns the removal publication and its side effects.
                 let _ = self.remove_aura(consumption.slot);
+            }
+        }
+        if mana_spent > 0 {
+            // C++ `Unit::ModifyPower(POWER_MANA, -manaReduction)` sends
+            // `SMSG_POWER_UPDATE` from the same call that drains the mana
+            // (`Unit.cpp:1913-1918`, `Unit.cpp:9287-9312`). The map-owned stage
+            // committed the drain; this session publishes the resulting value.
+            if let Some(mana) = self.canonical_player_snapshot_like_cpp(|player| {
+                player.unit().get_power(wow_constants::PowerType::Mana)
+            }) {
+                self.send_player_power_update_like_cpp(
+                    victim_guid,
+                    wow_constants::PowerType::Mana,
+                    mana,
+                );
             }
         }
     }

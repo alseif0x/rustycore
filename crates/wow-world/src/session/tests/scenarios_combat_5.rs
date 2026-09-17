@@ -135,3 +135,79 @@ fn represented_absorb_priority_matches_absorb_aura_order_pred_like_cpp() {
     assert!(plain < cauterize);
     assert!(cauterize < redemption);
 }
+
+/// C++ `Unit::CalcAbsorbResist`'s mana-shield loop (`Unit.cpp:1886-1930`) for
+/// one physical melee hit.
+///
+/// The shield's amount caps the damage it may take, the drain is that amount
+/// scaled by `SpellEffectInfo::CalcValueMultiplier` (`Amplitude`), and the
+/// absorbed damage scales down by the fraction of the drain the victim's mana
+/// could pay.
+#[test]
+fn represented_melee_mana_absorb_matches_calc_absorb_resist_like_cpp() {
+    use crate::session_rules::{
+        RepresentedManaShieldLikeCpp as Shield, represented_melee_mana_absorb_like_cpp,
+    };
+
+    let shield = |slot: u8, amount: i32, mana_multiplier: f32| Shield {
+        slot,
+        effect_index: 0,
+        spell_id: 91_520,
+        amount,
+        mana_multiplier,
+    };
+
+    // No shield and zero damage both return before the loop.
+    let none = represented_melee_mana_absorb_like_cpp(&[], 10, 100);
+    assert_eq!((none.absorbed, none.damage, none.mana_spent), (0, 10, 0));
+    let zero = represented_melee_mana_absorb_like_cpp(&[shield(0, 30, 1.0)], 0, 100);
+    assert_eq!((zero.absorbed, zero.damage, zero.mana_spent), (0, 0, 0));
+
+    // Plenty of mana: the whole hit is absorbed, one point of mana per point of
+    // damage, and the shield keeps the remainder.
+    let full = represented_melee_mana_absorb_like_cpp(&[shield(1, 30, 1.0)], 10, 100);
+    assert_eq!((full.absorbed, full.damage, full.mana_spent), (10, 0, 10));
+    assert_eq!(full.consumed[0].remaining, 20);
+    assert!(!full.consumed[0].removed);
+
+    // The victim can only pay part of the drain, so only that fraction is
+    // absorbed (`currentAbsorb * manaTaken / manaReduction`).
+    let limited = represented_melee_mana_absorb_like_cpp(&[shield(1, 30, 1.0)], 10, 3);
+    assert_eq!(
+        (limited.absorbed, limited.damage, limited.mana_spent),
+        (3, 7, 3)
+    );
+    assert_eq!(limited.consumed[0].remaining, 27);
+
+    // `Amplitude` 2 drains two mana per absorbed point.
+    let doubled = represented_melee_mana_absorb_like_cpp(&[shield(1, 30, 2.0)], 10, 100);
+    assert_eq!(
+        (doubled.absorbed, doubled.damage, doubled.mana_spent),
+        (10, 0, 20)
+    );
+
+    // The shield's own amount caps the hit and a fully spent shield is removed.
+    let capped = represented_melee_mana_absorb_like_cpp(&[shield(1, 4, 1.0)], 10, 100);
+    assert_eq!(
+        (capped.absorbed, capped.damage, capped.mana_spent),
+        (4, 6, 4)
+    );
+    assert_eq!(capped.consumed[0].remaining, 0);
+    assert!(capped.consumed[0].removed);
+
+    // A negative amount is an infinite shield C++ clamps to zero for safety: it
+    // absorbs nothing and is never removed by this loop.
+    let negative = represented_melee_mana_absorb_like_cpp(&[shield(1, -1, 1.0)], 10, 100);
+    assert_eq!(
+        (negative.absorbed, negative.damage, negative.mana_spent),
+        (0, 10, 0)
+    );
+    assert_eq!(negative.consumed[0].remaining, -1);
+    assert!(!negative.consumed[0].removed);
+
+    // No mana at all: nothing is absorbed and nothing is spent.
+    let dry = represented_melee_mana_absorb_like_cpp(&[shield(1, 30, 1.0)], 10, 0);
+    assert_eq!((dry.absorbed, dry.damage, dry.mana_spent), (0, 10, 0));
+    assert_eq!(dry.consumed[0].remaining, 30);
+    assert!(!dry.consumed[0].removed);
+}

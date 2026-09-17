@@ -6,6 +6,9 @@ pub const SPELL_AURA_CONTROL_VEHICLE: i32 = 236;
 pub const SPELL_AURA_DUMMY: i32 = 0;
 /// C++ `AuraType::SPELL_AURA_SCHOOL_ABSORB`.
 pub const SPELL_AURA_SCHOOL_ABSORB: i32 = 69;
+/// C++ `AuraType::SPELL_AURA_MANA_SHIELD` (`SpellAuraDefines.h:192`), resolved
+/// by `Unit::CalcAbsorbResist`'s mana-shield loop (`Unit.cpp:1886-1930`).
+pub const SPELL_AURA_MANA_SHIELD: i32 = 97;
 pub const SPELL_AURA_SCHOOL_IMMUNITY: i32 = 39;
 pub const SPELL_AURA_DUMMY_ABSORB: i32 = 3;
 pub const SPELL_AURA_PERIODIC_DAMAGE: i32 = 3;

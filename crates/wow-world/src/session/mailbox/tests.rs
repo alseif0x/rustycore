@@ -183,6 +183,7 @@ fn apply_creature_melee_damage_like_cpp_command_carries_final_health() {
         victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
         original_damage: 11,
         absorbed: 0,
+        mana_spent: 0,
         absorb_consumptions: Vec::new(),
     };
 
@@ -268,6 +269,7 @@ fn durable_creature_runtime_commands_preserve_committed_fifo_like_cpp() {
                 victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
                 original_damage: 15,
                 absorbed: 0,
+                mana_spent: 0,
                 absorb_consumptions: Vec::new(),
             })
         );
