@@ -861,3 +861,125 @@ fn combat_tick_without_melee_attacking_state_skips_update_like_cpp() {
         0
     );
 }
+
+#[test]
+fn white_swing_applies_autoattack_damage_auras_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    let guid = test_creature_guid(18_030);
+    let player = ObjectGuid::create_player(1, 84);
+
+    canonical.lock().unwrap().create_world_map(0, 0);
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+        wow_data::MapEntry {
+            id: 0,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        },
+    ])));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player,
+        "Swing".to_string(),
+        Position::new(10.0, 10.0, 0.0, 0.0),
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            let unit = player.unit_mut();
+            unit.set_attacking(Some(guid));
+            unit.set_target(guid);
+            unit.add_unit_state(UnitState::MELEE_ATTACKING.bits());
+            unit.set_base_attack_time_like_cpp(WeaponAttackType::BaseAttack, 2_000);
+            unit.set_attack_timer(WeaponAttackType::BaseAttack, 0);
+            unit.set_weapon_damage(WeaponAttackType::BaseAttack, 7.0, 7.0);
+        })
+        .unwrap();
+    session.combat_target = Some(guid);
+    session.in_combat = true;
+    register_test_creature(&mut session, manager.clone(), guid, 40);
+    session
+        .mutate_world_creature(guid, |creature| {
+            creature.enter_combat(player);
+            creature.creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+        })
+        .unwrap();
+
+    let aura_spell_id = 90_997_i32;
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        aura_spell_id,
+        wow_data::SpellInfo {
+            spell_id: aura_spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_base_points: 100,
+            effect_bonus_coefficient: 0.0,
+            aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_AUTOATTACK_DAMAGE),
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_AUTOATTACK_DAMAGE,
+                effect_base_points: 100,
+                ..Default::default()
+            }],
+        },
+    );
+    session.set_spell_store(Arc::new(spell_store));
+
+    let swing = |session: &mut WorldSession| {
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .set_attack_timer(WeaponAttackType::BaseAttack, 0);
+                take_canonical_player_attack_swings_like_cpp(player, 0, true, true, true)
+            })
+            .flatten()
+            .map(|(swings, _)| swings)
+    };
+
+    assert_eq!(
+        swing(&mut session),
+        Some(vec![7]),
+        "the white swing uses the canonical effective weapon range"
+    );
+
+    session
+        .apply_aura(aura_spell_id, player, 30_000, 1)
+        .expect("apply autoattack damage aura");
+    assert_eq!(
+        session
+            .canonical_player_snapshot_like_cpp(|player| {
+                player.unit().mod_autoattack_damage_pct_like_cpp()
+            })
+            .expect("canonical player"),
+        2.0
+    );
+    assert_eq!(
+        swing(&mut session),
+        Some(vec![14]),
+        "C++ MeleeDamageBonusDone adds the SPELL_AURA_MOD_AUTOATTACK_DAMAGE percentage"
+    );
+
+    session
+        .remove_aura(0)
+        .expect("remove autoattack damage aura");
+    assert_eq!(swing(&mut session), Some(vec![7]));
+}

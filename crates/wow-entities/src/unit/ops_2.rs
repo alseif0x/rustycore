@@ -134,6 +134,12 @@ impl Unit {
     pub const fn mod_attack_speed_pct(&self) -> [f32; MAX_ATTACK] {
         self.mod_attack_speed_pct
     }
+    pub const fn mod_autoattack_damage_pct_like_cpp(&self) -> f32 {
+        self.mod_autoattack_damage_pct
+    }
+    pub fn set_mod_autoattack_damage_pct_like_cpp(&mut self, multiplier: f32) {
+        self.mod_autoattack_damage_pct = multiplier;
+    }
     pub const fn attack_timer(&self, attack: WeaponAttackType) -> u32 {
         self.attack_timer[attack as usize]
     }

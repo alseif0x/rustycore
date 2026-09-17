@@ -56,6 +56,24 @@ impl WorldSession {
         })
         .flatten()
     }
+
+    /// C++ `Unit::MeleeDamageBonusDone`'s `SPELL_AURA_MOD_AUTOATTACK_DAMAGE`
+    /// factor for the canonical Player (`Unit.cpp:7620-7627`): `1.0` when the
+    /// aura container or the spell store cannot be resolved.
+    ///
+    /// The owning session writes the result on the canonical Player through the
+    /// aura-mutation sync, so the map-owned swing path only reads it.
+    pub(in crate::session) fn represented_player_autoattack_damage_multiplier_like_cpp(
+        &self,
+    ) -> f32 {
+        let (Some(auras), Some(spell_store)) = (
+            self.resolved_player_visible_auras_like_cpp(),
+            self.spell_store(),
+        ) else {
+            return 1.0;
+        };
+        crate::session_rules::represented_autoattack_damage_multiplier_like_cpp(&auras, spell_store)
+    }
     fn canonical_unit_attack_target_state_like_cpp(
         &self,
         guid: ObjectGuid,

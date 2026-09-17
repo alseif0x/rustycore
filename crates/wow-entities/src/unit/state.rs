@@ -533,6 +533,10 @@ pub struct Unit {
     pub(super) unit_state: u32,
     pub(super) base_attack_speed: [u32; MAX_ATTACK],
     pub(super) mod_attack_speed_pct: [f32; MAX_ATTACK],
+    /// C++ `AuraEffect::HandleModAutoAttackDamage`'s product for
+    /// `Unit::MeleeDamageBonusDone` (`Unit.cpp:7620-7627`). The owning session
+    /// keeps it in sync with the unit's auras; the map-owned swing path reads it.
+    pub(super) mod_autoattack_damage_pct: f32,
     pub(super) attack_timer: [u32; MAX_ATTACK],
     pub(super) weapon_damage: [[f32; 2]; MAX_ATTACK],
     pub(super) can_dual_wield: bool,
