@@ -33,6 +33,15 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 `CONFIG_STATS_LIMITS_*` caps — 2026-09-17, implementation
+`5eef7a77`:** the `Stats.Limits.Enable/Dodge/Parry/Block/Crit` world config
+values are resolved, carried on the session and applied once in the stat
+projection, so the login create snapshot and the canonical effective-stats
+snapshot agree (`StatSystem.cpp:496-713`, `World.cpp:1664-1668`). wow-data --lib
+753/0, wow-entities --lib 940/0, wow-world --lib 3949/0/1; world-server --lib has
+three pre-existing `scenarios_9` failures reproduced on the untouched base; no
+live DB/restart/relogin QA.
+
 **#61 `BonusCoefficientFromAP` table term — 2026-09-17, implementation
 `de597571`:** the runtime `SpellEffectInfo` now carries the DB2 field and both
 the damage and heal bonus helpers add `int32(stack * coefficient * AP)`, with
