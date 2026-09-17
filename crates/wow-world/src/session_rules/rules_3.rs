@@ -339,6 +339,9 @@ pub(crate) struct AppliedAuraEffectLikeCpp {
     /// The effect's `MiscValue`, matched against a school mask where C++ uses
     /// `GetTotalAuraModifierByMiscMask`.
     pub misc_value: i32,
+    /// The effect's `MiscValueB`, read by C++ predicates such as
+    /// `SPELL_AURA_MOD_CRIT_CHANCE_VERSUS_TARGET_HEALTH`'s health threshold.
+    pub misc_value_b: i32,
     pub amount: i32,
 }
 
@@ -376,6 +379,7 @@ pub(crate) fn creature_aura_effects_like_cpp(
                 caster_guid: aura.caster_guid,
                 aura_type: effect.effect_aura,
                 misc_value: effect.effect_misc_value_1,
+                misc_value_b: effect.effect_misc_value_2,
                 amount: effect.calc_value_no_caster_like_cpp(),
             });
         }

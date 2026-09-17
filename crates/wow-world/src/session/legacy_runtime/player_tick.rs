@@ -266,6 +266,53 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                     wow_data::spell::aura_types::
                         SPELL_AURA_MOD_ATTACKER_SPELL_AND_WEAPON_CRIT_CHANCE,
                 ),
+                // C++ `GetUnitCriticalChanceTaken`'s conditional terms:
+                // `!HealthBelowPct(MiscValueB)` and `caster == attacker`.
+                crit_chance_vs_target_health_pct: config.spell_store.as_deref().map_or(
+                    0.0,
+                    |spell_store| {
+                        let health_pct = if creature.max_hp() == 0 {
+                            100.0
+                        } else {
+                            100.0 * creature.current_hp() as f32 / creature.max_hp() as f32
+                        };
+                        crate::session_rules::creature_aura_effects_like_cpp(
+                            &creature_applied_auras,
+                            spell_store,
+                            map_difficulty_id,
+                            config.difficulty_store.as_deref(),
+                        )
+                        .into_iter()
+                        .filter(|effect| {
+                            effect.aura_type
+                                == wow_data::spell::aura_types::
+                                    SPELL_AURA_MOD_CRIT_CHANCE_VERSUS_TARGET_HEALTH
+                                && health_pct >= effect.misc_value_b as f32
+                        })
+                        .map(|effect| effect.amount as f32)
+                        .sum()
+                    },
+                ),
+                crit_chance_for_caster_pct: config.spell_store.as_deref().map_or(
+                    0.0,
+                    |spell_store| {
+                        crate::session_rules::creature_aura_effects_like_cpp(
+                            &creature_applied_auras,
+                            spell_store,
+                            map_difficulty_id,
+                            config.difficulty_store.as_deref(),
+                        )
+                        .into_iter()
+                        .filter(|effect| {
+                            effect.aura_type
+                                == wow_data::spell::aura_types::
+                                    SPELL_AURA_MOD_CRIT_CHANCE_FOR_CASTER
+                                && effect.caster_guid == attacker.player_guid
+                        })
+                        .map(|effect| effect.amount as f32)
+                        .sum()
+                    },
+                ),
                 faces_attacker: false,
             };
             victim_creature_type_mask = config

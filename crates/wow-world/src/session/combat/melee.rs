@@ -323,6 +323,54 @@ impl WorldSession {
                             wow_data::spell::aura_types::
                                 SPELL_AURA_MOD_ATTACKER_SPELL_AND_WEAPON_CRIT_CHANCE,
                         ),
+                        // C++ `GetUnitCriticalChanceTaken`'s conditional terms:
+                        // `!HealthBelowPct(MiscValueB)` for the target-health
+                        // aura and `GetCasterGUID() == attacker` for the
+                        // for-caster aura.
+                        crit_chance_vs_target_health_pct: {
+                            let health_pct = if creature.max_hp() == 0 {
+                                100.0
+                            } else {
+                                100.0 * creature.current_hp() as f32 / creature.max_hp() as f32
+                            };
+                            self.spell_store().map_or(0.0, |spell_store| {
+                                crate::session_rules::creature_aura_effects_like_cpp(
+                                    &creature.creature.unit().subsystems().auras.applied_auras,
+                                    spell_store,
+                                    self.current_map_difficulty_id_like_cpp(),
+                                    self.difficulty_store().map(AsRef::as_ref),
+                                )
+                                .into_iter()
+                                .filter(|effect| {
+                                    effect.aura_type
+                                        == wow_data::spell::aura_types::
+                                            SPELL_AURA_MOD_CRIT_CHANCE_VERSUS_TARGET_HEALTH
+                                        && health_pct >= effect.misc_value_b as f32
+                                })
+                                .map(|effect| effect.amount as f32)
+                                .sum()
+                            })
+                        },
+                        crit_chance_for_caster_pct: {
+                            let attacker_guid = self.player_guid();
+                            self.spell_store().map_or(0.0, |spell_store| {
+                                crate::session_rules::creature_aura_effects_like_cpp(
+                                    &creature.creature.unit().subsystems().auras.applied_auras,
+                                    spell_store,
+                                    self.current_map_difficulty_id_like_cpp(),
+                                    self.difficulty_store().map(AsRef::as_ref),
+                                )
+                                .into_iter()
+                                .filter(|effect| {
+                                    effect.aura_type
+                                        == wow_data::spell::aura_types::
+                                            SPELL_AURA_MOD_CRIT_CHANCE_FOR_CASTER
+                                        && Some(effect.caster_guid) == attacker_guid
+                                })
+                                .map(|effect| effect.amount as f32)
+                                .sum()
+                            })
+                        },
                         faces_attacker: is_unit_facing_target_for_melee_like_cpp(
                             victim_position,
                             attacker_position,
