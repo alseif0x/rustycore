@@ -161,6 +161,17 @@ pub const SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE: i32 = 303;
 /// by the aura multiplier matching the victim's creature type bit
 /// (`Unit::GetCreatureTypeMask`, `Unit.cpp:8796-8800`).
 pub const SPELL_AURA_MOD_DAMAGE_DONE_VERSUS: i32 = 168;
+/// C++ `AuraType::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE_BY_TARGET_AURA_MECHANIC`
+/// (`SpellAuraDefines.h:344`): `Unit::SpellDamagePctDone` (`Unit.cpp:6734-6740`)
+/// multiplies spell damage when the victim carries any aura whose mechanic
+/// matches this effect's `GetMiscValue` (`Unit::HasAuraWithMechanic`,
+/// `Unit.cpp:4714-4729`).
+pub const SPELL_AURA_MOD_DAMAGE_PERCENT_DONE_BY_TARGET_AURA_MECHANIC: i32 = 249;
+/// C++ `AuraType::SPELL_AURA_MOD_DAMAGE_DONE_FOR_MECHANIC`
+/// (`SpellAuraDefines.h:371`): `Unit::SpellDamagePctDone` (`Unit.cpp:6742-6746`)
+/// adds the summed percentage of every aura whose `GetMiscValue` equals the
+/// cast effect's mechanic, falling back to the spell's own mechanic.
+pub const SPELL_AURA_MOD_DAMAGE_DONE_FOR_MECHANIC: i32 = 276;
 /// C++ `AuraType::SPELL_AURA_MOD_HEALING_DONE_PCT_VERSUS_TARGET_HEALTH`
 /// (`SpellAuraDefines.h:449`): `Unit::SpellHealingPctDone` (`Unit.cpp:7224-7227`)
 /// scales healing done by the target's missing health percentage.

@@ -659,6 +659,7 @@ impl WorldSession {
                     if let Ok(damage_amount) = u32::try_from(direct_effect_base_points) {
                         let damage_amount = self.represented_spell_damage_bonus_done_like_cpp(
                             spell_id,
+                            direct_effect_index,
                             caster_guid,
                             target_guid,
                             spell_info.effect_bonus_coefficient,

@@ -452,15 +452,16 @@ impl WorldSession {
     /// `int32(max((pdamage + int32(SpellBaseDamageBonusDone(schoolMask) *
     /// BonusCoefficient)) * DoneTotalMod, 0))`.
     ///
-    /// Boundaries: `SpellDamagePctDone`'s versus-creature-type, aurastate and
-    /// target-aura-mechanic multipliers plus the `MOD_DAMAGE_DONE_FOR_MECHANIC`
-    /// and family-scripted terms are not modelled yet; the represented model
-    /// stores one `BonusCoefficient` per spell rather than per
+    /// Boundaries: the family-scripted damage terms are not modelled yet; the
+    /// represented model stores one `BonusCoefficient` per spell rather than per
     /// `SpellEffectInfo`; creature casters keep the raw value. A spell whose
-    /// `SpellMisc.SchoolMask` is unavailable also keeps the raw value.
+    /// `SpellMisc.SchoolMask` is unavailable also keeps the raw value. The
+    /// `effect_index` carries the C++ `SpellEffectInfo` whose mechanic feeds the
+    /// `MOD_DAMAGE_DONE_FOR_MECHANIC` term.
     pub(in crate::session) fn represented_spell_damage_bonus_done_like_cpp(
         &self,
         spell_id: i32,
+        effect_index: u32,
         caster_guid: ObjectGuid,
         target_guid: ObjectGuid,
         coefficient: f32,
@@ -476,9 +477,12 @@ impl WorldSession {
         else {
             return base_damage;
         };
-        let Some(done_total_mod) =
-            self.represented_spell_damage_pct_done_like_cpp(school_mask, target_guid)
-        else {
+        let Some(done_total_mod) = self.represented_spell_damage_pct_done_like_cpp(
+            spell_id,
+            effect_index,
+            school_mask,
+            target_guid,
+        ) else {
             return base_damage;
         };
         let done_total = (benefit as f32 * coefficient) as i32;
@@ -490,14 +494,23 @@ impl WorldSession {
     /// `maxModDamagePercentSchool` term (the highest published
     /// `ActivePlayerData::ModDamageDonePercent` among the spell's schools) times
     /// the `SPELL_AURA_MOD_DAMAGE_DONE_VERSUS` (168) multiplier for the victim's
-    /// creature type.
+    /// creature type, the `SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE` (303)
+    /// multiplier for every active victim aura state, the
+    /// `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE_BY_TARGET_AURA_MECHANIC` (249)
+    /// multiplier for every victim aura mechanic, and the additive
+    /// `SPELL_AURA_MOD_DAMAGE_DONE_FOR_MECHANIC` (276) percentage for the cast
+    /// effect's mechanic.
     ///
-    /// Boundary: the aurastate (303), target-aura-mechanic (249) and
-    /// `MOD_DAMAGE_DONE_FOR_MECHANIC` terms plus the family scripts remain
-    /// unrepresented, and a target whose creature type is unavailable keeps only
-    /// the school percentage.
+    /// Boundary: the family-scripted terms (`SPELLFAMILY_MAGE` Ice Lance,
+    /// `SPELLFAMILY_WARLOCK` Shadow Bite / Drain Soul) and the
+    /// `SPELL_ATTR3_IGNORE_CASTER_MODIFIERS` /
+    /// `SPELL_ATTR6_IGNORE_CASTER_DAMAGE_MODIFIERS` early-outs remain
+    /// unrepresented, and a target whose creature type, aura state or mechanics
+    /// cannot be resolved keeps only the multipliers that did resolve.
     fn represented_spell_damage_pct_done_like_cpp(
         &self,
+        spell_id: i32,
+        effect_index: u32,
         school_mask: u8,
         target_guid: ObjectGuid,
     ) -> Option<f32> {
@@ -535,7 +548,165 @@ impl WorldSession {
                 }
             }
         }
+        let target_mechanic_mask = self.represented_target_mechanic_mask_like_cpp(target_guid);
+        if target_mechanic_mask != 0 {
+            for (misc_value, amount) in self
+                .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                    wow_data::spell::aura_types::
+                        SPELL_AURA_MOD_DAMAGE_PERCENT_DONE_BY_TARGET_AURA_MECHANIC,
+                )
+                .unwrap_or_default()
+            {
+                if represented_mechanic_bit_like_cpp(misc_value)
+                    .is_some_and(|bit| target_mechanic_mask & bit != 0)
+                {
+                    max_mod *= 1.0 + amount as f32 / 100.0;
+                }
+            }
+        }
+        if let Some(mechanic) =
+            self.represented_spell_damage_mechanic_like_cpp(spell_id, effect_index)
+        {
+            let pct = self
+                .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_FOR_MECHANIC,
+                )
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|(misc_value, _)| *misc_value == mechanic)
+                .map(|(_, amount)| amount)
+                .sum::<i32>();
+            if pct != 0 {
+                max_mod *= 1.0 + pct as f32 / 100.0;
+            }
+        }
         Some(max_mod)
+    }
+
+    /// C++ `SpellEffectInfo::Mechanic` with `SpellInfo::Mechanic` as the
+    /// fallback, selected through the current map difficulty and its
+    /// `FallbackDifficultyID` chain. `None` when the caster's spell metadata is
+    /// unavailable or the spell carries no mechanic.
+    fn represented_spell_damage_mechanic_like_cpp(
+        &self,
+        spell_id: i32,
+        effect_index: u32,
+    ) -> Option<i32> {
+        let spell_store = self.spell_store()?;
+        let metadata = spell_store.hit_metadata_for_difficulty_like_cpp(
+            spell_id,
+            self.current_map_difficulty_id_like_cpp(),
+            self.difficulty_store().map(AsRef::as_ref),
+        )?;
+        let effect_mechanic = metadata
+            .effect_mechanics
+            .get(&effect_index)
+            .copied()
+            .unwrap_or(0);
+        let mechanic = if effect_mechanic != 0 {
+            effect_mechanic
+        } else {
+            i32::from(metadata.spell_mechanic)
+        };
+        (mechanic != 0).then_some(mechanic)
+    }
+
+    /// C++ `Unit::HasAuraWithMechanic` (`Unit.cpp:4714-4729`) for the
+    /// represented target: the union of every applied aura's
+    /// `SpellInfo::Mechanic` and the mechanics of its applied effects, `0` when
+    /// the target cannot be resolved.
+    fn represented_target_mechanic_mask_like_cpp(&self, target_guid: ObjectGuid) -> u64 {
+        if Some(target_guid) == self.player_guid() {
+            let Some(auras) = self.resolved_player_visible_auras_like_cpp() else {
+                return 0;
+            };
+            return auras.values().fold(0_u64, |mask, aura| {
+                mask | self.represented_aura_mechanic_mask_like_cpp(
+                    aura.spell_id,
+                    aura.difficulty_id,
+                    aura.effect_mask,
+                )
+            });
+        }
+        let Some(manager) = self.map_manager.as_ref() else {
+            return 0;
+        };
+        let difficulty_id = self.current_map_difficulty_id_like_cpp();
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let applied_auras = {
+            let manager = manager
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let Some(creature) =
+                manager.find_creature(self.player_map_id_like_cpp(), instance_id, target_guid)
+            else {
+                return 0;
+            };
+            creature
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .applied_auras
+                .clone()
+        };
+        applied_auras.iter().fold(0_u64, |mask, aura| {
+            mask | self.represented_aura_mechanic_mask_like_cpp(
+                i32::try_from(aura.spell_id).unwrap_or(0),
+                difficulty_id,
+                aura.effect_mask,
+            )
+        })
+    }
+
+    /// The mechanic bits contributed by one represented `AuraApplication`, as
+    /// C++ `Unit::HasAuraWithMechanic` reads them from the owning `SpellInfo`
+    /// and its `IsEffect()` slots.
+    ///
+    /// The player path uses the application's stored difficulty; a creature's
+    /// `AppliedAuraRef` does not retain one, so the current map difficulty is
+    /// used there.
+    fn represented_aura_mechanic_mask_like_cpp(
+        &self,
+        spell_id: i32,
+        difficulty_id: u8,
+        effect_mask: u32,
+    ) -> u64 {
+        let Some(spell_store) = self.spell_store() else {
+            return 0;
+        };
+        let difficulty_store = self.difficulty_store().map(AsRef::as_ref);
+        let Some(metadata) = spell_store.hit_metadata_for_difficulty_like_cpp(
+            spell_id,
+            difficulty_id,
+            difficulty_store,
+        ) else {
+            return 0;
+        };
+        let mut mask =
+            represented_mechanic_bit_like_cpp(i32::from(metadata.spell_mechanic)).unwrap_or(0);
+        let effects =
+            spell_store.effects_for_difficulty_like_cpp(spell_id, difficulty_id, difficulty_store);
+        for (effect_index, mechanic) in metadata.effect_mechanics {
+            let applied =
+                (1..32).contains(&effect_index) && effect_mask & (1_u32 << effect_index) != 0;
+            if !applied {
+                continue;
+            }
+            // C++ `SpellEffectInfo::IsEffect()`: `Effect != SPELL_EFFECT_NONE`.
+            let is_effect = effects.is_some_and(|effects| {
+                effects
+                    .iter()
+                    .any(|effect| effect.effect_index == effect_index && effect.effect != 0)
+            });
+            if is_effect {
+                mask |= represented_mechanic_bit_like_cpp(mechanic).unwrap_or(0);
+            }
+        }
+        mask
     }
 
     /// C++ `Unit::GetAuraState`/`HasAuraState` for the represented target: the
@@ -1094,4 +1265,11 @@ impl WorldSession {
 
         Ok(())
     }
+}
+
+/// C++ `UI64LIT(1) << mechanic`: the bit a positive mechanic occupies in a
+/// `Unit::HasAuraWithMechanic` mask. `None` for the unset or out-of-range
+/// mechanic values the represented runtime must fail closed on.
+fn represented_mechanic_bit_like_cpp(mechanic: i32) -> Option<u64> {
+    (1..64).contains(&mechanic).then(|| 1_u64 << mechanic)
 }
