@@ -611,6 +611,8 @@ pub struct PlayerStatChanges {
     pub mod_target_resistance: i32,
     /// C++ `ActivePlayerData::ModTargetPhysicalResistance` (bit 68).
     pub mod_target_physical_resistance: i32,
+    /// C++ `ActivePlayerData::VersatilityBonus` (bit 56).
+    pub versatility_bonus: f32,
     /// C++ `ActivePlayerData::OverrideSpellPowerByAPPercent` (bit 65).
     pub override_spell_power_by_ap_percent: f32,
     /// C++ `ActivePlayerData::OverrideAPBySpellPowerPercent` (bit 66).
@@ -671,6 +673,7 @@ impl Default for PlayerStatChanges {
             mod_spell_power_pct: 1.0,
             mod_target_resistance: 0,
             mod_target_physical_resistance: 0,
+            versatility_bonus: 0.0,
             override_spell_power_by_ap_percent: 0.0,
             override_ap_by_spell_power_percent: 0.0,
         }
@@ -729,6 +732,8 @@ pub struct PlayerCombatStats {
     pub mod_target_resistance: i32,
     /// C++ `ActivePlayerData::ModTargetPhysicalResistance`.
     pub mod_target_physical_resistance: i32,
+    /// C++ `ActivePlayerData::VersatilityBonus`.
+    pub versatility_bonus: f32,
     /// C++ `ActivePlayerData::OverrideSpellPowerByAPPercent`.
     pub override_spell_power_by_ap_percent: f32,
     /// C++ `ActivePlayerData::OverrideAPBySpellPowerPercent`.
@@ -774,6 +779,7 @@ impl Default for PlayerCombatStats {
             mod_healing_done_pct: 1.0,
             mod_target_resistance: 0,
             mod_target_physical_resistance: 0,
+            versatility_bonus: 0.0,
             override_spell_power_by_ap_percent: 0.0,
             override_ap_by_spell_power_percent: 0.0,
         }
@@ -860,6 +866,8 @@ pub struct PlayerCreateData {
     pub mod_target_resistance: i32,
     /// C++ `ActivePlayerData::ModTargetPhysicalResistance`.
     pub mod_target_physical_resistance: i32,
+    /// C++ `ActivePlayerData::VersatilityBonus`.
+    pub versatility_bonus: f32,
     /// C++ `ActivePlayerData::OverrideSpellPowerByAPPercent`.
     pub override_spell_power_by_ap_percent: f32,
     /// C++ `ActivePlayerData::OverrideAPBySpellPowerPercent`.

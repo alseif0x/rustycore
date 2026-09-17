@@ -112,6 +112,7 @@ fn zeroed_stat_changes() -> PlayerStatChanges {
         mod_spell_power_pct: 0.0,
         mod_target_resistance: 0,
         mod_target_physical_resistance: 0,
+        versatility_bonus: 0.0,
         override_spell_power_by_ap_percent: 0.0,
         override_ap_by_spell_power_percent: 0.0,
     }
@@ -173,6 +174,7 @@ fn test_player_create_data_with_farsight(farsight_object: ObjectGuid) -> PlayerC
         mod_healing_done_pct: 1.0,
         mod_target_resistance: 0,
         mod_target_physical_resistance: 0,
+        versatility_bonus: 0.0,
         override_spell_power_by_ap_percent: 0.0,
         override_ap_by_spell_power_percent: 0.0,
         visible_items: [(0, 0, 0); 19],

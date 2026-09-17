@@ -117,6 +117,9 @@ pub struct PlayerSpellBonusInputLikeCpp {
     /// product of `1 + amount/100` over the active
     /// `SPELL_AURA_MOD_HEALING_DONE_PERCENT` (136) effects, `1.0` when none.
     pub healing_done_percent: f32,
+    /// `SPELL_AURA_MOD_VERSATILITY` (471) sum, published as
+    /// `ActivePlayerData::VersatilityBonus`.
+    pub versatility_bonus_aura: i32,
     /// `SPELL_AURA_MOD_TARGET_RESISTANCE` (123) sums covering the full
     /// `SPELL_SCHOOL_MASK_SPELL`, published as `ModTargetResistance`.
     pub target_resistance_aura: i32,
@@ -141,6 +144,7 @@ impl Default for PlayerSpellBonusInputLikeCpp {
             override_spell_power_by_ap_pct: 0.0,
             damage_done_percent: [1.0; 7],
             healing_done_percent: 1.0,
+            versatility_bonus_aura: 0,
             target_resistance_aura: 0,
             item_spell_penetration: 0,
             target_physical_resistance_aura: 0,
@@ -274,6 +278,9 @@ pub struct PlayerStatSystemProjectionLikeCpp {
     pub mod_target_resistance: i32,
     /// C++ `ActivePlayerData::ModTargetPhysicalResistance`.
     pub mod_target_physical_resistance: i32,
+    /// C++ `ActivePlayerData::VersatilityBonus` (bit 56), clamped at zero by
+    /// `SetUpdateFieldStatValue`.
+    pub versatility_bonus: f32,
     /// C++ `ActivePlayerData::OverrideSpellPowerByAPPercent` (bit 65): the
     /// accumulated `SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT` amount, `0.0`
     /// when no such effect is active.
@@ -610,6 +617,7 @@ pub fn calculate_player_stat_system_like_cpp(
             .target_resistance_aura
             .saturating_sub(input.spell_bonus.item_spell_penetration),
         mod_target_physical_resistance: input.spell_bonus.target_physical_resistance_aura,
+        versatility_bonus: (input.spell_bonus.versatility_bonus_aura as f32).max(0.0),
         override_spell_power_by_ap_percent: input.spell_bonus.override_spell_power_by_ap_pct,
         override_ap_by_spell_power_percent: input
             .attack_power_override_by_spell_power_pct
@@ -1483,6 +1491,7 @@ mod tests {
                 damage_done_percent: [1.0, 3.0, 1.25, 1.0, 1.0, 1.0, 1.0],
                 // `UpdateHealingDonePercentMod` starts from 1.0.
                 healing_done_percent: 2.0,
+                versatility_bonus_aura: 200,
                 // `ModTargetResistance = aura - item penetration`.
                 target_resistance_aura: 20,
                 item_spell_penetration: 15,
@@ -1510,10 +1519,22 @@ mod tests {
         assert_eq!(projection.mod_target_physical_resistance, 30);
         assert_eq!(projection.override_spell_power_by_ap_percent, 0.0);
         assert_eq!(projection.override_ap_by_spell_power_percent, 0.0);
+        assert_eq!(projection.versatility_bonus, 200.0);
 
         // `SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT` replaces both bonuses with
         // `int32(CalculatePct(GetTotalAttackPowerValue(BASE_ATTACK), pct) + 0.5)`:
         // melee AP is `max(0, -20 + 500) = 480`, so 50% rounds to 240.
+        // `SetUpdateFieldStatValue` clamps a negative aura sum at zero.
+        let negative_versatility =
+            calculate_player_stat_system_like_cpp(PlayerStatSystemInputLikeCpp {
+                spell_bonus: PlayerSpellBonusInputLikeCpp {
+                    versatility_bonus_aura: -50,
+                    ..input.spell_bonus
+                },
+                ..input
+            });
+        assert_eq!(negative_versatility.versatility_bonus, 0.0);
+
         let overridden = calculate_player_stat_system_like_cpp(PlayerStatSystemInputLikeCpp {
             attack_power_flat_aura: 500,
             spell_bonus: PlayerSpellBonusInputLikeCpp {

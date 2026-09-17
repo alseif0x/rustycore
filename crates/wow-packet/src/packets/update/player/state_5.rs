@@ -186,7 +186,7 @@ pub(in crate::packets::update) fn write_active_player_data_values_update(
         buf.write_float(0.0); // bit 53: Avoidance
         buf.write_float(0.0); // bit 54: Sturdiness
         buf.write_int32(0); // bit 55: Versatility
-        buf.write_float(0.0); // bit 56: VersatilityBonus
+        buf.write_float(sc.versatility_bonus); // bit 56: VersatilityBonus
         buf.write_float(0.0); // bit 57: PvpPowerDamage
         buf.write_float(0.0); // bit 58: PvpPowerHealing
         buf.write_int32(sc.mod_healing_done_pos); // bit 59: ModHealingDonePos

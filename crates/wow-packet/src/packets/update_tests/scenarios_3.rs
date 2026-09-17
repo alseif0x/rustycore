@@ -60,6 +60,7 @@ fn active_player_stats_values_update_matches_cpp_common_runtime_masks() {
         mod_healing_done_pct: 1.5,
         mod_target_resistance: 5,
         mod_target_physical_resistance: 30,
+        versatility_bonus: 200.0,
         override_spell_power_by_ap_percent: 25.0,
         override_ap_by_spell_power_percent: 50.0,
         mod_periodic_healing_pct: 1.0,
@@ -112,6 +113,18 @@ fn active_player_stats_values_update_matches_cpp_common_runtime_masks() {
         ),
         stats.mod_healing_done_pct,
         "ModHealingDonePercent must be the represented multiplier"
+    );
+
+    // Parent-38 field 16 (bit 56) is VersatilityBonus.
+    let versatility_offset = values_start + 8 + 16 * 4;
+    assert_eq!(
+        f32::from_le_bytes(
+            bytes[versatility_offset..versatility_offset + 4]
+                .try_into()
+                .unwrap()
+        ),
+        stats.versatility_bonus,
+        "VersatilityBonus must be the represented aura sum"
     );
 
     // Parent-38 fields 25-28: the override percentages (bits 65-66) then the
