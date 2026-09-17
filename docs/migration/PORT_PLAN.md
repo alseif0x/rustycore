@@ -33,6 +33,15 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 white-swing damage roll — 2026-09-17, implementation `cdc6ea1a`:** the white
+swing now rolls `Unit::CalculateDamage`'s `urand(min, max)` over the published
+`UnitData` range instead of always using the lower bound; the rule lives in the
+shared receiver-free `session_rules` module, so both swing owners draw from it,
+and the draw only happens for a landed swing. The `RollMeleeOutcomeAgainst` hit
+table, `CalcArmorReducedDamage` mitigation and the `MeleeDamageBonusTaken` victim
+chain remain open. wow-world --lib 3964/0/1, world-server --lib 594/0/0; no live
+DB/restart/relogin QA.
+
 **#65 GameObject respawn-save test fidelity — 2026-09-17, implementation
 `192da738`:** the three `scenarios_9` GameObject respawn-save failures carried as
 pre-existing were stale test setups written against the pre-selection whole-store
