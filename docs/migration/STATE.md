@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`d3a242469baa7f1fe2e48d719b7928fb82a49e18` (PR #1111, the #29
-creature-to-player melee miss band, following PR #1109, the #29
+`3743387913ee46969de4aa9968a75bcd5f42cc10` (PR #1113, the #29
+creature-to-player dodge/parry/crit bands, following PR #1111, the #29
+creature-to-player melee miss band, PR #1109, the #29
 ignore-target-resist armour term, PR #1107, the #29 critical
 original-damage correction, PR #1105, the #29
 critical-damage-bonus aura, PR #1103, the #29 original-damage
@@ -25,6 +26,45 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 creature-to-player dodge/parry/crit bands — 2026-09-17, implementation
+`8eb3420f`, integrated as `37433879` by PR #1113:** C++
+`Unit::RollMeleeOutcomeAgainst` (`Unit.cpp:2272-2360`) resolves a player
+victim's avoidance from the published `DodgePercentage`/`ParryPercentage` and
+its sitting-target critical; the represented creature bridge only had the miss
+band, so a player could never dodge, parry or be critically hit by a creature.
+`RepresentedMeleeVictimFactsLikeCpp` gained `is_stand_state`,
+`RepresentedMeleeOutcomeInputsLikeCpp` an `always_crits` flag, and the
+player-victim branch of `melee_outcome_inputs_like_cpp` now gates
+`canDodge`/`canParryOrBlock` on `victim->HasInArc(M_PI, attacker)` and
+`UNIT_STATE_CONTROLLED`, applies the attacker's expertise and dodge reductions,
+and builds the critical band from `GetUnitCriticalChanceAgainst`;
+`melee_outcome_like_cpp` returns `Crit` before the avoidance bands when the
+sitting rule holds. The map-owned creature melee tick resolves the full
+attacker/victim facts from the spell store: the creature's `5.0` base critical
+(skipped while `CREATURE_FLAG_EXTRA_NO_CRIT` is set), its
+`MOD_WEAPON_CRIT_PERCENT`/`MOD_CRIT_PCT`, `MOD_AUTOATTACK_CRIT_CHANCE`,
+`MOD_EXPERTISE / 4` and combat-result/enemy-dodge sums, and the victim's
+attacker-melee hit/crit, crit-vs-target-health (`!HealthBelowPct(MiscValueB)`)
+and crit-for-caster (caster == attacker) sums;
+`player_aura_effects_full_by_spell_aura_type_like_cpp` is the new shared
+projection that also exposes `MiscValueB` and the caster, with the existing
+`(MiscValue, amount)` and caster wrappers delegating to it. Evidence: the inputs
+test pins the player victim's `18.5` dodge / `14.5` parry / `12` crit bands with
+their `(250, 2100, 3550, 4750)` edges, the facing/controlled gates, the sitting
+crit and the zero-critical counter-case; the production runtime scenario drives
+the victim's published stats and stand state to a dodge, a parry, a sitting crit
+(20 damage, `HITINFO_CRITICALHIT`, `original_damage 20`) and a `+100`
+crit-vs-health-aura crit. wow-world 3986/0/1, wow-packet 744/0, wow-entities
+940/0 and world-server 594/0/0 pass; format, `git diff --check` and the physical
+ratchet pass with `session/mod.rs` and `handlers/loot/handlers.rs` at their
+recorded ceilings, and `validation-v2 quick` (manifest
+`20260917T175105.344443Z-3063865-quick.json`) passes. Boundaries: a player
+victim's block band and armour mitigation stay out (the blocked damage needs C++
+`Player::GetBlockPercent`'s DB2 `ExpectedStatType::ArmorConstant` table), the
+target build's crushing term evaluates to a negative band, and without a spell
+store the runtime keeps the pre-table bridge. No live DB/restart/relogin QA. #29
+remains open for the remaining spell/melee math.
 
 **#29 creature-to-player melee miss band — 2026-09-17, implementation
 `51041a70`, integrated as `d3a24246` by PR #1111:** C++
