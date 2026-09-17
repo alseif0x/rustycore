@@ -26,6 +26,7 @@ impl Unit {
             unit_state: 0,
             base_attack_speed: [0; MAX_ATTACK],
             mod_attack_speed_pct: [1.0; MAX_ATTACK],
+            mod_autoattack_damage_pct: 1.0,
             attack_timer: [0; MAX_ATTACK],
             weapon_damage: [[BASE_MINDAMAGE, BASE_MAXDAMAGE]; MAX_ATTACK],
             can_dual_wield: false,

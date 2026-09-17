@@ -168,6 +168,10 @@ pub const SPELL_AURA_MOD_MINIMUM_SPEED: i32 = 305;
 pub const SPELL_AURA_MOD_MELEE_HASTE_3: i32 = 319;
 /// C++ `AuraType::SPELL_AURA_MOD_DURABILITY_LOSS` (`SpellAuraDefines.h:433`).
 pub const SPELL_AURA_MOD_DURABILITY_LOSS: i32 = 338;
+/// C++ `AuraType::SPELL_AURA_MOD_AUTOATTACK_DAMAGE`
+/// (`SpellAuraDefines.h:439`): `Unit::MeleeDamageBonusDone` (`Unit.cpp:7620-7627`)
+/// adds each active effect's percentage to the auto-attack damage.
+pub const SPELL_AURA_MOD_AUTOATTACK_DAMAGE: i32 = 344;
 pub const SPELL_AURA_MOD_SPEED_NO_CONTROL: i32 = 373;
 pub const SPELL_AURA_MOD_MANA_REGEN_PCT: i32 = 379;
 pub const SPELL_AURA_SCHOOL_HEAL_ABSORB: i32 = 301;

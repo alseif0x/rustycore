@@ -219,7 +219,9 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
             is_unit_facing_target_for_melee_like_cpp(attacker_position, victim_position);
 
         // The timer is consumed here, after range and facing, exactly where the
-        // session consumed it.
+        // session consumed it. C++ `Unit::MeleeDamageBonusDone`'s auto-attack
+        // percentage term is read from the Player-owned multiplier the owning
+        // session keeps in sync with its auras.
         let Some(player) = map.get_typed_player_mut(attacker.player_guid) else {
             outcome.attacker_unavailable += 1;
             continue;

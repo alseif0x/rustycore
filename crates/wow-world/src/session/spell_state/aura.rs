@@ -485,10 +485,20 @@ impl WorldSession {
     /// `Unit::ApplyAttackTimePercentMod` at apply/remove time.
     pub(in crate::session) fn sync_represented_attack_speed_like_cpp(&mut self) {
         let multipliers = self.represented_attack_speed_multipliers_like_cpp();
+        // C++ computes `Unit::MeleeDamageBonusDone`'s auto-attack factor from the
+        // attacker's auras on every swing; the represented model keeps the same
+        // value on the canonical Player so the map-owned swing path can apply it
+        // without the spell store. This session is its only writer.
+        let autoattack_damage_multiplier = self
+            .represented_player_autoattack_damage_multiplier_like_cpp()
+            .max(0.0);
         let _ = self.mutate_canonical_player_like_cpp(|player| {
             player
                 .unit_mut()
                 .apply_attack_time_multipliers_like_cpp(multipliers);
+            player
+                .unit_mut()
+                .set_mod_autoattack_damage_pct_like_cpp(autoattack_damage_multiplier);
         });
     }
 
@@ -823,29 +833,15 @@ impl WorldSession {
     ) -> Option<Vec<(i32, i32)>> {
         let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
         let spell_store = self.spell_store()?;
-        let mut effects = Vec::new();
-        for aura in visible_auras.values() {
-            let Some(spell) = spell_store.get(aura.spell_id) else {
-                continue;
-            };
-            for effect in spell.effects().iter().filter(|effect| {
-                effect.effect_aura == aura_type
-                    && 1u32
-                        .checked_shl(effect.effect_index)
-                        .is_some_and(|bit| aura.effect_mask & bit != 0)
-            }) {
-                let amount = aura
-                    .represented_effect_amounts
-                    .iter()
-                    .find(|represented| {
-                        u8::try_from(effect.effect_index).ok() == Some(represented.effect_index)
-                    })
-                    .map(|represented| represented.amount)
-                    .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
-                effects.push((effect.effect_misc_value_1, amount));
-            }
-        }
-        Some(effects)
+        // Delegates to the receiver-free projection the map-owned swing path
+        // uses, so both owners resolve the same canonical auras identically.
+        Some(
+            crate::session_rules::player_aura_effects_by_spell_aura_type_like_cpp(
+                &visible_auras,
+                spell_store,
+                aura_type,
+            ),
+        )
     }
     /// Resolve active aura effects of `aura_type` paired with their owning
     /// spell id. C++ `GetTotalAuraModifier(aurType, predicate)` filters the

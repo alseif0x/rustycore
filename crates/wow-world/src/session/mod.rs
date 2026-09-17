@@ -18240,6 +18240,10 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
     facing_target: bool,
     within_los: bool,
 ) -> Option<(Vec<u32>, Option<Option<u8>>)> {
+    // C++ `Unit::MeleeDamageBonusDone`'s `SPELL_AURA_MOD_AUTOATTACK_DAMAGE`
+    // product, written by the owning session and read here so both swing owners
+    // apply the same value.
+    let autoattack_damage_multiplier = player.unit().mod_autoattack_damage_pct_like_cpp();
     // C++ `DoMeleeAttackIfReady` reads UnitData damage ranges that were
     // recalculated by `UpdateDamagePhysical` after equipment changes. The
     // Player-owned effective snapshot is the canonical Rust equivalent; take
@@ -18313,7 +18317,11 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
                     let _ = unit.finish_spell(wow_entities::CurrentSpellSlot::Melee);
                 } else {
                     let [min_damage, max_damage] = base_weapon_damage;
-                    swings.push(min_damage.max(1.0).min(max_damage.max(1.0)).round() as u32);
+                    swings.push(represented_white_swing_damage_like_cpp(
+                        min_damage,
+                        max_damage,
+                        autoattack_damage_multiplier,
+                    ));
                 }
             }
             unit.reset_attack_timer_like_cpp(WeaponAttackType::BaseAttack);
@@ -18337,7 +18345,11 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
             if melee_state_update_allowed {
                 unit.remove_attacking_interrupt_auras_like_cpp();
                 let [min_damage, max_damage] = offhand_weapon_damage;
-                swings.push(min_damage.max(1.0).min(max_damage.max(1.0)).round() as u32);
+                swings.push(represented_white_swing_damage_like_cpp(
+                    min_damage,
+                    max_damage,
+                    autoattack_damage_multiplier,
+                ));
             }
             unit.reset_attack_timer_like_cpp(WeaponAttackType::OffAttack);
         }
@@ -18508,6 +18520,19 @@ pub(crate) struct PlayerMeleeCreatureHitLikeCpp {
 /// These were `impl WorldSession` associated functions taking no `self`. The
 /// global legacy loop has no session, so #28 lifts them to module level
 /// unchanged; the arithmetic and the C++ anchors are untouched.
+/// C++ `Unit::MeleeDamageBonusDone`'s tail for the represented white swing:
+/// take the `UnitData` range the way the represented model already did and
+/// multiply by the attacker's `SPELL_AURA_MOD_AUTOATTACK_DAMAGE` factor
+/// (`Unit.cpp:7620-7627`, `7666-7667`).
+fn represented_white_swing_damage_like_cpp(
+    min_damage: f32,
+    max_damage: f32,
+    autoattack_damage_multiplier: f32,
+) -> u32 {
+    let rolled = min_damage.max(1.0).min(max_damage.max(1.0));
+    (rolled * autoattack_damage_multiplier).max(1.0).round() as u32
+}
+
 fn is_within_melee_range_like_cpp(
     attacker_position: Position,
     attacker_combat_reach: f32,
