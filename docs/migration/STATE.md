@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`ede81837fb66cedef3c764fa9b05a2374e404eb5` (PR #1089, the #29 melee block band,
-following PR #1087, the #29 melee attack
+`9bcb8bef39b9642a7a996246daa941a9562a0bd2` (PR #1091, the #29 victim-side melee
+damage-taken chain, following PR #1089, the #29 melee block band,
+PR #1087, the #29 melee attack
 table, PR #1085, the #29 white-swing armour
 mitigation, PR #1083, the #29 white-swing
 damage roll, PR #1081, the #65 GameObject
@@ -14,6 +15,48 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 victim-side melee damage-taken chain — 2026-09-17, implementation
+`45b7571c`, integrated as `9bcb8bef` by PR #1091:** C++
+`Unit::CalculateMeleeDamage` (`Unit.cpp:1326-1334`) runs the victim's
+`Unit::MeleeDamageBonusTaken` (`Unit.cpp:1687-1759`) between the done bonus and
+the armour reduction; the represented white swing skipped the whole victim-side
+chain because no rule could read a creature's applied auras.
+`session_rules::creature_aura_effects_like_cpp` now resolves every active effect
+of a creature's `AppliedAuraRef` list at the caller's difficulty (the player
+projection's counterpart, and the first creature-aura-effect consumer beyond the
+mechanic mask), and `session_rules::melee_damage_taken_flat_pct_like_cpp`
+assembles `MeleeDamageBonusTaken` for a white swing: the normal-school
+`SPELL_AURA_MOD_DAMAGE_TAKEN` (14) and `SPELL_AURA_MOD_MELEE_DAMAGE_TAKEN` (125)
+flat sums, the `SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN` (87),
+`SPELL_AURA_MOD_MELEE_DAMAGE_FROM_CASTER` (343) and
+`SPELL_AURA_MOD_MELEE_DAMAGE_TAKEN_PCT` (126) multipliers, and the Sanctified
+Wrath bypass from the attacker's `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` (269);
+`melee_damage_taken_apply_like_cpp` applies the C++ tail, including the early
+return when the negative flat benefit absorbs the hit. Both owners resolve the
+inputs — the session from the target creature's applied auras plus the attacker's
+ignore-resist sum, the map-owned `GlobalLegacy` runtime from its creature
+snapshot and the attacker's auras. Boundary: the fixed cheat-death aura (45182),
+the ranged variants and every `spellProto` branch cannot apply to a represented
+white swing, the versatility term is commented out in the 3.4.3 source itself,
+and a canonical-player victim keeps `NONE` like the other creature-only victim
+terms. Evidence: `creature_aura_effects_resolve_the_applied_mask_like_cpp` pins
+the effect-mask projection, `melee_damage_taken_matches_cpp_like_cpp` pins the
+flat sums, the school/caster/pct multipliers, the negative-flat clamp and the
+ignore-resist bypass,
+`white_swing_applies_victim_melee_damage_taken_like_cpp` drives the session owner
+100 -> 50 (flat) -> 25 (pct) -> 50 (bypass), and the production owner
+`map_owned_player_melee_applies_victim_melee_damage_taken_like_cpp` holds the
+map-owned tick to the flat half; wow-packet 744/0, wow-data 753/0, wow-entities
+940/0, wow-world 3978/0/1 (three consecutive runs) and world-server 594/0/0 pass;
+format, `git diff --check` and the physical ratchet pass (one recorded ten-line
+ceiling growth), and `validation-v2 quick` (manifest
+`20260917T143743.670941Z-2898243-quick.json`) passes. `validation-v2 final` stops
+only at the pre-existing `hotspot-ratchet` baseline failure (manifest
+`20260917T143842.381692Z-2898605-final.json`). No live DB/restart/relogin QA. The
+represented melee attacker and victim chains of `CalculateMeleeDamage` are now
+complete for creature victims; #29 remains open for the remaining spell/melee
+math (melee haste/cooldown consumers, ranged auto-attack, proc/scripted terms).
 
 **#29 melee block band — 2026-09-17, implementation `91c3df70`, integrated as
 `ede81837` by PR #1089:** C++ `Unit::CalculateMeleeDamage`'s `MELEE_HIT_BLOCK`
@@ -146,9 +189,9 @@ pass, and `validation-v2 quick` (manifest
 `20260917T124035.688694Z-2724130-quick.json`) passes. `validation-v2 final` stops
 only at the pre-existing `hotspot-ratchet` baseline failure (manifest
 `20260917T124051.127247Z-2724225-final.json`). No live DB/restart/relogin QA. #29
-remains open for the `RollMeleeOutcomeAgainst` hit table (delivered by the entry
-above), the `MeleeDamageBonusTaken` victim chain and the remaining spell/melee
-math.
+remains open for the `RollMeleeOutcomeAgainst` hit table and the
+`MeleeDamageBonusTaken` victim chain (both delivered by the entries above) and the
+remaining spell/melee math.
 
 **#29 white-swing damage roll — 2026-09-17, implementation `cdc6ea1a`, integrated
 as `eae76cf2` by PR #1083:** C++ `Unit::CalculateMeleeDamage`
