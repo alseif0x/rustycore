@@ -1086,6 +1086,141 @@ async fn weapon_damage_pct_follows_update_damage_pct_done_mods_like_cpp() {
 }
 
 #[tokio::test]
+async fn weapon_fit_resolves_the_ranged_weapon_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 62_000);
+    let bow_guid = ObjectGuid::create_item(1, 62_000);
+    let bow_id = 62_000u32;
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 3, 80, 0);
+    session.set_player_stats(Arc::new(wow_data::PlayerStatsStore::from_entries([(
+        (1, 3, 80),
+        wow_data::PlayerLevelStats {
+            strength: 10,
+            agility: 10,
+            stamina: 10,
+            intellect: 40,
+            spirit: 30,
+            base_mana: 0,
+        },
+    )])));
+    session.set_chr_classes_store(Arc::new(
+        wow_data::character_progression::ChrClassesStore::from_entries([{
+            let mut entry = wow_data::character_progression::ChrClassesEntry::default();
+            entry.id = 3;
+            entry
+        }]),
+    ));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    session.set_loaded_player_identity_like_cpp(571, 1, 3, 80, 0);
+    session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
+        id: bow_id,
+        class_id: ItemClass::Weapon as u8,
+        subclass_id: ItemSubClassWeapon::Bow as u8,
+        material: 0,
+        inventory_type: InventoryType::Ranged as i8,
+        sheathe_type: 0,
+        random_select: 0,
+        random_suffix_group_id: 0,
+        scaling_stat_distribution_id: 0,
+        scaling_stat_value: 0,
+    }])));
+    session.set_item_stats_store(Arc::new(ItemStatsStore::from_parts(
+        [(
+            bow_id,
+            ItemStatEntry {
+                stats: std::array::from_fn(|_| (wow_constants::ItemModType::None as i8, 0)),
+                resistances: [0; 7],
+                armor: 0,
+            },
+        )],
+        [],
+    )));
+
+    // `SPELL_AURA_MOD_WEAPON_CRIT_PERCENT` (52) and
+    // `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE` (79), both restricted to bows.
+    let mut spell_store = wow_data::SpellStore::new();
+    for (spell_id, aura_type, amount) in [(90_940, 52, 5), (90_941, 79, 100)] {
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: amount,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(aura_type),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: aura_type,
+                    effect_misc_value_1: if aura_type == 79 { 1 } else { 0 },
+                    effect_base_points: amount,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    session.set_spell_store(Arc::new(spell_store));
+    session.set_spell_equipped_items_store(Arc::new(SpellEquippedItemsStore::from_entries([
+        SpellEquippedItemsEntry {
+            id: 1,
+            spell_id: 90_940,
+            equipped_item_class: ItemClass::Weapon as i8,
+            equipped_item_inv_types: 0,
+            equipped_item_subclass: 1_i32 << (ItemSubClassWeapon::Bow as u32),
+        },
+        SpellEquippedItemsEntry {
+            id: 2,
+            spell_id: 90_941,
+            equipped_item_class: ItemClass::Weapon as i8,
+            equipped_item_inv_types: 0,
+            equipped_item_subclass: 1_i32 << (ItemSubClassWeapon::Bow as u32),
+        },
+    ])));
+    session.set_state(crate::session::SessionState::LoggedIn);
+    let bow = session.make_inventory_item_object(
+        bow_guid,
+        bow_id,
+        player_guid,
+        1,
+        0,
+        ItemContext::None,
+        wow_entities::EQUIPMENT_SLOT_RANGED,
+    );
+    session.insert_inventory_item_object(bow);
+    session.insert_inventory_item_like_cpp(
+        wow_entities::EQUIPMENT_SLOT_RANGED,
+        InventoryItem {
+            guid: bow_guid,
+            entry_id: bow_id,
+            db_guid: bow_guid.counter() as u64,
+            inventory_type: Some(InventoryType::Ranged as u8),
+        },
+    );
+    for spell_id in [90_940, 90_941] {
+        session
+            .apply_aura(spell_id, player_guid, 30_000, 1)
+            .expect("apply bow-restricted aura");
+    }
+    let _ = session.send_stat_update();
+    let stats = session
+        .canonical_player_effective_combat_stats_like_cpp()
+        .expect("ranged fit projection");
+    // `GetWeaponForAttack(RANGED_ATTACK, true)` resolves the equipped bow, so
+    // both restricted auras apply to the ranged attack only.
+    assert_eq!(stats.ranged_crit_pct, 10.0);
+    assert_eq!(stats.crit_pct, 5.0);
+    assert_eq!(stats.offhand_crit_pct, 5.0);
+    assert_eq!(stats.weapon_damage_pct, [1.0, 0.5, 2.0]);
+}
+
+#[tokio::test]
 async fn school_resistances_follow_update_resistances_like_cpp() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 61_500);

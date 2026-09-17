@@ -29,17 +29,19 @@ impl WorldSession {
             })
     }
 
-    /// C++ `Player::GetWeaponForAttack(attack, true)`
-    /// (`Player.cpp:9243-9270`) for the weapon slots that supply
-    /// `Player::UpdateExpertise` (`StatSystem.cpp:759-786`): the equipped item
-    /// in the mainhand/offhand slot, rejected when it is broken. The
-    /// represented equip path already enforces `CanUseItem`, and
-    /// `RANGED_ATTACK` returns early in C++.
+    /// C++ `Player::GetWeaponForAttack(attack, true)` (`Player.cpp:9243-9270`):
+    /// the equipped, non-broken item of the attack's weapon slot. Callers that
+    /// mirror `Player::UpdateExpertise` (`StatSystem.cpp:759-786`) still skip
+    /// `RANGED_ATTACK` themselves, because C++ returns early there; the
+    /// weapon-fit producers (`UpdateWeaponDependentCritAuras`,
+    /// `UpdateDamageDoneMods`, `UpdateDamagePctDoneMods`) do resolve the ranged
+    /// weapon through this helper.
     fn represented_usable_weapon_item_id_like_cpp(&self, attack: WeaponAttackType) -> Option<u32> {
         let slot = match attack {
             WeaponAttackType::BaseAttack => EQUIPMENT_SLOT_MAINHAND,
             WeaponAttackType::OffAttack => EQUIPMENT_SLOT_OFFHAND,
-            WeaponAttackType::RangedAttack | WeaponAttackType::Max => return None,
+            WeaponAttackType::RangedAttack => EQUIPMENT_SLOT_RANGED,
+            WeaponAttackType::Max => return None,
         };
         let item = self.resolved_inventory_item_like_cpp(slot)?;
         self.resolved_inventory_item_object_like_cpp(item.guid)
