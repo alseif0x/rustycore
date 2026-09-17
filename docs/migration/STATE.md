@@ -1,7 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`40b9e081faf1adfc6b82c27228f080faf035f682` (PR #1150, the #29
+`1f25ce5ba06299e2b070d6a343b1eedb4d03030c` (PR #1153, the #584 session
+syntax-ownership baseline reconciliation and architecture-acceptance
+continuation, following PR #1150, the #29
 creature-victim immunity scenario, following PR #1148, the #29
 melee physical-immunity gate, PR #1144, the #29
 ExpectedStat table load, PR #1142, the #29
@@ -41,6 +43,42 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#584 session ownership baseline reconciliation — 2026-09-17, implementation
+`0774178f`, integrated as `1f25ce5b` by PR #1153:** `session-ownership-check
+check --syntax-only` had been red at every integration head since the policy was
+last reconciled (`ef1a7b3d`, PR #950, 2026-09-15), and the mask was structural:
+`validation-v2`'s `run_steps` stops at the first failure while the
+`--architecture` plan runs `architecture-policy-acceptance` before
+`session-syntax-acceptance`, so the open hotspot-ratchet breach aborted the
+manifest before the ownership command ever ran. The policy was regenerated with
+the reviewed generator (`print-baseline`) after a row-by-row review of the whole
+delta: fields 649->652 (three private production fields), impl items 3807->3912
+(105 session/handler methods plus seven retyped signatures), generated inputs
+54->57 (three `#[must_use]`), direct-registry rows 626->630 and bridges 77->80
+(two `cfg(test)` fixtures plus the #953
+`run_legacy_creature_runtime_tick_with_input_and_deliver_once_like_cpp`
+boundary). The delta is additive; the only retired rows are the nine registry
+escapes of the #953 rename, re-recorded under the new name, so no previously
+reviewed bridge, field or direct-registry escape was dropped and no new
+unreviewed legacy/canonical dual-write entered the inventory. `run_steps` now
+honours `continue_to_section_on_failure` (the `--architecture` policy step names
+`session-syntax-acceptance`, the audit plan's policy step names
+`session-persistence-ratchet`), so the first failure keeps its exit code and the
+fail-fast budget while the independent verdict is still recorded. Evidence at
+`1f25ce5b`: `check --syntax-only` PASS (222 production + 430 test-fixture
+WorldSession fields; 69 impl owners / 3912 exact associated items; 8
+SessionResources fields; 41 SessionCommand variants; 630 exact direct-registry
+rows); `validation-v2 final --base origin/3.4.3 --architecture --timings` 81.2 s,
+exit 1, with `architecture-policy-acceptance` failing on the pre-existing
+hotspot ratchet (`crates/wow-world/src/session/mod.rs` 197853 -> 213571 total
+lines) and `session-syntax-acceptance` passing, 2 of 7 planned steps executed;
+`validation-v2 quick` PASS; `python3 tools/test_validation_v2.py` PASS; physical
+ratchet PASS (2233 files). Limits: the hotspot ratchet stays red because its
+growth is real accumulated LOC and bumping its baseline would hide the debt the
+ratchet exists to expose; the exhaustive `session-ownership-check check`
+persistence inventory was not completed inside the local window and remains the
+audit profile's evidence. #584 is not closed by this slice.
 
 **#29 melee chain verification — 2026-09-17, head `b0cb59c6`, no code change:**
 the integration branch was re-verified after the nine #29 rounds merged in this
@@ -2824,7 +2862,9 @@ world-server` pass. The architecture syntax ownership baseline remains the
 pre-existing stale set from #958/#962 and was not regenerated; this slice
 renames the already-unreviewed mana-regen Session field/setter and adds the
 health tick method, so `session-ownership-check --syntax-only` stays red on the
-same drift. #61 remains open for `IsPolymorphed`/`m_transformSpell`, alternate
+same drift. (Superseded 2026-09-17 by PR #1153: the reviewed baseline delta was
+reconciled from `print-baseline` and `session-ownership-check check
+--syntax-only` passes at `1f25ce5b`.) #61 remains open for `IsPolymorphed`/`m_transformSpell`, alternate
 powers, `Rate.Health`/`Rate.Mana` config overrides, observer
 `SendMessageToSet` packet-type parity, productive wear-to-broken, aura-backed
 expertise and live DB/restart/relogin QA.

@@ -33,6 +33,18 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#584 session ownership baseline reconciliation — 2026-09-17, implementation
+`0774178f`:** the syntax-ownership policy was reconciled from the reviewed
+`print-baseline` delta (fields 649->652, impl items 3807->3912, direct-registry
+rows 626->630, bridges 77->80; only the #953 rename's nine registry rows
+retired, nothing else dropped), so `session-ownership-check check --syntax-only`
+passes again (630 exact direct-registry rows). `validation-v2` steps may now
+declare `continue_to_section_on_failure`, which stops the red
+architecture-policy step from hiding the ownership verdict: `final
+--architecture` records both, policy red on real hotspot LOC growth and
+syntax-ownership green. The hotspot ratchet stays unreconciled by design and the
+exhaustive persistence inventory stays an audit-profile item.
+
 **#29 creature-victim immunity scenario — 2026-09-17, implementation
 `65269938`:** the creature-victim bands scenario now applies a normal-school
 `SPELL_AURA_SCHOOL_IMMUNITY` aura and requires no hit, zero damage and the plan
