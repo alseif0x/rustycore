@@ -303,6 +303,45 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
     assert exit_code == 19
     assert [outcome["section"] for outcome in outcomes] == ["pass", "fail"]
 
+    # An independent acceptance named by a red step still runs, the run keeps
+    # the first failure's exit code, and steps after the named one do not run.
+    paired = [
+        {
+            "section": "policy",
+            "argv": [sys.executable, "-c", "raise SystemExit(19)"],
+            "continue_to_section_on_failure": "ownership",
+        },
+        {"section": "intermediate", "argv": [sys.executable, "-c", "pass"]},
+        {"section": "ownership", "argv": [sys.executable, "-c", "pass"]},
+        {"section": "must-not-run", "argv": [sys.executable, "-c", "raise SystemExit(99)"]},
+    ]
+    outcomes, exit_code = runner.run_steps(repo, paired, base_env, 30)
+    assert exit_code == 19
+    assert [outcome["section"] for outcome in outcomes] == ["policy", "intermediate", "ownership"]
+    both_red = [
+        {
+            "section": "policy",
+            "argv": [sys.executable, "-c", "raise SystemExit(19)"],
+            "continue_to_section_on_failure": "ownership",
+        },
+        {"section": "ownership", "argv": [sys.executable, "-c", "raise SystemExit(23)"]},
+        {"section": "must-not-run", "argv": [sys.executable, "-c", "pass"]},
+    ]
+    outcomes, exit_code = runner.run_steps(repo, both_red, base_env, 30)
+    assert exit_code == 19
+    assert [outcome["section"] for outcome in outcomes] == ["policy", "ownership"]
+    missing_target = [
+        {
+            "section": "policy",
+            "argv": [sys.executable, "-c", "raise SystemExit(19)"],
+            "continue_to_section_on_failure": "absent",
+        },
+        {"section": "sibling", "argv": [sys.executable, "-c", "pass"]},
+    ]
+    outcomes, exit_code = runner.run_steps(repo, missing_target, base_env, 30)
+    assert exit_code == 19  # A target that never arrives cannot yield a green run.
+    assert [outcome["section"] for outcome in outcomes] == ["policy", "sibling"]
+
     zero_exit_timeout = [
         {
             "section": "trapped-timeout",
@@ -630,6 +669,8 @@ def test_planner_contract(repo: Path) -> None:
         "capture-loot-contract",
         "capture-creature-spell-contract",
     ]
+    policy_step = next(step for step in audit if step["section"] == "architecture-policy-check")
+    assert policy_step["continue_to_section_on_failure"] == "session-persistence-ratchet"
     assert not any("check_architecture.py" in " ".join(command) for command in quick)
     assert not any("session-ownership-check" in " ".join(command) for command in final)
 
@@ -808,6 +849,10 @@ def test_architecture_plan_contract() -> None:
         assert plan["planned_steps"] == first
         actual = plan["planned_commands"]
         assert actual == [step["argv"] for step in first]
+        # The policy step names the ownership step, so a ratchet breach cannot
+        # hide the ownership verdict.
+        assert first[0]["continue_to_section_on_failure"] == "session-syntax-acceptance"
+        assert all("continue_to_section_on_failure" not in step for step in first[1:])
         assert actual[0] == [*checker, "check", "--self-test"]
         assert actual[1] == [
             "cargo", "run", "--release", "--locked", "--manifest-path", runner.CHECKER_MANIFEST,

@@ -47,7 +47,11 @@ in-process inventories and per-file physical counts are reused, with no persiste
 cache. Freeze source inputs for the invocation; the next invocation reads them anew.
 The runner also executes
 `session-ownership-check check --syntax-only`; both commands and their durations appear in
-the same final manifest. Existing workspace compilation, test targets and test execution
+the same final manifest, and the policy step declares the syntax-ownership step as its
+continuation. A red policy step therefore still runs the ownership command and the manifest
+records both failures with the policy step's exit code; without that continuation a policy
+breach, such as the reviewed-but-open hotspot ratchet, hides the ownership verdict. Existing
+workspace compilation, test targets and test execution
 are unchanged. Do not run those architecture commands separately again for the same inputs.
 The flag also honors an explicit request when there are no changed paths. It does not cover
 exhaustive persistence inventory, terminal physical closeout, production integration or live
