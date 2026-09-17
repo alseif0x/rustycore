@@ -33,6 +33,15 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**Collection appearance `CanUseItem` template gates — 2026-09-17, implementation
+`a2c8c3bb`:** `CollectionMgr::CanAddAppearance` now also applies the represented
+`Player::CanUseItem(ItemTemplate const*)` gates (`Player.cpp:11069-11125`):
+internal and faction flags, allowable race, required level, required skill/rank
+and required ability. Holiday, reputation, the learning-effect pair and artifact
+specialization remain separate. This keeps the collection admission on the same
+template contract as C++ without changing the #584 → #583 → #153 architecture
+gate.
+
 **Collection appearance weapon-proficiency gate — 2026-09-17, implementation
 `4ba42678`:** `CollectionMgr::CanAddAppearance` now reads the learned
 `Player::GetWeaponProficiency` mask (`Player.cpp:649-699`) instead of the class
