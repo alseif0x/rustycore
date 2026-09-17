@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`e533de81ac45f0afc6992c584ecf885607aca589` (PR #1107, the #29 critical
-original-damage correction, following PR #1105, the #29
+`042084aeea1e573f97c98821024caeb1dc98c98c` (PR #1109, the #29
+ignore-target-resist armour term, following PR #1107, the #29 critical
+original-damage correction, PR #1105, the #29
 critical-damage-bonus aura, PR #1103, the #29 original-damage
 publication, PR #1101, the #29 melee evade
 outcome, PR #1099, the #29 controlled-victim
@@ -23,6 +24,35 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 ignore-target-resist armour term — 2026-09-17, implementation `73140a7c`,
+integrated as `042084ae` by PR #1109:** C++ `Unit::CalcArmorReducedDamage`
+(`Unit.cpp:1646-1651`) shrinks the victim's armour with
+`std::floor(AddPct(armor, -amount))` for every attacker
+`SPELL_AURA_MOD_IGNORE_TARGET_RESIST` effect whose `MiscValue` covers the
+attacker's school; the represented armour step resolved only the
+`SPELL_AURA_MOD_TARGET_RESISTANCE` sum and the CR_ARMOR_PENETRATION rating, and
+its doc comment claimed the aura had no represented producer even though the
+same attacker aura already feeds the `MeleeDamageBonusTaken` Sanctified Wrath
+bypass. The term now runs after the target-resistance sum and before the rating
+penetration, in C++ order. `armor_reduced_damage_like_cpp` gained the parameter,
+`RepresentedArmorMitigationLikeCpp` the field, and both owners (the session path
+and the map-owned `GlobalLegacy` runtime) resolve the normal-school sum from the
+attacker's auras. Boundary: C++ truncates each effect separately while the owner
+sums the amounts first, so two concurrent effects differ by that per-step
+truncation, and `SPELL_AURA_BYPASS_ARMOR_FOR_CASTER` stays unrepresented.
+Evidence: the armour test pins 860 for a 50% sum over 5,000 armour, 1,000 for
+100% and 671 for a negative amount; the session scenario walks a non-normal
+ignore row (no change), the normal 50% row (753 → 860), a non-normal
+target-resistance row (still 860) and the normal target-resistance row that
+cancels the armour (1,000); and the production-owner runtime scenario
+`map_owned_player_melee_applies_attacker_ignore_target_resist_like_cpp` drives
+the map-owned tick to the same 860. wow-world 3985/0/1, wow-entities 940/0 and
+world-server 594/0/0 pass; format, `git diff --check` and the physical ratchet
+pass with `session/mod.rs` exactly at its recorded 18,981 ceiling, and
+`validation-v2 quick` (manifest `20260917T161620.682511Z-3011389-quick.json`)
+passes. No live DB/restart/relogin QA. #29 remains open for the remaining
+spell/melee math.
 
 **#29 critical original-damage correction — 2026-09-17, implementation `87b8132f`,
 integrated as `e533de81` by PR #1107:** C++ `Unit::CalculateMeleeDamage` assigns
