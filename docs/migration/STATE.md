@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`9cc0ea20fcee1f058c5933294936a18ed7a4992b` (PR #1085, the #29 white-swing armour
-mitigation, following PR #1083, the #29 white-swing
+`08e27329247a3d613a8966c2ada63c201070982a` (PR #1087, the #29 melee attack
+table, following PR #1085, the #29 white-swing armour
+mitigation, PR #1083, the #29 white-swing
 damage roll, PR #1081, the #65 GameObject
 respawn-save test fidelity fix, PR #1079, the #61 victim
 aurastate/aura-mechanic melee bonuses, PR #1077, the #61 melee
@@ -12,6 +13,63 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 melee attack table — 2026-09-17, implementation `e478a2b7`, integrated as
+`08e27329` by PR #1087:** C++ `Unit::CalculateMeleeDamage`
+(`Unit.cpp:1341-1343`) rolls `Unit::RollMeleeOutcomeAgainst`
+(`Unit.cpp:2272-2378`) after mitigation and applies the outcome switch
+(`1345-1440`); the represented white swing always landed as a normal hit, so
+nothing could miss, be dodged, parried, glance or crit and the published
+`SMSG_ATTACKERSTATEUPDATE` always carried the plain hit flags. The new
+`session_rules/rules_4.rs` owns the represented table — the band order
+`MISS > DODGE > PARRY > GLANCING > CRIT > HIT` in C++'s 1/10000 units with its
+`int32(chance * 100.0f)` truncation and gated bands, the outcome damage switch
+(avoids to zero, glancing `1 - min(leveldiff, 3) * 0.1`, crit double) and the
+`HitInfo`/`TargetState` presentation — while `melee_outcome_inputs_like_cpp`
+assembles every chance from attacker/victim facts so both owners share one rule.
+`Creature` gained `CreatureAvoidanceLikeCpp` (its C++
+`GetUnitDodgeChance`/`GetUnitParryChance`/`GetUnitBlockChance` bases), seeded by
+`apply_lifecycle_record` from the template and its `NO_PARRY`/`NO_BLOCK` flags,
+and `PlayerEffectiveCombatStatsLikeCpp` gained `melee_hit_chance_pct`
+(`m_modMeleeHitChance`), so the map runtime resolves the miss band without a
+combat-ratings table. `take_canonical_player_attack_swings_like_cpp` draws the
+roll per landed swing and returns `RepresentedMeleeSwingLikeCpp { damage,
+hit_info, victim_state }`; both owners resolve the facts, the avoid path deals no
+damage, no tap and no threat, and the mailbox DTO carries the outcome to the
+publishing session. `wow-packet` gained the correctly named 3.4.3 constants
+(`HIT_INFO_AFFECTS_VICTIM`, `HIT_INFO_OFFHAND`, `HIT_INFO_MISS`,
+`HIT_INFO_CRITICAL_HIT`, `HIT_INFO_GLANCING`, `VICTIM_STATE_INTACT`,
+`VICTIM_STATE_DODGE`, `VICTIM_STATE_PARRY`), replacing the misnamed
+`HIT_INFO_NORMAL_SWING` (`C++ HITINFO_NORMALSWING` is zero) and the stale
+`victim_state` doc. Boundaries: the block band stays out of the roll because the
+represented `AttackerStateUpdate` does not port the conditional
+`blocked`/`unk` fields C++ appends for `HITINFO_BLOCK`; victim
+`MOD_DODGE_PERCENT`/`MOD_PARRY_PERCENT` auras,
+`CREATURE_FLAG_EXTRA_NO_CRUSHING_BLOWS`, the critical-damage-bonus aura and the
+casting/control avoidance gate have no represented producer; a canonical-player
+victim keeps the pre-table behaviour. Evidence:
+`melee_attack_table_matches_roll_melee_outcome_against_like_cpp` pins every band
+edge plus the gated and truncated cases,
+`melee_attack_table_outcome_effects_match_calculate_melee_damage_like_cpp` pins
+the damage/presentation switch (including `HITINFO_OFFHAND`),
+`melee_attack_table_inputs_resolve_cpp_chances_like_cpp` pins the fact assembly
+(dual-wield `+19`, `+1.5` per level, glancing at `+4` levels, totem, player
+victim), `white_swing_publishes_the_attack_table_outcome_like_cpp` drives the
+session owner (400 landed swings with both hits and avoids, then a `-200%`
+hit-chance aura forcing `HIT_INFO_MISS`/`VICTIM_STATE_INTACT` at zero damage) and
+`map_owned_player_melee_publishes_the_attack_table_outcome_like_cpp` holds the
+production map-owned tick to the same miss; fixtures isolate the table through
+`CreatureAvoidanceLikeCpp` (zero for a directly constructed creature) plus a
+trained hit chance, so the existing exact-damage regressions stay deterministic.
+wow-packet 742/0, wow-entities 940/0, wow-world 3972/0/1 and world-server 594/0/0
+pass; format, `git diff --check` and the physical ratchet pass (two recorded
+ceiling growths; the melee-math tests live in the bounded
+`session/tests/scenarios_combat_4.rs`), and `validation-v2 quick` (manifest
+`20260917T135143.177788Z-2830540-quick.json`) passes. `validation-v2 final` stops
+only at the pre-existing `hotspot-ratchet` baseline failure (manifest
+`20260917T135303.990925Z-2831019-final.json`). No live DB/restart/relogin QA. #29
+remains open for the block band and its packet fields, the
+`MeleeDamageBonusTaken` victim chain and the remaining spell/melee math.
 
 **#29 white-swing armour mitigation — 2026-09-17, implementation `a739c8a4`,
 integrated as `9cc0ea20` by PR #1085:** C++ `Unit::CalculateMeleeDamage`
@@ -52,8 +110,9 @@ pass, and `validation-v2 quick` (manifest
 `20260917T124035.688694Z-2724130-quick.json`) passes. `validation-v2 final` stops
 only at the pre-existing `hotspot-ratchet` baseline failure (manifest
 `20260917T124051.127247Z-2724225-final.json`). No live DB/restart/relogin QA. #29
-remains open for the `RollMeleeOutcomeAgainst` hit table, the
-`MeleeDamageBonusTaken` victim chain and the remaining spell/melee math.
+remains open for the `RollMeleeOutcomeAgainst` hit table (delivered by the entry
+above), the `MeleeDamageBonusTaken` victim chain and the remaining spell/melee
+math.
 
 **#29 white-swing damage roll — 2026-09-17, implementation `cdc6ea1a`, integrated
 as `eae76cf2` by PR #1083:** C++ `Unit::CalculateMeleeDamage`
@@ -72,9 +131,8 @@ wrapper (the mapping `docs/migration/common.md` records for `urand`); the
 creature-owned RNG stream is a separate later design for creature runtime
 authority and is untouched. Boundary: the rest of `CalculateMeleeDamage` (the
 `RollMeleeOutcomeAgainst` hit table and the `CalcArmorReducedDamage` mitigation,
-the latter delivered by the entry above), the
-`MeleeDamageBonusTaken` victim chain and the final `max(1.0).round()` conversion
-remain as they were. Evidence:
+both delivered by the entries above), the `MeleeDamageBonusTaken` victim chain
+and the final `max(1.0).round()` conversion remain as they were. Evidence:
 `white_swing_roll_bounds_follow_calculate_damage_like_cpp` pins the
 clamp/order/truncate bounds (zero and negative ranges, inverted fractional
 `9.9`/`5.2` -> `[5, 9]`), `white_swing_damage_rolls_the_published_range_like_cpp`

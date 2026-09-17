@@ -33,6 +33,16 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 melee attack table — 2026-09-17, implementation `e478a2b7`:** white swings
+now roll `Unit::RollMeleeOutcomeAgainst` (`MISS > DODGE > PARRY > GLANCING > CRIT >
+HIT`, C++ 1/10000 bands), apply the outcome damage switch and publish the real
+`HitInfo`/`TargetState`, in both owners and from one rule; the creature's base
+dodge/parry/block and the player's `m_modMeleeHitChance` are new canonical values,
+while fixtures keep the table inert through the avoidance field. The block band
+(its packet fields are not ported), the `MeleeDamageBonusTaken` chain and the
+remaining spell/melee math stay open. wow-packet 742/0, wow-entities 940/0,
+wow-world 3972/0/1, world-server 594/0/0; no live DB/restart/relogin QA.
+
 **#29 white-swing armour mitigation — 2026-09-17, implementation `a739c8a4`:** the
 white swing now applies `Unit::CalcArmorReducedDamage` (victim `GetArmor()`,
 `CR_ARMOR_PENETRATION` with the C++ cap, the attacker's normal-school
