@@ -5,6 +5,44 @@
 
 use super::*;
 
+/// Insert an *active* GameObject through the canonical `Map::AddToMap` path.
+///
+/// C++ `Map::AddToMap` inserts the object into its cell and, when
+/// `isActiveObject()` holds, calls `Map::AddToActive` (`Map.cpp:555-570`), so the
+/// object joins `m_activeNonPlayers` and `Map::Update` visits its nearby cells on
+/// every tick even without a player (`Map.cpp:758-767`). The represented
+/// `MapObjectUpdateSelectionLikeCpp::NearbyCells` plan has the same source set,
+/// so a test that needs the production object visitor to reach a GameObject that
+/// no player is standing next to must mark it active here rather than pre-add it
+/// in world (which takes the `already_in_world` shortcut and skips both the cell
+/// insert and `AddToActive`).
+fn insert_active_live_gameobject_for_spawn_like_cpp(
+    manager: &mut wow_map::MapManager,
+    map_id: u32,
+    spawn_id: wow_map::SpawnId,
+    counter: i64,
+) {
+    let mut gameobject = GameObject::new();
+    gameobject
+        .world_mut()
+        .object_mut()
+        .create(test_guid_like_cpp(HighGuid::GameObject, counter, 99));
+    gameobject.world_mut().set_map(map_id, 0).unwrap();
+    gameobject
+        .world_mut()
+        .relocate(Position::xyz(1_000.0, 1_000.0, 0.0));
+    gameobject.world_mut().set_active(true);
+    gameobject.set_spawn_id(spawn_id);
+    manager
+        .find_map_mut(map_id, 0)
+        .expect("test map")
+        .map_mut()
+        .add_map_object_record_to_map_like_cpp(
+            MapObjectRecord::new_game_object(gameobject).unwrap(),
+        )
+        .expect("test active gameobject add to map");
+}
+
 #[test]
 fn respawn_db_retry_queue_coalesces_latest_and_makes_new_state_immediate() {
     let start = std::time::Instant::now();
@@ -243,7 +281,9 @@ fn canonical_gameobject_timer_replace_queues_respawn_save_before_condition_tick_
     manager.create_world_map(571, 0);
     let spawn_id = 77;
     let guid = test_guid_like_cpp(HighGuid::GameObject, 77, 99);
-    insert_live_gameobject_for_spawn_like_cpp(&mut manager, 571, spawn_id, 77);
+    // An active object is the visitor source: `Map::AddToMap` puts it in
+    // `m_activeNonPlayers`, so `Map::Update` reaches it without a player.
+    insert_active_live_gameobject_for_spawn_like_cpp(&mut manager, 571, spawn_id, 77);
     {
         let gameobject = manager
             .find_map_mut(571, 0)
@@ -268,6 +308,26 @@ fn canonical_gameobject_timer_replace_queues_respawn_save_before_condition_tick_
             respawn_time: i64::MAX,
             grid_id: 7,
         });
+    // Negative control: the same state on an object that is neither active nor
+    // next to a player stays unvisited. C++ `Map::Update` visits a player's
+    // nearby cells and `m_activeNonPlayers` (`Map.cpp:701-767`), so this object
+    // must not add a second queued save below.
+    let non_active_spawn_id = 87;
+    let non_active_guid = test_guid_like_cpp(HighGuid::GameObject, 87, 99);
+    insert_live_gameobject_for_spawn_like_cpp(&mut manager, 571, non_active_spawn_id, 87);
+    {
+        let gameobject = manager
+            .find_map_mut(571, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_game_object_mut(non_active_guid)
+            .expect("test non-active GameObject");
+        gameobject.set_represented_gameobject_data_present_like_cpp(true);
+        gameobject.set_respawn_compatibility_mode(false);
+        gameobject.set_respawn_delay_time(30);
+        gameobject.set_spawned_by_default(true);
+        gameobject.set_loot_state(wow_entities::LootState::JustDeactivated, None);
+    }
     // The spawn-group/ProcessRespawns timer deliberately does not fire.
     // Persisting GameObject::SaveRespawnTime belongs to Map::Update itself.
     let mut scheduler = CanonicalRespawnConditionSchedulerLikeCpp::new(100);
@@ -310,7 +370,9 @@ fn canonical_gameobject_compatibility_mode_queues_db_only_respawn_save_like_cpp(
     manager.create_world_map(571, 0);
     let spawn_id = 78;
     let guid = test_guid_like_cpp(HighGuid::GameObject, 78, 99);
-    insert_live_gameobject_for_spawn_like_cpp(&mut manager, 571, spawn_id, 78);
+    // An active object is the visitor source: `Map::AddToMap` puts it in
+    // `m_activeNonPlayers`, so `Map::Update` reaches it without a player.
+    insert_active_live_gameobject_for_spawn_like_cpp(&mut manager, 571, spawn_id, 78);
     {
         let gameobject = manager
             .find_map_mut(571, 0)
@@ -372,7 +434,9 @@ fn canonical_gameobject_compatibility_save_skips_instanceable_map_like_cpp() {
     manager.create_world_map(map_id, 0);
     let spawn_id = 79;
     let guid = test_guid_like_cpp(HighGuid::GameObject, 79, 99);
-    insert_live_gameobject_for_spawn_like_cpp(&mut manager, map_id, spawn_id, 79);
+    // An active object is the visitor source: `Map::AddToMap` puts it in
+    // `m_activeNonPlayers`, so `Map::Update` reaches it without a player.
+    insert_active_live_gameobject_for_spawn_like_cpp(&mut manager, map_id, spawn_id, 79);
     {
         let gameobject = manager
             .find_map_mut(map_id, 0)
