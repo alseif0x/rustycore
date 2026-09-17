@@ -8,6 +8,31 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**Collection appearance `CanUseItem` template gates — 2026-09-17, implementation
+`a2c8c3bb`:** `can_add_item_appearance_represented_like_cpp` now runs the
+`Player::CanUseItem(ItemTemplate const*)` template admission
+(`Player.cpp:11069-11125`) that C++ `CollectionMgr::CanAddAppearance` applies
+before its own branches: the `ITEM_FLAG2_INTERNAL_ITEM` and Faction
+Horde/Alliance flags, the allowable race mask, the required level, the required
+skill and rank against the canonical skill value, and the required ability
+against the known spells. The transmog-specific gates (source type,
+`NoSourceForItemVisual`, quality/artifact, item class/subclass/inventory, learned
+weapon proficiency and duplicate) are unchanged. The holiday, reputation, the
+483/55884 learning-effect pair and the artifact specialization gates remain
+separate slices, documented in place. Focused coverage: a new scenario matrix
+asserts a plain usable weapon passes while the internal flag, an opposite-faction
+item, an above-level item, an unknown required ability and a race-restricted item
+are rejected, and a known required ability passes; `scenarios_player_items_5`
+(15), `scenarios_player_items_6` (13), `transmog` (15), `collection` (27),
+`heirloom` (9), `scenarios_player_items_1` (53) and `persistence::` (105) stay
+green; format, `git diff --check`, the physical ratchet and `validation-v2 quick`
+(manifest `20260917T012737.474242Z-2142222-quick.json`, 39.5 s) pass. This is the
+collection/transmog vertical, not the F1 equipment-stat vertical of #61. The full
+`wow-world --lib` suite stays unusable on this host because several unrelated
+pre-existing async tests hang, and `validation-v2 final` stops at the
+pre-existing runtime hotspot LOC ratchet, which keeps its drift and was not
+regenerated. No live DB/restart/relogin QA.
+
 **Collection appearance weapon-proficiency gate — 2026-09-17, implementation
 `4ba42678`, integrated as `978d8ee9` by PR #995:** the represented `CollectionMgr::CanAddAppearance`
 (`CollectionMgr.cpp:649-726`) now reads the learned `Player::GetWeaponProficiency`
