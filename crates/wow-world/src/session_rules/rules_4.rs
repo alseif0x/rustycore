@@ -802,3 +802,112 @@ pub(crate) fn represented_melee_absorb_like_cpp(
     result.damage = remaining_damage;
     result
 }
+
+/// One mana shield's depletion, applied by the canonical aura owner.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedManaShieldConsumptionLikeCpp {
+    pub slot: u8,
+    pub effect_index: u8,
+    /// C++ `currentAbsorb` after the mana scaling: the damage the shield
+    /// actually took.
+    pub consumed: i32,
+    /// C++ `AuraEffect::GetAmount() - currentAbsorb`.
+    pub remaining: i32,
+    /// C++ `if (absorbAurEff->GetAmount() <= 0) Remove(AURA_REMOVE_BY_ENEMY_SPELL)`.
+    pub removed: bool,
+}
+
+/// C++ `Unit::CalcAbsorbResist`'s mana-shield result for one hit.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub(crate) struct RepresentedMeleeManaAbsorbLikeCpp {
+    /// C++ `DamageInfo::GetAbsorb()` after the mana scaling.
+    pub absorbed: u32,
+    /// C++ `DamageInfo::GetDamage()` after the shields were spent.
+    pub damage: u32,
+    /// The mana C++ `ModifyPower(POWER_MANA, -manaReduction)` actually removed.
+    pub mana_spent: u32,
+    /// The per-shield depletion the canonical owner must commit.
+    pub consumed: Vec<RepresentedManaShieldConsumptionLikeCpp>,
+}
+
+/// C++ `Unit::CalcAbsorbResist`'s mana-shield loop (`Unit.cpp:1886-1930`) for
+/// one physical melee hit.
+///
+/// Each shield's amount caps the damage it may take, the drain is
+/// `amount * SpellEffectInfo::CalcValueMultiplier` (the data `Amplitude`), and
+/// the absorbed damage scales down by the fraction of that drain the victim's
+/// mana could pay (`manaTaken / manaReduction`). A negative amount is clamped
+/// to zero, an amount-counting shield is depleted and removed at zero, and once
+/// the damage is gone the remaining shields are not visited.
+///
+/// Boundaries: C++'s `absorbIgnoringDamage` term and the spellmod half of
+/// `CalcValueMultiplier` stay unrepresented (`mana_multiplier` is the data
+/// amplitude alone), and a zero drain resolves to no absorb instead of C++'s
+/// `0 / 0` float division.
+pub(crate) fn represented_melee_mana_absorb_like_cpp(
+    shields: &[crate::session_rules::RepresentedManaShieldLikeCpp],
+    damage: u32,
+    available_mana: u32,
+) -> RepresentedMeleeManaAbsorbLikeCpp {
+    let mut result = RepresentedMeleeManaAbsorbLikeCpp {
+        absorbed: 0,
+        damage,
+        mana_spent: 0,
+        consumed: Vec::new(),
+    };
+    if damage == 0 || shields.is_empty() {
+        return result;
+    }
+    let mut remaining_damage = damage;
+    let mut remaining_mana = available_mana;
+    for shield in shields {
+        if remaining_damage == 0 {
+            break;
+        }
+        // C++ `if (currentAbsorb < 0) currentAbsorb = 0;` then the `[0, damage]`
+        // clamp.
+        let current = shield.amount.max(0) as u32;
+        let current = current.min(remaining_damage);
+        let base_reduction = i32::try_from(current).unwrap_or(i32::MAX);
+        // C++ `if (float manaMultiplier = CalcValueMultiplier(caster))
+        // manaReduction = int32(float(manaReduction) * manaMultiplier);`
+        let mana_reduction = if shield.mana_multiplier != 0.0 {
+            (base_reduction as f32 * shield.mana_multiplier) as i32
+        } else {
+            base_reduction
+        };
+        let mana_taken = u32::try_from(mana_reduction.max(0))
+            .unwrap_or(0)
+            .min(remaining_mana);
+        // C++ `currentAbsorb = currentAbsorb ? int32(float(currentAbsorb) *
+        // (float(manaTaken) / float(manaReduction))) : 0;`
+        let current_absorb = if current != 0 && mana_reduction > 0 {
+            (current as f32 * (mana_taken as f32 / mana_reduction as f32)) as i32
+        } else {
+            0
+        };
+        let current_absorb = current_absorb.max(0);
+        if current_absorb > 0 {
+            remaining_damage = remaining_damage.saturating_sub(current_absorb as u32);
+            result.absorbed += current_absorb as u32;
+        }
+        remaining_mana = remaining_mana.saturating_sub(mana_taken);
+        result.mana_spent += mana_taken;
+        let remaining = if shield.amount >= 0 {
+            shield.amount - current_absorb
+        } else {
+            shield.amount
+        };
+        result
+            .consumed
+            .push(RepresentedManaShieldConsumptionLikeCpp {
+                slot: shield.slot,
+                effect_index: shield.effect_index,
+                consumed: current_absorb,
+                remaining,
+                removed: shield.amount >= 0 && remaining <= 0,
+            });
+    }
+    result.damage = remaining_damage;
+    result
+}

@@ -431,9 +431,13 @@ pub struct ApplyCreatureMeleeDamageLikeCppCommand {
     /// C++ `CalcDamageInfo::OriginalDamage`: the post-outcome value the
     /// attacker-state packet serializes beside the dealt damage.
     pub original_damage: u32,
-    /// C++ `CalcDamageInfo::Absorb` (`Unit.cpp:1452-1460`): the school-absorb
-    /// amount the map already subtracted from `damage`.
+    /// C++ `CalcDamageInfo::Absorb` (`Unit.cpp:1452-1460`): the absorb amount
+    /// the map already subtracted from `damage`.
     pub absorbed: u32,
+    /// The mana `Unit::CalcAbsorbResist`'s mana-shield loop already drained
+    /// (`Unit.cpp:1913-1918`). The session publishes the resulting
+    /// `SMSG_POWER_UPDATE` because it owns power publication.
+    pub mana_spent: u32,
     /// Every shield the map's absorb stage spent, in `AbsorbAuraOrderPred`
     /// order. C++ publishes one `SMSG_SPELL_ABSORB_LOG` per consuming shield and
     /// removes the auras it spent to zero while it calculates the swing

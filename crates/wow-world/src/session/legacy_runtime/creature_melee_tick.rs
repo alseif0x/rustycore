@@ -5,19 +5,23 @@
 
 use super::*;
 
-/// C++ `Unit::CalcAbsorbResist`'s school-absorb stage for a player victim
-/// (`Unit.cpp:1789-1880`), committed inside the same map-owned phase as the
-/// victim's health write.
+/// C++ `Unit::CalcAbsorbResist`'s represented stages for a player victim
+/// (`Unit.cpp:1789-1930`), committed inside the same map-owned phase as the
+/// victim's health write: the school-absorb loop, then the mana-shield loop.
 ///
-/// C++ spends each shield effect's amount while it calculates the swing, so the
-/// amount is pool data and this map-owned stage is its writer; the session's
-/// aura transition at delivery owns the *removal* of an exhausted shield and
-/// its publication. A shield C++ would remove is left at zero here, which the
-/// session removes through the same `remove_aura` path it owns for every other
-/// aura.
+/// C++ spends each shield effect's amount and the mana-shield drain while it
+/// calculates the swing, so both are pool data and this map-owned stage is
+/// their writer; the session's aura transition at delivery owns the *removal*
+/// of an exhausted shield and its publication. A shield C++ would remove is
+/// left at zero here, which the session removes through the same `remove_aura`
+/// path it owns for every other aura.
 ///
 /// Returns `None` when the map or the canonical player cannot be resolved,
-/// which keeps the caller's pre-absorb damage unchanged.
+/// which keeps the caller's pre-absorb damage unchanged. Otherwise the tuple is
+/// `(absorbed, remaining damage, mana spent, consumptions)` in the delivery
+/// command's shape, with the outcomes in `AbsorbAuraOrderPred` order followed
+/// by the mana shields.
+#[allow(clippy::type_complexity)]
 fn apply_melee_absorb_to_canonical_player_like_cpp(
     canonical_manager: &mut wow_map::MapManager,
     map_id: u32,
@@ -28,7 +32,12 @@ fn apply_melee_absorb_to_canonical_player_like_cpp(
     spell_store: &wow_data::SpellStore,
     difficulty_id: u8,
     difficulty_store: Option<&wow_data::DifficultyStore>,
-) -> Option<crate::session_rules::RepresentedMeleeAbsorbLikeCpp> {
+) -> Option<(
+    u32,
+    u32,
+    u32,
+    Vec<crate::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp>,
+)> {
     let managed = canonical_manager.find_map_mut(map_id, instance_id)?;
     let player = managed.map_mut().get_typed_player_mut(victim_guid)?;
     let auras = player
@@ -45,34 +54,99 @@ fn apply_melee_absorb_to_canonical_player_like_cpp(
         school_mask,
     );
     let absorb = crate::session_rules::represented_melee_absorb_like_cpp(&shields, damage);
+    let mut consumptions = Vec::with_capacity(absorb.consumed.len());
     for consumption in &absorb.consumed {
-        let Some(aura) = player
-            .unit_mut()
-            .subsystems_mut()
-            .auras
-            .runtime_application_mut_like_cpp(consumption.slot)
-        else {
-            continue;
-        };
-        // The represented `AuraEffect` amount is the shield pool the projection
-        // reads first; an amount this stage has not written yet falls back to
-        // the spell effect's no-caster value, so the first depletion writes the
-        // exact remainder the next swing must see.
-        match aura
-            .represented_effect_amounts
-            .iter_mut()
-            .find(|represented| represented.effect_index == consumption.effect_index)
-        {
-            Some(represented) => represented.amount = consumption.remaining.max(0),
-            None => aura.represented_effect_amounts.push(
-                wow_entities::RepresentedAuraEffectAmountLikeCpp {
+        write_absorbed_shield_amount_like_cpp(player, consumption);
+        consumptions.push(
+            crate::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp {
+                slot: consumption.slot,
+                consumed: consumption.consumed,
+                removed: consumption.removed,
+            },
+        );
+    }
+
+    // C++ runs the mana-shield loop after the school-absorb loop
+    // (`Unit.cpp:1886-1930`) over the damage the school shields left.
+    let mana_shields =
+        crate::session_rules::player_mana_shields_like_cpp(&auras, spell_store, school_mask);
+    let mana_before = player
+        .unit()
+        .get_power(wow_constants::PowerType::Mana)
+        .max(0);
+    let mana_absorb = crate::session_rules::represented_melee_mana_absorb_like_cpp(
+        &mana_shields,
+        absorb.damage,
+        mana_before as u32,
+    );
+    if mana_absorb.mana_spent > 0 {
+        // `Unit::ModifyPower(POWER_MANA, -manaReduction)`: the same locked map
+        // phase that commits the health write owns the drain, and the canonical
+        // setter clamps it like C++.
+        player.unit_mut().set_power(
+            wow_constants::PowerType::Mana,
+            mana_before - i32::try_from(mana_absorb.mana_spent).unwrap_or(i32::MAX),
+        );
+    }
+    for consumption in &mana_absorb.consumed {
+        write_absorbed_shield_amount_like_cpp(
+            player,
+            &crate::session_rules::RepresentedAbsorbConsumptionLikeCpp {
+                slot: consumption.slot,
+                effect_index: consumption.effect_index,
+                consumed: consumption.consumed,
+                remaining: consumption.remaining,
+                removed: consumption.removed,
+            },
+        );
+        consumptions.push(
+            crate::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp {
+                slot: consumption.slot,
+                consumed: consumption.consumed,
+                removed: consumption.removed,
+            },
+        );
+    }
+    Some((
+        absorb.absorbed + mana_absorb.absorbed,
+        mana_absorb.damage,
+        mana_absorb.mana_spent,
+        consumptions,
+    ))
+}
+
+/// Commit one spent shield's `AuraEffect` remainder on the canonical player.
+///
+/// The represented `AuraEffect` amount is the shield pool the projections read
+/// first; an amount this stage has not written yet falls back to the spell
+/// effect's no-caster value, so the first depletion writes the exact remainder
+/// the next swing must see.
+fn write_absorbed_shield_amount_like_cpp(
+    player: &mut wow_entities::Player,
+    consumption: &crate::session_rules::RepresentedAbsorbConsumptionLikeCpp,
+) {
+    let Some(aura) = player
+        .unit_mut()
+        .subsystems_mut()
+        .auras
+        .runtime_application_mut_like_cpp(consumption.slot)
+    else {
+        return;
+    };
+    match aura
+        .represented_effect_amounts
+        .iter_mut()
+        .find(|represented| represented.effect_index == consumption.effect_index)
+    {
+        Some(represented) => represented.amount = consumption.remaining.max(0),
+        None => {
+            aura.represented_effect_amounts
+                .push(wow_entities::RepresentedAuraEffectAmountLikeCpp {
                     effect_index: consumption.effect_index,
                     amount: consumption.remaining.max(0),
-                },
-            ),
+                })
         }
     }
-    Some(absorb)
 }
 
 /// Apply one player's melee swings to a legacy creature.
@@ -484,6 +558,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         // owns the absorb-log publication and the aura transition, so it
         // receives the consumption list at delivery.
         let mut absorbed_damage = 0u32;
+        let mut mana_spent = 0u32;
         let mut absorb_consumptions: Vec<
             crate::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp,
         > = Vec::new();
@@ -811,27 +886,18 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                 config.difficulty_store.as_deref(),
                             );
                             let damage = match absorb {
-                                Some(absorb) => {
-                                    if absorb.absorbed > 0 {
-                                        absorbed_damage = absorb.absorbed;
-                                        absorb_consumptions = absorb
-                                            .consumed
-                                            .iter()
-                                            .map(|consumption| {
-                                                crate::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp {
-                                                    slot: consumption.slot,
-                                                    consumed: consumption.consumed,
-                                                    removed: consumption.removed,
-                                                }
-                                            })
-                                            .collect();
-                                        hit_info |= if absorb.damage == 0 {
+                                Some((absorbed, remaining, spent, consumptions)) => {
+                                    if absorbed > 0 {
+                                        absorbed_damage = absorbed;
+                                        mana_spent = spent;
+                                        absorb_consumptions = consumptions;
+                                        hit_info |= if remaining == 0 {
                                             wow_packet::packets::combat::HIT_INFO_FULL_ABSORB
                                         } else {
                                             wow_packet::packets::combat::HIT_INFO_PARTIAL_ABSORB
                                         };
                                     }
-                                    absorb.damage
+                                    remaining
                                 }
                                 None => damage,
                             };
@@ -1159,6 +1225,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     victim_state,
                     original_damage,
                     absorbed: 0,
+                    mana_spent: 0,
                     absorb_consumptions: Vec::new(),
                 },
             );
@@ -1261,6 +1328,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     victim_state,
                     original_damage,
                     absorbed: absorbed_damage,
+                    mana_spent,
                     absorb_consumptions: absorb_consumptions.clone(),
                 },
             );

@@ -59,6 +59,11 @@ pub struct SpellEffectInfo {
     pub effect: u32,
     pub effect_aura: i32,
     pub effect_base_points: i32,
+    /// C++ `SpellEffectInfo::Amplitude` (`SpellEffectEntry::EffectAmplitude`,
+    /// `DB2Structure.h:3510`): the periodic period and, for
+    /// `SPELL_AURA_MANA_SHIELD`, the mana the shield drains per point of damage
+    /// through `SpellEffectInfo::CalcValueMultiplier` (`SpellInfo.cpp:624-631`).
+    pub effect_amplitude: f32,
     pub effect_die_sides: i32,
     /// C++ `SpellEffectInfo::BonusCoefficientFromAP`
     /// (`DB2Structure.h:3525`, `SpellInfo.cpp:436`): the coefficient
@@ -598,6 +603,14 @@ impl SpellEffectInfo {
             die_sides => value += f64::from(roll_die(die_sides, 1)),
         }
         value.round() as i32
+    }
+
+    /// C++ `SpellEffectInfo::CalcValueMultiplier` (`SpellInfo.cpp:624-631`):
+    /// the effect's `Amplitude`, scaled by the caster's `SpellModOp::Amplitude`
+    /// spellmods. The represented paths have no spellmod owner, so the value is
+    /// the data amplitude alone, exactly like C++ with a null caster.
+    pub fn calc_value_multiplier_like_cpp(&self) -> f32 {
+        self.effect_amplitude
     }
 
     pub fn calc_value_no_caster_like_cpp(&self) -> i32 {
