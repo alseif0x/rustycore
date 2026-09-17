@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`d6980e2acc856968a68aba150949215a216d916b` (PR #1101, the #29 melee evade
-outcome, following PR #1099, the #29 controlled-victim
+`53240ffdbe57882762ef3eca7af1b7854644852b` (PR #1103, the #29 original-damage
+publication, following PR #1101, the #29 melee evade
+outcome, PR #1099, the #29 controlled-victim
 avoidance gate, PR #1097, the #29 ignore-dual-wield
 hit-penalty aura, PR #1095, the #29 victim conditional
 critical-chance auras, PR #1093, the #29 victim avoidance
@@ -20,6 +21,24 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 original-damage publication — 2026-09-17, implementation `3d16476e`,
+integrated as `53240ffd` by PR #1103:** C++ `AttackerStateUpdate::Write`
+(`CombatLogPackets.cpp:350-356`) serializes `int32(Damage)` and
+`int32(OriginalDamage)`, the post-armour value the outcome switch then scales
+(`Unit.cpp:1343-1440`); the represented packet wrote the dealt damage twice, so a
+missed, dodged, parried, glancing or blocked swing lost the pre-outcome value the
+client uses for its combat text. `RepresentedMeleeSwingLikeCpp` and the mailbox
+DTO gained `original_damage`, the shared swing captures it before the outcome
+switch, and every packet construction publishes it (the creature-owned and
+loot-roll packets keep `damage` as the original). Evidence: the block byte test
+asserts `damage 70` against `original damage 100`, and the forced-miss session
+scenario asserts `original_damage == 7` on a zero-damage swing; wow-packet 744/0,
+wow-world 3984/0/1 and world-server 594/0/0 pass; format, `git diff --check` and
+the physical ratchet pass (two recorded 1-4 line ceiling growths), and
+`validation-v2 quick` (manifest `20260917T154339.509166Z-2972717-quick.json`)
+passes. No live DB/restart/relogin QA. #29 remains open for the remaining
+spell/melee math.
 
 **#29 melee evade outcome — 2026-09-17, implementation `10cf9234`, integrated as
 `d6980e2a` by PR #1101:** C++ `Unit::RollMeleeOutcomeAgainst`

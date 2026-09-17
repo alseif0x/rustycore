@@ -33,6 +33,12 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 original-damage publication — 2026-09-17, implementation `3d16476e`:** the
+attacker-state packet now serializes the post-armour `OriginalDamage` the C++
+outcome switch scales, so avoided/glancing/blocked swings keep the value the
+client's combat text uses. wow-packet 744/0, wow-world 3984/0/1, world-server
+594/0/0; no live DB/restart/relogin QA.
+
 **#29 melee evade outcome — 2026-09-17, implementation `10cf9234`:** an evading
 creature victim now short-circuits the attack table with `MELEE_HIT_EVADE`,
 publishing `HITINFO_MISS | HITINFO_SWINGNOHITSOUND` and `VICTIMSTATE_EVADES` at
