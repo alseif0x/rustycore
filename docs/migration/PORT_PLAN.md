@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 versus-creature-type damage multiplier — 2026-09-17, implementation
+`7f2aa52c`:** `SPELL_AURA_MOD_DAMAGE_DONE_VERSUS` (168) now multiplies direct
+spell damage using the victim creature's template type
+(`Unit.cpp:6724-6726`, `8796-8800`), resolved through the existing creature
+template lifecycle store. The aurastate/mechanic terms remain open.
+wow-data --lib 752/0, wow-world --lib 3934/0/1; no live DB/restart/relogin QA.
+
 **#61 missing-health healing scaling — 2026-09-17, implementation `c4453097`:**
 `SpellHealingPctDone`'s `MOD_HEALING_DONE_PCT_VERSUS_TARGET_HEALTH` (354) term
 (`Unit.cpp:7224-7227`) now scales represented self-heals by the target's missing
