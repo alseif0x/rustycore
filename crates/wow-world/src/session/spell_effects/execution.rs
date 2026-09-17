@@ -650,6 +650,12 @@ impl WorldSession {
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE => {
                     if let Ok(damage_amount) = u32::try_from(direct_effect_base_points) {
+                        let damage_amount = self.represented_spell_damage_bonus_done_like_cpp(
+                            spell_id,
+                            caster_guid,
+                            spell_info.effect_bonus_coefficient,
+                            damage_amount,
+                        );
                         self.apply_damage_from_caster_like_cpp(
                             item_guid_generator,
                             Some(spell_id),
