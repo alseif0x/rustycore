@@ -323,9 +323,9 @@ impl WorldSession {
                 .await;
         }
 
-        let direct_spell_effects_like_cpp: Vec<(u32, i32, u32, i32, i32)> =
+        let direct_spell_effects_like_cpp: Vec<(u32, i32, u32, i32, i32, f32)> =
             if spell_info.effects().is_empty() {
-                vec![(effect_type, effect_base_points, 0, 0, 0)]
+                vec![(effect_type, effect_base_points, 0, 0, 0, 0.0)]
             } else {
                 spell_info
                     .effects()
@@ -338,6 +338,7 @@ impl WorldSession {
                             effect.effect_index,
                             effect.effect_misc_value_1,
                             effect.effect_trigger_spell,
+                            effect.effect_bonus_coefficient_from_ap,
                         )
                     })
                     .collect()
@@ -348,6 +349,7 @@ impl WorldSession {
             direct_effect_index,
             direct_effect_misc_value_1,
             direct_effect_trigger_spell,
+            direct_effect_bonus_coefficient_from_ap,
         ) in direct_spell_effects_like_cpp
         {
             let direct_effect_target_data = effect_target_data_like_cpp
@@ -368,6 +370,7 @@ impl WorldSession {
                             caster_guid,
                             target_guid,
                             spell_info.effect_bonus_coefficient,
+                            direct_effect_bonus_coefficient_from_ap,
                             heal_amount,
                         );
                         self.apply_heal_from_caster_like_cpp(
@@ -663,6 +666,7 @@ impl WorldSession {
                             caster_guid,
                             target_guid,
                             spell_info.effect_bonus_coefficient,
+                            direct_effect_bonus_coefficient_from_ap,
                             damage_amount,
                         );
                         self.apply_damage_from_caster_like_cpp(
