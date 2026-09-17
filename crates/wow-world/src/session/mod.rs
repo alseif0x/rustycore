@@ -18581,16 +18581,15 @@ fn represented_white_swing_damage_like_cpp(
         armor_mitigation.armor_penetration_pct,
         armor_mitigation.target_resistance_normal_aura,
     );
-    // C++ `CalcDamageInfo::OriginalDamage` is the post-armour value the outcome
-    // switch then scales (`Unit.cpp:1343-1440`).
-    let original_damage = damage;
+    // C++ assigns `OriginalDamage` inside the outcome switch, so the shared
+    // arithmetic returns it with the dealt damage (`Unit.cpp:1343-1440`).
     // C++ rolls the attack table after mitigation and before the outcome
     // switch (`Unit.cpp:1341-1343`).
     let outcome_inputs =
         crate::session_rules::melee_outcome_inputs_like_cpp(&outcome_facts.0, &outcome_facts.1);
     let outcome =
         crate::session_rules::rolled_melee_outcome_like_cpp(&outcome_inputs[usize::from(offhand)]);
-    let (damage, blocked) = crate::session_rules::melee_outcome_damage_like_cpp(
+    let (damage, blocked, original_damage) = crate::session_rules::melee_outcome_damage_like_cpp(
         outcome,
         damage,
         armor_mitigation.attacker_level,

@@ -188,45 +188,54 @@ pub(crate) fn rolled_melee_outcome_like_cpp(
 }
 
 /// C++ `Unit::CalculateMeleeDamage`'s outcome switch (`Unit.cpp:1343-1440`) for
-/// the represented swing.
+/// the represented swing, as the `(Damage, Blocked, OriginalDamage)` triple C++
+/// publishes.
 ///
-/// Boundaries: the critical-hit `SPELL_AURA_MOD_CRIT_DAMAGE_BONUS` multiplier
-/// and the crushing 150% branch are not represented; those inputs are absent
-/// from the represented table.
+/// C++ assigns `OriginalDamage` inside each arm, not once before the switch:
+/// the avoided arms, the glancing reduction and the block all keep the
+/// pre-outcome value (`Unit.cpp:1345-1355`, `1415-1427`), while the critical arm
+/// assigns it *after* doubling and the
+/// `SPELL_AURA_MOD_CRIT_DAMAGE_BONUS` multiplier (`Unit.cpp:1362-1375`), so a
+/// critical swing publishes the doubled value as its original too.
+///
+/// Boundary: the crushing 150% branch has no represented producer (a represented
+/// attacker is a player, and C++ excludes player-controlled attackers), so no
+/// arm returns it.
 pub(crate) fn melee_outcome_damage_like_cpp(
     outcome: RepresentedMeleeOutcomeLikeCpp,
     damage: u32,
     attacker_level: u8,
     victim_level: u8,
     crit_damage_multiplier: f32,
-) -> (u32, u32) {
+) -> (u32, u32, u32) {
     match outcome {
         RepresentedMeleeOutcomeLikeCpp::Evade
         | RepresentedMeleeOutcomeLikeCpp::Miss
         | RepresentedMeleeOutcomeLikeCpp::Dodge
-        | RepresentedMeleeOutcomeLikeCpp::Parry => (0, 0),
+        | RepresentedMeleeOutcomeLikeCpp::Parry => (0, 0, damage),
         RepresentedMeleeOutcomeLikeCpp::Glancing => {
             let mut level_difference = i32::from(victim_level) - i32::from(attacker_level);
             if level_difference > 3 {
                 level_difference = 3;
             }
             let reduce_percent = 1.0 - level_difference as f32 * 0.1;
-            ((reduce_percent * damage as f32) as u32, 0)
+            let reduced = (reduce_percent * damage as f32) as u32;
+            (reduced, 0, damage)
         }
         RepresentedMeleeOutcomeLikeCpp::Block => {
             // C++ `CalculatePct(damage, GetBlockPercent(attackerLevel))`
             // truncates; `IsBlockCritical` needs the victim's aura sum, which
             // has no represented producer, so the doubled block is absent.
             let blocked = (damage as f32 * CREATURE_BLOCK_PERCENT_LIKE_CPP / 100.0) as u32;
-            (damage.saturating_sub(blocked), blocked)
+            (damage.saturating_sub(blocked), blocked, damage)
         }
         RepresentedMeleeOutcomeLikeCpp::Crit => {
             // C++ doubles the damage and then applies
             // `SPELL_AURA_MOD_CRIT_DAMAGE_BONUS` (`Unit.cpp:1362-1375`).
-            let doubled = damage as f32 * 2.0 * crit_damage_multiplier;
-            (doubled.max(0.0) as u32, 0)
+            let doubled = (damage as f32 * 2.0 * crit_damage_multiplier).max(0.0) as u32;
+            (doubled, 0, doubled)
         }
-        RepresentedMeleeOutcomeLikeCpp::Hit => (damage, 0),
+        RepresentedMeleeOutcomeLikeCpp::Hit => (damage, 0, damage),
     }
 }
 
