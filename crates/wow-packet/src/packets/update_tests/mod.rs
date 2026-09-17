@@ -135,6 +135,7 @@ fn test_player_create_data_with_farsight(farsight_object: ObjectGuid) -> PlayerC
         stat_pos_buff: [0; 5],
         stat_neg_buff: [0; 5],
         base_armor: 0,
+        school_resistances: [0; 6],
         base_mana: 0,
         max_mana: 0,
         current_power0: 1000,

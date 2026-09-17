@@ -8,6 +8,40 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#61 school resistances (`Unit::UpdateResistances`) — 2026-09-17, implementation
+`67d23891`:** the six magic school resistances are now represented and published.
+`represented_school_resistances_like_cpp` resolves each school as the item
+`BASE_VALUE` (`gear.resistances[school]`) scaled by the
+`SPELL_AURA_MOD_BASE_RESISTANCE_PCT` `BASE_PCT`, plus the flat
+`SPELL_AURA_MOD_RESISTANCE`/`MOD_BASE_RESISTANCE` `TOTAL_VALUE`, then the
+`SPELL_AURA_MOD_RESISTANCE_PCT` `TOTAL_PCT`, with the C++ `int32(value)`
+truncation (`Unit.cpp:9148-9163`); the mask-parameterized aura helpers are shared
+with the `Player::UpdateArmor` physical route from PR #985. The canonical
+effective stats now carry the aura-aware schools and the login create path
+threads them into `PlayerCombatStats`/`PlayerCreateData.school_resistances[6]`,
+so `PlayerCreateData::write_create` writes the seven `UnitData::Resistances`
+values that were previously a hardcoded zero. The packet layout is unchanged and
+no new mutable state, mirror, lock or clock appears; the physical policy records
+the reviewed one-line fixture delta (`update_tests/mod.rs` 198→199). Focused
+coverage: a packet test pins the seven create values in order and an end-to-end
+session test asserts holy/fire item+aura resistances, the per-school percentage
+isolation and the removal path; `wow-packet --lib` (741),
+`scenarios_player_items_12` (10), `scenarios_player_items_1` (51),
+`persistence::` (105), `handlers::character::tests::login` (11), `worldport` (9)
+and `scenarios_world_entities_24` (11) stay green; format, `git diff --check`,
+the physical ratchet and `validation-v2 quick` (manifest
+`20260917T005300.823629Z-2123777-quick.json`, 69.5 s) pass. The
+`BASE_PCT_EXCLUDE_CREATE` modifier has no represented producer and is implicitly
+1.0 (C++ default 100.0), post-login resistance *deltas* remain unrepresented
+because no resistance delta writer exists yet, the `GetTotalAuraMultiplier`
+same-effect stack-rule grouping is not applied (consistent with the older aura
+helpers), the full `wow-world --lib` suite stays unusable on this host because
+several unrelated pre-existing async tests hang, and `validation-v2 final` stops
+at the pre-existing runtime hotspot LOC ratchet, which keeps its drift and was
+not regenerated. #61 remains open for the player-killer (PvP)
+`CONFIG_DURABILITY_LOSS_IN_PVP` branch and `SetPvPDeath`, alternate powers, rune
+regeneration, class-talent bonuses and live DB/restart/relogin QA.
+
 **#61 critical-strike aura percentages — 2026-09-17, implementation
 `7412dac5`, integrated as `81ee68b9` by PR #989:** the represented critical-strike projection now consumes the C++
 aura producers. `Player::UpdateWeaponDependentCritAuras`

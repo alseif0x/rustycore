@@ -665,6 +665,9 @@ pub struct PlayerCombatStats {
     pub stat_pos_buff: [i32; 5],
     pub stat_neg_buff: [i32; 5],
     pub base_armor: i32,
+    /// C++ `UnitData::Resistances[1..7]`: holy, fire, nature, frost, shadow and
+    /// arcane, from items plus the resistance aura producers.
+    pub school_resistances: [i32; 6],
     pub base_mana: i32,
     pub max_mana: i64,
     pub attack_power: i32,
@@ -697,6 +700,7 @@ impl Default for PlayerCombatStats {
             stat_pos_buff: [0; 5],
             stat_neg_buff: [0; 5],
             base_armor: 0,
+            school_resistances: [0; 6],
             base_mana: 0,
             max_mana: 60,
             attack_power: 0,
@@ -749,6 +753,8 @@ pub struct PlayerCreateData {
     pub stat_neg_buff: [i32; 5],
     /// Base armor (AGI * 2).
     pub base_armor: i32,
+    /// C++ `UnitData::Resistances[1..7]`.
+    pub school_resistances: [i32; 6],
     /// C++ `UnitData::BaseMana` / `Player::GetCreateMana`.
     pub base_mana: i32,
     /// Max mana from level stats (for caster classes).

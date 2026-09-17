@@ -627,6 +627,7 @@ impl UpdateObject {
             stat_pos_buff: combat.stat_pos_buff,
             stat_neg_buff: combat.stat_neg_buff,
             base_armor: combat.base_armor,
+            school_resistances: combat.school_resistances,
             base_mana: combat.base_mana,
             max_mana: combat.max_mana,
             current_power0: match class {

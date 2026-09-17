@@ -105,25 +105,35 @@ impl WorldSession {
             / 100.0
     }
 
-    /// C++ `GetTotalAuraMultiplier`/`GetTotalAuraMultiplierByMiscMask` as used
-    /// by `Player::UpdateArmor` (`StatSystem.cpp:251-276`). The two resistance
-    /// percentages select the normal school mask;
-    /// `SPELL_AURA_MOD_BONUS_ARMOR_PCT` has no mask and counts every effect.
-    fn represented_armor_aura_multiplier_like_cpp(&self, aura_type: i32) -> f32 {
+    /// C++ `GetTotalAuraMultiplierByMiscMask(aura_type, school_mask)` as used
+    /// by `Player::UpdateArmor` (`StatSystem.cpp:251-276`) and
+    /// `Unit::UpdateResistances` (`Unit.cpp:9148-9163`): the product of
+    /// `1 + amount/100` over the active effects whose school mask intersects
+    /// `school_mask`.
+    fn represented_resistance_aura_multiplier_like_cpp(
+        &self,
+        aura_type: i32,
+        school_mask: i32,
+    ) -> f32 {
         self.resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
             .unwrap_or_default()
             .into_iter()
-            .filter(|(misc_value, _)| {
-                aura_type == wow_data::spell::aura_types::SPELL_AURA_MOD_BONUS_ARMOR_PCT
-                    || *misc_value & SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP != 0
-            })
+            .filter(|(misc_value, _)| *misc_value & school_mask != 0)
             .fold(1.0, |acc, (_, amount)| acc * (1.0 + amount as f32 / 100.0))
     }
 
-    /// C++ `GetFlatModifierValue(UNIT_MOD_ARMOR, TOTAL_VALUE)`: the flat
-    /// `TOTAL_VALUE` contributions of the two flat-resistance aura types whose
-    /// school mask includes the normal school.
-    fn represented_armor_aura_flat_like_cpp(&self) -> i32 {
+    /// C++ `GetTotalAuraMultiplier(aura_type)` without a school mask.
+    fn represented_total_aura_multiplier_like_cpp(&self, aura_type: i32) -> f32 {
+        self.resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
+            .unwrap_or_default()
+            .into_iter()
+            .fold(1.0, |acc, (_, amount)| acc * (1.0 + amount as f32 / 100.0))
+    }
+
+    /// C++ `GetFlatModifierValue(UNIT_MOD_RESISTANCE_START + school, TOTAL_VALUE)`
+    /// from `SPELL_AURA_MOD_RESISTANCE`/`SPELL_AURA_MOD_BASE_RESISTANCE`
+    /// effects carrying `school_mask`.
+    fn represented_resistance_aura_flat_like_cpp(&self, school_mask: i32) -> f32 {
         [
             wow_data::spell::aura_types::SPELL_AURA_MOD_RESISTANCE,
             wow_data::spell::aura_types::SPELL_AURA_MOD_BASE_RESISTANCE,
@@ -131,9 +141,38 @@ impl WorldSession {
         .into_iter()
         .filter_map(|aura_type| self.resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type))
         .flatten()
-        .filter(|(misc_value, _)| *misc_value & SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP != 0)
-        .map(|(_, amount)| amount)
+        .filter(|(misc_value, _)| *misc_value & school_mask != 0)
+        .map(|(_, amount)| amount as f32)
         .sum()
+    }
+
+    /// C++ `Unit::UpdateResistances` (`Unit.cpp:9148-9163`) for the six magic
+    /// schools, indexed as `UnitData::Resistances[1..7]` (holy, fire, nature,
+    /// frost, shadow, arcane): the item `BASE_VALUE` scaled by the
+    /// `MOD_BASE_RESISTANCE_PCT` `BASE_PCT`, plus the flat
+    /// `MOD_RESISTANCE`/`MOD_BASE_RESISTANCE` `TOTAL_VALUE`, then the
+    /// `MOD_RESISTANCE_PCT` `TOTAL_PCT`, truncated by `int32(value)`. The
+    /// physical school (index 0) is `Player::UpdateArmor` and stays on
+    /// `base_armor`.
+    pub(super) fn represented_school_resistances_like_cpp(
+        &self,
+        gear: &RepresentedPlayerGearStatsLikeCpp,
+    ) -> [i32; 6] {
+        std::array::from_fn(|index| {
+            let school = index + 1;
+            let mask = 1_i32 << school;
+            let mut value = gear.resistances[school] as f32
+                * self.represented_resistance_aura_multiplier_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_BASE_RESISTANCE_PCT,
+                    mask,
+                );
+            value += self.represented_resistance_aura_flat_like_cpp(mask);
+            value *= self.represented_resistance_aura_multiplier_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_RESISTANCE_PCT,
+                mask,
+            );
+            value as i32
+        })
     }
 
     /// C++ `Player::UpdateArmor`'s `SPELL_AURA_MOD_RESISTANCE_OF_STAT_PERCENT`
@@ -246,15 +285,19 @@ impl WorldSession {
                 gear_health: gear.health,
                 gear_mana: gear.mana,
                 gear_armor: gear.armor,
-                armor_base_pct: self.represented_armor_aura_multiplier_like_cpp(
+                armor_base_pct: self.represented_resistance_aura_multiplier_like_cpp(
                     wow_data::spell::aura_types::SPELL_AURA_MOD_BASE_RESISTANCE_PCT,
+                    SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,
                 ),
-                armor_flat_aura: self.represented_armor_aura_flat_like_cpp(),
+                armor_flat_aura: self
+                    .represented_resistance_aura_flat_like_cpp(SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP)
+                    as i32,
                 armor_of_stat_percent: self.represented_armor_of_stat_percent_like_cpp(),
-                armor_total_pct: self.represented_armor_aura_multiplier_like_cpp(
+                armor_total_pct: self.represented_resistance_aura_multiplier_like_cpp(
                     wow_data::spell::aura_types::SPELL_AURA_MOD_RESISTANCE_PCT,
+                    SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,
                 ),
-                armor_bonus_pct: self.represented_armor_aura_multiplier_like_cpp(
+                armor_bonus_pct: self.represented_total_aura_multiplier_like_cpp(
                     wow_data::spell::aura_types::SPELL_AURA_MOD_BONUS_ARMOR_PCT,
                 ),
                 spell_dodge_pct: self.represented_total_aura_modifier_like_cpp(
@@ -301,8 +344,16 @@ impl WorldSession {
     ) {
         let mut resistances = gear.resistances;
         // Physical resistance is the final armor value after agility and flat
-        // armor. School resistances remain the item/aura flat contributions.
+        // armor; the six magic schools come from `Unit::UpdateResistances`
+        // (item `BASE_VALUE` plus the resistance aura producers).
         resistances[0] = projection.armor;
+        for (index, value) in self
+            .represented_school_resistances_like_cpp(gear)
+            .into_iter()
+            .enumerate()
+        {
+            resistances[index + 1] = value;
+        }
         let weapon_damage = wow_data::player::effective_weapon_damage_ranges_like_cpp(
             projection,
             gear.weapon_damage,

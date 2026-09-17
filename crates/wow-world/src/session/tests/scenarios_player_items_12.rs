@@ -876,3 +876,96 @@ async fn crit_aura_percentages_follow_weapon_dependent_auras_like_cpp() {
     assert_eq!(armed.offhand_crit_pct, 8.0);
     assert_eq!(armed.ranged_crit_pct, 8.0);
 }
+
+#[tokio::test]
+async fn school_resistances_follow_update_resistances_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 61_500);
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+    session.set_player_stats(Arc::new(wow_data::PlayerStatsStore::from_entries([(
+        (1, 5, 80),
+        wow_data::PlayerLevelStats {
+            strength: 10,
+            agility: 10,
+            stamina: 10,
+            intellect: 40,
+            spirit: 30,
+            base_mana: 1_000,
+        },
+    )])));
+    session.set_chr_classes_store(Arc::new(
+        wow_data::character_progression::ChrClassesStore::from_entries([{
+            let mut entry = wow_data::character_progression::ChrClassesEntry::default();
+            entry.id = 5;
+            entry
+        }]),
+    ));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+
+    // C++ `Unit::UpdateResistances` (`Unit.cpp:9148-9163`) with the aura
+    // producers of `HandleAuraModResistance` and `HandleModResistancePercent`.
+    let mut spell_store = wow_data::SpellStore::new();
+    for (spell_id, aura_type, misc_value, amount) in [
+        (90_700, 22, 2, 20),   // MOD_RESISTANCE, holy mask
+        (90_701, 22, 4, 30),   // MOD_RESISTANCE, fire mask
+        (90_702, 101, 4, 100), // MOD_RESISTANCE_PCT, fire mask
+        (90_703, 101, 2, 50),  // MOD_RESISTANCE_PCT, holy mask
+    ] {
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: amount,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(aura_type),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: aura_type,
+                    effect_base_points: amount,
+                    effect_misc_value_1: misc_value,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    session.set_spell_store(Arc::new(spell_store));
+    session.set_state(crate::session::SessionState::LoggedIn);
+
+    let resistances = |session: &WorldSession| {
+        session
+            .canonical_player_effective_combat_stats_like_cpp()
+            .expect("resistance projection")
+            .resistances
+    };
+
+    let _ = session.send_stat_update();
+    assert_eq!(resistances(&session), [20, 0, 0, 0, 0, 0, 0]);
+
+    for spell_id in [90_700, 90_701, 90_702, 90_703] {
+        session
+            .apply_aura(spell_id, player_guid, 30_000, 1)
+            .expect("apply resistance aura");
+    }
+    let _ = session.send_stat_update();
+    // Holy: 20 flat * 1.5; fire: 30 flat * 2.0; the rest stay zero.
+    assert_eq!(resistances(&session), [20, 30, 60, 0, 0, 0, 0]);
+
+    let fire_slot = session
+        .visible_aura_slot_for_spell_like_cpp(90_701)
+        .expect("fire resistance aura slot");
+    session
+        .remove_aura(fire_slot)
+        .expect("remove fire resistance aura");
+    let _ = session.send_stat_update();
+    assert_eq!(resistances(&session), [20, 30, 0, 0, 0, 0, 0]);
+}
