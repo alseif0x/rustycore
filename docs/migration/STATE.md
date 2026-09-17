@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`042084aeea1e573f97c98821024caeb1dc98c98c` (PR #1109, the #29
-ignore-target-resist armour term, following PR #1107, the #29 critical
+`d3a242469baa7f1fe2e48d719b7928fb82a49e18` (PR #1111, the #29
+creature-to-player melee miss band, following PR #1109, the #29
+ignore-target-resist armour term, PR #1107, the #29 critical
 original-damage correction, PR #1105, the #29
 critical-damage-bonus aura, PR #1103, the #29 original-damage
 publication, PR #1101, the #29 melee evade
@@ -24,6 +25,43 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 creature-to-player melee miss band — 2026-09-17, implementation
+`51041a70`, integrated as `d3a24246` by PR #1111:** C++
+`Unit::RollMeleeOutcomeAgainst` (`Unit.cpp:2272-2310`) always rolls the attack
+table, but the represented creature bridge applied `roll_damage()` to every
+player victim, so a creature swing could never miss. C++
+`MeleeSpellMissChance` (`Unit.cpp:11652-11685`) starts from the victim's flat
+`GetUnitMissChance()` of `5.0`, subtracts the creature's zero
+`m_modMeleeHitChance` (`Unit.cpp:360`), its `SPELL_AURA_MOD_HIT_CHANCE` sum and
+the victim's `SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE` sum, and the miss arm
+publishes `HITINFO_MISS`/`VICTIMSTATE_INTACT` with zero dealt damage and no
+`DealMeleeDamage` call. `RepresentedMeleeVictimFactsLikeCpp` gained `is_player`
+and `melee_outcome_inputs_like_cpp` resolves the miss band for a player victim
+instead of returning `NONE`; the map-owned creature melee tick now takes the
+runtime config (the spell store both aura sums need), rolls the band for player
+victims, and publishes the resolved
+`HitInfo`/`TargetState`/`OriginalDamage` through
+`ApplyCreatureMeleeDamageLikeCppCommand`, which the session handler delivers
+without a `HealthUpdate` for an avoided swing. An avoided swing removes the
+attacking-interrupt auras and rearms the timer exactly where
+`Unit::AttackerStateUpdate` does (`Unit.cpp:2172-2173`). Evidence: the inputs
+test pins a player victim's `2.5` miss band with zero dodge/parry/block/crit and
+the `249`/`250` band edge, and the new production runtime scenario drives a `+5`
+victim aura to a landed 10-damage hit and a `-100` aura to a zero-damage
+`HITINFO_MISS`/`VICTIMSTATE_INTACT` command with `original_damage 10` and
+unchanged health. wow-world 3986/0/1, wow-packet 744/0, wow-entities 940/0 and
+world-server 594/0/0 pass; format, `git diff --check` and the physical ratchet
+pass with `session/mod.rs` and `handlers/loot/handlers.rs` back at their
+recorded ceilings, and `validation-v2 quick` (manifest
+`20260917T170034.802907Z-3042128-quick.json`) passes. Boundaries: a player
+victim's dodge/parry/block/crit bands, its armour mitigation and its
+`MeleeDamageBonusTaken` terms remain unrepresented (the block damage reduction
+additionally needs the DB2 `ExpectedStatType::ArmorConstant` table, and the
+target build's crushing term evaluates to a negative band, so a represented
+crushing outcome stays absent); without a spell store the runtime keeps the
+pre-table bridge. No live DB/restart/relogin QA. #29 remains open for the
+remaining spell/melee math.
 
 **#29 ignore-target-resist armour term — 2026-09-17, implementation `73140a7c`,
 integrated as `042084ae` by PR #1109:** C++ `Unit::CalcArmorReducedDamage`
