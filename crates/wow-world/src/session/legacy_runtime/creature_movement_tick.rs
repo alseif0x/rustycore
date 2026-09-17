@@ -662,10 +662,10 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
     attacker_can_state_update: bool,
     victim_guid: ObjectGuid,
     damage: Option<u32>,
-    // C++ `CalcDamageInfo`'s `(HitInfo, TargetState)` when the caller already
-    // rolled the attack table; `None` keeps this bridge's normal-hit
+    // C++ `CalcDamageInfo`'s `(HitInfo, TargetState, Blocked)` when the caller
+    // already rolled the attack table; `None` keeps this bridge's normal-hit
     // presentation.
-    outcome_presentation: Option<(u32, u8)>,
+    outcome_presentation: Option<(u32, u8, i32)>,
 ) -> CreatureMeleeApplyResultLikeCpp {
     use wow_packet::ServerPacket;
     use wow_packet::packets::combat::{
@@ -745,7 +745,7 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
                 damage,
             );
             let mut hit_info =
-                outcome_presentation.map_or(HIT_INFO_AFFECTS_VICTIM, |(info, _)| info);
+                outcome_presentation.map_or(HIT_INFO_AFFECTS_VICTIM, |(info, _, _)| info);
             if victim.should_fake_damage_from_like_cpp(true, attacker_is_player_controlled) {
                 hit_info |= HIT_INFO_FAKE_DAMAGE;
             }
@@ -825,8 +825,8 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
             damage: damage.min(i32::MAX as u32) as i32,
             original_damage: damage.min(i32::MAX as u32) as i32,
             over_damage,
-            blocked: 0,
-            victim_state: outcome_presentation.map_or(VICTIM_STATE_HIT, |(_, state)| state),
+            blocked: outcome_presentation.map_or(0, |(_, _, blocked)| blocked.max(0)),
+            victim_state: outcome_presentation.map_or(VICTIM_STATE_HIT, |(_, state, _)| state),
             school_mask: 1,
             target_level,
             expansion: 2,
