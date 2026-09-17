@@ -108,9 +108,12 @@ fn resolve_health_regeneration_input_like_cpp(
         aura_mod_health_regen_in_combat: in_combat_effects.iter().map(|(_, amount)| *amount).sum(),
         base_health_regen: stats.health_regen,
         // C++ `Unit::IsPolymorphed()` reads `m_transformSpell`
-        // (`Unit.cpp:9993-10000`), which the canonical Unit does not represent
-        // yet. The transform-spell owner is a separate port gate.
-        is_polymorphed: false,
+        // (`Unit.cpp:9993-10004`), now owned by the canonical Unit aura
+        // subsystem. A missing aura owner keeps the C++ default of "not
+        // polymorphed".
+        is_polymorphed: session
+            .represented_player_is_polymorphed_like_cpp()
+            .unwrap_or(false),
     })
 }
 

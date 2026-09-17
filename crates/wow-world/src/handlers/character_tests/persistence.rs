@@ -1413,6 +1413,125 @@ fn health_regeneration_tick_suppresses_in_combat_without_modifiers_like_cpp() {
     );
 }
 
+#[test]
+fn polymorph_transform_aura_allows_in_combat_health_regeneration_like_cpp() {
+    let (mut session, _send_rx) = make_session_with_send_capacity(16);
+    let player_guid = ObjectGuid::create_player(1, 113);
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+    attach_stat_update_player_with_mana_and_health(
+        &mut session,
+        player_guid,
+        100,
+        1_000,
+        100,
+        1_000,
+    );
+    assert!(
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().world_mut().object_mut().add_to_world();
+                let mut flags = player.unit().unit_flags_like_cpp();
+                flags.insert(wow_constants::unit::UnitFlags::IN_COMBAT);
+                player.unit_mut().set_unit_flags_like_cpp(flags);
+            })
+            .is_some()
+    );
+    publish_health_regen_snapshot_like_cpp(&mut session, 20, 0);
+    let tables = health_regen_game_tables_like_cpp(0.1, 0.2);
+    let power_types = mana_power_type_store_like_cpp(0.0, 0.0);
+
+    // C++ Polymorph (118): effect 0 applies `SPELL_AURA_MOD_CONFUSE` and the
+    // `SPELL_AURA_TRANSFORM` effect owns `Unit::m_transformSpell`. The MAGE
+    // class options (`SpellClassOptions.db2`) classify the spell specific as
+    // `SPELL_SPECIFIC_MAGE_POLYMORPH`.
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        118,
+        wow_data::SpellInfo {
+            spell_id: 118,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_TRANSFORM),
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![
+                wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_CONFUSE,
+                    ..Default::default()
+                },
+                wow_data::SpellEffectInfo {
+                    effect_index: 1,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_TRANSFORM,
+                    ..Default::default()
+                },
+            ],
+        },
+    );
+    session.set_spell_store(Arc::new(spell_store));
+    session.set_spell_class_options_store(Arc::new(
+        wow_data::SpellClassOptionsStore::from_entries([wow_data::SpellClassOptionsEntry {
+            id: 1,
+            spell_id: 118,
+            modal_next_spell: 0,
+            spell_class_set: 3,
+            spell_class_mask: [0x0100_0000, 0, 0, 0],
+        }]),
+    ));
+    session.set_state(crate::session::SessionState::LoggedIn);
+    assert!(
+        session
+            .apply_aura_with_effect_mask_for_test_like_cpp(118, player_guid, 30_000, 0b11)
+            .is_ok()
+    );
+    assert_eq!(
+        session.represented_player_is_polymorphed_like_cpp(),
+        Some(true)
+    );
+
+    // C++ `Player::RegenerateHealth` (`Player.cpp:1857-1859`) replaces the
+    // whole calculation with `GetMaxHealth() / 3.0f` while polymorphed, so the
+    // in-combat gate that would otherwise suppress regeneration is bypassed.
+    session.tick_player_regeneration_like_cpp(
+        2_000,
+        &power_types,
+        Some(&tables),
+        &crate::PlayerRegenerationRatesLikeCpp::default(),
+    );
+    assert_eq!(
+        session.canonical_player_health_snapshot_like_cpp(),
+        Some((433, 1_000))
+    );
+
+    let slot = session
+        .visible_aura_slot_for_spell_like_cpp(118)
+        .expect("polymorph aura slot");
+    session.remove_aura(slot).expect("remove polymorph aura");
+    assert_eq!(
+        session.represented_player_is_polymorphed_like_cpp(),
+        Some(false)
+    );
+    session.tick_player_regeneration_like_cpp(
+        2_000,
+        &power_types,
+        Some(&tables),
+        &crate::PlayerRegenerationRatesLikeCpp::default(),
+    );
+    assert_eq!(
+        session.canonical_player_health_snapshot_like_cpp(),
+        Some((433, 1_000)),
+        "without the transform aura the in-combat gate suppresses regeneration"
+    );
+}
+
 fn power_type_store_like_cpp(
     power: PowerType,
     regen_peace: f32,

@@ -149,6 +149,14 @@ impl WorldSession {
     pub fn set_spell_shapeshift_form_store(&mut self, store: Arc<SpellShapeshiftFormStore>) {
         self.spell_catalogs.set_spell_shapeshift_form_store(store);
     }
+    /// C++ `SpellInfo::SpellFamilyName`/`SpellFamilyFlags` source
+    /// (`SpellClassOptions.db2`).
+    pub fn spell_class_options_store(&self) -> Option<&Arc<wow_data::SpellClassOptionsStore>> {
+        self.spell_catalogs.spell_class_options_store()
+    }
+    pub fn set_spell_class_options_store(&mut self, store: Arc<wow_data::SpellClassOptionsStore>) {
+        self.spell_catalogs.set_spell_class_options_store(store);
+    }
     pub fn set_spell_learn_spell_store(&mut self, store: Arc<SpellLearnSpellStoreLikeCpp>) {
         self.spell_catalogs.set_spell_learn_spell_store(store);
     }

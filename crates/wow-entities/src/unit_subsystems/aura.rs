@@ -62,6 +62,12 @@ pub struct AuraSubsystem {
     pub proc_depth: u16,
     pub proc_chain_length: i32,
     pub diminishing: [DiminishingReturnState; DIMINISHING_MAX],
+    /// C++ `Unit::m_transformSpell`: the spell id of the active transform aura
+    /// (`AuraEffect::HandleAuraTransform`), or zero when none is active.
+    ///
+    /// Kept private so the aura apply/remove paths below stay the only writers;
+    /// `Player::IsPolymorphed`/`Player::IsInDisallowedMountForm` are readers.
+    transform_spell_like_cpp: i32,
 }
 
 /// Represented C++ aura effect families consumed by Player/Unit rules that
@@ -277,6 +283,40 @@ impl VisibleAuraApplicationLikeCpp {
 }
 
 impl AuraSubsystem {
+    /// C++ `Unit::GetTransformSpell` (`Unit.h:1530`).
+    pub const fn transform_spell_like_cpp(&self) -> i32 {
+        self.transform_spell_like_cpp
+    }
+
+    /// C++ `AuraEffect::HandleAuraTransform` apply rule
+    /// (`SpellAuraEffects.cpp:1944-1951`): the applied transform aura only
+    /// overwrites `m_transformSpell` when there is no current transform spell
+    /// info, when the new spell is not positive, or when the current transform
+    /// spell is positive. `current_is_positive == None` models the C++
+    /// `!transformSpellInfo` case (no current transform, or no loaded
+    /// `SpellInfo` for it).
+    pub fn apply_transform_aura_like_cpp(
+        &mut self,
+        spell_id: i32,
+        new_is_positive: bool,
+        current_is_positive: Option<bool>,
+    ) {
+        if current_is_positive.is_none() || !new_is_positive || current_is_positive == Some(true) {
+            self.transform_spell_like_cpp = spell_id;
+        }
+    }
+
+    /// C++ `AuraEffect::HandleAuraTransform` remove rule
+    /// (`SpellAuraEffects.cpp:2129-2131`): only the aura that currently owns
+    /// the transform spell clears it.
+    pub fn remove_transform_aura_like_cpp(&mut self, spell_id: i32) -> bool {
+        if self.transform_spell_like_cpp == spell_id {
+            self.transform_spell_like_cpp = 0;
+            return true;
+        }
+        false
+    }
+
     pub fn runtime_applications_like_cpp(&self) -> &HashMap<u8, AuraApplicationLikeCpp> {
         &self.runtime_applications_like_cpp
     }
@@ -316,6 +356,10 @@ impl AuraSubsystem {
             self.runtime_applications_like_cpp.clear();
             self.invalidate_spell_hit_aura_authority_like_cpp();
         }
+        // C++ drops `m_transformSpell` with each removed transform aura; a bulk
+        // clear is the character-identity boundary, where the reused canonical
+        // Unit must not inherit the previous character's active transform.
+        self.transform_spell_like_cpp = 0;
     }
 
     pub const fn persisted_player_aura_authority_complete_like_cpp(&self) -> bool {

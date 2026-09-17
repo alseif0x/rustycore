@@ -33,6 +33,19 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 `Unit::m_transformSpell` and `IsPolymorphed` — 2026-09-17, implementation
+`e8994e95`:** the canonical Unit aura subsystem now owns C++
+`Unit::m_transformSpell` with the `AuraEffect::HandleAuraTransform` apply/remove
+rules (`SpellAuraEffects.cpp:1944-1951`, `2129-2131`), written only by the session
+aura insert/remove funnels. `Unit::IsPolymorphed` (`Unit.cpp:9993-10004`) is
+resolved through the `SpellClassOptions` MAGE family plus effect 0 applying
+`SPELL_AURA_MOD_CONFUSE` (`SpellInfo.cpp:2665-2671`) and drives the C++
+`Player::RegenerateHealth` polymorph branch (`Player.cpp:1857-1859`);
+`Unit::IsInDisallowedMountForm` (`Unit.cpp:8813-8820`) now reads the canonical
+transform spell. This closes the hardcoded polymorph gate and the visible-aura
+transform heuristic without a new mutable mirror, lock or clock, and without
+changing the #584 → #583 → #153 architecture gate.
+
 **#61 aura-backed per-attack expertise — 2026-09-16, implementation `a3345bc9`:**
 `Player::UpdateExpertise` (`StatSystem.cpp:759-786`) now runs in the character
 stat projection: the truncated combat-rating bonus plus the

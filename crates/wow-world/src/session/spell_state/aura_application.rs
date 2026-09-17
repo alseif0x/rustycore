@@ -105,6 +105,25 @@ impl WorldSession {
             true,
         )
     }
+    /// Test-only entry point for a represented multi-effect application, needed
+    /// by acceptance cases (for example the transform/`IsPolymorphed` path)
+    /// that must mark more than the first effect active.
+    #[cfg(test)]
+    pub(crate) fn apply_aura_with_effect_mask_for_test_like_cpp(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        duration_ms: u32,
+        effect_mask: u32,
+    ) -> Result<(), &'static str> {
+        self.apply_aura_with_effect_mask_like_cpp(
+            spell_id,
+            caster_guid,
+            duration_ms,
+            0x0000_0001,
+            effect_mask,
+        )
+    }
     pub(in crate::session) fn apply_aura_with_effect_mask_without_update_like_cpp(
         &mut self,
         spell_id: i32,
@@ -475,6 +494,10 @@ impl WorldSession {
             let _ = self.insert_player_visible_aura_like_cpp(aura);
             return Err("Missing Player presentation owner");
         }
+        // C++ `AuraEffect::HandleAuraTransform` remove path
+        // (`SpellAuraEffects.cpp:2129-2131`): the application is already gone,
+        // so the aura that owns the transform spell clears it.
+        let _ = self.remove_represented_transform_aura_like_cpp(&aura);
         self.sync_canonical_threat_relevant_aura_like_cpp(
             aura.spell_id,
             aura.caster_guid,
