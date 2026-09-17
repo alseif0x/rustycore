@@ -18528,6 +18528,7 @@ pub(crate) struct PlayerMeleeCreatureHitLikeCpp {
 /// These were `impl WorldSession` associated functions taking no `self`. The
 /// global legacy loop has no session, so #28 lifts them to module level
 /// unchanged; the arithmetic and the C++ anchors are untouched.
+///
 /// C++ `Unit::MeleeDamageBonusDone`'s tail for the represented white swing:
 /// take the `UnitData` range the way the represented model already did and
 /// multiply by the attacker's `SPELL_AURA_MOD_AUTOATTACK_DAMAGE` factor
@@ -18538,10 +18539,9 @@ fn represented_white_swing_damage_like_cpp(
     autoattack_damage_multiplier: f32,
     melee_damage_bonus: RepresentedMeleeDamageBonusLikeCpp,
 ) -> u32 {
-    // C++ `MeleeDamageBonusDone`: `int32(max(float(damage + DoneFlatBenefit) *
-    // DoneTotalMod, 0.0f))`, with the `SPELL_AURA_MOD_AUTOATTACK_DAMAGE`
-    // percentage already folded into `DoneTotalMod`.
-    let rolled = min_damage.max(1.0).min(max_damage.max(1.0));
+    // C++ `Unit::CalculateMeleeDamage` rolls `CalculateDamage` first and passes
+    // the value into `MeleeDamageBonusDone` (`Unit.cpp:1326-1334`, `7666-7667`).
+    let rolled = crate::session_rules::white_swing_roll_like_cpp(min_damage, max_damage) as f32;
     let damage = (rolled + melee_damage_bonus.flat as f32)
         * melee_damage_bonus.pct
         * autoattack_damage_multiplier;

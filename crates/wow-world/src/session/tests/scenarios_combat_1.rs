@@ -1342,3 +1342,114 @@ fn white_swing_applies_victim_aurastate_and_mechanic_melee_bonus_like_cpp() {
         "C++ MeleeDamageBonusDone"
     );
 }
+
+#[test]
+fn white_swing_roll_bounds_follow_calculate_damage_like_cpp() {
+    // C++ `Unit::CalculateDamage` clamps both bounds at zero, orders them and
+    // truncates to `uint32` before the roll (`Unit.cpp:2426-2435`).
+    assert_eq!(crate::session_rules::white_swing_roll_like_cpp(0.0, 0.0), 0);
+    assert_eq!(
+        crate::session_rules::white_swing_roll_like_cpp(-4.0, -2.0),
+        0
+    );
+    // An inverted, fractional range is ordered and truncated: `urand(5, 9)`.
+    for _ in 0..64 {
+        let rolled = crate::session_rules::white_swing_roll_like_cpp(9.9, 5.2);
+        assert!((5..=9).contains(&rolled), "rolled {rolled} outside [5, 9]");
+    }
+}
+
+#[test]
+fn white_swing_damage_rolls_the_published_range_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    let guid = test_creature_guid(18_033);
+    let player = ObjectGuid::create_player(1, 87);
+
+    canonical.lock().unwrap().create_world_map(0, 0);
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+        wow_data::MapEntry {
+            id: 0,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        },
+    ])));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player,
+        "Roll".to_string(),
+        Position::new(10.0, 10.0, 0.0, 0.0),
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            let unit = player.unit_mut();
+            unit.set_attacking(Some(guid));
+            unit.set_target(guid);
+            unit.add_unit_state(UnitState::MELEE_ATTACKING.bits());
+            unit.set_base_attack_time_like_cpp(WeaponAttackType::BaseAttack, 2_000);
+            unit.set_attack_timer(WeaponAttackType::BaseAttack, 0);
+            unit.set_weapon_damage(WeaponAttackType::BaseAttack, 5.0, 9.0);
+        })
+        .unwrap();
+    session.combat_target = Some(guid);
+    session.in_combat = true;
+    register_test_creature(&mut session, manager.clone(), guid, 40);
+    session
+        .mutate_world_creature(guid, |creature| {
+            creature.enter_combat(player);
+            creature.creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+        })
+        .unwrap();
+
+    let swing = |session: &mut WorldSession| {
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .set_attack_timer(WeaponAttackType::BaseAttack, 0);
+                take_canonical_player_attack_swings_like_cpp(
+                    player,
+                    0,
+                    true,
+                    true,
+                    true,
+                    [RepresentedMeleeDamageBonusLikeCpp::NONE; 2],
+                )
+            })
+            .flatten()
+            .map(|(swings, _)| swings)
+    };
+
+    // Every landed white swing rolls the published `UnitData` range. The range
+    // is small enough that 400 draws must reach both bounds; with no bonus the
+    // damage is exactly the roll.
+    let mut seen = [0_usize; 10];
+    for _ in 0..400 {
+        let swings = swing(&mut session).expect("white swing resolves");
+        assert_eq!(swings.len(), 1);
+        let damage = swings[0];
+        assert!(
+            (5..=9).contains(&damage),
+            "damage {damage} outside the published [5, 9] range"
+        );
+        seen[damage as usize] += 1;
+    }
+    assert!(seen[5] > 0, "the lower bound must be reachable: {seen:?}");
+    assert!(seen[9] > 0, "the upper bound must be reachable: {seen:?}");
+    assert!(
+        seen.iter().filter(|count| **count > 0).count() >= 4,
+        "the roll must spread over the range, not pin one value: {seen:?}"
+    );
+}
