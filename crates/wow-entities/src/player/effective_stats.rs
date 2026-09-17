@@ -58,6 +58,14 @@ pub struct PlayerEffectiveCombatStatsLikeCpp {
     pub max_ranged_damage: f32,
     pub combat_ratings: [i32; 32],
     pub spell_power: i32,
+    /// C++ `ActivePlayerData::ModDamageDonePos[7]` published by
+    /// `Player::UpdateSpellDamageAndHealingBonus` (`StatSystem.cpp:171-197`);
+    /// index 0 stays unwritten.
+    pub mod_damage_done_pos: [i32; 7],
+    /// C++ `ActivePlayerData::ModDamageDoneNeg[7]`.
+    pub mod_damage_done_neg: [i32; 7],
+    /// C++ `ActivePlayerData::ModHealingDonePos`.
+    pub mod_healing_done_pos: i32,
     pub mana_regen: f32,
     pub mana_regen_combat: f32,
     pub mana_regen_mp5: f32,
@@ -107,6 +115,9 @@ impl Default for PlayerEffectiveCombatStatsLikeCpp {
             max_ranged_damage: 0.0,
             combat_ratings: [0; 32],
             spell_power: 0,
+            mod_damage_done_pos: [0; 7],
+            mod_damage_done_neg: [0; 7],
+            mod_healing_done_pos: 0,
             mana_regen: 0.0,
             mana_regen_combat: 0.0,
             mana_regen_mp5: 0.0,

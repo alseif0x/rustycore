@@ -151,6 +151,24 @@ pub const SPELL_AURA_MOD_SPEED_NO_CONTROL: i32 = 373;
 pub const SPELL_AURA_MOD_MANA_REGEN_PCT: i32 = 379;
 pub const SPELL_AURA_SCHOOL_HEAL_ABSORB: i32 = 301;
 pub const SPELL_AURA_IGNORE_SPELL_COOLDOWN: i32 = 383;
+/// C++ `AuraType::SPELL_AURA_MOD_HEALING_DONE` (`SpellAuraDefines.h:230`):
+/// flat healing bonus read by `Unit::SpellBaseHealingBonusDone`
+/// (`Unit.cpp:7282-7315`).
+pub const SPELL_AURA_MOD_HEALING_DONE: i32 = 135;
+/// C++ `AuraType::SPELL_AURA_MOD_SPELL_DAMAGE_OF_STAT_PERCENT`
+/// (`SpellAuraDefines.h:269`): `MiscValue` is the school mask and `MiscValueB`
+/// the stat.
+pub const SPELL_AURA_MOD_SPELL_DAMAGE_OF_STAT_PERCENT: i32 = 174;
+/// C++ `AuraType::SPELL_AURA_MOD_SPELL_HEALING_OF_STAT_PERCENT`
+/// (`SpellAuraDefines.h:270`): the effect `MiscValue` is the stat index.
+pub const SPELL_AURA_MOD_SPELL_HEALING_OF_STAT_PERCENT: i32 = 175;
+/// C++ `AuraType::SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT`
+/// (`SpellAuraDefines.h:461`): `HandleOverrideSpellPowerByAttackPower`
+/// (`SpellAuraEffects.cpp:3770-3781`) accumulates
+/// `ActivePlayerData::OverrideSpellPowerByAPPercent`, which makes both
+/// `SpellBaseDamageBonusDone` and `SpellBaseHealingBonusDone` return a
+/// percentage of melee attack power instead of the gear and aura bonuses.
+pub const SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT: i32 = 366;
 pub const SPELL_AURA_MOD_BATTLE_PET_XP_PCT: i32 = 420;
 /// C++ `AuraType::SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT`
 /// (`SpellAuraDefines.h:499`): `AuraEffect::HandleOverrideAttackPowerBySpellPower`
