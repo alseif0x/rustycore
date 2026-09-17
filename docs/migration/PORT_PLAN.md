@@ -33,6 +33,16 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 `Unit::UpdateDamagePctDoneMods` representation — 2026-09-17,
+implementation `720bcb0a`:** the weapon-range `TOTAL_PCT` (mainhand/ranged 1.0,
+offhand 0.5) is applied with the physical `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE`
+(79) multiplier filtered by `CheckAttackFitToAuraRequirement`, so the offhand
+penalty and the physical damage auras now reach `CalculateMinMaxDamage`.
+Recorded departure: the source's raw-sum offhand-damage term is not applied
+because it zeroes offhand damage when no such aura exists; the aura scale and
+ranged weapon requirements stay open. wow-data --lib 751/0, wow-entities --lib
+940/0, wow-world --lib 3928/0/1; no live DB/restart/relogin QA.
+
 **#61 `VersatilityBonus` publication — 2026-09-17, implementation `a065cd97`:**
 `HandleModVersatilityByPct` (`SpellAuraEffects.cpp:3797-3808`) sums
 `SPELL_AURA_MOD_VERSATILITY` (471) into the zero-clamped
