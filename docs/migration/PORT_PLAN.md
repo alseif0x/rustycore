@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 creature-victim block-band scenario — 2026-09-17, implementation
+`77c7d3a8`:** the runtime scenario now covers the reachable flat 30% creature
+block (mitigated 8 → 6, `HITINFO_BLOCK` on the wire); the bridge packet's
+`blocked` field stays `0` pending an investigation of the appended
+`int32(BlockAmount)`. wow-world 3990/0/1, world-server 594/0/0; no live
+DB/restart/relogin QA.
+
 **#29 creature-victim avoidance and crit bands — 2026-09-17, implementation
 `505b9fbe`:** the creature-victim branch now resolves the victim's
 `CreatureAvoidanceLikeCpp` dodge/parry/block with the `MOD_*_PERCENT` aura sums

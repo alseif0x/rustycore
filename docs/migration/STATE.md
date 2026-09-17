@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`96708a82abf172e8c7ff3fee2bd1c6570ea51d2e` (PR #1125, the #29
-creature-victim avoidance and crit bands, following PR #1123, the #29
+`19df40a589aa91ec8106118215bd2e99de47eea7` (PR #1127, the #29
+creature-victim block-band scenario, following PR #1125, the #29
+creature-victim avoidance and crit bands, PR #1123, the #29
 creature-victim miss band and outcome publication, PR #1121, the #29
 melee scenario-suite split, PR #1119, the #29
 creature-victim melee mitigation, PR #1117, the #29
@@ -32,6 +33,23 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 creature-victim block-band scenario — 2026-09-17, implementation
+`77c7d3a8`, integrated as `19df40a5` by PR #1127:** the creature-victim
+avoidance unit (PR #1125) made the victim creature's flat 30% block band
+reachable (`Unit.h:947`, `melee_outcome_damage_like_cpp`'s block arm), but no
+scenario exercised it. The production runtime scenario now sets the victim's
+`CreatureAvoidanceLikeCpp::block_pct` to 100 and asserts that the mitigated 8
+damage is reduced by `CalculatePct(8, 30) = 2` to 6, with `HITINFO_BLOCK` on the
+wire; the `melee_outcome_damage_like_cpp` tuple is also named at the call site
+instead of accessed by `.0`. Evidence: wow-world 3990/0/1 and world-server
+594/0/0 pass, plus format, `git diff --check`, the physical ratchet and
+`validation-v2 quick` (manifest `20260917T191337.050229Z-3152855-quick.json`).
+Explicitly not claimed: the bridge packet's `blocked` field stays `0`; a decode
+attempt did not show the appended `int32(BlockAmount)` in this plan-event
+packet, so publishing the producer's blocked amount there needs its own
+investigation first (the existing writer test covers the session path's blocked
+byte).
 
 **#29 creature-victim avoidance and crit bands — 2026-09-17, implementation
 `505b9fbe`, integrated as `96708a82` by PR #1125:** C++
