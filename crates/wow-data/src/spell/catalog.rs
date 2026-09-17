@@ -60,6 +60,11 @@ pub struct SpellEffectInfo {
     pub effect_aura: i32,
     pub effect_base_points: i32,
     pub effect_die_sides: i32,
+    /// C++ `SpellEffectInfo::BonusCoefficientFromAP`
+    /// (`DB2Structure.h:3525`, `SpellInfo.cpp:436`): the coefficient
+    /// `Unit::SpellDamageBonusDone`/`SpellHealingBonusDone` scale by the
+    /// attacker's total attack power.
+    pub effect_bonus_coefficient_from_ap: f32,
     pub effect_spell_class_mask: [u32; 4],
     pub effect_misc_value_1: i32,
     pub effect_misc_value_2: i32,

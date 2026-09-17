@@ -450,14 +450,16 @@ impl WorldSession {
     /// C++ `Unit::SpellDamageBonusDone` (`Unit.cpp:6623-6680`) for the
     /// represented player-caster `SPELL_DIRECT_DAMAGE`:
     /// `int32(max((pdamage + int32(SpellBaseDamageBonusDone(schoolMask) *
-    /// BonusCoefficient)) * DoneTotalMod, 0))`.
+    /// BonusCoefficient) + int32(BonusCoefficientFromAP * AP)) * DoneTotalMod,
+    /// 0))`.
     ///
     /// Boundaries: the family-scripted damage terms are not modelled yet; the
     /// represented model stores one `BonusCoefficient` per spell rather than per
     /// `SpellEffectInfo`; creature casters keep the raw value. A spell whose
     /// `SpellMisc.SchoolMask` is unavailable also keeps the raw value. The
     /// `effect_index` carries the C++ `SpellEffectInfo` whose mechanic feeds the
-    /// `MOD_DAMAGE_DONE_FOR_MECHANIC` term.
+    /// `MOD_DAMAGE_DONE_FOR_MECHANIC` term, and `coefficient_from_ap` its
+    /// `BonusCoefficientFromAP` table value.
     pub(in crate::session) fn represented_spell_damage_bonus_done_like_cpp(
         &self,
         spell_id: i32,
@@ -465,9 +467,19 @@ impl WorldSession {
         caster_guid: ObjectGuid,
         target_guid: ObjectGuid,
         coefficient: f32,
+        coefficient_from_ap: f32,
         base_damage: u32,
     ) -> u32 {
         if caster_guid != self.player_guid().unwrap_or(ObjectGuid::EMPTY) {
+            return base_damage;
+        }
+        // C++ `SpellDamageBonusDone` (`Unit.cpp:6607-6612`) returns before both
+        // the flat advertised benefit and the percentage chain.
+        if self.represented_spell_has_attribute_like_cpp(
+            spell_id,
+            3,
+            wow_data::spell::attributes::SPELL_ATTR3_IGNORE_CASTER_MODIFIERS,
+        ) {
             return base_damage;
         }
         let Some(school_mask) = self.represented_spell_school_mask_like_cpp(spell_id) else {
@@ -485,9 +497,57 @@ impl WorldSession {
         ) else {
             return base_damage;
         };
-        let done_total = (benefit as f32 * coefficient) as i32;
+        let done_total = (benefit as f32 * coefficient) as i32
+            + self.represented_spell_bonus_coefficient_from_ap_like_cpp(coefficient_from_ap);
         let damage = (base_damage as f32 + done_total as f32) * done_total_mod;
         u32::try_from(damage.max(0.0).min(u32::MAX as f32) as u32).unwrap_or(u32::MAX)
+    }
+
+    /// C++ `SpellDamageBonusDone`/`SpellHealingBonusDone` "Check for table
+    /// values" (`Unit.cpp:6633-6649`, `7132-7140`): a positive
+    /// `BonusCoefficientFromAP` adds
+    /// `int32(stack * BonusCoefficientFromAP * APbonus)` to the flat done
+    /// benefit.
+    ///
+    /// Boundaries: `stack` is always one in the represented model; the
+    /// `SpellModOp::BonusCoefficient` adjustment is not represented; and the
+    /// attack type is always `BASE_ATTACK` because the represented `SpellInfo`
+    /// carries no `SpellFamilyName`/`EquippedItemSubClassMask`, so the C++
+    /// `RANGED_ATTACK`/`OFF_ATTACK` selection and the victim's
+    /// `SPELL_AURA_*_ATTACK_POWER_ATTACKER_BONUS` term remain unrepresented.
+    fn represented_spell_bonus_coefficient_from_ap_like_cpp(
+        &self,
+        coefficient_from_ap: f32,
+    ) -> i32 {
+        if !(coefficient_from_ap > 0.0) {
+            return 0;
+        }
+        let Some(attack_power) = self.canonical_player_total_attack_power_like_cpp() else {
+            return 0;
+        };
+        (coefficient_from_ap * attack_power) as i32
+    }
+
+    /// C++ `SpellInfo::HasAttribute` for the represented spell, resolved through
+    /// the current map difficulty and its `FallbackDifficultyID` chain. `false`
+    /// when the represented store is unavailable, so callers keep their
+    /// un-gated behaviour instead of failing closed on missing metadata.
+    fn represented_spell_has_attribute_like_cpp(
+        &self,
+        spell_id: i32,
+        attribute_word: usize,
+        attribute: u32,
+    ) -> bool {
+        let Some(spell_store) = self.spell_store() else {
+            return false;
+        };
+        spell_store.has_attribute_for_difficulty_like_cpp(
+            spell_id,
+            self.current_map_difficulty_id_like_cpp(),
+            self.difficulty_store().map(AsRef::as_ref),
+            attribute_word,
+            attribute,
+        )
     }
 
     /// C++ `Unit::SpellDamagePctDone` (`Unit.cpp:6683-6772`) player branch: the
@@ -518,24 +578,16 @@ impl WorldSession {
         target_guid: ObjectGuid,
     ) -> Option<f32> {
         // C++ `SpellDamagePctDone` early-outs (`Unit.cpp:6690-6698`).
-        if let Some(spell_store) = self.spell_store() {
-            let difficulty = self.current_map_difficulty_id_like_cpp();
-            let difficulty_store = self.difficulty_store().map(AsRef::as_ref);
-            if spell_store.has_attribute_for_difficulty_like_cpp(
-                spell_id,
-                difficulty,
-                difficulty_store,
-                3,
-                wow_data::spell::attributes::SPELL_ATTR3_IGNORE_CASTER_MODIFIERS,
-            ) || spell_store.has_attribute_for_difficulty_like_cpp(
-                spell_id,
-                difficulty,
-                difficulty_store,
-                6,
-                wow_data::spell::attributes::SPELL_ATTR6_IGNORE_CASTER_DAMAGE_MODIFIERS,
-            ) {
-                return Some(1.0);
-            }
+        if self.represented_spell_has_attribute_like_cpp(
+            spell_id,
+            3,
+            wow_data::spell::attributes::SPELL_ATTR3_IGNORE_CASTER_MODIFIERS,
+        ) || self.represented_spell_has_attribute_like_cpp(
+            spell_id,
+            6,
+            wow_data::spell::attributes::SPELL_ATTR6_IGNORE_CASTER_DAMAGE_MODIFIERS,
+        ) {
+            return Some(1.0);
         }
         let snapshot = self.canonical_player_effective_combat_stats_like_cpp()?;
         let mask = u32::from(school_mask);
@@ -826,21 +878,23 @@ impl WorldSession {
     /// C++ `Unit::SpellHealingBonusDone` (`Unit.cpp:7100-7183`) for the
     /// represented player-caster `SPELL_DIRECT_DAMAGE`-style direct heal:
     /// `int32(max(float(healamount + int32(SpellBaseHealingBonusDone(schoolMask)
-    /// * BonusCoefficient)) * DoneTotalMod, 0.0f))`.
+    /// * BonusCoefficient) + int32(BonusCoefficientFromAP * AP)) * DoneTotalMod,
+    /// 0.0f))`.
     ///
     /// Boundaries: the victim `SPELL_AURA_MOD_HEALING` term is only applied
     /// when the victim is the session player, because creature auras are not
     /// represented; the `SPELLFAMILY_POTION` early-out (no represented family
-    /// name), the `BonusCoefficientFromAP` table, the periodic-leech
-    /// suppression, the spell-mod coefficient adjustment and the scripted
-    /// handlers are not modelled either. Creature casters keep the raw value,
-    /// and a missing `SpellMisc` row or canonical snapshot fails closed.
+    /// name), the periodic-leech suppression, the spell-mod coefficient
+    /// adjustment and the scripted handlers are not modelled either. Creature
+    /// casters keep the raw value, and a missing `SpellMisc` row or canonical
+    /// snapshot fails closed.
     pub(in crate::session) fn represented_spell_healing_bonus_done_like_cpp(
         &self,
         spell_id: i32,
         caster_guid: ObjectGuid,
         target_guid: ObjectGuid,
         coefficient: f32,
+        coefficient_from_ap: f32,
         base_heal: u32,
     ) -> u32 {
         let Some(player_guid) = self.player_guid() else {
@@ -875,7 +929,8 @@ impl WorldSession {
         let Some(snapshot) = self.canonical_player_effective_combat_stats_like_cpp() else {
             return base_heal;
         };
-        let done_total = (benefit as f32 * coefficient) as i32;
+        let done_total = (benefit as f32 * coefficient) as i32
+            + self.represented_spell_bonus_coefficient_from_ap_like_cpp(coefficient_from_ap);
         // C++ `Unit::SpellHealingPctDone` (`Unit.cpp:7185-7229`): the two
         // attribute early-outs return `1.0f`, otherwise the healing done
         // percentage times the versus-aurastate multiplier plus the
@@ -927,21 +982,12 @@ impl WorldSession {
     /// chain while `SpellBaseHealingBonusDone` still contributes the flat
     /// benefit.
     fn represented_healing_pct_done_gated_like_cpp(&self, spell_id: i32) -> bool {
-        let Some(spell_store) = self.spell_store() else {
-            return false;
-        };
-        let difficulty = self.current_map_difficulty_id_like_cpp();
-        let difficulty_store = self.difficulty_store().map(AsRef::as_ref);
-        spell_store.has_attribute_for_difficulty_like_cpp(
+        self.represented_spell_has_attribute_like_cpp(
             spell_id,
-            difficulty,
-            difficulty_store,
             3,
             wow_data::spell::attributes::SPELL_ATTR3_IGNORE_CASTER_MODIFIERS,
-        ) || spell_store.has_attribute_for_difficulty_like_cpp(
+        ) || self.represented_spell_has_attribute_like_cpp(
             spell_id,
-            difficulty,
-            difficulty_store,
             6,
             wow_data::spell::attributes::SPELL_ATTR6_IGNORE_HEALING_MODIFIERS,
         )

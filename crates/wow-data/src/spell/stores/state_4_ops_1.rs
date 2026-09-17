@@ -145,6 +145,7 @@ impl SpellStore {
             effect_aura: i32::from(effect.effect_aura),
             effect_base_points: effect.effect_base_points,
             effect_die_sides: effect.effect_die_sides,
+            effect_bonus_coefficient_from_ap: effect.bonus_coefficient_from_ap,
             effect_spell_class_mask: effect.effect_spell_class_mask,
             effect_misc_value_1: effect.effect_misc_value[0],
             effect_misc_value_2: effect.effect_misc_value[1],
