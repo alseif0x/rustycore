@@ -33,6 +33,15 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 `VersatilityBonus` publication — 2026-09-17, implementation `a065cd97`:**
+`HandleModVersatilityByPct` (`SpellAuraEffects.cpp:3797-3808`) sums
+`SPELL_AURA_MOD_VERSATILITY` (471) into the zero-clamped
+`ActivePlayerData::VersatilityBonus`, now published through the canonical
+snapshot, the create block and the narrow values update (bit 56). The handler's
+commented-out healing/versatility terms stay absent, matching C++.
+wow-data --lib 751/0, wow-entities --lib 940/0, wow-world --lib 3927/0/1,
+wow-packet --lib 742/0; no live DB/restart/relogin QA.
+
 **#61 override percentage field publication — 2026-09-17, implementation
 `204958b6`:** `OverrideSpellPowerByAPPercent` and
 `OverrideAPBySpellPowerPercent` now carry the accumulated aura 366/404 amounts
