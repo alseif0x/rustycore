@@ -1274,6 +1274,104 @@ async fn spell_school_damage_applies_damage_done_versus_like_cpp() {
 }
 
 #[tokio::test]
+async fn spell_direct_heal_scales_by_creature_missing_health_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let manager = shared_map_manager();
+    let spell_id = 729_i32;
+    let guid = test_creature_guid(18_016);
+    let player_guid = ObjectGuid::create_player(1, 60);
+    session.player_guid = Some(player_guid);
+    session.client_visible_guids_like_cpp.insert(guid);
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    register_test_creature(&mut session, manager.clone(), guid, 1_000);
+    session
+        .mutate_world_creature(guid, |creature| {
+            creature.creature.unit_mut().set_health(500);
+        })
+        .expect("damaged creature");
+
+    session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([
+        wow_data::SpellMiscEntry {
+            id: spell_id as u32,
+            spell_id: spell_id as u32,
+            school_mask: 1 << 1,
+            ..Default::default()
+        },
+    ])));
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        spell_id,
+        wow_data::SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL,
+                effect_base_points: 100,
+                ..Default::default()
+            }],
+        },
+    );
+    let aura_spell_id = 90_970_i32;
+    spell_store.insert(
+        aura_spell_id,
+        wow_data::SpellInfo {
+            spell_id: aura_spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_base_points: 100,
+            effect_bonus_coefficient: 0.0,
+            aura_type: Some(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_DONE_PCT_VERSUS_TARGET_HEALTH,
+            ),
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_aura:
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_DONE_PCT_VERSUS_TARGET_HEALTH,
+                effect_base_points: 100,
+                ..Default::default()
+            }],
+        },
+    );
+    session.set_spell_store(Arc::new(spell_store));
+    session
+        .apply_aura(aura_spell_id, player_guid, 30_000, 1)
+        .expect("apply missing-health aura");
+
+    session
+        .execute_spell(spell_id, guid)
+        .await
+        .expect("represented creature heal should scale by missing health");
+
+    // The creature is at 50% health, so the aura adds `100 * 50 / 100 = 50`:
+    // `int32(100 * 1.5) = 150`.
+    assert_eq!(
+        manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, guid)
+            .unwrap()
+            .current_hp(),
+        650
+    );
+}
+
+#[tokio::test]
 async fn spell_self_heal_syncs_player_health_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let guid = ObjectGuid::create_player(1, 44);
