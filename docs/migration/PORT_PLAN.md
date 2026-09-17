@@ -33,6 +33,18 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 armor aura producers — 2026-09-17, implementation `6b7334a0`:** the stat
+system now runs the complete C++ `Player::UpdateArmor` producer chain
+(`StatSystem.cpp:251-276`): `MOD_BASE_RESISTANCE_PCT` `BASE_PCT`,
+`MOD_RESISTANCE`/`MOD_BASE_RESISTANCE` normal-mask `TOTAL_VALUE`,
+`MOD_RESISTANCE_OF_STAT_PERCENT`, `MOD_RESISTANCE_PCT` `TOTAL_PCT` and
+`MOD_BONUS_ARMOR_PCT`, in C++ order with `int32(value)` truncation. The session
+resolves the aura inputs from the canonical applications and feeds the existing
+stat-system input, so the already-published `armor` field becomes aura-aware
+without a new writer. The school (1-6) resistance publication stays a separate
+gate. This advances the F1 resistance route without changing the
+#584 → #583 → #153 architecture gate.
+
 **#61 `Unit::m_transformSpell` and `IsPolymorphed` — 2026-09-17, implementation
 `e8994e95`:** the canonical Unit aura subsystem now owns C++
 `Unit::m_transformSpell` with the `AuraEffect::HandleAuraTransform` apply/remove

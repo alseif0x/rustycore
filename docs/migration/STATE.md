@@ -8,6 +8,42 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#61 armor aura producers (`Player::UpdateArmor`) — 2026-09-17, implementation
+`6b7334a0`:** the pure stat system now applies every C++ `Player::UpdateArmor`
+producer (`StatSystem.cpp:251-276`): `SPELL_AURA_MOD_BASE_RESISTANCE_PCT` (142)
+supplies the `BASE_PCT` factor scaling the item `BASE_VALUE`,
+`SPELL_AURA_MOD_RESISTANCE` (22) plus `SPELL_AURA_MOD_BASE_RESISTANCE` (83) with
+the normal school mask supply the flat `TOTAL_VALUE`,
+`SPELL_AURA_MOD_RESISTANCE_OF_STAT_PERCENT` (182) adds `CalculatePct` of its
+`MiscValueB` stat before the multipliers, `SPELL_AURA_MOD_RESISTANCE_PCT` (101)
+supplies `TOTAL_PCT` and `SPELL_AURA_MOD_BONUS_ARMOR_PCT` (466) the final
+multiplier, with the C++ `int32(value)` truncation. The session resolves those
+inputs from the canonical visible applications through the new
+`resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp` (which keeps
+`MiscValueB` available) and feeds the existing
+`PlayerStatSystemInputLikeCpp`; `armor` is already published through the create
+block and the post-login stat update, so no packet or mirror change is needed and
+no second writer appears. The five aura type constants carry their
+`SpellAuraDefines.h` anchors. Focused coverage: a pure stat-system test pins the
+producer order (`((100*1.5)+24+40+6)*1.25*1.1` → 302) and an end-to-end session
+test applies the normal-mask flat aura, a fire-mask aura, the percentage pair and
+the of-stat aura, asserting each step plus the removal path; `wow-data
+stat_system` (5), `scenarios_player_items_12` (7), `scenarios_player_items_1`
+(48), `persistence::` (105), `scenarios_spell_state_22` (9) and
+`scenarios_world_entities_24` (11) stay green; format, `git diff --check`, the
+physical ratchet and `validation-v2 quick` (manifest
+`20260917T002634.532691Z-2110432-quick.json`, 113.8 s) pass. The same-effect
+stack-rule grouping of `GetTotalAuraMultiplier` is not applied to the
+`MOD_BONUS_ARMOR_PCT` product (consistent with the older mana/stat aura
+multiplier helpers), the school (1-6) resistance `BASE_VALUE`/`TOTAL_VALUE`
+publication remains a separate gate because no resistance delta writer exists
+yet, and the full `wow-world --lib` suite stays unusable on this host because
+several unrelated pre-existing async tests hang; `validation-v2 final` stops at
+the pre-existing runtime hotspot LOC ratchet, which keeps its drift and was not
+regenerated. #61 remains open for the player-killer (PvP)
+`CONFIG_DURABILITY_LOSS_IN_PVP` branch and `SetPvPDeath`, alternate powers, rune
+regeneration and live DB/restart/relogin QA.
+
 **#61 `Unit::m_transformSpell` and `IsPolymorphed` — 2026-09-17, implementation
 `e8994e95`, integrated as `72c1fd9b` by PR #983:** the canonical Unit aura subsystem now owns C++
 `Unit::m_transformSpell` (`AuraSubsystem::transform_spell_like_cpp`) with the two
