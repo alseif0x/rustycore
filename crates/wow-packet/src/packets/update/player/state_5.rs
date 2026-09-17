@@ -27,6 +27,7 @@ use super::*;
 ///   Parent 0:            bits 36-37 (expertise)  → block 0 bit 0, block 1 bits 4-5
 ///   Parent 38:           bits 39-69 (all 31 fields) → block 1 bits 6-31, block 2 bits 0-5
 ///   ModDamageDonePos[7]: parent=269, bits=277-283 → block 8 bits 13,21-27
+///   ModDamageDoneNeg[7]: parent=269, bits=284-290 → block 8 bits 28-31, block 9 bits 0-2
 ///   CombatRatings[32]:   parent=574, bits=575-606 → block 17 bits 30-31, block 18 bits 0-30
 ///
 /// C++ WriteUpdate order for these fields:
@@ -99,9 +100,12 @@ pub(in crate::packets::update) fn write_active_player_data_values_update(
         blocks[1] |= 0xFFFB_FFC0; // bits 6-31 except bit 18 (field 50, reserved)
         blocks[2] |= 0x3F; // bits 0-5
 
-        // Parent 269 section (block 8): SpellCritPercentage[7] + ModDamageDonePos[7]
-        // parent=269→bit13, SpellCrit[0-6]=270-276→bits14-20, ModDmgPos[0-6]=277-283→bits21-27
-        blocks[8] |= (1 << 13) | (0x7F << 14) | (0x7F << 21);
+        // Parent 269 section (block 8): SpellCritPercentage[7] +
+        // ModDamageDonePos[7] + ModDamageDoneNeg[7]
+        // parent=269→bit13, SpellCrit[0-6]=270-276→bits14-20,
+        // ModDmgPos[0-6]=277-283→bits21-27, ModDmgNeg[0-6]=284-290→b8:28-31+b9:0-2
+        blocks[8] |= (1 << 13) | (0x7F << 14) | (0x7F << 21) | (0xF << 28);
+        blocks[9] |= 0x7;
 
         // CombatRatings[32]: parent bit 574 (block 17 bit 30), CR[0] bit 575 (block 17 bit 31)
         blocks[17] |= (1 << 30) | (1 << 31);
@@ -203,17 +207,19 @@ pub(in crate::packets::update) fn write_active_player_data_values_update(
         }
     }
 
-    // Parent 269 section: SpellCritPercentage[7] + ModDamageDonePos[7]
-    // C++ interleaves SpellCritPct/ModDmgDonePos/ModDmgDoneNeg/ModDmgDonePct per school.
-    // Both SpellCritPct bits (270-276) and ModDmgDonePos bits (277-283) are set.
+    // Parent 269 section: SpellCritPercentage[7] + ModDamageDonePos[7] +
+    // ModDamageDoneNeg[7]. C++ interleaves
+    // SpellCritPct/ModDmgDonePos/ModDmgDoneNeg/ModDmgDonePct per school; the
+    // SpellCritPct (270-276), ModDmgDonePos (277-283) and ModDmgDoneNeg
+    // (284-290) bits are set, while ModDamageDonePercent (291-297) stays
+    // outside this runtime writer.
     if let Some(sc) = stat_changes {
         for i in 0..7 {
             buf.write_float(sc.spell_crit_pct[i]); // SpellCritPercentage[i]
             // C++ never writes the physical (index 0) entry, which keeps its
             // zero create value.
             buf.write_int32(sc.mod_damage_done_pos[i]); // Magic schools 1-6
-            // ModDamageDoneNeg[i] bits 284-290: NOT set → skip
-            // ModDamageDonePercent[i] bits 291-297: NOT set → skip
+            buf.write_int32(sc.mod_damage_done_neg[i]); // Magic schools 1-6
         }
     }
 

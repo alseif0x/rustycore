@@ -648,6 +648,10 @@ fn represented_item_mods_apply_scaling_stat_loop_spell_bonus_and_armor_like_cpp(
     );
     assert_eq!(stat_changes.mod_damage_done_pos[0], 0);
     assert_eq!(
+        stat_changes.mod_damage_done_neg, [0; 7],
+        "no negative damage aura is active in this fixture"
+    );
+    assert_eq!(
         stat_changes.armor, 77,
         "C++ armor/resistance item mods surface as UnitData::Resistances[0]"
     );
@@ -680,6 +684,7 @@ fn represented_item_mods_apply_scaling_stat_loop_spell_bonus_and_armor_like_cpp(
     );
     assert_eq!(removed_changes.mod_healing_done_pos, 0);
     assert_eq!(removed_changes.mod_damage_done_pos, [0; 7]);
+    assert_eq!(removed_changes.mod_damage_done_neg, [0; 7]);
     assert_eq!(removed_changes.armor, 0);
 }
 #[test]

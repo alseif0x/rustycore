@@ -398,9 +398,9 @@
     },
     {
       "path": "crates/wow-packet/src/packets/update_tests/mod.rs",
-      "observed_lines": 204,
-      "ceiling_lines": 204,
-      "split": "Retires the 3,676-line update-block regression file: #640 replaces it with this module root, which keeps the shared preamble and helpers and mounts five scenario modules (98-882 lines) holding all 82 tests unchanged. The row moves to the successor path so the ceiling cannot be evaded by the rename. #61 adds one line to the shared `test_player_create_data_with_farsight` fixture for the new `PlayerCreateData::school_resistances` field, keeping the fixture in step with the production create data. #61 adds two lines to the shared `test_player_create_data_with_farsight` fixture for the attack power multiplier fields, keeping the fixture in step with the production create data. #61 also adds one line to `zeroed_stat_changes` and two lines to `test_player_create_data_with_farsight` for the `mod_damage_done_pos`/`mod_damage_done_neg`/`mod_healing_done_pos` arrays that replace the removed scalar `spell_power` field, keeping both fixtures in step with the production create and values data.",
+      "observed_lines": 205,
+      "ceiling_lines": 205,
+      "split": "Retires the 3,676-line update-block regression file: #640 replaces it with this module root, which keeps the shared preamble and helpers and mounts five scenario modules (98-882 lines) holding all 82 tests unchanged. The row moves to the successor path so the ceiling cannot be evaded by the rename. #61 adds one line to the shared `test_player_create_data_with_farsight` fixture for the new `PlayerCreateData::school_resistances` field, keeping the fixture in step with the production create data. #61 adds two lines to the shared `test_player_create_data_with_farsight` fixture for the attack power multiplier fields, keeping the fixture in step with the production create data. #61 also adds one line to `zeroed_stat_changes` and two lines to `test_player_create_data_with_farsight` for the `mod_damage_done_pos`/`mod_damage_done_neg`/`mod_healing_done_pos` arrays that replace the removed scalar `spell_power` field, keeping both fixtures in step with the production create and values data. #61 allocates one more line to `zeroed_stat_changes` for the `mod_damage_done_neg` array added to the narrow values update, keeping the fixture in step with the production packet struct.",
       "review_checkpoint": "584:C4"
     },
     {

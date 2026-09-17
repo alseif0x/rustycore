@@ -575,6 +575,8 @@ pub struct PlayerStatChanges {
     /// C++ `ActivePlayerData::ModDamageDonePos[7]` (`StatSystem.cpp:171-197`);
     /// index 0 stays unwritten.
     pub mod_damage_done_pos: [i32; 7],
+    /// C++ `ActivePlayerData::ModDamageDoneNeg[7]`.
+    pub mod_damage_done_neg: [i32; 7],
     /// C++ `ActivePlayerData::ModHealingDonePos`.
     pub mod_healing_done_pos: i32,
     // Percentage fields (server-computed, displayed by client)
@@ -632,6 +634,7 @@ impl Default for PlayerStatChanges {
             armor: 0,
             combat_ratings: [0; 32],
             mod_damage_done_pos: [0; 7],
+            mod_damage_done_neg: [0; 7],
             mod_healing_done_pos: 0,
             block_pct: 0.0,
             dodge_pct: 0.0,
