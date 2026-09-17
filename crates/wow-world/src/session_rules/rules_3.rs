@@ -256,3 +256,20 @@ fn spell_mechanic_mask_like_cpp(
 fn mechanic_bit_like_cpp(mechanic: i32) -> Option<u64> {
     (1..64).contains(&mechanic).then(|| 1_u64 << mechanic)
 }
+
+/// C++ `Unit::CalculateDamage(attType, normalized = false, addTotalPct = true)`
+/// (`Unit.cpp:2384-2435`): both `UnitData` bounds are clamped at zero, ordered,
+/// truncated to `uint32` and resolved with one inclusive `urand`. The represented
+/// `UnitData` range is already `Player::CalculateMinMaxDamage`'s published value,
+/// so the roll is the only missing step; C++ draws it per landed swing, never
+/// from a timer that is not ready.
+pub(crate) fn white_swing_roll_like_cpp(min_damage: f32, max_damage: f32) -> u32 {
+    let min_damage = min_damage.max(0.0);
+    let max_damage = max_damage.max(0.0);
+    let (min_damage, max_damage) = if min_damage > max_damage {
+        (max_damage, min_damage)
+    } else {
+        (min_damage, max_damage)
+    };
+    wow_core::urand_like_cpp(min_damage as u32, max_damage as u32)
+}
