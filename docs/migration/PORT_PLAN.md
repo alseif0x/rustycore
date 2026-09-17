@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 remaining `SpellDamagePctDone` terms — 2026-09-17, implementation
+`04dd26c3`:** the attribute early-outs (`SPELL_ATTR3_IGNORE_CASTER_MODIFIERS`,
+`SPELL_ATTR6_IGNORE_CASTER_DAMAGE_MODIFIERS`) and the Mage Ice Lance / Warlock
+Drain Soul scripted terms now complete the function, with
+`AURA_STATE_FROZEN` added. The Shadow Bite per-DoT term remains open. wow-data
+--lib 752/0, wow-entities --lib 940/0, wow-world --lib 3944/0/1; no live
+DB/restart/relogin QA.
+
 **#61 health-derived unit aura states — 2026-09-17, implementation
 `4555be48`:** the represented `Unit::m_unitData->AuraState` is now the union of
 the aura-driven bits and the `Unit::Update` health bits for the player and for
