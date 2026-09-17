@@ -79,6 +79,9 @@ pub struct PlayerEffectiveCombatStatsLikeCpp {
     /// C++ `UNIT_MOD_DAMAGE_*` `TOTAL_PCT` per attack
     /// (`Unit::UpdateDamagePctDoneMods`).
     pub weapon_damage_pct: [f32; 3],
+    /// C++ `UNIT_MOD_DAMAGE_*` `TOTAL_VALUE` per attack
+    /// (`Unit::UpdateDamageDoneMods`).
+    pub weapon_damage_flat: [i32; 3],
     /// C++ `ActivePlayerData::VersatilityBonus`.
     pub versatility_bonus: f32,
     /// C++ `ActivePlayerData::OverrideSpellPowerByAPPercent`.
@@ -142,6 +145,7 @@ impl Default for PlayerEffectiveCombatStatsLikeCpp {
             mod_target_resistance: 0,
             mod_target_physical_resistance: 0,
             weapon_damage_pct: [1.0, 0.5, 1.0],
+            weapon_damage_flat: [0; 3],
             versatility_bonus: 0.0,
             override_spell_power_by_ap_percent: 0.0,
             override_ap_by_spell_power_percent: 0.0,

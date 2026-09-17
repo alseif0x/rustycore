@@ -989,10 +989,15 @@ async fn weapon_damage_pct_follows_update_damage_pct_done_mods_like_cpp() {
         );
     }
 
-    // `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE` effects: one item-neutral +50% and
-    // one +100% restricted to swords.
+    // `SPELL_AURA_MOD_DAMAGE_DONE` (13) physical flat bonus, and
+    // `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE` (79) effects: one item-neutral +50%
+    // and one +100% restricted to swords.
     let mut spell_store = wow_data::SpellStore::new();
-    for (spell_id, misc_value, amount) in [(90_930, 1, 50), (90_931, 1, 100)] {
+    for (spell_id, aura_type, misc_value, amount) in [
+        (90_930, 79, 1, 50),
+        (90_931, 79, 1, 100),
+        (90_932, 13, 1, 20),
+    ] {
         spell_store.insert(
             spell_id,
             wow_data::SpellInfo {
@@ -1003,14 +1008,14 @@ async fn weapon_damage_pct_follows_update_damage_pct_done_mods_like_cpp() {
                 effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
                 effect_base_points: amount,
                 effect_bonus_coefficient: 0.0,
-                aura_type: Some(79),
+                aura_type: Some(aura_type),
                 display_flags: 0,
                 requires_spell_focus: 0,
                 power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
-                    effect_aura: 79,
+                    effect_aura: aura_type,
                     effect_misc_value_1: misc_value,
                     effect_base_points: amount,
                     ..Default::default()
@@ -1040,6 +1045,7 @@ async fn weapon_damage_pct_follows_update_damage_pct_done_mods_like_cpp() {
     let _ = session.send_stat_update();
     let baseline = stats(&session);
     assert_eq!(baseline.weapon_damage_pct, [1.0, 0.5, 1.0]);
+    assert_eq!(baseline.weapon_damage_flat, [0; 3]);
     assert!(
         (baseline.weapon_damage[1][0] * 2.0 - baseline.weapon_damage[0][0]).abs() < 0.01,
         "the offhand TOTAL_PCT halves the represented range"
@@ -1051,6 +1057,7 @@ async fn weapon_damage_pct_follows_update_damage_pct_done_mods_like_cpp() {
     let _ = session.send_stat_update();
     let neutral = stats(&session);
     assert_eq!(neutral.weapon_damage_pct, [1.5, 0.75, 1.5]);
+    assert_eq!(neutral.weapon_damage_flat, [0; 3]);
 
     // The sword-restricted aura applies to the mainhand only: the offhand
     // dagger fails `CheckAttackFitToAuraRequirement`, and the ranged attack has
@@ -1061,6 +1068,21 @@ async fn weapon_damage_pct_follows_update_damage_pct_done_mods_like_cpp() {
     let _ = session.send_stat_update();
     let restricted = stats(&session);
     assert_eq!(restricted.weapon_damage_pct, [3.0, 0.75, 1.5]);
+
+    // C++ `Unit::UpdateDamageDoneMods`: the physical `MOD_DAMAGE_DONE` flat sum
+    // is applied before the percentage, and the neutral aura reaches every
+    // attack while the sword-restricted one reaches the mainhand only.
+    let mainhand_before = restricted.weapon_damage[0][0];
+    session
+        .apply_aura(90_932, player_guid, 30_000, 1)
+        .expect("apply physical flat damage aura");
+    let _ = session.send_stat_update();
+    let flat = stats(&session);
+    assert_eq!(flat.weapon_damage_flat, [20, 20, 20]);
+    assert!(
+        (flat.weapon_damage[0][0] - (mainhand_before + 20.0 * 3.0)).abs() < 0.01,
+        "the flat bonus is multiplied by the attack percentage"
+    );
 }
 
 #[tokio::test]
