@@ -366,6 +366,7 @@ impl WorldSession {
                         let heal_amount = self.represented_spell_healing_bonus_done_like_cpp(
                             spell_id,
                             caster_guid,
+                            target_guid,
                             spell_info.effect_bonus_coefficient,
                             heal_amount,
                         );
