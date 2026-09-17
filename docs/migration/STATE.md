@@ -1,14 +1,14 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-16:** `3.4.3` is at
-`0300850fb27ac5a60c69241ecfbf69de48339f56` (PR #991, the #61 school resistances, following PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`9c7d8ff8c20478f8a0f9c2804e6a3f9ad7660f8f` (PR #993, the #61 attack power aura producers, following PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
-**#61 attack power aura producers — 2026-09-17, implementation `408725a5`:** the
+**#61 attack power aura producers — 2026-09-17, implementation `408725a5`, integrated as `9c7d8ff8` by PR #993:** the
 attack power route now runs C++ `Player::UpdateAttackPowerAndDamage`
 (`StatSystem.cpp:333-403`): `SPELL_AURA_MOD_ATTACK_POWER` (99) and
 `SPELL_AURA_MOD_RANGED_ATTACK_POWER` (124) supply the flat `TOTAL_VALUE`
