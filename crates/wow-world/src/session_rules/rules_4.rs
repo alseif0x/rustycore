@@ -67,6 +67,10 @@ pub(crate) struct RepresentedMeleeOutcomeInputsLikeCpp {
     /// C++ `victim->ToCreature()->IsEvadingAttacks()`: the table returns
     /// `MELEE_HIT_EVADE` before rolling.
     pub is_evading_attacks: bool,
+    /// C++ `RollMeleeOutcomeAgainst`'s sitting-target rule
+    /// (`Unit.cpp:2312-2314`): a player victim that is not in a stand state is
+    /// always crit while the attacker's critical chance is non-zero.
+    pub always_crits: bool,
 }
 
 impl RepresentedMeleeOutcomeInputsLikeCpp {
@@ -82,6 +86,7 @@ impl RepresentedMeleeOutcomeInputsLikeCpp {
         can_dodge: false,
         can_parry: false,
         is_evading_attacks: false,
+        always_crits: false,
     };
 }
 
@@ -131,6 +136,12 @@ pub(crate) fn melee_outcome_like_cpp(
         RepresentedMeleeOutcomeLikeCpp::Miss,
     ) {
         return outcome;
+    }
+    // C++ returns `MELEE_HIT_CRIT` before the avoidance bands when a player
+    // victim is not in a stand state and the attacker's critical chance is
+    // non-zero (`Unit.cpp:2312-2314`).
+    if inputs.always_crits {
+        return RepresentedMeleeOutcomeLikeCpp::Crit;
     }
     // 2. DODGE.
     if let Some(outcome) = band(
@@ -330,9 +341,9 @@ pub(crate) struct RepresentedMeleeAttackerFactsLikeCpp {
 }
 
 /// Victim-side facts the swing owner resolves once per swing. The session owner
-/// cannot read another player's snapshot, so a canonical-player victim only
-/// contributes its miss term; the map-owned creature runtime, which can read the
-/// victim player's canonical state, is the owner that resolves a player victim.
+/// cannot read another player's snapshot, so only the map-owned creature
+/// runtime resolves a canonical-player victim; it contributes the miss, dodge,
+/// parry and crit bands (its block band and armour mitigation stay boundaries).
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub(crate) struct RepresentedMeleeVictimFactsLikeCpp {
     /// `victim->GetLevelForTarget(attacker)`.
@@ -382,6 +393,10 @@ pub(crate) struct RepresentedMeleeVictimFactsLikeCpp {
     /// C++ `victim->HasUnitState(UNIT_STATE_CONTROLLED)`: a controlled victim
     /// can neither dodge nor parry/block (`Unit.cpp:2296-2304`).
     pub is_controlled: bool,
+    /// C++ `victim->IsStandState()` (`Unit.cpp:9960-9964`): a player victim that
+    /// is sitting, sleeping or kneeling is always crit. Owners leave this `true`
+    /// for a creature victim, which the sitting rule never reads.
+    pub is_stand_state: bool,
 }
 
 /// C++ `Unit::RollMeleeOutcomeAgainst` (`Unit.cpp:2272-2310`) chance assembly
@@ -409,17 +424,45 @@ pub(crate) fn melee_outcome_inputs_like_cpp(
     // C++ `MeleeSpellMissChance` ends with `std::max(missChance, 0.f)`.
     let miss_chance_pct = miss_chance_pct.max(0.0);
 
-    // Boundary: a player victim's dodge/parry/block/crit bands are not
-    // represented yet, so a creature swing against a player only resolves the
-    // miss band. The published `DodgePercentage`/`ParryPercentage`/
-    // `BlockPercentage` are already available on the canonical player, and the
-    // block damage reduction additionally needs the DB2
-    // `ExpectedStatType::ArmorConstant` table, so they land together in a later
-    // unit rather than as a partial band here.
+    // C++ `RollMeleeOutcomeAgainst`'s player-victim branch
+    // (`Unit.cpp:2284-2360`):
+    //   * `canParryOrBlock = victim->HasInArc(M_PI, attacker)` and
+    //     `canDodge = victim->GetTypeId() != TYPEID_PLAYER || canParryOrBlock`,
+    //     so a player victim dodges only while facing the attacker;
+    //   * `GetUnitDodgeChance`/`GetUnitParryChance` read the published
+    //     `DodgePercentage`/`ParryPercentage`, which already fold the victim's
+    //     ratings, attribute contribution and `MOD_*_PERCENT` auras, and add no
+    //     victim-level bonus; `GetUnitParryChance` publishes zero while
+    //     `CanParry()` is false;
+    //   * the attacker's expertise and dodge reductions still apply;
+    //   * there is no glancing band (the C++ condition needs a player or pet
+    //     attacker) and `GetUnitBlockChance`'s band is left out because the
+    //     blocked *damage* needs C++ `Player::GetBlockPercent`'s DB2
+    //     `ExpectedStatType::ArmorConstant` table, which the represented data
+    //     does not load.
     if victim.is_player {
-        return std::array::from_fn(|_| RepresentedMeleeOutcomeInputsLikeCpp {
-            miss_chance_pct,
-            ..RepresentedMeleeOutcomeInputsLikeCpp::NONE
+        let can_avoid = victim.faces_attacker && !victim.is_controlled;
+        let dodge_chance_pct = (victim.dodge_pct + attacker.dodge_reduction_pct).max(0.0);
+        let parry_chance_pct = victim.parry_pct.max(0.0);
+        return std::array::from_fn(|index| {
+            let expertise_reduction_pct = attacker.expertise_reduction_pct[index];
+            let crit_chance_pct = attacker.crit_pct[index]
+                + attacker.autoattack_crit_aura_pct
+                + victim.attacker_melee_crit_chance_pct
+                + victim.crit_chance_vs_target_health_pct
+                + victim.crit_chance_for_caster_pct;
+            RepresentedMeleeOutcomeInputsLikeCpp {
+                miss_chance_pct,
+                dodge_chance_pct: (dodge_chance_pct - expertise_reduction_pct).max(0.0),
+                parry_chance_pct: (parry_chance_pct - expertise_reduction_pct).max(0.0),
+                block_chance_pct: 0.0,
+                glancing_chance_pct: 0.0,
+                crit_chance_pct,
+                can_dodge: can_avoid,
+                can_parry: can_avoid,
+                is_evading_attacks: false,
+                always_crits: !victim.is_stand_state && crit_chance_pct > 0.0,
+            }
         });
     }
 
@@ -472,6 +515,8 @@ pub(crate) fn melee_outcome_inputs_like_cpp(
             can_dodge: victim.is_creature && !victim.is_controlled,
             can_parry: victim.is_creature && victim.faces_attacker && !victim.is_controlled,
             is_evading_attacks: victim.is_evading_attacks,
+            // The sitting-target rule only applies to a player victim.
+            always_crits: false,
         }
     })
 }

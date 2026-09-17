@@ -14,18 +14,32 @@ use std::collections::HashMap;
 use wow_data::SpellStore;
 use wow_entities::{AppliedAuraRef, AuraApplicationLikeCpp};
 
-/// C++ `Unit::GetAuraEffectsByType(auraType)` for one Unit's applied auras:
-/// every active effect of the requested aura type as `(MiscValue, amount)`.
+/// One resolved effect of a player's applied auras, the shape C++
+/// `Unit::GetAuraEffectsByType` exposes to every predicate that also reads
+/// `MiscValueB` or the effect's caster.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct PlayerAuraEffectLikeCpp {
+    /// C++ `AuraEffect::GetMiscValue()`.
+    pub misc_value: i32,
+    /// C++ `AuraEffect::GetMiscValueB()`, read by predicates such as
+    /// `SPELL_AURA_MOD_CRIT_CHANCE_VERSUS_TARGET_HEALTH`'s health threshold.
+    pub misc_value_b: i32,
+    pub amount: i32,
+    /// C++ `AuraEffect::GetCasterGUID()`.
+    pub caster_guid: wow_core::ObjectGuid,
+}
+
+/// C++ `Unit::GetAuraEffectsByType(auraType)` for one player's applied auras.
 ///
 /// Auras are visited in ascending slot order so the projection is deterministic
 /// (C++ walks its aura list in application order); the amount prefers the
 /// represented `AuraEffect` value and falls back to the spell effect's
 /// no-caster calculation, exactly like the session adapter used to do.
-pub(crate) fn player_aura_effects_by_spell_aura_type_like_cpp(
+pub(crate) fn player_aura_effects_full_by_spell_aura_type_like_cpp(
     auras: &HashMap<u8, AuraApplicationLikeCpp>,
     spell_store: &SpellStore,
     aura_type: i32,
-) -> Vec<(i32, i32)> {
+) -> Vec<PlayerAuraEffectLikeCpp> {
     let mut slots: Vec<u8> = auras.keys().copied().collect();
     slots.sort_unstable();
     let mut effects = Vec::new();
@@ -48,10 +62,42 @@ pub(crate) fn player_aura_effects_by_spell_aura_type_like_cpp(
                 })
                 .map(|represented| represented.amount)
                 .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
-            effects.push((effect.effect_misc_value_1, amount));
+            effects.push(PlayerAuraEffectLikeCpp {
+                misc_value: effect.effect_misc_value_1,
+                misc_value_b: effect.effect_misc_value_2,
+                amount,
+                caster_guid: aura.caster_guid,
+            });
         }
     }
     effects
+}
+
+/// The `(MiscValue, amount)` projection every `GetTotalAuraModifier*` caller
+/// reads.
+pub(crate) fn player_aura_effects_by_spell_aura_type_like_cpp(
+    auras: &HashMap<u8, AuraApplicationLikeCpp>,
+    spell_store: &SpellStore,
+    aura_type: i32,
+) -> Vec<(i32, i32)> {
+    player_aura_effects_full_by_spell_aura_type_like_cpp(auras, spell_store, aura_type)
+        .into_iter()
+        .map(|effect| (effect.misc_value, effect.amount))
+        .collect()
+}
+
+/// The same projection, additionally returning each effect's `caster_guid` for
+/// the C++ predicates that select by caster (`GetUnitCriticalChanceTaken`'s
+/// `SPELL_AURA_MOD_CRIT_CHANCE_FOR_CASTER`).
+pub(crate) fn player_aura_effects_with_caster_by_spell_aura_type_like_cpp(
+    auras: &HashMap<u8, AuraApplicationLikeCpp>,
+    spell_store: &SpellStore,
+    aura_type: i32,
+) -> Vec<(i32, i32, wow_core::ObjectGuid)> {
+    player_aura_effects_full_by_spell_aura_type_like_cpp(auras, spell_store, aura_type)
+        .into_iter()
+        .map(|effect| (effect.misc_value, effect.amount, effect.caster_guid))
+        .collect()
 }
 
 /// C++ `Unit::MeleeDamageBonusDone`'s auto-attack percentage term
