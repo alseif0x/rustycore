@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 creature-victim blocked-amount publication — 2026-09-17, implementation
+`da3cf981`:** the bridge packet now carries the blocked amount alongside
+`HITINFO_BLOCK` (tuple `(HitInfo, TargetState, Blocked)`); the scenario decodes
+the round info sequentially and asserts `blocked == 2` for the flat 30% creature
+block. wow-world 3990/0/1 (one earlier full-suite run hit a pre-existing
+flaky/RNG case and the rerun was green), world-server 594/0/0, wow-packet 744/0;
+no live DB/restart/relogin QA.
+
 **#29 creature-victim block-band scenario — 2026-09-17, implementation
 `77c7d3a8`:** the runtime scenario now covers the reachable flat 30% creature
 block (mitigated 8 → 6, `HITINFO_BLOCK` on the wire); the bridge packet's
