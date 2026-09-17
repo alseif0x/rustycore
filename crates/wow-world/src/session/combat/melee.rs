@@ -11,6 +11,8 @@ use super::*;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::session) struct RepresentedMeleeSwingLikeCpp {
     pub damage: u32,
+    /// C++ `CalcDamageInfo::OriginalDamage`.
+    pub original_damage: u32,
     /// C++ `CalcDamageInfo::Blocked`.
     pub blocked: u32,
     /// C++ `CalcDamageInfo::HitInfo`.
@@ -29,6 +31,7 @@ impl RepresentedMeleeSwingLikeCpp {
         );
         Self {
             damage,
+            original_damage: damage,
             blocked: 0,
             hit_info,
             victim_state,

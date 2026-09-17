@@ -362,6 +362,8 @@ pub struct ApplyGroupDifficultyLikeCppCommand {
 #[derive(Clone, Debug)]
 pub struct PlayerMeleeSwingLikeCpp {
     pub damage: u32,
+    /// C++ `CalcDamageInfo::OriginalDamage`.
+    pub original_damage: u32,
     /// `-1` unless the swing overkilled, matching C++ `SMSG_ATTACKERSTATEUPDATE`.
     pub over_damage: i32,
     /// C++ `CalcDamageInfo::Blocked` (`CombatLogPackets.cpp:373`).

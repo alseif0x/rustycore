@@ -572,13 +572,14 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                 .iter()
                 .enumerate()
                 .map(|(index, (damage, _killed, over_damage))| {
-                    let (hit_info, victim_state, blocked) = hit
+                    let (hit_info, victim_state, blocked, original_damage) = hit
                         .swing_presentations
                         .get(index)
                         .copied()
-                        .unwrap_or((0, 0, 0));
+                        .unwrap_or((0, 0, 0, *damage));
                     crate::session::mailbox::PlayerMeleeSwingLikeCpp {
                         damage: *damage,
+                        original_damage,
                         over_damage: *over_damage,
                         blocked: blocked as i32,
                         hit_info,
@@ -627,12 +628,18 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                 .into_iter()
                 .enumerate()
                 .map(|(index, (damage, over_damage))| {
-                    let (hit_info, victim_state, blocked) =
-                        damages.get(index).map_or((0, 0, 0), |swing| {
-                            (swing.hit_info, swing.victim_state, swing.blocked)
+                    let (hit_info, victim_state, blocked, original_damage) =
+                        damages.get(index).map_or((0, 0, 0, damage), |swing| {
+                            (
+                                swing.hit_info,
+                                swing.victim_state,
+                                swing.blocked,
+                                swing.original_damage,
+                            )
                         });
                     crate::session::mailbox::PlayerMeleeSwingLikeCpp {
                         damage,
+                        original_damage,
                         over_damage,
                         blocked: blocked as i32,
                         hit_info,

@@ -437,17 +437,25 @@ impl WorldSession {
                 });
             }
             for (index, (dmg, over_damage)) in swings.iter().enumerate() {
-                let (hit_info, victim_state) = canonical_swing_damages
+                let (hit_info, victim_state, original_damage) = canonical_swing_damages
                     .as_deref()
                     .and_then(|swings| swings.get(index))
-                    .map_or((HIT_INFO_AFFECTS_VICTIM, VICTIM_STATE_HIT), |swing| {
-                        (swing.hit_info, swing.victim_state)
-                    });
+                    .map_or(
+                        (HIT_INFO_AFFECTS_VICTIM, VICTIM_STATE_HIT, *dmg as i32),
+                        |swing| {
+                            (
+                                swing.hit_info,
+                                swing.victim_state,
+                                swing.original_damage as i32,
+                            )
+                        },
+                    );
                 let state_update = AttackerStateUpdate {
                     attacker: player_guid,
                     victim: combat_target,
                     hit_info,
                     damage: *dmg as i32,
+                    original_damage,
                     over_damage: *over_damage,
                     blocked: canonical_swing_damages
                         .as_deref()
@@ -506,15 +514,16 @@ impl WorldSession {
         }
 
         for (index, (dmg, _swing_killed, over_damage)) in swings.iter().enumerate() {
-            let (hit_info, victim_state, blocked) = swing_presentations
+            let (hit_info, victim_state, blocked, original_damage) = swing_presentations
                 .get(index)
                 .copied()
-                .unwrap_or((HIT_INFO_AFFECTS_VICTIM, VICTIM_STATE_HIT, 0));
+                .unwrap_or((HIT_INFO_AFFECTS_VICTIM, VICTIM_STATE_HIT, 0, *dmg));
             let state_update = AttackerStateUpdate {
                 attacker: player_guid,
                 victim: combat_target,
                 hit_info,
                 damage: *dmg as i32,
+                original_damage: original_damage as i32,
                 over_damage: *over_damage,
                 blocked: blocked as i32,
                 victim_state,

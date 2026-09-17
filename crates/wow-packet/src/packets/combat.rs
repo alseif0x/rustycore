@@ -165,6 +165,9 @@ pub struct AttackerStateUpdate {
     pub hit_info: u32,
     /// Total damage dealt.
     pub damage: i32,
+    /// C++ `CalcDamageInfo::OriginalDamage`: the post-armour damage before the
+    /// outcome switch, serialized as the second `int32` of `attackRoundInfo`.
+    pub original_damage: i32,
     /// Overkill amount (-1 if target is still alive).
     pub over_damage: i32,
     /// C++ `CalcDamageInfo::Blocked`, serialized only for `HITINFO_BLOCK`.
@@ -222,7 +225,7 @@ impl ServerPacket for AttackerStateUpdate {
         info.write_packed_guid(&self.attacker);
         info.write_packed_guid(&self.victim);
         info.write_int32(self.damage);
-        info.write_int32(self.damage); // original damage
+        info.write_int32(self.original_damage);
         info.write_int32(self.over_damage); // over damage (-1 if alive)
         info.write_uint8(0u8); // no SubDmg
         info.write_uint8(self.victim_state);
@@ -438,6 +441,7 @@ mod tests {
             victim,
             hit_info: HIT_INFO_AFFECTS_VICTIM | HIT_INFO_BLOCK,
             damage: 70,
+            original_damage: 100,
             over_damage: -1,
             blocked: 30,
             victim_state: VICTIM_STATE_HIT,
@@ -465,7 +469,7 @@ mod tests {
         assert_eq!(info.read_packed_guid().expect("attacker"), attacker);
         assert_eq!(info.read_packed_guid().expect("victim"), victim);
         assert_eq!(info.read_int32().expect("damage"), 70);
-        assert_eq!(info.read_int32().expect("original damage"), 70);
+        assert_eq!(info.read_int32().expect("original damage"), 100);
         assert_eq!(info.read_int32().expect("over damage"), -1);
         assert_eq!(info.read_uint8().expect("sub damage"), 0);
         assert_eq!(info.read_uint8().expect("victim state"), VICTIM_STATE_HIT);
@@ -518,6 +522,7 @@ mod tests {
             victim,
             hit_info: HIT_INFO_AFFECTS_VICTIM | HIT_INFO_FAKE_DAMAGE,
             damage: 0,
+            original_damage: 0,
             over_damage: -1,
             blocked: 0,
             victim_state: VICTIM_STATE_HIT,
