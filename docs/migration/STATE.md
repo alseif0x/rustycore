@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`19df40a589aa91ec8106118215bd2e99de47eea7` (PR #1127, the #29
-creature-victim block-band scenario, following PR #1125, the #29
+`0ab5ad7bcc3c52b22835a6d256fb88a8e7626df0` (PR #1129, the #29
+creature-victim blocked-amount publication, following PR #1127, the #29
+creature-victim block-band scenario, PR #1125, the #29
 creature-victim avoidance and crit bands, PR #1123, the #29
 creature-victim miss band and outcome publication, PR #1121, the #29
 melee scenario-suite split, PR #1119, the #29
@@ -33,6 +34,27 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 creature-victim blocked-amount publication — 2026-09-17, implementation
+`da3cf981`, integrated as `0ab5ad7b` by PR #1129:** round 75 left the bridge
+packet's `blocked` field at zero with an open question — a fixed-offset decode
+read zeros even with `HITINFO_BLOCK` set. The packet writer already serializes
+`int32(BlockAmount)` plus the trailing `float Unk` when the flag is set (its own
+test reads `blocked == 30` back), so the fixed-offset arithmetic was simply
+wrong. `apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp` now
+takes the blocked amount in its `outcome_presentation` tuple
+(`(HitInfo, TargetState, Blocked)`), the creature-victim branch supplies the
+value `melee_outcome_damage_like_cpp` computed beside the dealt damage, and the
+packet writes it; the scenario decodes the round info sequentially — the same
+order the writer's own test uses — and asserts the victim's flat 30% creature
+block reports `blocked == 2` beside the 8-to-6 damage reduction and
+`HITINFO_BLOCK`. Evidence: wow-world 3990/0/1 (one full-suite run reported a
+single failure and the immediate rerun passed every test, i.e. a pre-existing
+flaky/RNG-dependent case rather than a regression from this change),
+world-server 594/0/0 and wow-packet 744/0 pass; format, `git diff --check` and
+the physical ratchet pass, and `validation-v2 quick` (manifest
+`20260917T191915.218057Z-3177586-quick.json`) passes. The flaky full-suite case
+is not identified yet and should be pinned down if it recurs.
 
 **#29 creature-victim block-band scenario — 2026-09-17, implementation
 `77c7d3a8`, integrated as `19df40a5` by PR #1127:** the creature-victim
