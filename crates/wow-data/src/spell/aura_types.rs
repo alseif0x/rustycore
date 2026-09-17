@@ -152,6 +152,12 @@ pub const SPELL_AURA_MOD_MANA_REGEN_PCT: i32 = 379;
 pub const SPELL_AURA_SCHOOL_HEAL_ABSORB: i32 = 301;
 pub const SPELL_AURA_IGNORE_SPELL_COOLDOWN: i32 = 383;
 pub const SPELL_AURA_MOD_BATTLE_PET_XP_PCT: i32 = 420;
+/// C++ `AuraType::SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT`
+/// (`SpellAuraDefines.h:499`): `AuraEffect::HandleOverrideAttackPowerBySpellPower`
+/// (`SpellAuraEffects.cpp:3785-3796`) accumulates each amount into
+/// `ActivePlayerData::OverrideAPBySpellPowerPercent` and re-runs
+/// `Player::UpdateAttackPowerAndDamage` for both the melee and ranged mods.
+pub const SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT: i32 = 404;
 pub const SPELL_AURA_MOD_MINIMUM_SPEED_RATE: i32 = 437;
 pub const SPELL_AURA_MOD_ROOT_2: i32 = 455;
 pub const SPELL_AURA_MOD_RESTED_XP_CONSUMPTION: i32 = 499;

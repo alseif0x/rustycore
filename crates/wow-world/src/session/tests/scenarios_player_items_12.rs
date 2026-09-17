@@ -1067,6 +1067,100 @@ async fn attack_power_aura_producers_follow_update_attack_power_like_cpp() {
 }
 
 #[tokio::test]
+async fn override_attack_power_by_spell_power_aura_replaces_both_attack_mods_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 61_700);
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    session.set_player_stats(Arc::new(wow_data::PlayerStatsStore::from_entries([(
+        (1, 1, 80),
+        wow_data::PlayerLevelStats {
+            strength: 10,
+            agility: 10,
+            stamina: 10,
+            intellect: 40,
+            spirit: 30,
+            base_mana: 0,
+        },
+    )])));
+    session.set_chr_classes_store(Arc::new(
+        wow_data::character_progression::ChrClassesStore::from_entries([{
+            let mut entry = wow_data::character_progression::ChrClassesEntry::default();
+            entry.id = 1;
+            entry
+        }]),
+    ));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+
+    // C++ `Player::ApplySpellPowerBonus` (`StatSystem.cpp:153-168`) feeds the
+    // `ModHealingDonePos`/`ModDamageDonePos` fields the override reads.
+    assert!(session.apply_represented_item_bonus_action_state_like_cpp(
+        ApplyEnchantmentEffectAction::SpellPowerBonus {
+            amount: 1_000,
+            apply: true,
+        }
+    ));
+
+    let mut spell_store = wow_data::SpellStore::new();
+    for (spell_id, amount) in [(90_820, 15), (90_821, 5)] {
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: amount,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(
+                    wow_data::spell::aura_types::SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT,
+                ),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura:
+                        wow_data::spell::aura_types::SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT,
+                    effect_base_points: amount,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    session.set_spell_store(Arc::new(spell_store));
+    session.set_state(crate::session::SessionState::LoggedIn);
+
+    let stats = |session: &WorldSession| {
+        session
+            .canonical_player_effective_combat_stats_like_cpp()
+            .expect("attack power projection")
+    };
+
+    let _ = session.send_stat_update();
+    let baseline = stats(&session);
+    assert_eq!(baseline.attack_power, 220);
+    assert_eq!(baseline.ranged_attack_power, -10);
+
+    // `ApplyModUpdateFieldValue` accumulates both active effects: 15 + 5.
+    for spell_id in [90_820, 90_821] {
+        session
+            .apply_aura(spell_id, player_guid, 30_000, 1)
+            .expect("apply override attack power aura");
+    }
+    let _ = session.send_stat_update();
+    let overridden = stats(&session);
+    assert_eq!(
+        overridden.attack_power, 200,
+        "C++ replaces the strength/agility/level base with CalculatePct(1000 spell power, 20%)"
+    );
+    assert_eq!(overridden.ranged_attack_power, 200);
+}
+
+#[tokio::test]
 async fn ranged_attack_power_auras_skip_wand_users_like_cpp() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 61_601);
