@@ -494,6 +494,7 @@ fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
         crit_pct: [10.0, 5.0],
         autoattack_crit_aura_pct: 2.0,
         expertise_reduction_pct: [0.5, 0.25],
+        dodge_reduction_pct: 0.0,
     };
     let creature = Victim {
         level: 80,
@@ -502,6 +503,11 @@ fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
         dodge_pct: 3.0,
         parry_pct: 6.0,
         block_pct: 3.0,
+        dodge_aura_pct: 0.0,
+        parry_aura_pct: 0.0,
+        block_aura_pct: 0.0,
+        attacker_melee_hit_chance_pct: 0.0,
+        attacker_melee_crit_chance_pct: 0.0,
         faces_attacker: true,
     };
     let inputs = melee_outcome_inputs_like_cpp(&attacker, &creature);
@@ -536,6 +542,31 @@ fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
     // victim-level bonus applies.
     assert_eq!(inputs[0].block_chance_pct, 9.0);
     assert_eq!(inputs[0].glancing_chance_pct, 50.0);
+
+    // The victim's percentage auras and the attacker's dodge reductions feed the
+    // same bands: `GetUnitDodgeChance` adds `MOD_DODGE_PERCENT` and the
+    // attacker's combat-result/enemy-dodge sums, `GetUnitBlockChance` adds
+    // `MOD_BLOCK_PERCENT`, the miss band subtracts
+    // `MOD_ATTACKER_MELEE_HIT_CHANCE` and the crit band adds
+    // `MOD_ATTACKER_MELEE_CRIT_CHANCE`.
+    let with_auras = Victim {
+        dodge_aura_pct: 100.0,
+        parry_aura_pct: -4.0,
+        block_aura_pct: 2.0,
+        attacker_melee_hit_chance_pct: 5.0,
+        attacker_melee_crit_chance_pct: 3.0,
+        ..creature
+    };
+    let attacker = Attacker {
+        dodge_reduction_pct: -1.0,
+        ..attacker
+    };
+    let inputs = melee_outcome_inputs_like_cpp(&attacker, &with_auras);
+    assert_eq!(inputs[0].miss_chance_pct, 0.0);
+    assert_eq!(inputs[0].dodge_chance_pct, 101.5);
+    assert_eq!(inputs[0].parry_chance_pct, 1.5);
+    assert_eq!(inputs[0].block_chance_pct, 5.0);
+    assert_eq!(inputs[0].crit_chance_pct, 15.0);
 
     // A totem has no dodge, parry or block; a player victim has no represented
     // table at all.
@@ -1145,4 +1176,120 @@ fn white_swing_applies_victim_melee_damage_taken_like_cpp() {
         .apply_aura(91_133, player, 30_000, 1)
         .expect("apply ignore-target-resist aura");
     assert_eq!(swing(&mut session).map(|swings| swings[0].damage), Some(50));
+}
+
+#[test]
+fn white_swing_applies_victim_avoidance_auras_like_cpp() {
+    use wow_packet::packets::combat::{HIT_INFO_AFFECTS_VICTIM, VICTIM_STATE_DODGE};
+
+    let (mut session, _, _) = make_session();
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    let guid = test_creature_guid(18_038);
+    let player = ObjectGuid::create_player(1, 95);
+
+    canonical.lock().unwrap().create_world_map(0, 0);
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+        wow_data::MapEntry {
+            id: 0,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        },
+    ])));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player,
+        "Avoid".to_string(),
+        Position::new(10.0, 10.0, 0.0, 0.0),
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            let unit = player.unit_mut();
+            unit.set_attacking(Some(guid));
+            unit.set_target(guid);
+            unit.add_unit_state(UnitState::MELEE_ATTACKING.bits());
+            unit.set_base_attack_time_like_cpp(WeaponAttackType::BaseAttack, 2_000);
+            unit.set_attack_timer(WeaponAttackType::BaseAttack, 0);
+            unit.set_weapon_damage(WeaponAttackType::BaseAttack, 7.0, 7.0);
+        })
+        .unwrap();
+    session.combat_target = Some(guid);
+    session.in_combat = true;
+    register_test_creature(&mut session, manager.clone(), guid, 40);
+    session
+        .mutate_world_creature(guid, |creature| {
+            creature.enter_combat(player);
+            creature.creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            // A +100% `SPELL_AURA_MOD_DODGE_PERCENT` pushes the dodge band past
+            // the roll, so the swing is guaranteed to be dodged.
+            creature
+                .creature
+                .unit_mut()
+                .subsystems_mut()
+                .auras
+                .add_applied(wow_entities::AppliedAuraRef::new(91_150, player, 0, 1));
+        })
+        .unwrap();
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        91_150,
+        wow_data::SpellInfo {
+            spell_id: 91_150,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_base_points: 100,
+            effect_bonus_coefficient: 0.0,
+            aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_DODGE_PERCENT),
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DODGE_PERCENT,
+                effect_base_points: 100,
+                ..Default::default()
+            }],
+        },
+    );
+    session.set_spell_store(Arc::new(spell_store));
+
+    let melee_damage_bonus = session.represented_melee_damage_bonus_like_cpp();
+    let armor_mitigation = session.represented_melee_armor_mitigation_like_cpp();
+    let outcome_facts = session.represented_melee_outcome_facts_like_cpp();
+    let damage_taken = session.represented_melee_damage_taken_like_cpp();
+    assert_eq!(outcome_facts.1.dodge_aura_pct, 100.0);
+    let swings = session
+        .mutate_canonical_player_like_cpp(|player| {
+            take_canonical_player_attack_swings_like_cpp(
+                player,
+                0,
+                true,
+                true,
+                true,
+                melee_damage_bonus,
+                armor_mitigation,
+                outcome_facts,
+                damage_taken,
+            )
+        })
+        .flatten()
+        .expect("white swing resolves")
+        .0;
+    assert_eq!(swings[0].damage, 0);
+    assert_eq!(swings[0].hit_info, HIT_INFO_AFFECTS_VICTIM);
+    assert_eq!(swings[0].victim_state, VICTIM_STATE_DODGE);
 }

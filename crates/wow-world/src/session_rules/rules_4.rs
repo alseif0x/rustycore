@@ -282,6 +282,10 @@ pub(crate) struct RepresentedMeleeAttackerFactsLikeCpp {
     /// `Player::GetExpertiseDodgeOrParryReduction(attType)`: the published
     /// `MainhandExpertise`/`OffhandExpertise` divided by four.
     pub expertise_reduction_pct: [f32; 2],
+    /// `GetUnitDodgeChance`'s attacker-side reductions: the attacker's
+    /// `SPELL_AURA_MOD_COMBAT_RESULT_CHANCE` sum for `VICTIMSTATE_DODGE` plus
+    /// its `SPELL_AURA_MOD_ENEMY_DODGE` sum. They only affect dodge.
+    pub dodge_reduction_pct: f32,
 }
 
 /// Victim-side facts the swing owner resolves once per swing. A represented
@@ -304,6 +308,19 @@ pub(crate) struct RepresentedMeleeVictimFactsLikeCpp {
     /// C++ `GetUnitBlockChance`'s creature base; zero when the template carries
     /// `CREATURE_FLAG_EXTRA_NO_BLOCK`.
     pub block_pct: f32,
+    /// The victim's `SPELL_AURA_MOD_DODGE_PERCENT` sum.
+    pub dodge_aura_pct: f32,
+    /// The victim's `SPELL_AURA_MOD_PARRY_PERCENT` sum.
+    pub parry_aura_pct: f32,
+    /// The victim's `SPELL_AURA_MOD_BLOCK_PERCENT` sum.
+    pub block_aura_pct: f32,
+    /// The victim's `SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE` sum, subtracted
+    /// from the attacker's miss chance.
+    pub attacker_melee_hit_chance_pct: f32,
+    /// The victim's `SPELL_AURA_MOD_ATTACKER_MELEE_CRIT_CHANCE` plus
+    /// `SPELL_AURA_MOD_ATTACKER_SPELL_AND_WEAPON_CRIT_CHANCE` sums, added to the
+    /// attacker's critical chance.
+    pub attacker_melee_crit_chance_pct: f32,
     /// C++ `canParryOrBlock`: `victim->HasInArc(M_PI, attacker)`. C++
     /// `canDodge` is true for every creature victim outside casting/control,
     /// which the represented model does not resolve yet.
@@ -330,6 +347,7 @@ pub(crate) fn melee_outcome_inputs_like_cpp(
     }
     miss_chance_pct -= attacker.melee_hit_chance_pct;
     miss_chance_pct -= attacker.hit_chance_aura_pct;
+    miss_chance_pct -= victim.attacker_melee_hit_chance_pct;
     // C++ `MeleeSpellMissChance` ends with `std::max(missChance, 0.f)`.
     let miss_chance_pct = miss_chance_pct.max(0.0);
 
@@ -345,12 +363,13 @@ pub(crate) fn melee_outcome_inputs_like_cpp(
     let mut block_chance_pct = 0.0;
     if victim.is_creature && !victim.is_totem {
         // C++ `GetUnitDodgeChance`/`GetUnitParryChance`/`GetUnitBlockChance`
-        // creature branches; the victim's `MOD_DODGE_PERCENT` /
-        // `MOD_PARRY_PERCENT` / `MOD_BLOCK_PERCENT` auras still have no
-        // represented producer.
-        dodge_chance_pct = victim.dodge_pct + level_bonus;
-        parry_chance_pct = victim.parry_pct + level_bonus;
-        block_chance_pct = victim.block_pct + level_bonus;
+        // creature branches, including the victim's percentage auras.
+        dodge_chance_pct = victim.dodge_pct + victim.dodge_aura_pct + level_bonus;
+        parry_chance_pct = victim.parry_pct + victim.parry_aura_pct + level_bonus;
+        block_chance_pct = victim.block_pct + victim.block_aura_pct + level_bonus;
+        // C++ `GetUnitDodgeChance` adds the attacker's combat-result and
+        // enemy-dodge modifiers after the level bonus.
+        dodge_chance_pct += attacker.dodge_reduction_pct;
     }
 
     // C++ glancing: player/pet attacker against a non-player victim more than
@@ -369,7 +388,9 @@ pub(crate) fn melee_outcome_inputs_like_cpp(
             parry_chance_pct: (parry_chance_pct - expertise_reduction_pct).max(0.0),
             block_chance_pct,
             glancing_chance_pct,
-            crit_chance_pct: attacker.crit_pct[index] + attacker.autoattack_crit_aura_pct,
+            crit_chance_pct: attacker.crit_pct[index]
+                + attacker.autoattack_crit_aura_pct
+                + victim.attacker_melee_crit_chance_pct,
             can_dodge: victim.is_creature,
             can_parry: victim.is_creature && victim.faces_attacker,
         }
