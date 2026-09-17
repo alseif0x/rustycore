@@ -8,6 +8,44 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#61 critical-strike aura percentages — 2026-09-17, implementation
+`7412dac5`:** the represented critical-strike projection now consumes the C++
+aura producers. `Player::UpdateWeaponDependentCritAuras`
+(`Player.cpp:8079-8107`) resolves `SPELL_AURA_MOD_WEAPON_CRIT_PERCENT` with the
+`CheckAttackFitToAuraRequirement` filter (`Player.cpp:8145-8156`, reusing the
+represented weapon admitted by `IsItemFitToSpellRequirements`) plus the
+unfiltered `SPELL_AURA_MOD_CRIT_PCT` (290) sum into
+`PlayerStatSystemInputLikeCpp.crit_mainhand_aura_pct`/`crit_offhand_aura_pct`/
+`crit_ranged_aura_pct`; `Player::UpdateCritPercentage`
+(`StatSystem.cpp:502-538`) then applies `5% + FLAT_MOD + rating` per group, so
+the offhand no longer shares the mainhand value and the per-attack weapon
+requirement can select different auras. `Player::UpdateSpellCritChance`
+(`StatSystem.cpp:718-731`) adds `SPELL_AURA_MOD_SPELL_CRIT_CHANCE` (57) plus
+`MOD_CRIT_PCT` before the spell rating for all seven schools. The new
+`represented_weapon_crit_aura_modifier_like_cpp` reuses the expertise unit's
+weapon/item-fit admission, so no second ownership path appears; the four
+published critical fields already flow through the create block and the
+post-login stat update, so no packet, mirror, lock or clock change is needed.
+The `SPELL_AURA_MOD_CRIT_PCT` constant carries its `SpellAuraDefines.h` anchor.
+Focused coverage: a pure stat-system test pins the per-group base plus aura sums,
+and an end-to-end session test asserts that the sword-only aura is rejected
+unarmed, applies to the mainhand after equipping the sword, and never leaks to
+the offhand/ranged or spell groups; `wow-data stat_system` (7),
+`scenarios_player_items_12` (9), `scenarios_player_items_1` (50),
+`persistence::` (105), `handlers::character::tests::login` (11),
+`scenarios_spell_state_22` (9) and `scenarios_world_entities_24` (11) stay green;
+format, `git diff --check`, the physical ratchet and `validation-v2 quick`
+(manifest `20260917T004453.285261Z-2117991-quick.json`, 63.9 s) pass. The
+`GetTotalAuraModifier` same-effect stack-rule grouping is not applied (consistent
+with the older aura modifier helpers), class-talent critical bonuses and the
+school (1-6) resistance publication remain separate gates, the full
+`wow-world --lib` suite stays unusable on this host because several unrelated
+pre-existing async tests hang, and `validation-v2 final` stops at the
+pre-existing runtime hotspot LOC ratchet, which keeps its drift and was not
+regenerated. #61 remains open for the player-killer (PvP)
+`CONFIG_DURABILITY_LOSS_IN_PVP` branch and `SetPvPDeath`, alternate powers, rune
+regeneration and live DB/restart/relogin QA.
+
 **#61 avoidance aura percentages — 2026-09-17, implementation `255c888f`, integrated as `25d6c0b9` by PR #987:** the
 represented avoidance projection now consumes the C++ aura producers of
 `Player::UpdateBlockPercentage` (`StatSystem.cpp:483-499`),

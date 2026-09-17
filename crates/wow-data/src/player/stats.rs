@@ -122,6 +122,16 @@ pub struct PlayerStatSystemInputLikeCpp {
     pub spell_parry_pct: f32,
     /// C++ `GetTotalAuraModifier(SPELL_AURA_MOD_BLOCK_PERCENT)`.
     pub spell_block_pct: f32,
+    /// C++ `GetBaseModValue(CRIT_PERCENTAGE, FLAT_MOD)` from
+    /// `UpdateWeaponDependentCritAuras(BASE_ATTACK)`.
+    pub crit_mainhand_aura_pct: f32,
+    /// C++ `GetBaseModValue(OFFHAND_CRIT_PERCENTAGE, FLAT_MOD)`.
+    pub crit_offhand_aura_pct: f32,
+    /// C++ `GetBaseModValue(RANGED_CRIT_PERCENTAGE, FLAT_MOD)`.
+    pub crit_ranged_aura_pct: f32,
+    /// C++ `GetTotalAuraModifier(SPELL_AURA_MOD_SPELL_CRIT_CHANCE)` plus
+    /// `GetTotalAuraModifier(SPELL_AURA_MOD_CRIT_PCT)`.
+    pub spell_crit_aura_pct: f32,
     pub gear_attack_power: i32,
     pub gear_ranged_attack_power: i32,
     pub rating_bonuses: [f32; 32],
@@ -295,9 +305,15 @@ pub fn calculate_player_stat_system_like_cpp(
         - 10.0) as i32;
 
     let rating = |index: usize| input.rating_bonuses.get(index).copied().unwrap_or(0.0);
-    let crit_pct = 5.0 + rating(8);
-    let ranged_crit_pct = 5.0 + rating(9);
-    let spell_crit = 5.0 + rating(10);
+    // C++ `Player::UpdateAllCritPercentages`/`UpdateCritPercentage`
+    // (`StatSystem.cpp:502-538`) seeds each group with 5%, adds the
+    // weapon-dependent `FLAT_MOD` aura sum and the melee/ranged rating bonus;
+    // `UpdateSpellCritChance` (`718-731`) applies the same shape to every
+    // school with the spell rating.
+    let crit_pct = 5.0 + input.crit_mainhand_aura_pct + rating(8);
+    let offhand_crit_pct = 5.0 + input.crit_offhand_aura_pct + rating(8);
+    let ranged_crit_pct = 5.0 + input.crit_ranged_aura_pct + rating(9);
+    let spell_crit = 5.0 + input.spell_crit_aura_pct + rating(10);
     let dodge_pct = diminishing_returns_like_cpp(
         &DODGE_CAP_LIKE_CPP,
         input.class,
@@ -366,7 +382,7 @@ pub fn calculate_player_stat_system_like_cpp(
         parry_from_attr: 0.0,
         crit_pct,
         ranged_crit_pct,
-        offhand_crit_pct: crit_pct,
+        offhand_crit_pct,
         spell_crit_pct: [spell_crit; 7],
     }
 }
@@ -657,6 +673,10 @@ mod tests {
             spell_dodge_pct: 0.0,
             spell_parry_pct: 0.0,
             spell_block_pct: 0.0,
+            crit_mainhand_aura_pct: 0.0,
+            crit_offhand_aura_pct: 0.0,
+            crit_ranged_aura_pct: 0.0,
+            spell_crit_aura_pct: 0.0,
             gear_attack_power: 17,
             gear_ranged_attack_power: 4,
             rating_bonuses: [0.0; 32],
@@ -711,6 +731,10 @@ mod tests {
             spell_dodge_pct: 0.0,
             spell_parry_pct: 0.0,
             spell_block_pct: 0.0,
+            crit_mainhand_aura_pct: 0.0,
+            crit_offhand_aura_pct: 0.0,
+            crit_ranged_aura_pct: 0.0,
+            spell_crit_aura_pct: 0.0,
             gear_attack_power: 0,
             gear_ranged_attack_power: 0,
             rating_bonuses: [0.0; 32],
@@ -756,6 +780,10 @@ mod tests {
             spell_dodge_pct: 10.0,
             spell_parry_pct: 3.0,
             spell_block_pct: 7.0,
+            crit_mainhand_aura_pct: 0.0,
+            crit_offhand_aura_pct: 0.0,
+            crit_ranged_aura_pct: 0.0,
+            spell_crit_aura_pct: 0.0,
             gear_attack_power: 0,
             gear_ranged_attack_power: 0,
             rating_bonuses: [0.0; 32],
@@ -779,6 +807,57 @@ mod tests {
         };
         let projection = calculate_player_stat_system_like_cpp(priest);
         assert_eq!(projection.parry_pct, 0.0);
+    }
+
+    #[test]
+    fn stat_system_applies_cpp_crit_aura_percentages_like_cpp() {
+        // C++ `Player::UpdateAllCritPercentages`/`UpdateCritPercentage`
+        // (`StatSystem.cpp:502-538`) and `UpdateSpellCritChance` (`718-731`):
+        // every group starts at 5% and adds its own aura flat sum.
+        let input = PlayerStatSystemInputLikeCpp {
+            base: PlayerLevelStats {
+                strength: 10,
+                agility: 12,
+                stamina: 30,
+                intellect: 40,
+                spirit: 20,
+                base_mana: 0,
+            },
+            class: 1,
+            level: 80,
+            attack_power_per_strength: 2,
+            attack_power_per_agility: 0,
+            ranged_attack_power_per_agility: 0,
+            stat_total_multipliers: [1.0; 5],
+            stat_buff_total_multipliers: [1.0; 5],
+            gear_stats: [0; 5],
+            gear_health: 0,
+            gear_mana: 0,
+            gear_armor: 0,
+            armor_base_pct: 1.0,
+            armor_flat_aura: 0,
+            armor_of_stat_percent: [0; 5],
+            armor_total_pct: 1.0,
+            armor_bonus_pct: 1.0,
+            spell_dodge_pct: 0.0,
+            spell_parry_pct: 0.0,
+            spell_block_pct: 0.0,
+            crit_mainhand_aura_pct: 2.0,
+            crit_offhand_aura_pct: 3.0,
+            crit_ranged_aura_pct: 4.0,
+            spell_crit_aura_pct: 5.0,
+            gear_attack_power: 0,
+            gear_ranged_attack_power: 0,
+            rating_bonuses: [0.0; 32],
+            can_parry: false,
+            can_block: false,
+        };
+        let projection = calculate_player_stat_system_like_cpp(input);
+
+        assert_eq!(projection.crit_pct, 7.0);
+        assert_eq!(projection.offhand_crit_pct, 8.0);
+        assert_eq!(projection.ranged_crit_pct, 9.0);
+        assert_eq!(projection.spell_crit_pct, [10.0; 7]);
     }
 
     #[test]
@@ -812,6 +891,10 @@ mod tests {
             spell_dodge_pct: 0.0,
             spell_parry_pct: 0.0,
             spell_block_pct: 0.0,
+            crit_mainhand_aura_pct: 0.0,
+            crit_offhand_aura_pct: 0.0,
+            crit_ranged_aura_pct: 0.0,
+            spell_crit_aura_pct: 0.0,
             gear_attack_power: 0,
             gear_ranged_attack_power: 0,
             rating_bonuses,
@@ -861,6 +944,10 @@ mod tests {
             spell_dodge_pct: 0.0,
             spell_parry_pct: 0.0,
             spell_block_pct: 0.0,
+            crit_mainhand_aura_pct: 0.0,
+            crit_offhand_aura_pct: 0.0,
+            crit_ranged_aura_pct: 0.0,
+            spell_crit_aura_pct: 0.0,
             gear_attack_power: 0,
             gear_ranged_attack_power: 0,
             rating_bonuses: [0.0; 32],
@@ -905,6 +992,10 @@ mod tests {
             spell_dodge_pct: 0.0,
             spell_parry_pct: 0.0,
             spell_block_pct: 0.0,
+            crit_mainhand_aura_pct: 0.0,
+            crit_offhand_aura_pct: 0.0,
+            crit_ranged_aura_pct: 0.0,
+            spell_crit_aura_pct: 0.0,
             gear_attack_power: 0,
             gear_ranged_attack_power: 0,
             rating_bonuses: [0.0; 32],

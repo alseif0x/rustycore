@@ -33,6 +33,18 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 critical-strike aura percentages — 2026-09-17, implementation
+`7412dac5`:** the critical-strike projection now consumes
+`SPELL_AURA_MOD_WEAPON_CRIT_PERCENT` filtered per attack by the weapon
+requirement plus the global `SPELL_AURA_MOD_CRIT_PCT`, and
+`SPELL_AURA_MOD_SPELL_CRIT_CHANCE` plus `MOD_CRIT_PCT` for every school, in the
+C++ `UpdateWeaponDependentCritAuras`/`UpdateCritPercentage`/
+`UpdateSpellCritChance` order (`Player.cpp:8079-8107`, `StatSystem.cpp:502-538`,
+`718-731`). The offhand group no longer shares the mainhand value and the
+already-published critical fields become aura-aware without a new writer,
+continuing the F1 aura-route work without changing the
+#584 → #583 → #153 architecture gate.
+
 **#61 avoidance aura percentages — 2026-09-17, implementation `255c888f`:** the
 represented avoidance projection now consumes the flat
 `SPELL_AURA_MOD_BLOCK_PERCENT`/`MOD_PARRY_PERCENT`/`MOD_DODGE_PERCENT` sums in
