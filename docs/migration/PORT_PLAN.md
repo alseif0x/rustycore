@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 school damage percentage — 2026-09-17, implementation `32572914`:**
+`SpellDamagePctDone`'s player `maxModDamagePercentSchool` term
+(`Unit.cpp:6683-6772`) now multiplies direct school damage, consuming the
+`mod_damage_done_percent` field published earlier. The versus/mechanic and
+family-scripted terms remain open. wow-data --lib 752/0, wow-world --lib
+3932/0/1; no live DB/restart/relogin QA.
+
 **#61 caster spell-power damage bonus — 2026-09-17, implementation `067a6f91`:**
 `SpellDamageBonusDone`'s player-caster flat term now scales
 `SPELL_EFFECT_SCHOOL_DAMAGE` by `SpellBaseDamageBonusDone(schoolMask) *
