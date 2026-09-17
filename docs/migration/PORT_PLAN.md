@@ -33,6 +33,16 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 avoidance aura percentages — 2026-09-17, implementation `255c888f`:** the
+represented avoidance projection now consumes the flat
+`SPELL_AURA_MOD_BLOCK_PERCENT`/`MOD_PARRY_PERCENT`/`MOD_DODGE_PERCENT` sums in
+the C++ `Player::UpdateBlockPercentage`/`UpdateParryPercentage`/
+`UpdateDodgePercentage` order (`StatSystem.cpp:483-499`, `659-679`, `700-717`),
+with the class parry caps honoured. The already-published
+`block_pct`/`dodge_pct`/`parry_pct` fields become aura-aware without a new
+writer, continuing the F1 aura-route work without changing the
+#584 → #583 → #153 architecture gate.
+
 **#61 armor aura producers — 2026-09-17, implementation `6b7334a0`:** the stat
 system now runs the complete C++ `Player::UpdateArmor` producer chain
 (`StatSystem.cpp:251-276`): `MOD_BASE_RESISTANCE_PCT` `BASE_PCT`,
