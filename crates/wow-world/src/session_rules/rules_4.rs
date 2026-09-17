@@ -218,6 +218,12 @@ pub(crate) fn melee_outcome_damage_like_cpp(
     attacker_level: u8,
     victim_level: u8,
     crit_damage_multiplier: f32,
+    // C++ `victim->GetBlockPercent(attackerLevel)`: the flat `30.0` creature
+    // base (`Unit.h:947`) or a player's `Player::GetBlockPercent`
+    // (`Player.cpp:25288-25298`). `CalculatePct(damage, pct)` divides by 100,
+    // so a player's returned *fraction* blocks at most `0.85%` of the damage,
+    // exactly like the target build.
+    block_percent_like_cpp: f32,
 ) -> (u32, u32, u32) {
     match outcome {
         RepresentedMeleeOutcomeLikeCpp::Evade
@@ -237,7 +243,7 @@ pub(crate) fn melee_outcome_damage_like_cpp(
             // C++ `CalculatePct(damage, GetBlockPercent(attackerLevel))`
             // truncates; `IsBlockCritical` needs the victim's aura sum, which
             // has no represented producer, so the doubled block is absent.
-            let blocked = (damage as f32 * CREATURE_BLOCK_PERCENT_LIKE_CPP / 100.0) as u32;
+            let blocked = (damage as f32 * block_percent_like_cpp / 100.0) as u32;
             (damage.saturating_sub(blocked), blocked, damage)
         }
         RepresentedMeleeOutcomeLikeCpp::Crit => {
@@ -399,6 +405,23 @@ pub(crate) struct RepresentedMeleeVictimFactsLikeCpp {
     pub is_stand_state: bool,
 }
 
+/// C++ `Player::GetBlockPercent(attackerLevel)` (`Player.cpp:25288-25298`): the
+/// published `ActivePlayerData::ShieldBlock` over itself plus
+/// `DB2Manager::EvaluateExpectedStat(ExpectedStatType::ArmorConstant, ...)`,
+/// capped at `0.85`, and `0` when both inputs are zero.
+///
+/// Boundary: the represented runtime does not load `ExpectedStat.db2`, so the
+/// caller passes C++'s own empty-store fallback (`EvaluateExpectedStat` returns
+/// `1.0f` when the level row is absent); a later unit can load the table and
+/// pass its value instead.
+pub(crate) fn player_block_percent_like_cpp(shield_block: i32, armor_constant: f32) -> f32 {
+    let block_armor = shield_block.max(0) as f32;
+    if block_armor + armor_constant == 0.0 {
+        return 0.0;
+    }
+    (block_armor / (block_armor + armor_constant)).min(0.85)
+}
+
 /// C++ `Unit::RollMeleeOutcomeAgainst` (`Unit.cpp:2272-2310`) chance assembly
 /// for both represented melee attack types.
 pub(crate) fn melee_outcome_inputs_like_cpp(
@@ -455,7 +478,10 @@ pub(crate) fn melee_outcome_inputs_like_cpp(
                 miss_chance_pct,
                 dodge_chance_pct: (dodge_chance_pct - expertise_reduction_pct).max(0.0),
                 parry_chance_pct: (parry_chance_pct - expertise_reduction_pct).max(0.0),
-                block_chance_pct: 0.0,
+                // C++ `GetUnitBlockChance`'s player branch reads the published
+                // `BlockPercentage` (non-zero only while `CanBlock()` and a
+                // shield are present).
+                block_chance_pct: victim.block_pct,
                 glancing_chance_pct: 0.0,
                 crit_chance_pct,
                 can_dodge: can_avoid,

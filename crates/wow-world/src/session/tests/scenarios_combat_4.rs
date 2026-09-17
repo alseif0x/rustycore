@@ -474,57 +474,57 @@ fn melee_attack_table_outcome_effects_match_calculate_melee_damage_like_cpp() {
     };
 
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Evade, 100, 80, 80, 1.0),
+        melee_outcome_damage_like_cpp(Outcome::Evade, 100, 80, 80, 1.0, 30.0),
         (0, 0, 100)
     );
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Miss, 100, 80, 80, 1.0),
+        melee_outcome_damage_like_cpp(Outcome::Miss, 100, 80, 80, 1.0, 30.0),
         (0, 0, 100)
     );
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Dodge, 100, 80, 80, 1.0),
+        melee_outcome_damage_like_cpp(Outcome::Dodge, 100, 80, 80, 1.0, 30.0),
         (0, 0, 100)
     );
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Parry, 100, 80, 80, 1.0),
+        melee_outcome_damage_like_cpp(Outcome::Parry, 100, 80, 80, 1.0, 30.0),
         (0, 0, 100)
     );
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Hit, 100, 80, 80, 1.0),
+        melee_outcome_damage_like_cpp(Outcome::Hit, 100, 80, 80, 1.0, 30.0),
         (100, 0, 100)
     );
     assert_eq!(
         // C++ assigns `OriginalDamage` after the doubling, so a critical swing
         // publishes the doubled value as its original too (`Unit.cpp:1370-1378`).
-        melee_outcome_damage_like_cpp(Outcome::Crit, 100, 80, 80, 1.0),
+        melee_outcome_damage_like_cpp(Outcome::Crit, 100, 80, 80, 1.0, 30.0),
         (200, 0, 200)
     );
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Crit, 100, 80, 80, 2.0),
+        melee_outcome_damage_like_cpp(Outcome::Crit, 100, 80, 80, 2.0, 30.0),
         (400, 0, 400)
     );
     // C++ `CalculatePct(damage, GetBlockPercent)` with the flat 30% creature
     // base (`Unit.h:947`).
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Block, 100, 80, 80, 1.0),
+        melee_outcome_damage_like_cpp(Outcome::Block, 100, 80, 80, 1.0, 30.0),
         (70, 30, 100)
     );
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Block, 7, 80, 80, 1.0),
+        melee_outcome_damage_like_cpp(Outcome::Block, 7, 80, 80, 1.0, 30.0),
         (5, 2, 7)
     );
     // C++ `leveldif = min(victimLevel - attackerLevel, 3)` then
     // `reducePercent = 1 - leveldif * 0.1`.
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Glancing, 100, 80, 81, 1.0),
+        melee_outcome_damage_like_cpp(Outcome::Glancing, 100, 80, 81, 1.0, 30.0),
         (90, 0, 100)
     );
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Glancing, 100, 80, 84, 1.0),
+        melee_outcome_damage_like_cpp(Outcome::Glancing, 100, 80, 84, 1.0, 30.0),
         (70, 0, 100)
     );
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Glancing, 100, 80, 90, 1.0),
+        melee_outcome_damage_like_cpp(Outcome::Glancing, 100, 80, 90, 1.0, 30.0),
         (70, 0, 100)
     );
 
@@ -580,8 +580,8 @@ fn melee_attack_table_outcome_effects_match_calculate_melee_damage_like_cpp() {
 fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
     use crate::session_rules::{
         RepresentedMeleeAttackerFactsLikeCpp as Attacker,
-        RepresentedMeleeVictimFactsLikeCpp as Victim, melee_outcome_inputs_like_cpp,
-        melee_outcome_like_cpp,
+        RepresentedMeleeOutcomeLikeCpp as Outcome, RepresentedMeleeVictimFactsLikeCpp as Victim,
+        melee_outcome_inputs_like_cpp, melee_outcome_like_cpp,
     };
 
     let attacker = Attacker {
@@ -737,47 +737,33 @@ fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
     assert_eq!(inputs[0].parry_chance_pct, 14.5);
     assert_eq!(inputs[1].dodge_chance_pct, 18.75);
     assert_eq!(inputs[1].parry_chance_pct, 14.75);
-    // The published block percentage needs the armour-constant table.
-    assert_eq!(inputs[0].block_chance_pct, 0.0);
+    // C++ `GetUnitBlockChance`'s player branch: the published `BlockPercentage`.
+    assert_eq!(inputs[0].block_chance_pct, 10.0);
     assert_eq!(inputs[0].glancing_chance_pct, 0.0);
     assert_eq!(inputs[0].crit_chance_pct, 12.0);
     assert!(inputs[0].can_dodge && inputs[0].can_parry);
     assert!(!inputs[0].is_evading_attacks);
     assert!(!inputs[0].always_crits);
-    assert_eq!(
-        melee_outcome_like_cpp(&inputs[0], 249),
-        crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Miss
-    );
     // After the 2.5% miss band: dodge [250, 2100), parry [2100, 3550),
-    // crit [3550, 4750), hit [4750, 10000).
-    assert_eq!(
-        melee_outcome_like_cpp(&inputs[0], 250),
-        crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Dodge
-    );
-    assert_eq!(
-        melee_outcome_like_cpp(&inputs[0], 2_099),
-        crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Dodge
-    );
-    assert_eq!(
-        melee_outcome_like_cpp(&inputs[0], 2_100),
-        crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Parry
-    );
-    assert_eq!(
-        melee_outcome_like_cpp(&inputs[0], 3_549),
-        crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Parry
-    );
-    assert_eq!(
-        melee_outcome_like_cpp(&inputs[0], 3_550),
-        crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Crit
-    );
-    assert_eq!(
-        melee_outcome_like_cpp(&inputs[0], 4_749),
-        crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Crit
-    );
-    assert_eq!(
-        melee_outcome_like_cpp(&inputs[0], 9_999),
-        crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Hit
-    );
+    // block [3550, 4550), crit [4550, 5750), hit [5750, 10000).
+    for (roll, expected) in [
+        (249, Outcome::Miss),
+        (250, Outcome::Dodge),
+        (2_099, Outcome::Dodge),
+        (2_100, Outcome::Parry),
+        (3_549, Outcome::Parry),
+        (3_550, Outcome::Block),
+        (4_549, Outcome::Block),
+        (4_550, Outcome::Crit),
+        (5_749, Outcome::Crit),
+        (9_999, Outcome::Hit),
+    ] {
+        assert_eq!(
+            melee_outcome_like_cpp(&inputs[0], roll),
+            expected,
+            "roll {roll}"
+        );
+    }
 
     // C++ requires the victim to face the attacker for both gates, and clears
     // them for a controlled victim.
@@ -795,6 +781,15 @@ fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
     let inputs = melee_outcome_inputs_like_cpp(&two_handed, &controlled_player);
     assert!(!inputs[0].can_dodge && !inputs[0].can_parry);
 
+    // The block band is gated by the same facing/controlled gate as parry.
+    let behind_player = Victim {
+        faces_attacker: false,
+        ..player_victim
+    };
+    let inputs = melee_outcome_inputs_like_cpp(&two_handed, &behind_player);
+    assert!(!inputs[0].can_parry);
+    assert_eq!(inputs[0].block_chance_pct, 10.0);
+
     // C++ returns `MELEE_HIT_CRIT` before the avoidance bands for a player
     // victim that is not in a stand state, while the critical chance is
     // non-zero (`Unit.cpp:2312-2314`).
@@ -804,10 +799,7 @@ fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
     };
     let inputs = melee_outcome_inputs_like_cpp(&two_handed, &sitting);
     assert!(inputs[0].always_crits);
-    assert_eq!(
-        melee_outcome_like_cpp(&inputs[0], 250),
-        crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Crit
-    );
+    assert_eq!(melee_outcome_like_cpp(&inputs[0], 250), Outcome::Crit);
     // A zero critical chance keeps the sitting victim on the avoidance bands.
     let no_crit = Attacker {
         crit_pct: [0.0, 0.0],
@@ -816,10 +808,7 @@ fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
     };
     let inputs = melee_outcome_inputs_like_cpp(&no_crit, &sitting);
     assert!(!inputs[0].always_crits);
-    assert_eq!(
-        melee_outcome_like_cpp(&inputs[0], 250),
-        crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Dodge
-    );
+    assert_eq!(melee_outcome_like_cpp(&inputs[0], 250), Outcome::Dodge);
 
     // A victim the owner cannot read keeps the pre-table behaviour.
     let unknown = Victim {
