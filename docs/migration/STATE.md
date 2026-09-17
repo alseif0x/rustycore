@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`7bab6a408d410c245b345fb5edbca7e849d29eae` (PR #1144, the #29
-ExpectedStat table load, following PR #1142, the #29
+`0036623f5c1fe77a35af8a666a3e157e4beb2050` (PR #1148, the #29
+melee physical-immunity gate, following PR #1144, the #29
+ExpectedStat table load, PR #1142, the #29
 player-victim block band, PR #1140, the #29
 creature-victim parry scenario, PR #1137, the #29
 creature-victim evade scenario, PR #1131, the #29
@@ -56,6 +57,35 @@ represented creature-aura producer), the player-victim block band (needs the
 the target build's negative crushing band, and live DB/restart/relogin QA. The
 next unit should be the `ExpectedStat` consumer, whose store already exists in
 `wow-data` with no consumer.
+
+**#29 melee physical-immunity gate — 2026-09-17, implementation `a269c051`,
+integrated as `0036623f` by PR #1148:** C++ `Unit::CalculateMeleeDamage` opens
+with a physical immunity check (`Unit.cpp:1315-1324`): when
+`victim->IsImmunedToDamage(schoolMask)` holds, the swing ends before any damage
+roll or band with `HITINFO_NORMALSWING` and `VICTIMSTATE_IS_IMMUNE` and zero
+damage; the represented table had no immunity input, so a school-immune player
+victim still took damage. `IsImmunedToDamage` (`Unit.cpp:7320-7336`) requires
+`(GetSchoolImmunityMask() & schoolMask) == schoolMask`; for a white swing that is
+`SPELL_AURA_SCHOOL_IMMUNITY` (39) covering `SPELL_SCHOOL_MASK_NORMAL` (`0x01`),
+which both owners now scan for. `RepresentedMeleeOutcomeLikeCpp` gained `Immune`,
+returned before every band and treated as an avoided outcome so no health is
+committed; its damage arm returns zero and its presentation reproduces C++
+exactly — `HITINFO_NORMALSWING` (`0x0`, so a main-hand immune swing publishes
+`hitInfo == 0`) and `VICTIMSTATE_IS_IMMUNE`, without the
+`HITINFO_AFFECTS_VICTIM` the later line would add. `wow-packet` gained the two
+constants and the victim facts gained `is_immune_to_damage`; the creature-victim
+branch resolves it from the same aura type. Boundary:
+`GetDamageImmunityMask`'s `IMMUNITY_DAMAGE` map has no represented producer, so
+only the school-immunity half is represented. Evidence: the pure table pins
+`(0, 0, 100)` for the immune damage arm and `(0, VICTIM_STATE_IS_IMMUNE)` for the
+presentation, and the production runtime scenario applies a normal-school
+immunity aura to the player victim and asserts no committed hit, zero damage,
+`hit_info == 0` and `VICTIM_STATE_IS_IMMUNE`. wow-world 3992/0/1 on two
+consecutive runs, world-server 594/0/0 and wow-packet 744/0 pass; format,
+`git diff --check` and the physical ratchet pass without new ceiling growth, and
+`validation-v2 quick` (manifest
+`20260917T205709.258475Z-3450946-quick.json`) passes. No live DB/restart/relogin
+QA. #29 remains open for the remaining spell/melee math.
 
 **#29 melee immunity gate discovery — 2026-09-17, no code change:** the claim
 that the melee band table and its inputs are complete in both directions needs

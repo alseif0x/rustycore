@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 melee physical-immunity gate — 2026-09-17, implementation `a269c051`:** a
+normal-school `SPELL_AURA_SCHOOL_IMMUNITY` victim now ends the swing before every
+band with zero damage and the C++ wire presentation (`hitInfo == 0` from
+`HITINFO_NORMALSWING`, `VICTIMSTATE_IS_IMMUNE`, no `AFFECTS_VICTIM`); both owners
+scan the aura. wow-world 3992/0/1 (two runs), world-server 594/0/0, wow-packet
+744/0; `GetDamageImmunityMask` remains a boundary.
+
 **#29 melee immunity gate discovery — 2026-09-17, no code change:** C++
 `CalculateMeleeDamage`'s physical immunity gate (`Unit.cpp:1315-1324`,
 `HITINFO_NORMALSWING` + `VICTIMSTATE_IS_IMMUNE`, zero damage) has no represented
