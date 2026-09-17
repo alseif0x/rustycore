@@ -2950,7 +2950,16 @@ fn represented_player_stat_changes_like_cpp(
         stat_pos_buff: state.stats_base,
         armor: state.armor_base + state.armor_total + state.resistances_base[0],
         combat_ratings: state.combat_ratings,
-        spell_power: state.spell_power_bonus,
+        // This fixture has no aura/stat producers, so the item accumulator is
+        // the whole represented `SpellBaseDamageBonusDone`/`HealingBonusDone`.
+        mod_damage_done_pos: std::array::from_fn(|school| {
+            if school == 0 {
+                0
+            } else {
+                state.spell_power_bonus
+            }
+        }),
+        mod_healing_done_pos: state.spell_power_bonus,
         shield_block: i32::try_from(state.shield_block_value).unwrap_or(i32::MAX),
         ..Default::default()
     };

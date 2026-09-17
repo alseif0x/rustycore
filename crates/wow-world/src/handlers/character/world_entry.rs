@@ -2661,7 +2661,9 @@ impl WorldSession {
             offhand_crit_pct: projection.offhand_crit_pct,
             spell_crit_pct: projection.spell_crit_pct,
             combat_ratings: gear.combat_ratings,
-            spell_power: gear.spell_power,
+            mod_damage_done_pos: projection.mod_damage_done_pos,
+            mod_damage_done_neg: projection.mod_damage_done_neg,
+            mod_healing_done_pos: projection.mod_healing_done_pos,
         };
         let max_power0 = primary_max_power_for_class_like_cpp(class, combat.max_mana);
         Some((

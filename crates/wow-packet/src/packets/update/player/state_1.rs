@@ -572,7 +572,11 @@ pub struct PlayerStatChanges {
     pub armor: i32,              // Resistances[0] = Physical
     // ActivePlayerData secondary stats
     pub combat_ratings: [i32; 32], // CombatRatings[32] (indices per CombatRating enum, 0-24 used)
-    pub spell_power: i32,          // ModDamageDonePos for magic schools 1-6
+    /// C++ `ActivePlayerData::ModDamageDonePos[7]` (`StatSystem.cpp:171-197`);
+    /// index 0 stays unwritten.
+    pub mod_damage_done_pos: [i32; 7],
+    /// C++ `ActivePlayerData::ModHealingDonePos`.
+    pub mod_healing_done_pos: i32,
     // Percentage fields (server-computed, displayed by client)
     pub block_pct: f32,           // BlockPercentage (bit 41)
     pub dodge_pct: f32,           // DodgePercentage (bit 42)
@@ -627,7 +631,8 @@ impl Default for PlayerStatChanges {
             stat_neg_buff: [0; 5],
             armor: 0,
             combat_ratings: [0; 32],
-            spell_power: 0,
+            mod_damage_done_pos: [0; 7],
+            mod_healing_done_pos: 0,
             block_pct: 0.0,
             dodge_pct: 0.0,
             parry_pct: 0.0,
@@ -692,7 +697,12 @@ pub struct PlayerCombatStats {
     pub offhand_crit_pct: f32,
     pub spell_crit_pct: [f32; 7],
     pub combat_ratings: [i32; 32],
-    pub spell_power: i32,
+    /// C++ `ActivePlayerData::ModDamageDonePos[7]`.
+    pub mod_damage_done_pos: [i32; 7],
+    /// C++ `ActivePlayerData::ModDamageDoneNeg[7]`.
+    pub mod_damage_done_neg: [i32; 7],
+    /// C++ `ActivePlayerData::ModHealingDonePos`.
+    pub mod_healing_done_pos: i32,
 }
 
 impl Default for PlayerCombatStats {
@@ -727,7 +737,9 @@ impl Default for PlayerCombatStats {
             offhand_crit_pct: 5.0,
             spell_crit_pct: [5.0; 7],
             combat_ratings: [0; 32],
-            spell_power: 0,
+            mod_damage_done_pos: [0; 7],
+            mod_damage_done_neg: [0; 7],
+            mod_healing_done_pos: 0,
         }
     }
 }
@@ -798,7 +810,12 @@ pub struct PlayerCreateData {
     /// Spell crit percentage by school.
     pub spell_crit_pct: [f32; 7],
     pub combat_ratings: [i32; 32],
-    pub spell_power: i32,
+    /// C++ `ActivePlayerData::ModDamageDonePos[7]`.
+    pub mod_damage_done_pos: [i32; 7],
+    /// C++ `ActivePlayerData::ModDamageDoneNeg[7]`.
+    pub mod_damage_done_neg: [i32; 7],
+    /// C++ `ActivePlayerData::ModHealingDonePos`.
+    pub mod_healing_done_pos: i32,
     /// Visible equipment items (19 slots).
     /// Each entry: (ItemID, AppearanceModID, ItemVisual).
     /// Slots: Head(0), Neck(1), Shoulders(2), Shirt(3), Chest(4), Waist(5),

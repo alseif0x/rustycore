@@ -183,7 +183,7 @@ pub(in crate::packets::update) fn write_active_player_data_values_update(
         buf.write_float(0.0); // bit 56: VersatilityBonus
         buf.write_float(0.0); // bit 57: PvpPowerDamage
         buf.write_float(0.0); // bit 58: PvpPowerHealing
-        buf.write_int32(sc.spell_power); // bit 59: ModHealingDonePos
+        buf.write_int32(sc.mod_healing_done_pos); // bit 59: ModHealingDonePos
         buf.write_float(sc.mod_healing_pct); // bit 60: ModHealingPercent
         buf.write_float(sc.mod_healing_done_pct); // bit 61: ModHealingDonePercent
         buf.write_float(sc.mod_periodic_healing_pct); // bit 62: ModPeriodicHealingDonePercent
@@ -209,11 +209,9 @@ pub(in crate::packets::update) fn write_active_player_data_values_update(
     if let Some(sc) = stat_changes {
         for i in 0..7 {
             buf.write_float(sc.spell_crit_pct[i]); // SpellCritPercentage[i]
-            if i == 0 {
-                buf.write_int32(0); // Physical school: no spell power
-            } else {
-                buf.write_int32(sc.spell_power); // Magic schools 1-6
-            }
+            // C++ never writes the physical (index 0) entry, which keeps its
+            // zero create value.
+            buf.write_int32(sc.mod_damage_done_pos[i]); // Magic schools 1-6
             // ModDamageDoneNeg[i] bits 284-290: NOT set → skip
             // ModDamageDonePercent[i] bits 291-297: NOT set → skip
         }

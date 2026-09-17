@@ -638,9 +638,15 @@ fn represented_item_mods_apply_scaling_stat_loop_spell_bonus_and_armor_like_cpp(
         100
     );
     assert_eq!(
-        stat_changes.spell_power, 33,
+        stat_changes.mod_healing_done_pos, 33,
         "C++ ApplySpellPowerBonus updates ModHealingDonePos and magic ModDamageDonePos update fields"
     );
+    assert_eq!(
+        &stat_changes.mod_damage_done_pos[1..],
+        &[33; 6],
+        "C++ publishes the item spell power to every magic school"
+    );
+    assert_eq!(stat_changes.mod_damage_done_pos[0], 0);
     assert_eq!(
         stat_changes.armor, 77,
         "C++ armor/resistance item mods surface as UnitData::Resistances[0]"
@@ -672,7 +678,8 @@ fn represented_item_mods_apply_scaling_stat_loop_spell_bonus_and_armor_like_cpp(
         removed_changes.stats[wow_constants::Stats::Strength as usize],
         0
     );
-    assert_eq!(removed_changes.spell_power, 0);
+    assert_eq!(removed_changes.mod_healing_done_pos, 0);
+    assert_eq!(removed_changes.mod_damage_done_pos, [0; 7]);
     assert_eq!(removed_changes.armor, 0);
 }
 #[test]
