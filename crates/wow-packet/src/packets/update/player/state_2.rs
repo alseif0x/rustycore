@@ -590,8 +590,8 @@ impl PlayerCreateData {
         // SpellCritPercentage[7], ModDamageDonePos[7], ModDamageDoneNeg[7], ModDamageDonePercent[7]
         for school in 0..7 {
             buf.write_float(self.spell_crit_pct[school]); // SpellCritPercentage per school
-            buf.write_int32(if school == 0 { 0 } else { self.spell_power }); // ModDamageDonePos
-            buf.write_int32(0); // ModDamageDoneNeg
+            buf.write_int32(self.mod_damage_done_pos[school]); // ModDamageDonePos
+            buf.write_int32(self.mod_damage_done_neg[school]); // ModDamageDoneNeg
             buf.write_float(1.0); // ModDamageDonePercent
         }
 
@@ -627,7 +627,7 @@ impl PlayerCreateData {
         }
 
         // ModHealingDonePos, ModHealingPercent, ModHealingDonePercent, ModPeriodicHealingDonePercent
-        buf.write_int32(self.spell_power);
+        buf.write_int32(self.mod_healing_done_pos);
         buf.write_float(1.0);
         buf.write_float(1.0);
         buf.write_float(1.0);
