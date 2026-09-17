@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`9d8a1be6474b14de2ee7815d7210bc16aff31544` (PR #1157, the #29 player-victim
+`0e53a4029b5f66a380f502ccac3bb0a67d70cf04` (PR #1159, the #29 player-victim
+melee mana-shield absorb stage, following PR #1157, the #29 player-victim
 melee absorb log, following PR #1155, the #29 player-victim
 melee school absorb with the C++ sub-damage wire block, following PR #1153, the
 #584 session syntax-ownership baseline reconciliation and architecture-acceptance
@@ -46,6 +47,51 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#29 player-victim melee mana shield — 2026-09-17, implementation `e701fcd8`,
+integrated as `0e53a402` by PR #1159:** a creature swing against a player now
+also runs C++ `Unit::CalcAbsorbResist`'s mana-shield loop
+(`Unit.cpp:1886-1930`), which had no represented producer: a player's
+`SPELL_AURA_MANA_SHIELD` (Mage Mana Shield) neither drained mana nor absorbed.
+`session_rules::player_mana_shields_like_cpp` projects the victim's active
+mana-shield effects (slot, effect index, amount, amplitude) whose `MiscValue`
+covers the school mask, and
+`session_rules::represented_melee_mana_absorb_like_cpp` reproduces the loop: the
+amount caps the damage, the drain is `amount * CalcValueMultiplier`, the
+absorbed damage scales by `manaTaken / manaReduction`, a negative amount is
+clamped to zero, an amount-counting shield is depleted and removed at zero, and
+the loop stops once the damage is gone. `wow-data` gained
+`SpellEffectInfo::Amplitude` (`SpellEffectEntry::EffectAmplitude`) with
+`calc_value_multiplier_like_cpp()` (`SpellInfo.cpp:624-631`) and the
+`SPELL_AURA_MANA_SHIELD = 97` constant. The map-owned absorb stage drains the
+canonical player's mana with `Unit::set_power` in the same locked phase as the
+health write, and the victim session publishes the resulting
+`SMSG_POWER_UPDATE` (`Unit.cpp:9287-9312`) through the existing power owner,
+beside the absorb log and the exhausted-shield removal it already owned; the
+delivery command carries `mana_spent`, and the *total* absorbed amount (school
+plus mana) decides `HITINFO_FULL_ABSORB`/`HITINFO_PARTIAL_ABSORB`, matching
+C++'s single `DamageInfo` absorb. Coverage: the bounded
+`session/tests/scenarios_combat_5.rs` rules suite (no shield, zero damage, full
+absorb, mana-limited fraction, amplitude 2, amount cap, negative infinite
+shield, dry mana) and a production-shaped scenario in
+`scenarios_world_entities_32.rs` where a 30-point shield with one mana per damage
+absorbs a 10-point hit and drains 10 mana, delivers the `PowerUpdate` and the
+absorb log, then absorbs only the 3 points the last three mana can pay and
+finally nothing with an empty pool. Evidence at `0e53a402`: `wow-world --lib`
+3997/0/1, `wow-data --lib` 753/0, `wow-packet --lib` 747/0, `cargo check -p
+world-server --all-targets` clean, `cargo fmt --all --check` and `git diff
+--check` clean, physical ratchet PASS (2234 files, no ceiling moved),
+`session-ownership-check --syntax-only` PASS with a reviewed `print-baseline`
+delta (the command's `mana_spent`, the publication method's signature and the
+tick bridge body); `validation-v2 quick` PASS in 529.2 s (manifest
+`20260917T233742.699772Z-3566940-quick.json`) of which 519.0 s is the
+check-profile recompilation, and `final --architecture` 84.5 s, exit 1, 2 of 8
+steps with `session-syntax-acceptance` PASS and the pre-existing hotspot ratchet
+as the only red; the pair is 613.7 s against the 600 s ordinary budget, a ~14 s
+overrun reported rather than hidden. Limits: C++'s `absorbIgnoringDamage` term
+and the spellmod half of `CalcValueMultiplier` stay unrepresented, a zero drain
+resolves to no absorb instead of C++'s `0 / 0` float division, and creature
+victims still have no mutable represented shield pool.
+
 **#29 player-victim melee absorb log — 2026-09-17, implementation `ffa1097b`,
 integrated as `9d8a1be6` by PR #1157:** the melee absorb stage now also publishes
 C++ `Unit::CalcAbsorbResist`'s per-shield `SMSG_SPELL_ABSORB_LOG`
@@ -84,8 +130,10 @@ against the 600 s ordinary budget, a ~29 s overrun caused by that check-profile
 recompilation. Limits: the basic combat-log packet is delivered to the victim
 session, while C++ `SendCombatLogMessage` also fans it out to the unit's visible
 set, which no represented combat-log packet does yet;
-`SPELL_AURA_MANA_SHIELD`, the `absorbIgnoringDamage`/`SPELL_ATTR6` interaction,
-physical resist, the creature-victim absorb pool and live QA stay open.
+`SPELL_AURA_MANA_SHIELD` (superseded 2026-09-17 by PR #1159, which resolves
+the loop and its power publication), the `absorbIgnoringDamage`/`SPELL_ATTR6`
+interaction, physical resist, the creature-victim absorb pool and live QA stay
+open.
 
 **#29 player-victim melee school absorb — 2026-09-17, implementation `a7bdac56`,
 integrated as `045c565e` by PR #1155:** a creature swing against a player now
@@ -130,7 +178,8 @@ reviewed `print-baseline` delta of exactly the two new command fields; `final
 --architecture` is 84.1 s, exit 1, 2 of 11 steps executed with
 `session-syntax-acceptance` PASS and the pre-existing hotspot ratchet as the
 only red. Limits: `SPELL_AURA_MANA_SHIELD` needs a power write the melee path
-does not own; C++'s `absorbIgnoringDamage` term (attacker
+does not own (superseded 2026-09-17 by PR #1159); C++'s
+`absorbIgnoringDamage` term (attacker
 `SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL` reduced by
 `SPELL_ATTR6_ABSORB_CANNOT_BE_IGNORE`) has no represented producer or spell
 attribute projection; `SMSG_SPELL_ABSORB_LOG` is not sent (superseded

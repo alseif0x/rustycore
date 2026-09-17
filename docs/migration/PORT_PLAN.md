@@ -33,6 +33,17 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 player-victim melee mana shield — 2026-09-17, implementation
+`e701fcd8`:** C++ `Unit::CalcAbsorbResist`'s mana-shield loop
+(`Unit.cpp:1886-1930`) now runs for a creature swing against a player: the
+shield's amount caps the damage, `SpellEffectInfo::Amplitude` (newly
+represented) is the mana drained per absorbed point, the map-owned stage drains
+the canonical player's mana in the same locked phase as the health write, and
+the victim session publishes the `SMSG_POWER_UPDATE`, the absorb log and the
+exhausted-shield removal. Limits: the `absorbIgnoringDamage` term and the
+spellmod half of `CalcValueMultiplier` stay open, and creature victims still
+have no mutable represented shield pool.
+
 **#29 player-victim melee absorb log — 2026-09-17, implementation `ffa1097b`:**
 the melee absorb stage now also publishes C++ `Unit::CalcAbsorbResist`'s
 per-shield `SMSG_SPELL_ABSORB_LOG` (`Unit.cpp:1876-1889`) through the new
