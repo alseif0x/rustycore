@@ -1451,6 +1451,46 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
     assert_eq!(outcome.canonical_creature_hits, 0, "a dodge commits no hit");
     assert_eq!(victim_health(&canonical), before);
 
+    // C++ `RollMeleeOutcomeAgainst` returns `MELEE_HIT_EVADE` before every band
+    // when the creature victim is evading (`Unit.cpp:2274-2275`), and
+    // `CalculateMeleeDamage`'s evade arm publishes `HITINFO_MISS |
+    // HITINFO_SWINGNOHITSOUND` with `VICTIMSTATE_EVADES` and zero damage
+    // (`Unit.cpp:1345-1355`).
+    canonical
+        .lock()
+        .unwrap()
+        .find_map_mut(0, 0)
+        .unwrap()
+        .map_mut()
+        .with_creature_mut_like_cpp(victim_guid, |victim| {
+            victim.set_avoidance_like_cpp(wow_entities::CreatureAvoidanceLikeCpp::default());
+            victim.set_in_evade_mode_like_cpp(true);
+        })
+        .unwrap();
+    let before = victim_health(&canonical);
+    let outcome = tick(&mut session);
+    assert_eq!(outcome.melee_outcomes_unrepresented, 0);
+    assert_eq!(
+        outcome.canonical_creature_hits, 0,
+        "an evade commits no hit"
+    );
+    assert_eq!(victim_health(&canonical), before);
+    assert_eq!(
+        wire_hit_info(&outcome),
+        wow_packet::packets::combat::HIT_INFO_MISS
+            | wow_packet::packets::combat::HIT_INFO_SWING_NO_HIT_SOUND
+    );
+    canonical
+        .lock()
+        .unwrap()
+        .find_map_mut(0, 0)
+        .unwrap()
+        .map_mut()
+        .with_creature_mut_like_cpp(victim_guid, |victim| {
+            victim.set_in_evade_mode_like_cpp(false);
+        })
+        .unwrap();
+
     // The victim's flat 30% creature block (`Unit.h:947`) reduces the
     // mitigated 8 by `CalculatePct(8, 30) = 2`, and the packet carries
     // `HITINFO_BLOCK` plus the blocked amount.
