@@ -7050,6 +7050,10 @@ pub struct WorldSession {
     /// C++ `sWorld->getRate(RATE_DURABILITY_LOSS_ON_DEATH)` fraction
     /// (`DurabilityLoss.OnDeath / 100`).
     durability_loss_on_death_rate_like_cpp: f32,
+    /// C++ `CONFIG_STATS_LIMITS_*` subset consumed by the represented
+    /// `Player::UpdateBlockPercentage`/`UpdateDodgePercentage`/
+    /// `UpdateParryPercentage`/`UpdateCritPercentage` caps.
+    stats_limits_like_cpp: wow_data::StatsLimitsLikeCpp,
     /// C++ `CONFIG_RESET_SCHEDULE_{HOUR,WEEK_DAY}` consumed by `InstanceLockMgr::GetNextResetTime`.
     reset_schedule_like_cpp: wow_instances::ResetSchedule,
     /// C++ `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` represented switch.
@@ -8864,6 +8868,7 @@ impl WorldSession {
             reputation_rates: ReputationRatesLikeCpp::default(),
             repair_cost_rate_like_cpp: 1.0,
             durability_loss_on_death_rate_like_cpp: 0.1,
+            stats_limits_like_cpp: wow_data::StatsLimitsLikeCpp::default(),
             reset_schedule_like_cpp: wow_instances::ResetSchedule::default(),
             represented_offhand_check_at_spell_unlearn_like_cpp: true,
             vmap_indoor_check_like_cpp: false,

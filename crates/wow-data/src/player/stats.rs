@@ -240,6 +240,62 @@ pub struct PlayerStatSystemInputLikeCpp {
     pub can_block: bool,
 }
 
+/// C++ `CONFIG_STATS_LIMITS_*` (`World.cpp:1664-1668`, defaults `false`/`95.0`):
+/// `Player::UpdateBlockPercentage`, `UpdateDodgePercentage`,
+/// `UpdateParryPercentage` and `UpdateCritPercentage` cap their published
+/// percentage when the limit is enabled.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct StatsLimitsLikeCpp {
+    pub enabled: bool,
+    pub dodge: f32,
+    pub parry: f32,
+    pub block: f32,
+    pub crit: f32,
+}
+
+impl Default for StatsLimitsLikeCpp {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            dodge: 95.0,
+            parry: 95.0,
+            block: 95.0,
+            crit: 95.0,
+        }
+    }
+}
+
+impl StatsLimitsLikeCpp {
+    /// C++ `value = value > limit ? limit : value` for the dodge limit.
+    pub fn clamp_dodge_like_cpp(&self, value: f32) -> f32 {
+        self.clamp(value, self.dodge)
+    }
+
+    /// Same cap for the parry limit.
+    pub fn clamp_parry_like_cpp(&self, value: f32) -> f32 {
+        self.clamp(value, self.parry)
+    }
+
+    /// Same cap for the block limit.
+    pub fn clamp_block_like_cpp(&self, value: f32) -> f32 {
+        self.clamp(value, self.block)
+    }
+
+    /// Same cap for the crit limit; C++ applies it to the main-hand, off-hand
+    /// and ranged crit percentages through one `applyCritLimit` lambda.
+    pub fn clamp_crit_like_cpp(&self, value: f32) -> f32 {
+        self.clamp(value, self.crit)
+    }
+
+    fn clamp(&self, value: f32, limit: f32) -> f32 {
+        if self.enabled && value > limit {
+            limit
+        } else {
+            value
+        }
+    }
+}
+
 /// C++-shaped result of the represented `Player::UpdateAllStats` inputs.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PlayerStatSystemProjectionLikeCpp {
@@ -1636,5 +1692,32 @@ mod tests {
         assert_eq!(overridden.mod_damage_done_pos[2], 290);
         assert_eq!(overridden.mod_healing_done_pos, 240);
         assert_eq!(overridden.override_spell_power_by_ap_percent, 50.0);
+    }
+
+    #[test]
+    fn stats_limits_cap_percentages_only_when_enabled_like_cpp() {
+        let disabled = StatsLimitsLikeCpp::default();
+        assert!(!disabled.enabled);
+        assert_eq!(disabled.dodge, 95.0);
+        assert_eq!(disabled.parry, 95.0);
+        assert_eq!(disabled.block, 95.0);
+        assert_eq!(disabled.crit, 95.0);
+        assert_eq!(disabled.clamp_dodge_like_cpp(120.0), 120.0);
+        assert_eq!(disabled.clamp_crit_like_cpp(120.0), 120.0);
+
+        let enabled = StatsLimitsLikeCpp {
+            enabled: true,
+            dodge: 40.0,
+            parry: 50.0,
+            block: 60.0,
+            crit: 70.0,
+        };
+        assert_eq!(enabled.clamp_dodge_like_cpp(120.0), 40.0);
+        assert_eq!(enabled.clamp_parry_like_cpp(120.0), 50.0);
+        assert_eq!(enabled.clamp_block_like_cpp(120.0), 60.0);
+        assert_eq!(enabled.clamp_crit_like_cpp(120.0), 70.0);
+        // C++ is `value > limit`, so the boundary and negatives are untouched.
+        assert_eq!(enabled.clamp_dodge_like_cpp(40.0), 40.0);
+        assert_eq!(enabled.clamp_block_like_cpp(-5.0), -5.0);
     }
 }

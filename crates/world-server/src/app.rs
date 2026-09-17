@@ -5061,6 +5061,7 @@ async fn run_inner(
             reputation_rates: reputation_rates_like_cpp(&world_configs),
             repair_cost_rate: repair_cost_rate_like_cpp(&world_configs),
             durability_loss_on_death_rate: durability_loss_on_death_rate_like_cpp(&world_configs),
+            stats_limits: stats_limits_like_cpp(&world_configs),
             reset_schedule: reset_schedule_like_cpp(&world_configs),
             offhand_check_at_spell_unlearn: world_config_bool(
                 &world_configs,
