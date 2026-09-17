@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`2884a1850dffefd2df41fd7773de0fc9af26cbff` (PR #1140, the #29
-creature-victim parry scenario, following PR #1137, the #29
+`7a808e4db73ca04101b82800a9884f0728624bbc` (PR #1142, the #29
+player-victim block band, following PR #1140, the #29
+creature-victim parry scenario, PR #1137, the #29
 creature-victim evade scenario, PR #1131, the #29
 creature-victim melee fixture determinism fix, PR #1129, the #29
 creature-victim blocked-amount publication, PR #1127, the #29
@@ -54,6 +55,41 @@ represented creature-aura producer), the player-victim block band (needs the
 the target build's negative crushing band, and live DB/restart/relogin QA. The
 next unit should be the `ExpectedStat` consumer, whose store already exists in
 `wow-data` with no consumer.
+
+**#29 player-victim block band — 2026-09-17, implementation `f21031f1`,
+integrated as `7a808e4d` by PR #1142:** C++
+`Unit::RollMeleeOutcomeAgainst` resolves a player victim's block chance from the
+published `BlockPercentage` (`GetUnitBlockChance`'s player branch,
+`Unit.cpp:2722-2751`) and, on a block, `CalculateMeleeDamage` computes
+`Blocked = CalculatePct(damage, victim->GetBlockPercent(GetLevel()))`
+(`Unit.cpp:1399-1407`); the represented table only knew the flat 30% creature
+block, so a player victim could never block.
+`melee_outcome_damage_like_cpp` gained `block_percent_like_cpp`, and
+`player_block_percent_like_cpp` reproduces `Player::GetBlockPercent`
+(`Player.cpp:25288-25298`): the published `ShieldBlock` over itself plus the
+`ExpectedStatType::ArmorConstant` value, capped at `0.85`, with C++'s `0` guard
+when both inputs are zero. The player-victim branch now takes `block_chance_pct`
+from the published `BlockPercentage` (gated by the same facing/controlled gate
+as parry) and the runtime passes the player's fraction; the session path and the
+creature-victim branch keep the flat creature `30.0`. Boundaries: the runtime
+does not load `ExpectedStat.db2`, so the armour constant uses C++'s own
+empty-store `EvaluateExpectedStat` fallback (`1.0f`), and the target build's
+`CalculatePct(base, pct) = base * pct / 100` means a player's returned fraction
+blocks at most `0.85%` of the damage — that quirk is mirrored, not repaired.
+Evidence: the pure table test pins the player-victim band order (dodge
+[250, 2100), parry [2100, 3550), block [3550, 4550), crit [4550, 5750), hit
+[5750, 10000)) plus the facing gate, a new
+`player_block_percent_matches_get_block_percent_like_cpp` covers the fraction,
+the `0.85` cap and the zero guard, and the production runtime scenario adds a
+player-victim block stage (`BlockPercentage = 100`, `ShieldBlock = 2000`,
+`HITINFO_BLOCK` on the wire with the truncated block). wow-world 3991/0/1 on
+three consecutive runs, world-server 594/0/0, wow-packet 744/0 and wow-entities
+940/0 pass; format, `git diff --check` and the physical ratchet pass with
+`session/mod.rs` at a recorded 18,983 one-line ceiling growth, and
+`validation-v2 quick` (manifest
+`20260917T195857.595065Z-3396615-quick.json`) passes. The melee band table now
+has no unresolved victim band in either direction. No live DB/restart/relogin
+QA. #29 remains open for the remaining spell/melee math.
 
 **#29 creature-victim parry scenario — 2026-09-17, implementation `292e8ca4`,
 integrated as `2884a185` by PR #1140:** PR #1125 made the victim creature's

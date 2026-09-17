@@ -33,6 +33,16 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 player-victim block band — 2026-09-17, implementation `f21031f1`:** a
+player victim now blocks from the published `BlockPercentage` with
+`Player::GetBlockPercent` as the reduction (`Player.cpp:25288-25298`), mirroring
+the target build's `CalculatePct` fraction quirk; the runtime scenario sets
+`BlockPercentage = 100` and `ShieldBlock = 2000` and gets `HITINFO_BLOCK` on the
+wire. wow-world 3991/0/1 (three runs), world-server 594/0/0, wow-packet 744/0,
+wow-entities 940/0. Boundary: `ExpectedStat.db2` is not loaded, so the armour
+constant uses C++'s empty-store `1.0f` fallback. The melee band table now has no
+unresolved victim band in either direction.
+
 **#29 creature-victim parry scenario — 2026-09-17, implementation `292e8ca4`:**
 the runtime scenario now covers the last creature-victim band: `parry_pct = 100`
 yields no hit, no damage and `VICTIMSTATE_PARRY` decoded from the plan-event
