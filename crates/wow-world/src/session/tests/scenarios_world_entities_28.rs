@@ -1215,17 +1215,19 @@ fn legacy_creature_melee_tick_once_mitigates_creature_victim_like_cpp() {
     assert_eq!(before - victim_health(&canonical), 15);
 }
 
-/// C++ `Unit::RollMeleeOutcomeAgainst`'s miss band for a creature victim under
-/// the global creature runtime.
+/// C++ `Unit::RollMeleeOutcomeAgainst`'s bands for a creature victim under the
+/// global creature runtime.
 ///
 /// `MeleeSpellMissChance` (`Unit.cpp:11652-11685`) starts from the victim's flat
 /// `GetUnitMissChance()` of `5.0` and subtracts the attacker's
 /// `SPELL_AURA_MOD_HIT_CHANCE` sum and the victim's
-/// `SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE` sum; the miss arm publishes
-/// `HITINFO_MISS` with `VICTIMSTATE_INTACT`, zero dealt damage and no health
-/// transition (`Unit.cpp:1348-1355`).
+/// `SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE` sum; the victim's
+/// `CreatureAvoidanceLikeCpp` dodge base and the critical band from
+/// `GetUnitCriticalChanceAgainst` follow (`Unit.cpp:2272-2360`). A missed or
+/// avoided swing publishes zero dealt damage and commits no health transition
+/// (`Unit.cpp:1348-1355`).
 #[test]
-fn legacy_creature_melee_tick_once_resolves_creature_victim_miss_like_cpp() {
+fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
     use crate::map_manager::RuntimeTickOwner;
     use wow_packet::packets::combat::{HIT_INFO_AFFECTS_VICTIM, HIT_INFO_MISS};
 
@@ -1269,7 +1271,26 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_miss_like_cpp() {
         .unwrap();
 
     let mut spell_store = wow_data::SpellStore::new();
-    for (spell_id, amount) in [(91_220_i32, 5_i32), (91_221, -200)] {
+    for (spell_id, aura_type, amount, misc_value_b) in [
+        (
+            91_220_i32,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+            5_i32,
+            0_i32,
+        ),
+        (
+            91_221,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+            -200,
+            0,
+        ),
+        (
+            91_222,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_CHANCE_VERSUS_TARGET_HEALTH,
+            100,
+            50,
+        ),
+    ] {
         spell_store.insert(
             spell_id,
             wow_data::SpellInfo {
@@ -1280,17 +1301,15 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_miss_like_cpp() {
                 effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
                 effect_base_points: amount,
                 effect_bonus_coefficient: 0.0,
-                aura_type: Some(
-                    wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
-                ),
+                aura_type: Some(aura_type),
                 display_flags: 0,
                 requires_spell_focus: 0,
                 power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
-                    effect_aura:
-                        wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+                    effect_aura: aura_type,
+                    effect_misc_value_2: misc_value_b,
                     effect_base_points: amount,
                     ..Default::default()
                 }],
@@ -1367,6 +1386,46 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_miss_like_cpp() {
     assert_eq!(outcome.canonical_creature_hits, 1);
     assert_eq!(1_000 - victim_health(&canonical), 8);
     assert_eq!(wire_hit_info(&outcome), HIT_INFO_AFFECTS_VICTIM);
+
+    // The victim creature's own `CreatureAvoidanceLikeCpp` dodge base is the
+    // first avoidance band.
+    canonical
+        .lock()
+        .unwrap()
+        .find_map_mut(0, 0)
+        .unwrap()
+        .map_mut()
+        .with_creature_mut_like_cpp(victim_guid, |victim| {
+            victim.set_avoidance_like_cpp(wow_entities::CreatureAvoidanceLikeCpp {
+                dodge_pct: 100.0,
+                ..Default::default()
+            });
+        })
+        .unwrap();
+    let before = victim_health(&canonical);
+    let outcome = tick(&mut session);
+    assert_eq!(outcome.melee_outcomes_unrepresented, 0);
+    assert_eq!(outcome.canonical_creature_hits, 0, "a dodge commits no hit");
+    assert_eq!(victim_health(&canonical), before);
+
+    // The victim's `SPELL_AURA_MOD_CRIT_CHANCE_VERSUS_TARGET_HEALTH` over the
+    // whole health range makes the critical band certain: the mitigated 8
+    // doubles to 16.
+    canonical
+        .lock()
+        .unwrap()
+        .find_map_mut(0, 0)
+        .unwrap()
+        .map_mut()
+        .with_creature_mut_like_cpp(victim_guid, |victim| {
+            victim.set_avoidance_like_cpp(wow_entities::CreatureAvoidanceLikeCpp::default());
+        })
+        .unwrap();
+    apply_victim_aura(&canonical, 91_222_u32);
+    let before = victim_health(&canonical);
+    let outcome = tick(&mut session);
+    assert_eq!(outcome.canonical_creature_hits, 1);
+    assert_eq!(before - victim_health(&canonical), 16);
 
     // The `-200` sum makes the miss band cover the whole roll: no health
     // transition and the miss presentation on the wire.
