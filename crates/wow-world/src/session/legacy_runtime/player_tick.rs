@@ -48,6 +48,10 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
 
     // Step 2 — collect. Canonical only, once, never nested.
     let mut pending: Vec<PendingPlayerSwingLikeCpp> = Vec::new();
+    // The victim's applied-aura mechanics are read at the map's own difficulty,
+    // exactly as the session reads its target's. Resolving it in this phase keeps
+    // the canonical read before the legacy write the execute phase performs.
+    let mut map_difficulties: HashMap<(u16, u32), u8> = HashMap::new();
     {
         let Ok(mut manager) = canonical_map_manager.lock() else {
             return outcome;
@@ -73,6 +77,7 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
             let Some(managed) = manager.find_map_mut(u32::from(map_id), instance_id) else {
                 continue;
             };
+            map_difficulties.insert((map_id, instance_id), managed.difficulty());
             if sweep_due {
                 let _ = managed.map_mut().revalidate_all_combat_refs_like_cpp();
                 outcome.combat_ref_revalidations += 1;
@@ -163,10 +168,16 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
 
         // Resolve the victim from live state, canonical player first, then the
         // legacy creature. Geometry comes from whichever side owns it.
+        let map_difficulty_id = map_difficulties
+            .get(&(attacker.map_id, attacker.instance_id))
+            .copied()
+            .unwrap_or(0);
         let mut legacy_manager = legacy_map_manager
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut victim_creature_type_mask = 0_u32;
+        let mut victim_aura_state_mask = 0_u32;
+        let mut victim_mechanic_mask = 0_u64;
         let victim_runtime = if let Some(creature) = legacy_manager.find_creature_mut(
             attacker.map_id,
             attacker.instance_id,
@@ -177,6 +188,25 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                 continue;
             }
             // C++ `Unit::GetCreatureTypeMask` for the victim template.
+            victim_aura_state_mask = {
+                let unit = creature.creature.unit();
+                unit.subsystems().auras.aura_state_mask
+                    | crate::map_manager::WorldCreature::health_aura_state_like_cpp(
+                        creature.current_hp() as u64,
+                        creature.max_hp() as u64,
+                        creature.is_alive(),
+                    )
+            };
+            // C++ `Unit::HasAuraWithMechanic` for the victim template, from the
+            // same receiver-free rule the session target path uses.
+            victim_mechanic_mask = config.spell_store.as_deref().map_or(0, |spell_store| {
+                crate::session_rules::applied_aura_mechanic_mask_like_cpp(
+                    &creature.creature.unit().subsystems().auras.applied_auras,
+                    spell_store,
+                    map_difficulty_id,
+                    config.difficulty_store.as_deref(),
+                )
+            });
             victim_creature_type_mask = config
                 .creature_template_lifecycle_store
                 .as_ref()
@@ -252,16 +282,17 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                     .runtime_applications_like_cpp();
                 let base_attack_speed = attacker_player.unit().base_attack_speed();
                 std::array::from_fn(|index| {
-                    let (flat, pct) =
-                        crate::session_rules::melee_damage_bonus_done_creature_type_like_cpp(
-                            auras,
-                            spell_store,
-                            victim_creature_type_mask,
-                            false,
-                            crate::session::legacy_attack_power_multiplier_like_cpp(
-                                base_attack_speed[index],
-                            ),
-                        );
+                    let (flat, pct) = crate::session_rules::melee_damage_bonus_done_like_cpp(
+                        auras,
+                        spell_store,
+                        victim_creature_type_mask,
+                        victim_aura_state_mask,
+                        victim_mechanic_mask,
+                        false,
+                        crate::session::legacy_attack_power_multiplier_like_cpp(
+                            base_attack_speed[index],
+                        ),
+                    );
                     crate::session::RepresentedMeleeDamageBonusLikeCpp { flat, pct }
                 })
             }
