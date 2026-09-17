@@ -683,7 +683,97 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                 None => damage,
             }
         } else {
-            damage
+            // Creature victim: the same pre-outcome mitigation C++
+            // `CalculateMeleeDamage` applies (`Unit.cpp:1326-1343`), resolved
+            // from the victim creature's armour and taken auras plus the
+            // attacker's normal-school penetration terms. The outcome table and
+            // its presentation stay on this branch's compatibility bridge.
+            match config.spell_store.as_deref() {
+                Some(spell_store) => {
+                    let map_difficulty_id = canonical_manager
+                        .find_map(u32::from(swing.map_id), swing.instance_id)
+                        .map(|managed| managed.difficulty())
+                        .unwrap_or(0);
+                    let attacker_effects = crate::session_rules::creature_aura_effects_like_cpp(
+                        &attacker.creature.unit().subsystems().auras.applied_auras,
+                        spell_store,
+                        map_difficulty_id,
+                        config.difficulty_store.as_deref(),
+                    );
+                    let normal_misc_sum = |aura_type: i32| -> f32 {
+                        attacker_effects
+                            .iter()
+                            .filter(|effect| {
+                                effect.aura_type == aura_type && effect.misc_value & 0x01 != 0
+                            })
+                            .map(|effect| effect.amount as f32)
+                            .sum()
+                    };
+                    // C++ `MeleeDamageBonusTaken`'s Sanctified Wrath bypass.
+                    let attacker_ignore_resist: Vec<(i32, i32)> = attacker_effects
+                        .iter()
+                        .filter(|effect| {
+                            effect.aura_type
+                                == wow_data::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST
+                        })
+                        .map(|effect| (effect.misc_value, effect.amount))
+                        .collect();
+                    let victim = canonical_manager
+                        .find_map(u32::from(swing.map_id), swing.instance_id)
+                        .and_then(|managed| {
+                            managed
+                                .map()
+                                .with_creature_like_cpp(swing.victim_guid, |victim| {
+                                    (
+                                        victim.unit().data().level.clamp(0, i32::from(u8::MAX))
+                                            as u8,
+                                        victim.combat_log_stats_like_cpp().armor,
+                                        crate::session_rules::creature_aura_effects_like_cpp(
+                                            &victim.unit().subsystems().auras.applied_auras,
+                                            spell_store,
+                                            map_difficulty_id,
+                                            config.difficulty_store.as_deref(),
+                                        ),
+                                    )
+                                })
+                        });
+                    match victim {
+                        Some((victim_level, victim_armor, victim_effects)) => {
+                            let taken = crate::session_rules::melee_damage_taken_flat_pct_like_cpp(
+                                &victim_effects,
+                                &attacker_ignore_resist,
+                                swing.attacker_guid,
+                                // C++ `SPELL_SCHOOL_MASK_NORMAL` (0x01).
+                                0x01,
+                            );
+                            let after_taken =
+                                crate::session_rules::melee_damage_taken_apply_like_cpp(
+                                    taken, damage,
+                                );
+                            crate::session_rules::armor_reduced_damage_like_cpp(
+                                after_taken,
+                                attacker.creature.level(),
+                                victim_level,
+                                victim_armor,
+                                // CR_ARMOR_PENETRATION is a player-attacker
+                                // rating.
+                                0.0,
+                                normal_misc_sum(
+                                    wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE,
+                                ) as i32,
+                                normal_misc_sum(
+                                    wow_data::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST,
+                                ),
+                                // A creature victim's bypass aura needs a
+                                // represented creature-aura producer.
+                                0.0,
+                            )
+                        }
+                        None => damage,
+                    }
+                }
+                None => damage,
+            }
         };
         if avoided_outcome.is_none() {
             outcome.melee_outcomes_unrepresented += 1;
