@@ -409,6 +409,7 @@ fn melee_attack_table_matches_roll_melee_outcome_against_like_cpp() {
         can_dodge: true,
         can_parry: true,
         is_evading_attacks: false,
+        always_crits: false,
     };
     for (roll, expected) in [
         (0, Outcome::Miss),
@@ -616,6 +617,7 @@ fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
         crit_chance_for_caster_pct: 0.0,
         faces_attacker: true,
         is_controlled: false,
+        is_stand_state: true,
     };
     let inputs = melee_outcome_inputs_like_cpp(&attacker, &creature);
     // C++ `MeleeSpellMissChance`: 5.0 + 0 (two-hander) - 7.5 -> clamped to 0.
@@ -712,15 +714,16 @@ fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
     assert_eq!(inputs[0].parry_chance_pct, 0.0);
     assert_eq!(inputs[0].block_chance_pct, 0.0);
 
-    // A player victim resolves only the miss band: `MeleeSpellMissChance` reads
-    // the victim's `MOD_ATTACKER_MELEE_HIT_CHANCE` sum exactly like a creature's,
-    // while dodge/parry/block/crit stay the documented boundary of the
-    // represented creature swing.
+    // A player victim resolves the miss, dodge, parry and crit bands from its
+    // published `DodgePercentage`/`ParryPercentage`; `canDodge`/`canParryOrBlock`
+    // need the victim to face the attacker and to be uncontrolled, glancing
+    // never applies to a creature attacker, and the block band is left out
+    // because the blocked damage needs C++ `Player::GetBlockPercent`'s DB2
+    // `ExpectedStatType::ArmorConstant` table.
     let player_victim = Victim {
         is_creature: false,
         is_player: true,
         attacker_melee_hit_chance_pct: 2.5,
-        // Published avoidance the player victim carries but the table ignores.
         dodge_pct: 20.0,
         parry_pct: 15.0,
         block_pct: 10.0,
@@ -732,20 +735,93 @@ fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
     };
     let inputs = melee_outcome_inputs_like_cpp(&two_handed, &player_victim);
     assert_eq!(inputs[0].miss_chance_pct, 2.5);
-    assert_eq!(inputs[0].dodge_chance_pct, 0.0);
-    assert_eq!(inputs[0].parry_chance_pct, 0.0);
+    // `20 + (-1.0 attacker dodge reduction) - 0.5 expertise` and `15 - 0.5`.
+    assert_eq!(inputs[0].dodge_chance_pct, 18.5);
+    assert_eq!(inputs[0].parry_chance_pct, 14.5);
+    assert_eq!(inputs[1].dodge_chance_pct, 18.75);
+    assert_eq!(inputs[1].parry_chance_pct, 14.75);
+    // The published block percentage needs the armour-constant table.
     assert_eq!(inputs[0].block_chance_pct, 0.0);
     assert_eq!(inputs[0].glancing_chance_pct, 0.0);
-    assert_eq!(inputs[0].crit_chance_pct, 0.0);
-    assert!(!inputs[0].can_dodge && !inputs[0].can_parry);
+    assert_eq!(inputs[0].crit_chance_pct, 12.0);
+    assert!(inputs[0].can_dodge && inputs[0].can_parry);
     assert!(!inputs[0].is_evading_attacks);
+    assert!(!inputs[0].always_crits);
     assert_eq!(
         melee_outcome_like_cpp(&inputs[0], 249),
         crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Miss
     );
+    // After the 2.5% miss band: dodge [250, 2100), parry [2100, 3550),
+    // crit [3550, 4750), hit [4750, 10000).
     assert_eq!(
         melee_outcome_like_cpp(&inputs[0], 250),
+        crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Dodge
+    );
+    assert_eq!(
+        melee_outcome_like_cpp(&inputs[0], 2_099),
+        crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Dodge
+    );
+    assert_eq!(
+        melee_outcome_like_cpp(&inputs[0], 2_100),
+        crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Parry
+    );
+    assert_eq!(
+        melee_outcome_like_cpp(&inputs[0], 3_549),
+        crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Parry
+    );
+    assert_eq!(
+        melee_outcome_like_cpp(&inputs[0], 3_550),
+        crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Crit
+    );
+    assert_eq!(
+        melee_outcome_like_cpp(&inputs[0], 4_749),
+        crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Crit
+    );
+    assert_eq!(
+        melee_outcome_like_cpp(&inputs[0], 9_999),
         crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Hit
+    );
+
+    // C++ requires the victim to face the attacker for both gates, and clears
+    // them for a controlled victim.
+    let behind = Victim {
+        faces_attacker: false,
+        ..player_victim
+    };
+    let inputs = melee_outcome_inputs_like_cpp(&two_handed, &behind);
+    assert!(!inputs[0].can_dodge && !inputs[0].can_parry);
+    assert_eq!(inputs[0].dodge_chance_pct, 18.5, "the band stays published");
+    let controlled_player = Victim {
+        is_controlled: true,
+        ..player_victim
+    };
+    let inputs = melee_outcome_inputs_like_cpp(&two_handed, &controlled_player);
+    assert!(!inputs[0].can_dodge && !inputs[0].can_parry);
+
+    // C++ returns `MELEE_HIT_CRIT` before the avoidance bands for a player
+    // victim that is not in a stand state, while the critical chance is
+    // non-zero (`Unit.cpp:2312-2314`).
+    let sitting = Victim {
+        is_stand_state: false,
+        ..player_victim
+    };
+    let inputs = melee_outcome_inputs_like_cpp(&two_handed, &sitting);
+    assert!(inputs[0].always_crits);
+    assert_eq!(
+        melee_outcome_like_cpp(&inputs[0], 250),
+        crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Crit
+    );
+    // A zero critical chance keeps the sitting victim on the avoidance bands.
+    let no_crit = Attacker {
+        crit_pct: [0.0, 0.0],
+        autoattack_crit_aura_pct: 0.0,
+        ..two_handed
+    };
+    let inputs = melee_outcome_inputs_like_cpp(&no_crit, &sitting);
+    assert!(!inputs[0].always_crits);
+    assert_eq!(
+        melee_outcome_like_cpp(&inputs[0], 250),
+        crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Dodge
     );
 
     // A victim the owner cannot read keeps the pre-table behaviour.

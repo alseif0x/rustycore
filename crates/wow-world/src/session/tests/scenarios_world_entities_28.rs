@@ -1038,21 +1038,25 @@ async fn map_owned_player_melee_applies_attacker_ignore_target_resist_like_cpp()
     );
 }
 
-/// C++ `Unit::RollMeleeOutcomeAgainst`'s miss band for a creature attacker
-/// against a player victim, through the production ownership path.
+/// C++ `Unit::RollMeleeOutcomeAgainst`'s miss, dodge, parry and crit bands for
+/// a creature attacker against a player victim, through the production
+/// ownership path.
 ///
 /// C++ `MeleeSpellMissChance` (`Unit.cpp:11652-11685`) starts from the victim's
 /// flat `GetUnitMissChance()` of `5.0` and subtracts the creature attacker's
 /// zero `m_modMeleeHitChance` (`Unit.cpp:360`), its
 /// `SPELL_AURA_MOD_HIT_CHANCE` sum and the victim's
-/// `SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE` sum. A miss publishes
-/// `HITINFO_MISS`/`VICTIMSTATE_INTACT` with zero dealt damage and no health
-/// transition.
+/// `SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE` sum; `GetUnitDodgeChance` and
+/// `GetUnitParryChance` read the victim's published percentages and gate both
+/// on `HasInArc(M_PI, attacker)`; the sitting-target rule returns a crit before
+/// the avoidance bands (`Unit.cpp:2312-2314`). A missed or avoided swing
+/// publishes zero dealt damage and no health transition.
 #[test]
-fn legacy_creature_melee_tick_once_resolves_player_victim_miss_like_cpp() {
+fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
     use crate::map_manager::RuntimeTickOwner;
     use wow_packet::packets::combat::{
-        HIT_INFO_AFFECTS_VICTIM, HIT_INFO_MISS, VICTIM_STATE_INTACT,
+        HIT_INFO_AFFECTS_VICTIM, HIT_INFO_CRITICAL_HIT, HIT_INFO_MISS, VICTIM_STATE_DODGE,
+        VICTIM_STATE_HIT, VICTIM_STATE_INTACT, VICTIM_STATE_PARRY,
     };
 
     let manager = shared_map_manager();
@@ -1101,6 +1105,11 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_miss_like_cpp() {
             creature.creature.unit_mut().set_combat_reach(0.0);
             creature.creature.ai_ownership_mut().min_damage = 10;
             creature.creature.ai_ownership_mut().max_damage = 10;
+            // The first stages assert an exact landed damage, so the creature's
+            // flat 5% critical chance is disabled until the crit stage opts in.
+            creature.creature.set_flags_extra_runtime_like_cpp(
+                wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
+            );
             creature.enter_combat(player);
             creature.creature.ai_ownership_mut().last_swing_ms = 0;
             creature.creature.ai_ownership_mut().swing_timer_ms = 0;
@@ -1108,7 +1117,28 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_miss_like_cpp() {
         .unwrap();
 
     let mut spell_store = wow_data::SpellStore::new();
-    for (spell_id, amount) in [(91_150_i32, 5_i32), (91_151, -100)] {
+    for (spell_id, aura_type, amount, misc_value_b) in [
+        (
+            91_150_i32,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+            5_i32,
+            0_i32,
+        ),
+        (
+            91_151,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+            -100,
+            0,
+        ),
+        (
+            91_152,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_CHANCE_VERSUS_TARGET_HEALTH,
+            100,
+            // `!HealthBelowPct(50)` holds while the victim stays above half
+            // health, which every stage keeps.
+            50,
+        ),
+    ] {
         spell_store.insert(
             spell_id,
             wow_data::SpellInfo {
@@ -1119,17 +1149,15 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_miss_like_cpp() {
                 effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
                 effect_base_points: amount,
                 effect_bonus_coefficient: 0.0,
-                aura_type: Some(
-                    wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
-                ),
+                aura_type: Some(aura_type),
                 display_flags: 0,
                 requires_spell_focus: 0,
                 power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
-                    effect_aura:
-                        wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+                    effect_aura: aura_type,
+                    effect_misc_value_2: misc_value_b,
                     effect_base_points: amount,
                     ..Default::default()
                 }],
@@ -1168,6 +1196,19 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_miss_like_cpp() {
             })
             .unwrap();
     };
+    // The fixture player's published parry is non-zero, so every stage sets the
+    // avoidance it wants explicitly through the canonical victim's stats.
+    let set_victim_avoidance = |session: &mut WorldSession, dodge: f32, parry: f32| {
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                let mut stats = *player.effective_combat_stats_like_cpp();
+                stats.dodge_pct = dodge;
+                stats.parry_pct = parry;
+                player.replace_effective_combat_stats_like_cpp(stats);
+            })
+            .expect("canonical victim");
+    };
+    set_victim_avoidance(&mut session, 0.0, 0.0);
 
     // `+5` cancels the flat 5.0, so the swing is guaranteed to land.
     session
@@ -1202,4 +1243,105 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_miss_like_cpp() {
     assert_eq!(outcome.commands[0].hit_info, HIT_INFO_MISS);
     assert_eq!(outcome.commands[0].victim_state, VICTIM_STATE_INTACT);
     assert_eq!(victim_health(&canonical), 90, "a miss deals no damage");
+
+    // The miss aura is removed again: the `+5` victim aura keeps the flat 5.0
+    // band at zero, so only the avoidance/crit bands decide the later stages.
+    let miss_slot = session
+        .canonical_player_snapshot_like_cpp(|player| {
+            player
+                .unit()
+                .subsystems()
+                .auras
+                .runtime_applications_like_cpp()
+                .iter()
+                .find(|(_, aura)| aura.spell_id == 91_151)
+                .map(|(slot, _)| *slot)
+        })
+        .flatten()
+        .expect("miss aura slot");
+    session.remove_aura(miss_slot).expect("remove miss aura");
+    let last_command = |outcome: &crate::session::LegacyCreatureMeleeTickOutcomeLikeCpp| {
+        outcome.commands.last().expect("one swing command").clone()
+    };
+
+    // C++ `GetUnitDodgeChance` reads the victim's published `DodgePercentage`.
+    set_victim_avoidance(&mut session, 100.0, 0.0);
+    reset_swing(&mut session);
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let command = last_command(&outcome);
+    assert_eq!(outcome.canonical_hits, 0);
+    assert_eq!(command.damage, 0);
+    assert_eq!(command.original_damage, 10);
+    assert_eq!(command.hit_info, HIT_INFO_AFFECTS_VICTIM);
+    assert_eq!(command.victim_state, VICTIM_STATE_DODGE);
+    assert_eq!(victim_health(&canonical), 90);
+
+    // C++ `GetUnitParryChance` uses the published `ParryPercentage`.
+    set_victim_avoidance(&mut session, 0.0, 100.0);
+    reset_swing(&mut session);
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let command = last_command(&outcome);
+    assert_eq!(outcome.canonical_hits, 0);
+    assert_eq!(command.damage, 0);
+    assert_eq!(command.hit_info, HIT_INFO_AFFECTS_VICTIM);
+    assert_eq!(command.victim_state, VICTIM_STATE_PARRY);
+    assert_eq!(victim_health(&canonical), 90);
+
+    // C++ returns `MELEE_HIT_CRIT` before the avoidance bands for a player
+    // victim that is not in a stand state while the critical chance is
+    // non-zero, so the creature's flat 5% is enough once the flag is cleared.
+    set_victim_avoidance(&mut session, 100.0, 100.0);
+    session
+        .mutate_world_creature(creature_guid, |creature| {
+            creature.creature.set_flags_extra_runtime_like_cpp(0);
+        })
+        .unwrap();
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player
+                .unit_mut()
+                .set_stand_state_like_cpp(wow_constants::UnitStandStateType::Sit);
+        })
+        .unwrap();
+    reset_swing(&mut session);
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let command = last_command(&outcome);
+    assert_eq!(outcome.canonical_hits, 1);
+    assert_eq!(command.damage, 20);
+    // C++ assigns `OriginalDamage` after the critical doubling.
+    assert_eq!(command.original_damage, 20);
+    assert_eq!(
+        command.hit_info,
+        HIT_INFO_AFFECTS_VICTIM | HIT_INFO_CRITICAL_HIT
+    );
+    assert_eq!(command.victim_state, VICTIM_STATE_HIT);
+    assert_eq!(victim_health(&canonical), 70);
+
+    // Standing again, the victim's
+    // `SPELL_AURA_MOD_CRIT_CHANCE_VERSUS_TARGET_HEALTH` aura over the whole
+    // health range makes the critical band certain.
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player
+                .unit_mut()
+                .set_stand_state_like_cpp(wow_constants::UnitStandStateType::Stand);
+        })
+        .unwrap();
+    // With the avoidance bands empty the critical band decides.
+    set_victim_avoidance(&mut session, 0.0, 0.0);
+    session
+        .apply_aura(91_152, player, 30_000, 1)
+        .expect("apply crit-vs-health aura");
+    reset_swing(&mut session);
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let command = last_command(&outcome);
+    assert_eq!(outcome.canonical_hits, 1);
+    assert_eq!(command.damage, 20);
+    assert_eq!(command.original_damage, 20);
+    assert_eq!(
+        command.hit_info,
+        HIT_INFO_AFFECTS_VICTIM | HIT_INFO_CRITICAL_HIT
+    );
+    assert_eq!(command.victim_state, VICTIM_STATE_HIT);
+    assert_eq!(victim_health(&canonical), 50);
 }

@@ -393,10 +393,10 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         let damage = damage.max(1);
 
         // C++ `CalculateMeleeDamage` rolls the attack table after mitigation and
-        // before the outcome switch (`Unit.cpp:1341-1443`). A player victim can
-        // resolve the miss band here; dodge/parry/block/crit and the
+        // before the outcome switch (`Unit.cpp:1341-1443`). A player victim
+        // resolves miss/dodge/parry/crit here; the block band and the
         // player-victim armour/taken terms remain the documented boundary of
-        // this slice. Both aura sums need the spell store, so without one the
+        // this slice. Every term needs the spell store, so without one the
         // pre-table always-hit bridge is preserved.
         let mut hit_info = wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM;
         let mut victim_state = wow_packet::packets::combat::VICTIM_STATE_HIT;
@@ -409,57 +409,155 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                         .find_map(u32::from(swing.map_id), swing.instance_id)
                         .map(|managed| managed.difficulty())
                         .unwrap_or(0);
-                    // C++ `MeleeSpellMissChance` (`Unit.cpp:11652-11685`): the
-                    // creature's `m_modMeleeHitChance` is zero
-                    // (`Unit.cpp:360`), so only its `SPELL_AURA_MOD_HIT_CHANCE`
-                    // sum and the victim's `SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE`
-                    // sum move the flat 5.0.
-                    let attacker_hit_chance_aura_pct =
-                        crate::session_rules::creature_aura_effects_like_cpp(
-                            &attacker.creature.unit().subsystems().auras.applied_auras,
-                            spell_store,
-                            map_difficulty_id,
-                            config.difficulty_store.as_deref(),
-                        )
-                        .into_iter()
-                        .filter(|effect| {
-                            effect.aura_type
-                                == wow_data::spell::aura_types::SPELL_AURA_MOD_HIT_CHANCE
-                        })
-                        .map(|effect| effect.amount as f32)
-                        .sum::<f32>();
+                    // C++ `MeleeSpellMissChance`/`GetUnitDodgeChance`/
+                    // `GetUnitParryChance`/`GetUnitCriticalChanceDone`
+                    // (`Unit.cpp:11652-11685`, `2639-2786`): the creature's
+                    // `m_modMeleeHitChance` is zero (`Unit.cpp:360`), its
+                    // critical chance starts at `5.0` unless the template
+                    // carries `CREATURE_FLAG_EXTRA_NO_CRIT`, its expertise is
+                    // `MOD_EXPERTISE / 4` and it holds no offhand swing in this
+                    // bridge, so the dual-wield penalty never applies.
+                    let attacker_effects = crate::session_rules::creature_aura_effects_like_cpp(
+                        &attacker.creature.unit().subsystems().auras.applied_auras,
+                        spell_store,
+                        map_difficulty_id,
+                        config.difficulty_store.as_deref(),
+                    );
+                    let aura_sum = |aura_type: i32| -> f32 {
+                        attacker_effects
+                            .iter()
+                            .filter(|effect| effect.aura_type == aura_type)
+                            .map(|effect| effect.amount as f32)
+                            .sum()
+                    };
+                    let no_crit = wow_constants::CreatureFlagsExtra::from_bits_truncate(
+                        attacker.creature.lifecycle_metadata().flags_extra,
+                    )
+                    .contains(wow_constants::CreatureFlagsExtra::NO_CRIT);
+                    let creature_crit_pct = if no_crit {
+                        0.0
+                    } else {
+                        5.0 + aura_sum(
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_WEAPON_CRIT_PERCENT,
+                        ) + aura_sum(wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_PCT)
+                    };
+                    let expertise_reduction_pct =
+                        aura_sum(wow_data::spell::aura_types::SPELL_AURA_MOD_EXPERTISE) / 4.0;
+                    let attacker_facts =
+                        crate::session_rules::RepresentedMeleeAttackerFactsLikeCpp {
+                            level: attacker.creature.level(),
+                            // The represented bridge has no creature offhand
+                            // swing, so `haveOffhandWeapon()` never adds the
+                            // `19%` dual-wield miss penalty here.
+                            dual_wielding: false,
+                            crit_damage_multiplier: attacker_effects
+                                .iter()
+                                .filter(|effect| {
+                                    effect.aura_type
+                                        == wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_DAMAGE_BONUS
+                                        && effect.misc_value & 0x01 != 0
+                                })
+                                .fold(1.0_f32, |total, effect| {
+                                    total * (1.0 + effect.amount as f32 / 100.0)
+                                }),
+                            ignores_dual_wield_hit_penalty: false,
+                            melee_hit_chance_pct: 0.0,
+                            hit_chance_aura_pct: aura_sum(
+                                wow_data::spell::aura_types::SPELL_AURA_MOD_HIT_CHANCE,
+                            ),
+                            crit_pct: [creature_crit_pct, creature_crit_pct],
+                            autoattack_crit_aura_pct: aura_sum(
+                                wow_data::spell::aura_types::SPELL_AURA_MOD_AUTOATTACK_CRIT_CHANCE,
+                            ),
+                            expertise_reduction_pct: [
+                                expertise_reduction_pct,
+                                expertise_reduction_pct,
+                            ],
+                            dodge_reduction_pct: attacker_effects
+                                .iter()
+                                .filter(|effect| {
+                                    effect.aura_type
+                                        == wow_data::spell::aura_types::SPELL_AURA_MOD_COMBAT_RESULT_CHANCE
+                                        && effect.misc_value == 2
+                                })
+                                .map(|effect| effect.amount as f32)
+                                .sum::<f32>()
+                                + aura_sum(wow_data::spell::aura_types::SPELL_AURA_MOD_ENEMY_DODGE),
+                        };
                     let victim = canonical_manager
                         .find_map(u32::from(swing.map_id), swing.instance_id)
                         .and_then(|managed| managed.map().get_typed_player(swing.victim_guid))
                         .map(|player| {
-                            let victim_hit_chance_aura_pct =
+                            let auras = player.unit().subsystems().auras.runtime_applications_like_cpp();
+                            let aura_sum = |aura_type: i32| -> f32 {
                                 crate::session_rules::player_aura_effects_by_spell_aura_type_like_cpp(
-                                    player.unit().subsystems().auras.runtime_applications_like_cpp(),
-                                    spell_store,
-                                    wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+                                    auras, spell_store, aura_type,
                                 )
                                 .into_iter()
                                 .map(|(_, amount)| amount as f32)
-                                .sum::<f32>();
-                            (player.level_like_cpp(), victim_hit_chance_aura_pct)
+                                .sum()
+                            };
+                            let health_pct = if player.unit().data().max_health == 0 {
+                                100.0
+                            } else {
+                                100.0 * player.unit().data().health as f32
+                                    / player.unit().data().max_health as f32
+                            };
+                            let stats = player.effective_combat_stats_like_cpp();
+                            let victim_position = player.unit().world().position();
+                            crate::session_rules::RepresentedMeleeVictimFactsLikeCpp {
+                                level: player.level_like_cpp(),
+                                is_player: true,
+                                // `CalculatePct`/`pct` division: the published
+                                // `ParryPercentage` is already zero while
+                                // `CanParry()` is false.
+                                dodge_pct: stats.dodge_pct,
+                                parry_pct: stats.parry_pct,
+                                // The block band needs C++ `Player::GetBlockPercent`'s
+                                // DB2 `ExpectedStatType::ArmorConstant` table.
+                                block_pct: 0.0,
+                                attacker_melee_hit_chance_pct: aura_sum(
+                                    wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+                                ),
+                                attacker_melee_crit_chance_pct: aura_sum(
+                                    wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_CRIT_CHANCE,
+                                ) + aura_sum(
+                                    wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_SPELL_AND_WEAPON_CRIT_CHANCE,
+                                ),
+                                crit_chance_vs_target_health_pct:
+                                    crate::session_rules::player_aura_effects_full_by_spell_aura_type_like_cpp(
+                                        auras,
+                                        spell_store,
+                                        wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_CHANCE_VERSUS_TARGET_HEALTH,
+                                    )
+                                    .into_iter()
+                                    // C++ `!HealthBelowPct(MiscValueB)`.
+                                    .filter(|effect| health_pct >= effect.misc_value_b as f32)
+                                    .map(|effect| effect.amount as f32)
+                                    .sum(),
+                                crit_chance_for_caster_pct:
+                                    crate::session_rules::player_aura_effects_full_by_spell_aura_type_like_cpp(
+                                        auras,
+                                        spell_store,
+                                        wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_CHANCE_FOR_CASTER,
+                                    )
+                                    .into_iter()
+                                    .filter(|effect| effect.caster_guid == swing.attacker_guid)
+                                    .map(|effect| effect.amount as f32)
+                                    .sum(),
+                                faces_attacker: is_unit_facing_target_for_melee_like_cpp(
+                                    victim_position,
+                                    swing.attacker_position,
+                                ),
+                                is_controlled: player
+                                    .unit()
+                                    .has_unit_state(wow_constants::unit::UnitState::CONTROLLED.bits()),
+                                is_stand_state: player.unit().is_stand_state_like_cpp(),
+                                ..Default::default()
+                            }
                         });
                     match victim {
-                        Some((victim_level, victim_hit_chance_aura_pct)) => {
-                            let attacker_facts =
-                                crate::session_rules::RepresentedMeleeAttackerFactsLikeCpp {
-                                    level: attacker.creature.level(),
-                                    melee_hit_chance_pct: 0.0,
-                                    hit_chance_aura_pct: attacker_hit_chance_aura_pct,
-                                    crit_damage_multiplier: 1.0,
-                                    ..Default::default()
-                                };
-                            let victim_facts =
-                                crate::session_rules::RepresentedMeleeVictimFactsLikeCpp {
-                                    level: victim_level,
-                                    is_player: true,
-                                    attacker_melee_hit_chance_pct: victim_hit_chance_aura_pct,
-                                    ..Default::default()
-                                };
+                        Some(victim_facts) => {
                             let inputs = crate::session_rules::melee_outcome_inputs_like_cpp(
                                 &attacker_facts,
                                 &victim_facts,
