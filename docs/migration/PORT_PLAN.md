@@ -33,6 +33,17 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 school resistances — 2026-09-17, implementation `67d23891`:** the six magic
+schools now run C++ `Unit::UpdateResistances` (`Unit.cpp:9148-9163`) with the
+item `BASE_VALUE`, the `MOD_BASE_RESISTANCE_PCT` `BASE_PCT`, the
+`MOD_RESISTANCE`/`MOD_BASE_RESISTANCE` `TOTAL_VALUE` and the
+`MOD_RESISTANCE_PCT` `TOTAL_PCT`, and the login create block publishes the seven
+`UnitData::Resistances` values instead of a hardcoded zero. The shared
+mask-parameterized helpers keep one resistance-aura authority for both the armor
+and school routes. Post-login resistance deltas remain a separate gate. This
+continues the F1 resistance route without changing the
+#584 → #583 → #153 architecture gate.
+
 **#61 critical-strike aura percentages — 2026-09-17, implementation
 `7412dac5`:** the critical-strike projection now consumes
 `SPELL_AURA_MOD_WEAPON_CRIT_PERCENT` filtered per attack by the weapon
