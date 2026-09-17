@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`3d6d79584c0d9c97b1a920ac918986225909c299` (PR #1119, the #29
-creature-victim melee mitigation, following PR #1117, the #29
+`a2d866940159016fbcfebcdd95f31dcaba97273e` (PR #1121, the #29 melee
+scenario-suite split, following PR #1119, the #29
+creature-victim melee mitigation, PR #1117, the #29
 player-victim melee damage-taken chain, PR #1115, the #29
 creature-to-player armour mitigation, PR #1113, the #29
 creature-to-player dodge/parry/crit bands, PR #1111, the #29
@@ -29,6 +30,27 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 melee scenario-suite split — 2026-09-17, implementation `d444f94d`,
+integrated as `a2d86694` by PR #1121:** `session/tests/scenarios_world_entities_28.rs`
+had reached 1,977 of the 2,000-line test-file budget, and the physical policy
+requires a split before the next melee scenario can land there. The three
+map-owned player-victim runtime scenarios (miss/dodge/parry/crit bands, armour
+mitigation and the damage-taken chain) moved unchanged into the new bounded
+`session/tests/scenarios_world_entities_32.rs`, leaving the ten legacy
+creature-tick scenarios in the parent file: 1,197 and 787 lines respectively.
+This is a structural move only — no assertion, fixture or production line
+changed, and the parent module still owns the shared fixtures through
+`use super::*`. The new module is registered in `session_tests.rs`, whose
+recorded 5,796-line ceiling grew by the two inseparable registration lines to
+5,798 with the explanation appended to its physical-policy entry. Evidence:
+`wow-world --lib` stays at 3,989 passing tests (the moved scenarios are still
+registered and executed), plus wow-data 753/0, wow-packet 744/0, wow-entities
+940/0 and world-server 594/0/0; format, `git diff --check` and the physical
+ratchet pass, and `validation-v2 quick` (manifest
+`20260917T183826.035128Z-3119618-quick.json`) passes. This is module
+maintenance, not gameplay progress; the next melee unit (the creature-victim
+outcome table and its packet presentation) can now land in the split suite.
 
 **#29 creature-victim melee mitigation — 2026-09-17, implementation `3800be67`,
 integrated as `3d6d7958` by PR #1119:** C++ `Unit::CalculateMeleeDamage`

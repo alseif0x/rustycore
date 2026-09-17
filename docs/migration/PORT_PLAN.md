@@ -33,6 +33,15 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 melee scenario-suite split — 2026-09-17, implementation `d444f94d`:**
+the three map-owned player-victim melee runtime scenarios moved unchanged into
+the new bounded `session/tests/scenarios_world_entities_32.rs` (1,197 / 787
+lines) because the parent file had reached 1,977 of the 2,000-line test budget;
+`session_tests.rs` grew its two registration lines to a recorded 5,798. wow-world
+3989/0/1, wow-data 753/0, wow-packet 744/0, wow-entities 940/0, world-server
+594/0/0; structural maintenance, not gameplay progress, and it unblocks the
+creature-victim outcome-table unit.
+
 **#29 creature-victim melee mitigation — 2026-09-17, implementation
 `3800be67`:** a creature swing whose victim is another creature now resolves the
 victim's canonical armour, applied-aura taken chain and the attacker's
