@@ -104,6 +104,9 @@ pub mod attributes {
     /// C++ `SPELL_ATTR6_IGNORE_CASTER_DAMAGE_MODIFIERS` (`SharedDefines.h:682`):
     /// `Unit::SpellDamagePctDone` returns `1.0f`.
     pub const SPELL_ATTR6_IGNORE_CASTER_DAMAGE_MODIFIERS: u32 = 0x2000_0000;
+    /// C++ `SPELL_ATTR6_IGNORE_HEALING_MODIFIERS` (`SharedDefines.h:680`):
+    /// `Unit::SpellHealingPctDone` returns `1.0f`.
+    pub const SPELL_ATTR6_IGNORE_HEALING_MODIFIERS: u32 = 0x0800_0000;
     /// C++ `SPELL_ATTR4_AURA_EXPIRES_OFFLINE` (`SharedDefines.h`).
     pub const SPELL_ATTR4_AURA_EXPIRES_OFFLINE: u32 = 0x0000_0004;
     /// C++ `SPELL_ATTR4_NO_HELPFUL_THREAT` (`SharedDefines.h`).

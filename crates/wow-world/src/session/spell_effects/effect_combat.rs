@@ -566,7 +566,9 @@ impl WorldSession {
                 )
                 .unwrap_or_default()
             {
-                if misc_value >= 1 && aura_state_mask & (1_u32 << (misc_value - 1)) != 0 {
+                if represented_aura_state_bit_like_cpp(misc_value)
+                    .is_some_and(|bit| aura_state_mask & bit != 0)
+                {
                     max_mod *= 1.0 + amount as f32 / 100.0;
                 }
             }
@@ -828,7 +830,8 @@ impl WorldSession {
     ///
     /// Boundaries: the victim `SPELL_AURA_MOD_HEALING` term is only applied
     /// when the victim is the session player, because creature auras are not
-    /// represented; the `BonusCoefficientFromAP` table, the periodic-leech
+    /// represented; the `SPELLFAMILY_POTION` early-out (no represented family
+    /// name), the `BonusCoefficientFromAP` table, the periodic-leech
     /// suppression, the spell-mod coefficient adjustment and the scripted
     /// handlers are not modelled either. Creature casters keep the raw value,
     /// and a missing `SpellMisc` row or canonical snapshot fails closed.
@@ -873,26 +876,75 @@ impl WorldSession {
             return base_heal;
         };
         let done_total = (benefit as f32 * coefficient) as i32;
-        // C++ `Unit::SpellHealingPctDone` (`Unit.cpp:7204-7229`): the healing
-        // done percentage plus the missing-health scaling auras. The aura's
-        // `IsAffectingSpell` family/flag gate is not represented, so the term
-        // applies to any represented heal the aura owner casts.
-        let mut done_total_mod = snapshot.mod_healing_done_percent;
-        let effects = self
-            .resolved_aura_effects_by_spell_aura_type_like_cpp(
-                wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_DONE_PCT_VERSUS_TARGET_HEALTH,
-            )
-            .unwrap_or_default();
-        if !effects.is_empty()
-            && let Some(health_pct) = self.represented_target_health_pct_like_cpp(target_guid)
-        {
-            let health_pct_diff = (100.0 - health_pct).max(0.0);
-            for (_, amount) in effects {
-                done_total_mod *= 1.0 + (amount as f32 * health_pct_diff / 100.0) / 100.0;
+        // C++ `Unit::SpellHealingPctDone` (`Unit.cpp:7185-7229`): the two
+        // attribute early-outs return `1.0f`, otherwise the healing done
+        // percentage times the versus-aurastate multiplier plus the
+        // missing-health scaling auras. The aura's `IsAffectingSpell`
+        // family/flag gate and the `SPELLFAMILY_POTION` early-out are not
+        // represented, so both terms apply to any represented heal the aura
+        // owner casts.
+        let done_total_mod = if self.represented_healing_pct_done_gated_like_cpp(spell_id) {
+            1.0
+        } else {
+            let mut modifier = snapshot.mod_healing_done_percent;
+            let aura_state_mask = self.represented_target_aura_state_mask_like_cpp(target_guid);
+            if aura_state_mask != 0 {
+                for (misc_value, amount) in self
+                    .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                        wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE,
+                    )
+                    .unwrap_or_default()
+                {
+                    if represented_aura_state_bit_like_cpp(misc_value)
+                        .is_some_and(|bit| aura_state_mask & bit != 0)
+                    {
+                        modifier *= 1.0 + amount as f32 / 100.0;
+                    }
+                }
             }
-        }
+            let effects = self
+                .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_DONE_PCT_VERSUS_TARGET_HEALTH,
+                )
+                .unwrap_or_default();
+            if !effects.is_empty()
+                && let Some(health_pct) = self.represented_target_health_pct_like_cpp(target_guid)
+            {
+                let health_pct_diff = (100.0 - health_pct).max(0.0);
+                for (_, amount) in effects {
+                    modifier *= 1.0 + (amount as f32 * health_pct_diff / 100.0) / 100.0;
+                }
+            }
+            modifier
+        };
         let heal = (base_heal as f32 + done_total as f32) * done_total_mod;
         u32::try_from(heal.max(0.0).min(u32::MAX as f32) as u32).unwrap_or(u32::MAX)
+    }
+
+    /// C++ `Unit::SpellHealingPctDone` (`Unit.cpp:7189-7198`) early-outs:
+    /// `SPELL_ATTR3_IGNORE_CASTER_MODIFIERS` and
+    /// `SPELL_ATTR6_IGNORE_HEALING_MODIFIERS` gate the whole healing percentage
+    /// chain while `SpellBaseHealingBonusDone` still contributes the flat
+    /// benefit.
+    fn represented_healing_pct_done_gated_like_cpp(&self, spell_id: i32) -> bool {
+        let Some(spell_store) = self.spell_store() else {
+            return false;
+        };
+        let difficulty = self.current_map_difficulty_id_like_cpp();
+        let difficulty_store = self.difficulty_store().map(AsRef::as_ref);
+        spell_store.has_attribute_for_difficulty_like_cpp(
+            spell_id,
+            difficulty,
+            difficulty_store,
+            3,
+            wow_data::spell::attributes::SPELL_ATTR3_IGNORE_CASTER_MODIFIERS,
+        ) || spell_store.has_attribute_for_difficulty_like_cpp(
+            spell_id,
+            difficulty,
+            difficulty_store,
+            6,
+            wow_data::spell::attributes::SPELL_ATTR6_IGNORE_HEALING_MODIFIERS,
+        )
     }
 
     /// C++ `Unit::SpellBaseHealingBonusDone` (`Unit.cpp:7282-7315`): the
@@ -1301,4 +1353,14 @@ impl WorldSession {
 /// mechanic values the represented runtime must fail closed on.
 fn represented_mechanic_bit_like_cpp(mechanic: i32) -> Option<u64> {
     (1..64).contains(&mechanic).then(|| 1_u64 << mechanic)
+}
+
+/// C++ `1 << (flag - 1)` for a positive `AuraStateType`. `None` for the unset
+/// or out-of-range state a malformed aura row could carry, so a consumer fails
+/// closed instead of shifting out of range.
+fn represented_aura_state_bit_like_cpp(aura_state: i32) -> Option<u32> {
+    u32::try_from(aura_state)
+        .ok()
+        .and_then(|state| state.checked_sub(1))
+        .and_then(|bit| 1_u32.checked_shl(bit))
 }
