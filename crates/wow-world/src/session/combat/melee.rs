@@ -11,6 +11,8 @@ use super::*;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::session) struct RepresentedMeleeSwingLikeCpp {
     pub damage: u32,
+    /// C++ `CalcDamageInfo::Blocked`.
+    pub blocked: u32,
     /// C++ `CalcDamageInfo::HitInfo`.
     pub hit_info: u32,
     /// C++ `CalcDamageInfo::TargetState`.
@@ -27,6 +29,7 @@ impl RepresentedMeleeSwingLikeCpp {
         );
         Self {
             damage,
+            blocked: 0,
             hit_info,
             victim_state,
         }
@@ -210,6 +213,7 @@ impl WorldSession {
                         is_totem: creature.creature.is_totem_unit_type_like_cpp(),
                         dodge_pct: creature.creature.avoidance_like_cpp().dodge_pct,
                         parry_pct: creature.creature.avoidance_like_cpp().parry_pct,
+                        block_pct: creature.creature.avoidance_like_cpp().block_pct,
                         faces_attacker: is_unit_facing_target_for_melee_like_cpp(
                             victim_position,
                             attacker_position,

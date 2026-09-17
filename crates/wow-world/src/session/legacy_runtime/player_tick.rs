@@ -222,6 +222,7 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                 is_totem: creature.creature.is_totem_unit_type_like_cpp(),
                 dodge_pct: creature.creature.avoidance_like_cpp().dodge_pct,
                 parry_pct: creature.creature.avoidance_like_cpp().parry_pct,
+                block_pct: creature.creature.avoidance_like_cpp().block_pct,
                 faces_attacker: false,
             };
             victim_creature_type_mask = config
@@ -439,14 +440,15 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                 .iter()
                 .enumerate()
                 .map(|(index, (damage, _killed, over_damage))| {
-                    let (hit_info, victim_state) = hit
+                    let (hit_info, victim_state, blocked) = hit
                         .swing_presentations
                         .get(index)
                         .copied()
-                        .unwrap_or((0, 0));
+                        .unwrap_or((0, 0, 0));
                     crate::session::mailbox::PlayerMeleeSwingLikeCpp {
                         damage: *damage,
                         over_damage: *over_damage,
+                        blocked: blocked as i32,
                         hit_info,
                         victim_state,
                     }
@@ -493,12 +495,14 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                 .into_iter()
                 .enumerate()
                 .map(|(index, (damage, over_damage))| {
-                    let (hit_info, victim_state) = damages
-                        .get(index)
-                        .map_or((0, 0), |swing| (swing.hit_info, swing.victim_state));
+                    let (hit_info, victim_state, blocked) =
+                        damages.get(index).map_or((0, 0, 0), |swing| {
+                            (swing.hit_info, swing.victim_state, swing.blocked)
+                        });
                     crate::session::mailbox::PlayerMeleeSwingLikeCpp {
                         damage,
                         over_damage,
+                        blocked: blocked as i32,
                         hit_info,
                         victim_state,
                     }
