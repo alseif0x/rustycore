@@ -33,6 +33,15 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 white-swing auto-attack damage aura — 2026-09-17, implementation
+`02f1affc`:** `SPELL_AURA_MOD_AUTOATTACK_DAMAGE` now scales the represented white
+swing for both owners; the aura-effect projection moved into a receiver-free
+`session_rules` module that the session delegates to, and the multiplier is a
+Player-owned value with the owning session as its only writer. The remaining
+`MeleeDamageBonusDone` terms need the victim masks and are the next unit.
+wow-data --lib 753/0, wow-entities --lib 940/0, wow-world --lib 3958/0/1; no live
+DB/restart/relogin QA.
+
 **#61 displayed-power ownership and the shapeshift Unit field — 2026-09-17,
 implementation `b48b7204`:** the displayed power type now follows the form
 (`POWER_ENERGY` cat, `POWER_RAGE` bear) and a `SPELL_AURA_MOD_POWER_DISPLAY`
