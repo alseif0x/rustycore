@@ -33,6 +33,12 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 ignore-dual-wield hit-penalty aura — 2026-09-17, implementation
+`2b93a741`:** the +19% dual-wield miss penalty now applies only while
+`SPELL_AURA_IGNORE_DUAL_WIELD_HIT_PENALTY` (458) is absent, resolved from the
+attacker's live auras in both owners. wow-world 3983/0/1, world-server 594/0/0;
+no dedicated runtime scenario for the flag and no live DB/restart/relogin QA.
+
 **#29 victim conditional critical-chance auras — 2026-09-17, implementation
 `accffc17`:** the crit band now folds the victim's
 `SPELL_AURA_MOD_CRIT_CHANCE_VERSUS_TARGET_HEALTH` (with C++'s
