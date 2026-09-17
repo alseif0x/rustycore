@@ -43,6 +43,10 @@ pub const AURA_STATE_NONE: u8 = 0;
 
 pub const AURA_STATE_DEFENSIVE: u8 = 1;
 
+/// C++ `AuraStateType::AURA_STATE_WOUNDED_20_PERCENT` (`SharedDefines.h:2508`):
+/// `Unit::Update` sets it while the unit is alive and below 20% health.
+pub const AURA_STATE_WOUNDED_20_PERCENT: u8 = 2;
+
 pub const AURA_STATE_DEFENSIVE_2: u8 = 7;
 
 pub const AURA_STATE_RAID_ENCOUNTER_2: u8 = 14;

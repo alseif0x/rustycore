@@ -292,9 +292,76 @@ impl WorldSession {
             .map(|store| store.spell_area_for_aura_map_bounds_like_cpp(spell_id))
             .unwrap_or_default()
     }
-    pub(in crate::session) fn represented_has_aura_state_like_cpp(&self, _aura_state: u32) -> bool {
-        false
+    /// C++ `Unit::HasAuraState(flag)` for the represented Caster: the union of
+    /// the unit's aura-driven state bits and its health-derived bits.
+    pub(in crate::session) fn represented_has_aura_state_like_cpp(&self, aura_state: u32) -> bool {
+        let Some(flag) = u8::try_from(aura_state).ok().filter(|flag| *flag != 0) else {
+            return false;
+        };
+        let Some(mask) = self.represented_player_aura_state_mask_like_cpp() else {
+            return false;
+        };
+        u32::from(flag)
+            .checked_sub(1)
+            .and_then(|bit| 1_u32.checked_shl(bit))
+            .is_some_and(|bit| mask & bit != 0)
     }
+
+    /// C++ `Unit::m_unitData->AuraState` for the canonical session player: the
+    /// aura-driven bits owned by the represented aura subsystem plus the
+    /// alive-health bits `Unit::Update` maintains (WOUNDED_* / HEALTHY_75).
+    ///
+    /// `None` when the canonical Player owner is unavailable, so callers fail
+    /// closed instead of reading an empty mask as an authoritative zero.
+    pub(in crate::session) fn represented_player_aura_state_mask_like_cpp(&self) -> Option<u32> {
+        let aura_driven = self.canonical_player_snapshot_like_cpp(|player| {
+            player.unit().subsystems().auras.aura_state_mask
+        })?;
+        let (health, max_health, alive) = self.resolved_player_vitals_like_cpp()?;
+        Some(
+            aura_driven
+                | crate::map_manager::WorldCreature::health_aura_state_like_cpp(
+                    u64::from(health),
+                    u64::from(max_health),
+                    alive,
+                ),
+        )
+    }
+
+    /// C++ `Unit::m_unitData->AuraState` for any represented unit: the canonical
+    /// session player or a world creature. `0` when the unit cannot be resolved.
+    pub(in crate::session) fn represented_unit_aura_state_mask_like_cpp(
+        &self,
+        unit_guid: ObjectGuid,
+    ) -> u32 {
+        if Some(unit_guid) == self.player_guid() {
+            return self
+                .represented_player_aura_state_mask_like_cpp()
+                .unwrap_or(0);
+        }
+        let Some(manager) = self.map_manager.as_ref() else {
+            return 0;
+        };
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let manager = manager
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        manager
+            .find_creature(self.player_map_id_like_cpp(), instance_id, unit_guid)
+            .map(|creature| {
+                creature.creature.unit().subsystems().auras.aura_state_mask
+                    | crate::map_manager::WorldCreature::health_aura_state_like_cpp(
+                        u64::from(creature.current_hp()),
+                        u64::from(creature.max_hp()),
+                        creature.is_alive(),
+                    )
+            })
+            .unwrap_or(0)
+    }
+
     pub(in crate::session) fn calculate_represented_mounted_aura_amount_like_cpp(
         &self,
         spell_id: i32,
