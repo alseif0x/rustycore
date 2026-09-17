@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 `SpellHealingPctDone` completion — 2026-09-17, implementation
+`1eab52dc`:** the direct-heal percentage chain now honours the
+`SPELL_ATTR3_IGNORE_CASTER_MODIFIERS` / `SPELL_ATTR6_IGNORE_HEALING_MODIFIERS`
+early-outs and the aura-303 victim aura-state multiplier (`Unit.cpp:7185-7229`).
+The potion family and 354 `IsAffectingSpell` gates remain open. wow-data --lib
+752/0, wow-entities --lib 940/0, wow-world --lib 3946/0/1; no live
+DB/restart/relogin QA.
+
 **#61 remaining `SpellDamagePctDone` terms — 2026-09-17, implementation
 `04dd26c3`:** the attribute early-outs (`SPELL_ATTR3_IGNORE_CASTER_MODIFIERS`,
 `SPELL_ATTR6_IGNORE_CASTER_DAMAGE_MODIFIERS`) and the Mage Ice Lance / Warlock
