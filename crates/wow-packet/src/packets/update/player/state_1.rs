@@ -711,6 +711,8 @@ pub struct PlayerCombatStats {
     pub mod_healing_done_pos: i32,
     /// C++ `ActivePlayerData::ModDamageDonePercent[7]` (1.0 = no modifier).
     pub mod_damage_done_percent: [f32; 7],
+    /// C++ `ActivePlayerData::ModHealingDonePercent` (1.0 = no modifier).
+    pub mod_healing_done_pct: f32,
 }
 
 impl Default for PlayerCombatStats {
@@ -749,6 +751,7 @@ impl Default for PlayerCombatStats {
             mod_damage_done_neg: [0; 7],
             mod_healing_done_pos: 0,
             mod_damage_done_percent: [1.0; 7],
+            mod_healing_done_pct: 1.0,
         }
     }
 }
@@ -827,6 +830,8 @@ pub struct PlayerCreateData {
     pub mod_healing_done_pos: i32,
     /// C++ `ActivePlayerData::ModDamageDonePercent[7]` (1.0 = no modifier).
     pub mod_damage_done_percent: [f32; 7],
+    /// C++ `ActivePlayerData::ModHealingDonePercent` (1.0 = no modifier).
+    pub mod_healing_done_pct: f32,
     /// Visible equipment items (19 slots).
     /// Each entry: (ItemID, AppearanceModID, ItemVisual).
     /// Slots: Head(0), Neck(1), Shoulders(2), Shirt(3), Chest(4), Waist(5),
