@@ -1662,12 +1662,9 @@ impl WorldSession {
         // the lethal damage is applied, before the melee result presentation.
         self.publish_creature_melee_death_durability_loss_like_cpp(command.over_damage);
 
-        use wow_packet::packets::combat::{
-            AttackerStateUpdate, HIT_INFO_AFFECTS_VICTIM, HealthUpdate, VICTIM_STATE_HIT,
-        };
-        // Visibility can change after the map-owned swing commits. It gates
-        // only the attacker-facing combat packet, never authoritative victim
-        // health/death reconciliation.
+        use wow_packet::packets::combat::{AttackerStateUpdate, HealthUpdate};
+        // Visibility gates only the attacker-facing combat packet, never the
+        // authoritative victim health/death reconciliation.
         if self
             .client_visible_guids_like_cpp
             .contains(&command.attacker_guid)
@@ -1675,21 +1672,24 @@ impl WorldSession {
             self.send_packet(&AttackerStateUpdate {
                 attacker: command.attacker_guid,
                 victim: command.victim_guid,
-                hit_info: HIT_INFO_AFFECTS_VICTIM,
+                hit_info: command.hit_info,
                 damage: command.damage.min(i32::MAX as u32) as i32,
-                original_damage: command.damage.min(i32::MAX as u32) as i32,
+                original_damage: command.original_damage.min(i32::MAX as u32) as i32,
                 over_damage: command.over_damage,
                 blocked: 0,
-                victim_state: VICTIM_STATE_HIT,
+                victim_state: command.victim_state,
                 school_mask: 1,
                 target_level: command.target_level,
                 expansion: 2,
             });
         }
-        self.send_packet(&HealthUpdate {
-            guid: command.victim_guid,
-            health: canonical_health.min(i64::MAX as u64) as i64,
-        });
+        // An avoided swing commits no health transition.
+        if command.damage > 0 {
+            self.send_packet(&HealthUpdate {
+                guid: command.victim_guid,
+                health: canonical_health.min(i64::MAX as u64) as i64,
+            });
+        }
     }
 
     /// Deliver one committed map-owned creature aggro transition to its victim.

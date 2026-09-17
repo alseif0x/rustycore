@@ -583,6 +583,7 @@ fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
     use crate::session_rules::{
         RepresentedMeleeAttackerFactsLikeCpp as Attacker,
         RepresentedMeleeVictimFactsLikeCpp as Victim, melee_outcome_inputs_like_cpp,
+        melee_outcome_like_cpp,
     };
 
     let attacker = Attacker {
@@ -600,6 +601,7 @@ fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
     let creature = Victim {
         level: 80,
         is_creature: true,
+        is_player: false,
         is_totem: false,
         is_evading_attacks: false,
         dodge_pct: 3.0,
@@ -700,8 +702,7 @@ fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
     let inputs = melee_outcome_inputs_like_cpp(&attacker, &controlled);
     assert!(!inputs[0].can_dodge && !inputs[0].can_parry);
 
-    // A totem has no dodge, parry or block; a player victim has no represented
-    // table at all.
+    // A totem has no dodge, parry or block.
     let totem = Victim {
         is_totem: true,
         ..higher
@@ -710,11 +711,49 @@ fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
     assert_eq!(inputs[0].dodge_chance_pct, 0.0);
     assert_eq!(inputs[0].parry_chance_pct, 0.0);
     assert_eq!(inputs[0].block_chance_pct, 0.0);
+
+    // A player victim resolves only the miss band: `MeleeSpellMissChance` reads
+    // the victim's `MOD_ATTACKER_MELEE_HIT_CHANCE` sum exactly like a creature's,
+    // while dodge/parry/block/crit stay the documented boundary of the
+    // represented creature swing.
     let player_victim = Victim {
         is_creature: false,
+        is_player: true,
+        attacker_melee_hit_chance_pct: 2.5,
+        // Published avoidance the player victim carries but the table ignores.
+        dodge_pct: 20.0,
+        parry_pct: 15.0,
+        block_pct: 10.0,
         ..creature
     };
-    let inputs = melee_outcome_inputs_like_cpp(&attacker, &player_victim);
+    let two_handed = Attacker {
+        melee_hit_chance_pct: 0.0,
+        ..attacker
+    };
+    let inputs = melee_outcome_inputs_like_cpp(&two_handed, &player_victim);
+    assert_eq!(inputs[0].miss_chance_pct, 2.5);
+    assert_eq!(inputs[0].dodge_chance_pct, 0.0);
+    assert_eq!(inputs[0].parry_chance_pct, 0.0);
+    assert_eq!(inputs[0].block_chance_pct, 0.0);
+    assert_eq!(inputs[0].glancing_chance_pct, 0.0);
+    assert_eq!(inputs[0].crit_chance_pct, 0.0);
+    assert!(!inputs[0].can_dodge && !inputs[0].can_parry);
+    assert!(!inputs[0].is_evading_attacks);
+    assert_eq!(
+        melee_outcome_like_cpp(&inputs[0], 249),
+        crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Miss
+    );
+    assert_eq!(
+        melee_outcome_like_cpp(&inputs[0], 250),
+        crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Hit
+    );
+
+    // A victim the owner cannot read keeps the pre-table behaviour.
+    let unknown = Victim {
+        level: 80,
+        ..Default::default()
+    };
+    let inputs = melee_outcome_inputs_like_cpp(&attacker, &unknown);
     assert_eq!(
         inputs,
         [crate::session_rules::RepresentedMeleeOutcomeInputsLikeCpp::NONE; 2]

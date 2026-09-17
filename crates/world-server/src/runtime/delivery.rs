@@ -1507,6 +1507,7 @@ pub(crate) fn run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
     legacy_map_manager: &SharedMapManager,
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
     registry: &wow_world::session::directory::PlayerRegistry,
+    config: &wow_world::session::LegacyCreatureAggroConfigLikeCpp,
 ) -> (
     wow_world::session::LegacyCreatureMeleeTickOutcomeLikeCpp,
     RuntimeCreatureMeleeDeliverySummaryLikeCpp,
@@ -1515,6 +1516,7 @@ pub(crate) fn run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
     let outcome = wow_world::session::run_legacy_creature_melee_tick_once_like_cpp(
         legacy_map_manager,
         canonical_map_manager,
+        config,
     );
     let delivery = deliver_creature_melee_damage_commands_like_cpp(&outcome.commands, registry);
     let plan_delivery = deliver_runtime_plan_like_cpp(&outcome.plan, registry);
@@ -1656,6 +1658,7 @@ pub(crate) fn run_legacy_creature_runtime_tick_with_input_and_deliver_once_like_
             legacy_map_manager,
             canonical_map_manager,
             registry,
+            &aggro_config,
         );
 
     let publication_events = movement.plan.events.len()

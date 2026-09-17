@@ -67,7 +67,11 @@ fn legacy_creature_melee_tick_once_preserves_sparring_damage_clamp_like_cpp() {
         .unwrap()
         .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert_eq!(outcome.swings_ready, 1);
     assert_eq!(outcome.melee_outcomes_unrepresented, 1);
@@ -175,7 +179,11 @@ fn legacy_creature_melee_tick_once_preserves_fake_damage_wire_like_cpp() {
         .unwrap()
         .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert_eq!(outcome.swings_ready, 1);
     assert_eq!(outcome.melee_outcomes_unrepresented, 1);
@@ -262,7 +270,11 @@ fn legacy_creature_melee_tick_once_preserves_lethal_creature_outcome_like_cpp() 
         .unwrap()
         .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert_eq!(outcome.swings_ready, 1);
     assert_eq!(outcome.melee_outcomes_unrepresented, 1);
@@ -349,7 +361,11 @@ fn legacy_creature_melee_tick_once_rejects_charging_before_ready_swing_like_cpp(
         .unwrap()
         .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let rejected = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let rejected = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert_eq!(rejected.creatures_seen, 1);
     assert_eq!(rejected.swings_ready, 0);
@@ -400,7 +416,11 @@ fn legacy_creature_melee_tick_once_rejects_no_melee_static_flag_like_cpp() {
         .unwrap()
         .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let rejected = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let rejected = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert_eq!(rejected.creatures_seen, 1);
     assert_eq!(rejected.swings_ready, 0);
@@ -449,7 +469,11 @@ fn legacy_creature_melee_tick_once_rejects_blocking_channel_like_cpp() {
         .unwrap()
         .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let rejected = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let rejected = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert_eq!(rejected.creatures_seen, 1);
     assert_eq!(rejected.swings_ready, 0);
@@ -512,7 +536,11 @@ fn legacy_creature_melee_tick_once_respects_channel_allow_actions_like_cpp() {
         .unwrap()
         .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert_eq!(outcome.melee_precondition_rejections, 0);
     assert_eq!(outcome.swings_ready, 1);

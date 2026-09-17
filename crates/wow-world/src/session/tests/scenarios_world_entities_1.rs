@@ -369,6 +369,9 @@ async fn apply_creature_melee_damage_command_updates_victim_and_sends_hit_like_c
                 target_level: 80,
                 victim_health_after: 83,
                 victim_health_state_revision_after: committed_revision,
+                hit_info: wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM,
+                victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
+                original_damage: 17,
             },
         ))
         .expect("command queued");
@@ -415,6 +418,9 @@ async fn apply_creature_melee_damage_command_syncs_health_without_visible_attack
                 target_level: 80,
                 victim_health_after: 83,
                 victim_health_state_revision_after: committed_revision,
+                hit_info: wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM,
+                victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
+                original_damage: 17,
             },
         ))
         .expect("command queued");
@@ -458,6 +464,9 @@ async fn apply_creature_melee_damage_command_delayed_after_heal_presents_current
         target_level: 80,
         victim_health_after: 83,
         victim_health_state_revision_after: committed_revision,
+        hit_info: wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM,
+        victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
+        original_damage: 17,
     };
 
     session
@@ -541,6 +550,9 @@ async fn apply_creature_melee_damage_command_replay_after_resurrection_is_suppre
         target_level: 80,
         victim_health_after: 0,
         victim_health_state_revision_after: committed_revision,
+        hit_info: wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM,
+        victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
+        original_damage: 100,
     };
     session
         .session_command_tx()
@@ -632,6 +644,9 @@ async fn apply_creature_melee_damage_command_lethal_publishes_durability_loss_li
                 target_level: 80,
                 victim_health_after: 0,
                 victim_health_state_revision_after: committed_revision,
+                hit_info: wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM,
+                victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
+                original_damage: 100,
             },
         ))
         .expect("lethal command queued");
@@ -683,6 +698,9 @@ async fn apply_creature_melee_damage_command_battleground_skips_durability_like_
                 target_level: 80,
                 victim_health_after: 0,
                 victim_health_state_revision_after: committed_revision,
+                hit_info: wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM,
+                victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
+                original_damage: 100,
             },
         ))
         .expect("lethal battleground command queued");
@@ -727,6 +745,9 @@ async fn durable_creature_runtime_rail_is_drained_by_session_update_like_cpp() {
                 target_level: 80,
                 victim_health_after: 0,
                 victim_health_state_revision_after: committed_revision,
+                hit_info: wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM,
+                victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
+                original_damage: 100,
             })
     );
 

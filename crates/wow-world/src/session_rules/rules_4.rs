@@ -329,15 +329,21 @@ pub(crate) struct RepresentedMeleeAttackerFactsLikeCpp {
     pub dodge_reduction_pct: f32,
 }
 
-/// Victim-side facts the swing owner resolves once per swing. A represented
-/// player victim is not supported by this unit: the session owner cannot read
-/// another player's snapshot, so only creature victims contribute a table.
+/// Victim-side facts the swing owner resolves once per swing. The session owner
+/// cannot read another player's snapshot, so a canonical-player victim only
+/// contributes its miss term; the map-owned creature runtime, which can read the
+/// victim player's canonical state, is the owner that resolves a player victim.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub(crate) struct RepresentedMeleeVictimFactsLikeCpp {
     /// `victim->GetLevelForTarget(attacker)`.
     pub level: u8,
     /// Whether the victim is a creature (the only represented avoidance source).
     pub is_creature: bool,
+    /// Whether the victim is a player. A player victim has no represented
+    /// avoidance yet, but C++ `MeleeSpellMissChance` reads its
+    /// `SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE` sum and its `IsStandState`
+    /// exactly like a creature's, so the miss band is representable.
+    pub is_player: bool,
     /// C++ `victim->IsTotem()`: totems have no dodge, parry or block.
     pub is_totem: bool,
     /// C++ `victim->ToCreature()->IsEvadingAttacks()`.
@@ -384,14 +390,15 @@ pub(crate) fn melee_outcome_inputs_like_cpp(
     attacker: &RepresentedMeleeAttackerFactsLikeCpp,
     victim: &RepresentedMeleeVictimFactsLikeCpp,
 ) -> [RepresentedMeleeOutcomeInputsLikeCpp; 2] {
-    // The represented table needs a creature victim: a canonical-player victim's
-    // avoidance lives in that player's session, so it keeps the pre-table
-    // behaviour rather than inventing a band, exactly like the creature-only
-    // armour rule.
-    if !victim.is_creature {
+    // The represented table needs a victim whose state the caller can read: a
+    // creature victim for the session owner, or a canonical-player victim for
+    // the map-owned creature runtime. Anything else keeps the pre-table
+    // behaviour rather than inventing a band.
+    if !victim.is_creature && !victim.is_player {
         return [RepresentedMeleeOutcomeInputsLikeCpp::NONE; 2];
     }
-    // C++ `GetUnitMissChance()` is a flat 5.0 for every unit.
+    // C++ `GetUnitMissChance()` is a flat 5.0 for every unit, so the miss band
+    // is identical for both represented victim kinds.
     let mut miss_chance_pct = 5.0;
     if attacker.dual_wielding && !attacker.ignores_dual_wield_hit_penalty {
         miss_chance_pct += 19.0;
@@ -401,6 +408,20 @@ pub(crate) fn melee_outcome_inputs_like_cpp(
     miss_chance_pct -= victim.attacker_melee_hit_chance_pct;
     // C++ `MeleeSpellMissChance` ends with `std::max(missChance, 0.f)`.
     let miss_chance_pct = miss_chance_pct.max(0.0);
+
+    // Boundary: a player victim's dodge/parry/block/crit bands are not
+    // represented yet, so a creature swing against a player only resolves the
+    // miss band. The published `DodgePercentage`/`ParryPercentage`/
+    // `BlockPercentage` are already available on the canonical player, and the
+    // block damage reduction additionally needs the DB2
+    // `ExpectedStatType::ArmorConstant` table, so they land together in a later
+    // unit rather than as a partial band here.
+    if victim.is_player {
+        return std::array::from_fn(|_| RepresentedMeleeOutcomeInputsLikeCpp {
+            miss_chance_pct,
+            ..RepresentedMeleeOutcomeInputsLikeCpp::NONE
+        });
+    }
 
     let level_difference = i32::from(victim.level) - i32::from(attacker.level);
     let level_bonus = if level_difference > 0 {

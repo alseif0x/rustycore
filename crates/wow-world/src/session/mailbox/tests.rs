@@ -179,6 +179,9 @@ fn apply_creature_melee_damage_like_cpp_command_carries_final_health() {
         target_level: 80,
         victim_health_after: 89,
         victim_health_state_revision_after: 7,
+        hit_info: wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM,
+        victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
+        original_damage: 11,
     };
 
     assert_eq!(cmd.attacker_guid, attacker);
@@ -259,6 +262,9 @@ fn durable_creature_runtime_commands_preserve_committed_fifo_like_cpp() {
                 target_level: 80,
                 victim_health_after,
                 victim_health_state_revision_after,
+                hit_info: wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM,
+                victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
+                original_damage: 15,
             })
         );
     }

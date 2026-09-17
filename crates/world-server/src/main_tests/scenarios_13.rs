@@ -75,6 +75,9 @@ fn creature_melee_damage_delivery_filters_registry_state_like_cpp() {
             target_level: 80,
             victim_health_after: 95,
             victim_health_state_revision_after: 1,
+            hit_info: wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM,
+            victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
+            original_damage: 5,
         };
     let commands = vec![
         make_command(wrong_map),
@@ -125,6 +128,9 @@ fn creature_melee_damage_delivery_poisoned_durable_rail_counts_send_failed_like_
             target_level: 80,
             victim_health_after: 95,
             victim_health_state_revision_after: 1,
+            hit_info: wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM,
+            victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
+            original_damage: 5,
         },
     ];
     let summary = deliver_creature_melee_damage_commands_like_cpp(&commands, &registry);
@@ -156,6 +162,9 @@ fn creature_melee_damage_delivery_preserves_every_swing_when_general_queue_is_fu
         target_level: 80,
         victim_health_after: 95,
         victim_health_state_revision_after: 7,
+        hit_info: wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM,
+        victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
+        original_damage: 5,
     };
     command_tx
         .send(SessionCommand::ApplyCreatureMeleeDamageLikeCpp(
@@ -229,6 +238,7 @@ fn legacy_creature_melee_tick_delivers_compatibility_victim_command_like_cpp() {
             &legacy,
             Some(&canonical),
             &registry,
+            &Default::default(),
         );
 
     assert!(!outcome.skipped_owner_not_global);
@@ -308,6 +318,7 @@ fn legacy_creature_melee_tick_delivers_compatibility_creature_plan_like_cpp() {
             &legacy,
             Some(&canonical),
             &registry,
+            &Default::default(),
         );
 
     assert_eq!(outcome.swings_ready, 1);

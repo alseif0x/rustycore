@@ -323,6 +323,7 @@ impl WorldSession {
                     VictimFacts {
                         level: creature.level(),
                         is_creature: true,
+                        is_player: false,
                         is_totem: creature.creature.is_totem_unit_type_like_cpp(),
                         is_evading_attacks: creature.creature.is_evading_attacks_like_cpp(),
                         dodge_pct: creature.creature.avoidance_like_cpp().dodge_pct,

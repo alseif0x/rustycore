@@ -828,6 +828,9 @@ fn creature_melee_damage_delivery_routes_only_to_victim_like_cpp() {
             target_level: 80,
             victim_health_after: 83,
             victim_health_state_revision_after: 7,
+            hit_info: wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM,
+            victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
+            original_damage: 17,
         },
     ];
     let summary = deliver_creature_melee_damage_commands_like_cpp(&commands, &registry);

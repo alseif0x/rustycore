@@ -815,7 +815,11 @@ fn legacy_creature_melee_tick_once_is_noop_under_session_owner_like_cpp() {
         })
         .unwrap();
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert!(outcome.skipped_owner_not_global);
     assert_eq!(outcome.maps_seen, 0);
