@@ -71,13 +71,13 @@ value `melee_outcome_damage_like_cpp` computed beside the dealt damage, and the
 packet writes it; the scenario decodes the round info sequentially — the same
 order the writer's own test uses — and asserts the victim's flat 30% creature
 block reports `blocked == 2` beside the 8-to-6 damage reduction and
-`HITINFO_BLOCK`. Evidence: wow-world 3990/0/1 (one full-suite run reported a
-single failure and the immediate rerun passed every test, i.e. a pre-existing
-flaky/RNG-dependent case rather than a regression from this change),
-world-server 594/0/0 and wow-packet 744/0 pass; format, `git diff --check` and
-the physical ratchet pass, and `validation-v2 quick` (manifest
-`20260917T191915.218057Z-3177586-quick.json`) passes. The flaky full-suite case
-is not identified yet and should be pinned down if it recurs.
+`HITINFO_BLOCK`. Evidence: wow-world 3990/0/1, world-server 594/0/0 and
+wow-packet 744/0 pass; format, `git diff --check` and the physical ratchet pass,
+and `validation-v2 quick` (manifest
+`20260917T191915.218057Z-3177586-quick.json`) passes. One full-suite run in that
+round reported a single failure; the determinism entry above records that it was
+**not** pre-existing — the creature-victim critical band activated by PR #1125
+made two exact-damage fixtures non-deterministic, and PR #1131 fixed them.
 
 **#29 creature-victim block-band scenario — 2026-09-17, implementation
 `77c7d3a8`, integrated as `19df40a5` by PR #1127:** the creature-victim

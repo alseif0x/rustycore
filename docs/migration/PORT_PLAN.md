@@ -45,9 +45,10 @@ wow-packet 744/0; no live DB/restart/relogin QA.
 `da3cf981`:** the bridge packet now carries the blocked amount alongside
 `HITINFO_BLOCK` (tuple `(HitInfo, TargetState, Blocked)`); the scenario decodes
 the round info sequentially and asserts `blocked == 2` for the flat 30% creature
-block. wow-world 3990/0/1 (one earlier full-suite run hit a pre-existing
-flaky/RNG case and the rerun was green), world-server 594/0/0, wow-packet 744/0;
-no live DB/restart/relogin QA.
+block. wow-world 3990/0/1, world-server 594/0/0, wow-packet 744/0; the
+intermittent failure first seen in this round was later traced to this branch's
+critical band and fixed by the determinism entry above; no live
+DB/restart/relogin QA.
 
 **#29 creature-victim block-band scenario — 2026-09-17, implementation
 `77c7d3a8`:** the runtime scenario now covers the reachable flat 30% creature
