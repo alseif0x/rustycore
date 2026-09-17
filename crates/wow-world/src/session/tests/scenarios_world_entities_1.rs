@@ -373,7 +373,7 @@ async fn apply_creature_melee_damage_command_updates_victim_and_sends_hit_like_c
                 victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
                 original_damage: 17,
                 absorbed: 0,
-                exhausted_absorb_slots: Vec::new(),
+                absorb_consumptions: Vec::new(),
             },
         ))
         .expect("command queued");
@@ -424,7 +424,7 @@ async fn apply_creature_melee_damage_command_syncs_health_without_visible_attack
                 victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
                 original_damage: 17,
                 absorbed: 0,
-                exhausted_absorb_slots: Vec::new(),
+                absorb_consumptions: Vec::new(),
             },
         ))
         .expect("command queued");
@@ -472,7 +472,7 @@ async fn apply_creature_melee_damage_command_delayed_after_heal_presents_current
         victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
         original_damage: 17,
         absorbed: 0,
-        exhausted_absorb_slots: Vec::new(),
+        absorb_consumptions: Vec::new(),
     };
 
     session
@@ -560,7 +560,7 @@ async fn apply_creature_melee_damage_command_replay_after_resurrection_is_suppre
         victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
         original_damage: 100,
         absorbed: 0,
-        exhausted_absorb_slots: Vec::new(),
+        absorb_consumptions: Vec::new(),
     };
     session
         .session_command_tx()
@@ -656,7 +656,7 @@ async fn apply_creature_melee_damage_command_lethal_publishes_durability_loss_li
                 victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
                 original_damage: 100,
                 absorbed: 0,
-                exhausted_absorb_slots: Vec::new(),
+                absorb_consumptions: Vec::new(),
             },
         ))
         .expect("lethal command queued");
@@ -712,7 +712,7 @@ async fn apply_creature_melee_damage_command_battleground_skips_durability_like_
                 victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
                 original_damage: 100,
                 absorbed: 0,
-                exhausted_absorb_slots: Vec::new(),
+                absorb_consumptions: Vec::new(),
             },
         ))
         .expect("lethal battleground command queued");
@@ -761,7 +761,7 @@ async fn durable_creature_runtime_rail_is_drained_by_session_update_like_cpp() {
                 victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
                 original_damage: 100,
                 absorbed: 0,
-                exhausted_absorb_slots: Vec::new(),
+                absorb_consumptions: Vec::new(),
             })
     );
 

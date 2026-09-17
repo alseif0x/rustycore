@@ -480,10 +480,13 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         let mut creature_victim_avoided = false;
         let mut outcome_represented = false;
         // C++ `CalcAbsorbResist`'s result for this swing: the absorbed amount
-        // the packet publishes and the shields it exhausted, which the victim
-        // session removes through its own aura transition at delivery.
+        // the packet publishes and every shield it spent. The victim session
+        // owns the absorb-log publication and the aura transition, so it
+        // receives the consumption list at delivery.
         let mut absorbed_damage = 0u32;
-        let mut exhausted_absorb_slots: Vec<u8> = Vec::new();
+        let mut absorb_consumptions: Vec<
+            crate::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp,
+        > = Vec::new();
         let damage = if swing.victim_guid.is_player() {
             match config.spell_store.as_deref() {
                 Some(spell_store) => {
@@ -811,11 +814,16 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                 Some(absorb) => {
                                     if absorb.absorbed > 0 {
                                         absorbed_damage = absorb.absorbed;
-                                        exhausted_absorb_slots = absorb
+                                        absorb_consumptions = absorb
                                             .consumed
                                             .iter()
-                                            .filter(|consumption| consumption.removed)
-                                            .map(|consumption| consumption.slot)
+                                            .map(|consumption| {
+                                                crate::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp {
+                                                    slot: consumption.slot,
+                                                    consumed: consumption.consumed,
+                                                    removed: consumption.removed,
+                                                }
+                                            })
                                             .collect();
                                         hit_info |= if absorb.damage == 0 {
                                             wow_packet::packets::combat::HIT_INFO_FULL_ABSORB
@@ -1151,7 +1159,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     victim_state,
                     original_damage,
                     absorbed: 0,
-                    exhausted_absorb_slots: Vec::new(),
+                    absorb_consumptions: Vec::new(),
                 },
             );
             continue;
@@ -1253,7 +1261,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     victim_state,
                     original_damage,
                     absorbed: absorbed_damage,
-                    exhausted_absorb_slots: exhausted_absorb_slots.clone(),
+                    absorb_consumptions: absorb_consumptions.clone(),
                 },
             );
         } else {

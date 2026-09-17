@@ -434,11 +434,29 @@ pub struct ApplyCreatureMeleeDamageLikeCppCommand {
     /// C++ `CalcDamageInfo::Absorb` (`Unit.cpp:1452-1460`): the school-absorb
     /// amount the map already subtracted from `damage`.
     pub absorbed: u32,
-    /// Shield slots the map's absorb stage spent to zero, in
-    /// `AbsorbAuraOrderPred` order. C++ removes those auras while it calculates
-    /// the swing; the victim session owns the aura transition, so it performs
-    /// the removal (and its publication) when it delivers this command.
-    pub exhausted_absorb_slots: Vec<u8>,
+    /// Every shield the map's absorb stage spent, in `AbsorbAuraOrderPred`
+    /// order. C++ publishes one `SMSG_SPELL_ABSORB_LOG` per consuming shield and
+    /// removes the auras it spent to zero while it calculates the swing
+    /// (`Unit.cpp:1876-1889`); the victim session owns both the log publication
+    /// and the aura transition, so it performs them when it delivers this
+    /// command.
+    pub absorb_consumptions: Vec<CreatureMeleeAbsorbConsumptionLikeCpp>,
+}
+
+/// One school-absorb shield spent by the map-owned melee absorb stage.
+///
+/// Mirrors the rules-layer consumption in the public mailbox shape so the
+/// victim session can publish C++'s `SpellAbsorbLog` and remove an exhausted
+/// aura without recomputing the absorb arithmetic the map already committed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CreatureMeleeAbsorbConsumptionLikeCpp {
+    /// The aura application slot that owns the spent effect.
+    pub slot: u8,
+    /// C++ `currentAbsorb` after the `[0, damage]` clamp: the amount this shield
+    /// took from the hit, which the absorb log publishes.
+    pub consumed: i32,
+    /// C++ `if (absorbAurEff->GetAmount() <= 0) Remove(AURA_REMOVE_BY_ENEMY_SPELL)`.
+    pub removed: bool,
 }
 
 /// Payload for a map-owned creature aggro transition against one player.

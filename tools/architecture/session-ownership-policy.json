@@ -35764,6 +35764,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "publish_melee_absorb_consumption_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn publish_melee_absorb_consumption_like_cpp (& mut self , attacker_guid : ObjectGuid , victim_guid : ObjectGuid , original_damage : i32 , consumptions : & [crate :: session :: mailbox :: CreatureMeleeAbsorbConsumptionLikeCpp] ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "publish_player_cast_frame_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn publish_player_cast_frame_like_cpp (& mut self , metadata : SpellCastMetadata , bytes : Vec < u8 > ,)",
@@ -60386,6 +60399,13 @@
         "kind": "struct",
         "fields": [
           {
+            "name": "absorb_consumptions",
+            "type": "Vec < CreatureMeleeAbsorbConsumptionLikeCpp >",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
             "name": "absorbed",
             "type": "u32",
             "visibility": "pub",
@@ -60402,13 +60422,6 @@
           {
             "name": "damage",
             "type": "u32",
-            "visibility": "pub",
-            "cfg": [],
-            "source_class": "production"
-          },
-          {
-            "name": "exhausted_absorb_slots",
-            "type": "Vec < u8 >",
             "visibility": "pub",
             "cfg": [],
             "source_class": "production"
@@ -60969,6 +60982,41 @@
           {
             "name": "victim_guid",
             "type": "ObjectGuid",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          }
+        ],
+        "variants": [],
+        "alias": null
+      },
+      {
+        "definition": {
+          "module": "crate::session::mailbox::protocol",
+          "name": "CreatureMeleeAbsorbConsumptionLikeCpp",
+          "visibility": "pub",
+          "cfg": [],
+          "source_class": "production"
+        },
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "consumed",
+            "type": "i32",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "removed",
+            "type": "bool",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "slot",
+            "type": "u8",
             "visibility": "pub",
             "cfg": [],
             "source_class": "production"
@@ -62619,6 +62667,14 @@
         "target": "CreatureAttackStopLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session::mailbox::protocol",
+        "target": "CreatureMeleeAbsorbConsumptionLikeCpp",
+        "kind": "derive",
+        "fingerprint": "derive (Clone , Copy , Debug , PartialEq , Eq)",
         "cfg": [],
         "source_class": "production"
       },
@@ -79727,7 +79783,7 @@
               "multiplicity": 3
             }
           ],
-          "fingerprint": "signature=fn run_legacy_creature_melee_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , config : & crate :: session :: LegacyCreatureAggroConfigLikeCpp ,) -> LegacyCreatureMeleeTickOutcomeLikeCpp|body=fnv1a64x2:95a5a944b505f80a38b729ab5f8484b1:len=33015|evidence=fnv1a64x2:bf22f91e7a02041bb923fb5d36d6289a:len=26430",
+          "fingerprint": "signature=fn run_legacy_creature_melee_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , config : & crate :: session :: LegacyCreatureAggroConfigLikeCpp ,) -> LegacyCreatureMeleeTickOutcomeLikeCpp|body=fnv1a64x2:2772cff2a0d4a55d924e079ef311fd8a:len=33175|evidence=fnv1a64x2:bf22f91e7a02041bb923fb5d36d6289a:len=26430",
           "cfg": [],
           "multiplicity": 1
         },
