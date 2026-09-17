@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`045c565ed3be9bdef8ab5336eec2626bc5168e33` (PR #1155, the #29 player-victim
+`9d8a1be6474b14de2ee7815d7210bc16aff31544` (PR #1157, the #29 player-victim
+melee absorb log, following PR #1155, the #29 player-victim
 melee school absorb with the C++ sub-damage wire block, following PR #1153, the
 #584 session syntax-ownership baseline reconciliation and architecture-acceptance
 continuation, following PR #1150, the #29
@@ -44,6 +45,47 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 player-victim melee absorb log — 2026-09-17, implementation `ffa1097b`,
+integrated as `9d8a1be6` by PR #1157:** the melee absorb stage now also publishes
+C++ `Unit::CalcAbsorbResist`'s per-shield `SMSG_SPELL_ABSORB_LOG`
+(`Unit.cpp:1876-1889`), which the previous slice left open. `wow-packet` gained
+`SpellAbsorbLog` matching `WorldPackets::CombatLog::SpellAbsorbLog::Write`
+(`CombatLogPackets.cpp:376-397`): attacker and victim packed GUIDs,
+`int32(AbsorbedSpellID)` (zero for a white swing, which carries no spell),
+`int32(AbsorbSpellID)`, the absorb aura's caster GUID, `int32(Absorbed)`,
+`int32(OriginalDamage)`, the empty supporter count and the two flushed false bits
+(`Unk` plus the basic packet's log-data bit). The delivery command now carries
+every shield the map spent (`CreatureMeleeAbsorbConsumptionLikeCpp { slot,
+consumed, removed }`) instead of only the exhausted slots, and
+`WorldSession::publish_melee_absorb_consumption_like_cpp`
+(`session/combat/damage.rs`, the represented absorb/resistance module) runs
+C++'s per-shield order — read the shield's caster and spell while the aura
+exists, send the log, then remove the aura spent to zero through the session's
+own transition — before the attacker-state packet. Coverage: the packet's own
+wire test decodes the exact field order and bit tail, and the production-shaped
+scenario asserts the absorb log precedes the `AuraUpdate` removal and that the
+consumption carries the spent amount. Evidence at `9d8a1be6`: `wow-world --lib`
+3995/0/1, `wow-packet --lib` 747/0, `world-server --lib` 594/0, `cargo fmt
+--all --check` and `git diff --check` clean, physical ratchet PASS (2234 files,
+no ceiling moved; the loot handler stayed at its 2384-line ceiling by moving the
+per-shield loop into the session module that owns aura publication),
+`session-ownership-check --syntax-only` PASS with a reviewed `print-baseline`
+delta (the consumption payload type and its derive, the command's
+`exhausted_absorb_slots` -> `absorb_consumptions` swap, and the new publication
+method at 3913 exact associated items). Budget, reported rather than hidden:
+`validation-v2 quick` PASS in 542.5 s (manifest
+`20260917T225619.282618Z-3548842-quick.json`) of which 531.3 s is the
+`cargo check --locked --tests -p world-server -p wow-packet -p wow-world`
+recompilation the `wow-packet` change forces at one Cargo job, and `final
+--architecture` 86.6 s, exit 1, 2 of 8 steps with `session-syntax-acceptance`
+PASS and the pre-existing hotspot ratchet as the only red; the pair is 629.1 s
+against the 600 s ordinary budget, a ~29 s overrun caused by that check-profile
+recompilation. Limits: the basic combat-log packet is delivered to the victim
+session, while C++ `SendCombatLogMessage` also fans it out to the unit's visible
+set, which no represented combat-log packet does yet;
+`SPELL_AURA_MANA_SHIELD`, the `absorbIgnoringDamage`/`SPELL_ATTR6` interaction,
+physical resist, the creature-victim absorb pool and live QA stay open.
 
 **#29 player-victim melee school absorb — 2026-09-17, implementation `a7bdac56`,
 integrated as `045c565e` by PR #1155:** a creature swing against a player now
@@ -91,10 +133,12 @@ only red. Limits: `SPELL_AURA_MANA_SHIELD` needs a power write the melee path
 does not own; C++'s `absorbIgnoringDamage` term (attacker
 `SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL` reduced by
 `SPELL_ATTR6_ABSORB_CANNOT_BE_IGNORE`) has no represented producer or spell
-attribute projection; `SMSG_SPELL_ABSORB_LOG` is not sent; physical melee never
-resists (`Unit::CalcSpellResistedDamage` returns zero for a non-magic school
-mask, `Unit.cpp:2058-2060`); creature victims have no mutable represented absorb
-pool, so player→creature absorb stays open; no live DB/restart/relogin QA ran.
+attribute projection; `SMSG_SPELL_ABSORB_LOG` is not sent (superseded
+2026-09-17 by PR #1157, which publishes it for the melee path); physical melee
+never resists (`Unit::CalcSpellResistedDamage` returns zero for a non-magic
+school mask, `Unit.cpp:2058-2060`); creature victims have no mutable represented
+absorb pool, so player→creature absorb stays open; no live DB/restart/relogin QA
+ran.
 
 **#584 session ownership baseline reconciliation — 2026-09-17, implementation
 `0774178f`, integrated as `1f25ce5b` by PR #1153:** `session-ownership-check

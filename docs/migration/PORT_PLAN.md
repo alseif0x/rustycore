@@ -33,6 +33,18 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 player-victim melee absorb log — 2026-09-17, implementation `ffa1097b`:**
+the melee absorb stage now also publishes C++ `Unit::CalcAbsorbResist`'s
+per-shield `SMSG_SPELL_ABSORB_LOG` (`Unit.cpp:1876-1889`) through the new
+`SpellAbsorbLog` writer (`CombatLogPackets.cpp:376-397`), and the delivery
+command carries every spent shield (`slot`, `consumed`, `removed`) so the
+session can log each one before removing the aura it spent to zero. The
+`wow-packet` change made the campaign pair 629.1 s against the 600 s ordinary
+budget; the overrun is the check-profile recompilation it forces, recorded in
+STATE. The victim-session-only delivery (no visible-set fan-out), mana shield,
+`absorbIgnoringDamage`/`SPELL_ATTR6`, physical resist, the creature-victim
+absorb pool and live QA stay open.
+
 **#29 player-victim melee school absorb — 2026-09-17, implementation
 `a7bdac56`:** C++ `Unit::CalculateMeleeDamage`'s absorb tail
 (`Unit.cpp:1449-1466`) and `Unit::CalcAbsorbResist` (`Unit.cpp:1789-1880`) now
