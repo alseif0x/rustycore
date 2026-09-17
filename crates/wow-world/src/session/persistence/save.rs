@@ -40,6 +40,9 @@ impl WorldSession {
         let powers = self.resolved_player_power_snapshot_like_cpp()?;
         let xp = self.resolved_player_xp_like_cpp()?;
         let money = self.resolved_player_money_like_cpp()?;
+        // Resolve every session-owned input before taking the manager lock:
+        // `player_level_like_cpp` re-enters it and would self-deadlock.
+        let level = self.player_level_like_cpp();
         let pending_teleport_destination = self.pending_teleport_save_destination_like_cpp();
         if let Some(manager) = self.canonical_map_manager.as_ref()
             && let Ok(manager) = manager.lock()
@@ -85,7 +88,7 @@ impl WorldSession {
                     map_id,
                     instance_id,
                     position,
-                    level: self.player_level_like_cpp(),
+                    level,
                     xp,
                     money,
                     health,
