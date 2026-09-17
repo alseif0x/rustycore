@@ -33,6 +33,12 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 melee evade outcome — 2026-09-17, implementation `10cf9234`:** an evading
+creature victim now short-circuits the attack table with `MELEE_HIT_EVADE`,
+publishing `HITINFO_MISS | HITINFO_SWINGNOHITSOUND` and `VICTIMSTATE_EVADES` at
+zero damage in both owners. wow-world 3984/0/1, world-server 594/0/0; no live
+DB/restart/relogin QA.
+
 **#29 controlled-victim avoidance gate — 2026-09-17, implementation `f15252bd`:**
 a `UNIT_STATE_CONTROLLED` victim can no longer dodge, parry or block, matching
 C++ `Unit::RollMeleeOutcomeAgainst`; `IsNonMeleeSpellCast` stays unrepresented
