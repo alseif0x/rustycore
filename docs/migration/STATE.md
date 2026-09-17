@@ -8,6 +8,44 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#61 attack power aura producers — 2026-09-17, implementation `408725a5`:** the
+attack power route now runs C++ `Player::UpdateAttackPowerAndDamage`
+(`StatSystem.cpp:333-403`): `SPELL_AURA_MOD_ATTACK_POWER` (99) and
+`SPELL_AURA_MOD_RANGED_ATTACK_POWER` (124) supply the flat `TOTAL_VALUE`
+published as `AttackPowerModPos`/`RangedAttackPowerModPos`,
+`SPELL_AURA_MOD_ATTACK_POWER_PCT` (166) and
+`SPELL_AURA_MOD_RANGED_ATTACK_POWER_PCT` (167) supply `TOTAL_PCT` published as
+the `TOTAL_PCT - 1.0` multiplier, and the ranged producers keep the
+`CLASSMASK_WAND_USERS` skip (`SharedDefines.h:190`). `Unit::GetTotalAttackPowerValue`
+now applies its zero clamp before the multiplier, replacing the previous
+unclamped `total_attack_power` (the damage-range consumer therefore uses the
+aura-aware total). The projection returns both multipliers, the canonical
+effective stats and `PlayerStatChanges` carry them instead of a hardcoded zero,
+and the create block writes `AttackPowerMultiplier`/`RangedAttackPowerMultiplier`
+from `PlayerCombatStats`/`PlayerCreateData`. The two new aura constants carry
+their `SpellAuraDefines.h` anchors and the physical policy records the reviewed
+one-line `world_entry.rs` (2771→2772) and two-line fixture
+(`update_tests/mod.rs` 199→201) deltas. Focused coverage: a pure stat-system test
+pins the flat/percentage/multiplier arithmetic and the clamp, an end-to-end
+session test asserts the melee and ranged producers plus
+`GetTotalAttackPowerValue` (405), a second asserts the wand-user skip, and a
+packet test pins the create-block multipliers; `wow-data stat_system` (8),
+`wow-packet --lib` (742), `scenarios_player_items_12` (12),
+`scenarios_player_items_1` (53), `persistence::` (105),
+`handlers::character::tests::login` (11), `worldport` (9),
+`scenarios_world_entities_24` (11) and `scenarios_spell_state_22` (9) stay green;
+format, `git diff --check`, the physical ratchet and `validation-v2 quick`
+(manifest `20260917T010221.921007Z-2129573-quick.json`, 76.3 s) pass.
+`SPELL_AURA_MOD_ATTACK_POWER_OF_ARMOR` and `SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT`
+remain separate gates, the `GetTotalAuraMultiplier` same-effect stack-rule
+grouping is not applied (consistent with the older aura helpers), the full
+`wow-world --lib` suite stays unusable on this host because several unrelated
+pre-existing async tests hang, and `validation-v2 final` stops at the
+pre-existing runtime hotspot LOC ratchet, which keeps its drift and was not
+regenerated. #61 remains open for the player-killer (PvP)
+`CONFIG_DURABILITY_LOSS_IN_PVP` branch and `SetPvPDeath`, alternate powers, rune
+regeneration and live DB/restart/relogin QA.
+
 **#61 school resistances (`Unit::UpdateResistances`) — 2026-09-17, implementation
 `67d23891`, integrated as `0300850f` by PR #991:** the six magic school resistances are now represented and published.
 `represented_school_resistances_like_cpp` resolves each school as the item
