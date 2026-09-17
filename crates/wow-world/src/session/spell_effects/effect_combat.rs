@@ -442,6 +442,98 @@ impl WorldSession {
         )
         .await
     }
+    /// C++ `Unit::SpellDamageBonusDone` (`Unit.cpp:6623-6680`) for the
+    /// represented player-caster `SPELL_DIRECT_DAMAGE` flat term:
+    /// `int32(max((pdamage + int32(SpellBaseDamageBonusDone(schoolMask) *
+    /// BonusCoefficient)) * DoneTotalMod, 0))` with `DoneTotalMod` currently
+    /// `1.0`.
+    ///
+    /// Boundaries: `SpellDamagePctDone` (the school `max ModDamageDonePercent`
+    /// and the versus/aurastate/mechanic multipliers) is not modelled yet, and
+    /// the represented model stores one `BonusCoefficient` per spell rather than
+    /// per `SpellEffectInfo`; creature casters keep the raw value. A spell whose
+    /// `SpellMisc.SchoolMask` is unavailable also keeps the raw value.
+    pub(in crate::session) fn represented_spell_damage_bonus_done_like_cpp(
+        &self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        coefficient: f32,
+        base_damage: u32,
+    ) -> u32 {
+        if caster_guid != self.player_guid().unwrap_or(ObjectGuid::EMPTY) {
+            return base_damage;
+        }
+        let Some(school_mask) = self.represented_spell_school_mask_like_cpp(spell_id) else {
+            return base_damage;
+        };
+        let Some(benefit) = self.represented_spell_base_damage_bonus_done_like_cpp(school_mask)
+        else {
+            return base_damage;
+        };
+        let done_total = (benefit as f32 * coefficient) as i32;
+        let damage = i64::from(base_damage) + i64::from(done_total);
+        u32::try_from(damage.max(0)).unwrap_or(u32::MAX)
+    }
+
+    /// C++ `SpellInfo::GetSchoolMask()` as loaded from the spell's
+    /// `SpellMisc.SchoolMask`; `None` when the store or row is absent.
+    fn represented_spell_school_mask_like_cpp(&self, spell_id: i32) -> Option<u8> {
+        let spell_id = u32::try_from(spell_id).ok()?;
+        let entry = self
+            .spell_catalogs
+            .spell_misc_store()?
+            .get_by_spell_id(spell_id)?;
+        (entry.school_mask != 0).then_some(entry.school_mask)
+    }
+
+    /// C++ `Unit::SpellBaseDamageBonusDone` (`Unit.cpp:6860-6890`): the
+    /// `SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT` short circuit, otherwise
+    /// `GetTotalAuraModifierByMiscMask(SPELL_AURA_MOD_DAMAGE_DONE, schoolMask)`
+    /// plus `GetBaseSpellPowerBonus()` plus the
+    /// `SPELL_AURA_MOD_SPELL_DAMAGE_OF_STAT_PERCENT` terms.
+    fn represented_spell_base_damage_bonus_done_like_cpp(&self, school_mask: u8) -> Option<i32> {
+        let snapshot = self.canonical_player_effective_combat_stats_like_cpp()?;
+        let mask = i32::from(school_mask);
+        if snapshot.override_spell_power_by_ap_percent > 0.0 {
+            let total_attack_power = snapshot
+                .attack_power
+                .saturating_add(snapshot.attack_power_mod_pos)
+                .max(0) as f32
+                * (1.0 + snapshot.attack_power_multiplier);
+            return Some(
+                (total_attack_power * snapshot.override_spell_power_by_ap_percent / 100.0 + 0.5)
+                    as i32,
+            );
+        }
+        let mut benefit = self
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE,
+            )
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|(misc_value, _)| misc_value & mask != 0)
+            .map(|(_, amount)| amount)
+            .sum::<i32>()
+            .saturating_add(snapshot.spell_power);
+        for (aura_mask, stat_index, amount) in self
+            .resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_SPELL_DAMAGE_OF_STAT_PERCENT,
+            )
+            .unwrap_or_default()
+        {
+            if aura_mask & mask == 0 {
+                continue;
+            }
+            if let Some(stat) = usize::try_from(stat_index)
+                .ok()
+                .and_then(|index| snapshot.stats.get(index))
+            {
+                benefit = benefit.saturating_add((*stat as f32 * amount as f32 / 100.0) as i32);
+            }
+        }
+        Some(benefit)
+    }
+
     pub(in crate::session) async fn apply_damage_from_caster_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
