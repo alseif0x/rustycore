@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`316b10b201c8d8df67224c48ff3b9f787e37dbd2` (PR #1117, the #29
-player-victim melee damage-taken chain, following PR #1115, the #29
+`3d6d79584c0d9c97b1a920ac918986225909c299` (PR #1119, the #29
+creature-victim melee mitigation, following PR #1117, the #29
+player-victim melee damage-taken chain, PR #1115, the #29
 creature-to-player armour mitigation, PR #1113, the #29
 creature-to-player dodge/parry/crit bands, PR #1111, the #29
 creature-to-player melee miss band, PR #1109, the #29
@@ -28,6 +29,37 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 creature-victim melee mitigation — 2026-09-17, implementation `3800be67`,
+integrated as `3d6d7958` by PR #1119:** C++ `Unit::CalculateMeleeDamage`
+(`Unit.cpp:1326-1343`) runs the victim's `MeleeDamageBonusTaken` and
+`CalcArmorReducedDamage` before the outcome switch for every attacker, but the
+represented creature tick applied `roll_damage()` unmitigated when the victim
+was another creature (including player pets), so pet and creature-vs-creature
+damage ignored the victim's armour entirely. The creature-victim branch of the
+map-owned creature melee tick now resolves the victim creature's canonical level
+and `combat_log_stats_like_cpp().armor`, its applied-aura
+`MeleeDamageBonusTaken` chain, and the attacker's normal-school
+`SPELL_AURA_MOD_TARGET_RESISTANCE`/`SPELL_AURA_MOD_IGNORE_TARGET_RESIST` sums,
+then applies the shared taken and armour arithmetic before the compatibility
+bridge commits the health change; `SPELL_AURA_BYPASS_ARMOR_FOR_CASTER` stays
+zero on this branch because a creature victim's bypass aura has no represented
+producer, and the branch's outcome table and packet presentation are unchanged.
+Evidence: the production runtime scenario drives a level-80 creature attacker
+against a 5,000-armour level-80 creature victim, asserting the committed health
+drops by 8, then 12 once the victim carries a `+5` flat
+`SPELL_AURA_MOD_MELEE_DAMAGE_TAKEN` aura, then 15 once the attacker's
+normal-school `-5,000` `SPELL_AURA_MOD_TARGET_RESISTANCE` cancels the armour.
+wow-world 3989/0/1, wow-data 753/0, wow-packet 744/0, wow-entities 940/0 and
+world-server 594/0/0 pass; format, `git diff --check` and the physical ratchet
+pass without new ceiling growth, and `validation-v2 quick` (manifest
+`20260917T183231.918763Z-3109908-quick.json`) passes.
+`session/tests/scenarios_world_entities_28.rs` reaches 1,977 of the 2,000-line
+test budget, so the next melee scenario there must split the file first.
+Boundaries: the creature-victim outcome table and its packet presentation, the
+creature attacker's `MeleeDamageBonusDone`, the player-victim block band and the
+target build's negative crushing term remain unrepresented. No live
+DB/restart/relogin QA. #29 remains open for the remaining spell/melee math.
 
 **#29 player-victim melee damage-taken chain — 2026-09-17, implementation
 `908a6927`, integrated as `316b10b2` by PR #1117:** C++

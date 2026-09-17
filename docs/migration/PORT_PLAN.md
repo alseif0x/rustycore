@@ -33,6 +33,18 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 creature-victim melee mitigation — 2026-09-17, implementation
+`3800be67`:** a creature swing whose victim is another creature now resolves the
+victim's canonical armour, applied-aura taken chain and the attacker's
+normal-school target-resistance/ignore-resist sums before the compatibility
+bridge commits health (pet and creature-vs-creature melee was previously
+unmitigated); the runtime scenario drives 8 → 12 → 15 across the armour, flat
+taken and cancelled-armour stages. wow-world 3989/0/1, wow-data 753/0,
+wow-packet 744/0, wow-entities 940/0, world-server 594/0/0; the creature-victim
+outcome table/presentation remains the bridge's, and
+`scenarios_world_entities_28.rs` must split before the next melee scenario; no
+live DB/restart/relogin QA.
+
 **#29 player-victim melee damage-taken chain — 2026-09-17, implementation
 `908a6927`:** a creature swing now runs the player victim's
 `MeleeDamageBonusTaken` before armour — flat `MOD_MELEE_DAMAGE_TAKEN`,
