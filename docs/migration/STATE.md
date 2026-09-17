@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`08e27329247a3d613a8966c2ada63c201070982a` (PR #1087, the #29 melee attack
-table, following PR #1085, the #29 white-swing armour
+`ede81837fb66cedef3c764fa9b05a2374e404eb5` (PR #1089, the #29 melee block band,
+following PR #1087, the #29 melee attack
+table, PR #1085, the #29 white-swing armour
 mitigation, PR #1083, the #29 white-swing
 damage roll, PR #1081, the #65 GameObject
 respawn-save test fidelity fix, PR #1079, the #61 victim
@@ -13,6 +14,40 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 melee block band — 2026-09-17, implementation `91c3df70`, integrated as
+`ede81837` by PR #1089:** C++ `Unit::CalculateMeleeDamage`'s `MELEE_HIT_BLOCK`
+branch (`Unit.cpp:1399-1407`) keeps `VICTIMSTATE_HIT`, sets `HITINFO_BLOCK`,
+subtracts `CalculatePct(damage, GetBlockPercent(attackerLevel))` and doubles the
+blocked amount when the block is critical; `AttackerStateUpdate::Write`
+(`CombatLogPackets.cpp:373-397`) then appends the blocked amount and the trailing
+`float Unk`. The represented table skipped the band because neither wire field
+was ported. `session_rules/rules_4.rs` now rolls `MELEE_HIT_BLOCK` between
+GLANCING and CRIT from the victim's `GetUnitBlockChance` base plus the
+victim-level bonus (no expertise reduction, exactly like C++), and the outcome
+switch returns `(damage, blocked)` with `CalculatePct(damage, 30)` for the flat
+creature block percent (`Unit.h:947`); `wow-packet` gained `blocked: i32` on
+`AttackerStateUpdate`, the conditional `int32(blocked)`/`float(Unk)` write and
+`HIT_INFO_BLOCK`; and `RepresentedMeleeSwingLikeCpp`, the mailbox DTO and the
+`PlayerMeleeCreatureHitLikeCpp` presentation vector carry the blocked amount to
+the publishing session in both owners. Boundary: `IsBlockCritical`'s victim aura
+sum and `Player::GetBlockPercent`'s shield-block formula have no represented
+producer, so the flat 30% creature block stays. Evidence: the band-edge test
+covers the block boundaries, the damage switch pins `(70, 30)` and `(5, 2)`, the
+presentation pins `HITINFO_BLOCK | HITINFO_AFFECTS_VICTIM` with
+`VICTIMSTATE_HIT`, the packet byte test parses the blocked amount and the
+trailing float, and the new `white_swing_publishes_a_block_like_cpp` (session
+owner) and `map_owned_player_melee_publishes_a_block_like_cpp` (production
+map-owned tick) force a 100% block band and hold the 70/30 split plus the
+creature's health loss. wow-packet 744/0, wow-data 753/0, wow-entities 940/0,
+wow-world 3974/0/1 (three consecutive runs) and world-server 594/0/0 pass;
+format, `git diff --check` and the physical ratchet pass (three recorded ceiling
+growths of 1-2 lines), and `validation-v2 quick` (manifest
+`20260917T141411.755780Z-2873193-quick.json`) passes. `validation-v2 final` stops
+only at the pre-existing `hotspot-ratchet` baseline failure (manifest
+`20260917T141516.534662Z-2873575-final.json`). No live DB/restart/relogin QA. #29
+remains open for the `MeleeDamageBonusTaken` victim chain and the remaining
+spell/melee math.
 
 **#29 melee attack table — 2026-09-17, implementation `e478a2b7`, integrated as
 `08e27329` by PR #1087:** C++ `Unit::CalculateMeleeDamage`
@@ -41,9 +76,10 @@ publishing session. `wow-packet` gained the correctly named 3.4.3 constants
 `HIT_INFO_CRITICAL_HIT`, `HIT_INFO_GLANCING`, `VICTIM_STATE_INTACT`,
 `VICTIM_STATE_DODGE`, `VICTIM_STATE_PARRY`), replacing the misnamed
 `HIT_INFO_NORMAL_SWING` (`C++ HITINFO_NORMALSWING` is zero) and the stale
-`victim_state` doc. Boundaries: the block band stays out of the roll because the
-represented `AttackerStateUpdate` does not port the conditional
-`blocked`/`unk` fields C++ appends for `HITINFO_BLOCK`; victim
+`victim_state` doc. Boundaries: the block band stayed out of the roll because the
+represented `AttackerStateUpdate` did not yet port the conditional
+`blocked`/`unk` fields C++ appends for `HITINFO_BLOCK` (delivered by the entry
+above); victim
 `MOD_DODGE_PERCENT`/`MOD_PARRY_PERCENT` auras,
 `CREATURE_FLAG_EXTRA_NO_CRUSHING_BLOWS`, the critical-damage-bonus aura and the
 casting/control avoidance gate have no represented producer; a canonical-player
@@ -68,8 +104,8 @@ ceiling growths; the melee-math tests live in the bounded
 `20260917T135143.177788Z-2830540-quick.json`) passes. `validation-v2 final` stops
 only at the pre-existing `hotspot-ratchet` baseline failure (manifest
 `20260917T135303.990925Z-2831019-final.json`). No live DB/restart/relogin QA. #29
-remains open for the block band and its packet fields, the
-`MeleeDamageBonusTaken` victim chain and the remaining spell/melee math.
+remains open for the `MeleeDamageBonusTaken` victim chain and the remaining
+spell/melee math.
 
 **#29 white-swing armour mitigation — 2026-09-17, implementation `a739c8a4`,
 integrated as `9cc0ea20` by PR #1085:** C++ `Unit::CalculateMeleeDamage`

@@ -33,6 +33,15 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 melee block band — 2026-09-17, implementation `91c3df70`:** the attack
+table now includes `MELEE_HIT_BLOCK` between glancing and crit, subtracts
+`CalculatePct(damage, 30)` for the creature block and publishes `HITINFO_BLOCK`
+with the blocked amount and the trailing float in `AttackerStateUpdate`, in both
+owners. `IsBlockCritical`'s victim aura sum and the player shield-block formula
+stay unrepresented, and the `MeleeDamageBonusTaken` victim chain remains open.
+wow-packet 744/0, wow-world 3974/0/1, world-server 594/0/0; no live
+DB/restart/relogin QA.
+
 **#29 melee attack table — 2026-09-17, implementation `e478a2b7`:** white swings
 now roll `Unit::RollMeleeOutcomeAgainst` (`MISS > DODGE > PARRY > GLANCING > CRIT >
 HIT`, C++ 1/10000 bands), apply the outcome damage switch and publish the real
