@@ -440,6 +440,172 @@ fn can_add_item_appearance_uses_learned_weapon_proficiency_like_cpp() {
 }
 
 #[test]
+fn can_add_item_appearance_applies_can_use_item_template_gates_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 91);
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "TransmogCanUseItemTester".to_string(),
+        Position::new(0.0, 0.0, 0.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    let appearances: Vec<ItemModifiedAppearanceEntry> = (0..7)
+        .map(|index: i32| ItemModifiedAppearanceEntry {
+            id: (65 + index) as u32,
+            item_id: 777 + index,
+            item_appearance_modifier_id: 0,
+            item_appearance_id: 9_000 + index,
+            order_index: 0,
+            transmog_source_type_enum: 0,
+        })
+        .collect();
+    session.set_item_modified_appearance_store(Arc::new(
+        ItemModifiedAppearanceStore::from_entries(appearances),
+    ));
+    install_transmog_can_add_test_items(
+        &mut session,
+        [
+            (
+                777,
+                ItemClass::Weapon,
+                ItemSubClassWeapon::Sword as u8,
+                InventoryType::Weapon,
+                ItemQuality::Uncommon,
+                [0, 0, 0, 0],
+                0,
+            ),
+            (
+                778,
+                ItemClass::Weapon,
+                ItemSubClassWeapon::Sword as u8,
+                InventoryType::Weapon,
+                ItemQuality::Uncommon,
+                [0, ItemFlags2::InternalItem as u32, 0, 0],
+                0,
+            ),
+            (
+                779,
+                ItemClass::Weapon,
+                ItemSubClassWeapon::Sword as u8,
+                InventoryType::Weapon,
+                ItemQuality::Uncommon,
+                [0, ItemFlags2::FactionHorde as u32, 0, 0],
+                0,
+            ),
+            (
+                780,
+                ItemClass::Weapon,
+                ItemSubClassWeapon::Sword as u8,
+                InventoryType::Weapon,
+                ItemQuality::Uncommon,
+                [0, 0, 0, 0],
+                0,
+            ),
+            (
+                781,
+                ItemClass::Weapon,
+                ItemSubClassWeapon::Sword as u8,
+                InventoryType::Weapon,
+                ItemQuality::Uncommon,
+                [0, 0, 0, 0],
+                0,
+            ),
+            (
+                782,
+                ItemClass::Weapon,
+                ItemSubClassWeapon::Sword as u8,
+                InventoryType::Weapon,
+                ItemQuality::Uncommon,
+                [0, 0, 0, 0],
+                0,
+            ),
+            (
+                783,
+                ItemClass::Weapon,
+                ItemSubClassWeapon::Sword as u8,
+                InventoryType::Weapon,
+                ItemQuality::Uncommon,
+                [0, 0, 0, 0],
+                0,
+            ),
+        ],
+    );
+    // C++ `Player::CanUseItem(ItemTemplate const*)` (`Player.cpp:11069-11125`)
+    // reads the search-name requirement columns for the level, ability and race
+    // gates.
+    session.set_item_search_name_store(Arc::new(ItemSearchNameStore::from_entries(
+        [
+            (777, 0, 0, 0),
+            (778, 0, 0, 0),
+            (779, 0, 0, 0),
+            (780, 81, 0, 0),
+            (781, 0, 12_345, 0),
+            (782, 0, 54_321, 0),
+            (783, 0, 0, 1 << 1),
+        ]
+        .into_iter()
+        .map(
+            |(item_id, required_level, required_ability, allowable_race)| ItemSearchNameEntry {
+                id: item_id,
+                allowable_race,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Uncommon as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability,
+                item_level: 1,
+                flags: [0; 4],
+            },
+        ),
+    )));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    grant_learned_weapon_proficiency_like_cpp(
+        &mut session,
+        1 << (ItemSubClassWeapon::Sword as u32),
+    );
+    session.set_known_spells_like_cpp(vec![12_345]);
+
+    assert!(
+        session.can_add_item_appearance_represented_like_cpp(65),
+        "a plain usable weapon appearance is collectable"
+    );
+    assert!(
+        !session.can_add_item_appearance_represented_like_cpp(66),
+        "ITEM_FLAG2_INTERNAL_ITEM is rejected"
+    );
+    assert!(
+        !session.can_add_item_appearance_represented_like_cpp(67),
+        "an opposite-faction item is rejected"
+    );
+    assert!(
+        !session.can_add_item_appearance_represented_like_cpp(68),
+        "an item above the player level is rejected"
+    );
+    assert!(
+        session.can_add_item_appearance_represented_like_cpp(69),
+        "a known required ability passes"
+    );
+    assert!(
+        !session.can_add_item_appearance_represented_like_cpp(70),
+        "an unknown required ability is rejected"
+    );
+    assert!(
+        !session.can_add_item_appearance_represented_like_cpp(71),
+        "an item restricted to another race is rejected"
+    );
+}
+
+#[test]
 fn can_add_item_appearance_represented_applies_cpp_gates() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 79);

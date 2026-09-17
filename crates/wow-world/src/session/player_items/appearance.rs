@@ -208,15 +208,14 @@ impl WorldSession {
         let Ok(item_id) = u32::try_from(item_modified_appearance.item_id) else {
             return false;
         };
-        if self
+        let Some(search_template) = self
             .items
             .search_name_store
             .as_ref()
             .and_then(|store| store.get(item_id))
-            .is_none()
-        {
+        else {
             return false;
-        }
+        };
 
         let Some(item_record) = self
             .items
@@ -238,6 +237,62 @@ impl WorldSession {
             return false;
         };
         if self.player_guid().is_none() {
+            return false;
+        }
+
+        // C++ `CollectionMgr::CanAddAppearance` first runs
+        // `Player::CanUseItem(ItemTemplate const*)` (`Player.cpp:11069-11125`).
+        // The represented template gates are the internal/faction flags, the
+        // allowable class/race masks and the required skill, spell and level
+        // checks; the holiday, reputation, learning-effect and artifact
+        // specialization gates remain separate slices.
+        let use_flags2 = sparse_template.flags[1];
+        if (use_flags2 & ItemFlags2::InternalItem as u32) != 0 {
+            return false;
+        }
+        let player_team = player_team_id_for_race_cpp(self.player_race_like_cpp());
+        if (use_flags2 & ItemFlags2::FactionHorde as u32) != 0
+            && player_team != wow_entities::TEAM_HORDE_ID
+        {
+            return false;
+        }
+        if (use_flags2 & ItemFlags2::FactionAlliance as u32) != 0
+            && player_team != wow_entities::TEAM_ALLIANCE_ID
+        {
+            return false;
+        }
+        let player_race_mask = self
+            .player_race_like_cpp()
+            .checked_sub(1)
+            .and_then(|shift| 1i64.checked_shl(u32::from(shift)))
+            .unwrap_or(0);
+        if search_template.allowable_race != 0
+            && (search_template.allowable_race & player_race_mask) == 0
+        {
+            return false;
+        }
+        if search_template.required_level > 0
+            && self.player_level_like_cpp()
+                < u8::try_from(search_template.required_level).unwrap_or(u8::MAX)
+        {
+            return false;
+        }
+        if search_template.required_skill != 0 {
+            let Some(skill_value) = u16::try_from(search_template.required_skill)
+                .ok()
+                .and_then(|skill| self.resolved_player_skill_value_like_cpp(skill))
+            else {
+                return false;
+            };
+            if u32::from(skill_value) < u32::from(search_template.required_skill_rank) {
+                return false;
+            }
+        }
+        if search_template.required_ability != 0
+            && !i32::try_from(search_template.required_ability)
+                .ok()
+                .is_some_and(|spell_id| self.known_spells_like_cpp().contains(&spell_id))
+        {
             return false;
         }
 
