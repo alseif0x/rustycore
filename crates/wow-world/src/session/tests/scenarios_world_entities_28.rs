@@ -1327,6 +1327,31 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
             },
         );
     }
+    spell_store.insert(
+        91_223,
+        wow_data::SpellInfo {
+            spell_id: 91_223,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY),
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_aura: wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY,
+                // `MiscValue` is the school mask: the normal school.
+                effect_misc_value_1: 0x01,
+                effect_base_points: 0,
+                ..Default::default()
+            }],
+        },
+    );
     let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
         spell_store: Some(Arc::new(spell_store)),
         ..Default::default()
@@ -1604,4 +1629,23 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
                 == wow_constants::ServerOpcodes::AttackerStateUpdate as u16
     }));
     assert_eq!(wire_hit_info(&outcome), HIT_INFO_MISS);
+
+    // C++ `IsImmunedToDamage(SPELL_SCHOOL_MASK_NORMAL)` ends the swing before
+    // every band (`Unit.cpp:1315-1324`), so a normal-school immunity aura on the
+    // victim commits nothing and publishes the zero `HITINFO_NORMALSWING` with
+    // `VICTIMSTATE_IS_IMMUNE`.
+    apply_victim_aura(&canonical, 91_223_u32);
+    let before = victim_health(&canonical);
+    let outcome = tick(&mut session);
+    assert_eq!(outcome.melee_outcomes_unrepresented, 0);
+    assert_eq!(
+        outcome.canonical_creature_hits, 0,
+        "an immune swing commits no hit"
+    );
+    assert_eq!(victim_health(&canonical), before);
+    assert_eq!(wire_hit_info(&outcome), 0, "HITINFO_NORMALSWING is 0x0");
+    assert_eq!(
+        wire_victim_state(&outcome),
+        wow_packet::packets::combat::VICTIM_STATE_IS_IMMUNE
+    );
 }
