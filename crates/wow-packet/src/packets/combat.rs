@@ -193,6 +193,8 @@ pub const HIT_INFO_MISS: u32 = 0x0000_0010;
 pub const HIT_INFO_CRITICAL_HIT: u32 = 0x0000_0200;
 /// C++ `HITINFO_GLANCING`.
 pub const HIT_INFO_GLANCING: u32 = 0x0001_0000;
+/// C++ `HITINFO_SWINGNOHITSOUND`, set with a miss when the victim evades.
+pub const HIT_INFO_SWING_NO_HIT_SOUND: u32 = 0x0020_0000;
 /// C++ `HITINFO_BLOCK`: the packet then carries `blocked` and the trailing
 /// `float Unk` C++ writes for `HITINFO_BLOCK | HITINFO_UNK12`.
 pub const HIT_INFO_BLOCK: u32 = 0x0000_2000;
@@ -207,6 +209,8 @@ pub const VICTIM_STATE_HIT: u8 = 1;
 pub const VICTIM_STATE_DODGE: u8 = 2;
 /// C++ `VICTIMSTATE_PARRY`.
 pub const VICTIM_STATE_PARRY: u8 = 3;
+/// C++ `VICTIMSTATE_EVADES`.
+pub const VICTIM_STATE_EVADES: u8 = 6;
 
 impl ServerPacket for AttackerStateUpdate {
     const OPCODE: ServerOpcodes = ServerOpcodes::AttackerStateUpdate;
