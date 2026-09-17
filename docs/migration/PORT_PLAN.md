@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 caster spell-power damage bonus — 2026-09-17, implementation `067a6f91`:**
+`SpellDamageBonusDone`'s player-caster flat term now scales
+`SPELL_EFFECT_SCHOOL_DAMAGE` by `SpellBaseDamageBonusDone(schoolMask) *
+BonusCoefficient` (`Unit.cpp:6623-6680`, `6860-6890`), with the school mask read
+from the existing `SpellMiscStore`. `SpellDamagePctDone` and per-effect
+coefficients remain open. wow-data --lib 752/0, wow-world --lib 3931/0/1; no live
+DB/restart/relogin QA.
+
 **#61 weapon-enchantment damage term — 2026-09-17, implementation `54c1f8ec`:**
 `SpellItemEnchantment::EffectScalingPoints` is now loaded and
 `ITEM_ENCHANTMENT_TYPE_DAMAGE`/`TOTEM` (`Player.cpp:4991-5015`) feed the
