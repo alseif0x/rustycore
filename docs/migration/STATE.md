@@ -8,6 +8,32 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**Collection appearance weapon-proficiency gate — 2026-09-17, implementation
+`4ba42678`:** the represented `CollectionMgr::CanAddAppearance`
+(`CollectionMgr.cpp:649-726`) now reads the learned `Player::GetWeaponProficiency`
+mask (`Player.h:1432`) instead of the class default
+`SetProficiency::default_weapons`, matching the C++ `ITEM_CLASS_WEAPON` branch and
+the `!item || !GetPlayer()` guards. `Player::weapon_proficiency_like_cpp` and
+`represented_player_weapon_proficiency_like_cpp` are the new read path; the
+collection scenarios install the canonical Player that `_owner->GetPlayer()`
+requires, seed the mask through the new `grant_learned_weapon_proficiency_like_cpp`
+fixture, and drive the already-collected case through the canonical collection
+state. A new scenario proves the mask decides admission: a warrior with only Mace
+learned collects a mace appearance and is rejected for a sword even though the
+warrior class default includes swords. The physical policy records the reviewed
+`session_tests.rs` fixture delta (5762→5766). Focused coverage:
+`scenarios_player_items_5` (14), `scenarios_player_items_6` (13), `transmog`
+(15), `collection` (27) and `heirloom` (9) stay green; format, `git diff --check`,
+the physical ratchet and `validation-v2 quick` (manifest
+`20260917T011753.474734Z-2137458-quick.json`, 69.7 s) pass. This is the
+collection/transmog vertical, not the F1 equipment-stat vertical of #61; the
+armor-proficiency half of `CanUseItem`, the broader `CanUseItem` class/race/level
+gates and the `ItemSpecStats` fallback remain separate gates. The full
+`wow-world --lib` suite stays unusable on this host because several unrelated
+pre-existing async tests hang, and `validation-v2 final` stops at the
+pre-existing runtime hotspot LOC ratchet, which keeps its drift and was not
+regenerated. No live DB/restart/relogin QA.
+
 **#61 attack power aura producers — 2026-09-17, implementation `408725a5`, integrated as `9c7d8ff8` by PR #993:** the
 attack power route now runs C++ `Player::UpdateAttackPowerAndDamage`
 (`StatSystem.cpp:333-403`): `SPELL_AURA_MOD_ATTACK_POWER` (99) and
