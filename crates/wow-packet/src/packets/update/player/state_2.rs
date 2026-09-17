@@ -643,8 +643,8 @@ impl PlayerCreateData {
         buf.write_float(0.0);
 
         // OverrideSpellPowerByAPPercent, OverrideAPBySpellPowerPercent
-        buf.write_float(-1.0);
-        buf.write_float(-1.0);
+        buf.write_float(self.override_spell_power_by_ap_percent);
+        buf.write_float(self.override_ap_by_spell_power_percent);
 
         // ModTargetResistance, ModTargetPhysicalResistance
         buf.write_int32(self.mod_target_resistance);

@@ -683,6 +683,8 @@ impl WorldSession {
             mod_healing_done_percent: projection.mod_healing_done_percent,
             mod_target_resistance: projection.mod_target_resistance,
             mod_target_physical_resistance: projection.mod_target_physical_resistance,
+            override_spell_power_by_ap_percent: projection.override_spell_power_by_ap_percent,
+            override_ap_by_spell_power_percent: projection.override_ap_by_spell_power_percent,
             mana_regen: mana_regen_from_spirit + mana_regen_mp5,
             mana_regen_combat,
             health_regen: gear.health_regen_bonus,

@@ -274,6 +274,14 @@ pub struct PlayerStatSystemProjectionLikeCpp {
     pub mod_target_resistance: i32,
     /// C++ `ActivePlayerData::ModTargetPhysicalResistance`.
     pub mod_target_physical_resistance: i32,
+    /// C++ `ActivePlayerData::OverrideSpellPowerByAPPercent` (bit 65): the
+    /// accumulated `SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT` amount, `0.0`
+    /// when no such effect is active.
+    pub override_spell_power_by_ap_percent: f32,
+    /// C++ `ActivePlayerData::OverrideAPBySpellPowerPercent` (bit 66): the
+    /// accumulated `SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT` amount, `0.0`
+    /// when no such effect is active.
+    pub override_ap_by_spell_power_percent: f32,
 }
 
 /// C++ `Unit::CalculateMinMaxDamage` for the represented player weapon
@@ -602,6 +610,10 @@ pub fn calculate_player_stat_system_like_cpp(
             .target_resistance_aura
             .saturating_sub(input.spell_bonus.item_spell_penetration),
         mod_target_physical_resistance: input.spell_bonus.target_physical_resistance_aura,
+        override_spell_power_by_ap_percent: input.spell_bonus.override_spell_power_by_ap_pct,
+        override_ap_by_spell_power_percent: input
+            .attack_power_override_by_spell_power_pct
+            .unwrap_or(0.0),
     }
 }
 
@@ -1496,6 +1508,8 @@ mod tests {
         assert_eq!(projection.mod_healing_done_percent, 2.0);
         assert_eq!(projection.mod_target_resistance, 5);
         assert_eq!(projection.mod_target_physical_resistance, 30);
+        assert_eq!(projection.override_spell_power_by_ap_percent, 0.0);
+        assert_eq!(projection.override_ap_by_spell_power_percent, 0.0);
 
         // `SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT` replaces both bonuses with
         // `int32(CalculatePct(GetTotalAttackPowerValue(BASE_ATTACK), pct) + 0.5)`:
@@ -1511,5 +1525,6 @@ mod tests {
         assert_eq!(overridden.mod_damage_done_pos[1], 240);
         assert_eq!(overridden.mod_damage_done_pos[2], 290);
         assert_eq!(overridden.mod_healing_done_pos, 240);
+        assert_eq!(overridden.override_spell_power_by_ap_percent, 50.0);
     }
 }

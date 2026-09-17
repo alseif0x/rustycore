@@ -60,6 +60,8 @@ fn active_player_stats_values_update_matches_cpp_common_runtime_masks() {
         mod_healing_done_pct: 1.5,
         mod_target_resistance: 5,
         mod_target_physical_resistance: 30,
+        override_spell_power_by_ap_percent: 25.0,
+        override_ap_by_spell_power_percent: 50.0,
         mod_periodic_healing_pct: 1.0,
         mod_spell_power_pct: 1.0,
     };
@@ -112,7 +114,19 @@ fn active_player_stats_values_update_matches_cpp_common_runtime_masks() {
         "ModHealingDonePercent must be the represented multiplier"
     );
 
-    // Parent-38 fields 27 and 28 (bits 67-68) are the target resistances.
+    // Parent-38 fields 25-28: the override percentages (bits 65-66) then the
+    // target resistances (bits 67-68).
+    for (index, expected) in [
+        (25usize, stats.override_spell_power_by_ap_percent),
+        (26usize, stats.override_ap_by_spell_power_percent),
+    ] {
+        let field_offset = values_start + 8 + index * 4;
+        assert_eq!(
+            f32::from_le_bytes(bytes[field_offset..field_offset + 4].try_into().unwrap()),
+            expected,
+            "parent-38 field {index}"
+        );
+    }
     for (index, expected) in [
         (27usize, stats.mod_target_resistance),
         (28usize, stats.mod_target_physical_resistance),

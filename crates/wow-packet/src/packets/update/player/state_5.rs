@@ -195,8 +195,8 @@ pub(in crate::packets::update) fn write_active_player_data_values_update(
         buf.write_float(sc.mod_periodic_healing_pct); // bit 62: ModPeriodicHealingDonePercent
         buf.write_float(sc.mod_spell_power_pct); // bit 63: ModSpellPowerPercent
         buf.write_float(0.0); // bit 64: ModResiliencePercent
-        buf.write_float(-1.0); // bit 65: OverrideSpellPowerByAPPercent
-        buf.write_float(-1.0); // bit 66: OverrideAPBySpellPowerPercent
+        buf.write_float(sc.override_spell_power_by_ap_percent); // bit 65: OverrideSpellPowerByAPPercent
+        buf.write_float(sc.override_ap_by_spell_power_percent); // bit 66: OverrideAPBySpellPowerPercent
         buf.write_int32(sc.mod_target_resistance); // bit 67: ModTargetResistance
         buf.write_int32(sc.mod_target_physical_resistance); // bit 68: ModTargetPhysicalResistance
         buf.write_uint32(0); // bit 69: LocalFlags
