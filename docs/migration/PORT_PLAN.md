@@ -33,6 +33,18 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 creature-to-player armour mitigation — 2026-09-17, implementation
+`fc8cadf8`:** the map-owned creature swing now mitigates through the player
+victim's published `GetArmor()` with the attacker's normal-school
+`MOD_TARGET_RESISTANCE`/`MOD_IGNORE_TARGET_RESIST` sums and the victim's
+`SPELL_AURA_BYPASS_ARMOR_FOR_CASTER` sum for the attacker's own effects
+(`CalculatePct(armor, 100 - min(sum, 100))` first, `Unit.cpp:1631-1637`); the
+runtime scenario drives 5,000 armour to 8 damage and two attacker-cast 50%
+bypass auras to the full 10. wow-world 3987/0/1, wow-data 753/0, wow-packet
+744/0, wow-entities 940/0, world-server 594/0/0; the player-victim
+bonus/taken chain and block band remain boundaries; no live DB/restart/relogin
+QA.
+
 **#29 creature-to-player dodge/parry/crit bands — 2026-09-17, implementation
 `8eb3420f`:** a player victim now resolves the published
 `DodgePercentage`/`ParryPercentage` bands (facing and controlled gates,
