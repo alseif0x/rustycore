@@ -403,51 +403,55 @@ fn melee_attack_table_outcome_effects_match_calculate_melee_damage_like_cpp() {
     };
 
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Evade, 100, 80, 80),
+        melee_outcome_damage_like_cpp(Outcome::Evade, 100, 80, 80, 1.0),
         (0, 0)
     );
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Miss, 100, 80, 80),
+        melee_outcome_damage_like_cpp(Outcome::Miss, 100, 80, 80, 1.0),
         (0, 0)
     );
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Dodge, 100, 80, 80),
+        melee_outcome_damage_like_cpp(Outcome::Dodge, 100, 80, 80, 1.0),
         (0, 0)
     );
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Parry, 100, 80, 80),
+        melee_outcome_damage_like_cpp(Outcome::Parry, 100, 80, 80, 1.0),
         (0, 0)
     );
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Hit, 100, 80, 80),
+        melee_outcome_damage_like_cpp(Outcome::Hit, 100, 80, 80, 1.0),
         (100, 0)
     );
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Crit, 100, 80, 80),
+        melee_outcome_damage_like_cpp(Outcome::Crit, 100, 80, 80, 1.0),
         (200, 0)
+    );
+    assert_eq!(
+        melee_outcome_damage_like_cpp(Outcome::Crit, 100, 80, 80, 2.0),
+        (400, 0)
     );
     // C++ `CalculatePct(damage, GetBlockPercent)` with the flat 30% creature
     // base (`Unit.h:947`).
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Block, 100, 80, 80),
+        melee_outcome_damage_like_cpp(Outcome::Block, 100, 80, 80, 1.0),
         (70, 30)
     );
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Block, 7, 80, 80),
+        melee_outcome_damage_like_cpp(Outcome::Block, 7, 80, 80, 1.0),
         (5, 2)
     );
     // C++ `leveldif = min(victimLevel - attackerLevel, 3)` then
     // `reducePercent = 1 - leveldif * 0.1`.
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Glancing, 100, 80, 81),
+        melee_outcome_damage_like_cpp(Outcome::Glancing, 100, 80, 81, 1.0),
         (90, 0)
     );
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Glancing, 100, 80, 84),
+        melee_outcome_damage_like_cpp(Outcome::Glancing, 100, 80, 84, 1.0),
         (70, 0)
     );
     assert_eq!(
-        melee_outcome_damage_like_cpp(Outcome::Glancing, 100, 80, 90),
+        melee_outcome_damage_like_cpp(Outcome::Glancing, 100, 80, 90, 1.0),
         (70, 0)
     );
 
@@ -508,6 +512,7 @@ fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
 
     let attacker = Attacker {
         level: 80,
+        crit_damage_multiplier: 1.0,
         dual_wielding: false,
         ignores_dual_wield_hit_penalty: false,
         melee_hit_chance_pct: 7.5,
@@ -1484,6 +1489,30 @@ fn white_swing_applies_victim_critical_chance_auras_like_cpp() {
             }],
         },
     );
+    spell_store.insert(
+        91_162,
+        wow_data::SpellInfo {
+            spell_id: 91_162,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_base_points: 100,
+            effect_bonus_coefficient: 0.0,
+            aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_DAMAGE_BONUS),
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_DAMAGE_BONUS,
+                effect_misc_value_1: 0x01,
+                effect_base_points: 100,
+                ..Default::default()
+            }],
+        },
+    );
     session.set_spell_store(Arc::new(spell_store));
 
     let apply = |session: &mut WorldSession, spell_id: u32, caster: ObjectGuid| {
@@ -1549,6 +1578,17 @@ fn white_swing_applies_victim_critical_chance_auras_like_cpp() {
         HIT_INFO_AFFECTS_VICTIM | HIT_INFO_CRITICAL_HIT
     );
     assert_eq!(swings[0].victim_state, VICTIM_STATE_HIT);
+
+    // C++ `SPELL_AURA_MOD_CRIT_DAMAGE_BONUS` scales the doubled damage.
+    session
+        .apply_aura(91_162, player, 30_000, 1)
+        .expect("apply crit-damage-bonus aura");
+    let swings = swing(&mut session).expect("white swing");
+    assert_eq!(swings[0].damage, 28);
+    assert_eq!(
+        swings[0].hit_info,
+        HIT_INFO_AFFECTS_VICTIM | HIT_INFO_CRITICAL_HIT
+    );
 }
 
 #[test]

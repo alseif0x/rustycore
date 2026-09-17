@@ -249,6 +249,16 @@ impl WorldSession {
         let attacker = AttackerFacts {
             level,
             dual_wielding,
+            crit_damage_multiplier: self
+                .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_DAMAGE_BONUS,
+                )
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|(misc_value, _)| misc_value & 0x01 != 0)
+                .fold(1.0_f32, |total, (_, amount)| {
+                    total * (1.0 + amount as f32 / 100.0)
+                }),
             ignores_dual_wield_hit_penalty: self
                 .resolved_aura_effects_by_spell_aura_type_like_cpp(
                     wow_data::spell::aura_types::SPELL_AURA_IGNORE_DUAL_WIELD_HIT_PENALTY,
