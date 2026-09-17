@@ -33,6 +33,16 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 creature-to-player dodge/parry/crit bands — 2026-09-17, implementation
+`8eb3420f`:** a player victim now resolves the published
+`DodgePercentage`/`ParryPercentage` bands (facing and controlled gates,
+attacker expertise and dodge reductions), the sitting-target critical and the
+full `GetUnitCriticalChanceAgainst` band, with the creature's `5.0` base critical
+minus `CREATURE_FLAG_EXTRA_NO_CRIT` and its crit auras; the runtime scenario
+drives a dodge, a parry and two crits. wow-world 3986/0/1, wow-packet 744/0,
+wow-entities 940/0, world-server 594/0/0; the block band and player-victim armour
+remain boundaries; no live DB/restart/relogin QA.
+
 **#29 creature-to-player melee miss band — 2026-09-17, implementation
 `51041a70`:** a creature swing against a player victim now rolls
 `MeleeSpellMissChance`'s flat 5.0 minus the attacker's `MOD_HIT_CHANCE` and the
