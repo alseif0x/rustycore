@@ -2961,6 +2961,7 @@ fn represented_player_stat_changes_like_cpp(
         }),
         mod_damage_done_neg: [0; 7],
         mod_healing_done_pos: state.spell_power_bonus,
+        mod_damage_done_percent: [1.0; 7],
         shield_block: i32::try_from(state.shield_block_value).unwrap_or(i32::MAX),
         ..Default::default()
     };

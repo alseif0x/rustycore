@@ -241,6 +241,33 @@ impl WorldSession {
             }
         }
 
+        // C++ `AuraEffect::HandleModDamagePercentDone`
+        // (`SpellAuraEffects.cpp:4525-4548`) sets `ModDamageDonePercent[i]` to
+        // `GetTotalAuraMultiplierByMiscMask(SPELL_AURA_MOD_DAMAGE_PERCENT_DONE,
+        // 1 << i)` for every school the handling effect intersects; a school
+        // with no such effect keeps the 1.0 create value.
+        let damage_percent_effects = self
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE,
+            )
+            .unwrap_or_default();
+        let mut damage_done_percent = [1.0_f32; 7];
+        for (school, percent) in damage_done_percent.iter_mut().enumerate() {
+            let mask = 1_i32 << school;
+            if !damage_percent_effects
+                .iter()
+                .any(|(misc_value, _)| misc_value & mask != 0)
+            {
+                continue;
+            }
+            *percent = damage_percent_effects
+                .iter()
+                .filter(|(misc_value, _)| misc_value & mask != 0)
+                .fold(1.0_f32, |acc, (_, amount)| {
+                    acc * (1.0 + *amount as f32 / 100.0)
+                });
+        }
+
         let override_effects = self
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT,
@@ -267,6 +294,7 @@ impl WorldSession {
             healing_done_flat,
             healing_of_stat_percent,
             override_spell_power_by_ap_pct,
+            damage_done_percent,
         }
     }
 
@@ -606,6 +634,7 @@ impl WorldSession {
             mod_damage_done_pos: projection.mod_damage_done_pos,
             mod_damage_done_neg: projection.mod_damage_done_neg,
             mod_healing_done_pos: projection.mod_healing_done_pos,
+            mod_damage_done_percent: projection.mod_damage_done_percent,
             mana_regen: mana_regen_from_spirit + mana_regen_mp5,
             mana_regen_combat,
             health_regen: gear.health_regen_bonus,

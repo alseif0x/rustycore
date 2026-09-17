@@ -66,6 +66,9 @@ pub struct PlayerEffectiveCombatStatsLikeCpp {
     pub mod_damage_done_neg: [i32; 7],
     /// C++ `ActivePlayerData::ModHealingDonePos`.
     pub mod_healing_done_pos: i32,
+    /// C++ `ActivePlayerData::ModDamageDonePercent[7]`
+    /// (`SpellAuraEffects.cpp:4525-4548`).
+    pub mod_damage_done_percent: [f32; 7],
     pub mana_regen: f32,
     pub mana_regen_combat: f32,
     pub mana_regen_mp5: f32,
@@ -118,6 +121,7 @@ impl Default for PlayerEffectiveCombatStatsLikeCpp {
             mod_damage_done_pos: [0; 7],
             mod_damage_done_neg: [0; 7],
             mod_healing_done_pos: 0,
+            mod_damage_done_percent: [1.0; 7],
             mana_regen: 0.0,
             mana_regen_combat: 0.0,
             mana_regen_mp5: 0.0,

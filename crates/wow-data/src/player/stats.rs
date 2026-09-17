@@ -84,7 +84,7 @@ impl PlayerLevelStats {
 /// C++ `Player::UpdateSpellDamageAndHealingBonus` inputs
 /// (`StatSystem.cpp:171-197`) built from `Unit::SpellBaseDamageBonusDone` and
 /// `Unit::SpellBaseHealingBonusDone` (`Unit.cpp:6860-6890`, `7282-7315`).
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PlayerSpellBonusInputLikeCpp {
     /// C++ `Player::GetBaseSpellPowerBonus()`: the item/enchant spell power
     /// `Player::ApplySpellPowerBonus` (`StatSystem.cpp:153-168`) accumulates.
@@ -106,6 +106,27 @@ pub struct PlayerSpellBonusInputLikeCpp {
     /// `ActivePlayerData::OverrideSpellPowerByAPPercent`; `> 0` replaces both
     /// bonuses with `CalculatePct(GetTotalAttackPowerValue(BASE_ATTACK), pct)`.
     pub override_spell_power_by_ap_pct: f32,
+    /// `ActivePlayerData::ModDamageDonePercent[7]` from
+    /// `AuraEffect::HandleModDamagePercentDone`
+    /// (`SpellAuraEffects.cpp:4525-4548`): the product of
+    /// `1 + amount/100` over the active `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE`
+    /// (79) effects intersecting each school, `1.0` when none does.
+    pub damage_done_percent: [f32; 7],
+}
+
+impl Default for PlayerSpellBonusInputLikeCpp {
+    fn default() -> Self {
+        Self {
+            base_spell_power: 0,
+            damage_done_flat: [0; 7],
+            damage_done_neg: [0; 7],
+            damage_of_stat_percent: [[0; 5]; 7],
+            healing_done_flat: 0,
+            healing_of_stat_percent: [0; 5],
+            override_spell_power_by_ap_pct: 0.0,
+            damage_done_percent: [1.0; 7],
+        }
+    }
 }
 
 /// Inputs currently represented by Rust for C++ `Player::UpdateAllStats`.
@@ -223,6 +244,9 @@ pub struct PlayerStatSystemProjectionLikeCpp {
     pub mod_damage_done_neg: [i32; 7],
     /// C++ `ActivePlayerData::ModHealingDonePos`.
     pub mod_healing_done_pos: i32,
+    /// C++ `ActivePlayerData::ModDamageDonePercent[7]`
+    /// (`SpellAuraEffects.cpp:4525-4548`).
+    pub mod_damage_done_percent: [f32; 7],
 }
 
 /// C++ `Unit::CalculateMinMaxDamage` for the represented player weapon
@@ -544,6 +568,7 @@ pub fn calculate_player_stat_system_like_cpp(
         mod_damage_done_pos,
         mod_damage_done_neg,
         mod_healing_done_pos,
+        mod_damage_done_percent: input.spell_bonus.damage_done_percent,
     }
 }
 
@@ -1409,6 +1434,8 @@ mod tests {
                 healing_done_flat: 40,
                 healing_of_stat_percent: [0; 5],
                 override_spell_power_by_ap_pct: 0.0,
+                // School 1 has (1 + 0.5) * (1 + 1.0) = 3.0, school 2 1.25.
+                damage_done_percent: [1.0, 3.0, 1.25, 1.0, 1.0, 1.0, 1.0],
             },
             rating_bonuses: [0.0; 32],
             can_parry: false,
@@ -1423,6 +1450,10 @@ mod tests {
         assert_eq!(projection.mod_damage_done_neg[2], -50);
         // Healing: 100 base + 40 aura + max(0, intellect 40).
         assert_eq!(projection.mod_healing_done_pos, 180);
+        assert_eq!(
+            projection.mod_damage_done_percent,
+            [1.0, 3.0, 1.25, 1.0, 1.0, 1.0, 1.0]
+        );
 
         // `SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT` replaces both bonuses with
         // `int32(CalculatePct(GetTotalAttackPowerValue(BASE_ATTACK), pct) + 0.5)`:

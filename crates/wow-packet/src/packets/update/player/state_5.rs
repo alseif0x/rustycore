@@ -28,6 +28,7 @@ use super::*;
 ///   Parent 38:           bits 39-69 (all 31 fields) → block 1 bits 6-31, block 2 bits 0-5
 ///   ModDamageDonePos[7]: parent=269, bits=277-283 → block 8 bits 13,21-27
 ///   ModDamageDoneNeg[7]: parent=269, bits=284-290 → block 8 bits 28-31, block 9 bits 0-2
+///   ModDamageDonePercent[7]: parent=269, bits=291-297 → block 9 bits 3-9
 ///   CombatRatings[32]:   parent=574, bits=575-606 → block 17 bits 30-31, block 18 bits 0-30
 ///
 /// C++ WriteUpdate order for these fields:
@@ -105,7 +106,8 @@ pub(in crate::packets::update) fn write_active_player_data_values_update(
         // parent=269→bit13, SpellCrit[0-6]=270-276→bits14-20,
         // ModDmgPos[0-6]=277-283→bits21-27, ModDmgNeg[0-6]=284-290→b8:28-31+b9:0-2
         blocks[8] |= (1 << 13) | (0x7F << 14) | (0x7F << 21) | (0xF << 28);
-        blocks[9] |= 0x7;
+        // ModDmgDonePct[0-6]=291-297 → block 9 bits 3-9
+        blocks[9] |= 0x7 | 0x3F8;
 
         // CombatRatings[32]: parent bit 574 (block 17 bit 30), CR[0] bit 575 (block 17 bit 31)
         blocks[17] |= (1 << 30) | (1 << 31);
@@ -208,11 +210,9 @@ pub(in crate::packets::update) fn write_active_player_data_values_update(
     }
 
     // Parent 269 section: SpellCritPercentage[7] + ModDamageDonePos[7] +
-    // ModDamageDoneNeg[7]. C++ interleaves
-    // SpellCritPct/ModDmgDonePos/ModDmgDoneNeg/ModDmgDonePct per school; the
-    // SpellCritPct (270-276), ModDmgDonePos (277-283) and ModDmgDoneNeg
-    // (284-290) bits are set, while ModDamageDonePercent (291-297) stays
-    // outside this runtime writer.
+    // ModDamageDoneNeg[7] + ModDamageDonePercent[7]. C++ interleaves
+    // SpellCritPct/ModDmgDonePos/ModDmgDoneNeg/ModDmgDonePct per school and
+    // sets all four bit groups (270-276, 277-283, 284-290, 291-297).
     if let Some(sc) = stat_changes {
         for i in 0..7 {
             buf.write_float(sc.spell_crit_pct[i]); // SpellCritPercentage[i]
@@ -220,6 +220,7 @@ pub(in crate::packets::update) fn write_active_player_data_values_update(
             // zero create value.
             buf.write_int32(sc.mod_damage_done_pos[i]); // Magic schools 1-6
             buf.write_int32(sc.mod_damage_done_neg[i]); // Magic schools 1-6
+            buf.write_float(sc.mod_damage_done_percent[i]); // Magic schools 1-6
         }
     }
 

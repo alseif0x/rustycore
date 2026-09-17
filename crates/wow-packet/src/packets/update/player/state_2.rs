@@ -592,7 +592,7 @@ impl PlayerCreateData {
             buf.write_float(self.spell_crit_pct[school]); // SpellCritPercentage per school
             buf.write_int32(self.mod_damage_done_pos[school]); // ModDamageDonePos
             buf.write_int32(self.mod_damage_done_neg[school]); // ModDamageDoneNeg
-            buf.write_float(1.0); // ModDamageDonePercent
+            buf.write_float(self.mod_damage_done_percent[school]); // ModDamageDonePercent
         }
 
         // ShieldBlock, ShieldBlockCritPercentage
