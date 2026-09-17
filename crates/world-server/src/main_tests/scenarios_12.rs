@@ -832,7 +832,7 @@ fn creature_melee_damage_delivery_routes_only_to_victim_like_cpp() {
             victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
             original_damage: 17,
             absorbed: 0,
-            exhausted_absorb_slots: Vec::new(),
+            absorb_consumptions: Vec::new(),
         },
     ];
     let summary = deliver_creature_melee_damage_commands_like_cpp(&commands, &registry);

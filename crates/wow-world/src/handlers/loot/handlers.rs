@@ -1662,14 +1662,14 @@ impl WorldSession {
         // the lethal damage is applied, before the melee result presentation.
         self.publish_creature_melee_death_durability_loss_like_cpp(command.over_damage);
 
-        // C++ `Unit::CalcAbsorbResist` removes a shield it spent to zero while
-        // the swing is calculated (`Unit.cpp:1856-1860`), before the
-        // attacker-state packet. The map owned the absorb arithmetic and the
-        // session owns the aura transition, so the removal (with its
-        // publication and side effects) happens here, in the same order.
-        for slot in command.exhausted_absorb_slots.clone() {
-            let _ = self.remove_aura(slot);
-        }
+        // C++ `Unit::CalcAbsorbResist`'s per-shield absorb log and exhausted-aura
+        // removal (`Unit.cpp:1876-1889`), before the attacker-state packet.
+        self.publish_melee_absorb_consumption_like_cpp(
+            command.attacker_guid,
+            command.victim_guid,
+            command.original_damage.min(i32::MAX as u32) as i32,
+            &command.absorb_consumptions,
+        );
 
         use wow_packet::packets::combat::{AttackerStateUpdate, HealthUpdate};
         // Visibility gates only the attacker-facing combat packet, never the

@@ -290,6 +290,54 @@ impl ServerPacket for AttackerStateUpdate {
     }
 }
 
+// ── SpellAbsorbLog (SMSG_SPELL_ABSORB_LOG) ────────────────────────
+
+/// Combat-log packet C++ `Unit::CalcAbsorbResist` sends to the victim for every
+/// shield that consumed part of a hit (`Unit.cpp:1876-1889`).
+///
+/// C++ anchor: `WorldPackets::CombatLog::SpellAbsorbLog::Write`
+/// (`CombatLogPackets.cpp:376-397`) writes the attacker and victim packed GUIDs,
+/// `int32(AbsorbedSpellID)`, `int32(AbsorbSpellID)`, the absorb aura's caster
+/// GUID, `int32(Absorbed)`, `int32(OriginalDamage)`, the empty supporter count,
+/// then the packet's `Unk` bit and the `CombatLogServerPacket` log-data bit.
+/// `WriteLogData()` only appends to the full-log packet, so the basic packet
+/// ends after the flushed bit byte. A white melee swing has no spell of its own,
+/// which is why `absorbed_spell_id` is zero for the melee path.
+#[derive(Debug, Clone)]
+pub struct SpellAbsorbLog {
+    pub attacker: ObjectGuid,
+    pub victim: ObjectGuid,
+    /// C++ `AbsorbedSpellID`: the spell being absorbed (`0` for a white swing).
+    pub absorbed_spell_id: i32,
+    /// C++ `AbsorbSpellID`: the shield aura's spell.
+    pub absorb_spell_id: i32,
+    /// C++ `Caster`: the absorb aura's caster.
+    pub caster: ObjectGuid,
+    pub absorbed: i32,
+    pub original_damage: i32,
+}
+
+impl ServerPacket for SpellAbsorbLog {
+    const OPCODE: ServerOpcodes = ServerOpcodes::SpellAbsorbLog;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.attacker);
+        pkt.write_packed_guid(&self.victim);
+        pkt.write_int32(self.absorbed_spell_id);
+        pkt.write_int32(self.absorb_spell_id);
+        pkt.write_packed_guid(&self.caster);
+        pkt.write_int32(self.absorbed);
+        pkt.write_int32(self.original_damage);
+        // `uint32(Supporters.size())`; `CalcAbsorbResist` leaves the vector empty.
+        pkt.write_uint32(0u32);
+        // `WriteBit(Unk)` then `WriteLogDataBit()`, both false in the basic
+        // packet, flushed together (`CombatLogPackets.cpp:390-394`).
+        pkt.write_bit(false);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+    }
+}
+
 // ── HealthUpdate (SMSG_HEALTH_UPDATE) ─────────────────────────────
 
 /// Direct owner health update sent by C++ `Unit::ModifyHealth` when damage
@@ -741,6 +789,50 @@ mod tests {
         assert_eq!(pkt.read_uint32().expect("count"), 1);
         assert_eq!(pkt.read_int32().expect("power"), 4321);
         assert_eq!(pkt.read_uint8().expect("power type"), 0);
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn spell_absorb_log_writes_cpp_field_order_like_cpp() {
+        let attacker = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            0,
+            0,
+            0,
+            123,
+            0x1234,
+        );
+        let victim = ObjectGuid::create_player(1, 0x0102_0304_0506_0708);
+        let caster = ObjectGuid::create_player(1, 0x1112_1314_1516_1718);
+        let bytes = SpellAbsorbLog {
+            attacker,
+            victim,
+            absorbed_spell_id: 0,
+            absorb_spell_id: 17_262,
+            caster,
+            absorbed: 10,
+            original_damage: 10,
+        }
+        .to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::SpellAbsorbLog as u16
+        );
+        assert_eq!(pkt.read_packed_guid().expect("attacker"), attacker);
+        assert_eq!(pkt.read_packed_guid().expect("victim"), victim);
+        assert_eq!(pkt.read_int32().expect("absorbed spell id"), 0);
+        assert_eq!(pkt.read_int32().expect("absorb spell id"), 17_262);
+        assert_eq!(pkt.read_packed_guid().expect("caster"), caster);
+        assert_eq!(pkt.read_int32().expect("absorbed"), 10);
+        assert_eq!(pkt.read_int32().expect("original damage"), 10);
+        assert_eq!(pkt.read_uint32().expect("supporters"), 0);
+        // `WriteBit(Unk)` then `WriteLogDataBit()`: the basic packet carries two
+        // false bits and no log data.
+        assert!(!pkt.has_bit().expect("unk"));
+        assert!(!pkt.has_bit().expect("has log data"));
         assert!(pkt.is_empty());
     }
 

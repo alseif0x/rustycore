@@ -1230,8 +1230,11 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
         command.hit_info,
         HIT_INFO_AFFECTS_VICTIM | HIT_INFO_FULL_ABSORB
     );
+    assert_eq!(command.absorb_consumptions.len(), 1);
+    assert_eq!(command.absorb_consumptions[0].slot, shield_slot);
+    assert_eq!(command.absorb_consumptions[0].consumed, 10);
     assert!(
-        command.exhausted_absorb_slots.is_empty(),
+        !command.absorb_consumptions[0].removed,
         "a partially spent shield is not removed"
     );
     assert_eq!(victim_health(), 100, "a fully absorbed hit deals no damage");
@@ -1243,15 +1246,20 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
     assert_eq!(outcome.commands.last().expect("command").damage, 0);
     assert_eq!(shield_amount(&session).expect("shield").1, Some(10));
 
-    // Third swing spends the last ten points and reports the exhausted slot.
-    // The session owns the aura transition, so delivering the command removes
-    // the shield (`Unit::CalcAbsorbResist`'s `Remove(AURA_REMOVE_BY_ENEMY_SPELL)`).
+    // Third swing spends the last ten points and reports the exhausted shield.
+    // Delivering the command publishes C++'s absorb log first
+    // (`Unit.cpp:1876-1889`) and then removes the shield through the session's
+    // aura transition (`Unit::CalcAbsorbResist`'s
+    // `Remove(AURA_REMOVE_BY_ENEMY_SPELL)`).
     reset_swing(&mut session);
     let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
     let command = outcome.commands.last().expect("command").clone();
     assert_eq!(command.absorbed, 10);
     assert_eq!(command.damage, 0);
-    assert_eq!(command.exhausted_absorb_slots, vec![shield_slot]);
+    assert_eq!(command.absorb_consumptions.len(), 1);
+    assert_eq!(command.absorb_consumptions[0].slot, shield_slot);
+    assert_eq!(command.absorb_consumptions[0].consumed, 10);
+    assert!(command.absorb_consumptions[0].removed);
     assert_eq!(victim_health(), 100);
     let _ = drain_server_opcodes(&send_rx);
     session.state = crate::session::SessionState::LoggedIn;
@@ -1261,9 +1269,18 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
         None,
         "the delivered command removes the spent shield"
     );
+    let opcodes = drain_server_opcodes(&send_rx);
+    let absorb_log = opcodes
+        .iter()
+        .position(|opcode| *opcode == ServerOpcodes::SpellAbsorbLog)
+        .expect("C++ publishes one absorb log per consuming shield");
+    let removal = opcodes
+        .iter()
+        .position(|opcode| *opcode == ServerOpcodes::AuraUpdate)
+        .expect("the session-owned transition publishes the shield removal");
     assert!(
-        drain_server_opcodes(&send_rx).contains(&ServerOpcodes::AuraUpdate),
-        "the session-owned removal publishes the aura update"
+        absorb_log < removal,
+        "C++ logs the absorb before removing the spent shield (`Unit.cpp:1876-1889`)"
     );
 
     // Fourth swing: with the shield gone the full hit lands.
@@ -1289,6 +1306,8 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
         command.hit_info,
         HIT_INFO_AFFECTS_VICTIM | HIT_INFO_PARTIAL_ABSORB
     );
-    assert_eq!(command.exhausted_absorb_slots.len(), 1);
+    assert_eq!(command.absorb_consumptions.len(), 1);
+    assert_eq!(command.absorb_consumptions[0].consumed, 4);
+    assert!(command.absorb_consumptions[0].removed);
     assert_eq!(victim_health(), 84);
 }

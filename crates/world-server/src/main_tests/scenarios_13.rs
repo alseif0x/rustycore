@@ -79,7 +79,7 @@ fn creature_melee_damage_delivery_filters_registry_state_like_cpp() {
             victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
             original_damage: 5,
             absorbed: 0,
-            exhausted_absorb_slots: Vec::new(),
+            absorb_consumptions: Vec::new(),
         };
     let commands = vec![
         make_command(wrong_map),
@@ -134,7 +134,7 @@ fn creature_melee_damage_delivery_poisoned_durable_rail_counts_send_failed_like_
             victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
             original_damage: 5,
             absorbed: 0,
-            exhausted_absorb_slots: Vec::new(),
+            absorb_consumptions: Vec::new(),
         },
     ];
     let summary = deliver_creature_melee_damage_commands_like_cpp(&commands, &registry);
@@ -170,7 +170,7 @@ fn creature_melee_damage_delivery_preserves_every_swing_when_general_queue_is_fu
         victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
         original_damage: 5,
         absorbed: 0,
-        exhausted_absorb_slots: Vec::new(),
+        absorb_consumptions: Vec::new(),
     };
     command_tx
         .send(SessionCommand::ApplyCreatureMeleeDamageLikeCpp(

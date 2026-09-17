@@ -318,7 +318,7 @@ fn visibility_barrier_preserves_entire_durable_suffix_fifo_like_cpp() {
                 victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
                 original_damage: 3,
                 absorbed: 0,
-                exhausted_absorb_slots: Vec::new(),
+                absorb_consumptions: Vec::new(),
             },)
         );
     }

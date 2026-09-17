@@ -41,6 +41,54 @@ impl WorldSession {
         }
         adjusted
     }
+    /// C++ `Unit::CalcAbsorbResist`'s absorb publication for one melee hit
+    /// (`Unit.cpp:1876-1889`): per shield that consumed part of the hit, send the
+    /// victim `SMSG_SPELL_ABSORB_LOG` and then remove the aura C++
+    /// left at zero.
+    ///
+    /// The map-owned swing already committed the absorb arithmetic and the
+    /// shield amounts; this transition reads the shield's caster and spell
+    /// before the removal and keeps C++'s per-shield order (log, then removal).
+    pub(crate) fn publish_melee_absorb_consumption_like_cpp(
+        &mut self,
+        attacker_guid: ObjectGuid,
+        victim_guid: ObjectGuid,
+        original_damage: i32,
+        consumptions: &[crate::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp],
+    ) {
+        for consumption in consumptions {
+            let shield = self
+                .canonical_player_snapshot_like_cpp(|player| {
+                    player
+                        .unit()
+                        .subsystems()
+                        .auras
+                        .runtime_application_like_cpp(consumption.slot)
+                        .map(|aura| (aura.caster_guid, aura.spell_id))
+                })
+                .flatten();
+            if let Some((caster, absorb_spell_id)) = shield
+                && consumption.consumed > 0
+            {
+                // A white melee swing carries no spell of its own, so C++
+                // publishes `AbsorbedSpellID == 0` (`Unit.cpp:1876-1882`).
+                self.send_packet(&wow_packet::packets::combat::SpellAbsorbLog {
+                    attacker: attacker_guid,
+                    victim: victim_guid,
+                    absorbed_spell_id: 0,
+                    absorb_spell_id,
+                    caster,
+                    absorbed: consumption.consumed,
+                    original_damage,
+                });
+            }
+            if consumption.removed {
+                // C++ `Remove(AURA_REMOVE_BY_ENEMY_SPELL)`; the session's aura
+                // transition owns the removal publication and its side effects.
+                let _ = self.remove_aura(consumption.slot);
+            }
+        }
+    }
     pub(in crate::session) fn send_environmental_damage_log_like_cpp(
         &self,
         victim: ObjectGuid,
