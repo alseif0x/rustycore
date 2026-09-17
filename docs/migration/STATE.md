@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`3743387913ee46969de4aa9968a75bcd5f42cc10` (PR #1113, the #29
-creature-to-player dodge/parry/crit bands, following PR #1111, the #29
+`e26133e5dd7b80d40c2246cfa9961c46dbf7f6fa` (PR #1115, the #29
+creature-to-player armour mitigation, following PR #1113, the #29
+creature-to-player dodge/parry/crit bands, PR #1111, the #29
 creature-to-player melee miss band, PR #1109, the #29
 ignore-target-resist armour term, PR #1107, the #29 critical
 original-damage correction, PR #1105, the #29
@@ -26,6 +27,41 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 creature-to-player armour mitigation — 2026-09-17, implementation
+`fc8cadf8`, integrated as `e26133e5` by PR #1115:** C++
+`Unit::CalculateMeleeDamage` (`Unit.cpp:1326-1343`) runs
+`CalcArmorReducedDamage` before the outcome switch, but the represented
+creature bridge applied its rolled damage to a player victim unmitigated, so a
+5,000-armour player took the same hit as an unarmoured one. The map-owned
+creature melee tick now resolves the player victim's published `GetArmor()` and
+the attacker's normal-school `SPELL_AURA_MOD_TARGET_RESISTANCE` and
+`SPELL_AURA_MOD_IGNORE_TARGET_RESIST` sums, then applies
+`armor_reduced_damage_like_cpp` to the pre-outcome damage; a creature attacker
+has no `CR_ARMOR_PENETRATION` rating, so that term stays zero. The victim's
+`SPELL_AURA_BYPASS_ARMOR_FOR_CASTER` sum for effects the attacker cast is the
+one new victim-side input: C++ applies
+`CalculatePct(armor, 100 - min(sum, 100))` before the target-resistance sum
+(`Unit.cpp:1631-1637`), which `armor_reduced_damage_like_cpp` now reproduces
+through a new `bypass_armor_pct_by_caster` parameter;
+`RepresentedArmorMitigationLikeCpp` carries the field and the session path (a
+player attacking a creature) passes zero because a creature victim's bypass
+aura has no represented producer. The pure armour test is now table-driven so
+the added cases stay inside the test-file budget. Evidence: the armour table
+pins 15 cases including the bypass order (`911` with a `-1,000`
+target-resistance sum versus `884` if the bypass applied after it), the
+`min(sum, 100)` clamp and a negative amount; the production runtime scenario
+drives 5,000 armour to 8 damage, a foreign-caster bypass to no change, one
+attacker-cast 50% bypass to 9 and two to the full 10. wow-world 3987/0/1,
+wow-data 753/0, wow-packet 744/0, wow-entities 940/0 and world-server 594/0/0
+pass; format, `git diff --check` and the physical ratchet pass with
+`session/mod.rs` at a recorded 18,982 one-line ceiling growth for the new
+argument, and `validation-v2 quick` (manifest
+`20260917T180725.086754Z-3086301-quick.json`) passes. Boundaries: the player
+victim's `MeleeDamageBonusDone`/`MeleeDamageBonusTaken` chain, its block band
+and the target build's negative crushing term remain unrepresented; without a
+spell store the runtime keeps the pre-table bridge. No live DB/restart/relogin
+QA. #29 remains open for the remaining spell/melee math.
 
 **#29 creature-to-player dodge/parry/crit bands — 2026-09-17, implementation
 `8eb3420f`, integrated as `37433879` by PR #1113:** C++
