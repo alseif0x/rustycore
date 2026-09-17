@@ -59,6 +59,20 @@ the target build's negative crushing band, and live DB/restart/relogin QA. The
 next unit should be the `ExpectedStat` consumer, whose store already exists in
 `wow-data` with no consumer.
 
+**#29 melee-suite acceptance snapshot — 2026-09-17, head `2e6c4054`, no code
+change:** the accumulated #29 melee work (attack-table bands, armour, taken
+chain, block reduction with the loaded `ExpectedStat` table, physical-immunity
+gate and their production runtime scenarios) was accepted as one candidate.
+Three consecutive `wow-world --lib` runs report 3992/0/1 each; `wow-data --lib`
+753/0, `wow-packet --lib` 744/0, `wow-entities --lib` 940/0 and
+`world-server --lib` 594/0 all pass; `cargo fmt --all --check` and
+`git diff --check` pass, and the physical ratchet passes with the recorded
+ceilings. `validation-v2 quick` passes (manifest
+`20260917T211043.290594Z-3486868-quick.json`). This is an evidence snapshot of
+the current candidate, not a completion claim: the four remaining #29 items are
+listed in the entry below with the reason each is still open, and no live
+DB/restart/relogin QA has been run.
+
 **#29 creature-victim immunity scenario — 2026-09-17, implementation `65269938`,
 integrated as `40b9e081` by PR #1150:** the immunity gate (PR #1148) resolves
 `is_immune_to_damage` in both owners, but only the player-victim direction had a
