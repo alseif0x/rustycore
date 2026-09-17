@@ -1373,6 +1373,38 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
         attack_round_info.read_uint32().expect("hitInfo")
     };
 
+    // Decode the appended `int32(BlockAmount)` exactly like the packet
+    // writer's own block test.
+    let wire_blocked = |outcome: &crate::session::LegacyCreatureMeleeTickOutcomeLikeCpp| {
+        let event = outcome
+            .plan
+            .events
+            .iter()
+            .find(|event| {
+                event.packet_bytes.len() > 2
+                    && u16::from_le_bytes([event.packet_bytes[0], event.packet_bytes[1]])
+                        == wow_constants::ServerOpcodes::AttackerStateUpdate as u16
+            })
+            .expect("attacker state update event");
+        let mut packet = wow_packet::world_packet::WorldPacket::from_bytes(&event.packet_bytes);
+        packet.read_uint16().expect("opcode");
+        packet.read_bit().expect("has_log_data");
+        let info_len = packet.read_uint32().expect("attackRoundInfo size") as usize;
+        let info_bytes = packet.read_bytes(info_len).expect("attackRoundInfo bytes");
+        let mut info = wow_packet::world_packet::WorldPacket::from_bytes(&info_bytes);
+        info.read_uint32().expect("hitInfo");
+        info.read_packed_guid().expect("attacker");
+        info.read_packed_guid().expect("victim");
+        info.read_int32().expect("damage");
+        info.read_int32().expect("original damage");
+        info.read_int32().expect("over damage");
+        info.read_uint8().expect("sub damage");
+        info.read_uint8().expect("victim state");
+        info.read_uint32().expect("attacker state");
+        info.read_uint32().expect("melee spell id");
+        info.read_int32().expect("blocked")
+    };
+
     manager
         .write()
         .unwrap()
@@ -1432,6 +1464,7 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
         wire_hit_info(&outcome) & wow_packet::packets::combat::HIT_INFO_BLOCK,
         wow_packet::packets::combat::HIT_INFO_BLOCK
     );
+    assert_eq!(wire_blocked(&outcome), 2);
 
     // The victim's `SPELL_AURA_MOD_CRIT_CHANCE_VERSUS_TARGET_HEALTH` over the
     // whole health range makes the critical band certain: the mitigated 8

@@ -303,7 +303,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         let apply = |canonical_manager: &mut wow_map::MapManager,
                      swing: &PendingCreatureSwingLikeCpp,
                      damage,
-                     presentation: Option<(u32, u8)>| {
+                     presentation: Option<(u32, u8, i32)>| {
             if swing.victim_guid.is_player() {
                 apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
                     canonical_manager,
@@ -406,7 +406,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         let mut avoided_outcome = None;
         // The creature-victim branch publishes through the compatibility
         // bridge, so it carries its own presentation and avoid flag.
-        let mut creature_victim_presentation: Option<(u32, u8)> = None;
+        let mut creature_victim_presentation: Option<(u32, u8, i32)> = None;
         let mut creature_victim_avoided = false;
         let mut outcome_represented = false;
         let damage = if swing.victim_guid.is_player() {
@@ -923,7 +923,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                 crate::session_rules::melee_outcome_presentation_like_cpp(
                                     rolled, false,
                                 );
-                            let (outcome_damage, _blocked, _original) =
+                            let (outcome_damage, blocked, _original) =
                                 crate::session_rules::melee_outcome_damage_like_cpp(
                                     rolled,
                                     mitigated,
@@ -931,7 +931,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                     victim_facts.level,
                                     attacker_facts.crit_damage_multiplier,
                                 );
-                            creature_victim_presentation = Some((info, state));
+                            creature_victim_presentation = Some((info, state, blocked as i32));
                             creature_victim_avoided = matches!(
                                 rolled,
                                 crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Evade
