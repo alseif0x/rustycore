@@ -633,6 +633,50 @@ fn update_object_create_player_serializes() {
 }
 
 #[test]
+fn update_object_create_player_serializes_school_resistances_like_cpp() {
+    let guid = ObjectGuid::create_player(1, 42);
+    let pos = Position::new(0.0, 0.0, 0.0, 0.0);
+    let combat = PlayerCombatStats {
+        base_armor: 7,
+        school_resistances: [11, 22, 33, 44, 55, 66],
+        ..PlayerCombatStats::default()
+    };
+
+    let pkt = UpdateObject::create_player(
+        guid,
+        1,
+        1,
+        0,
+        1,
+        49,
+        &pos,
+        0,
+        12,
+        true,
+        [(0, 0, 0); 19],
+        [ObjectGuid::EMPTY; 141],
+        combat,
+        Vec::new(),
+        0,
+        Vec::new(),
+    );
+    let bytes = pkt.to_bytes();
+
+    // C++ `UnitData::WriteCreate` writes `Resistances[7]` as physical armor
+    // followed by holy, fire, nature, frost, shadow and arcane.
+    let mut expected = combat.base_armor.to_le_bytes().to_vec();
+    for resistance in combat.school_resistances {
+        expected.extend_from_slice(&resistance.to_le_bytes());
+    }
+    assert!(
+        bytes
+            .windows(expected.len())
+            .any(|window| window == expected.as_slice()),
+        "the create block must carry the seven UnitData resistances in order"
+    );
+}
+
+#[test]
 fn update_object_out_of_range() {
     let pkt = UpdateObject {
         map_id: 0,

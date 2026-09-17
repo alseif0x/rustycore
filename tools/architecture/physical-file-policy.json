@@ -398,9 +398,9 @@
     },
     {
       "path": "crates/wow-packet/src/packets/update_tests/mod.rs",
-      "observed_lines": 198,
-      "ceiling_lines": 198,
-      "split": "Retires the 3,676-line update-block regression file: #640 replaces it with this module root, which keeps the shared preamble and helpers and mounts five scenario modules (98-882 lines) holding all 82 tests unchanged. The row moves to the successor path so the ceiling cannot be evaded by the rename.",
+      "observed_lines": 199,
+      "ceiling_lines": 199,
+      "split": "Retires the 3,676-line update-block regression file: #640 replaces it with this module root, which keeps the shared preamble and helpers and mounts five scenario modules (98-882 lines) holding all 82 tests unchanged. The row moves to the successor path so the ceiling cannot be evaded by the rename. #61 adds one line to the shared `test_player_create_data_with_farsight` fixture for the new `PlayerCreateData::school_resistances` field, keeping the fixture in step with the production create data.",
       "review_checkpoint": "584:C4"
     },
     {

@@ -301,8 +301,8 @@ impl PlayerCreateData {
         // Resistances[7] (Owner|Empath): Physical, Holy, Fire, Nature, Frost, Shadow, Arcane
         if is_owner {
             buf.write_int32(self.base_armor); // [0] Physical = base armor
-            for _ in 1..7 {
-                buf.write_int32(0); // [1-6] spell resistances
+            for resistance in self.school_resistances {
+                buf.write_int32(resistance); // [1-6] spell resistances
             }
         }
 
