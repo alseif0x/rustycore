@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`1f25ce5ba06299e2b070d6a343b1eedb4d03030c` (PR #1153, the #584 session
-syntax-ownership baseline reconciliation and architecture-acceptance
+`045c565ed3be9bdef8ab5336eec2626bc5168e33` (PR #1155, the #29 player-victim
+melee school absorb with the C++ sub-damage wire block, following PR #1153, the
+#584 session syntax-ownership baseline reconciliation and architecture-acceptance
 continuation, following PR #1150, the #29
 creature-victim immunity scenario, following PR #1148, the #29
 melee physical-immunity gate, PR #1144, the #29
@@ -43,6 +44,57 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 player-victim melee school absorb — 2026-09-17, implementation `a7bdac56`,
+integrated as `045c565e` by PR #1155:** a creature swing against a player now
+runs C++ `Unit::CalculateMeleeDamage`'s absorb tail (`Unit.cpp:1449-1466`) and
+`Unit::CalcAbsorbResist` (`Unit.cpp:1789-1880`) instead of ignoring the victim's
+`SPELL_AURA_SCHOOL_ABSORB` shields. `session_rules::player_absorb_shields_like_cpp`
+projects each active absorb effect (slot, effect index, spell,
+`SpellCategories.Category`, amount) whose `MiscValue` covers the school mask;
+`session_rules::represented_melee_absorb_like_cpp` reproduces the loop —
+`Trinity::AbsorbAuraOrderPred` order (Fel Blossom `28527`, Ice Barrier category
+`471`, Sacrifice `7812`, other shields, Cauterize `86949` and Spirit of
+Redemption `20711` last; `SpellAuraEffects.h:365-407`), negative amounts clamped
+to zero, consumption clamped to the damage left and the zero-amount removal C++
+performs. The map-owned tick runs the stage after the outcome switch and before
+the health write, spends the canonical `AuraEffect` amount in the same locked
+phase (so two attackers in one batch cannot spend the same pool twice), ORs
+`HITINFO_FULL_ABSORB`/`HITINFO_PARTIAL_ABSORB` and carries the absorbed amount
+plus the exhausted slots on `ApplyCreatureMeleeDamageLikeCppCommand`; the victim
+session removes each exhausted shield through its own `remove_aura` transition
+(`Unit.cpp:1856-1860`, before the attacker-state packet), which owns the removal
+publication. `wow-packet`'s `AttackerStateUpdate` now emits C++ `SubDmg` for
+every melee swing — presence byte, school mask, float and integer damage and,
+with the bit set, the absorbed amount (`Unit.cpp:5473-5479`,
+`CombatLogPackets.cpp:346-406`) — replacing the "no SubDmg" byte the target C++
+never writes for `SendAttackStateUpdate(CalcDamageInfo*)`; the same change
+restored the `#[test]` attribute `attacker_state_update_writes_custom_hit_info_like_cpp`
+had lost (it had never run) and corrected the QA bot parser comment that claimed
+Rust omitted the block. Coverage: the new bounded
+`session/tests/scenarios_combat_5.rs` rules suite (no shield, zero damage,
+partial/exact/spill consumption, negative infinite shield, priority order and
+`AbsorbAuraOrderPred` ranks) and a production-shaped scenario in
+`scenarios_world_entities_32.rs` where a 30-point shield absorbs 10 three times,
+the third swing reports the exhausted slot, the delivered command removes the
+aura and publishes an `AuraUpdate`, the next swing lands full damage and a
+4-point shield leaves a partial absorb. Evidence at `045c565e`: `wow-world
+--lib` 3995/0/1, `wow-packet --lib` 746/0, `world-server --lib` 594/0,
+`wow-test-bot` packet-parser 6/0, `validation-v2 quick` PASS (62.98 s, manifest
+`20260917T222914.597922Z-3528837-quick.json`), physical ratchet PASS (2234
+files, two ceilings bumped with recorded reasons), `cargo fmt --all --check` and
+`git diff --check` clean, `session-ownership-check --syntax-only` PASS with a
+reviewed `print-baseline` delta of exactly the two new command fields; `final
+--architecture` is 84.1 s, exit 1, 2 of 11 steps executed with
+`session-syntax-acceptance` PASS and the pre-existing hotspot ratchet as the
+only red. Limits: `SPELL_AURA_MANA_SHIELD` needs a power write the melee path
+does not own; C++'s `absorbIgnoringDamage` term (attacker
+`SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL` reduced by
+`SPELL_ATTR6_ABSORB_CANNOT_BE_IGNORE`) has no represented producer or spell
+attribute projection; `SMSG_SPELL_ABSORB_LOG` is not sent; physical melee never
+resists (`Unit::CalcSpellResistedDamage` returns zero for a non-magic school
+mask, `Unit.cpp:2058-2060`); creature victims have no mutable represented absorb
+pool, so player→creature absorb stays open; no live DB/restart/relogin QA ran.
 
 **#584 session ownership baseline reconciliation — 2026-09-17, implementation
 `0774178f`, integrated as `1f25ce5b` by PR #1153:** `session-ownership-check

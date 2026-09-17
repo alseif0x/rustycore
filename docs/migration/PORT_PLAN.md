@@ -33,6 +33,20 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 player-victim melee school absorb — 2026-09-17, implementation
+`a7bdac56`:** C++ `Unit::CalculateMeleeDamage`'s absorb tail
+(`Unit.cpp:1449-1466`) and `Unit::CalcAbsorbResist` (`Unit.cpp:1789-1880`) now
+run for a creature swing against a player: the victim's
+`SPELL_AURA_SCHOOL_ABSORB` shields are spent in the map-owned swing phase, the
+exhausted shields are removed by the victim session's own `remove_aura`
+transition (`Unit.cpp:1856-1860`) and the absorbed amount is published through
+C++'s `SubDmg` block plus `HITINFO_FULL_ABSORB`/`HITINFO_PARTIAL_ABSORB` on
+`AttackerStateUpdate` (`Unit.cpp:5473-5479`, `CombatLogPackets.cpp:346-406`).
+That writer previously sent a "no SubDmg" byte C++ never writes. Limits:
+`SPELL_AURA_MANA_SHIELD`, the `absorbIgnoringDamage`/`SPELL_ATTR6` interaction,
+`SMSG_SPELL_ABSORB_LOG`, physical resist and the creature-victim absorb pool
+stay open and are recorded in STATE.
+
 **#584 session ownership baseline reconciliation — 2026-09-17, implementation
 `0774178f`:** the syntax-ownership policy was reconciled from the reviewed
 `print-baseline` delta (fields 649->652, impl items 3807->3912, direct-registry
