@@ -33,6 +33,18 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 creature-victim miss band and outcome publication — 2026-09-17,
+implementation `242aa446`:** a creature (or player pet) swing at another creature
+now rolls the miss band from the victim's
+`MOD_ATTACKER_MELEE_HIT_CHANCE` sum and publishes the resolved
+`(HitInfo, TargetState)` through the compatibility bridge's packet instead of a
+hardcoded normal hit, with zero damage and no mirror sync on an avoid; the
+runtime scenario drives a landed mitigated 8-damage hit (`HITINFO_AFFECTS_VICTIM`)
+and a miss (`HITINFO_MISS`, unchanged health). wow-world 3990/0/1, wow-data
+753/0, wow-packet 744/0, wow-entities 940/0, world-server 594/0/0; the creature
+victim's own dodge/parry/block/crit runtime facts are the next slice; no live
+DB/restart/relogin QA.
+
 **#29 melee scenario-suite split — 2026-09-17, implementation `d444f94d`:**
 the three map-owned player-victim melee runtime scenarios moved unchanged into
 the new bounded `session/tests/scenarios_world_entities_32.rs` (1,197 / 787

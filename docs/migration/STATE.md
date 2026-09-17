@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`a2d866940159016fbcfebcdd95f31dcaba97273e` (PR #1121, the #29 melee
-scenario-suite split, following PR #1119, the #29
+`865dd22830b9ce4542b87016f0c110b343173364` (PR #1123, the #29
+creature-victim miss band and outcome publication, following PR #1121, the #29
+melee scenario-suite split, PR #1119, the #29
 creature-victim melee mitigation, PR #1117, the #29
 player-victim melee damage-taken chain, PR #1115, the #29
 creature-to-player armour mitigation, PR #1113, the #29
@@ -30,6 +31,33 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 creature-victim miss band and outcome publication — 2026-09-17,
+implementation `242aa446`, integrated as `865dd228` by PR #1123:** C++
+`Unit::RollMeleeOutcomeAgainst` (`Unit.cpp:2272-2310`) rolls the attack table
+for every victim and `CalculateMeleeDamage` publishes `HitInfo`/`TargetState`
+through `AttackerStateUpdate`, but the represented creature-victim branch still
+committed a normal hit for every swing, so a creature (or player pet) swinging at
+another creature could never miss. The branch now rolls the miss band from the
+victim creature's `SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE` sum over the flat
+5.0 (`Unit.cpp:11652-11685`) and threads the resolved `(HitInfo, TargetState)`
+into `apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp`, whose
+packet now carries the caller's presentation instead of a hardcoded normal hit;
+an avoided swing commits zero damage and no legacy mirror sync.
+`melee_outcomes_unrepresented` now means "the represented outcome table did not
+run", so a table-resolved creature-victim swing no longer increments it.
+Evidence: the runtime scenario drives a `+5` victim aura to the landed,
+mitigated 8-damage hit with `HITINFO_AFFECTS_VICTIM` on the wire and then a
+`-200` aura to a miss with unchanged health, `canonical_creature_hits == 0` and
+`HITINFO_MISS` on the wire. wow-world 3990/0/1, wow-data 753/0, wow-packet
+744/0, wow-entities 940/0 and world-server 594/0/0 pass; format,
+`git diff --check` and the physical ratchet pass without new ceiling growth, and
+`validation-v2 quick` (manifest `20260917T185049.290927Z-3131478-quick.json`)
+passes. Boundary: the creature victim's own dodge/parry/block/crit runtime facts
+(its `CreatureAvoidanceLikeCpp`, aura percentages and level bonus) are the next
+slice — `melee_outcome_inputs_like_cpp` already implements them for a creature
+victim, only the runtime resolution remains. No live DB/restart/relogin QA. #29
+remains open for the remaining spell/melee math.
 
 **#29 melee scenario-suite split — 2026-09-17, implementation `d444f94d`,
 integrated as `a2d86694` by PR #1121:** `session/tests/scenarios_world_entities_28.rs`
