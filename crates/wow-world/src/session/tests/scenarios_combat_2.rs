@@ -273,7 +273,14 @@ fn combat_tick_uses_canonical_player_offhand_timer_like_cpp() {
             player
                 .unit_mut()
                 .set_attack_timer(WeaponAttackType::OffAttack, 0);
-            take_canonical_player_attack_swings_like_cpp(player, 0, true, true, true)
+            take_canonical_player_attack_swings_like_cpp(
+                player,
+                0,
+                true,
+                true,
+                true,
+                [crate::session::RepresentedMeleeDamageBonusLikeCpp::NONE; 2],
+            )
         })
         .flatten();
     assert_eq!(

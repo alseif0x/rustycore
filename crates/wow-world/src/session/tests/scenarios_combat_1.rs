@@ -705,7 +705,14 @@ fn combat_tick_los_failure_resets_timer_without_damage_like_cpp() {
     // the lifted function; this is the branch the field existed to reach.
     let swings = session
         .mutate_canonical_player_like_cpp(|player| {
-            take_canonical_player_attack_swings_like_cpp(player, 0, true, true, false)
+            take_canonical_player_attack_swings_like_cpp(
+                player,
+                0,
+                true,
+                true,
+                false,
+                [crate::session::RepresentedMeleeDamageBonusLikeCpp::NONE; 2],
+            )
         })
         .flatten();
     assert!(
@@ -949,7 +956,14 @@ fn white_swing_applies_autoattack_damage_auras_like_cpp() {
                 player
                     .unit_mut()
                     .set_attack_timer(WeaponAttackType::BaseAttack, 0);
-                take_canonical_player_attack_swings_like_cpp(player, 0, true, true, true)
+                take_canonical_player_attack_swings_like_cpp(
+                    player,
+                    0,
+                    true,
+                    true,
+                    true,
+                    [crate::session::RepresentedMeleeDamageBonusLikeCpp::NONE; 2],
+                )
             })
             .flatten()
             .map(|(swings, _)| swings)
@@ -982,4 +996,157 @@ fn white_swing_applies_autoattack_damage_auras_like_cpp() {
         .remove_aura(0)
         .expect("remove autoattack damage aura");
     assert_eq!(swing(&mut session), Some(vec![7]));
+}
+
+#[test]
+fn white_swing_applies_creature_type_melee_bonus_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    let guid = test_creature_guid(18_031);
+    let player = ObjectGuid::create_player(1, 85);
+
+    canonical.lock().unwrap().create_world_map(0, 0);
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+        wow_data::MapEntry {
+            id: 0,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        },
+    ])));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player,
+        "Versus".to_string(),
+        Position::new(10.0, 10.0, 0.0, 0.0),
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            let unit = player.unit_mut();
+            unit.set_attacking(Some(guid));
+            unit.set_target(guid);
+            unit.add_unit_state(UnitState::MELEE_ATTACKING.bits());
+            unit.set_base_attack_time_like_cpp(WeaponAttackType::BaseAttack, 2_000);
+            unit.set_attack_timer(WeaponAttackType::BaseAttack, 0);
+            unit.set_weapon_damage(WeaponAttackType::BaseAttack, 7.0, 7.0);
+        })
+        .unwrap();
+    session.combat_target = Some(guid);
+    session.in_combat = true;
+    register_test_creature(&mut session, manager.clone(), guid, 40);
+    session
+        .mutate_world_creature(guid, |creature| {
+            creature.enter_combat(player);
+            creature.creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+        })
+        .unwrap();
+    // Template creature type 7 (undead) and the matching `SPELL_AURA_MOD_DAMAGE_DONE_VERSUS`
+    // and `SPELL_AURA_MOD_DAMAGE_DONE_CREATURE` effects.
+    session.set_creature_template_lifecycle_store_like_cpp(Arc::new(
+        wow_data::CreatureTemplateLifecycleStoreLikeCpp::from_templates([
+            wow_data::CreatureTemplateLifecycleRecordLikeCpp {
+                entry: 9001,
+                creature_type: 7,
+                ..Default::default()
+            },
+        ]),
+    ));
+
+    let mut spell_store = wow_data::SpellStore::new();
+    for (spell_id, aura, amount) in [
+        (
+            90_998_i32,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS,
+            100,
+        ),
+        (
+            90_999_i32,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_CREATURE,
+            5,
+        ),
+    ] {
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: amount,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(aura),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: aura,
+                    effect_misc_value_1: 1 << 6,
+                    effect_base_points: amount,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    session.set_spell_store(Arc::new(spell_store));
+
+    let swing = |session: &mut WorldSession| {
+        // Hoisted: the bonus resolves the canonical snapshot, so it must not run
+        // inside the mutable owner borrow.
+        let melee_damage_bonus = session.represented_melee_damage_bonus_like_cpp();
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .set_attack_timer(WeaponAttackType::BaseAttack, 0);
+                take_canonical_player_attack_swings_like_cpp(
+                    player,
+                    0,
+                    true,
+                    true,
+                    true,
+                    melee_damage_bonus,
+                )
+            })
+            .flatten()
+            .map(|(swings, _)| swings)
+    };
+
+    // Without the versus aura the flat creature-type benefit applies alone.
+    let base = session.represented_melee_damage_bonus_like_cpp();
+    assert_eq!(base[0].flat, 0);
+
+    session
+        .apply_aura(90_999, player, 30_000, 1)
+        .expect("apply flat creature-type aura");
+    let with_flat = session.represented_melee_damage_bonus_like_cpp();
+    assert_eq!(with_flat[0].flat, 5);
+    assert_eq!(with_flat[0].pct, 1.0);
+
+    session
+        .apply_aura(90_998, player, 30_000, 1)
+        .expect("apply versus creature-type aura");
+    let with_pct = session.represented_melee_damage_bonus_like_cpp();
+    assert_eq!(with_pct[0].flat, 5);
+    assert_eq!(with_pct[0].pct, 2.0);
+
+    // `((7 + 5) * 2.0)`.
+    assert_eq!(
+        swing(&mut session),
+        Some(vec![24]),
+        "C++ MeleeDamageBonusDone"
+    );
 }

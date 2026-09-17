@@ -45,6 +45,10 @@ impl WorldSession {
         facing_target: bool,
         within_los: bool,
     ) -> Option<(Vec<u32>, Option<Option<u8>>)> {
+        // C++ `MeleeDamageBonusDone` resolves the victim-dependent terms per
+        // swing; the session computes them for the victim the canonical Player
+        // is attacking and hands them to the shared swing function.
+        let melee_damage_bonus = self.represented_melee_damage_bonus_like_cpp();
         self.mutate_canonical_player_like_cpp(|player| {
             take_canonical_player_attack_swings_like_cpp(
                 player,
@@ -52,9 +56,51 @@ impl WorldSession {
                 in_melee_range,
                 facing_target,
                 within_los,
+                melee_damage_bonus,
             )
         })
         .flatten()
+    }
+
+    /// C++ `Unit::MeleeDamageBonusDone`'s victim-creature-type terms
+    /// (`Unit.cpp:7558-7650`) for the canonical Player's current melee victim,
+    /// one entry per melee attack type. `NONE` when the victim is a player, the
+    /// aura container or spell store cannot be resolved, or the victim's
+    /// template carries no creature type.
+    pub(in crate::session) fn represented_melee_damage_bonus_like_cpp(
+        &self,
+    ) -> [RepresentedMeleeDamageBonusLikeCpp; 2] {
+        let (Some(auras), Some(spell_store)) = (
+            self.resolved_player_visible_auras_like_cpp(),
+            self.spell_store(),
+        ) else {
+            return [RepresentedMeleeDamageBonusLikeCpp::NONE; 2];
+        };
+        let Some(target_guid) =
+            self.canonical_player_snapshot_like_cpp(|player| player.unit().attacking())
+        else {
+            return [RepresentedMeleeDamageBonusLikeCpp::NONE; 2];
+        };
+        let Some(target_guid) = target_guid else {
+            return [RepresentedMeleeDamageBonusLikeCpp::NONE; 2];
+        };
+        let creature_type_mask = self.represented_target_creature_type_mask_like_cpp(target_guid);
+        if creature_type_mask == 0 {
+            return [RepresentedMeleeDamageBonusLikeCpp::NONE; 2];
+        }
+        let base_attack_speed = self
+            .canonical_player_snapshot_like_cpp(|player| player.unit().base_attack_speed())
+            .unwrap_or([0; 3]);
+        std::array::from_fn(|index| {
+            let (flat, pct) = crate::session_rules::melee_damage_bonus_done_creature_type_like_cpp(
+                &auras,
+                spell_store,
+                creature_type_mask,
+                false,
+                crate::session::legacy_attack_power_multiplier_like_cpp(base_attack_speed[index]),
+            );
+            RepresentedMeleeDamageBonusLikeCpp { flat, pct }
+        })
     }
 
     /// C++ `Unit::MeleeDamageBonusDone`'s `SPELL_AURA_MOD_AUTOATTACK_DAMAGE`

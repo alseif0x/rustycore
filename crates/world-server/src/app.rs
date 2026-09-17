@@ -5193,6 +5193,8 @@ async fn run_inner(
     legacy_creature_aggro_config.spell_custom_attribute_store =
         Some(Arc::clone(&spell_custom_attribute_store));
     legacy_creature_aggro_config.difficulty_store = Some(Arc::clone(&difficulty_store));
+    legacy_creature_aggro_config.creature_template_lifecycle_store =
+        Some(Arc::clone(&creature_template_lifecycle_store));
 
     let (realm_listener_ready_tx, realm_listener_ready_rx) = tokio::sync::oneshot::channel();
     let (instance_listener_ready_tx, instance_listener_ready_rx) = tokio::sync::oneshot::channel();

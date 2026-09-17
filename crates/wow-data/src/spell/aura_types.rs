@@ -118,6 +118,19 @@ pub const SPELL_AURA_MOD_REPUTATION_GAIN: i32 = 156;
 /// C++ `AuraType::SPELL_AURA_MOD_HEALTH_REGEN_IN_COMBAT` (`SpellAuraDefines.h:256`).
 pub const SPELL_AURA_MOD_HEALTH_REGEN_IN_COMBAT: i32 = 161;
 pub const SPELL_AURA_MOD_ATTACK_POWER_PCT: i32 = 166;
+/// C++ `AuraType::SPELL_AURA_MOD_DAMAGE_DONE_CREATURE`
+/// (`SpellAuraDefines.h:154`): `Unit::MeleeDamageBonusDone` (`Unit.cpp:7568`)
+/// adds the effect amount whose `GetMiscValue` intersects the victim's creature
+/// type mask.
+pub const SPELL_AURA_MOD_DAMAGE_DONE_CREATURE: i32 = 59;
+/// C++ `AuraType::SPELL_AURA_MOD_MELEE_ATTACK_POWER_VERSUS`
+/// (`SpellAuraDefines.h:197`): the melee attack-power bonus by creature type
+/// (`Unit.cpp:7584`).
+pub const SPELL_AURA_MOD_MELEE_ATTACK_POWER_VERSUS: i32 = 102;
+/// C++ `AuraType::SPELL_AURA_MOD_RANGED_ATTACK_POWER_VERSUS`
+/// (`SpellAuraDefines.h:226`): the ranged attack-power bonus by creature type
+/// (`Unit.cpp:7580`).
+pub const SPELL_AURA_MOD_RANGED_ATTACK_POWER_VERSUS: i32 = 131;
 /// C++ `AuraType::SPELL_AURA_MOD_RANGED_ATTACK_POWER_PCT`
 /// (`SpellAuraDefines.h:262`): ranged attack power percentage, skipped for
 /// `CLASSMASK_WAND_USERS`.

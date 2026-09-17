@@ -73,3 +73,63 @@ pub(crate) fn represented_autoattack_damage_multiplier_like_cpp(
         total * (1.0 + amount as f32 / 100.0)
     })
 }
+
+/// C++ `Unit::MeleeDamageBonusDone`'s victim-creature-type terms
+/// (`Unit.cpp:7558-7650`) for the represented attacker: the flat
+/// `SPELL_AURA_MOD_DAMAGE_DONE_CREATURE` benefit, the
+/// `SPELL_AURA_MOD_MELEE_ATTACK_POWER_VERSUS` bonus converted with
+/// `GetAPMultiplier`, and the `SPELL_AURA_MOD_DAMAGE_DONE_VERSUS` multiplier.
+/// `(DoneFlatBenefit, DoneTotalMod)`.
+///
+/// Boundary: the victim's `SPELL_AURA_MELEE_ATTACK_POWER_ATTACKER_BONUS`
+/// (165) / `SPELL_AURA_RANGED_ATTACK_POWER_ATTACKER_BONUS` (127) term has no
+/// represented creature-aura producer, so only the attacker's side is folded.
+pub(crate) fn melee_damage_bonus_done_creature_type_like_cpp(
+    attacker_auras: &HashMap<u8, AuraApplicationLikeCpp>,
+    spell_store: &SpellStore,
+    creature_type_mask: u32,
+    is_ranged: bool,
+    attack_power_multiplier: f32,
+) -> (i32, f32) {
+    if creature_type_mask == 0 {
+        return (0, 1.0);
+    }
+    let matches = |misc_value: i32| misc_value & creature_type_mask as i32 != 0;
+    let mut flat = player_aura_effects_by_spell_aura_type_like_cpp(
+        attacker_auras,
+        spell_store,
+        wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_CREATURE,
+    )
+    .into_iter()
+    .filter(|(misc_value, _)| matches(*misc_value))
+    .map(|(_, amount)| amount)
+    .sum::<i32>();
+    let versus_aura_type = if is_ranged {
+        wow_data::spell::aura_types::SPELL_AURA_MOD_RANGED_ATTACK_POWER_VERSUS
+    } else {
+        wow_data::spell::aura_types::SPELL_AURA_MOD_MELEE_ATTACK_POWER_VERSUS
+    };
+    let ap_bonus = player_aura_effects_by_spell_aura_type_like_cpp(
+        attacker_auras,
+        spell_store,
+        versus_aura_type,
+    )
+    .into_iter()
+    .filter(|(misc_value, _)| matches(*misc_value))
+    .map(|(_, amount)| amount)
+    .sum::<i32>();
+    if ap_bonus != 0 {
+        flat = flat.saturating_add((ap_bonus as f32 / 3.5 * attack_power_multiplier) as i32);
+    }
+    let done_total_mod = player_aura_effects_by_spell_aura_type_like_cpp(
+        attacker_auras,
+        spell_store,
+        wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS,
+    )
+    .into_iter()
+    .filter(|(misc_value, _)| matches(*misc_value))
+    .fold(1.0_f32, |total, (_, amount)| {
+        total * (1.0 + amount as f32 / 100.0)
+    });
+    (flat, done_total_mod)
+}
