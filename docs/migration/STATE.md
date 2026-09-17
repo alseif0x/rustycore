@@ -8,6 +8,41 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#61 `Unit::m_transformSpell` and `IsPolymorphed` — 2026-09-17, implementation
+`e8994e95`:** the canonical Unit aura subsystem now owns C++
+`Unit::m_transformSpell` (`AuraSubsystem::transform_spell_like_cpp`) with the two
+writers from `AuraEffect::HandleAuraTransform`: the apply rule overwrites when
+there is no current transform spell info, when the new spell is not positive, or
+when the current transform spell is positive (`SpellAuraEffects.cpp:1944-1951`),
+and the remove rule clears only the aura that owns the current transform
+(`SpellAuraEffects.cpp:2129-2131`). The session aura insert/remove funnels are the
+only production writers and the character-identity bulk clear drops a stale
+transform. `Unit::IsPolymorphed` (`Unit.cpp:9993-10004`) is now resolved from the
+MAGE `SpellClassOptions` family (`SPELLFAMILY_MAGE`, family flag `0x1000000`)
+plus effect 0 applying `SPELL_AURA_MOD_CONFUSE` (`SpellInfo.cpp:2665-2671`), which
+replaces the hardcoded `false` in the C++ `Player::RegenerateHealth` gate
+(`Player.cpp:1857-1859`); `Unit::IsInDisallowedMountForm`
+(`Unit.cpp:8813-8820`) reads the canonical transform spell instead of scanning
+visible auras. `SpellClassOptionsStore`, already loaded at startup, is attached
+to the existing `SessionSpellCatalogCapabilitiesLikeCpp` bundle, so no new
+mutable state, lock or clock appears; the physical policy records the reviewed
+one-line `app.rs` composition delta (5657→5658). Focused coverage: a new
+wow-entities precedence test for the transform write rules and an end-to-end
+regeneration test where a represented Polymorph (118) bypasses the in-combat gate
+with `GetMaxHealth() / 3.0` and removal restores suppression; the mount suite
+(14), `scenarios_spell_state_11` (12), `persistence::` (105) and
+`wow-entities unit_subsystems` (60) stay green; format, `git diff --check`, the
+physical ratchet and `validation-v2 quick` (manifest
+`20260917T000637.522552Z-2103079-quick.json`, 495.0 s, of which 485.2 s is the
+full workspace rebuild) pass. Handle-less test fixtures do not persist the
+derived transform field; acceptance cases install a canonical Player owner, as
+production does. The full `wow-world --lib` suite remains unusable on this host
+because several unrelated pre-existing async tests hang, and `validation-v2 final`
+stops at the pre-existing runtime hotspot LOC ratchet, which keeps its drift and
+was not regenerated. #61 remains open for the player-killer (PvP)
+`CONFIG_DURABILITY_LOSS_IN_PVP` branch and `SetPvPDeath`, alternate powers, rune
+regeneration and live DB/restart/relogin QA.
+
 **#61 aura-backed per-attack expertise (`Player::UpdateExpertise`) — 2026-09-16,
 implementation `a3345bc9`, integrated as `a9a2f2aa` by PR #980:** the character stat projection now derives
 `MainhandExpertise`/`OffhandExpertise` like C++
