@@ -12,6 +12,9 @@
 /// C++ `MeleeHitOutcome` (`UnitDefines.h:389-403`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedMeleeOutcomeLikeCpp {
+    /// C++ `MELEE_HIT_EVADE`: an evading creature victim returns this before any
+    /// band is rolled (`Unit.cpp:2274-2275`).
+    Evade,
     /// C++ `MELEE_HIT_MISS`.
     Miss,
     /// C++ `MELEE_HIT_DODGE`.
@@ -61,6 +64,9 @@ pub(crate) struct RepresentedMeleeOutcomeInputsLikeCpp {
     pub can_dodge: bool,
     /// C++ `canParryOrBlock`: the victim faces the attacker.
     pub can_parry: bool,
+    /// C++ `victim->ToCreature()->IsEvadingAttacks()`: the table returns
+    /// `MELEE_HIT_EVADE` before rolling.
+    pub is_evading_attacks: bool,
 }
 
 impl RepresentedMeleeOutcomeInputsLikeCpp {
@@ -75,6 +81,7 @@ impl RepresentedMeleeOutcomeInputsLikeCpp {
         crit_chance_pct: 0.0,
         can_dodge: false,
         can_parry: false,
+        is_evading_attacks: false,
     };
 }
 
@@ -95,6 +102,11 @@ pub(crate) fn melee_outcome_like_cpp(
     inputs: &RepresentedMeleeOutcomeInputsLikeCpp,
     roll: i32,
 ) -> RepresentedMeleeOutcomeLikeCpp {
+    // C++ returns `MELEE_HIT_EVADE` before the bands when the victim is an
+    // evading creature.
+    if inputs.is_evading_attacks {
+        return RepresentedMeleeOutcomeLikeCpp::Evade;
+    }
     let mut sum = 0_i32;
     let mut band = |percent: f32, allowed: bool, outcome: RepresentedMeleeOutcomeLikeCpp| {
         if !allowed {
@@ -188,7 +200,8 @@ pub(crate) fn melee_outcome_damage_like_cpp(
     victim_level: u8,
 ) -> (u32, u32) {
     match outcome {
-        RepresentedMeleeOutcomeLikeCpp::Miss
+        RepresentedMeleeOutcomeLikeCpp::Evade
+        | RepresentedMeleeOutcomeLikeCpp::Miss
         | RepresentedMeleeOutcomeLikeCpp::Dodge
         | RepresentedMeleeOutcomeLikeCpp::Parry => (0, 0),
         RepresentedMeleeOutcomeLikeCpp::Glancing => {
@@ -221,12 +234,18 @@ pub(crate) fn melee_outcome_presentation_like_cpp(
 ) -> (u32, u8) {
     use wow_packet::packets::combat::{
         HIT_INFO_AFFECTS_VICTIM, HIT_INFO_BLOCK, HIT_INFO_CRITICAL_HIT, HIT_INFO_GLANCING,
-        HIT_INFO_MISS, HIT_INFO_OFFHAND, VICTIM_STATE_DODGE, VICTIM_STATE_HIT, VICTIM_STATE_INTACT,
-        VICTIM_STATE_PARRY,
+        HIT_INFO_MISS, HIT_INFO_OFFHAND, HIT_INFO_SWING_NO_HIT_SOUND, VICTIM_STATE_DODGE,
+        VICTIM_STATE_EVADES, VICTIM_STATE_HIT, VICTIM_STATE_INTACT, VICTIM_STATE_PARRY,
     };
 
     let mut hit_info = if offhand { HIT_INFO_OFFHAND } else { 0 };
     let victim_state = match outcome {
+        RepresentedMeleeOutcomeLikeCpp::Evade => {
+            // C++ `CalculateMeleeDamage`'s `MELEE_HIT_EVADE` branch sets both
+            // `HITINFO_MISS` and `HITINFO_SWINGNOHITSOUND` (`Unit.cpp:1345-1355`).
+            hit_info |= HIT_INFO_MISS | HIT_INFO_SWING_NO_HIT_SOUND;
+            VICTIM_STATE_EVADES
+        }
         RepresentedMeleeOutcomeLikeCpp::Miss => {
             hit_info |= HIT_INFO_MISS;
             VICTIM_STATE_INTACT
@@ -302,6 +321,8 @@ pub(crate) struct RepresentedMeleeVictimFactsLikeCpp {
     pub is_creature: bool,
     /// C++ `victim->IsTotem()`: totems have no dodge, parry or block.
     pub is_totem: bool,
+    /// C++ `victim->ToCreature()->IsEvadingAttacks()`.
+    pub is_evading_attacks: bool,
     /// C++ `GetUnitDodgeChance`'s creature base (`CreatureBaseStats`-seeded),
     /// before the victim-level bonus and the attacker's expertise reduction.
     pub dodge_pct: f32,
@@ -410,6 +431,7 @@ pub(crate) fn melee_outcome_inputs_like_cpp(
             // gate is resolved.
             can_dodge: victim.is_creature && !victim.is_controlled,
             can_parry: victim.is_creature && victim.faces_attacker && !victim.is_controlled,
+            is_evading_attacks: victim.is_evading_attacks,
         }
     })
 }
