@@ -1,12 +1,39 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`bd4499807f36b98f961ba0af5ba4a25cf92465b5` (PR #1009, the #61 spell damage/healing done producers, following PR #1007, the override-attack-power-by-spell-power aura, PR #1005, the seven stale `wow-world --lib` expectations, PR #1003, the quest party fixture identity fix, PR #1001, the save-snapshot manager-lock re-entry fix, PR #999, the session reputation-closure lock re-entry deadlock fix, PR #997, the collection appearance `CanUseItem` template gates, PR #995, the collection appearance weapon-proficiency gate, PR #993, the #61 attack power aura producers, PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`2307fb687763a2b25c871ca291e1548b8b668934` (PR #1011, the #61 spell field wire publication, following PR #1009, the spell damage/healing done producers, PR #1007, the override-attack-power-by-spell-power aura, PR #1005, the seven stale `wow-world --lib` expectations, PR #1003, the quest party fixture identity fix, PR #1001, the save-snapshot manager-lock re-entry fix, PR #999, the session reputation-closure lock re-entry deadlock fix, PR #997, the collection appearance `CanUseItem` template gates, PR #995, the collection appearance weapon-proficiency gate, PR #993, the #61 attack power aura producers, PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#61 spell damage and healing field wire publication — 2026-09-17,
+implementation `9847962e`, integrated as `2307fb68` by PR #1011:** the packet
+adapters no longer send the item `spell_power` scalar to every magic school and
+to healing. `PlayerCombatStats`, `PlayerCreateData` and `PlayerStatChanges`
+replace `spell_power` with the C++ field set — `mod_damage_done_pos[7]`,
+`mod_damage_done_neg[7]` (create data) and `mod_healing_done_pos` — so each
+struct has one authority per value. The create block (`state_2.rs`,
+`StatSystem.cpp:171-197`) writes the per-school positive and negative entries plus
+the healing field from those arrays, and the narrow values update
+(`state_5.rs`) writes `ModDamageDonePos[i]` and `ModHealingDonePos` from the same
+arrays; the wire layout is unchanged because the scalar occupied exactly those
+slots. The login `PlayerCombatStats` snapshot (`world_entry.rs`) and the equip
+`PlayerStatChanges` (`items.rs`) copy the projection fields, and the
+`session/mod.rs` fixture helper states that it has no aura/stat producers.
+Boundary: the narrow values-update path still leaves the `ModDamageDoneNeg` bits
+(284-290) unset, exactly as before this unit; the create block publishes the
+negative entries and the generic `state_4.rs` writer already supports them once
+their mask bits are set. Evidence: `scenarios_spell_state_22` asserts the item
+spell power reaches `mod_healing_done_pos` and every magic school; wow-packet
+--lib 742/0 and wow-world --lib 3926/0/1; format, `git diff --check`, the
+physical ratchet (two explained fixture ceilings: `update_tests/mod.rs` 201→204
+and `world_entry.rs` 2772→2774) and `validation-v2 quick` (manifest
+`20260917T031859.286082Z-2219004-quick.json`) pass. No live DB/restart/relogin QA.
+#61 stays open for the narrow values-update negative bits, the player-killer
+(PvP) `CONFIG_DURABILITY_LOSS_IN_PVP` branch and `SetPvPDeath`, alternate powers,
+rune regeneration and live DB/restart/relogin QA.
 
 **#61 spell damage and healing done producers — 2026-09-17, implementation
 `92f0f550`, integrated as `bd449980` by PR #1009:** `Player::UpdateSpellDamageAndHealingBonus`
@@ -29,16 +56,17 @@ class base-mana row is nonzero (`GetPowerIndex(POWER_MANA) != MAX_POWERS`), and
 by zeroing `GetBaseSpellPowerBonus()`. `PlayerEffectiveCombatStatsLikeCpp`
 publishes `mod_damage_done_pos`, `mod_damage_done_neg` and
 `mod_healing_done_pos`. Boundary: the create-block and values-update adapters
-still publish the scalar `spell_power`; moving the per-school arrays onto the
-wire is the next publication unit. Evidence: a pure test pins the per-school
+published only the scalar `spell_power` at that point; the per-school arrays
+are published by the spell-field wire entry above. Evidence: a pure test pins the per-school
 positive/negative split, the mana intellect term and the 366 override, and a
 session test drives 13/135/174/175 on a level-80 priest to holy 150, fire 120
 with `ModDamageDoneNeg[fire] = -50` and healing 187, then 404 to both attack mods
 50; `wow-data --lib` 751/0, `wow-entities --lib` 940/0, `wow-world --lib`
 3926/0/1, format, `git diff --check`, the physical ratchet and `validation-v2
 quick` (manifest `20260917T030821.891532Z-2209220-quick.json`) pass. No live
-DB/restart/relogin QA. #61 stays open for the packet publication of those fields,
-the player-killer (PvP) `CONFIG_DURABILITY_LOSS_IN_PVP` branch and `SetPvPDeath`,
+DB/restart/relogin QA. #61 stayed open for the packet publication of those fields,
+delivered by the spell-field wire entry above, and remains open for the
+player-killer (PvP) `CONFIG_DURABILITY_LOSS_IN_PVP` branch and `SetPvPDeath`,
 alternate powers, rune regeneration and live DB/restart/relogin QA.
 
 **#61 override attack power by spell power — 2026-09-17, implementation

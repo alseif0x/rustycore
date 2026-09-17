@@ -33,6 +33,15 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 spell damage and healing field wire publication — 2026-09-17,
+implementation `9847962e`:** `PlayerCombatStats`, `PlayerCreateData` and
+`PlayerStatChanges` replace the scalar `spell_power` with
+`mod_damage_done_pos[7]`, `mod_damage_done_neg[7]` (create data) and
+`mod_healing_done_pos`, and the create/values writers emit them from those
+arrays; the `ModDamageDoneNeg` bits of the narrow values update stay unset, as
+before. wow-packet --lib 742/0, wow-world --lib 3926/0/1; no live
+DB/restart/relogin QA.
+
 **#61 spell damage and healing done producers — 2026-09-17, implementation
 `92f0f550`:** `Player::UpdateSpellDamageAndHealingBonus` (`StatSystem.cpp:171-197`)
 is produced from the C++ `Unit::SpellBaseDamageBonusDone`/`SpellBaseHealingBonusDone`
