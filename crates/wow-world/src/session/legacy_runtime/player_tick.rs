@@ -397,8 +397,9 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                     .runtime_applications_like_cpp();
                 let base_attack_speed = attacker_player.unit().base_attack_speed();
                 // C++ `CalcArmorReducedDamage`: the attacker's
-                // `SPELL_AURA_MOD_TARGET_RESISTANCE` normal-school sum and its
-                // live CR_ARMOR_PENETRATION rating bonus, over the creature
+                // `SPELL_AURA_MOD_TARGET_RESISTANCE` and
+                // `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` normal-school sums and
+                // its live CR_ARMOR_PENETRATION rating bonus, over the creature
                 // victim's `GetArmor()`.
                 let target_resistance_normal_aura =
                     crate::session_rules::player_aura_effects_by_spell_aura_type_like_cpp(
@@ -410,6 +411,16 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                     .filter(|(misc_value, _)| misc_value & 0x01 != 0)
                     .map(|(_, amount)| amount)
                     .sum::<i32>();
+                let ignore_target_resist_normal_pct =
+                    crate::session_rules::player_aura_effects_by_spell_aura_type_like_cpp(
+                        auras,
+                        spell_store,
+                        wow_data::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST,
+                    )
+                    .into_iter()
+                    .filter(|(misc_value, _)| misc_value & 0x01 != 0)
+                    .map(|(_, amount)| amount as f32)
+                    .sum::<f32>();
                 let armor_mitigation = crate::session::combat::RepresentedArmorMitigationLikeCpp {
                     attacker_level: attacker_player.level_like_cpp(),
                     victim_level,
@@ -418,6 +429,7 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                         .effective_combat_stats_like_cpp()
                         .armor_penetration_pct,
                     target_resistance_normal_aura,
+                    ignore_target_resist_normal_pct,
                 };
                 let bonus = std::array::from_fn(|index| {
                     let (flat, pct) = crate::session_rules::melee_damage_bonus_done_like_cpp(

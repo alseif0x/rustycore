@@ -18580,6 +18580,7 @@ fn represented_white_swing_damage_like_cpp(
         armor_mitigation.victim_armor,
         armor_mitigation.armor_penetration_pct,
         armor_mitigation.target_resistance_normal_aura,
+        armor_mitigation.ignore_target_resist_normal_pct,
     );
     // C++ assigns `OriginalDamage` inside the outcome switch, so the shared
     // arithmetic returns it with the dealt damage (`Unit.cpp:1343-1440`).

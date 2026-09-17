@@ -279,15 +279,21 @@ pub(crate) fn white_swing_roll_like_cpp(min_damage: f32, max_damage: f32) -> u32
 ///
 /// The represented inputs are the victim's `Unit::GetArmor()` (a creature's
 /// `GenerateArmor` value), the attacker's live
-/// `GetRatingBonusValue(CR_ARMOR_PENETRATION)` percentage and the attacker's
+/// `GetRatingBonusValue(CR_ARMOR_PENETRATION)` percentage, the attacker's
 /// `SPELL_AURA_MOD_TARGET_RESISTANCE` (123) sum covering
-/// `SPELL_SCHOOL_MASK_NORMAL`. `GetArmorMultiplierForTarget` is `1.0` for every
-/// 3.4.3 unit (no override), so it is not a term.
+/// `SPELL_SCHOOL_MASK_NORMAL`, and the attacker's
+/// `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` (269) sum covering the same school.
+/// `GetArmorMultiplierForTarget` is `1.0` for every 3.4.3 unit (no override), so
+/// it is not a term.
 ///
 /// Boundaries: `SPELL_AURA_BYPASS_ARMOR_FOR_CASTER` (345, a victim aura cast by
-/// the attacker) and `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` (269) have no
-/// represented producer, and a spell's `SpellModOp::TargetResistance`
-/// adjustment cannot apply to an auto-attack (`spellInfo == null`).
+/// the attacker) has no represented producer, a spell's
+/// `SpellModOp::TargetResistance` adjustment cannot apply to an auto-attack
+/// (`spellInfo == null`), and C++ truncates each
+/// `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` effect separately
+/// (`armor = std::floor(AddPct(armor, -amount))`) while the owner sums the
+/// amounts first, so two concurrent effects differ from C++ by that per-step
+/// truncation.
 pub(crate) fn armor_reduced_damage_like_cpp(
     damage: u32,
     attacker_level: u8,
@@ -295,12 +301,19 @@ pub(crate) fn armor_reduced_damage_like_cpp(
     victim_armor: i32,
     armor_penetration_pct: f32,
     target_resistance_normal_aura: i32,
+    ignore_target_resist_normal_pct: f32,
 ) -> u32 {
     // `armor *= victim->GetArmorMultiplierForTarget(attacker)` is a no-op.
     let mut armor = victim_armor.max(0) as f32;
     // `armor += attacker->GetTotalAuraModifierByMiscMask(MOD_TARGET_RESISTANCE,
     // NORMAL)`; a negative sum is armour penetration.
     armor += target_resistance_normal_aura as f32;
+
+    // `armor = std::floor(AddPct(armor, -amount))` over the attacker's
+    // `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` effects of the normal school.
+    if ignore_target_resist_normal_pct != 0.0 {
+        armor = (armor * (1.0 - ignore_target_resist_normal_pct / 100.0)).floor();
+    }
 
     // `Player` CR_ARMOR_PENETRATION rating bonus, capped the way C++ caps it.
     let victim_level = victim_level as f32;

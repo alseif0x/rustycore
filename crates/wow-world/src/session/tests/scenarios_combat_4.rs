@@ -129,36 +129,54 @@ fn armor_reduction_matches_calc_armor_reduced_damage_like_cpp() {
     use crate::session_rules::armor_reduced_damage_like_cpp as reduced;
     // C++ `Unit::CalcArmorReducedDamage` (`Unit.cpp:1623-1685`) with a level-80
     // attacker: `levelModifier = 80 + 4.5 * 21 = 174.5`.
-    assert_eq!(reduced(1_000, 80, 80, 0, 0.0, 0), 1_000, "no armour");
+    assert_eq!(reduced(1_000, 80, 80, 0, 0.0, 0, 0.0), 1_000, "no armour");
     assert_eq!(
-        reduced(1_000, 80, 80, 5_000, 0.0, 0),
+        reduced(1_000, 80, 80, 5_000, 0.0, 0, 0.0),
         753,
         "5,000 armour: ceil(1000 * (1 - 0.247127))"
     );
     assert_eq!(
-        reduced(1_000, 80, 80, 5_000, 25.0, 0),
+        reduced(1_000, 80, 80, 5_000, 25.0, 0, 0.0),
         803,
         "a 25% CR_ARMOR_PENETRATION bonus ignores a quarter of the armour"
     );
     assert_eq!(
-        reduced(1_000, 80, 80, 5_000, 100.0, 0),
+        reduced(1_000, 80, 80, 5_000, 100.0, 0, 0.0),
         1_000,
         "100% penetration removes the whole armour value"
     );
     assert_eq!(
-        reduced(1_000, 80, 80, 10_000_000, 0.0, 0),
+        reduced(1_000, 80, 80, 10_000_000, 0.0, 0, 0.0),
         250,
         "the reduction clamps at 75%"
     );
     assert_eq!(
-        reduced(1_000, 80, 80, 5_000, 0.0, -5_000),
+        reduced(1_000, 80, 80, 5_000, 0.0, -5_000, 0.0),
         1_000,
         "a negative MOD_TARGET_RESISTANCE sum cancels the armour"
     );
     assert_eq!(
-        reduced(1_000, 80, 10, 500, 0.0, 0),
+        reduced(1_000, 80, 10, 500, 0.0, 0, 0.0),
         969,
         "a victim below level 60 uses `maxArmorPen = 400 + 85 * level`"
+    );
+    // C++ `armor = std::floor(AddPct(armor, -amount))` for the attacker's
+    // `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` normal-school effects, applied
+    // after `MOD_TARGET_RESISTANCE` and before the rating penetration.
+    assert_eq!(
+        reduced(1_000, 80, 80, 5_000, 0.0, 0, 50.0),
+        860,
+        "50% ignore-resist halves the 5,000 armour before the reduction curve"
+    );
+    assert_eq!(
+        reduced(1_000, 80, 80, 5_000, 0.0, 0, 100.0),
+        1_000,
+        "100% ignore-resist removes the whole armour value"
+    );
+    assert_eq!(
+        reduced(1_000, 80, 80, 5_000, 0.0, 0, -50.0),
+        671,
+        "a negative ignore-resist amount grows the armour"
     );
 }
 
@@ -238,6 +256,7 @@ fn white_swing_applies_victim_armor_mitigation_like_cpp() {
     assert_eq!(mitigation.victim_armor, 5_000);
     assert_eq!(mitigation.armor_penetration_pct, 0.0);
     assert_eq!(mitigation.target_resistance_normal_aura, 0);
+    assert_eq!(mitigation.ignore_target_resist_normal_pct, 0.0);
 
     let swing = |session: &mut WorldSession| {
         let melee_damage_bonus = session.represented_melee_damage_bonus_like_cpp();
@@ -274,10 +293,36 @@ fn white_swing_applies_victim_armor_mitigation_like_cpp() {
         "C++ CalcArmorReducedDamage over a 1,000 damage roll"
     );
 
-    // The attacker's `SPELL_AURA_MOD_TARGET_RESISTANCE` term only covers
+    // The attacker's `SPELL_AURA_MOD_TARGET_RESISTANCE` and
+    // `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` terms only cover
     // `SPELL_SCHOOL_MASK_NORMAL`; a non-normal row leaves the armour alone.
     let mut spell_store = wow_data::SpellStore::new();
-    for (spell_id, misc_value) in [(91_120_i32, 0x02_i32), (91_121, 0x01)] {
+    for (spell_id, aura_type, misc_value, amount) in [
+        (
+            91_120_i32,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE,
+            0x02_i32,
+            -5_000_i32,
+        ),
+        (
+            91_121,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE,
+            0x01,
+            -5_000,
+        ),
+        (
+            91_122,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST,
+            0x04,
+            50,
+        ),
+        (
+            91_123,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST,
+            0x01,
+            50,
+        ),
+    ] {
         spell_store.insert(
             spell_id,
             wow_data::SpellInfo {
@@ -286,30 +331,58 @@ fn white_swing_applies_victim_armor_mitigation_like_cpp() {
                 cooldown_ms: 0,
                 recovery_time_ms: 0,
                 effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
-                effect_base_points: -5_000,
+                effect_base_points: amount,
                 effect_bonus_coefficient: 0.0,
-                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE),
+                aura_type: Some(aura_type),
                 display_flags: 0,
                 requires_spell_focus: 0,
                 power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
-                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE,
+                    effect_aura: aura_type,
                     effect_misc_value_1: misc_value,
-                    effect_base_points: -5_000,
+                    effect_base_points: amount,
                     ..Default::default()
                 }],
             },
         );
     }
     session.set_spell_store(Arc::new(spell_store));
+
+    // A non-normal ignore-resist row is filtered out.
+    session
+        .apply_aura(91_122, player, 30_000, 1)
+        .expect("apply non-normal ignore-resist aura");
+    assert_eq!(
+        session
+            .represented_melee_armor_mitigation_like_cpp()
+            .ignore_target_resist_normal_pct,
+        0.0
+    );
+    assert_eq!(swing(&mut session), Some(vec![753]));
+
+    // A normal-school sum shrinks the armour with
+    // `std::floor(AddPct(armor, -amount))` before the reduction curve.
+    session
+        .apply_aura(91_123, player, 30_000, 1)
+        .expect("apply normal ignore-resist aura");
+    assert_eq!(
+        session
+            .represented_melee_armor_mitigation_like_cpp()
+            .ignore_target_resist_normal_pct,
+        50.0
+    );
+    assert_eq!(swing(&mut session), Some(vec![860]));
+
+    // A non-normal `MOD_TARGET_RESISTANCE` row leaves the reduced armour alone.
     session
         .apply_aura(91_120, player, 30_000, 1)
         .expect("apply non-normal target-resistance aura");
-    assert_eq!(swing(&mut session), Some(vec![753]));
+    assert_eq!(swing(&mut session), Some(vec![860]));
 
-    // A normal-school negative sum is armour penetration and cancels the armour.
+    // A normal-school negative target-resistance sum is armour penetration and
+    // cancels the armour, so the ignore-resist term has nothing left to reduce.
     session
         .apply_aura(91_121, player, 30_000, 1)
         .expect("apply normal target-resistance aura");
