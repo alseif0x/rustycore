@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`32914a563eac0d13cfd64c77abd3374511f574e8` (PR #1131, the #29
-creature-victim melee fixture determinism fix, following PR #1129, the #29
+`4c750401b97d48e1e180221e1ba8672f0d1e9728` (PR #1137, the #29
+creature-victim evade scenario, following PR #1131, the #29
+creature-victim melee fixture determinism fix, PR #1129, the #29
 creature-victim blocked-amount publication, PR #1127, the #29
 creature-victim block-band scenario, PR #1125, the #29
 creature-victim avoidance and crit bands, PR #1123, the #29
@@ -52,6 +53,24 @@ represented creature-aura producer), the player-victim block band (needs the
 the target build's negative crushing band, and live DB/restart/relogin QA. The
 next unit should be the `ExpectedStat` consumer, whose store already exists in
 `wow-data` with no consumer.
+
+**#29 creature-victim evade scenario — 2026-09-17, implementation `772895c2`,
+integrated as `4c750401` by PR #1137:** C++ `Unit::RollMeleeOutcomeAgainst`
+returns `MELEE_HIT_EVADE` before every band when the creature victim is evading
+(`Unit.cpp:2274-2275`), and `CalculateMeleeDamage`'s evade arm publishes
+`HITINFO_MISS | HITINFO_SWINGNOHITSOUND` with `VICTIMSTATE_EVADES` and zero
+damage (`Unit.cpp:1345-1355`). PR #1125 made that gate reachable from the
+runtime because it started resolving the victim creature's `is_evading_attacks`
+fact, but only the pure table test covered evade. The production runtime
+scenario now sets the canonical victim's evade mode and asserts the swing
+commits no hit, deals no damage and reaches the wire as
+`HITINFO_MISS | HITINFO_SWINGNOHITSOUND`, then clears the mode so the block and
+critical stages continue. Evidence: `wow-world --lib` 3990/0/1 on three
+consecutive runs, `world-server --lib` 594/0/0 and `wow-packet --lib` 744/0;
+format, `git diff --check` and the physical ratchet pass, and
+`validation-v2 quick` (manifest `20260917T193631.487323Z-3327648-quick.json`)
+passes. The docs-only PRs #1133–#1136 between #1131 and this entry did not move
+the implementation head.
 
 **#29 player-victim block band preparation — 2026-09-17, no code change:** the
 next melee unit is the player-victim block band, and its exact C++ contract was
