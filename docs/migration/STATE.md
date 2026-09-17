@@ -1,12 +1,43 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Integration head — 2026-09-16:** `3.4.3` is at
-`1bc1f9c31e61ce3510a4e9015d9c09a51c9f66c5` (PR #1003, the quest party fixture identity fix, following PR #1001, the save-snapshot manager-lock re-entry fix, PR #999, the session reputation-closure lock re-entry deadlock fix, PR #997, the collection appearance `CanUseItem` template gates, PR #995, the collection appearance weapon-proficiency gate, PR #993, the #61 attack power aura producers, PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+**Integration head — 2026-09-17:** `3.4.3` is at
+`343be766beedf0066696b522318ac6e275a80556` (PR #1005, the seven stale `wow-world --lib` expectations, following PR #1003, the quest party fixture identity fix, PR #1001, the save-snapshot manager-lock re-entry fix, PR #999, the session reputation-closure lock re-entry deadlock fix, PR #997, the collection appearance `CanUseItem` template gates, PR #995, the collection appearance weapon-proficiency gate, PR #993, the #61 attack power aura producers, PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**Seven stale `wow-world --lib` expectations — 2026-09-17, implementation
+`2534b97e`, integrated as `343be766` by PR #1005 (test harness, not gameplay
+progress):** the seven scenarios left red by PR #1003 were each reproduced on
+clean base `6b46be23` before correction; none was a production regression and no
+production code changed. (1) `login_load_adds_default_void_item_appearance_like_cpp`
+installed a canonical Player with no learned proficiencies and then asserted
+`CollectionMgr::CanAddAppearance` (`CollectionMgr.cpp:649-726`), which requires
+`Player::GetWeaponProficiency() & (1 << subclass)`; a real character learns its
+class proficiency spells on first login (`CharacterHandler.cpp:1284-1288` casting
+`playercreateinfo_cast_spell`), whose `SPELL_EFFECT_PROFICIENCY` runs
+`Player::AddWeaponProficiency` (`SpellEffects.cpp:1785-1804`, `Player.h:1433`), so
+the fixture now seeds the one-handed-sword mask on the Player it installs.
+(2) `repeated_login_attachment_preserves_loaded_reputation_for_final_save`
+installed the canonical Player without the loaded identity, so the second
+`send_login_sequence` ensure read a race change and reinitialized the manager;
+the fixture now publishes the loaded race/class/level first, matching
+`Player::LoadFromDB` (`CharacterHandler.cpp:1070`). (3) The logout save-snapshot
+scenario still expected the stale session level 10 while `Player::SaveToDB` reads
+canonical `Unit::GetLevel` (the snapshot itself already expected 42).
+(4) The durable creature rail drain now starts with the `Unit::Kill`
+creature-killer durability loss (`Unit.cpp:10639-10648`) before the victim health
+presentation, and the fall-land lethal scenario adds
+`Player::EnvironmentalDamage`'s durability loss (`Player.cpp:667-669`). (5) The
+two `scenarios_world_entities_16` quest-giver queries set the level before
+canonical adoption, which overwrote it. Evidence: `wow-world --lib` moves from
+3917 passed/7 failed to **3924 passed/0 failed/1 ignored**; format,
+`git diff --check`, the physical ratchet and `validation-v2 quick` (manifest
+`20260917T024356.370256Z-2188249-quick.json`) pass. This restores the suite as
+usable evidence; it does not add gameplay parity and no live DB/restart/relogin
+QA.
 
 **Represented quest-share party fixture identity — 2026-09-17, implementation
 `05d0d5e4`, integrated as `1bc1f9c3` by PR #1003 (test harness, not gameplay progress):** `install_represented_party`
@@ -29,8 +60,8 @@ ratchet and `validation-v2 quick` (manifest
 `movement_fall_land_lethal`, `void_storage` login appearance,
 `scenarios_persistence_2` logout snapshot, two `scenarios_world_entities_16`
 quest-giver queries and `scenarios_world_entities_1` durable creature rail —
-each need their own reproduction and C++ contrast and remain an open defect track.
-No live DB/restart/relogin QA.
+each need their own reproduction and C++ contrast and remained an open defect track,
+resolved by the seven-stale-expectations entry above. No live DB/restart/relogin QA.
 
 **Save-snapshot manager-lock re-entry — 2026-09-17, implementation `f55d9ef3`, integrated as `ac592c5f` by PR #1001:**
 `fixture_player_save_to_db_snapshot_like_cpp` held the canonical map-manager lock
