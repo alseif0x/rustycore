@@ -33,6 +33,16 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 `ModDamageDonePercent` publication — 2026-09-17, implementation
+`b11a04cb`:** `HandleModDamagePercentDone`
+(`SpellAuraEffects.cpp:4525-4548`) is produced as the per-school product of
+`1 + amount/100` over `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE` (79) effects and
+published through the canonical snapshot, the create block and the narrow values
+update (bits 291-297), completing the four-field per-school interleave. The
+physical `Unit::UpdateAllDamagePctDoneMods()` melee percentage remains open.
+wow-data --lib 751/0, wow-entities --lib 940/0, wow-world --lib 3926/0/1,
+wow-packet --lib 742/0; no live DB/restart/relogin QA.
+
 **#61 narrow values-update negative spell field — 2026-09-17, implementation
 `a7c53527`:** `PlayerStatChanges` gains `mod_damage_done_neg[7]` and the narrow
 values writer sets the C++ mask bits 284-290 and emits the per-school negative
