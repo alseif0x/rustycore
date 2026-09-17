@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`fbd008ac297424e44e6e3400b4dca3e23e2d7bba` (PR #1097, the #29 ignore-dual-wield
-hit-penalty aura, following PR #1095, the #29 victim conditional
+`d64a4aa9702bf3a78e7acd8710f6800f4a8e94e5` (PR #1099, the #29 controlled-victim
+avoidance gate, following PR #1097, the #29 ignore-dual-wield
+hit-penalty aura, PR #1095, the #29 victim conditional
 critical-chance auras, PR #1093, the #29 victim avoidance
 auras, PR #1091, the #29 victim-side melee
 damage-taken chain, PR #1089, the #29 melee block band,
@@ -18,6 +19,28 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 controlled-victim avoidance gate — 2026-09-17, implementation `f15252bd`,
+integrated as `d64a4aa9` by PR #1099:** C++ `Unit::RollMeleeOutcomeAgainst`
+(`Unit.cpp:2296-2304`) clears `canDodge` and `canParryOrBlock` when the victim is
+casting a non-melee spell or carries `UNIT_STATE_CONTROLLED`; the represented
+table resolved neither gate. `RepresentedMeleeVictimFactsLikeCpp` gained
+`is_controlled`, resolved from the victim's unit state in both owners, and
+`melee_outcome_inputs_like_cpp` clears `can_dodge`/`can_parry` for a controlled
+victim. Boundary: the represented creature runtime does not track its current
+spell slots, so C++ `IsNonMeleeSpellCast` stays unrepresented. Evidence: the pure
+fact test pins both gates false for a controlled victim, and
+`white_swing_gates_avoidance_on_the_controlled_state_like_cpp` drives the session
+owner with a `+100%` dodge aura — the swing is dodged (`VICTIM_STATE_DODGE`)
+while the victim is free and lands normally (7 damage,
+`HIT_INFO_AFFECTS_VICTIM`) once `UNIT_STATE_CONTROLLED` is set; wow-packet 744/0,
+wow-data 753/0, wow-entities 940/0, wow-world 3983/0/1 and world-server 594/0/0
+pass; format, `git diff --check` and the physical ratchet pass without new
+ceiling growth, and `validation-v2 quick` (manifest
+`20260917T152301.868398Z-2950950-quick.json`) passes. No live DB/restart/relogin
+QA. This closes the victim-side attack-table term list; #29 remains open for the
+remaining spell/melee math (melee haste/cooldown consumers, ranged auto-attack,
+proc/scripted terms).
 
 **#29 ignore-dual-wield hit-penalty aura — 2026-09-17, implementation `2b93a741`,
 integrated as `fbd008ac` by PR #1097:** C++ `Unit::MeleeSpellMissChance`
