@@ -1,12 +1,54 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`6d9b91bc2711e74750df1bf9f5ce5183335a5db5` (PR #1077, the #61 melee creature-type damage bonus, following PR #1075, the #61 cast-speed auras, PR #1073, the #61 white-swing auto-attack damage aura, PR #1071, the #61 displayed-power ownership, PR #1069, the #61 `HandleShapeshiftBoosts`, PR #1067, the #61 form-change item effect refresh, PR #1065, the #61 shapeshift form ownership and `CombatRoundTime`, PR #1063, the #61 attack-speed aura application, PR #1061, the #61 `CONFIG_STATS_LIMITS_*` caps, PR #1059, the #61 `BonusCoefficientFromAP` table term, PR #1057, the #61 `SpellHealingPctDone` completion, PR #1055, the #61 remaining `SpellDamagePctDone` terms, PR #1053, the #61 health-derived unit aura states, PR #1051, the #61 mechanic-based damage multipliers, PR #1049, the #61 versus-aurastate damage multiplier, following PR #1047, the creature missing-health heal scaling, PR #1045, the versus-creature-type damage multiplier, PR #1043, the missing-health healing scaling, PR #1041, the `SpellHealingBonusTaken`, PR #1039, the victim `ModHealing` term, PR #1037, the direct-heal spell-power bonus, PR #1035, the school damage percentage, PR #1033, the caster spell-power damage bonus, PR #1031, the weapon-enchantment damage term, PR #1029, the ranged weapon fit, PR #1027, the `Unit::UpdateDamageDoneMods` representation, PR #1025, the `UpdateDamagePctDoneMods` representation, PR #1023, the `VersatilityBonus` publication, PR #1021, the override percentage publication, PR #1019, the `ModTargetResistance`/spell-penetration publication, PR #1017, the `ModHealingDonePercent` publication, PR #1015, the `ModDamageDonePercent` publication, PR #1013, the narrow values-update negative spell field, PR #1011, the spell field wire publication, PR #1009, the spell damage/healing done producers, PR #1007, the override-attack-power-by-spell-power aura, PR #1005, the seven stale `wow-world --lib` expectations, PR #1003, the quest party fixture identity fix, PR #1001, the save-snapshot manager-lock re-entry fix, PR #999, the session reputation-closure lock re-entry deadlock fix, PR #997, the collection appearance `CanUseItem` template gates, PR #995, the collection appearance weapon-proficiency gate, PR #993, the #61 attack power aura producers, PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`44525aae1c3a237836bc4b7166c9bb1d3c50a60a` (PR #1079, the #61 victim
+aurastate/aura-mechanic melee bonuses, following PR #1077, the #61 melee
+creature-type damage bonus, PR #1075, the #61 cast-speed auras, PR #1073, the #61 white-swing auto-attack damage aura, PR #1071, the #61 displayed-power ownership, PR #1069, the #61 `HandleShapeshiftBoosts`, PR #1067, the #61 form-change item effect refresh, PR #1065, the #61 shapeshift form ownership and `CombatRoundTime`, PR #1063, the #61 attack-speed aura application, PR #1061, the #61 `CONFIG_STATS_LIMITS_*` caps, PR #1059, the #61 `BonusCoefficientFromAP` table term, PR #1057, the #61 `SpellHealingPctDone` completion, PR #1055, the #61 remaining `SpellDamagePctDone` terms, PR #1053, the #61 health-derived unit aura states, PR #1051, the #61 mechanic-based damage multipliers, PR #1049, the #61 versus-aurastate damage multiplier, following PR #1047, the creature missing-health heal scaling, PR #1045, the versus-creature-type damage multiplier, PR #1043, the missing-health healing scaling, PR #1041, the `SpellHealingBonusTaken`, PR #1039, the victim `ModHealing` term, PR #1037, the direct-heal spell-power bonus, PR #1035, the school damage percentage, PR #1033, the caster spell-power damage bonus, PR #1031, the weapon-enchantment damage term, PR #1029, the ranged weapon fit, PR #1027, the `Unit::UpdateDamageDoneMods` representation, PR #1025, the `UpdateDamagePctDoneMods` representation, PR #1023, the `VersatilityBonus` publication, PR #1021, the override percentage publication, PR #1019, the `ModTargetResistance`/spell-penetration publication, PR #1017, the `ModHealingDonePercent` publication, PR #1015, the `ModDamageDonePercent` publication, PR #1013, the narrow values-update negative spell field, PR #1011, the spell field wire publication, PR #1009, the spell damage/healing done producers, PR #1007, the override-attack-power-by-spell-power aura, PR #1005, the seven stale `wow-world --lib` expectations, PR #1003, the quest party fixture identity fix, PR #1001, the save-snapshot manager-lock re-entry fix, PR #999, the session reputation-closure lock re-entry deadlock fix, PR #997, the collection appearance `CanUseItem` template gates, PR #995, the collection appearance weapon-proficiency gate, PR #993, the #61 attack power aura producers, PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#61 victim aurastate/aura-mechanic melee bonuses — 2026-09-17, implementation
+`1d33f078`, integrated as `44525aae` by PR #1079:** C++
+`Unit::MeleeDamageBonusDone` (`Unit.cpp:7631-7648`) multiplies `DoneTotalMod` by
+`SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE` (303) when
+`pVictim->HasAuraState(miscValue)` holds, and by
+`SPELL_AURA_MOD_DAMAGE_PERCENT_DONE_BY_TARGET_AURA_MECHANIC` (249) when
+`pVictim->HasAuraWithMechanic(1 << miscValue)` holds; the represented white swing
+applied neither in either owner. `session_rules::melee_damage_bonus_done_like_cpp`
+(renamed from `..._creature_type_like_cpp`) now takes the victim's aura-state and
+mechanic masks and folds both multipliers, and its early return on an empty
+creature-type mask is gone because these two terms apply without a creature type.
+`Unit::HasAuraWithMechanic` now has a single receiver-free implementation in
+`session_rules` (`aura_application_mechanic_mask_like_cpp` for a canonical
+Player's `AuraApplication` map, `applied_aura_mechanic_mask_like_cpp` for a
+creature's `AppliedAuraRef` list), replacing the session-local copy the
+spell-damage path used; the session target helper delegates to it. The session
+owner reads `represented_target_aura_state_mask_like_cpp` (already shared with the
+spell path) and `represented_target_mechanic_mask_like_cpp`; the map-owned
+`GlobalLegacy` production phase derives the creature victim's aurastate mask from
+its aura subsystem plus `WorldCreature::health_aura_state_like_cpp` and the
+mechanic mask from its applied auras at the map's own difficulty, collected during
+the canonical collect phase so the execute phase keeps the established
+canonical-then-legacy lock order. Boundary: a canonical-player victim resolved
+through the runtime's non-creature branch still contributes no masks (that state
+is owned by the victim's session), and the victim
+`SPELL_AURA_MELEE_ATTACK_POWER_ATTACKER_BONUS`/`RANGED_...` term still has no
+represented creature-aura producer. Evidence:
+`white_swing_applies_victim_aurastate_and_mechanic_melee_bonus_like_cpp` holds the
+session owner to `pct` 1.0/2.0/4.0 and a 28-damage swing from a 7-damage weapon,
+`map_owned_player_melee_applies_victim_aurastate_and_mechanic_bonus_like_cpp`
+holds the map-owned production tick to 5/10/20 damage, and wow-world --lib is
+3962/0/1; format, `git diff --check`, the physical ratchet and `validation-v2
+quick` (manifest `20260917T112226.278946Z-2668271-quick.json`) pass. No live
+DB/restart/relogin QA. #61 stays open for the Shadow Bite per-DoT term, the
+blocked victim-side `SpellDamageBonusTaken`/`MeleeDamageBonusTaken` chains
+(creature aura producers are absent), the ranged/offhand attack-type selection for
+the AP term, the offhand-damage aura scale, the player-killer (PvP)
+`CONFIG_DURABILITY_LOSS_IN_PVP` branch, alternate powers, rune regeneration and
+live DB/restart/relogin QA.
 
 **#61 melee creature-type damage bonus — 2026-09-17, implementation `db3c2db6`,
 integrated as `6d9b91bc` by PR #1077:** C++ `Unit::MeleeDamageBonusDone`
@@ -26,16 +68,17 @@ target helpers, and the map-owned runtime gained the immutable
 (populated in `app.rs` beside the spell stores) with the config now threaded into
 `run_legacy_player_melee_tick_once_like_cpp`. Boundary: the victim's
 `SPELL_AURA_MELEE_ATTACK_POWER_ATTACKER_BONUS`/`RANGED_...` term has no
-represented creature-aura producer, and the versus-aurastate (303) and
-target-aura-mechanic (249) multipliers are the next unit. Evidence: the new
+represented creature-aura producer; the versus-aurastate (303) and
+target-aura-mechanic (249) multipliers were the next unit, delivered by the entry
+above. Evidence: the new
 scenario registers a type-7 creature template and asserts `flat = 5` from the
 creature-type aura alone, `pct = 2.0` after adding the versus aura, and a
 24-damage swing from 7 (`(7 + 5) * 2`); wow-data --lib 753/0, wow-entities --lib
 940/0 and wow-world --lib 3960/0/1 pass, as do format, `git diff --check`, the
 physical ratchet (two recorded ceiling growths) and `validation-v2 quick`
 (manifest `20260917T105857.497150Z-2661037-quick.json`). No live DB/restart/
-relogin QA. #61 stays open for the versus-aurastate and target-aura-mechanic
-melee terms, the Shadow Bite per-DoT term, the blocked victim-side
+relogin QA. #61 stays open for the Shadow Bite per-DoT term, the blocked
+victim-side
 `SpellDamageBonusTaken`/`MeleeDamageBonusTaken` chains (creature aura producers
 are absent), the ranged/offhand attack-type selection for the AP term, the
 offhand-damage aura scale, the player-killer (PvP)
@@ -97,7 +140,8 @@ the map-owned swing path only reads it and there is one writer per transition;
 both owners call. Boundary: the remaining `MeleeDamageBonusDone` terms (flat
 creature-type damage, `MOD_MELEE_ATTACK_POWER_VERSUS` with `GetAPMultiplier`,
 versus-creature-type, versus-aurastate and target-aura-mechanic multipliers) need
-the victim's creature type and mechanic masks and remain the next unit. Evidence:
+the victim's creature type and mechanic masks and were the next unit, delivered by
+the melee creature-type and victim aurastate/aura-mechanic entries above. Evidence:
 the new scenario asserts a 7-damage white swing, 14 once a +100%
 `SPELL_AURA_MOD_AUTOATTACK_DAMAGE` aura is applied (with the canonical multiplier
 reading 2.0) and 7 again after removal; wow-data --lib 753/0, wow-entities --lib
@@ -544,8 +588,10 @@ every active aura-168 effect whose misc intersects the victim's type mask.
 `CreatureTemplateLifecycleRecordLikeCpp` derives `Default` so fixtures can build
 a template with only the fields they exercise. Boundary: the aurastate (303),
 target-aura-mechanic (249) and `MOD_DAMAGE_DONE_FOR_MECHANIC` terms plus the
-family scripts remain unrepresented, and a target whose creature type is
-unavailable keeps only the school percentage. Evidence: the new session test
+family scripts remained unrepresented; the first two were resolved by the
+versus-aurastate and mechanic-based multiplier entries above, leaving the family
+scripts, and a target whose creature type is unavailable keeps only the school
+percentage. Evidence: the new session test
 registers a creature whose template type is 7 (bit 6), applies a versus aura for
 an unrelated type (bit 1) and asserts 100 damage, then the matching aura (+100%)
 and asserts 200 damage; wow-data --lib 752/0 and wow-world --lib 3934/0/1;
