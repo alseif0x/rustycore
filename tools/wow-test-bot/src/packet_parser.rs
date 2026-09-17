@@ -172,9 +172,11 @@ pub fn parse_attack_stop_summary(data: &[u8]) -> Option<AttackStopSummary> {
 
 /// Decode the basic-log `WorldPackets::Combat::AttackerStateUpdate` shape.
 ///
-/// Rust currently omits `SubDmg`, while C++ `Unit::SendAttackStateUpdate`
-/// always includes it for a normal melee swing. Accept both wire shapes and
-/// skip every C++ hit-info-gated field before the fixed ContentTuning tail.
+/// The represented writer now always emits `SubDmg` like C++
+/// `Unit::SendAttackStateUpdate` (`Unit.cpp:5473-5479`), but older captures and
+/// this parser's acceptance cases still carry the previous Rust shape without
+/// it. Accept both and skip every C++ hit-info-gated field before the fixed
+/// ContentTuning tail.
 pub fn parse_attacker_state_update_summary(data: &[u8]) -> Option<AttackerStateUpdateSummary> {
     // `CombatLogServerPacket::WriteLogDataBit(false)` + FlushBits, followed by
     // uint32 attackRoundInfo size and the attackRoundInfo bytes.

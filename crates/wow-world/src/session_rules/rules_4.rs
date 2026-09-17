@@ -685,3 +685,120 @@ pub(crate) fn melee_damage_taken_apply_like_cpp(
     }
     (((damage as i32 + taken.flat) as f32) * taken.pct).max(0.0) as u32
 }
+
+/// `Trinity::AbsorbAuraOrderPred`'s rank (`SpellAuraEffects.h:365-407`).
+///
+/// C++ sorts the victim's school-absorb effects so Fel Blossom (`28527`), the
+/// Ice Barrier category (`471`) and Sacrifice (`7812`) are spent first, while
+/// Cauterize (`86949`) and Spirit of Redemption (`20711`) are always last. The
+/// predicate only orders those named ranks and returns false for every other
+/// pair, so C++'s `std::sort` leaves equal-rank shields in an unspecified order;
+/// this rank reproduces the named order and keeps equal ranks in the caller's
+/// deterministic slot order.
+pub(crate) fn represented_absorb_priority_like_cpp(
+    shield: &crate::session_rules::RepresentedAbsorbShieldLikeCpp,
+) -> u8 {
+    // Lowest spends first.
+    if shield.spell_id == 28527 {
+        return 0; // Fel Blossom
+    }
+    if shield.category_id == 471 {
+        return 1; // Ice Barrier
+    }
+    if shield.spell_id == 7812 {
+        return 2; // Sacrifice
+    }
+    if shield.spell_id == 86949 {
+        return 4; // Cauterize (must be last)
+    }
+    if shield.spell_id == 20711 {
+        return 5; // Spirit of Redemption (must be last)
+    }
+    3
+}
+
+/// One shield's depletion, applied by the canonical aura owner.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedAbsorbConsumptionLikeCpp {
+    pub slot: u8,
+    pub effect_index: u8,
+    /// C++ `currentAbsorb`, after the `[0, damage]` clamp.
+    pub consumed: i32,
+    /// C++ `AuraEffect::GetAmount() - currentAbsorb`.
+    pub remaining: i32,
+    /// C++ `if (absorbAurEff->GetAmount() <= 0) Remove(AURA_REMOVE_BY_ENEMY_SPELL)`.
+    pub removed: bool,
+}
+
+/// C++ `Unit::CalcAbsorbResist`'s school-absorb result for one hit.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub(crate) struct RepresentedMeleeAbsorbLikeCpp {
+    /// C++ `DamageInfo::GetAbsorb()`.
+    pub absorbed: u32,
+    /// C++ `DamageInfo::GetDamage()` after the shields were spent.
+    pub damage: u32,
+    /// The per-shield depletion the canonical aura owner must commit.
+    pub consumed: Vec<RepresentedAbsorbConsumptionLikeCpp>,
+}
+
+/// C++ `Unit::CalcAbsorbResist`'s school-absorb loop
+/// (`Unit.cpp:1791-1880`) for one physical melee hit.
+///
+/// The incoming damage is offered to each shield in
+/// `Trinity::AbsorbAuraOrderPred` order. A negative amount is an infinite
+/// absorb C++ clamps to zero for safety, the amount is clamped to the damage
+/// left, a fully spent shield is removed, and a shield that consumes nothing
+/// still reports a zero consumption so the loop's clamps stay observable.
+///
+/// Boundaries: C++'s `absorbIgnoringDamage` term (an attacker's
+/// `SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL` reduced by
+/// `SPELL_ATTR6_ABSORB_CANNOT_BE_IGNORE`) has no represented producer or spell
+/// attribute projection, `SPELL_AURA_MANA_SHIELD` needs a power write the melee
+/// path does not own, and `Unit::CalcSpellResistedDamage` returns zero for a
+/// non-magic school mask (`Unit.cpp:2058-2060`), so physical melee never resists.
+pub(crate) fn represented_melee_absorb_like_cpp(
+    shields: &[crate::session_rules::RepresentedAbsorbShieldLikeCpp],
+    damage: u32,
+) -> RepresentedMeleeAbsorbLikeCpp {
+    let mut result = RepresentedMeleeAbsorbLikeCpp {
+        absorbed: 0,
+        damage,
+        consumed: Vec::new(),
+    };
+    if damage == 0 || shields.is_empty() {
+        return result;
+    }
+    let mut ordered: Vec<&crate::session_rules::RepresentedAbsorbShieldLikeCpp> =
+        shields.iter().collect();
+    ordered.sort_by_key(|shield| represented_absorb_priority_like_cpp(shield));
+    let mut remaining_damage = damage;
+    for shield in ordered {
+        if remaining_damage == 0 {
+            break;
+        }
+        // C++ `if (currentAbsorb < 0) currentAbsorb = 0;`
+        let available = shield.amount.max(0);
+        let consumed = available.min(i32::try_from(remaining_damage).unwrap_or(i32::MAX));
+        if consumed > 0 {
+            remaining_damage -= consumed as u32;
+            result.absorbed += consumed as u32;
+        }
+        // C++ only changes an amount-counting shield; a negative (infinite)
+        // shield keeps its amount and is never removed here.
+        let remaining = if shield.amount >= 0 {
+            shield.amount - consumed
+        } else {
+            shield.amount
+        };
+        result.consumed.push(RepresentedAbsorbConsumptionLikeCpp {
+            slot: shield.slot,
+            effect_index: shield.effect_index,
+            consumed,
+            remaining,
+            // C++ only removes an amount-counting shield.
+            removed: shield.amount >= 0 && remaining <= 0,
+        });
+    }
+    result.damage = remaining_damage;
+    result
+}

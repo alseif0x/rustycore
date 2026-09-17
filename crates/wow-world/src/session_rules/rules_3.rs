@@ -125,6 +125,83 @@ pub(crate) fn player_aura_effects_by_spell_aura_type_like_cpp(
         .collect()
 }
 
+/// One represented `SPELL_AURA_SCHOOL_ABSORB` shield of a player victim.
+///
+/// C++ `Unit::CalcAbsorbResist` (`Unit.cpp:1813-1880`) copies
+/// `GetAuraEffectsByType(SPELL_AURA_SCHOOL_ABSORB)`, sorts it with
+/// `Trinity::AbsorbAuraOrderPred` and depletes each effect's amount. The
+/// application slot and effect index are carried here because the depletion is
+/// a canonical aura-amount write, not a recomputation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) struct RepresentedAbsorbShieldLikeCpp {
+    /// The aura application slot that owns the effect.
+    pub slot: u8,
+    /// C++ `AuraEffect::GetEffIndex()`.
+    pub effect_index: u8,
+    /// C++ `AuraEffect::GetId()`.
+    pub spell_id: i32,
+    /// C++ `SpellInfo::GetCategory()` (`SpellInfo.cpp:1361-1364`), the
+    /// `AbsorbAuraOrderPred` Ice Barrier rank.
+    pub category_id: u32,
+    /// C++ `AuraEffect::GetAmount()`. A negative amount is an infinite-absorb
+    /// script shield, which C++ clamps to zero before absorbing.
+    pub amount: i32,
+}
+
+/// C++ `Unit::CalcAbsorbResist`'s `SPELL_AURA_SCHOOL_ABSORB` selection
+/// (`Unit.cpp:1812-1825`): every active absorb effect whose `MiscValue` covers
+/// the incoming school mask.
+///
+/// Auras are visited in ascending slot order so the input to the priority sort
+/// is deterministic; the amount prefers the represented `AuraEffect` value and
+/// falls back to the spell effect's no-caster calculation, exactly like the
+/// generic aura projection.
+pub(crate) fn player_absorb_shields_like_cpp(
+    auras: &HashMap<u8, AuraApplicationLikeCpp>,
+    spell_store: &SpellStore,
+    difficulty_id: u8,
+    difficulty_store: Option<&wow_data::DifficultyStore>,
+    school_mask: u32,
+) -> Vec<RepresentedAbsorbShieldLikeCpp> {
+    let mut slots: Vec<u8> = auras.keys().copied().collect();
+    slots.sort_unstable();
+    let mut shields = Vec::new();
+    for slot in slots {
+        let aura = &auras[&slot];
+        let Some(spell) = spell_store.get(aura.spell_id) else {
+            continue;
+        };
+        let category_id = spell_store
+            .hit_metadata_for_difficulty_like_cpp(aura.spell_id, difficulty_id, difficulty_store)
+            .map_or(0, |metadata| metadata.category_id);
+        for effect in spell.effects().iter().filter(|effect| {
+            effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_SCHOOL_ABSORB
+                && 1u32
+                    .checked_shl(effect.effect_index)
+                    .is_some_and(|bit| aura.effect_mask & bit != 0)
+                // C++ `!(absorbAurEff->GetMiscValue() & damageInfo.GetSchoolMask())`.
+                && (effect.effect_misc_value_1 as u32) & school_mask != 0
+        }) {
+            let amount = aura
+                .represented_effect_amounts
+                .iter()
+                .find(|represented| {
+                    u8::try_from(effect.effect_index).ok() == Some(represented.effect_index)
+                })
+                .map(|represented| represented.amount)
+                .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
+            shields.push(RepresentedAbsorbShieldLikeCpp {
+                slot,
+                effect_index: u8::try_from(effect.effect_index).unwrap_or(0),
+                spell_id: aura.spell_id,
+                category_id,
+                amount,
+            });
+        }
+    }
+    shields
+}
+
 /// C++ `Unit::MeleeDamageBonusDone`'s auto-attack percentage term
 /// (`Unit.cpp:7620-7627`): `AddPct(DoneTotalMod, amount)` for every active
 /// `SPELL_AURA_MOD_AUTOATTACK_DAMAGE` effect. The represented white swing

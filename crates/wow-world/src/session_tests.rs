@@ -56,6 +56,8 @@ mod scenarios_combat_2;
 mod scenarios_combat_3;
 #[path = "session/tests/scenarios_combat_4.rs"]
 mod scenarios_combat_4;
+#[path = "session/tests/scenarios_combat_5.rs"]
+mod scenarios_combat_5;
 #[path = "session/tests/scenarios_instances_1.rs"]
 mod scenarios_instances_1;
 #[path = "session/tests/scenarios_instances_2.rs"]
