@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 creature-victim immunity scenario — 2026-09-17, implementation
+`65269938`:** the creature-victim bands scenario now applies a normal-school
+`SPELL_AURA_SCHOOL_IMMUNITY` aura and requires no hit, zero damage and the plan
+event's zero `HitInfo` with `VICTIMSTATE_IS_IMMUNE`, giving both melee directions
+end-to-end immunity coverage. wow-world 3992/0/1 (two runs), world-server
+594/0/0.
+
 **#29 melee physical-immunity gate — 2026-09-17, implementation `a269c051`:** a
 normal-school `SPELL_AURA_SCHOOL_IMMUNITY` victim now ends the swing before every
 band with zero damage and the C++ wire presentation (`hitInfo == 0` from

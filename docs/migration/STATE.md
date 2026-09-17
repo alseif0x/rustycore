@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`0036623f5c1fe77a35af8a666a3e157e4beb2050` (PR #1148, the #29
-melee physical-immunity gate, following PR #1144, the #29
+`40b9e081faf1adfc6b82c27228f080faf035f682` (PR #1150, the #29
+creature-victim immunity scenario, following PR #1148, the #29
+melee physical-immunity gate, PR #1144, the #29
 ExpectedStat table load, PR #1142, the #29
 player-victim block band, PR #1140, the #29
 creature-victim parry scenario, PR #1137, the #29
@@ -57,6 +58,22 @@ represented creature-aura producer), the player-victim block band (needs the
 the target build's negative crushing band, and live DB/restart/relogin QA. The
 next unit should be the `ExpectedStat` consumer, whose store already exists in
 `wow-data` with no consumer.
+
+**#29 creature-victim immunity scenario — 2026-09-17, implementation `65269938`,
+integrated as `40b9e081` by PR #1150:** the immunity gate (PR #1148) resolves
+`is_immune_to_damage` in both owners, but only the player-victim direction had a
+production runtime scenario, so the creature-victim scan was compile-verified
+only. The creature-victim bands scenario now applies a normal-school
+`SPELL_AURA_SCHOOL_IMMUNITY` aura to the canonical victim and asserts the swing
+commits no hit, deals no damage, and decodes the plan-event packet to require a
+zero `HitInfo` (`HITINFO_NORMALSWING` is `0x0`) with `VICTIMSTATE_IS_IMMUNE`,
+matching C++ `CalculateMeleeDamage`'s physical immunity return
+(`Unit.cpp:1315-1324`). Both melee directions now have end-to-end immunity
+coverage. Evidence: wow-world 3992/0/1 on two consecutive runs and world-server
+594/0/0 pass; format, `git diff --check` and the physical ratchet pass without new
+ceiling growth, and `validation-v2 quick` (manifest
+`20260917T210537.585617Z-3464438-quick.json`) passes. No live DB/restart/relogin
+QA. #29 remains open for the remaining spell/melee math.
 
 **#29 melee physical-immunity gate — 2026-09-17, implementation `a269c051`,
 integrated as `0036623f` by PR #1148:** C++ `Unit::CalculateMeleeDamage` opens
