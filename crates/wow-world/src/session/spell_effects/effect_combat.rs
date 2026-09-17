@@ -709,31 +709,11 @@ impl WorldSession {
         mask
     }
 
-    /// C++ `Unit::GetAuraState`/`HasAuraState` for the represented target: the
-    /// canonical player's unit aura state mask or the world creature's, `0` when
-    /// the target cannot be resolved.
+    /// C++ `Unit::HasAuraState` for the represented target: the target's
+    /// `m_unitData->AuraState`, i.e. its aura-driven bits plus the alive-health
+    /// bits `Unit::Update` maintains. `0` when the target cannot be resolved.
     fn represented_target_aura_state_mask_like_cpp(&self, target_guid: ObjectGuid) -> u32 {
-        if Some(target_guid) == self.player_guid() {
-            return self
-                .canonical_player_snapshot_like_cpp(|player| {
-                    player.unit().subsystems().auras.aura_state_mask
-                })
-                .unwrap_or(0);
-        }
-        let Some(manager) = self.map_manager.as_ref() else {
-            return 0;
-        };
-        let instance_id = self
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        let manager = manager
-            .read()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        manager
-            .find_creature(self.player_map_id_like_cpp(), instance_id, target_guid)
-            .map(|creature| creature.creature.unit().subsystems().auras.aura_state_mask)
-            .unwrap_or(0)
+        self.represented_unit_aura_state_mask_like_cpp(target_guid)
     }
 
     /// The represented target's current health percentage: the session player's
