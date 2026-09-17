@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`9bcb8bef39b9642a7a996246daa941a9562a0bd2` (PR #1091, the #29 victim-side melee
-damage-taken chain, following PR #1089, the #29 melee block band,
+`4cbaceccbf6c3394e70c7f2e9036be40694cda2c` (PR #1093, the #29 victim avoidance
+auras, following PR #1091, the #29 victim-side melee
+damage-taken chain, PR #1089, the #29 melee block band,
 PR #1087, the #29 melee attack
 table, PR #1085, the #29 white-swing armour
 mitigation, PR #1083, the #29 white-swing
@@ -15,6 +16,42 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 victim avoidance auras — 2026-09-17, implementation `28622fb0`, integrated
+as `4cbacecc` by PR #1093:** C++
+`Unit::GetUnitDodgeChance`/`GetUnitParryChance`/`GetUnitBlockChance`
+(`Unit.cpp:2313-2360`) add the victim's `SPELL_AURA_MOD_DODGE_PERCENT` (49),
+`SPELL_AURA_MOD_PARRY_PERCENT` (47) and `SPELL_AURA_MOD_BLOCK_PERCENT` (51);
+`MeleeSpellMissChance` subtracts the victim's
+`SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE` (184);
+`GetUnitCriticalChanceTaken` adds `SPELL_AURA_MOD_ATTACKER_MELEE_CRIT_CHANCE`
+(187) plus `SPELL_AURA_MOD_ATTACKER_SPELL_AND_WEAPON_CRIT_CHANCE` (197); and
+`GetUnitDodgeChance` adds the attacker's `SPELL_AURA_MOD_COMBAT_RESULT_CHANCE`
+(248) `VICTIMSTATE_DODGE` row and `SPELL_AURA_MOD_ENEMY_DODGE` (251). Those were
+the attack table's documented "no represented producer" boundary, which round
+57's `creature_aura_effects_like_cpp` now retires:
+`RepresentedMeleeAttackerFactsLikeCpp` gained `dodge_reduction_pct`,
+`RepresentedMeleeVictimFactsLikeCpp` the five victim aura sums, and
+`melee_outcome_inputs_like_cpp` folds them into the same bands. Both owners
+resolve them — the session from the target creature's applied auras plus the
+attacker's aura sums, the map-owned `GlobalLegacy` runtime from its creature
+snapshot and the attacker's auras. Boundary: the victim-side conditional crit
+modifiers (`MOD_CRIT_CHANCE_VERSUS_TARGET_HEALTH`,
+`MOD_CRIT_CHANCE_FOR_CASTER`/`_PET`) and the casting/control avoidance gate still
+have no represented producer. Evidence: the fact test pins
+`MOD_DODGE_PERCENT` +100, `MOD_PARRY_PERCENT` -4, `MOD_BLOCK_PERCENT` +2, a -1
+attacker dodge reduction and the hit/crit aura sums (dodge 101.5, parry 1.5,
+block 5, crit 15); `white_swing_applies_victim_avoidance_auras_like_cpp` forces a
+guaranteed dodge in the session owner and
+`map_owned_player_melee_applies_victim_avoidance_auras_like_cpp` holds the
+map-owned tick to the same outcome with unchanged creature health; wow-data
+753/0, wow-world 3980/0/1 (two consecutive runs) and world-server 594/0/0 pass;
+format, `git diff --check` and the physical ratchet pass without new ceiling
+growth, and `validation-v2 quick` (manifest
+`20260917T145024.092238Z-2913639-quick.json`) passes. `validation-v2 final` stops
+only at the pre-existing `hotspot-ratchet` baseline failure (manifest
+`20260917T145121.294308Z-2913958-final.json`). No live DB/restart/relogin QA. #29
+remains open for the remaining spell/melee math.
 
 **#29 victim-side melee damage-taken chain — 2026-09-17, implementation
 `45b7571c`, integrated as `9bcb8bef` by PR #1091:** C++
