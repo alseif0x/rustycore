@@ -33,6 +33,18 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 creature-victim avoidance and crit bands — 2026-09-17, implementation
+`505b9fbe`:** the creature-victim branch now resolves the victim's
+`CreatureAvoidanceLikeCpp` dodge/parry/block with the `MOD_*_PERCENT` aura sums
+and level bonus, the attacker-side aura sums, the health-conditioned/for-caster
+critical and the facing/controlled gates, plus the full creature-attacker facts,
+so a creature victim can dodge, parry, block, evade and be critically hit; the
+runtime scenario drives a landed 8-damage hit, a 100% dodge, a 16 critical and a
+miss. wow-world 3990/0/1, wow-data 753/0, wow-packet 744/0, wow-entities 940/0,
+world-server 594/0/0; the creature `MeleeDamageBonusDone`, the player-victim
+block band and the target build's negative crushing term remain boundaries; no
+live DB/restart/relogin QA.
+
 **#29 creature-victim miss band and outcome publication — 2026-09-17,
 implementation `242aa446`:** a creature (or player pet) swing at another creature
 now rolls the miss band from the victim's
