@@ -380,6 +380,9 @@ impl WorldSession {
                             victim_position,
                             attacker_position,
                         ),
+                        is_controlled: creature.creature.unit().has_unit_state(
+                            wow_constants::unit::UnitState::CONTROLLED.bits(),
+                        ),
                     }
                 })
         };

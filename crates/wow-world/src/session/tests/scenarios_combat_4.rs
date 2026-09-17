@@ -512,6 +512,7 @@ fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
         crit_chance_vs_target_health_pct: 0.0,
         crit_chance_for_caster_pct: 0.0,
         faces_attacker: true,
+        is_controlled: false,
     };
     let inputs = melee_outcome_inputs_like_cpp(&attacker, &creature);
     // C++ `MeleeSpellMissChance`: 5.0 + 0 (two-hander) - 7.5 -> clamped to 0.
@@ -581,6 +582,14 @@ fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
     assert_eq!(inputs[0].parry_chance_pct, 1.5);
     assert_eq!(inputs[0].block_chance_pct, 5.0);
     assert_eq!(inputs[0].crit_chance_pct, 25.0);
+
+    // A controlled victim can neither dodge nor parry/block.
+    let controlled = Victim {
+        is_controlled: true,
+        ..creature
+    };
+    let inputs = melee_outcome_inputs_like_cpp(&attacker, &controlled);
+    assert!(!inputs[0].can_dodge && !inputs[0].can_parry);
 
     // A totem has no dodge, parry or block; a player victim has no represented
     // table at all.
@@ -1194,14 +1203,14 @@ fn white_swing_applies_victim_melee_damage_taken_like_cpp() {
 }
 
 #[test]
-fn white_swing_applies_victim_avoidance_auras_like_cpp() {
+fn white_swing_gates_avoidance_on_the_controlled_state_like_cpp() {
     use wow_packet::packets::combat::{HIT_INFO_AFFECTS_VICTIM, VICTIM_STATE_DODGE};
 
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
     let canonical = shared_canonical_map_manager();
-    let guid = test_creature_guid(18_038);
-    let player = ObjectGuid::create_player(1, 95);
+    let guid = test_creature_guid(18_041);
+    let player = ObjectGuid::create_player(1, 99);
 
     canonical.lock().unwrap().create_world_map(0, 0);
     session.set_canonical_map_manager(Arc::clone(&canonical));
@@ -1218,7 +1227,7 @@ fn white_swing_applies_victim_avoidance_auras_like_cpp() {
     ])));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player,
-        "Avoid".to_string(),
+        "Controlled".to_string(),
         Position::new(10.0, 10.0, 0.0, 0.0),
         0,
         1,
@@ -1253,14 +1262,14 @@ fn white_swing_applies_victim_avoidance_auras_like_cpp() {
                 .unit_mut()
                 .subsystems_mut()
                 .auras
-                .add_applied(wow_entities::AppliedAuraRef::new(91_150, player, 0, 1));
+                .add_applied(wow_entities::AppliedAuraRef::new(91_152, player, 0, 1));
         })
         .unwrap();
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(
-        91_150,
+        91_152,
         wow_data::SpellInfo {
-            spell_id: 91_150,
+            spell_id: 91_152,
             cast_time_ms: 0,
             cooldown_ms: 0,
             recovery_time_ms: 0,
@@ -1282,31 +1291,51 @@ fn white_swing_applies_victim_avoidance_auras_like_cpp() {
     );
     session.set_spell_store(Arc::new(spell_store));
 
-    let melee_damage_bonus = session.represented_melee_damage_bonus_like_cpp();
-    let armor_mitigation = session.represented_melee_armor_mitigation_like_cpp();
-    let outcome_facts = session.represented_melee_outcome_facts_like_cpp();
-    let damage_taken = session.represented_melee_damage_taken_like_cpp();
-    assert_eq!(outcome_facts.1.dodge_aura_pct, 100.0);
-    let swings = session
-        .mutate_canonical_player_like_cpp(|player| {
-            take_canonical_player_attack_swings_like_cpp(
-                player,
-                0,
-                true,
-                true,
-                true,
-                melee_damage_bonus,
-                armor_mitigation,
-                outcome_facts,
-                damage_taken,
-            )
+    let swing = |session: &mut WorldSession| {
+        let melee_damage_bonus = session.represented_melee_damage_bonus_like_cpp();
+        let armor_mitigation = session.represented_melee_armor_mitigation_like_cpp();
+        let outcome_facts = session.represented_melee_outcome_facts_like_cpp();
+        let damage_taken = session.represented_melee_damage_taken_like_cpp();
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .set_attack_timer(WeaponAttackType::BaseAttack, 0);
+                take_canonical_player_attack_swings_like_cpp(
+                    player,
+                    0,
+                    true,
+                    true,
+                    true,
+                    melee_damage_bonus,
+                    armor_mitigation,
+                    outcome_facts,
+                    damage_taken,
+                )
+            })
+            .flatten()
+            .map(|(swings, _)| swings)
+    };
+    // The +100% dodge aura makes the band absolute while the victim is free.
+    assert_eq!(
+        swing(&mut session).map(|swings| (swings[0].damage, swings[0].victim_state)),
+        Some((0, VICTIM_STATE_DODGE))
+    );
+    // C++ clears both avoidance gates for a `UNIT_STATE_CONTROLLED` victim.
+    session
+        .mutate_world_creature(guid, |creature| {
+            creature
+                .creature
+                .unit_mut()
+                .add_unit_state(UnitState::CONTROLLED.bits());
         })
-        .flatten()
-        .expect("white swing resolves")
-        .0;
-    assert_eq!(swings[0].damage, 0);
-    assert_eq!(swings[0].hit_info, HIT_INFO_AFFECTS_VICTIM);
-    assert_eq!(swings[0].victim_state, VICTIM_STATE_DODGE);
+        .unwrap();
+    let facts = session.represented_melee_outcome_facts_like_cpp();
+    assert!(facts.1.is_controlled);
+    assert_eq!(
+        swing(&mut session).map(|swings| (swings[0].damage, swings[0].hit_info)),
+        Some((7, HIT_INFO_AFFECTS_VICTIM))
+    );
 }
 
 #[test]

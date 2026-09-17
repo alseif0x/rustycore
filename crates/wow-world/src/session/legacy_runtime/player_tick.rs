@@ -314,6 +314,9 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                     },
                 ),
                 faces_attacker: false,
+                is_controlled: creature.creature.unit().has_unit_state(
+                    wow_constants::unit::UnitState::CONTROLLED.bits(),
+                ),
             };
             victim_creature_type_mask = config
                 .creature_template_lifecycle_store
