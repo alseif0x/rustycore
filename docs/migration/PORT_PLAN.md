@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 victim avoidance auras — 2026-09-17, implementation `28622fb0`:** the melee
+attack table now folds the victim's dodge/parry/block percentage auras, its
+attacker-melee-hit-chance and attacker-melee-crit-chance auras and the
+attacker's combat-result/enemy-dodge reductions, all resolved through the
+creature aura projection in both owners. The conditional crit modifiers and the
+casting/control avoidance gate stay unrepresented. wow-world 3980/0/1,
+world-server 594/0/0; no live DB/restart/relogin QA.
+
 **#29 victim-side melee damage-taken chain — 2026-09-17, implementation
 `45b7571c`:** a creature's applied-aura effects are now resolvable
 (`creature_aura_effects_like_cpp`), and `MeleeDamageBonusTaken`'s white-swing
