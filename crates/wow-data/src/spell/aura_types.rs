@@ -151,6 +151,11 @@ pub const SPELL_AURA_MOD_SPEED_NO_CONTROL: i32 = 373;
 pub const SPELL_AURA_MOD_MANA_REGEN_PCT: i32 = 379;
 pub const SPELL_AURA_SCHOOL_HEAL_ABSORB: i32 = 301;
 pub const SPELL_AURA_IGNORE_SPELL_COOLDOWN: i32 = 383;
+/// C++ `AuraType::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE`
+/// (`SpellAuraDefines.h:398`): `Unit::SpellDamagePctDone` multiplies spell damage
+/// by the aura multiplier when the victim carries the aura state in its
+/// `GetMiscValue`.
+pub const SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE: i32 = 303;
 /// C++ `AuraType::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS`
 /// (`SpellAuraDefines.h:263`): `Unit::SpellDamagePctDone` multiplies spell damage
 /// by the aura multiplier matching the victim's creature type bit

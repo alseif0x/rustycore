@@ -522,7 +522,47 @@ impl WorldSession {
                 }
             }
         }
+        let aura_state_mask = self.represented_target_aura_state_mask_like_cpp(target_guid);
+        if aura_state_mask != 0 {
+            for (misc_value, amount) in self
+                .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE,
+                )
+                .unwrap_or_default()
+            {
+                if misc_value >= 1 && aura_state_mask & (1_u32 << (misc_value - 1)) != 0 {
+                    max_mod *= 1.0 + amount as f32 / 100.0;
+                }
+            }
+        }
         Some(max_mod)
+    }
+
+    /// C++ `Unit::GetAuraState`/`HasAuraState` for the represented target: the
+    /// canonical player's unit aura state mask or the world creature's, `0` when
+    /// the target cannot be resolved.
+    fn represented_target_aura_state_mask_like_cpp(&self, target_guid: ObjectGuid) -> u32 {
+        if Some(target_guid) == self.player_guid() {
+            return self
+                .canonical_player_snapshot_like_cpp(|player| {
+                    player.unit().subsystems().auras.aura_state_mask
+                })
+                .unwrap_or(0);
+        }
+        let Some(manager) = self.map_manager.as_ref() else {
+            return 0;
+        };
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let manager = manager
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        manager
+            .find_creature(self.player_map_id_like_cpp(), instance_id, target_guid)
+            .map(|creature| creature.creature.unit().subsystems().auras.aura_state_mask)
+            .unwrap_or(0)
     }
 
     /// The represented target's current health percentage: the session player's

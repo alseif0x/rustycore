@@ -1372,6 +1372,129 @@ async fn spell_direct_heal_scales_by_creature_missing_health_like_cpp() {
 }
 
 #[tokio::test]
+async fn spell_school_damage_applies_damage_done_versus_aurastate_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let manager = shared_map_manager();
+    let spell_id = 730_i32;
+    let guid = test_creature_guid(18_017);
+    let player_guid = ObjectGuid::create_player(1, 61);
+    session.player_guid = Some(player_guid);
+    session.client_visible_guids_like_cpp.insert(guid);
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    register_test_creature(&mut session, manager.clone(), guid, 1_000);
+    session
+        .mutate_world_creature(guid, |creature| {
+            creature
+                .creature
+                .unit_mut()
+                .subsystems_mut()
+                .auras
+                .modify_aura_state(wow_entities::AURA_STATE_DEFENSIVE, true);
+        })
+        .expect("creature with an aura state");
+
+    session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([
+        wow_data::SpellMiscEntry {
+            id: spell_id as u32,
+            spell_id: spell_id as u32,
+            school_mask: 1 << 1,
+            ..Default::default()
+        },
+    ])));
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        spell_id,
+        wow_data::SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE,
+                effect_base_points: 100,
+                ..Default::default()
+            }],
+        },
+    );
+    // `SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE` for the defensive state and
+    // for an unrelated one.
+    for (aura_spell_id, misc_value) in [(90_980_i32, 1), (90_981_i32, 2)] {
+        spell_store.insert(
+            aura_spell_id,
+            wow_data::SpellInfo {
+                spell_id: aura_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 100,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE,
+                ),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura:
+                        wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE,
+                    effect_misc_value_1: misc_value,
+                    effect_base_points: 100,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    session.set_spell_store(Arc::new(spell_store));
+
+    // The victim does not carry state 2, so that aura does not apply.
+    session
+        .apply_aura(90_981, player_guid, 30_000, 1)
+        .expect("apply unrelated aurastate aura");
+    session
+        .execute_spell(spell_id, guid)
+        .await
+        .expect("school damage with an unrelated aurastate aura");
+    assert_eq!(
+        manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, guid)
+            .unwrap()
+            .current_hp(),
+        900
+    );
+
+    session
+        .apply_aura(90_980, player_guid, 30_000, 1)
+        .expect("apply matching aurastate aura");
+    session
+        .execute_spell(spell_id, guid)
+        .await
+        .expect("school damage with the matching aurastate aura");
+    // `100 * (1 + 100/100)`.
+    assert_eq!(
+        manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, guid)
+            .unwrap()
+            .current_hp(),
+        700
+    );
+}
+
+#[tokio::test]
 async fn spell_self_heal_syncs_player_health_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let guid = ObjectGuid::create_player(1, 44);
