@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**Represented quest-share party fixture identity — 2026-09-17, implementation
+`05d0d5e4`:** the party fixture adopted an identity-less canonical Player, so the
+registry level snapshot was overwritten with 0 and 21 `push_quest_to_party`
+scenarios failed on `SatisfyQuestMinLevel` before their intended branch. The
+fixture now mirrors `Player::LoadFromDB`; test-harness correctness only, and the
+remaining 7 suite failures stay a separate defect track.
+
 **Save-snapshot manager-lock re-entry — 2026-09-17, implementation `f55d9ef3`:**
 the fixture save-snapshot path resolved `player_level_like_cpp` inside a
 manager-locked `do_for_all_maps` closure and self-deadlocked; the level is now
