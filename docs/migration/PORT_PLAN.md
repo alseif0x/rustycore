@@ -33,6 +33,16 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#65 GameObject respawn-save test fidelity — 2026-09-17, implementation
+`192da738`:** the three `scenarios_9` GameObject respawn-save failures carried as
+pre-existing were stale test setups written against the pre-selection whole-store
+visitor; `Map::Update` only reaches a player's nearby cells and
+`m_activeNonPlayers` (`Map.cpp:701-767`). A new local fixture inserts an active
+GameObject through `Map::AddToMap` (cell insert plus `AddToActive`), so the
+production nearby-cell plan visits it every tick; the replaced-timer scenario also
+keeps a non-active sibling as a negative control. Tests only; `world-server --lib`
+594/0/0.
+
 **#61 victim aurastate/aura-mechanic melee bonuses — 2026-09-17, implementation
 `1d33f078`:** the white swing now also applies `MeleeDamageBonusDone`'s
 `SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE` (303, via the victim's
