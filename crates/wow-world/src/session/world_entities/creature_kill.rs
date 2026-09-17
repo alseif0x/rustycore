@@ -179,12 +179,17 @@ impl WorldSession {
             return;
         }
 
+        // Hoist the player identity: `self.player_*_like_cpp()` re-enters the
+        // canonical manager lock held by the closure and would self-deadlock.
+        let player_race = self.player_race_like_cpp();
+        let player_class = self.player_class_like_cpp();
+        let friendship_rep_reaction_store = self.friendship_rep_reaction_store.as_deref();
         let Some(current_rank) = self.with_reputation_mgr_like_cpp(|mgr| {
             mgr.rank_for_faction_entry_like_cpp(
                 &faction_entry,
-                self.friendship_rep_reaction_store.as_deref(),
-                self.player_race_like_cpp(),
-                self.player_class_like_cpp(),
+                friendship_rep_reaction_store,
+                player_race,
+                player_class,
             )
         }) else {
             return;

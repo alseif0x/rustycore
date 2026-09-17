@@ -70,12 +70,17 @@ impl WorldSession {
             return 1.0;
         };
 
+        // Resolve identity and the friendship store before the canonical
+        // manager lock; the session accessors re-enter it.
+        let player_race = self.player_race_like_cpp();
+        let player_class = self.player_class_like_cpp();
+        let friendship_rep_reaction_store = self.friendship_rep_reaction_store.as_deref();
         let Some(rank) = self.with_reputation_mgr_like_cpp(|mgr| {
             mgr.rank_for_faction_entry_like_cpp(
                 faction_entry,
-                self.friendship_rep_reaction_store.as_deref(),
-                self.player_race_like_cpp(),
-                self.player_class_like_cpp(),
+                friendship_rep_reaction_store,
+                player_race,
+                player_class,
             )
         }) else {
             return 1.0;
@@ -113,12 +118,15 @@ impl WorldSession {
         else {
             return ReputationRankLikeCpp::Neutral;
         };
+        let player_race = self.player_race_like_cpp();
+        let player_class = self.player_class_like_cpp();
+        let friendship_rep_reaction_store = self.friendship_rep_reaction_store.as_deref();
         self.with_reputation_mgr_like_cpp(|mgr| {
             mgr.rank_for_faction_entry_like_cpp(
                 faction_entry,
-                self.friendship_rep_reaction_store.as_deref(),
-                self.player_race_like_cpp(),
-                self.player_class_like_cpp(),
+                friendship_rep_reaction_store,
+                player_race,
+                player_class,
             )
         })
         .unwrap_or(ReputationRankLikeCpp::Neutral)

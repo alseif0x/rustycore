@@ -74,50 +74,12 @@ impl WorldSession {
         let required_reputation_rank = sparse
             .and_then(|template| u32::try_from(template.required_reputation_rank.max(0)).ok())
             .unwrap_or(0);
-        let player_reputation_rank = if required_reputation_faction == 0 {
-            0
-        } else {
-            match self
-                .factions
-                .store
-                .as_ref()
-                .and_then(|store| store.get(required_reputation_faction))
-            {
-                Some(faction) => {
-                    let Some(standing) = self.with_reputation_mgr_like_cpp(|mgr| {
-                        mgr.reputation_for_faction_like_cpp(
-                            faction,
-                            self.player_race_like_cpp(),
-                            self.player_class_like_cpp(),
-                        )
-                    }) else {
-                        return InventoryResult::ItemNotFound;
-                    };
-                    u32::from(
-                        reputation_to_rank_like_cpp(
-                            faction,
-                            standing,
-                            self.friendship_rep_reaction_store.as_deref(),
-                        )
-                        .as_u8(),
-                    )
-                }
-                None => 0,
-            }
+        let Some(player_reputation_rank) =
+            self.represented_item_reputation_rank_like_cpp(required_reputation_faction)
+        else {
+            return InventoryResult::ItemNotFound;
         };
-        let mut item_effect_spell_ids: Vec<(u8, i32)> = self
-            .items
-            .effect_store
-            .as_ref()
-            .map(|store| {
-                store
-                    .values()
-                    .filter(|effect| effect.parent_item_id == item.entry_id)
-                    .map(|effect| (effect.legacy_slot_index, effect.spell_id))
-                    .collect()
-            })
-            .unwrap_or_default();
-        item_effect_spell_ids.sort_by_key(|(slot, _)| *slot);
+        let item_effect_spell_ids = self.represented_item_effect_spell_ids_like_cpp(item.entry_id);
         let effect0_spell_id = item_effect_spell_ids
             .first()
             .and_then(|(_, spell_id)| u32::try_from(*spell_id).ok());

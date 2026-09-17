@@ -617,12 +617,12 @@ impl WorldSession {
             return;
         };
 
+        // Resolve the player identity before taking the canonical manager lock:
+        // the session accessors re-enter it and would self-deadlock.
+        let player_race = self.player_race_like_cpp();
+        let player_class = self.player_class_like_cpp();
         let Some(old_reputation) = self.with_reputation_mgr_like_cpp(|mgr| {
-            mgr.reputation_for_faction_like_cpp(
-                faction_entry,
-                self.player_race_like_cpp(),
-                self.player_class_like_cpp(),
-            )
+            mgr.reputation_for_faction_like_cpp(faction_entry, player_race, player_class)
         }) else {
             return;
         };
