@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 `Unit::UpdateDamageDoneMods` representation — 2026-09-17, implementation
+`7c0232da`:** the physical `SPELL_AURA_MOD_DAMAGE_DONE` (13) sum is applied as
+the `UNIT_MOD_DAMAGE_*` `TOTAL_VALUE` inside `CalculateMinMaxDamage`, filtered by
+`CheckAttackFitToAuraRequirement`. The weapon-enchantment damage term stays open.
+wow-data --lib 752/0, wow-entities --lib 940/0, wow-world --lib 3928/0/1; no live
+DB/restart/relogin QA.
+
 **#61 `Unit::UpdateDamagePctDoneMods` representation — 2026-09-17,
 implementation `720bcb0a`:** the weapon-range `TOTAL_PCT` (mainhand/ranged 1.0,
 offhand 0.5) is applied with the physical `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE`
