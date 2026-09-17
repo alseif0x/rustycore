@@ -964,3 +964,31 @@ fn party_invite_configs_use_cpp_world_config_keys() {
     ));
     assert_eq!(world_config_u32(&configs, "CONFIG_PARTY_LEVEL_REQ", 1), 12);
 }
+
+#[test]
+fn stats_limits_use_cpp_world_config_keys_like_cpp() {
+    let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+    wow_config::load_config_from_str("").expect("config should load");
+
+    // C++ `World.cpp:1664-1668` defaults: disabled, every cap at 95.
+    let configs = wow_config::load_world_config_values();
+    let defaults = crate::stats_limits_like_cpp(&configs);
+    assert_eq!(defaults, wow_data::StatsLimitsLikeCpp::default());
+
+    wow_config::load_config_from_str(
+        "Stats.Limits.Enable = 1\nStats.Limits.Dodge = 40\nStats.Limits.Parry = 50\n\
+         Stats.Limits.Block = 60\nStats.Limits.Crit = 70\n",
+    )
+    .expect("config should load");
+    let configs = wow_config::load_world_config_values();
+    assert_eq!(
+        crate::stats_limits_like_cpp(&configs),
+        wow_data::StatsLimitsLikeCpp {
+            enabled: true,
+            dodge: 40.0,
+            parry: 50.0,
+            block: 60.0,
+            crit: 70.0,
+        }
+    );
+}

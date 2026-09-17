@@ -367,7 +367,7 @@ pub use player::{
     PlayerClassLevelStatsRowLikeCpp, PlayerClassLevelStatsRowsLikeCpp, PlayerLevelStats,
     PlayerRaceStatsRowLikeCpp, PlayerRaceStatsRowsLikeCpp, PlayerSpellBonusInputLikeCpp,
     PlayerStatSystemInputLikeCpp, PlayerStatSystemProjectionLikeCpp, PlayerStatsStore,
-    calculate_player_stat_system_like_cpp,
+    StatsLimitsLikeCpp, calculate_player_stat_system_like_cpp,
 };
 pub use player::{
     PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp,

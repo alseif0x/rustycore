@@ -342,6 +342,20 @@ pub(crate) fn durability_loss_on_death_rate_like_cpp(configs: &WorldConfigSet) -
     percent / 100.0
 }
 
+/// C++ `CONFIG_STATS_LIMITS_ENABLE`/`_DODGE`/`_PARRY`/`_BLOCK`/`_CRIT`
+/// (`World.cpp:1664-1668`): the optional caps `Player::UpdateBlockPercentage`,
+/// `UpdateDodgePercentage`, `UpdateParryPercentage` and `UpdateCritPercentage`
+/// apply to their published percentages.
+pub(crate) fn stats_limits_like_cpp(configs: &WorldConfigSet) -> wow_data::StatsLimitsLikeCpp {
+    wow_data::StatsLimitsLikeCpp {
+        enabled: world_config_bool(configs, "CONFIG_STATS_LIMITS_ENABLE", false),
+        dodge: world_config_f32(configs, "CONFIG_STATS_LIMITS_DODGE", 95.0),
+        parry: world_config_f32(configs, "CONFIG_STATS_LIMITS_PARRY", 95.0),
+        block: world_config_f32(configs, "CONFIG_STATS_LIMITS_BLOCK", 95.0),
+        crit: world_config_f32(configs, "CONFIG_STATS_LIMITS_CRIT", 95.0),
+    }
+}
+
 /// C++ `World::setRegenRate` values (`World.cpp:615-623`) consumed by
 /// `Player::Regenerate` and `Player::RegenerateHealth`.
 pub(crate) fn player_regeneration_rates_like_cpp(

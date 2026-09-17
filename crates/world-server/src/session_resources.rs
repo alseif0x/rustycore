@@ -306,6 +306,8 @@ pub(super) struct SessionRuntimePolicyCapabilitiesLikeCpp {
     pub(super) repair_cost_rate: f32,
     /// C++ `RATE_DURABILITY_LOSS_ON_DEATH` fraction (`DurabilityLoss.OnDeath`).
     pub(super) durability_loss_on_death_rate: f32,
+    /// C++ `CONFIG_STATS_LIMITS_*` caps (`Stats.Limits.*`).
+    pub(super) stats_limits: wow_data::StatsLimitsLikeCpp,
     /// C++ `CONFIG_RESET_SCHEDULE_{HOUR,WEEK_DAY}` for instance lock expiry.
     pub(super) reset_schedule: wow_instances::ResetSchedule,
     /// C++ `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` / `OffhandCheckAtSpellUnlearn`.
@@ -524,6 +526,7 @@ impl SessionRuntimePolicyCapabilitiesLikeCpp {
         session.set_reputation_rates_like_cpp(self.reputation_rates);
         session.set_repair_cost_rate_like_cpp(self.repair_cost_rate);
         session.set_durability_loss_on_death_rate_like_cpp(self.durability_loss_on_death_rate);
+        session.set_stats_limits_like_cpp(self.stats_limits);
         session.set_reset_schedule_like_cpp(self.reset_schedule);
         session.set_offhand_check_at_spell_unlearn_like_cpp(self.offhand_check_at_spell_unlearn);
         session.set_vmap_indoor_check_like_cpp(self.vmap_indoor_check);

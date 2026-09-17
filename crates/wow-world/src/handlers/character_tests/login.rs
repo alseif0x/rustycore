@@ -620,4 +620,28 @@ fn login_passive_parry_and_block_capabilities_feed_first_stat_projection_like_cp
         .expect("warrior stat projection");
     assert_eq!(projection.parry_pct, 5.0);
     assert_eq!(projection.block_pct, 5.0);
+
+    // C++ `CONFIG_STATS_LIMITS_*` (`World.cpp:1664-1668`) caps the published
+    // percentages when `Stats.Limits.Enable` is set; the same projection feeds
+    // the login create snapshot and the canonical effective-stats snapshot.
+    session.set_stats_limits_like_cpp(wow_data::StatsLimitsLikeCpp {
+        enabled: true,
+        dodge: 1.0,
+        parry: 1.0,
+        block: 1.0,
+        crit: 1.0,
+    });
+    let limited = session
+        .player_stat_system_projection_like_cpp(
+            1,
+            1,
+            80,
+            &RepresentedPlayerGearStatsLikeCpp::default(),
+        )
+        .expect("warrior stat projection with limits");
+    assert_eq!(limited.parry_pct, 1.0);
+    assert_eq!(limited.block_pct, 1.0);
+    assert!(limited.crit_pct <= 1.0);
+    assert!(limited.ranged_crit_pct <= 1.0);
+    assert!(limited.offhand_crit_pct <= 1.0);
 }

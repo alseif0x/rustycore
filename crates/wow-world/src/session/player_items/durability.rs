@@ -29,6 +29,14 @@ impl WorldSession {
     pub(crate) fn durability_loss_on_death_rate_like_cpp(&self) -> f32 {
         self.durability_loss_on_death_rate_like_cpp
     }
+    /// Set the C++ `CONFIG_STATS_LIMITS_*` values (`World.cpp:1664-1668`).
+    pub fn set_stats_limits_like_cpp(&mut self, limits: wow_data::StatsLimitsLikeCpp) {
+        self.stats_limits_like_cpp = limits;
+    }
+    #[must_use]
+    pub(crate) fn stats_limits_like_cpp(&self) -> wow_data::StatsLimitsLikeCpp {
+        self.stats_limits_like_cpp
+    }
     /// C++ `Player::DurabilityLossAll` (`Player.cpp:4522-4544`).
     ///
     /// Equipment is always processed; `inventory` additionally walks the
