@@ -33,6 +33,15 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**Collection appearance weapon-proficiency gate — 2026-09-17, implementation
+`4ba42678`:** `CollectionMgr::CanAddAppearance` now reads the learned
+`Player::GetWeaponProficiency` mask (`Player.cpp:649-699`) instead of the class
+default, so collected weapon appearances follow the same proficiency authority as
+C++ and the `!GetPlayer()` guard fails closed. The collection acceptance fixtures
+install the canonical Player and seed the mask. The armor-proficiency half of
+`CanUseItem` and the broader class/race/level gates remain separate. This does not
+change the #584 → #583 → #153 architecture gate.
+
 **#61 attack power aura producers — 2026-09-17, implementation `408725a5`:** the
 attack power projection now consumes `SPELL_AURA_MOD_ATTACK_POWER`/
 `MOD_RANGED_ATTACK_POWER` flats and the `..._PCT` multipliers in the C++

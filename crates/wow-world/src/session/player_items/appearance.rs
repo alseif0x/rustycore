@@ -139,8 +139,9 @@ impl WorldSession {
     /// Bounded C++ `CollectionMgr::AddItemAppearance(uint32, uint32)`.
     ///
     /// This resolves `ItemModifiedAppearance` by `(item_id, appearance_mod_id)` like
-    /// `sDB2Manager.GetItemModifiedAppearance`; the full C++ `CanAddAppearance`
-    /// item-template/proficiency/quality gate remains a separate slice.
+    /// `sDB2Manager.GetItemModifiedAppearance` and runs the represented
+    /// `CanAddAppearance` item-template/proficiency/quality gate, including the
+    /// learned `Player::GetWeaponProficiency` mask.
     pub fn add_item_appearance_for_item_like_cpp(
         &mut self,
         item_id: u32,
@@ -267,11 +268,12 @@ impl WorldSession {
                 if subclass >= 32 {
                     return false;
                 }
-                let weapon_proficiency =
-                    wow_packet::packets::misc::SetProficiency::default_weapons(
-                        self.player_class_like_cpp(),
-                    )
-                    .proficiency_mask;
+                // C++ `CollectionMgr::CanAddAppearance` reads the learned
+                // `Player::GetWeaponProficiency` mask, not the class default
+                // the client receives at creation.
+                let weapon_proficiency = self
+                    .represented_player_weapon_proficiency_like_cpp()
+                    .unwrap_or(0);
                 if (weapon_proficiency & (1_u32 << subclass)) == 0 {
                     return false;
                 }

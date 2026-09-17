@@ -403,6 +403,13 @@ impl WorldSession {
         .unwrap_or((false, false))
     }
 
+    /// C++ `Player::GetWeaponProficiency` (`Player.h:1432`): the mask
+    /// accumulated by the learned `SPELL_EFFECT_PROFICIENCY` spells, used by
+    /// `CollectionMgr::CanAddAppearance`.
+    pub(crate) fn represented_player_weapon_proficiency_like_cpp(&self) -> Option<u32> {
+        self.canonical_player_snapshot_like_cpp(Player::weapon_proficiency_like_cpp)
+    }
+
     /// Read the canonical Player's last derived equipment/stat projection.
     pub(crate) fn canonical_player_effective_combat_stats_like_cpp(
         &self,
