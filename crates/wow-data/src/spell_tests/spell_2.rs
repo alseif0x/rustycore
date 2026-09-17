@@ -76,7 +76,7 @@ fn spell_effect_detects_mounted_aura_like_cpp() {
     };
     let other_aura = SpellEffectInfo {
         effect: spell_effect_types::SPELL_EFFECT_APPLY_AURA,
-        effect_aura: aura_types::SPELL_AURA_HASTE_SPELLS,
+        effect_aura: aura_types::SPELL_AURA_MOD_POWER_COST_SCHOOL,
         ..Default::default()
     };
 

@@ -368,6 +368,100 @@ async fn canonical_prepare_allocates_map_cast_and_stamps_residence_like_cpp() {
     );
 }
 
+#[tokio::test]
+async fn canonical_prepare_applies_cast_speed_auras_like_cpp() {
+    // Baseline: without an aura the DB2 cast time is published unchanged.
+    let (mut baseline, _, _) = make_session();
+    let baseline_canonical = shared_canonical_map_manager();
+    let baseline_guid = ObjectGuid::create_player(1, 58_913);
+    install_canonical_player(
+        &mut baseline,
+        &baseline_canonical,
+        baseline_guid,
+        571,
+        0,
+        Position::ZERO,
+    );
+    let mut spell = minimal_spell();
+    spell.cast_time_ms = 1_500;
+    let mut spells = SpellStore::new();
+    spells.insert(TEST_SPELL_ID, spell);
+    baseline.set_spell_store(Arc::new(spells));
+    baseline.set_known_spells_like_cpp(vec![TEST_SPELL_ID]);
+    baseline.set_legacy_creature_aggro_config_like_cpp(LegacyCreatureAggroConfigLikeCpp {
+        spell_x_spell_visual_store: Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries(
+            [],
+        ))),
+        ..Default::default()
+    });
+    assert!(crate::player_cast::request(
+        &mut baseline,
+        request(baseline_guid, 56)
+    ));
+    baseline.tick_pending_spell_cast_request_like_cpp().await;
+    assert_eq!(
+        baseline
+            .active_spell_cast_snapshot_like_cpp()
+            .expect("prepared cast")
+            .cast_time_ms,
+        1_500
+    );
+
+    // With a +50% `SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK` aura,
+    // `Unit::ApplyCastTimePercentMod` stores `m_casttime = 1000`.
+    let (mut session, _, _) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let guid = ObjectGuid::create_player(1, 58_914);
+    install_canonical_player(&mut session, &canonical, guid, 571, 0, Position::ZERO);
+
+    let haste_spell_id = 90_999_i32;
+    let mut spell = minimal_spell();
+    spell.cast_time_ms = 1_500;
+    let mut spells = SpellStore::new();
+    spells.insert(TEST_SPELL_ID, spell);
+    spells.insert(
+        haste_spell_id,
+        SpellInfo {
+            spell_id: haste_spell_id,
+            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK,
+                effect_base_points: 50,
+                ..Default::default()
+            }],
+            ..minimal_spell()
+        },
+    );
+    session.set_spell_store(Arc::new(spells));
+    session.set_known_spells_like_cpp(vec![TEST_SPELL_ID]);
+    session.set_legacy_creature_aggro_config_like_cpp(LegacyCreatureAggroConfigLikeCpp {
+        spell_x_spell_visual_store: Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries(
+            [],
+        ))),
+        ..Default::default()
+    });
+    session
+        .apply_aura(haste_spell_id, guid, 30_000, 1)
+        .expect("apply cast speed aura");
+    assert_eq!(
+        session.represented_cast_speed_multiplier_like_cpp(),
+        100.0 / 150.0
+    );
+
+    assert!(crate::player_cast::request(&mut session, request(guid, 57)));
+    session.tick_pending_spell_cast_request_like_cpp().await;
+    assert_eq!(
+        session
+            .active_spell_cast_snapshot_like_cpp()
+            .expect("prepared cast with haste")
+            .cast_time_ms,
+        1_000
+    );
+}
+
 #[test]
 fn player_cast_publication_fences_visibility_generation_and_map_like_cpp() {
     let canonical = shared_canonical_map_manager();
