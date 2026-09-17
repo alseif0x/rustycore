@@ -87,6 +87,7 @@ impl WorldSession {
     }
     pub(crate) fn insert_player_visible_aura_like_cpp(&mut self, aura: AuraApplication) -> bool {
         let _fallback = aura.clone();
+        let applied = aura.clone();
         let _canonical = self
             .with_owned_player_mut_like_cpp(|player| {
                 player.insert_player_visible_aura_like_cpp(aura);
@@ -94,15 +95,26 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if _canonical {
+            self.apply_represented_transform_aura_like_cpp(&applied);
             return true;
         }
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            return self
+            let inserted = self
                 .mutate_player_aura_subsystem_like_cpp(|auras| {
                     auras.insert_runtime_application_like_cpp(_fallback);
                 })
                 .is_some();
+            if inserted {
+                self.apply_represented_transform_aura_like_cpp(&applied);
+            }
+            return inserted;
+        }
+        if _canonical {
+            // C++ applies the transform aura effect on the same transition that
+            // makes the application visible, so the canonical `m_transformSpell`
+            // owner is updated once the insert succeeded.
+            self.apply_represented_transform_aura_like_cpp(&applied);
         }
         _canonical
     }

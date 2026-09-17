@@ -757,3 +757,37 @@ fn combat_refs_track_pve_pvp_suppression_and_timeout_like_cpp() {
     assert!(!combat.has_pve_combat());
     assert!(!combat.has_combat());
 }
+
+#[test]
+fn transform_spell_follows_cpp_handle_aura_transform_precedence() {
+    let mut auras = AuraSubsystem::default();
+    assert_eq!(auras.transform_spell_like_cpp(), 0);
+
+    // C++ `HandleAuraTransform` overwrites when there is no current transform
+    // spell info, even for a positive transform spell.
+    auras.apply_transform_aura_like_cpp(11_806, true, None);
+    assert_eq!(auras.transform_spell_like_cpp(), 11_806);
+
+    // A negative (polymorph) transform aura overwrites a positive one.
+    auras.apply_transform_aura_like_cpp(2_777, false, Some(true));
+    assert_eq!(auras.transform_spell_like_cpp(), 2_777);
+
+    // A positive transform aura does not overwrite an active negative one.
+    auras.apply_transform_aura_like_cpp(11_806, true, Some(false));
+    assert_eq!(auras.transform_spell_like_cpp(), 2_777);
+
+    // A positive transform aura replaces another positive transform aura.
+    auras.apply_transform_aura_like_cpp(5_000, true, Some(true));
+    assert_eq!(auras.transform_spell_like_cpp(), 5_000);
+
+    // Only the owning aura clears the transform spell.
+    assert!(!auras.remove_transform_aura_like_cpp(2_777));
+    assert_eq!(auras.transform_spell_like_cpp(), 5_000);
+    assert!(auras.remove_transform_aura_like_cpp(5_000));
+    assert_eq!(auras.transform_spell_like_cpp(), 0);
+
+    // The bulk character-identity clear drops a stale transform as well.
+    auras.apply_transform_aura_like_cpp(2_777, false, None);
+    auras.clear_runtime_applications_like_cpp();
+    assert_eq!(auras.transform_spell_like_cpp(), 0);
+}

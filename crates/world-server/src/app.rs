@@ -4949,6 +4949,7 @@ async fn run_inner(
             ),
             spell_levels_store: Arc::clone(&spell_levels_store),
             spell_category_store: Arc::clone(&spell_category_store),
+            spell_class_options_store: Arc::clone(&spell_class_options_store),
             npc_spell_click_store: Arc::clone(&npc_spell_click_store),
             spell_aura_options_store: Arc::clone(&spell_aura_options_store),
             spell_aura_restrictions_store: Arc::clone(&spell_aura_restrictions_store),

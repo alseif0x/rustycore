@@ -249,23 +249,21 @@ impl WorldSession {
         Some(None)
     }
     fn represented_transform_spell_allows_mount_like_cpp(&self) -> Option<bool> {
+        // C++ `Unit::IsInDisallowedMountForm` reads
+        // `IsDisallowedMountForm(GetTransformSpell(), ...)`
+        // (`Unit.cpp:8813-8820`), so the canonical `m_transformSpell` owner is
+        // the single authority instead of a visible-aura scan.
+        let transform_spell = self
+            .player_aura_subsystem_snapshot_like_cpp()?
+            .transform_spell_like_cpp();
+        if transform_spell == 0 {
+            return Some(false);
+        }
         let spell_store = self.spell_store()?;
-        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
-
-        Some(visible_auras.values().any(|aura| {
-            let Some(spell_info) = spell_store.get(aura.spell_id) else {
-                return false;
-            };
-            let is_transform_spell = spell_info.effects().iter().any(|effect| {
-                effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
-                    && effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_TRANSFORM
-            });
-            is_transform_spell
-                && spell_store.has_attribute0_like_cpp(
-                    aura.spell_id,
-                    wow_data::spell::attributes::SPELL_ATTR0_ALLOW_WHILE_MOUNTED,
-                )
-        }))
+        Some(spell_store.has_attribute0_like_cpp(
+            transform_spell,
+            wow_data::spell::attributes::SPELL_ATTR0_ALLOW_WHILE_MOUNTED,
+        ))
     }
     pub(in crate::session) fn set_homebind_like_cpp(
         &mut self,
