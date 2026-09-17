@@ -178,6 +178,11 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
         let mut victim_creature_type_mask = 0_u32;
         let mut victim_aura_state_mask = 0_u32;
         let mut victim_mechanic_mask = 0_u64;
+        // A canonical-player victim's own snapshot belongs to that player's
+        // session, so only a creature victim contributes `GetArmor()` here; the
+        // session owner applies the same creature-only rule.
+        let mut victim_armor = 0_i32;
+        let mut victim_level = 0_u8;
         let victim_runtime = if let Some(creature) = legacy_manager.find_creature_mut(
             attacker.map_id,
             attacker.instance_id,
@@ -207,6 +212,8 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                     config.difficulty_store.as_deref(),
                 )
             });
+            victim_armor = creature.creature.combat_log_stats_like_cpp().armor;
+            victim_level = creature.level();
             victim_creature_type_mask = config
                 .creature_template_lifecycle_store
                 .as_ref()
@@ -270,7 +277,7 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
         // C++ `Unit::MeleeDamageBonusDone` resolves the victim-creature-type
         // terms per swing from the attacker's auras; the map-owned path uses the
         // same receiver-free rule as the session.
-        let melee_damage_bonus = match (
+        let (melee_damage_bonus, armor_mitigation) = match (
             map.get_typed_player(attacker.player_guid),
             config.spell_store.as_deref(),
         ) {
@@ -281,7 +288,30 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                     .auras
                     .runtime_applications_like_cpp();
                 let base_attack_speed = attacker_player.unit().base_attack_speed();
-                std::array::from_fn(|index| {
+                // C++ `CalcArmorReducedDamage`: the attacker's
+                // `SPELL_AURA_MOD_TARGET_RESISTANCE` normal-school sum and its
+                // live CR_ARMOR_PENETRATION rating bonus, over the creature
+                // victim's `GetArmor()`.
+                let target_resistance_normal_aura =
+                    crate::session_rules::player_aura_effects_by_spell_aura_type_like_cpp(
+                        auras,
+                        spell_store,
+                        wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE,
+                    )
+                    .into_iter()
+                    .filter(|(misc_value, _)| misc_value & 0x01 != 0)
+                    .map(|(_, amount)| amount)
+                    .sum::<i32>();
+                let armor_mitigation = crate::session::combat::RepresentedArmorMitigationLikeCpp {
+                    attacker_level: attacker_player.level_like_cpp(),
+                    victim_level,
+                    victim_armor,
+                    armor_penetration_pct: attacker_player
+                        .effective_combat_stats_like_cpp()
+                        .armor_penetration_pct,
+                    target_resistance_normal_aura,
+                };
+                let bonus = std::array::from_fn(|index| {
                     let (flat, pct) = crate::session_rules::melee_damage_bonus_done_like_cpp(
                         auras,
                         spell_store,
@@ -294,9 +324,13 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                         ),
                     );
                     crate::session::RepresentedMeleeDamageBonusLikeCpp { flat, pct }
-                })
+                });
+                (bonus, armor_mitigation)
             }
-            _ => [crate::session::RepresentedMeleeDamageBonusLikeCpp::NONE; 2],
+            _ => (
+                [crate::session::RepresentedMeleeDamageBonusLikeCpp::NONE; 2],
+                crate::session::combat::RepresentedArmorMitigationLikeCpp::NONE,
+            ),
         };
         let Some(player) = map.get_typed_player_mut(attacker.player_guid) else {
             outcome.attacker_unavailable += 1;
@@ -309,6 +343,7 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
             facing_target,
             true,
             melee_damage_bonus,
+            armor_mitigation,
         );
         let Some((damages, swing_error_update)) = swing_result else {
             continue;

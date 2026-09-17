@@ -72,6 +72,9 @@ pub struct PlayerEffectiveCombatStatsLikeCpp {
     /// C++ `ActivePlayerData::ModHealingDonePercent`
     /// (`StatSystem.cpp:588-599`).
     pub mod_healing_done_percent: f32,
+    /// C++ `Player::GetRatingBonusValue(CR_ARMOR_PENETRATION)`: the live
+    /// percentage `Unit::CalcArmorReducedDamage` reads for a player attacker.
+    pub armor_penetration_pct: f32,
     /// C++ `ActivePlayerData::ModTargetResistance`.
     pub mod_target_resistance: i32,
     /// C++ `ActivePlayerData::ModTargetPhysicalResistance`.
@@ -142,6 +145,7 @@ impl Default for PlayerEffectiveCombatStatsLikeCpp {
             mod_healing_done_pos: 0,
             mod_damage_done_percent: [1.0; 7],
             mod_healing_done_percent: 1.0,
+            armor_penetration_pct: 0.0,
             mod_target_resistance: 0,
             mod_target_physical_resistance: 0,
             weapon_damage_pct: [1.0, 0.5, 1.0],

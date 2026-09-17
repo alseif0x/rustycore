@@ -1077,3 +1077,148 @@ async fn map_owned_player_melee_applies_victim_aurastate_and_mechanic_bonus_like
         "the target-aura-mechanic term multiplies again"
     );
 }
+
+/// The map-owned melee phase applies `Unit::CalcArmorReducedDamage`, not only
+/// the session path.
+///
+/// C++ `CalculateMeleeDamage` (`Unit.cpp:1326-1339`) runs the damage through
+/// `CalcArmorReducedDamage` (`Unit.cpp:1623-1685`) before the hit table, using
+/// the victim's `GetArmor()`. The production swing owner is the map-owned
+/// runtime, so it must resolve the creature's `GenerateArmor` value and the
+/// attacker's live armour-penetration inputs from the canonical Player.
+#[tokio::test]
+async fn map_owned_player_melee_applies_victim_armor_mitigation_like_cpp() {
+    use crate::map_manager::RuntimeTickOwner;
+
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    canonical.lock().unwrap().create_world_map(0, 0);
+    manager
+        .write()
+        .unwrap()
+        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+    let creature_guid = test_creature_guid(99_932);
+    let player_guid = ObjectGuid::create_player(1, 5_202);
+    let map_store = Arc::new(wow_data::MapStore::from_entries([wow_data::MapEntry {
+        id: 0,
+        instance_type: wow_data::map::MAP_COMMON,
+        expansion_id: 0,
+        parent_map_id: -1,
+        cosmetic_parent_map_id: -1,
+        flags1: 0,
+        flags2: 0,
+    }]));
+
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(Arc::clone(&map_store));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "ArmorSolo".to_string(),
+        Position::new(10.0, 10.0, 0.0, 0.0),
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            let unit = player.unit_mut();
+            unit.set_attacking(Some(creature_guid));
+            unit.set_target(creature_guid);
+            unit.add_unit_state(UnitState::MELEE_ATTACKING.bits());
+            unit.set_base_attack_time_like_cpp(WeaponAttackType::BaseAttack, 2_000);
+            unit.set_weapon_damage(WeaponAttackType::BaseAttack, 1_000.0, 1_000.0);
+            unit.reset_attack_timer_like_cpp(WeaponAttackType::BaseAttack);
+        })
+        .unwrap();
+    session.set_map_manager(Arc::clone(&manager));
+    register_test_creature(&mut session, manager.clone(), creature_guid, 100_000);
+    session
+        .mutate_world_creature(creature_guid, |creature| {
+            creature.creature.unit_mut().set_level(80);
+            creature.creature.set_combat_log_stats_like_cpp(
+                wow_entities::CreatureCombatLogStatsLikeCpp {
+                    armor: 5_000,
+                    ..Default::default()
+                },
+            );
+        })
+        .unwrap();
+
+    let (send_tx, _rx) = flume::bounded::<Vec<u8>>(8);
+    let (command_tx, _crx) = flume::bounded::<SessionCommand>(8);
+    let registration = PlayerRegistry::new().register_or_replace(
+        player_guid,
+        broadcast_info_with_command(player_guid, send_tx, command_tx),
+        Default::default(),
+    );
+    let attackers = vec![crate::session::PlayerMeleeAttackerSnapshotLikeCpp {
+        registration,
+        player_guid,
+        map_id: 0,
+        instance_id: 0,
+        in_combat_mirror: true,
+        tap_group_guids: Vec::new(),
+    }];
+    // The attacker-side `SPELL_AURA_MOD_TARGET_RESISTANCE` sum is resolved from
+    // the same spell store the melee bonus uses.
+    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+        spell_store: Some(Arc::new(wow_data::SpellStore::new())),
+        ..Default::default()
+    };
+    let mut phase_state = crate::session::PlayerMeleePhaseStateLikeCpp::default();
+    let tick = |manager: &crate::map_manager::SharedMapManager,
+                phase_state: &mut crate::session::PlayerMeleePhaseStateLikeCpp| {
+        crate::session::run_legacy_player_melee_tick_once_like_cpp(
+            manager,
+            Some(&canonical),
+            &attackers,
+            2_000,
+            phase_state,
+            &config,
+        )
+    };
+    let health = |manager: &crate::map_manager::SharedMapManager| {
+        manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, creature_guid)
+            .unwrap()
+            .current_hp()
+    };
+
+    let before = health(&manager);
+    let outcome = tick(&manager, &mut phase_state);
+    assert!(!outcome.skipped_owner_not_global, "the map owns this tick");
+    assert_eq!(outcome.creature_hits, 1);
+    assert_eq!(
+        before - health(&manager),
+        753,
+        "C++ CalcArmorReducedDamage over a 1,000 damage roll and 5,000 armour"
+    );
+
+    // Same swing without armour stays exact, so the mitigation is the only
+    // difference.
+    session
+        .mutate_world_creature(creature_guid, |creature| {
+            creature
+                .creature
+                .set_combat_log_stats_like_cpp(Default::default());
+        })
+        .unwrap();
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player
+                .unit_mut()
+                .reset_attack_timer_like_cpp(WeaponAttackType::BaseAttack);
+        })
+        .unwrap();
+    let before = health(&manager);
+    let outcome = tick(&manager, &mut phase_state);
+    assert_eq!(outcome.creature_hits, 1);
+    assert_eq!(before - health(&manager), 1_000);
+}

@@ -712,6 +712,7 @@ fn combat_tick_los_failure_resets_timer_without_damage_like_cpp() {
                 true,
                 false,
                 [crate::session::RepresentedMeleeDamageBonusLikeCpp::NONE; 2],
+                crate::session::combat::RepresentedArmorMitigationLikeCpp::NONE,
             )
         })
         .flatten();
@@ -963,6 +964,7 @@ fn white_swing_applies_autoattack_damage_auras_like_cpp() {
                     true,
                     true,
                     [crate::session::RepresentedMeleeDamageBonusLikeCpp::NONE; 2],
+                    crate::session::combat::RepresentedArmorMitigationLikeCpp::NONE,
                 )
             })
             .flatten()
@@ -1119,6 +1121,7 @@ fn white_swing_applies_creature_type_melee_bonus_like_cpp() {
                     true,
                     true,
                     melee_damage_bonus,
+                    crate::session::combat::RepresentedArmorMitigationLikeCpp::NONE,
                 )
             })
             .flatten()
@@ -1282,6 +1285,7 @@ fn white_swing_applies_victim_aurastate_and_mechanic_melee_bonus_like_cpp() {
                     true,
                     true,
                     melee_damage_bonus,
+                    crate::session::combat::RepresentedArmorMitigationLikeCpp::NONE,
                 )
             })
             .flatten()
@@ -1426,6 +1430,7 @@ fn white_swing_damage_rolls_the_published_range_like_cpp() {
                     true,
                     true,
                     [RepresentedMeleeDamageBonusLikeCpp::NONE; 2],
+                    crate::session::combat::RepresentedArmorMitigationLikeCpp::NONE,
                 )
             })
             .flatten()
@@ -1452,4 +1457,189 @@ fn white_swing_damage_rolls_the_published_range_like_cpp() {
         seen.iter().filter(|count| **count > 0).count() >= 4,
         "the roll must spread over the range, not pin one value: {seen:?}"
     );
+}
+
+#[test]
+fn armor_reduction_matches_calc_armor_reduced_damage_like_cpp() {
+    use crate::session_rules::armor_reduced_damage_like_cpp as reduced;
+    // C++ `Unit::CalcArmorReducedDamage` (`Unit.cpp:1623-1685`) with a level-80
+    // attacker: `levelModifier = 80 + 4.5 * 21 = 174.5`.
+    assert_eq!(reduced(1_000, 80, 80, 0, 0.0, 0), 1_000, "no armour");
+    assert_eq!(
+        reduced(1_000, 80, 80, 5_000, 0.0, 0),
+        753,
+        "5,000 armour: ceil(1000 * (1 - 0.247127))"
+    );
+    assert_eq!(
+        reduced(1_000, 80, 80, 5_000, 25.0, 0),
+        803,
+        "a 25% CR_ARMOR_PENETRATION bonus ignores a quarter of the armour"
+    );
+    assert_eq!(
+        reduced(1_000, 80, 80, 5_000, 100.0, 0),
+        1_000,
+        "100% penetration removes the whole armour value"
+    );
+    assert_eq!(
+        reduced(1_000, 80, 80, 10_000_000, 0.0, 0),
+        250,
+        "the reduction clamps at 75%"
+    );
+    assert_eq!(
+        reduced(1_000, 80, 80, 5_000, 0.0, -5_000),
+        1_000,
+        "a negative MOD_TARGET_RESISTANCE sum cancels the armour"
+    );
+    assert_eq!(
+        reduced(1_000, 80, 10, 500, 0.0, 0),
+        969,
+        "a victim below level 60 uses `maxArmorPen = 400 + 85 * level`"
+    );
+}
+
+#[test]
+fn white_swing_applies_victim_armor_mitigation_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    let guid = test_creature_guid(18_034);
+    let player = ObjectGuid::create_player(1, 88);
+
+    canonical.lock().unwrap().create_world_map(0, 0);
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+        wow_data::MapEntry {
+            id: 0,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        },
+    ])));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player,
+        "Armor".to_string(),
+        Position::new(10.0, 10.0, 0.0, 0.0),
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            let unit = player.unit_mut();
+            unit.set_attacking(Some(guid));
+            unit.set_target(guid);
+            unit.add_unit_state(UnitState::MELEE_ATTACKING.bits());
+            unit.set_base_attack_time_like_cpp(WeaponAttackType::BaseAttack, 2_000);
+            unit.set_attack_timer(WeaponAttackType::BaseAttack, 0);
+            unit.set_weapon_damage(WeaponAttackType::BaseAttack, 1_000.0, 1_000.0);
+        })
+        .unwrap();
+    session.combat_target = Some(guid);
+    session.in_combat = true;
+    register_test_creature(&mut session, manager.clone(), guid, 40);
+    session
+        .mutate_world_creature(guid, |creature| {
+            creature.enter_combat(player);
+            creature.creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            // C++ `Creature::UpdateLevelDependantStats` seeds
+            // `UNIT_MOD_ARMOR` from `CreatureBaseStats::GenerateArmor`.
+            creature.creature.unit_mut().set_level(80);
+            creature.creature.set_combat_log_stats_like_cpp(
+                wow_entities::CreatureCombatLogStatsLikeCpp {
+                    armor: 5_000,
+                    ..Default::default()
+                },
+            );
+        })
+        .unwrap();
+
+    let armor_before = session
+        .mutate_world_creature(guid, |creature| {
+            creature.creature.combat_log_stats_like_cpp().armor
+        })
+        .unwrap();
+    assert_eq!(armor_before, 5_000, "fixture armour must persist");
+
+    let mitigation = session.represented_melee_armor_mitigation_like_cpp();
+    assert_eq!(mitigation.attacker_level, 80);
+    assert_eq!(mitigation.victim_level, 80);
+    assert_eq!(mitigation.victim_armor, 5_000);
+    assert_eq!(mitigation.armor_penetration_pct, 0.0);
+    assert_eq!(mitigation.target_resistance_normal_aura, 0);
+
+    let swing = |session: &mut WorldSession| {
+        let melee_damage_bonus = session.represented_melee_damage_bonus_like_cpp();
+        let armor_mitigation = session.represented_melee_armor_mitigation_like_cpp();
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .set_attack_timer(WeaponAttackType::BaseAttack, 0);
+                take_canonical_player_attack_swings_like_cpp(
+                    player,
+                    0,
+                    true,
+                    true,
+                    true,
+                    melee_damage_bonus,
+                    armor_mitigation,
+                )
+            })
+            .flatten()
+            .map(|(swings, _)| swings)
+    };
+
+    assert_eq!(
+        swing(&mut session),
+        Some(vec![753]),
+        "C++ CalcArmorReducedDamage over a 1,000 damage roll"
+    );
+
+    // The attacker's `SPELL_AURA_MOD_TARGET_RESISTANCE` term only covers
+    // `SPELL_SCHOOL_MASK_NORMAL`; a non-normal row leaves the armour alone.
+    let mut spell_store = wow_data::SpellStore::new();
+    for (spell_id, misc_value) in [(91_120_i32, 0x02_i32), (91_121, 0x01)] {
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: -5_000,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE,
+                    effect_misc_value_1: misc_value,
+                    effect_base_points: -5_000,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    session.set_spell_store(Arc::new(spell_store));
+    session
+        .apply_aura(91_120, player, 30_000, 1)
+        .expect("apply non-normal target-resistance aura");
+    assert_eq!(swing(&mut session), Some(vec![753]));
+
+    // A normal-school negative sum is armour penetration and cancels the armour.
+    session
+        .apply_aura(91_121, player, 30_000, 1)
+        .expect("apply normal target-resistance aura");
+    assert_eq!(swing(&mut session), Some(vec![1_000]));
 }

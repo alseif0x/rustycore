@@ -5,6 +5,28 @@
 
 use super::*;
 
+/// C++ `Unit::CalcArmorReducedDamage` inputs the swing owner resolves once per
+/// victim. `NONE` means "no represented armour": every field is zero, so the
+/// reduction is zero and the swing damage is unchanged.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub(in crate::session) struct RepresentedArmorMitigationLikeCpp {
+    pub attacker_level: u8,
+    pub victim_level: u8,
+    pub victim_armor: i32,
+    pub armor_penetration_pct: f32,
+    pub target_resistance_normal_aura: i32,
+}
+
+impl RepresentedArmorMitigationLikeCpp {
+    pub(in crate::session) const NONE: Self = Self {
+        attacker_level: 0,
+        victim_level: 0,
+        victim_armor: 0,
+        armor_penetration_pct: 0.0,
+        target_resistance_normal_aura: 0,
+    };
+}
+
 impl WorldSession {
     pub(in crate::session) fn canonical_player_attack_state_like_cpp(
         &self,
@@ -45,10 +67,13 @@ impl WorldSession {
         facing_target: bool,
         within_los: bool,
     ) -> Option<(Vec<u32>, Option<Option<u8>>)> {
-        // C++ `MeleeDamageBonusDone` resolves the victim-dependent terms per
+        // C++ `CalculateMeleeDamage` resolves the victim-dependent terms per
         // swing; the session computes them for the victim the canonical Player
-        // is attacking and hands them to the shared swing function.
+        // is attacking and hands them to the shared swing function. Both are
+        // hoisted: resolving them inside the mutable owner borrow would
+        // re-enter the canonical manager lock.
         let melee_damage_bonus = self.represented_melee_damage_bonus_like_cpp();
+        let armor_mitigation = self.represented_melee_armor_mitigation_like_cpp();
         self.mutate_canonical_player_like_cpp(|player| {
             take_canonical_player_attack_swings_like_cpp(
                 player,
@@ -57,9 +82,83 @@ impl WorldSession {
                 facing_target,
                 within_los,
                 melee_damage_bonus,
+                armor_mitigation,
             )
         })
         .flatten()
+    }
+
+    /// C++ `Unit::CalcArmorReducedDamage` (`Unit.cpp:1623-1685`) inputs for the
+    /// canonical Player's current melee victim.
+    ///
+    /// The victim's armour is only representable while it is a creature: a
+    /// canonical-player victim's own snapshot belongs to that player's session,
+    /// so it keeps the zero (`NONE`) entry instead of inventing a value. The
+    /// attacker's melee damage school has no represented override, so the
+    /// represented swing uses C++'s `SPELL_SCHOOL_MASK_NORMAL` default.
+    pub(in crate::session) fn represented_melee_armor_mitigation_like_cpp(
+        &self,
+    ) -> RepresentedArmorMitigationLikeCpp {
+        let Some(target_guid) =
+            self.canonical_player_snapshot_like_cpp(|player| player.unit().attacking())
+        else {
+            return RepresentedArmorMitigationLikeCpp::NONE;
+        };
+        let Some(target_guid) = target_guid else {
+            return RepresentedArmorMitigationLikeCpp::NONE;
+        };
+        let Some(armor_penetration_pct) = self.canonical_player_snapshot_like_cpp(|player| {
+            player
+                .effective_combat_stats_like_cpp()
+                .armor_penetration_pct
+        }) else {
+            return RepresentedArmorMitigationLikeCpp::NONE;
+        };
+        let Some(attacker_level) =
+            self.canonical_player_snapshot_like_cpp(|player| player.level_like_cpp())
+        else {
+            return RepresentedArmorMitigationLikeCpp::NONE;
+        };
+        let target_resistance_normal_aura = self
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE,
+            )
+            .unwrap_or_default()
+            .into_iter()
+            // C++ `SPELL_SCHOOL_MASK_NORMAL` (0x01).
+            .filter(|(misc_value, _)| misc_value & 0x01 != 0)
+            .map(|(_, amount)| amount)
+            .sum::<i32>();
+        let Some(manager) = self.map_manager.as_ref() else {
+            return RepresentedArmorMitigationLikeCpp::NONE;
+        };
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let victim = {
+            let manager = manager
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            manager
+                .find_creature(self.player_map_id_like_cpp(), instance_id, target_guid)
+                .map(|creature| {
+                    (
+                        creature.creature.combat_log_stats_like_cpp().armor,
+                        creature.level(),
+                    )
+                })
+        };
+        let Some((victim_armor, victim_level)) = victim else {
+            return RepresentedArmorMitigationLikeCpp::NONE;
+        };
+        RepresentedArmorMitigationLikeCpp {
+            attacker_level,
+            victim_level,
+            victim_armor,
+            armor_penetration_pct,
+            target_resistance_normal_aura,
+        }
     }
 
     /// C++ `Unit::MeleeDamageBonusDone`'s victim-state terms

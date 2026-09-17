@@ -765,6 +765,13 @@ impl WorldSession {
                 wow_constants::WeaponAttackType::OffAttack,
             ) as f32)
             .max(0.0);
+        // C++ `Unit::CalcArmorReducedDamage` reads the live
+        // `GetRatingBonusValue(CR_ARMOR_PENETRATION)` and clamps it to 100.
+        let armor_penetration_rating = crate::session_rules::CR_ARMOR_PENETRATION_LIKE_CPP;
+        let armor_penetration_pct = (gear.combat_ratings[usize::from(armor_penetration_rating)]
+            as f32
+            * self.combat_rating_multiplier_like_cpp(level, u32::from(armor_penetration_rating)))
+        .clamp(0.0, 100.0);
         let mana_regen_mp5 = gear.mana_regen_bonus as f32 / 5.0
             + self.mana_regen_mp5_from_auras_like_cpp(projection.stats);
         let mana_regen_from_spirit = self.mana_regen_from_stats_like_cpp(
@@ -802,6 +809,7 @@ impl WorldSession {
             mod_healing_done_pos: projection.mod_healing_done_pos,
             mod_damage_done_percent: projection.mod_damage_done_percent,
             mod_healing_done_percent: projection.mod_healing_done_percent,
+            armor_penetration_pct,
             mod_target_resistance: projection.mod_target_resistance,
             mod_target_physical_resistance: projection.mod_target_physical_resistance,
             weapon_damage_pct: projection.weapon_damage_pct,
