@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 form-change item effect refresh — 2026-09-17, implementation
+`5c427e5c`:** a shapeshift now refreshes the equipped items' form-gated equip
+spells and item-set auras, wiring the previously test-only item-set refresh
+planner into production (`Player.cpp:22093-22094`). `HandleShapeshiftBoosts`
+remains open. wow-data --lib 753/0, wow-entities --lib 940/0, wow-world --lib
+3953/0/1; no live DB/restart/relogin QA.
+
 **#61 shapeshift form ownership and `CombatRoundTime` — 2026-09-17,
 implementation `eddc62de`:** applying a `SPELL_AURA_MOD_SHAPESHIFT` aura now owns
 the represented form, `Player::InitDataForForm`'s attack times are installed and
