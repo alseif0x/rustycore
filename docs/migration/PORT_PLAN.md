@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 mechanic-based damage multipliers — 2026-09-17, implementation
+`f190dd97`:** `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE_BY_TARGET_AURA_MECHANIC` (249)
+and `SPELL_AURA_MOD_DAMAGE_DONE_FOR_MECHANIC` (276) now apply to direct spell
+damage (`Unit.cpp:6734-6746`), backed by a `Unit::HasAuraWithMechanic`
+representation for player and creature victims. The family-scripted and
+attribute-gated terms remain open. wow-data --lib 752/0, wow-world --lib
+3938/0/1; no live DB/restart/relogin QA.
+
 **#61 versus-aurastate damage multiplier — 2026-09-17, implementation
 `cf8190d5`:** `SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE` (303) now multiplies
 direct spell damage when the victim's unit aura state mask contains the effect's

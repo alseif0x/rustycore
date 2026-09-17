@@ -1,12 +1,45 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`93f200925d44dcaf2d91c619d4c4b5b240361d1e` (PR #1049, the #61 versus-aurastate damage multiplier, following PR #1047, the creature missing-health heal scaling, PR #1045, the versus-creature-type damage multiplier, PR #1043, the missing-health healing scaling, PR #1041, the `SpellHealingBonusTaken`, PR #1039, the victim `ModHealing` term, PR #1037, the direct-heal spell-power bonus, PR #1035, the school damage percentage, PR #1033, the caster spell-power damage bonus, PR #1031, the weapon-enchantment damage term, PR #1029, the ranged weapon fit, PR #1027, the `Unit::UpdateDamageDoneMods` representation, PR #1025, the `UpdateDamagePctDoneMods` representation, PR #1023, the `VersatilityBonus` publication, PR #1021, the override percentage publication, PR #1019, the `ModTargetResistance`/spell-penetration publication, PR #1017, the `ModHealingDonePercent` publication, PR #1015, the `ModDamageDonePercent` publication, PR #1013, the narrow values-update negative spell field, PR #1011, the spell field wire publication, PR #1009, the spell damage/healing done producers, PR #1007, the override-attack-power-by-spell-power aura, PR #1005, the seven stale `wow-world --lib` expectations, PR #1003, the quest party fixture identity fix, PR #1001, the save-snapshot manager-lock re-entry fix, PR #999, the session reputation-closure lock re-entry deadlock fix, PR #997, the collection appearance `CanUseItem` template gates, PR #995, the collection appearance weapon-proficiency gate, PR #993, the #61 attack power aura producers, PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`d23bfd17ab73a0ab021543768851ee0857ceaf7c` (PR #1051, the #61 mechanic-based damage multipliers, following PR #1049, the #61 versus-aurastate damage multiplier, following PR #1047, the creature missing-health heal scaling, PR #1045, the versus-creature-type damage multiplier, PR #1043, the missing-health healing scaling, PR #1041, the `SpellHealingBonusTaken`, PR #1039, the victim `ModHealing` term, PR #1037, the direct-heal spell-power bonus, PR #1035, the school damage percentage, PR #1033, the caster spell-power damage bonus, PR #1031, the weapon-enchantment damage term, PR #1029, the ranged weapon fit, PR #1027, the `Unit::UpdateDamageDoneMods` representation, PR #1025, the `UpdateDamagePctDoneMods` representation, PR #1023, the `VersatilityBonus` publication, PR #1021, the override percentage publication, PR #1019, the `ModTargetResistance`/spell-penetration publication, PR #1017, the `ModHealingDonePercent` publication, PR #1015, the `ModDamageDonePercent` publication, PR #1013, the narrow values-update negative spell field, PR #1011, the spell field wire publication, PR #1009, the spell damage/healing done producers, PR #1007, the override-attack-power-by-spell-power aura, PR #1005, the seven stale `wow-world --lib` expectations, PR #1003, the quest party fixture identity fix, PR #1001, the save-snapshot manager-lock re-entry fix, PR #999, the session reputation-closure lock re-entry deadlock fix, PR #997, the collection appearance `CanUseItem` template gates, PR #995, the collection appearance weapon-proficiency gate, PR #993, the #61 attack power aura producers, PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#61 mechanic-based damage multipliers — 2026-09-17, implementation
+`f190dd97`, integrated as `d23bfd17` by PR #1051:** `Unit::SpellDamagePctDone`
+(`Unit.cpp:6734-6746`) still omitted the two mechanic terms of the represented
+direct-damage path. `represented_target_mechanic_mask_like_cpp` now mirrors
+`Unit::HasAuraWithMechanic` (`Unit.cpp:4714-4729`), unioning each applied aura's
+`SpellInfo::Mechanic` and the mechanics of its applied `IsEffect()` slots, for
+the canonical player's visible applications (using the application's stored
+difficulty) and for world-creature `AppliedAuraRef`s (which retain none, so the
+current map difficulty is used). `represented_spell_damage_pct_done_like_cpp`
+multiplies the damage by every caster aura-249 effect whose misc mechanic the
+victim carries and applies the summed aura-276 percentage for the cast effect's
+`SpellEffectInfo::Mechanic`, falling back to `SpellInfo::Mechanic`, resolved
+through `SpellHitMetadataLikeCpp`; the bonus helper now receives the C++ effect
+index for that lookup. Boundary: the family-scripted terms and the
+`SPELL_ATTR3_IGNORE_CASTER_MODIFIERS` /
+`SPELL_ATTR6_IGNORE_CASTER_DAMAGE_MODIFIERS` early-outs remain unrepresented.
+Evidence: the two new session tests assert the matching and non-matching mechanic
+cases for auras 249 and 276 (`spell_school_damage_applies_damage_done_for_mechanic_like_cpp`,
+`spell_school_damage_applies_damage_percent_done_by_target_aura_mechanic_like_cpp`);
+wow-data --lib 752/0 and wow-world --lib 3938/0/1; format, `git diff --check`,
+the physical ratchet and `validation-v2 quick` (manifest
+`20260917T062936.129884Z-2436096-quick.json`) pass. `validation-v2 final` was
+also run on this candidate: it fails only at `check_architecture.py
+hotspot-ratchet`, which already fails identically on the untouched base
+`35535748` (`crates/wow-world/src/session/mod.rs` +5591 total lines against the
+stored baseline, `handlers/character/mod.rs` +1550, and others); the drift is
+pre-existing repository debt outside this unit's scope and was not re-baselined.
+No live DB/restart/relogin QA. #61 stays open for the family-scripted and
+attribute-gated damage terms, `SpellDamageBonusTaken` and the remaining
+victim-side gates, the offhand-damage aura scale, the player-killer (PvP)
+`CONFIG_DURABILITY_LOSS_IN_PVP` branch and `SetPvPDeath`, alternate powers, rune
+regeneration and live DB/restart/relogin QA.
 
 **#61 versus-aurastate damage multiplier — 2026-09-17, implementation
 `cf8190d5`, integrated as `93f20092` by PR #1049:** `Unit::SpellDamagePctDone`
@@ -17,7 +50,8 @@ damage path omitted. `represented_target_aura_state_mask_like_cpp` reads the
 target's unit aura state mask (the canonical player's or the world creature's),
 and `represented_spell_damage_pct_done_like_cpp` multiplies its school maximum by
 each matching aura-303 effect. Boundary: the target-aura-mechanic (249) and
-`MOD_DAMAGE_DONE_FOR_MECHANIC` terms plus the family scripts remain
+`MOD_DAMAGE_DONE_FOR_MECHANIC` terms (resolved next by the 2026-09-17
+mechanic-based multipliers entry) plus the family scripts remained
 unrepresented, and a target whose aura state cannot be resolved keeps only the
 previously applied multipliers. Evidence: the new session test sets the
 defensive aura state on a registered creature, asserts an unrelated-state aura
