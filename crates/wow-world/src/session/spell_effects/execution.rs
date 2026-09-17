@@ -363,6 +363,12 @@ impl WorldSession {
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL => {
                     if let Ok(heal_amount) = u32::try_from(direct_effect_base_points) {
+                        let heal_amount = self.represented_spell_healing_bonus_done_like_cpp(
+                            spell_id,
+                            caster_guid,
+                            spell_info.effect_bonus_coefficient,
+                            heal_amount,
+                        );
                         self.apply_heal_from_caster_like_cpp(
                             Some(spell_id),
                             caster_guid,

@@ -956,6 +956,98 @@ async fn spell_school_damage_uses_max_damage_done_percent_like_cpp() {
 }
 
 #[tokio::test]
+async fn spell_direct_heal_applies_spell_power_and_healing_percent_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let spell_id = 727_i32;
+    let guid = ObjectGuid::create_player(1, 58);
+    let canonical = shared_canonical_map_manager();
+    canonical.lock().unwrap().create_world_map(0, 0);
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+        wow_data::MapEntry {
+            id: 0,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        },
+    ])));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        guid,
+        "HealScaler".to_string(),
+        Position::new(10.0, 20.0, 30.0, 0.0),
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session.set_player_health_like_cpp(100, 1_000);
+    let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+    // `SpellBaseHealingBonusDone`: 100 base spell power, no mana slot, and
+    // `ModHealingDonePercent = 1.5`.
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player.replace_effective_combat_stats_like_cpp(
+                wow_entities::PlayerEffectiveCombatStatsLikeCpp {
+                    spell_power: 100,
+                    base_mana: 0,
+                    stats: [10, 10, 10, 40, 30],
+                    mod_healing_done_percent: 1.5,
+                    ..Default::default()
+                },
+            );
+            player.unit_mut().set_max_health(1_000);
+            player.unit_mut().set_health(100);
+        })
+        .expect("canonical player owner");
+
+    session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([
+        wow_data::SpellMiscEntry {
+            id: spell_id as u32,
+            spell_id: spell_id as u32,
+            // Holy.
+            school_mask: 1 << 1,
+            ..Default::default()
+        },
+    ])));
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        spell_id,
+        wow_data::SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.5,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL,
+                effect_base_points: 100,
+                ..Default::default()
+            }],
+        },
+    );
+    session.set_spell_store(Arc::new(spell_store));
+
+    session
+        .execute_spell(spell_id, guid)
+        .await
+        .expect("represented direct heal should scale");
+
+    // `int32((100 + int32(100 * 0.5)) * 1.5)`.
+    assert_eq!(session.player_health_like_cpp(), 325);
+}
+
+#[tokio::test]
 async fn spell_self_heal_syncs_player_health_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let guid = ObjectGuid::create_player(1, 44);
