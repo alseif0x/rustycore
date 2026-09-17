@@ -47,6 +47,10 @@ pub const AURA_STATE_DEFENSIVE: u8 = 1;
 /// `Unit::Update` sets it while the unit is alive and below 20% health.
 pub const AURA_STATE_WOUNDED_20_PERCENT: u8 = 2;
 
+/// C++ `AuraStateType::AURA_STATE_FROZEN` (`SharedDefines.h:2510`): read by
+/// `Unit::HasAuraState` consumers such as the Mage Ice Lance scripted term.
+pub const AURA_STATE_FROZEN: u8 = 4;
+
 pub const AURA_STATE_DEFENSIVE_2: u8 = 7;
 
 pub const AURA_STATE_RAID_ENCOUNTER_2: u8 = 14;

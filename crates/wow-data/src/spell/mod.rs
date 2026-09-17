@@ -98,6 +98,12 @@ pub mod attributes {
     pub const SPELL_ATTR2_NO_INITIAL_THREAT: u32 = 0x0040_0000;
     /// C++ `SPELL_ATTR3_CAN_PROC_FROM_PROCS` (`SharedDefines.h`).
     pub const SPELL_ATTR3_CAN_PROC_FROM_PROCS: u32 = 0x0400_0000;
+    /// C++ `SPELL_ATTR3_IGNORE_CASTER_MODIFIERS` (`SharedDefines.h:571`):
+    /// `Unit::SpellDamagePctDone`/`SpellHealingPctDone` return `1.0f`.
+    pub const SPELL_ATTR3_IGNORE_CASTER_MODIFIERS: u32 = 0x2000_0000;
+    /// C++ `SPELL_ATTR6_IGNORE_CASTER_DAMAGE_MODIFIERS` (`SharedDefines.h:682`):
+    /// `Unit::SpellDamagePctDone` returns `1.0f`.
+    pub const SPELL_ATTR6_IGNORE_CASTER_DAMAGE_MODIFIERS: u32 = 0x2000_0000;
     /// C++ `SPELL_ATTR4_AURA_EXPIRES_OFFLINE` (`SharedDefines.h`).
     pub const SPELL_ATTR4_AURA_EXPIRES_OFFLINE: u32 = 0x0000_0004;
     /// C++ `SPELL_ATTR4_NO_HELPFUL_THREAT` (`SharedDefines.h`).
