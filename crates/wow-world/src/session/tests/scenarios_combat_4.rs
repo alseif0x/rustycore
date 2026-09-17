@@ -489,6 +489,7 @@ fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
     let attacker = Attacker {
         level: 80,
         dual_wielding: false,
+        ignores_dual_wield_hit_penalty: false,
         melee_hit_chance_pct: 7.5,
         hit_chance_aura_pct: 0.0,
         crit_pct: [10.0, 5.0],
@@ -532,6 +533,14 @@ fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
         dual_wielding: true,
         ..attacker
     };
+    // `SPELL_AURA_IGNORE_DUAL_WIELD_HIT_PENALTY` removes the +19% penalty while
+    // the flag is present, regardless of amount.
+    let ignoring = Attacker {
+        ignores_dual_wield_hit_penalty: true,
+        ..dual_wielding
+    };
+    let inputs = melee_outcome_inputs_like_cpp(&ignoring, &creature);
+    assert_eq!(inputs[0].miss_chance_pct, 0.0);
     let higher = Victim {
         level: 84,
         ..creature
@@ -1480,4 +1489,107 @@ fn white_swing_applies_victim_critical_chance_auras_like_cpp() {
         HIT_INFO_AFFECTS_VICTIM | HIT_INFO_CRITICAL_HIT
     );
     assert_eq!(swings[0].victim_state, VICTIM_STATE_HIT);
+}
+
+#[test]
+fn melee_attack_table_reads_the_dual_wield_penalty_aura_like_cpp() {
+    use crate::session_rules::melee_outcome_inputs_like_cpp;
+
+    let (mut session, _, _) = make_session();
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    let guid = test_creature_guid(18_040);
+    let player = ObjectGuid::create_player(1, 98);
+
+    canonical.lock().unwrap().create_world_map(0, 0);
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+        wow_data::MapEntry {
+            id: 0,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        },
+    ])));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player,
+        "DualWield".to_string(),
+        Position::new(10.0, 10.0, 0.0, 0.0),
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            let unit = player.unit_mut();
+            unit.set_attacking(Some(guid));
+            unit.set_target(guid);
+            unit.add_unit_state(UnitState::MELEE_ATTACKING.bits());
+        })
+        .unwrap();
+    register_test_creature(&mut session, manager.clone(), guid, 40);
+    // The fixture trains the attacker past the dual-wield penalty; this scenario
+    // needs the plain `7.5` `m_modMeleeHitChance`.
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            let mut stats = *player.effective_combat_stats_like_cpp();
+            stats.melee_hit_chance_pct = 7.5;
+            player.replace_effective_combat_stats_like_cpp(stats);
+        })
+        .unwrap();
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        91_170,
+        wow_data::SpellInfo {
+            spell_id: 91_170,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_IGNORE_DUAL_WIELD_HIT_PENALTY),
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_aura: wow_data::spell::aura_types::SPELL_AURA_IGNORE_DUAL_WIELD_HIT_PENALTY,
+                effect_base_points: 0,
+                ..Default::default()
+            }],
+        },
+    );
+    session.set_spell_store(Arc::new(spell_store));
+
+    let bare = session.represented_melee_outcome_facts_like_cpp();
+    assert!(!bare.0.ignores_dual_wield_hit_penalty);
+    // A dual-wielding attacker without the aura carries `5 + 19` miss.
+    let dual = crate::session_rules::RepresentedMeleeAttackerFactsLikeCpp {
+        dual_wielding: true,
+        ..bare.0
+    };
+    let inputs = melee_outcome_inputs_like_cpp(&dual, &bare.1);
+    // `5 + 19 - 7.5`.
+    assert_eq!(inputs[0].miss_chance_pct, 16.5);
+
+    // With the aura the penalty disappears.
+    session
+        .apply_aura(91_170, player, 30_000, 1)
+        .expect("apply ignore-dual-wield aura");
+    let facts = session.represented_melee_outcome_facts_like_cpp();
+    assert!(facts.0.ignores_dual_wield_hit_penalty);
+    let dual = crate::session_rules::RepresentedMeleeAttackerFactsLikeCpp {
+        dual_wielding: true,
+        ..facts.0
+    };
+    let inputs = melee_outcome_inputs_like_cpp(&dual, &facts.1);
+    assert_eq!(inputs[0].miss_chance_pct, 0.0);
 }

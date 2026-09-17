@@ -252,6 +252,10 @@ pub const SPELL_AURA_MOD_TARGET_RESISTANCE: i32 = 123;
 /// C++ `AuraType::SPELL_AURA_MOD_AUTOATTACK_CRIT_CHANCE` (`SpellAuraDefines.h:429`):
 /// flat auto-attack critical chance, read by `Unit::RollMeleeOutcomeAgainst`.
 pub const SPELL_AURA_MOD_AUTOATTACK_CRIT_CHANCE: i32 = 334;
+/// C++ `AuraType::SPELL_AURA_IGNORE_DUAL_WIELD_HIT_PENALTY`
+/// (`SpellAuraDefines.h:553`): removes `MeleeSpellMissChance`'s +19% dual-wield
+/// miss penalty.
+pub const SPELL_AURA_IGNORE_DUAL_WIELD_HIT_PENALTY: i32 = 458;
 
 /// C++ `AuraType::SPELL_AURA_MOD_MELEE_DAMAGE_TAKEN` (`SpellAuraDefines.h:220`).
 pub const SPELL_AURA_MOD_MELEE_DAMAGE_TAKEN: i32 = 125;

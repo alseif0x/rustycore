@@ -267,9 +267,12 @@ pub(crate) fn melee_outcome_presentation_like_cpp(
 pub(crate) struct RepresentedMeleeAttackerFactsLikeCpp {
     /// `GetLevelForTarget(victim)`.
     pub level: u8,
-    /// `haveOffhandWeapon() && !IsInFeralForm() && !HasAuraType(
-    /// SPELL_AURA_IGNORE_DUAL_WIELD_HIT_PENALTY)`.
+    /// `haveOffhandWeapon() && !IsInFeralForm()`.
     pub dual_wielding: bool,
+    /// C++ `HasAuraType(SPELL_AURA_IGNORE_DUAL_WIELD_HIT_PENALTY)`: an active
+    /// aura of that type removes the dual-wield miss penalty regardless of its
+    /// amount.
+    pub ignores_dual_wield_hit_penalty: bool,
     /// C++ `m_modMeleeHitChance`: `7.5 + GetRatingBonusValue(CR_HIT_MELEE)`.
     pub melee_hit_chance_pct: f32,
     /// The attacker's `SPELL_AURA_MOD_HIT_CHANCE` sum.
@@ -349,7 +352,7 @@ pub(crate) fn melee_outcome_inputs_like_cpp(
     }
     // C++ `GetUnitMissChance()` is a flat 5.0 for every unit.
     let mut miss_chance_pct = 5.0;
-    if attacker.dual_wielding {
+    if attacker.dual_wielding && !attacker.ignores_dual_wield_hit_penalty {
         miss_chance_pct += 19.0;
     }
     miss_chance_pct -= attacker.melee_hit_chance_pct;
