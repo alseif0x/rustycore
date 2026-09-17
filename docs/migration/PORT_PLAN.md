@@ -33,6 +33,16 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**Session reputation-closure lock re-entry deadlock — 2026-09-17, implementation
+`299fe975`:** `with_reputation_mgr_like_cpp` holds the canonical manager lock while
+its closure runs, so resolving `player_race_like_cpp`/`player_class_like_cpp`
+inside it self-deadlocked. The identity is hoisted before the closure at all six
+call sites, which removes the reputation-family `wow-world --lib` hangs. The same
+unit adds the `CanUseItem` learning-effect and reputation gates to
+`CollectionMgr::CanAddAppearance`. This is a runtime-correctness repair, not a
+parity claim; the 28 pre-existing `wow-world --lib` failures and the two
+`save_snapshot_owner` hangs remain separate tracks.
+
 **Collection appearance `CanUseItem` template gates — 2026-09-17, implementation
 `a2c8c3bb`:** `CollectionMgr::CanAddAppearance` now also applies the represented
 `Player::CanUseItem(ItemTemplate const*)` gates (`Player.cpp:11069-11125`):

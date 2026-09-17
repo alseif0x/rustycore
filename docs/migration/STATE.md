@@ -8,6 +8,37 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**Session reputation-closure lock re-entry deadlock — 2026-09-17, implementation
+`299fe975`:** six call sites ran `self.player_race_like_cpp()`/
+`self.player_class_like_cpp()` (and the friendship store) inside
+`with_reputation_mgr_like_cpp`/`mutate_reputation_mgr_like_cpp`, whose closure
+runs while the canonical map-manager `Mutex` is held; those session accessors take
+the same non-reentrant lock, so any session with a canonical Player deadlocked.
+The identity is now resolved before the closure in
+`session/progression/reputation.rs`, `session/quest/objectives.rs`,
+`session/world_entities/creature_kill.rs`, `handlers/quest/eligibility.rs` and
+the new item-admission helper, with the same values passed to the same manager
+calls and no other behavior change. This removes the reputation-family hangs: the
+previously stuck
+`scenarios_player_items_8::repair_item_handler_requires_repair_npc_and_repairs_single_item_like_cpp`
+(1) and the `scenarios_progression` reputation-objective tests (13) now pass, and
+`wow-world --lib` (skipping two unrelated pre-existing `save_snapshot_owner`
+hangs) completes with 3894 passed and 28 failed whose filters fail identically on
+the clean base `b3f36c1b`, so no regression is introduced. The same unit
+completes two `CollectionMgr::CanAddAppearance` gates that C++
+`Player::CanUseItem(ItemTemplate const*)` applies: the `483`/`55884`
+learning-effect pair and the required-faction reputation rank, sharing the new
+`represented_item_reputation_rank_like_cpp` and
+`represented_item_effect_spell_ids_like_cpp` helpers with the login inventory
+admission. Focused: `can_add_item_appearance` (5). Format, `git diff --check`,
+the physical ratchet and `validation-v2 quick` (manifest
+`20260917T021045.633991Z-2163059-quick.json`, 62.2 s) pass. The two
+`save_snapshot_owner` tests still hang on both the clean base and this head and
+need their own investigation; the 28 pre-existing `wow-world --lib` failures
+(quest party fan-out, fall-lethal values, void-storage appearance, logout
+snapshot, quest-giver query, durable creature rail) are unchanged by this unit and
+remain a separate defect track. No live DB/restart/relogin QA.
+
 **Collection appearance `CanUseItem` template gates — 2026-09-17, implementation
 `a2c8c3bb`, integrated as `a8ba2c3c` by PR #997:** `can_add_item_appearance_represented_like_cpp` now runs the
 `Player::CanUseItem(ItemTemplate const*)` template admission
