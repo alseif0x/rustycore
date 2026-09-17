@@ -1,12 +1,41 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`616d01635485d3b8b7d76a8f6a169d61e2ee697f` (PR #1029, the #61 ranged weapon fit, following PR #1027, the `Unit::UpdateDamageDoneMods` representation, PR #1025, the `UpdateDamagePctDoneMods` representation, PR #1023, the `VersatilityBonus` publication, PR #1021, the override percentage publication, PR #1019, the `ModTargetResistance`/spell-penetration publication, PR #1017, the `ModHealingDonePercent` publication, PR #1015, the `ModDamageDonePercent` publication, PR #1013, the narrow values-update negative spell field, PR #1011, the spell field wire publication, PR #1009, the spell damage/healing done producers, PR #1007, the override-attack-power-by-spell-power aura, PR #1005, the seven stale `wow-world --lib` expectations, PR #1003, the quest party fixture identity fix, PR #1001, the save-snapshot manager-lock re-entry fix, PR #999, the session reputation-closure lock re-entry deadlock fix, PR #997, the collection appearance `CanUseItem` template gates, PR #995, the collection appearance weapon-proficiency gate, PR #993, the #61 attack power aura producers, PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`1e4bb9d4543dffa873aa8cac5154a9fbe32d0d0e` (PR #1031, the #61 weapon-enchantment damage term, following PR #1029, the ranged weapon fit, PR #1027, the `Unit::UpdateDamageDoneMods` representation, PR #1025, the `UpdateDamagePctDoneMods` representation, PR #1023, the `VersatilityBonus` publication, PR #1021, the override percentage publication, PR #1019, the `ModTargetResistance`/spell-penetration publication, PR #1017, the `ModHealingDonePercent` publication, PR #1015, the `ModDamageDonePercent` publication, PR #1013, the narrow values-update negative spell field, PR #1011, the spell field wire publication, PR #1009, the spell damage/healing done producers, PR #1007, the override-attack-power-by-spell-power aura, PR #1005, the seven stale `wow-world --lib` expectations, PR #1003, the quest party fixture identity fix, PR #1001, the save-snapshot manager-lock re-entry fix, PR #999, the session reputation-closure lock re-entry deadlock fix, PR #997, the collection appearance `CanUseItem` template gates, PR #995, the collection appearance weapon-proficiency gate, PR #993, the #61 attack power aura producers, PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#61 weapon-enchantment damage term — 2026-09-17, implementation `54c1f8ec`,
+integrated as `1e4bb9d4` by PR #1031:** `Player::UpdateDamageDoneMods`
+(`Player.cpp:4991-5015`) adds `ITEM_ENCHANTMENT_TYPE_DAMAGE` (2)
+`EffectScalingPoints` for the attack's enchanted weapon, plus the same scaled by
+the weapon delay for `ITEM_ENCHANTMENT_TYPE_TOTEM` (6) on shamans. The Rust
+`SpellItemEnchantmentEntry` never loaded `EffectScalingPoints`, so enchanted
+weapon damage was missing. The entry now carries
+`effect_scaling_points: [f32; 3]` read from DB2 field 3
+(`DB2Structure.h:3573`); `Eq` is no longer derived because the field is `f32`,
+and the twenty struct literals across the data/world fixtures gained the field.
+`represented_weapon_enchant_damage_like_cpp`
+(`session/player_items/equipment_slots.rs`) resolves the attack's usable weapon,
+walks every enchantment slot and sums the damage/totem points;
+`represented_weapon_damage_flat_like_cpp` now returns `[f32; 3]` (aura sum plus
+the enchantment term), and `PlayerSpellBonusInputLikeCpp.weapon_damage_flat`,
+`PlayerStatSystemProjectionLikeCpp` and `PlayerEffectiveCombatStatsLikeCpp` move
+to `f32`, matching the C++ `SetStatFlatModifier` float storage. Evidence: the new
+session test runs the same enchanted sword fixture for a shaman (class 7,
+permanent enchant `effect = [DAMAGE, TOTEM]`,
+`effect_scaling_points = [25.0, 10.0]`, 2.0 s weapon delay) and a warrior
+(class 1), asserting `weapon_damage_flat == [45.0, 0.0, 0.0]` and `[25.0, 0.0,
+0.0]`; the wow-data flat/percentage test moves to the `f32` values; wow-data
+--lib 752/0 and wow-world --lib 3930/0/1; format, `git diff --check`, the
+physical ratchet and `validation-v2 quick` (manifest
+`20260917T051430.821411Z-2355689-quick.json`) pass. No live DB/restart/relogin
+QA. #61 stays open for the offhand-damage aura scale, the player-killer (PvP)
+`CONFIG_DURABILITY_LOSS_IN_PVP` branch and `SetPvPDeath`, alternate powers, rune
+regeneration and live DB/restart/relogin QA.
 
 **#61 ranged weapon fit — 2026-09-17, implementation `9dd5c131`, integrated as
 `616d0163` by PR #1029:** the two preceding entries recorded that the
@@ -59,8 +88,7 @@ aura, asserting `weapon_damage_flat == [20, 20, 20]` and a mainhand range growth
 of `20 * 3.0`; wow-data --lib 752/0, wow-entities --lib 940/0 and wow-world --lib
 3928/0/1; format, `git diff --check`, the physical ratchet and
 `validation-v2 quick` (manifest `20260917T043815.435806Z-2327221-quick.json`)
-pass. No live DB/restart/relogin QA. #61 stays open for the weapon-enchantment
-damage term, the offhand-damage aura scale, the player-killer (PvP)
+pass. No live DB/restart/relogin QA. #61 stays open for the offhand-damage aura scale, the player-killer (PvP)
 `CONFIG_DURABILITY_LOSS_IN_PVP` branch and `SetPvPDeath`, alternate powers,
 rune regeneration and live DB/restart/relogin QA.
 
