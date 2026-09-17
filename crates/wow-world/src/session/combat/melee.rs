@@ -52,6 +52,9 @@ pub(in crate::session) struct RepresentedArmorMitigationLikeCpp {
     /// The attacker's `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` (269) sum for
     /// `SPELL_SCHOOL_MASK_NORMAL`.
     pub ignore_target_resist_normal_pct: f32,
+    /// The victim's `SPELL_AURA_BYPASS_ARMOR_FOR_CASTER` (345) sum for effects
+    /// this attacker cast.
+    pub bypass_armor_pct_by_caster: f32,
 }
 
 impl RepresentedArmorMitigationLikeCpp {
@@ -62,6 +65,7 @@ impl RepresentedArmorMitigationLikeCpp {
         armor_penetration_pct: 0.0,
         target_resistance_normal_aura: 0,
         ignore_target_resist_normal_pct: 0.0,
+        bypass_armor_pct_by_caster: 0.0,
     };
 }
 
@@ -491,6 +495,10 @@ impl WorldSession {
             armor_penetration_pct,
             target_resistance_normal_aura,
             ignore_target_resist_normal_pct,
+            // A creature victim's `SPELL_AURA_BYPASS_ARMOR_FOR_CASTER` needs a
+            // represented creature-aura producer; the canonical player is the
+            // only owner that resolves it today.
+            bypass_armor_pct_by_caster: 0.0,
         }
     }
 
