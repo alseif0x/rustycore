@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`d3583610968219ce18e22cf933045f62899d3832` (PR #1095, the #29 victim conditional
-critical-chance auras, following PR #1093, the #29 victim avoidance
+`fbd008ac297424e44e6e3400b4dca3e23e2d7bba` (PR #1097, the #29 ignore-dual-wield
+hit-penalty aura, following PR #1095, the #29 victim conditional
+critical-chance auras, PR #1093, the #29 victim avoidance
 auras, PR #1091, the #29 victim-side melee
 damage-taken chain, PR #1089, the #29 melee block band,
 PR #1087, the #29 melee attack
@@ -17,6 +18,25 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 ignore-dual-wield hit-penalty aura — 2026-09-17, implementation `2b93a741`,
+integrated as `fbd008ac` by PR #1097:** C++ `Unit::MeleeSpellMissChance`
+(`Unit.cpp:10427-10460`) adds its `19%` dual-wield miss penalty only while
+`!HasAuraType(SPELL_AURA_IGNORE_DUAL_WIELD_HIT_PENALTY)` (458) holds; the
+represented rule always added it. `RepresentedMeleeAttackerFactsLikeCpp` gained
+`ignores_dual_wield_hit_penalty`, resolved from the attacker's live auras in both
+owners (the aura's amount is irrelevant, matching `HasAuraType`), and
+`melee_outcome_inputs_like_cpp` gates the penalty. Evidence: the pure fact test
+pins miss 0 while the flag is set against 24 without it, and
+`melee_attack_table_reads_the_dual_wield_penalty_aura_like_cpp` drives the session
+owner with the plain `7.5` melee hit chance, asserting the flag is clear and the
+dual-wield miss band is `16.5`, then applies the aura and asserts the band is
+`0`; wow-packet 744/0, wow-data 753/0, wow-entities 940/0, wow-world 3983/0/1 and
+world-server 594/0/0 pass; format, `git diff --check` and the physical ratchet
+pass without new ceiling growth, and `validation-v2 quick` (manifest
+`20260917T151423.438114Z-2939239-quick.json`) passes. Limit: the map-owned
+runtime resolves the same flag through the shared rule, but this unit adds no
+dedicated runtime scenario for it; no live DB/restart/relogin QA.
 
 **#29 victim conditional critical-chance auras — 2026-09-17, implementation
 `accffc17`, integrated as `d3583610` by PR #1095:** C++
