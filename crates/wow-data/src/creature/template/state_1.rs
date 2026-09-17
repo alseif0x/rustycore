@@ -165,7 +165,7 @@ impl CreatureTemplateLifecycleModelLikeCpp {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct CreatureTemplateLifecycleRecordLikeCpp {
     pub entry: u32,
     pub name: String,

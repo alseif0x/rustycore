@@ -1153,6 +1153,127 @@ async fn spell_direct_heal_applies_spell_power_and_healing_percent_like_cpp() {
 }
 
 #[tokio::test]
+async fn spell_school_damage_applies_damage_done_versus_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let manager = shared_map_manager();
+    let spell_id = 728_i32;
+    let guid = test_creature_guid(18_015);
+    let player_guid = ObjectGuid::create_player(1, 59);
+    session.player_guid = Some(player_guid);
+    session.client_visible_guids_like_cpp.insert(guid);
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    register_test_creature(&mut session, manager.clone(), guid, 1_000);
+    // `register_test_creature` uses entry 9001; give it creature type 7.
+    session.set_creature_template_lifecycle_store_like_cpp(Arc::new(
+        wow_data::CreatureTemplateLifecycleStoreLikeCpp::from_templates([
+            wow_data::CreatureTemplateLifecycleRecordLikeCpp {
+                entry: 9001,
+                creature_type: 7,
+                ..Default::default()
+            },
+        ]),
+    ));
+
+    session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([
+        wow_data::SpellMiscEntry {
+            id: spell_id as u32,
+            spell_id: spell_id as u32,
+            // Holy.
+            school_mask: 1 << 1,
+            ..Default::default()
+        },
+    ])));
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        spell_id,
+        wow_data::SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE,
+                effect_base_points: 100,
+                ..Default::default()
+            }],
+        },
+    );
+    // `SPELL_AURA_MOD_DAMAGE_DONE_VERSUS` for the matching creature type (7 ->
+    // bit 6) and for an unrelated one (2 -> bit 1).
+    for (aura_spell_id, misc_value) in [(90_960_i32, 1 << 6), (90_961_i32, 1 << 1)] {
+        spell_store.insert(
+            aura_spell_id,
+            wow_data::SpellInfo {
+                spell_id: aura_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 100,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS,
+                    effect_misc_value_1: misc_value,
+                    effect_base_points: 100,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    session.set_spell_store(Arc::new(spell_store));
+
+    // A non-matching creature type leaves the damage unchanged.
+    session
+        .apply_aura(90_961, player_guid, 30_000, 1)
+        .expect("apply unrelated versus aura");
+    session
+        .execute_spell(spell_id, guid)
+        .await
+        .expect("school damage with an unrelated versus aura");
+    assert_eq!(
+        manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, guid)
+            .unwrap()
+            .current_hp(),
+        900
+    );
+
+    session
+        .apply_aura(90_960, player_guid, 30_000, 1)
+        .expect("apply matching versus aura");
+    session
+        .execute_spell(spell_id, guid)
+        .await
+        .expect("school damage with the matching versus aura");
+    // `100 * (1 + 100/100)`.
+    assert_eq!(
+        manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, guid)
+            .unwrap()
+            .current_hp(),
+        700
+    );
+}
+
+#[tokio::test]
 async fn spell_self_heal_syncs_player_health_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let guid = ObjectGuid::create_player(1, 44);

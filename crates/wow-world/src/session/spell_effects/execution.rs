@@ -660,6 +660,7 @@ impl WorldSession {
                         let damage_amount = self.represented_spell_damage_bonus_done_like_cpp(
                             spell_id,
                             caster_guid,
+                            target_guid,
                             spell_info.effect_bonus_coefficient,
                             damage_amount,
                         );
