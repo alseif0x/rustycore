@@ -36,6 +36,23 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#29 melee chain verification — 2026-09-17, head `b0cb59c6`, no code change:**
+the integration branch was re-verified after the nine #29 rounds merged in this
+session (attack table, armour, taken, creature-victim bands, outcome
+publication, blocked amount, fixture determinism). Three consecutive
+`wow-world --lib` runs report 3990/0/1 each, so the creature-victim critical-band
+flake fixed by PR #1131 stays gone under repetition; `world-server --lib`
+594/0/0, `wow-packet --lib` 744/0, `wow-entities --lib` 940/0 and `wow-data
+--lib` 753/0 pass; `cargo fmt --all --check`, `git diff --check` and the
+physical ratchet pass. Remaining #29 melee boundaries are unchanged and each has
+a recorded reason: the creature attacker's `MeleeDamageBonusDone` (no
+represented creature-aura producer), the player-victim block band (needs the
+`ExpectedStat` `ArmorConstant` consumer and mirrors the target build's
+`CalculatePct(damage, fraction)` behaviour rather than the intuitive percentage),
+the target build's negative crushing band, and live DB/restart/relogin QA. The
+next unit should be the `ExpectedStat` consumer, whose store already exists in
+`wow-data` with no consumer.
+
 **#29 creature-victim melee fixture determinism — 2026-09-17, implementation
 `50bef0de`, integrated as `32914a56` by PR #1131:** the full `wow-world --lib`
 suite failed intermittently (about two runs in fourteen):
