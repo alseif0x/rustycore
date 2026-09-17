@@ -449,6 +449,10 @@ impl WorldSession {
                     hit_info,
                     damage: *dmg as i32,
                     over_damage: *over_damage,
+                    blocked: canonical_swing_damages
+                        .as_deref()
+                        .and_then(|swings| swings.get(index))
+                        .map_or(0, |swing| swing.blocked as i32),
                     victim_state,
                     school_mask: 1,
                     target_level,
@@ -502,16 +506,17 @@ impl WorldSession {
         }
 
         for (index, (dmg, _swing_killed, over_damage)) in swings.iter().enumerate() {
-            let (hit_info, victim_state) = swing_presentations
+            let (hit_info, victim_state, blocked) = swing_presentations
                 .get(index)
                 .copied()
-                .unwrap_or((HIT_INFO_AFFECTS_VICTIM, VICTIM_STATE_HIT));
+                .unwrap_or((HIT_INFO_AFFECTS_VICTIM, VICTIM_STATE_HIT, 0));
             let state_update = AttackerStateUpdate {
                 attacker: player_guid,
                 victim: combat_target,
                 hit_info,
                 damage: *dmg as i32,
                 over_damage: *over_damage,
+                blocked: blocked as i32,
                 victim_state,
                 school_mask: 1,
                 target_level,

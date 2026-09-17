@@ -1399,3 +1399,137 @@ async fn map_owned_player_melee_publishes_the_attack_table_outcome_like_cpp() {
     assert_eq!(command.swings[0].hit_info, HIT_INFO_MISS);
     assert_eq!(command.swings[0].victim_state, VICTIM_STATE_INTACT);
 }
+
+/// The map-owned melee phase publishes a block, including its blocked amount.
+///
+/// C++ `CalculateMeleeDamage`'s `MELEE_HIT_BLOCK` branch (`Unit.cpp:1399-1407`)
+/// subtracts `CalculatePct(damage, GetBlockPercent)` and sets `HITINFO_BLOCK`;
+/// `AttackerStateUpdate::Write` then appends the blocked amount
+/// (`CombatLogPackets.cpp:373`). The production swing owner is the map-owned
+/// runtime.
+#[tokio::test]
+async fn map_owned_player_melee_publishes_a_block_like_cpp() {
+    use crate::map_manager::RuntimeTickOwner;
+    use wow_packet::packets::combat::{HIT_INFO_AFFECTS_VICTIM, HIT_INFO_BLOCK, VICTIM_STATE_HIT};
+
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    canonical.lock().unwrap().create_world_map(0, 0);
+    manager
+        .write()
+        .unwrap()
+        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+    let creature_guid = test_creature_guid(99_934);
+    let player_guid = ObjectGuid::create_player(1, 5_204);
+    let map_store = Arc::new(wow_data::MapStore::from_entries([wow_data::MapEntry {
+        id: 0,
+        instance_type: wow_data::map::MAP_COMMON,
+        expansion_id: 0,
+        parent_map_id: -1,
+        cosmetic_parent_map_id: -1,
+        flags1: 0,
+        flags2: 0,
+    }]));
+
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(Arc::clone(&map_store));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "BlockSolo".to_string(),
+        Position::new(10.0, 10.0, 0.0, 0.0),
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            let unit = player.unit_mut();
+            unit.set_attacking(Some(creature_guid));
+            unit.set_target(creature_guid);
+            unit.add_unit_state(UnitState::MELEE_ATTACKING.bits());
+            unit.set_base_attack_time_like_cpp(WeaponAttackType::BaseAttack, 2_000);
+            unit.set_weapon_damage(WeaponAttackType::BaseAttack, 100.0, 100.0);
+            unit.reset_attack_timer_like_cpp(WeaponAttackType::BaseAttack);
+        })
+        .unwrap();
+    session.set_map_manager(Arc::clone(&manager));
+    register_test_creature(&mut session, manager.clone(), creature_guid, 100_000);
+    session
+        .mutate_world_creature(creature_guid, |creature| {
+            creature
+                .creature
+                .set_avoidance_like_cpp(wow_entities::CreatureAvoidanceLikeCpp {
+                    dodge_pct: 0.0,
+                    parry_pct: 0.0,
+                    block_pct: 100.0,
+                });
+        })
+        .unwrap();
+
+    let (send_tx, _rx) = flume::bounded::<Vec<u8>>(8);
+    let (command_tx, _crx) = flume::bounded::<SessionCommand>(8);
+    let registration = PlayerRegistry::new().register_or_replace(
+        player_guid,
+        broadcast_info_with_command(player_guid, send_tx, command_tx),
+        Default::default(),
+    );
+    let attackers = vec![crate::session::PlayerMeleeAttackerSnapshotLikeCpp {
+        registration,
+        player_guid,
+        map_id: 0,
+        instance_id: 0,
+        in_combat_mirror: true,
+        tap_group_guids: Vec::new(),
+    }];
+    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+        spell_store: Some(Arc::new(wow_data::SpellStore::new())),
+        ..Default::default()
+    };
+    let mut phase_state = crate::session::PlayerMeleePhaseStateLikeCpp::default();
+    let health_before = manager
+        .read()
+        .unwrap()
+        .find_creature(0, 0, creature_guid)
+        .unwrap()
+        .current_hp();
+
+    let outcome = crate::session::run_legacy_player_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &attackers,
+        2_000,
+        &mut phase_state,
+        &config,
+    );
+    assert!(!outcome.skipped_owner_not_global, "the map owns this tick");
+    assert_eq!(outcome.creature_hits, 1, "the swing resolves");
+    assert_eq!(
+        health_before
+            - manager
+                .read()
+                .unwrap()
+                .find_creature(0, 0, creature_guid)
+                .unwrap()
+                .current_hp(),
+        70,
+        "a block keeps 70% of the 100 damage roll"
+    );
+    let command = outcome
+        .commands
+        .iter()
+        .find(|command| command.victim_guid == Some(creature_guid))
+        .expect("one melee command for the creature");
+    assert_eq!(command.swings.len(), 1);
+    assert_eq!(command.swings[0].damage, 70);
+    assert_eq!(command.swings[0].blocked, 30);
+    assert_eq!(
+        command.swings[0].hit_info,
+        HIT_INFO_AFFECTS_VICTIM | HIT_INFO_BLOCK
+    );
+    assert_eq!(command.swings[0].victim_state, VICTIM_STATE_HIT);
+}

@@ -364,6 +364,8 @@ pub struct PlayerMeleeSwingLikeCpp {
     pub damage: u32,
     /// `-1` unless the swing overkilled, matching C++ `SMSG_ATTACKERSTATEUPDATE`.
     pub over_damage: i32,
+    /// C++ `CalcDamageInfo::Blocked` (`CombatLogPackets.cpp:373`).
+    pub blocked: i32,
     /// C++ `CalcDamageInfo::HitInfo` (`UnitDefines.h:440-465`).
     pub hit_info: u32,
     /// C++ `CalcDamageInfo::TargetState` (`Unit.h:45-55`).

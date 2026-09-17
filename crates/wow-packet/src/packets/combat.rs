@@ -167,6 +167,8 @@ pub struct AttackerStateUpdate {
     pub damage: i32,
     /// Overkill amount (-1 if target is still alive).
     pub over_damage: i32,
+    /// C++ `CalcDamageInfo::Blocked`, serialized only for `HITINFO_BLOCK`.
+    pub blocked: i32,
     /// C++ `VictimState`: 0=intact (miss), 1=hit, 2=dodge, 3=parry,
     /// 4=interrupt, 5=blocks, 6=evades, 7=immune, 8=deflects.
     pub victim_state: u8,
@@ -191,6 +193,9 @@ pub const HIT_INFO_MISS: u32 = 0x0000_0010;
 pub const HIT_INFO_CRITICAL_HIT: u32 = 0x0000_0200;
 /// C++ `HITINFO_GLANCING`.
 pub const HIT_INFO_GLANCING: u32 = 0x0001_0000;
+/// C++ `HITINFO_BLOCK`: the packet then carries `blocked` and the trailing
+/// `float Unk` C++ writes for `HITINFO_BLOCK | HITINFO_UNK12`.
+pub const HIT_INFO_BLOCK: u32 = 0x0000_2000;
 /// C++ `HITINFO_FAKE_DAMAGE`: enables a damage animation even if no damage is done.
 pub const HIT_INFO_FAKE_DAMAGE: u32 = 0x0100_0000;
 
@@ -219,6 +224,14 @@ impl ServerPacket for AttackerStateUpdate {
         info.write_uint8(self.victim_state);
         info.write_uint32(0u32); // attacker state
         info.write_uint32(0u32); // melee spell id
+        if self.hit_info & HIT_INFO_BLOCK != 0 {
+            // C++ `AttackerStateUpdate::Write` (`CombatLogPackets.cpp:373-397`)
+            // appends `int32(BlockAmount)` and, because the same condition
+            // covers `HITINFO_BLOCK | HITINFO_UNK12`, `float(Unk)`; the
+            // rage-gain and unk1 blocks between them are never set here.
+            info.write_int32(self.blocked);
+            info.write_float(0.0f32);
+        }
 
         // ContentTuning.
         info.write_uint8(0u8); // tuning type = none
@@ -397,6 +410,72 @@ mod tests {
 
     #[test]
     #[test]
+    fn attacker_state_update_writes_the_block_fields_like_cpp() {
+        let attacker = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            0,
+            0,
+            0,
+            125,
+            0x1236,
+        );
+        let victim = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            0,
+            0,
+            0,
+            126,
+            0x1237,
+        );
+        let bytes = AttackerStateUpdate {
+            attacker,
+            victim,
+            hit_info: HIT_INFO_AFFECTS_VICTIM | HIT_INFO_BLOCK,
+            damage: 70,
+            over_damage: -1,
+            blocked: 30,
+            victim_state: VICTIM_STATE_HIT,
+            school_mask: 1,
+            target_level: 80,
+            expansion: 2,
+        }
+        .to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::AttackerStateUpdate as u16
+        );
+        let _ = pkt.read_bit().expect("has_log_data");
+        let attack_round_info_size = pkt.read_uint32().expect("attackRoundInfo size") as usize;
+        let attack_round_info = pkt
+            .read_bytes(attack_round_info_size)
+            .expect("attackRoundInfo bytes");
+        let mut info = WorldPacket::from_bytes(&attack_round_info);
+        assert_eq!(
+            info.read_uint32().expect("hitInfo"),
+            HIT_INFO_AFFECTS_VICTIM | HIT_INFO_BLOCK
+        );
+        assert_eq!(info.read_packed_guid().expect("attacker"), attacker);
+        assert_eq!(info.read_packed_guid().expect("victim"), victim);
+        assert_eq!(info.read_int32().expect("damage"), 70);
+        assert_eq!(info.read_int32().expect("original damage"), 70);
+        assert_eq!(info.read_int32().expect("over damage"), -1);
+        assert_eq!(info.read_uint8().expect("sub damage"), 0);
+        assert_eq!(info.read_uint8().expect("victim state"), VICTIM_STATE_HIT);
+        assert_eq!(info.read_uint32().expect("attacker state"), 0);
+        assert_eq!(info.read_uint32().expect("melee spell id"), 0);
+        // `CombatLogPackets.cpp:373-397`: the blocked amount, then the trailing
+        // `float Unk` the same condition writes.
+        assert_eq!(info.read_int32().expect("blocked"), 30);
+        assert_eq!(info.read_float().expect("unk"), 0.0);
+        assert_eq!(info.read_uint8().expect("content tuning type"), 0);
+        assert_eq!(info.read_uint8().expect("target level"), 80);
+    }
+
+    #[test]
     fn hit_info_and_victim_state_match_cpp_3_4_3_like_cpp() {
         // `UnitDefines.h:440-465` and `Unit.h:45-55` in the 3.4.3 target.
         assert_eq!(HIT_INFO_AFFECTS_VICTIM, 0x0000_0002);
@@ -436,6 +515,7 @@ mod tests {
             hit_info: HIT_INFO_AFFECTS_VICTIM | HIT_INFO_FAKE_DAMAGE,
             damage: 0,
             over_damage: -1,
+            blocked: 0,
             victim_state: VICTIM_STATE_HIT,
             school_mask: 1,
             target_level: 80,

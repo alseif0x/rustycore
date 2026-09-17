@@ -9,11 +9,7 @@
 //! switch in `Unit::CalculateMeleeDamage` (`Unit.cpp:1343-1440`), separated from
 //! the `rules_3` damage-bonus family because they own a different transition.
 
-/// C++ `MeleeHitOutcome` (`UnitDefines.h:389-403`) restricted to the outcomes
-/// the represented table can publish. `Block` is absent on purpose: the
-/// represented `AttackerStateUpdate` does not port the conditional `blocked`
-/// and `unk` fields C++ appends for `HITINFO_BLOCK` (`CombatLogPackets.cpp:373,
-/// 397`), so the block band stays out of the roll until that wire field exists.
+/// C++ `MeleeHitOutcome` (`UnitDefines.h:389-403`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedMeleeOutcomeLikeCpp {
     /// C++ `MELEE_HIT_MISS`.
@@ -24,11 +20,19 @@ pub(crate) enum RepresentedMeleeOutcomeLikeCpp {
     Parry,
     /// C++ `MELEE_HIT_GLANCING`.
     Glancing,
+    /// C++ `MELEE_HIT_BLOCK`.
+    Block,
     /// C++ `MELEE_HIT_CRIT`.
     Crit,
     /// C++ `MELEE_HIT_NORMAL`.
     Hit,
 }
+
+/// C++ `Unit::GetBlockPercent`'s base implementation (`Unit.h:947`): the flat
+/// 30% every non-player victim blocks. `Player::GetBlockPercent`
+/// (`Player.cpp:25288`) resolves shield block instead, but the represented table
+/// only has creature victims.
+pub(crate) const CREATURE_BLOCK_PERCENT_LIKE_CPP: f32 = 30.0;
 
 /// The per-attack-type percentages C++ `Unit::RollMeleeOutcomeAgainst` reads,
 /// already resolved by the swing owner.
@@ -45,6 +49,8 @@ pub(crate) struct RepresentedMeleeOutcomeInputsLikeCpp {
     pub dodge_chance_pct: f32,
     /// `GetUnitParryChance(attType, victim)`.
     pub parry_chance_pct: f32,
+    /// `GetUnitBlockChance(attType, victim)`.
+    pub block_chance_pct: f32,
     /// `(10 + 10 * (victimLevel - attackerLevel))` when C++'s glancing
     /// eligibility holds, otherwise zero.
     pub glancing_chance_pct: f32,
@@ -64,6 +70,7 @@ impl RepresentedMeleeOutcomeInputsLikeCpp {
         miss_chance_pct: 0.0,
         dodge_chance_pct: 0.0,
         parry_chance_pct: 0.0,
+        block_chance_pct: 0.0,
         glancing_chance_pct: 0.0,
         crit_chance_pct: 0.0,
         can_dodge: false,
@@ -137,7 +144,14 @@ pub(crate) fn melee_outcome_like_cpp(
     ) {
         return outcome;
     }
-    // 5. BLOCK is not represented; see `RepresentedMeleeOutcomeLikeCpp`.
+    // 5. BLOCK.
+    if let Some(outcome) = band(
+        inputs.block_chance_pct,
+        inputs.can_parry,
+        RepresentedMeleeOutcomeLikeCpp::Block,
+    ) {
+        return outcome;
+    }
     // 6. CRIT.
     if let Some(outcome) = band(
         inputs.crit_chance_pct,
@@ -172,21 +186,28 @@ pub(crate) fn melee_outcome_damage_like_cpp(
     damage: u32,
     attacker_level: u8,
     victim_level: u8,
-) -> u32 {
+) -> (u32, u32) {
     match outcome {
         RepresentedMeleeOutcomeLikeCpp::Miss
         | RepresentedMeleeOutcomeLikeCpp::Dodge
-        | RepresentedMeleeOutcomeLikeCpp::Parry => 0,
+        | RepresentedMeleeOutcomeLikeCpp::Parry => (0, 0),
         RepresentedMeleeOutcomeLikeCpp::Glancing => {
             let mut level_difference = i32::from(victim_level) - i32::from(attacker_level);
             if level_difference > 3 {
                 level_difference = 3;
             }
             let reduce_percent = 1.0 - level_difference as f32 * 0.1;
-            (reduce_percent * damage as f32) as u32
+            ((reduce_percent * damage as f32) as u32, 0)
         }
-        RepresentedMeleeOutcomeLikeCpp::Crit => damage.saturating_mul(2),
-        RepresentedMeleeOutcomeLikeCpp::Hit => damage,
+        RepresentedMeleeOutcomeLikeCpp::Block => {
+            // C++ `CalculatePct(damage, GetBlockPercent(attackerLevel))`
+            // truncates; `IsBlockCritical` needs the victim's aura sum, which
+            // has no represented producer, so the doubled block is absent.
+            let blocked = (damage as f32 * CREATURE_BLOCK_PERCENT_LIKE_CPP / 100.0) as u32;
+            (damage.saturating_sub(blocked), blocked)
+        }
+        RepresentedMeleeOutcomeLikeCpp::Crit => (damage.saturating_mul(2), 0),
+        RepresentedMeleeOutcomeLikeCpp::Hit => (damage, 0),
     }
 }
 
@@ -199,8 +220,8 @@ pub(crate) fn melee_outcome_presentation_like_cpp(
     offhand: bool,
 ) -> (u32, u8) {
     use wow_packet::packets::combat::{
-        HIT_INFO_AFFECTS_VICTIM, HIT_INFO_CRITICAL_HIT, HIT_INFO_GLANCING, HIT_INFO_MISS,
-        HIT_INFO_OFFHAND, VICTIM_STATE_DODGE, VICTIM_STATE_HIT, VICTIM_STATE_INTACT,
+        HIT_INFO_AFFECTS_VICTIM, HIT_INFO_BLOCK, HIT_INFO_CRITICAL_HIT, HIT_INFO_GLANCING,
+        HIT_INFO_MISS, HIT_INFO_OFFHAND, VICTIM_STATE_DODGE, VICTIM_STATE_HIT, VICTIM_STATE_INTACT,
         VICTIM_STATE_PARRY,
     };
 
@@ -220,6 +241,12 @@ pub(crate) fn melee_outcome_presentation_like_cpp(
         }
         RepresentedMeleeOutcomeLikeCpp::Glancing => {
             hit_info |= HIT_INFO_AFFECTS_VICTIM | HIT_INFO_GLANCING;
+            VICTIM_STATE_HIT
+        }
+        RepresentedMeleeOutcomeLikeCpp::Block => {
+            // C++ keeps `VICTIMSTATE_HIT` for a blocked hit and marks the block
+            // through `HITINFO_BLOCK` (`Unit.cpp:1399-1407`).
+            hit_info |= HIT_INFO_AFFECTS_VICTIM | HIT_INFO_BLOCK;
             VICTIM_STATE_HIT
         }
         RepresentedMeleeOutcomeLikeCpp::Crit => {
@@ -274,6 +301,9 @@ pub(crate) struct RepresentedMeleeVictimFactsLikeCpp {
     /// C++ `GetUnitParryChance`'s creature base; zero when the template carries
     /// `CREATURE_FLAG_EXTRA_NO_PARRY`.
     pub parry_pct: f32,
+    /// C++ `GetUnitBlockChance`'s creature base; zero when the template carries
+    /// `CREATURE_FLAG_EXTRA_NO_BLOCK`.
+    pub block_pct: f32,
     /// C++ `canParryOrBlock`: `victim->HasInArc(M_PI, attacker)`. C++
     /// `canDodge` is true for every creature victim outside casting/control,
     /// which the represented model does not resolve yet.
@@ -312,12 +342,15 @@ pub(crate) fn melee_outcome_inputs_like_cpp(
 
     let mut dodge_chance_pct = 0.0;
     let mut parry_chance_pct = 0.0;
+    let mut block_chance_pct = 0.0;
     if victim.is_creature && !victim.is_totem {
-        // C++ `GetUnitDodgeChance`/`GetUnitParryChance` creature branches; the
-        // victim's `MOD_DODGE_PERCENT`/`MOD_PARRY_PERCENT` auras still have no
+        // C++ `GetUnitDodgeChance`/`GetUnitParryChance`/`GetUnitBlockChance`
+        // creature branches; the victim's `MOD_DODGE_PERCENT` /
+        // `MOD_PARRY_PERCENT` / `MOD_BLOCK_PERCENT` auras still have no
         // represented producer.
         dodge_chance_pct = victim.dodge_pct + level_bonus;
         parry_chance_pct = victim.parry_pct + level_bonus;
+        block_chance_pct = victim.block_pct + level_bonus;
     }
 
     // C++ glancing: player/pet attacker against a non-player victim more than
@@ -334,6 +367,7 @@ pub(crate) fn melee_outcome_inputs_like_cpp(
             miss_chance_pct,
             dodge_chance_pct: (dodge_chance_pct - expertise_reduction_pct).max(0.0),
             parry_chance_pct: (parry_chance_pct - expertise_reduction_pct).max(0.0),
+            block_chance_pct,
             glancing_chance_pct,
             crit_chance_pct: attacker.crit_pct[index] + attacker.autoattack_crit_aura_pct,
             can_dodge: victim.is_creature,

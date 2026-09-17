@@ -18532,8 +18532,9 @@ fn apply_player_melee_to_canonical_player_like_cpp(
 pub(crate) struct PlayerMeleeCreatureHitLikeCpp {
     /// `(damage, killed, over_damage)` per swing, in swing order.
     pub swings: Vec<(u32, bool, i32)>,
-    /// `(hit_info, victim_state)` per swing, index-aligned with `swings`.
-    pub swing_presentations: Vec<(u32, u8)>,
+    /// `(hit_info, victim_state, blocked)` per swing, index-aligned with
+    /// `swings`.
+    pub swing_presentations: Vec<(u32, u8, u32)>,
     pub entry: u32,
     pub level: u8,
     pub died: bool,
@@ -18576,7 +18577,7 @@ fn represented_white_swing_damage_like_cpp(
         crate::session_rules::melee_outcome_inputs_like_cpp(&outcome_facts.0, &outcome_facts.1);
     let outcome =
         crate::session_rules::rolled_melee_outcome_like_cpp(&outcome_inputs[usize::from(offhand)]);
-    let damage = crate::session_rules::melee_outcome_damage_like_cpp(
+    let (damage, blocked) = crate::session_rules::melee_outcome_damage_like_cpp(
         outcome,
         damage,
         armor_mitigation.attacker_level,
@@ -18586,6 +18587,7 @@ fn represented_white_swing_damage_like_cpp(
         crate::session_rules::melee_outcome_presentation_like_cpp(outcome, offhand);
     combat::RepresentedMeleeSwingLikeCpp {
         damage,
+        blocked,
         hit_info,
         victim_state,
     }
