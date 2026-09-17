@@ -53,6 +53,32 @@ the target build's negative crushing band, and live DB/restart/relogin QA. The
 next unit should be the `ExpectedStat` consumer, whose store already exists in
 `wow-data` with no consumer.
 
+**#29 player-victim block band preparation — 2026-09-17, no code change:** the
+next melee unit is the player-victim block band, and its exact C++ contract was
+traced this round so it can be implemented without re-deriving it:
+`Player::GetBlockPercent(attackerLevel)` (`Player.cpp:25288-25298`) reads
+`ActivePlayerData::ShieldBlock` and
+`DB2Manager::EvaluateExpectedStat(ExpectedStatType::ArmorConstant,
+attackerLevel, -2, 0, CLASS_NONE)`, returns `0` when both are zero and
+`std::min(blockArmor / (blockArmor + armorConstant), 0.85f)` otherwise — a
+**fraction**, not a percentage. `Unit::CalculateMeleeDamage`'s
+`MELEE_HIT_BLOCK` arm (`Unit.cpp:1399-1407`) then computes
+`Blocked = CalculatePct(Damage, GetBlockPercent(GetLevel()))`, and
+`CalculatePct(base, pct)` is `base * pct / 100` (`Util.h:72-75`), so the target
+build blocks at most `0.85%` of the damage: that quirk must be reproduced
+faithfully, and repairing it is a legacy bug fix requiring an explicit contract
+rather than a silent change. `DB2Manager::EvaluateExpectedStat`
+(`DB2Stores.cpp:2103-2173`) looks up `_expectedStatsByLevel[(level, expansion)]`
+with a fallback to `(level, -2)`, returns `1.0f` when the level row is absent,
+applies a class mod only for the four player classes (irrelevant for
+`CLASS_NONE`), reads `ExpectedStatEntry::ArmorConstant` for this stat, and leaves
+`contentTuningId` unused; the represented `ExpectedStatStore` already exists in
+`wow-data` with no consumer. Remaining wiring: a `block_reduction_fraction`
+victim fact (flat `30.0` for creature victims, `GetBlockPercent` for a player
+victim), the `ExpectedStatStore` in the runtime config, and the player-victim
+branch's `block_chance_pct` set from the published `BlockPercentage` (today
+`0.0`); `PlayerEffectiveCombatStatsLikeCpp` already publishes `shield_block`.
+
 **#29 creature-victim melee fixture determinism — 2026-09-17, implementation
 `50bef0de`, integrated as `32914a56` by PR #1131:** the full `wow-world --lib`
 suite failed intermittently (about two runs in fourteen):
