@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 displayed-power ownership and the shapeshift Unit field — 2026-09-17,
+implementation `b48b7204`:** the displayed power type now follows the form
+(`POWER_ENERGY` cat, `POWER_RAGE` bear) and a `SPELL_AURA_MOD_POWER_DISPLAY`
+aura, published as a `UNIT_FIELD_DISPLAYPOWER` delta; the shapeshift form also
+has one canonical authority in the Unit field. wow-data --lib 753/0,
+wow-entities --lib 940/0, wow-world --lib 3957/0/1; no live DB/restart/relogin
+QA.
+
 **#61 `HandleShapeshiftBoosts` — 2026-09-17, implementation `9cb30cd8`:** a
 shapeshift now applies the form's hardcoded boost spells and every known passive
 whose `Stances` admits the form, and sweeps the self-cast auras the new form no
