@@ -339,11 +339,11 @@ impl PlayerCreateData {
             buf.write_int32(self.attack_power); // AttackPower
             buf.write_int32(self.attack_power_mod_pos); // AttackPowerModPos
             buf.write_int32(0); // AttackPowerModNeg
-            buf.write_float(0.0); // AttackPowerMultiplier
+            buf.write_float(self.attack_power_multiplier); // AttackPowerMultiplier
             buf.write_int32(self.ranged_attack_power); // RangedAttackPower
             buf.write_int32(self.ranged_attack_power_mod_pos); // RangedAttackPowerModPos
             buf.write_int32(0); // RangedAttackPowerModNeg
-            buf.write_float(0.0); // RangedAttackPowerMultiplier
+            buf.write_float(self.ranged_attack_power_multiplier); // RangedAttackPowerMultiplier
             buf.write_int32(0); // SetAttackSpeedAura
             buf.write_float(0.0); // Lifesteal
             buf.write_float(self.min_ranged_damage); // MinRangedDamage

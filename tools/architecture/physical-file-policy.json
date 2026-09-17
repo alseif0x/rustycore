@@ -398,9 +398,9 @@
     },
     {
       "path": "crates/wow-packet/src/packets/update_tests/mod.rs",
-      "observed_lines": 199,
-      "ceiling_lines": 199,
-      "split": "Retires the 3,676-line update-block regression file: #640 replaces it with this module root, which keeps the shared preamble and helpers and mounts five scenario modules (98-882 lines) holding all 82 tests unchanged. The row moves to the successor path so the ceiling cannot be evaded by the rename. #61 adds one line to the shared `test_player_create_data_with_farsight` fixture for the new `PlayerCreateData::school_resistances` field, keeping the fixture in step with the production create data.",
+      "observed_lines": 201,
+      "ceiling_lines": 201,
+      "split": "Retires the 3,676-line update-block regression file: #640 replaces it with this module root, which keeps the shared preamble and helpers and mounts five scenario modules (98-882 lines) holding all 82 tests unchanged. The row moves to the successor path so the ceiling cannot be evaded by the rename. #61 adds one line to the shared `test_player_create_data_with_farsight` fixture for the new `PlayerCreateData::school_resistances` field, keeping the fixture in step with the production create data. #61 adds two lines to the shared `test_player_create_data_with_farsight` fixture for the attack power multiplier fields, keeping the fixture in step with the production create data.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -482,9 +482,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/character/world_entry.rs",
-      "observed_lines": 2771,
-      "ceiling_lines": 2771,
-      "split": "Separate world entry and initialization by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. Above c61903fc +26 lines complete native transfer before explicit logout save, leave Terminal source-save to disconnect, and reject quarantined/unadmitted character-select readiness. No new state or retry policy; retain the C1 logout split and C4 retirement exit.",
+      "observed_lines": 2772,
+      "ceiling_lines": 2772,
+      "split": "Separate world entry and initialization by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. Above c61903fc +26 lines complete native transfer before explicit logout save, leave Terminal source-save to disconnect, and reject quarantined/unadmitted character-select readiness. No new state or retry policy; retain the C1 logout split and C4 retirement exit. #61 adds one line publishing the melee attack power multiplier into the login `PlayerCombatStats` snapshot, completing the C++ `AttackPowerMultiplier` create field; it carries no new authority and startup order is unchanged.",
       "review_checkpoint": "584:C4"
     },
     {

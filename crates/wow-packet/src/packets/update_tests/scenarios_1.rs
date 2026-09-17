@@ -677,6 +677,53 @@ fn update_object_create_player_serializes_school_resistances_like_cpp() {
 }
 
 #[test]
+fn update_object_create_player_serializes_attack_power_multipliers_like_cpp() {
+    let guid = ObjectGuid::create_player(1, 42);
+    let pos = Position::new(0.0, 0.0, 0.0, 0.0);
+    let combat = PlayerCombatStats {
+        attack_power_multiplier: 0.5,
+        ranged_attack_power_multiplier: 1.25,
+        ..PlayerCombatStats::default()
+    };
+
+    let pkt = UpdateObject::create_player(
+        guid,
+        1,
+        1,
+        0,
+        1,
+        49,
+        &pos,
+        0,
+        12,
+        true,
+        [(0, 0, 0); 19],
+        [ObjectGuid::EMPTY; 141],
+        combat,
+        Vec::new(),
+        0,
+        Vec::new(),
+    );
+    let bytes = pkt.to_bytes();
+
+    // C++ `UnitData::WriteCreate` carries `AttackPowerMultiplier` and
+    // `RangedAttackPowerMultiplier` from the `TOTAL_PCT - 1.0` value; the
+    // create block previously wrote a hardcoded zero.
+    assert!(
+        bytes
+            .windows(4)
+            .any(|window| window == 0.5f32.to_le_bytes()),
+        "the melee attack power multiplier must be published"
+    );
+    assert!(
+        bytes
+            .windows(4)
+            .any(|window| window == 1.25f32.to_le_bytes()),
+        "the ranged attack power multiplier must be published"
+    );
+}
+
+#[test]
 fn update_object_out_of_range() {
     let pkt = UpdateObject {
         map_id: 0,

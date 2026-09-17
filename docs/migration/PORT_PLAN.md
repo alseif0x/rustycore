@@ -33,6 +33,18 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 attack power aura producers — 2026-09-17, implementation `408725a5`:** the
+attack power projection now consumes `SPELL_AURA_MOD_ATTACK_POWER`/
+`MOD_RANGED_ATTACK_POWER` flats and the `..._PCT` multipliers in the C++
+`Player::UpdateAttackPowerAndDamage` order (`StatSystem.cpp:333-403`), with the
+`CLASSMASK_WAND_USERS` ranged skip, and `Unit::GetTotalAttackPowerValue`'s zero
+clamp. The multipliers are published through the effective stats, the stat-update
+packet and the create block instead of a hardcoded zero, so the already-published
+attack power fields and damage ranges become aura-aware without a new writer.
+`MOD_ATTACK_POWER_OF_ARMOR` and the spell-power override remain separate gates,
+continuing the F1 aura-route work without changing the #584 → #583 → #153
+architecture gate.
+
 **#61 school resistances — 2026-09-17, implementation `67d23891`:** the six magic
 schools now run C++ `Unit::UpdateResistances` (`Unit.cpp:9148-9163`) with the
 item `BASE_VALUE`, the `MOD_BASE_RESISTANCE_PCT` `BASE_PCT`, the

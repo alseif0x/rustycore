@@ -969,3 +969,171 @@ async fn school_resistances_follow_update_resistances_like_cpp() {
     let _ = session.send_stat_update();
     assert_eq!(resistances(&session), [20, 30, 0, 0, 0, 0, 0]);
 }
+
+#[tokio::test]
+async fn attack_power_aura_producers_follow_update_attack_power_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 61_600);
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    session.set_player_stats(Arc::new(wow_data::PlayerStatsStore::from_entries([(
+        (1, 1, 80),
+        wow_data::PlayerLevelStats {
+            strength: 10,
+            agility: 10,
+            stamina: 10,
+            intellect: 40,
+            spirit: 30,
+            base_mana: 0,
+        },
+    )])));
+    session.set_chr_classes_store(Arc::new(
+        wow_data::character_progression::ChrClassesStore::from_entries([{
+            let mut entry = wow_data::character_progression::ChrClassesEntry::default();
+            entry.id = 1;
+            entry
+        }]),
+    ));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+
+    // C++ `HandleAuraModAttackPower`/`HandleAuraModAttackPowerPercent` and the
+    // ranged variants (`SpellAuraEffects.cpp:4434-4492`).
+    let mut spell_store = wow_data::SpellStore::new();
+    for (spell_id, aura_type, amount) in [
+        (90_800, 99, 50),
+        (90_801, 166, 50),
+        (90_802, 124, 30),
+        (90_803, 167, 100),
+    ] {
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: amount,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(aura_type),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: aura_type,
+                    effect_base_points: amount,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    session.set_spell_store(Arc::new(spell_store));
+    session.set_state(crate::session::SessionState::LoggedIn);
+
+    let stats = |session: &WorldSession| {
+        session
+            .canonical_player_effective_combat_stats_like_cpp()
+            .expect("attack power projection")
+    };
+
+    let _ = session.send_stat_update();
+    let baseline = stats(&session);
+    assert_eq!(baseline.attack_power, 220);
+    assert_eq!(baseline.attack_power_mod_pos, 0);
+    assert_eq!(baseline.attack_power_multiplier, 0.0);
+    assert_eq!(baseline.ranged_attack_power, -10);
+    assert_eq!(baseline.ranged_attack_power_mod_pos, 0);
+    assert_eq!(baseline.ranged_attack_power_multiplier, 0.0);
+
+    for spell_id in [90_800, 90_801, 90_802, 90_803] {
+        session
+            .apply_aura(spell_id, player_guid, 30_000, 1)
+            .expect("apply attack power aura");
+    }
+    let _ = session.send_stat_update();
+    let with_auras = stats(&session);
+    assert_eq!(with_auras.attack_power_mod_pos, 50);
+    assert_eq!(with_auras.attack_power_multiplier, 0.5);
+    assert_eq!(with_auras.ranged_attack_power_mod_pos, 30);
+    assert_eq!(with_auras.ranged_attack_power_multiplier, 1.0);
+    assert_eq!(
+        session.canonical_player_total_attack_power_like_cpp(),
+        Some(405.0),
+        "C++ GetTotalAttackPowerValue clamps the base plus modifier then applies the multiplier"
+    );
+}
+
+#[tokio::test]
+async fn ranged_attack_power_auras_skip_wand_users_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 61_601);
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+    session.set_player_stats(Arc::new(wow_data::PlayerStatsStore::from_entries([(
+        (1, 5, 80),
+        wow_data::PlayerLevelStats {
+            strength: 10,
+            agility: 10,
+            stamina: 10,
+            intellect: 40,
+            spirit: 30,
+            base_mana: 1_000,
+        },
+    )])));
+    session.set_chr_classes_store(Arc::new(
+        wow_data::character_progression::ChrClassesStore::from_entries([{
+            let mut entry = wow_data::character_progression::ChrClassesEntry::default();
+            entry.id = 5;
+            entry
+        }]),
+    ));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+
+    let mut spell_store = wow_data::SpellStore::new();
+    for (spell_id, aura_type, amount) in [(90_810, 124, 30), (90_811, 167, 100)] {
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: amount,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(aura_type),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: aura_type,
+                    effect_base_points: amount,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    session.set_spell_store(Arc::new(spell_store));
+    session.set_state(crate::session::SessionState::LoggedIn);
+
+    for spell_id in [90_810, 90_811] {
+        session
+            .apply_aura(spell_id, player_guid, 30_000, 1)
+            .expect("apply ranged attack power aura");
+    }
+    let _ = session.send_stat_update();
+    let stats = session
+        .canonical_player_effective_combat_stats_like_cpp()
+        .expect("ranged attack power projection");
+    assert_eq!(
+        stats.ranged_attack_power_mod_pos, 0,
+        "CLASSMASK_WAND_USERS classes ignore the ranged flat aura"
+    );
+    assert_eq!(stats.ranged_attack_power_multiplier, 0.0);
+}

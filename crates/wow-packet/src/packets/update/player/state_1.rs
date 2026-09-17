@@ -672,8 +672,12 @@ pub struct PlayerCombatStats {
     pub max_mana: i64,
     pub attack_power: i32,
     pub attack_power_mod_pos: i32,
+    /// C++ `UnitData::AttackPowerMultiplier` (`TOTAL_PCT - 1.0`).
+    pub attack_power_multiplier: f32,
     pub ranged_attack_power: i32,
     pub ranged_attack_power_mod_pos: i32,
+    /// C++ `UnitData::RangedAttackPowerMultiplier`.
+    pub ranged_attack_power_multiplier: f32,
     pub min_damage: f32,
     pub max_damage: f32,
     pub min_ranged_damage: f32,
@@ -705,8 +709,10 @@ impl Default for PlayerCombatStats {
             max_mana: 60,
             attack_power: 0,
             attack_power_mod_pos: 0,
+            attack_power_multiplier: 0.0,
             ranged_attack_power: 0,
             ranged_attack_power_mod_pos: 0,
+            ranged_attack_power_multiplier: 0.0,
             min_damage: 1.0,
             max_damage: 2.0,
             min_ranged_damage: 0.0,
@@ -764,9 +770,13 @@ pub struct PlayerCreateData {
     /// Melee attack power.
     pub attack_power: i32,
     pub attack_power_mod_pos: i32,
+    /// C++ `UnitData::AttackPowerMultiplier`.
+    pub attack_power_multiplier: f32,
     /// Ranged attack power.
     pub ranged_attack_power: i32,
     pub ranged_attack_power_mod_pos: i32,
+    /// C++ `UnitData::RangedAttackPowerMultiplier`.
+    pub ranged_attack_power_multiplier: f32,
     /// Melee min/max damage (unarmed base).
     pub min_damage: f32,
     pub max_damage: f32,
