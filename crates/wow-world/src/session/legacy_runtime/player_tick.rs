@@ -432,6 +432,9 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                         .armor_penetration_pct,
                     target_resistance_normal_aura,
                     ignore_target_resist_normal_pct,
+                    // `SPELL_AURA_BYPASS_ARMOR_FOR_CASTER` is a victim aura; a
+                    // creature victim's auras have no represented producer.
+                    bypass_armor_pct_by_caster: 0.0,
                 };
                 let bonus = std::array::from_fn(|index| {
                     let (flat, pct) = crate::session_rules::melee_damage_bonus_done_like_cpp(

@@ -86,20 +86,6 @@ pub(crate) fn player_aura_effects_by_spell_aura_type_like_cpp(
         .collect()
 }
 
-/// The same projection, additionally returning each effect's `caster_guid` for
-/// the C++ predicates that select by caster (`GetUnitCriticalChanceTaken`'s
-/// `SPELL_AURA_MOD_CRIT_CHANCE_FOR_CASTER`).
-pub(crate) fn player_aura_effects_with_caster_by_spell_aura_type_like_cpp(
-    auras: &HashMap<u8, AuraApplicationLikeCpp>,
-    spell_store: &SpellStore,
-    aura_type: i32,
-) -> Vec<(i32, i32, wow_core::ObjectGuid)> {
-    player_aura_effects_full_by_spell_aura_type_like_cpp(auras, spell_store, aura_type)
-        .into_iter()
-        .map(|effect| (effect.misc_value, effect.amount, effect.caster_guid))
-        .collect()
-}
-
 /// C++ `Unit::MeleeDamageBonusDone`'s auto-attack percentage term
 /// (`Unit.cpp:7620-7627`): `AddPct(DoneTotalMod, amount)` for every active
 /// `SPELL_AURA_MOD_AUTOATTACK_DAMAGE` effect. The represented white swing
@@ -324,18 +310,17 @@ pub(crate) fn white_swing_roll_like_cpp(min_damage: f32, max_damage: f32) -> u32
 /// physical melee swing.
 ///
 /// The represented inputs are the victim's `Unit::GetArmor()` (a creature's
-/// `GenerateArmor` value), the attacker's live
-/// `GetRatingBonusValue(CR_ARMOR_PENETRATION)` percentage, the attacker's
-/// `SPELL_AURA_MOD_TARGET_RESISTANCE` (123) sum covering
+/// `GenerateArmor` value or a player's published armour), the attacker's live
+/// `GetRatingBonusValue(CR_ARMOR_PENETRATION)` percentage, the victim's
+/// `SPELL_AURA_BYPASS_ARMOR_FOR_CASTER` (345) sum for effects the attacker cast,
+/// the attacker's `SPELL_AURA_MOD_TARGET_RESISTANCE` (123) sum covering
 /// `SPELL_SCHOOL_MASK_NORMAL`, and the attacker's
 /// `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` (269) sum covering the same school.
 /// `GetArmorMultiplierForTarget` is `1.0` for every 3.4.3 unit (no override), so
 /// it is not a term.
 ///
-/// Boundaries: `SPELL_AURA_BYPASS_ARMOR_FOR_CASTER` (345, a victim aura cast by
-/// the attacker) has no represented producer, a spell's
-/// `SpellModOp::TargetResistance` adjustment cannot apply to an auto-attack
-/// (`spellInfo == null`), and C++ truncates each
+/// Boundaries: a spell's `SpellModOp::TargetResistance` adjustment cannot apply
+/// to an auto-attack (`spellInfo == null`), and C++ truncates each
 /// `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` effect separately
 /// (`armor = std::floor(AddPct(armor, -amount))`) while the owner sums the
 /// amounts first, so two concurrent effects differ from C++ by that per-step
@@ -348,9 +333,16 @@ pub(crate) fn armor_reduced_damage_like_cpp(
     armor_penetration_pct: f32,
     target_resistance_normal_aura: i32,
     ignore_target_resist_normal_pct: f32,
+    bypass_armor_pct_by_caster: f32,
 ) -> u32 {
     // `armor *= victim->GetArmorMultiplierForTarget(attacker)` is a no-op.
     let mut armor = victim_armor.max(0) as f32;
+    // C++ `armor = CalculatePct(armor, 100 - std::min(armorBypassPct, 100))`
+    // over the victim's `SPELL_AURA_BYPASS_ARMOR_FOR_CASTER` effects that the
+    // attacker cast (`Unit.cpp:1631-1637`).
+    if bypass_armor_pct_by_caster != 0.0 {
+        armor = armor * (100.0 - bypass_armor_pct_by_caster.min(100.0)) / 100.0;
+    }
     // `armor += attacker->GetTotalAuraModifierByMiscMask(MOD_TARGET_RESISTANCE,
     // NORMAL)`; a negative sum is armour penetration.
     armor += target_resistance_normal_aura as f32;

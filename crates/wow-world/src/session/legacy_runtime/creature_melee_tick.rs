@@ -430,6 +430,24 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                             .map(|effect| effect.amount as f32)
                             .sum()
                     };
+                    // C++ `CalcArmorReducedDamage` (`Unit.cpp:1640-1651`) reads
+                    // the attacker's armour-penetration terms for the normal
+                    // school.
+                    let attacker_armor_pen = |aura_type: i32| -> f32 {
+                        attacker_effects
+                            .iter()
+                            .filter(|effect| {
+                                effect.aura_type == aura_type && effect.misc_value & 0x01 != 0
+                            })
+                            .map(|effect| effect.amount as f32)
+                            .sum()
+                    };
+                    let attacker_target_resistance_normal_aura = attacker_armor_pen(
+                        wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE,
+                    );
+                    let attacker_ignore_target_resist_normal_pct = attacker_armor_pen(
+                        wow_data::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST,
+                    );
                     let no_crit = wow_constants::CreatureFlagsExtra::from_bits_truncate(
                         attacker.creature.lifecycle_metadata().flags_extra,
                     )
@@ -505,7 +523,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                             };
                             let stats = player.effective_combat_stats_like_cpp();
                             let victim_position = player.unit().world().position();
-                            crate::session_rules::RepresentedMeleeVictimFactsLikeCpp {
+                            let facts = crate::session_rules::RepresentedMeleeVictimFactsLikeCpp {
                                 level: player.level_like_cpp(),
                                 is_player: true,
                                 // `CalculatePct`/`pct` division: the published
@@ -554,10 +572,43 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                     .has_unit_state(wow_constants::unit::UnitState::CONTROLLED.bits()),
                                 is_stand_state: player.unit().is_stand_state_like_cpp(),
                                 ..Default::default()
-                            }
+                            };
+                            // C++ `CalcArmorReducedDamage`'s victim side: the
+                            // player's published `GetArmor()` and the
+                            // `SPELL_AURA_BYPASS_ARMOR_FOR_CASTER` sum for
+                            // effects this attacker cast.
+                            let bypass_armor_pct_by_caster =
+                                crate::session_rules::player_aura_effects_full_by_spell_aura_type_like_cpp(
+                                    auras,
+                                    spell_store,
+                                    wow_data::spell::aura_types::SPELL_AURA_BYPASS_ARMOR_FOR_CASTER,
+                                )
+                                .into_iter()
+                                .filter(|effect| effect.caster_guid == swing.attacker_guid)
+                                .map(|effect| effect.amount as f32)
+                                .sum::<f32>();
+                            (facts, stats.armor, bypass_armor_pct_by_caster)
                         });
                     match victim {
-                        Some(victim_facts) => {
+                        Some((victim_facts, victim_armor, bypass_armor_pct_by_caster)) => {
+                            // C++ `CalculateMeleeDamage` runs
+                            // `MeleeDamageBonusTaken` and
+                            // `CalcArmorReducedDamage` before the outcome switch
+                            // (`Unit.cpp:1326-1343`); a player victim's taken
+                            // chain is still unrepresented, so armour is the
+                            // represented mitigation.
+                            let mitigated = crate::session_rules::armor_reduced_damage_like_cpp(
+                                damage,
+                                attacker_facts.level,
+                                victim_facts.level,
+                                victim_armor,
+                                // CR_ARMOR_PENETRATION is a player-attacker
+                                // rating.
+                                0.0,
+                                attacker_target_resistance_normal_aura as i32,
+                                attacker_ignore_target_resist_normal_pct,
+                                bypass_armor_pct_by_caster,
+                            );
                             let inputs = crate::session_rules::melee_outcome_inputs_like_cpp(
                                 &attacker_facts,
                                 &victim_facts,
@@ -567,7 +618,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                             let (damage, _blocked, original) =
                                 crate::session_rules::melee_outcome_damage_like_cpp(
                                     rolled,
-                                    damage,
+                                    mitigated,
                                     attacker_facts.level,
                                     victim_facts.level,
                                     attacker_facts.crit_damage_multiplier,
