@@ -13677,8 +13677,18 @@ impl WorldSession {
             .unwrap_or_default()
     }
 
+    /// C++ `Unit::GetShapeshiftForm`: the canonical `UNIT_FIELD_BYTES_2` byte
+    /// owned by the Unit, with the transitional Player gameplay projection as
+    /// the fallback for fixtures that only seed it.
     pub(crate) fn represented_shapeshift_form_like_cpp(&self) -> Option<u32> {
-        let canonical = self.with_owned_player_like_cpp(Player::shapeshift_form_id_like_cpp);
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            let form_id = u32::from(player.unit().shapeshift_form_id_like_cpp());
+            if form_id != 0 {
+                form_id
+            } else {
+                player.shapeshift_form_id_like_cpp()
+            }
+        });
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(self.represented_shapeshift_form_like_cpp);
@@ -13686,10 +13696,16 @@ impl WorldSession {
         canonical
     }
 
+    /// C++ `Unit::SetShapeshiftForm`: write the canonical Unit field and keep
+    /// the transitional Player gameplay projection in sync for the fallback
+    /// readers.
     pub(crate) fn set_represented_shapeshift_form_like_cpp(&mut self, form_id: u32) -> bool {
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| {
-                player.set_shapeshift_form_id_like_cpp(form_id)
+                player
+                    .unit_mut()
+                    .set_shapeshift_form_id_like_cpp(u8::try_from(form_id).unwrap_or(0));
+                player.set_shapeshift_form_id_like_cpp(form_id);
             })
             .is_some();
         #[cfg(test)]

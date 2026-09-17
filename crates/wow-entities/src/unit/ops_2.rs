@@ -430,6 +430,30 @@ impl Unit {
             |data| &mut data.native_display_id,
         );
     }
+    /// C++ `Unit::CalculateDisplayPowerType` (`Unit.cpp:5550-5600`): the active
+    /// shapeshift form decides first, then an active
+    /// `SPELL_AURA_MOD_POWER_DISPLAY`, then the `ChrClasses` default.
+    ///
+    /// Boundary: the vehicle and hunter/warlock pet branches are not
+    /// represented here because the represented runtime resolves them with the
+    /// caller's own catalogs.
+    pub fn calculate_display_power_type_like_cpp(
+        &self,
+        class_display_power: PowerType,
+        aura_display_power: Option<u8>,
+    ) -> PowerType {
+        // C++ reads `GetShapeshiftForm()`, the raw `UNIT_FIELD_BYTES_2` byte, so
+        // ids the represented enum does not name (for example `FORM_GHOUL`)
+        // still select their power type.
+        match self.shapeshift_form_id_like_cpp() {
+            1 | 7 => PowerType::Energy,
+            5 => PowerType::Rage,
+            3 | 16 => PowerType::Mana,
+            _ => aura_display_power
+                .and_then(represented_power_type_from_u8_like_cpp)
+                .unwrap_or(class_display_power),
+        }
+    }
     pub fn set_display_power(&mut self, power: PowerType) {
         self.set_u8_field(UNIT_DATA_DISPLAY_POWER_BIT, power as u8, |data| {
             &mut data.display_power
@@ -654,6 +678,19 @@ impl Unit {
     }
     pub const fn pet_flags_like_cpp(&self) -> u8 {
         self.data.pet_flags
+    }
+    /// C++ `Unit::GetShapeshiftForm` raw `UNIT_FIELD_BYTES_2` byte: the
+    /// canonical value behind `shapeshift_form_like_cpp()`, which collapses ids
+    /// the represented enum does not name.
+    pub const fn shapeshift_form_id_like_cpp(&self) -> u8 {
+        self.data.shapeshift_form
+    }
+    /// C++ `Unit::SetShapeshiftForm`: writes the published `ShapeshiftForm`
+    /// byte that `GetShapeshiftForm` reads.
+    pub fn set_shapeshift_form_id_like_cpp(&mut self, form_id: u8) {
+        self.set_u8_field(UNIT_DATA_SHAPESHIFT_FORM_BIT, form_id, |data| {
+            &mut data.shapeshift_form
+        });
     }
     pub fn set_shapeshift_form_like_cpp(&mut self, form: ShapeShiftForm) {
         self.set_u8_field(UNIT_DATA_SHAPESHIFT_FORM_BIT, form as u8, |data| {
@@ -922,4 +959,32 @@ impl Unit {
             self.mark_unit_data(bit);
         }
     }
+}
+
+/// C++ `Powers(powerByte)` for a `SPELL_AURA_MOD_POWER_DISPLAY` effect value;
+/// `None` for the sentinel and out-of-range ids the client never displays.
+pub fn represented_power_type_from_u8_like_cpp(power: u8) -> Option<PowerType> {
+    Some(match power {
+        0 => PowerType::Mana,
+        1 => PowerType::Rage,
+        2 => PowerType::Focus,
+        3 => PowerType::Energy,
+        4 => PowerType::Happiness,
+        5 => PowerType::Runes,
+        6 => PowerType::RunicPower,
+        7 => PowerType::SoulShards,
+        8 => PowerType::LunarPower,
+        9 => PowerType::HolyPower,
+        10 => PowerType::AlternatePower,
+        11 => PowerType::Maelstrom,
+        12 => PowerType::Chi,
+        13 => PowerType::Insanity,
+        14 => PowerType::ComboPoints,
+        15 => PowerType::DemonicFury,
+        16 => PowerType::ArcaneCharges,
+        17 => PowerType::Fury,
+        18 => PowerType::Pain,
+        19 => PowerType::Essence,
+        _ => return None,
+    })
 }

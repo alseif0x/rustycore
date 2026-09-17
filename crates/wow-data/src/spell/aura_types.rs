@@ -119,6 +119,10 @@ pub const SPELL_AURA_MOD_ATTACK_POWER_PCT: i32 = 166;
 /// (`SpellAuraDefines.h:262`): ranged attack power percentage, skipped for
 /// `CLASSMASK_WAND_USERS`.
 pub const SPELL_AURA_MOD_RANGED_ATTACK_POWER_PCT: i32 = 167;
+/// C++ `AuraType::SPELL_AURA_MOD_POWER_DISPLAY` (`SpellAuraDefines.h:274`):
+/// `Unit::CalculateDisplayPowerType` (`Unit.cpp:5568-5573`) selects the
+/// displayed power type from the first active effect's `GetMiscValue`.
+pub const SPELL_AURA_MOD_POWER_DISPLAY: i32 = 179;
 pub const SPELL_AURA_MOD_SPEED_NOT_STACK: i32 = 171;
 pub const SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK: i32 = 172;
 pub const SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE: i32 = 184;
