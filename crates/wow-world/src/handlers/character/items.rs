@@ -3849,7 +3849,7 @@ impl WorldSession {
             shield_block: shield_block_value,
             shield_block_crit_pct: 0.0,
             mod_healing_pct: 1.0,
-            mod_healing_done_pct: 1.0,
+            mod_healing_done_pct: projection.mod_healing_done_percent,
             mod_periodic_healing_pct: 1.0,
             mod_spell_power_pct: 1.0,
         };

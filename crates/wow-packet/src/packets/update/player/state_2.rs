@@ -629,7 +629,7 @@ impl PlayerCreateData {
         // ModHealingDonePos, ModHealingPercent, ModHealingDonePercent, ModPeriodicHealingDonePercent
         buf.write_int32(self.mod_healing_done_pos);
         buf.write_float(1.0);
-        buf.write_float(1.0);
+        buf.write_float(self.mod_healing_done_pct);
         buf.write_float(1.0);
 
         // WeaponDmgMultipliers[3], WeaponAtkSpeedMultipliers[3]

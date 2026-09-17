@@ -166,6 +166,7 @@ fn test_player_create_data_with_farsight(farsight_object: ObjectGuid) -> PlayerC
         mod_damage_done_neg: [0; 7],
         mod_healing_done_pos: 0,
         mod_damage_done_percent: [1.0; 7],
+        mod_healing_done_pct: 1.0,
         visible_items: [(0, 0, 0); 19],
         customizations: Vec::new(),
         inv_slots: [ObjectGuid::EMPTY; 141],

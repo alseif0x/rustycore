@@ -57,7 +57,7 @@ fn active_player_stats_values_update_matches_cpp_common_runtime_masks() {
         shield_block: 20,
         shield_block_crit_pct: 21.0,
         mod_healing_pct: 1.0,
-        mod_healing_done_pct: 1.0,
+        mod_healing_done_pct: 1.5,
         mod_periodic_healing_pct: 1.0,
         mod_spell_power_pct: 1.0,
     };
@@ -98,6 +98,18 @@ fn active_player_stats_values_update_matches_cpp_common_runtime_masks() {
         14.0
     );
     offset += 4;
+    // Parent-38 field 21 (bit 61) is ModHealingDonePercent.
+    let healing_done_pct_offset = values_start + 8 + 21 * 4;
+    assert_eq!(
+        f32::from_le_bytes(
+            bytes[healing_done_pct_offset..healing_done_pct_offset + 4]
+                .try_into()
+                .unwrap()
+        ),
+        stats.mod_healing_done_pct,
+        "ModHealingDonePercent must be the represented multiplier"
+    );
+
     // Parent-38 section is 30 fields (bits 39-49, 51-69); field bit 50 is
     // reserved and not emitted, so skip 30 floats (not 31) to reach SpellCrit.
     offset += 30 * 4;

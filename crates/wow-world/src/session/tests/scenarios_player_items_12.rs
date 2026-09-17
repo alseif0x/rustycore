@@ -1211,6 +1211,9 @@ async fn spell_damage_and_healing_bonus_auras_publish_update_spell_bonus_like_cp
         (90_907, 79, 1 << 1, 0, 50),
         (90_908, 79, 1 << 1, 0, 100),
         (90_909, 79, 1 << 2, 0, 25),
+        // +50% and +100% healing done.
+        (90_910, 136, 0, 0, 50),
+        (90_911, 136, 0, 0, 100),
     ] {
         spell_store.insert(
             spell_id,
@@ -1269,7 +1272,7 @@ async fn spell_damage_and_healing_bonus_auras_publish_update_spell_bonus_like_cp
     session.set_state(crate::session::SessionState::LoggedIn);
 
     for spell_id in [
-        90_900, 90_901, 90_902, 90_903, 90_904, 90_905, 90_907, 90_908, 90_909,
+        90_900, 90_901, 90_902, 90_903, 90_904, 90_905, 90_907, 90_908, 90_909, 90_910, 90_911,
     ] {
         session
             .apply_aura(spell_id, player_guid, 30_000, 1)
@@ -1293,6 +1296,8 @@ async fn spell_damage_and_healing_bonus_auras_publish_update_spell_bonus_like_cp
     assert_eq!(stats.mod_damage_done_percent[1], 3.0);
     assert_eq!(stats.mod_damage_done_percent[2], 1.25);
     assert_eq!(stats.mod_damage_done_percent[3..], [1.0; 4]);
+    // `UpdateHealingDonePercentMod`: (1 + 0.5) * (1 + 1.0) = 3.0.
+    assert_eq!(stats.mod_healing_done_percent, 3.0);
 
     // `HasAuraType` on 404 then replaces both attack mods with
     // `CalculatePct(min(ModHealingDonePos, ModDamageDonePos[HOLY..MAX]), 50)`:

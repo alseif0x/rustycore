@@ -155,6 +155,12 @@ pub const SPELL_AURA_IGNORE_SPELL_COOLDOWN: i32 = 383;
 /// flat healing bonus read by `Unit::SpellBaseHealingBonusDone`
 /// (`Unit.cpp:7282-7315`).
 pub const SPELL_AURA_MOD_HEALING_DONE: i32 = 135;
+/// C++ `AuraType::SPELL_AURA_MOD_HEALING_DONE_PERCENT`
+/// (`SpellAuraDefines.h:231`): `HandleModHealingDonePct`
+/// (`SpellAuraEffects.cpp:3645-3654`) recomputes
+/// `Player::UpdateHealingDonePercentMod` (`StatSystem.cpp:588-599`), the product
+/// of `1 + amount/100` published as `ModHealingDonePercent`.
+pub const SPELL_AURA_MOD_HEALING_DONE_PERCENT: i32 = 136;
 /// C++ `AuraType::SPELL_AURA_MOD_SPELL_DAMAGE_OF_STAT_PERCENT`
 /// (`SpellAuraDefines.h:269`): `MiscValue` is the school mask and `MiscValueB`
 /// the stat.

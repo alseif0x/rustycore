@@ -268,6 +268,21 @@ impl WorldSession {
                 });
         }
 
+        // C++ `Player::UpdateHealingDonePercentMod` (`StatSystem.cpp:588-599`)
+        // multiplies `1 + amount/100` over every active
+        // `SPELL_AURA_MOD_HEALING_DONE_PERCENT` (136) effect and clamps the
+        // published `ModHealingDonePercent` at zero.
+        let healing_done_percent = self
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_DONE_PERCENT,
+            )
+            .unwrap_or_default()
+            .into_iter()
+            .fold(1.0_f32, |acc, (_, amount)| {
+                acc * (1.0 + amount as f32 / 100.0)
+            })
+            .max(0.0);
+
         let override_effects = self
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT,
@@ -295,6 +310,7 @@ impl WorldSession {
             healing_of_stat_percent,
             override_spell_power_by_ap_pct,
             damage_done_percent,
+            healing_done_percent,
         }
     }
 
@@ -635,6 +651,7 @@ impl WorldSession {
             mod_damage_done_neg: projection.mod_damage_done_neg,
             mod_healing_done_pos: projection.mod_healing_done_pos,
             mod_damage_done_percent: projection.mod_damage_done_percent,
+            mod_healing_done_percent: projection.mod_healing_done_percent,
             mana_regen: mana_regen_from_spirit + mana_regen_mp5,
             mana_regen_combat,
             health_regen: gear.health_regen_bonus,

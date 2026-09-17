@@ -112,6 +112,11 @@ pub struct PlayerSpellBonusInputLikeCpp {
     /// `1 + amount/100` over the active `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE`
     /// (79) effects intersecting each school, `1.0` when none does.
     pub damage_done_percent: [f32; 7],
+    /// `ActivePlayerData::ModHealingDonePercent` from
+    /// `Player::UpdateHealingDonePercentMod` (`StatSystem.cpp:588-599`): the
+    /// product of `1 + amount/100` over the active
+    /// `SPELL_AURA_MOD_HEALING_DONE_PERCENT` (136) effects, `1.0` when none.
+    pub healing_done_percent: f32,
 }
 
 impl Default for PlayerSpellBonusInputLikeCpp {
@@ -125,6 +130,7 @@ impl Default for PlayerSpellBonusInputLikeCpp {
             healing_of_stat_percent: [0; 5],
             override_spell_power_by_ap_pct: 0.0,
             damage_done_percent: [1.0; 7],
+            healing_done_percent: 1.0,
         }
     }
 }
@@ -247,6 +253,9 @@ pub struct PlayerStatSystemProjectionLikeCpp {
     /// C++ `ActivePlayerData::ModDamageDonePercent[7]`
     /// (`SpellAuraEffects.cpp:4525-4548`).
     pub mod_damage_done_percent: [f32; 7],
+    /// C++ `ActivePlayerData::ModHealingDonePercent`
+    /// (`StatSystem.cpp:588-599`).
+    pub mod_healing_done_percent: f32,
 }
 
 /// C++ `Unit::CalculateMinMaxDamage` for the represented player weapon
@@ -569,6 +578,7 @@ pub fn calculate_player_stat_system_like_cpp(
         mod_damage_done_neg,
         mod_healing_done_pos,
         mod_damage_done_percent: input.spell_bonus.damage_done_percent,
+        mod_healing_done_percent: input.spell_bonus.healing_done_percent,
     }
 }
 
@@ -1436,6 +1446,8 @@ mod tests {
                 override_spell_power_by_ap_pct: 0.0,
                 // School 1 has (1 + 0.5) * (1 + 1.0) = 3.0, school 2 1.25.
                 damage_done_percent: [1.0, 3.0, 1.25, 1.0, 1.0, 1.0, 1.0],
+                // `UpdateHealingDonePercentMod` starts from 1.0.
+                healing_done_percent: 2.0,
             },
             rating_bonuses: [0.0; 32],
             can_parry: false,
@@ -1454,6 +1466,7 @@ mod tests {
             projection.mod_damage_done_percent,
             [1.0, 3.0, 1.25, 1.0, 1.0, 1.0, 1.0]
         );
+        assert_eq!(projection.mod_healing_done_percent, 2.0);
 
         // `SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT` replaces both bonuses with
         // `int32(CalculatePct(GetTotalAttackPowerValue(BASE_ATTACK), pct) + 0.5)`:
