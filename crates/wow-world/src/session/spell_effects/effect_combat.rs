@@ -525,6 +525,28 @@ impl WorldSession {
         Some(max_mod)
     }
 
+    /// The represented target's current health percentage: the session player's
+    /// canonical vitals or a world creature's runtime health. `None` when the
+    /// target cannot be resolved.
+    fn represented_target_health_pct_like_cpp(&self, target_guid: ObjectGuid) -> Option<f32> {
+        if Some(target_guid) == self.player_guid() {
+            let (health, max_health, _) = self.resolved_player_vitals_like_cpp()?;
+            return Some(100.0 * health as f32 / max_health.max(1) as f32);
+        }
+        let manager = self.map_manager.as_ref()?;
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let manager = manager
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let creature =
+            manager.find_creature(self.player_map_id_like_cpp(), instance_id, target_guid)?;
+        let max_health = creature.max_hp();
+        (max_health > 0).then(|| 100.0 * creature.current_hp() as f32 / max_health as f32)
+    }
+
     /// C++ `Unit::GetCreatureTypeMask` (`Unit.cpp:8796-8800`): the bit of the
     /// victim creature's template type, `0` for players or when the template is
     /// unavailable.
@@ -616,20 +638,17 @@ impl WorldSession {
         // `IsAffectingSpell` family/flag gate is not represented, so the term
         // applies to any represented heal the aura owner casts.
         let mut done_total_mod = snapshot.mod_healing_done_percent;
-        if target_guid == player_guid {
-            let effects = self
-                .resolved_aura_effects_by_spell_aura_type_like_cpp(
-                    wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_DONE_PCT_VERSUS_TARGET_HEALTH,
-                )
-                .unwrap_or_default();
-            if !effects.is_empty()
-                && let Some((health, max_health, _)) = self.resolved_player_vitals_like_cpp()
-            {
-                let health_pct_diff =
-                    (100.0 - 100.0 * health as f32 / max_health.max(1) as f32).max(0.0);
-                for (_, amount) in effects {
-                    done_total_mod *= 1.0 + (amount as f32 * health_pct_diff / 100.0) / 100.0;
-                }
+        let effects = self
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_DONE_PCT_VERSUS_TARGET_HEALTH,
+            )
+            .unwrap_or_default();
+        if !effects.is_empty()
+            && let Some(health_pct) = self.represented_target_health_pct_like_cpp(target_guid)
+        {
+            let health_pct_diff = (100.0 - health_pct).max(0.0);
+            for (_, amount) in effects {
+                done_total_mod *= 1.0 + (amount as f32 * health_pct_diff / 100.0) / 100.0;
             }
         }
         let heal = (base_heal as f32 + done_total as f32) * done_total_mod;
