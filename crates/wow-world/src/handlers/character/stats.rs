@@ -286,6 +286,19 @@ impl WorldSession {
             })
             .max(0.0);
 
+        // C++ `AuraEffect::HandleModVersatilityByPct`
+        // (`SpellAuraEffects.cpp:3797-3808`) sums every active
+        // `SPELL_AURA_MOD_VERSATILITY` (471) amount into `VersatilityBonus`
+        // through `SetUpdateFieldStatValue` (clamped at zero).
+        let versatility_bonus_aura = self
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_VERSATILITY,
+            )
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(_, amount)| amount)
+            .sum::<i32>();
+
         // C++ `AuraEffect::HandleModTargetResistance`
         // (`SpellAuraEffects.cpp:3507-3530`) adds an effect covering
         // `SPELL_SCHOOL_MASK_NORMAL` to `ModTargetPhysicalResistance` and one
@@ -337,6 +350,7 @@ impl WorldSession {
             override_spell_power_by_ap_pct,
             damage_done_percent,
             healing_done_percent,
+            versatility_bonus_aura,
             target_resistance_aura,
             item_spell_penetration: gear.spell_penetration_bonus,
             target_physical_resistance_aura,
@@ -683,6 +697,7 @@ impl WorldSession {
             mod_healing_done_percent: projection.mod_healing_done_percent,
             mod_target_resistance: projection.mod_target_resistance,
             mod_target_physical_resistance: projection.mod_target_physical_resistance,
+            versatility_bonus: projection.versatility_bonus,
             override_spell_power_by_ap_percent: projection.override_spell_power_by_ap_percent,
             override_ap_by_spell_power_percent: projection.override_ap_by_spell_power_percent,
             mana_regen: mana_regen_from_spirit + mana_regen_mp5,

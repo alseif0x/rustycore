@@ -182,6 +182,10 @@ pub const SPELL_AURA_MOD_SPELL_HEALING_OF_STAT_PERCENT: i32 = 175;
 /// `SpellBaseDamageBonusDone` and `SpellBaseHealingBonusDone` return a
 /// percentage of melee attack power instead of the gear and aura bonuses.
 pub const SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT: i32 = 366;
+/// C++ `AuraType::SPELL_AURA_MOD_VERSATILITY` (`SpellAuraDefines.h:566`):
+/// `HandleModVersatilityByPct` (`SpellAuraEffects.cpp:3797-3808`) sums the
+/// amounts into `ActivePlayerData::VersatilityBonus`.
+pub const SPELL_AURA_MOD_VERSATILITY: i32 = 471;
 pub const SPELL_AURA_MOD_BATTLE_PET_XP_PCT: i32 = 420;
 /// C++ `AuraType::SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT`
 /// (`SpellAuraDefines.h:499`): `AuraEffect::HandleOverrideAttackPowerBySpellPower`

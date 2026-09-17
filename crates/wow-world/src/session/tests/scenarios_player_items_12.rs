@@ -1225,6 +1225,8 @@ async fn spell_damage_and_healing_bonus_auras_publish_update_spell_bonus_like_cp
         // Spell penetration aura (full magic mask) and armor-only penetration.
         (90_912, 123, 0x3E, 0, 20),
         (90_913, 123, 1, 0, 30),
+        // Versatility bonus.
+        (90_915, 471, 0, 0, 200),
     ] {
         spell_store.insert(
             spell_id,
@@ -1284,7 +1286,7 @@ async fn spell_damage_and_healing_bonus_auras_publish_update_spell_bonus_like_cp
 
     for spell_id in [
         90_900, 90_901, 90_902, 90_903, 90_904, 90_905, 90_907, 90_908, 90_909, 90_910, 90_911,
-        90_912, 90_913,
+        90_912, 90_913, 90_915,
     ] {
         session
             .apply_aura(spell_id, player_guid, 30_000, 1)
@@ -1316,6 +1318,8 @@ async fn spell_damage_and_healing_bonus_auras_publish_update_spell_bonus_like_cp
     // No override aura is active yet: C++ fields hold the 0.0 default.
     assert_eq!(stats.override_spell_power_by_ap_percent, 0.0);
     assert_eq!(stats.override_ap_by_spell_power_percent, 0.0);
+    // `HandleModVersatilityByPct` sums aura 471 into `VersatilityBonus`.
+    assert_eq!(stats.versatility_bonus, 200.0);
 
     // `HasAuraType` on 404 then replaces both attack mods with
     // `CalculatePct(min(ModHealingDonePos, ModDamageDonePos[HOLY..MAX]), 50)`:

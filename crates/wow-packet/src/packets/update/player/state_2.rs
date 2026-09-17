@@ -606,8 +606,8 @@ impl PlayerCreateData {
         buf.write_float(0.0);
 
         // Versatility, VersatilityBonus
-        buf.write_int32(0);
-        buf.write_float(0.0);
+        buf.write_int32(0); // Versatility
+        buf.write_float(self.versatility_bonus); // VersatilityBonus
 
         // PvpPowerDamage, PvpPowerHealing
         buf.write_float(0.0);

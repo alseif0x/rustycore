@@ -651,6 +651,7 @@ fn represented_item_mods_apply_scaling_stat_loop_spell_bonus_and_armor_like_cpp(
     assert_eq!(stat_changes.mod_healing_done_pct, 1.0);
     assert_eq!(stat_changes.mod_target_resistance, 0);
     assert_eq!(stat_changes.mod_target_physical_resistance, 0);
+    assert_eq!(stat_changes.versatility_bonus, 0.0);
     assert_eq!(stat_changes.override_spell_power_by_ap_percent, 0.0);
     assert_eq!(stat_changes.override_ap_by_spell_power_percent, 0.0);
     assert_eq!(
@@ -695,6 +696,7 @@ fn represented_item_mods_apply_scaling_stat_loop_spell_bonus_and_armor_like_cpp(
     assert_eq!(removed_changes.mod_healing_done_pct, 1.0);
     assert_eq!(removed_changes.mod_target_resistance, 0);
     assert_eq!(removed_changes.mod_target_physical_resistance, 0);
+    assert_eq!(removed_changes.versatility_bonus, 0.0);
     assert_eq!(removed_changes.override_spell_power_by_ap_percent, 0.0);
     assert_eq!(removed_changes.override_ap_by_spell_power_percent, 0.0);
     assert_eq!(removed_changes.armor, 0);
