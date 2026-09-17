@@ -288,8 +288,8 @@ impl WorldSession {
         // C++ `AuraEffect::HandleAuraModShapeshift` -> `Player::InitDataForForm`
         // (`Player.cpp:22076-22098`) owns the form and recalcs its attack times
         // and damage.
-        if self.sync_represented_shapeshift_form_ownership_like_cpp(spell_id) {
-            self.sync_represented_shapeshift_form_like_cpp();
+        if let Some(mutation) = self.sync_represented_shapeshift_form_ownership_like_cpp(spell_id) {
+            self.sync_represented_shapeshift_form_like_cpp(mutation);
         }
 
         Ok(())
@@ -646,8 +646,10 @@ impl WorldSession {
         // C++ removes the aura's attack-time multiplier through the same
         // `ApplyAttackTimePercentMod` handlers the apply path used.
         self.sync_represented_attack_speed_like_cpp();
-        if self.sync_represented_shapeshift_form_ownership_like_cpp(aura.spell_id) {
-            self.sync_represented_shapeshift_form_like_cpp();
+        if let Some(mutation) =
+            self.sync_represented_shapeshift_form_ownership_like_cpp(aura.spell_id)
+        {
+            self.sync_represented_shapeshift_form_like_cpp(mutation);
         }
 
         Ok(())

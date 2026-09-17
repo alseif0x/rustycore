@@ -1209,3 +1209,86 @@ async fn represented_form_change_refreshes_item_set_auras_like_cpp() {
         "the set aura is removed once the form no longer fits"
     );
 }
+
+#[tokio::test]
+async fn represented_form_change_applies_and_removes_boost_spells_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 80);
+    session.player_guid = Some(player_guid);
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+
+    // C++ `HandleShapeshiftBoosts` casts spell 3025 for cat form.
+    let boost_spell_id = 3_025_i32;
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        boost_spell_id,
+        represented_aura_spell_like_cpp(
+            boost_spell_id,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS,
+            1,
+            25,
+        ),
+    );
+    let (shapeshift_spell_id, _form_id) =
+        represented_cat_form_fixture_like_cpp(&mut session, player_guid, spell_store);
+
+    session
+        .apply_aura(shapeshift_spell_id, player_guid, 30_000, 1)
+        .expect("apply cat form aura");
+    assert_eq!(
+        session.player_has_visible_aura_spell_like_cpp(boost_spell_id),
+        Some(true),
+        "C++ HandleShapeshiftBoosts casts the form's hardcoded boost spell"
+    );
+
+    session.remove_aura(0).expect("remove cat form aura");
+    assert_eq!(
+        session.player_has_visible_aura_spell_like_cpp(boost_spell_id),
+        Some(false),
+        "C++ RemoveOwnedAura drops the boost when the form is lost"
+    );
+}
+
+#[tokio::test]
+async fn represented_form_change_applies_and_sweeps_stance_passives_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 81);
+    session.player_guid = Some(player_guid);
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+
+    let passive_spell_id = 90_999_i32;
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        passive_spell_id,
+        represented_aura_spell_like_cpp(
+            passive_spell_id,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS,
+            1,
+            25,
+        ),
+    );
+    // C++ `SpellInfo::IsPassive` and a `Stances` mask that admits cat form.
+    let mut attributes = [0_u32; 15];
+    attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_PASSIVE;
+    spell_store.insert_spell_misc_attributes_like_cpp(passive_spell_id, attributes);
+    spell_store.insert_spell_shapeshift_masks_like_cpp(passive_spell_id, 1 << 0, 0);
+    let (shapeshift_spell_id, _form_id) =
+        represented_cat_form_fixture_like_cpp(&mut session, player_guid, spell_store);
+    session.set_known_spells_like_cpp(vec![passive_spell_id]);
+
+    session
+        .apply_aura(shapeshift_spell_id, player_guid, 30_000, 1)
+        .expect("apply cat form aura");
+    assert_eq!(
+        session.player_has_visible_aura_spell_like_cpp(passive_spell_id),
+        Some(true),
+        "C++ HandleShapeshiftBoosts casts every known passive whose Stances admit the form"
+    );
+
+    session.remove_aura(0).expect("remove cat form aura");
+    assert_eq!(
+        session.player_has_visible_aura_spell_like_cpp(passive_spell_id),
+        Some(false),
+        "C++ Aura::IsRemovedOnShapeLost sweeps the self-cast aura when the form is lost"
+    );
+}
