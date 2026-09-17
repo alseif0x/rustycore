@@ -289,6 +289,15 @@ async fn two_players_attacking_one_creature_resolve_once_under_the_map_owner_lik
         if index == 0 {
             session.set_map_manager(Arc::clone(&manager));
             register_test_creature(&mut session, manager.clone(), creature_guid, 100);
+            // C++ `Unit::IsTotem()` zeroes the victim's dodge, parry and block
+            // (`Unit.cpp:2313-2360`); both attackers must land their swing.
+            session
+                .mutate_world_creature(creature_guid, |creature| {
+                    creature
+                        .creature
+                        .add_unit_type_mask_like_cpp(wow_entities::UNIT_MASK_TOTEM);
+                })
+                .unwrap();
         }
         // `PlayerRegistration` is opaque by design (#150): the only way to get one
         // is to register, which is also what production does.
@@ -918,6 +927,16 @@ async fn map_owned_player_melee_applies_victim_aurastate_and_mechanic_bonus_like
         .unwrap();
     session.set_map_manager(Arc::clone(&manager));
     register_test_creature(&mut session, manager.clone(), creature_guid, 1_000);
+    // C++ `Unit::IsTotem()` zeroes the victim's dodge, parry and block
+    // (`Unit.cpp:2313-2360`); the attack table stays out of this damage-term
+    // assertion.
+    session
+        .mutate_world_creature(creature_guid, |creature| {
+            creature
+                .creature
+                .add_unit_type_mask_like_cpp(wow_entities::UNIT_MASK_TOTEM);
+        })
+        .unwrap();
 
     let mut spell_store = wow_data::SpellStore::new();
     for (spell_id, aura, amount, misc) in [
@@ -1139,6 +1158,12 @@ async fn map_owned_player_melee_applies_victim_armor_mitigation_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 100_000);
     session
         .mutate_world_creature(creature_guid, |creature| {
+            // C++ `Unit::IsTotem()` zeroes the victim's dodge, parry and block
+            // (`Unit.cpp:2313-2360`), isolating the damage term under test from
+            // the attack table.
+            creature
+                .creature
+                .add_unit_type_mask_like_cpp(wow_entities::UNIT_MASK_TOTEM);
             creature.creature.unit_mut().set_level(80);
             creature.creature.set_combat_log_stats_like_cpp(
                 wow_entities::CreatureCombatLogStatsLikeCpp {
@@ -1221,4 +1246,156 @@ async fn map_owned_player_melee_applies_victim_armor_mitigation_like_cpp() {
     let outcome = tick(&manager, &mut phase_state);
     assert_eq!(outcome.creature_hits, 1);
     assert_eq!(before - health(&manager), 1_000);
+}
+
+/// The map-owned melee phase publishes the attack-table outcome, not only the
+/// damage.
+///
+/// C++ `CalculateMeleeDamage` (`Unit.cpp:1341-1440`) rolls
+/// `RollMeleeOutcomeAgainst` and publishes `HitInfo`/`TargetState` through
+/// `SMSG_ATTACKERSTATEUPDATE`. The production swing owner is the map-owned
+/// runtime, so a missed swing must reach the session with the miss flags and no
+/// damage.
+#[tokio::test]
+async fn map_owned_player_melee_publishes_the_attack_table_outcome_like_cpp() {
+    use crate::map_manager::RuntimeTickOwner;
+    use wow_packet::packets::combat::{HIT_INFO_MISS, VICTIM_STATE_INTACT};
+
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    canonical.lock().unwrap().create_world_map(0, 0);
+    manager
+        .write()
+        .unwrap()
+        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+    let creature_guid = test_creature_guid(99_933);
+    let player_guid = ObjectGuid::create_player(1, 5_203);
+    let map_store = Arc::new(wow_data::MapStore::from_entries([wow_data::MapEntry {
+        id: 0,
+        instance_type: wow_data::map::MAP_COMMON,
+        expansion_id: 0,
+        parent_map_id: -1,
+        cosmetic_parent_map_id: -1,
+        flags1: 0,
+        flags2: 0,
+    }]));
+
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(Arc::clone(&map_store));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "TableSolo".to_string(),
+        Position::new(10.0, 10.0, 0.0, 0.0),
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            let unit = player.unit_mut();
+            unit.set_attacking(Some(creature_guid));
+            unit.set_target(creature_guid);
+            unit.add_unit_state(UnitState::MELEE_ATTACKING.bits());
+            unit.set_base_attack_time_like_cpp(WeaponAttackType::BaseAttack, 2_000);
+            unit.set_weapon_damage(WeaponAttackType::BaseAttack, 1_000.0, 1_000.0);
+            unit.reset_attack_timer_like_cpp(WeaponAttackType::BaseAttack);
+        })
+        .unwrap();
+    session.set_map_manager(Arc::clone(&manager));
+    register_test_creature(&mut session, manager.clone(), creature_guid, 100_000);
+
+    // A -200% `SPELL_AURA_MOD_HIT_CHANCE` guarantees the miss band, so the
+    // resolved swing is deterministic.
+    let spell_id = 91_123_i32;
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        spell_id,
+        wow_data::SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_base_points: -200,
+            effect_bonus_coefficient: 0.0,
+            aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_HIT_CHANCE),
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_HIT_CHANCE,
+                effect_base_points: -200,
+                ..Default::default()
+            }],
+        },
+    );
+    let spell_store = Arc::new(spell_store);
+    session.set_spell_store(Arc::clone(&spell_store));
+    session
+        .apply_aura(spell_id, player_guid, 30_000, 1)
+        .expect("apply hit-chance aura");
+
+    let (send_tx, _rx) = flume::bounded::<Vec<u8>>(8);
+    let (command_tx, _crx) = flume::bounded::<SessionCommand>(8);
+    let registration = PlayerRegistry::new().register_or_replace(
+        player_guid,
+        broadcast_info_with_command(player_guid, send_tx, command_tx),
+        Default::default(),
+    );
+    let attackers = vec![crate::session::PlayerMeleeAttackerSnapshotLikeCpp {
+        registration,
+        player_guid,
+        map_id: 0,
+        instance_id: 0,
+        in_combat_mirror: true,
+        tap_group_guids: Vec::new(),
+    }];
+    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+        spell_store: Some(Arc::clone(&spell_store)),
+        ..Default::default()
+    };
+    let mut phase_state = crate::session::PlayerMeleePhaseStateLikeCpp::default();
+    let health_before = manager
+        .read()
+        .unwrap()
+        .find_creature(0, 0, creature_guid)
+        .unwrap()
+        .current_hp();
+
+    let outcome = crate::session::run_legacy_player_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &attackers,
+        2_000,
+        &mut phase_state,
+        &config,
+    );
+    assert!(!outcome.skipped_owner_not_global, "the map owns this tick");
+    assert_eq!(outcome.creature_hits, 1, "the swing resolves");
+    assert_eq!(
+        manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, creature_guid)
+            .unwrap()
+            .current_hp(),
+        health_before,
+        "a miss deals no damage"
+    );
+    let command = outcome
+        .commands
+        .iter()
+        .find(|command| command.victim_guid == Some(creature_guid))
+        .expect("one melee command for the creature");
+    assert_eq!(command.swings.len(), 1);
+    assert_eq!(command.swings[0].damage, 0);
+    assert_eq!(command.swings[0].hit_info, HIT_INFO_MISS);
+    assert_eq!(command.swings[0].victim_state, VICTIM_STATE_INTACT);
 }

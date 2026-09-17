@@ -243,6 +243,9 @@ pub const SPELL_AURA_MOD_HEALING_DONE_PERCENT: i32 = 136;
 /// `SPELL_SCHOOL_MASK_NORMAL` and to `ModTargetResistance` when it covers the
 /// full `SPELL_SCHOOL_MASK_SPELL`.
 pub const SPELL_AURA_MOD_TARGET_RESISTANCE: i32 = 123;
+/// C++ `AuraType::SPELL_AURA_MOD_AUTOATTACK_CRIT_CHANCE` (`SpellAuraDefines.h:429`):
+/// flat auto-attack critical chance, read by `Unit::RollMeleeOutcomeAgainst`.
+pub const SPELL_AURA_MOD_AUTOATTACK_CRIT_CHANCE: i32 = 334;
 /// C++ `AuraType::SPELL_AURA_MOD_SPELL_DAMAGE_OF_STAT_PERCENT`
 /// (`SpellAuraDefines.h:269`): `MiscValue` is the school mask and `MiscValueB`
 /// the stat.

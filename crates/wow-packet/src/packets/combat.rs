@@ -167,8 +167,8 @@ pub struct AttackerStateUpdate {
     pub damage: i32,
     /// Overkill amount (-1 if target is still alive).
     pub over_damage: i32,
-    /// Victim state: 0=none, 1=hit, 2=miss, 3=dodge, 4=parry, 5=interrupt,
-    ///               6=blocks, 7=evades, 8=immune, 9=deflect, 10=absorb
+    /// C++ `VictimState`: 0=intact (miss), 1=hit, 2=dodge, 3=parry,
+    /// 4=interrupt, 5=blocks, 6=evades, 7=immune, 8=deflects.
     pub victim_state: u8,
     /// School mask for the hit: 1=physical, 2=holy, etc.
     pub school_mask: i32,
@@ -177,12 +177,31 @@ pub struct AttackerStateUpdate {
     pub expansion: u8,
 }
 
-/// C++ `HitInfo` flags.
-pub const HIT_INFO_NORMAL_SWING: u32 = 0x0000_0002;
+/// C++ `HitInfo` flags (`UnitDefines.h:440-465` in the 3.4.3 target).
+///
+/// `HITINFO_NORMALSWING` itself is `0x00000000`; a landed white swing carries
+/// `HITINFO_AFFECTS_VICTIM`, which C++ adds to every non-miss outcome
+/// (`Unit.cpp:1434-1436`).
+pub const HIT_INFO_AFFECTS_VICTIM: u32 = 0x0000_0002;
+/// C++ `HITINFO_OFFHAND`.
+pub const HIT_INFO_OFFHAND: u32 = 0x0000_0004;
+/// C++ `HITINFO_MISS`.
+pub const HIT_INFO_MISS: u32 = 0x0000_0010;
+/// C++ `HITINFO_CRITICALHIT`.
+pub const HIT_INFO_CRITICAL_HIT: u32 = 0x0000_0200;
+/// C++ `HITINFO_GLANCING`.
+pub const HIT_INFO_GLANCING: u32 = 0x0001_0000;
 /// C++ `HITINFO_FAKE_DAMAGE`: enables a damage animation even if no damage is done.
 pub const HIT_INFO_FAKE_DAMAGE: u32 = 0x0100_0000;
-/// VictimState: normal hit.
+
+/// C++ `VictimState` (`Unit.h:45-55` in the 3.4.3 target).
+pub const VICTIM_STATE_INTACT: u8 = 0;
+/// C++ `VICTIMSTATE_HIT`.
 pub const VICTIM_STATE_HIT: u8 = 1;
+/// C++ `VICTIMSTATE_DODGE`.
+pub const VICTIM_STATE_DODGE: u8 = 2;
+/// C++ `VICTIMSTATE_PARRY`.
+pub const VICTIM_STATE_PARRY: u8 = 3;
 
 impl ServerPacket for AttackerStateUpdate {
     const OPCODE: ServerOpcodes = ServerOpcodes::AttackerStateUpdate;
@@ -377,6 +396,21 @@ mod tests {
     use super::*;
 
     #[test]
+    #[test]
+    fn hit_info_and_victim_state_match_cpp_3_4_3_like_cpp() {
+        // `UnitDefines.h:440-465` and `Unit.h:45-55` in the 3.4.3 target.
+        assert_eq!(HIT_INFO_AFFECTS_VICTIM, 0x0000_0002);
+        assert_eq!(HIT_INFO_OFFHAND, 0x0000_0004);
+        assert_eq!(HIT_INFO_MISS, 0x0000_0010);
+        assert_eq!(HIT_INFO_CRITICAL_HIT, 0x0000_0200);
+        assert_eq!(HIT_INFO_GLANCING, 0x0001_0000);
+        assert_eq!(HIT_INFO_FAKE_DAMAGE, 0x0100_0000);
+        assert_eq!(VICTIM_STATE_INTACT, 0);
+        assert_eq!(VICTIM_STATE_HIT, 1);
+        assert_eq!(VICTIM_STATE_DODGE, 2);
+        assert_eq!(VICTIM_STATE_PARRY, 3);
+    }
+
     fn attacker_state_update_writes_custom_hit_info_like_cpp() {
         let attacker = ObjectGuid::create_world_object(
             wow_core::guid::HighGuid::Creature,
@@ -399,7 +433,7 @@ mod tests {
         let bytes = AttackerStateUpdate {
             attacker,
             victim,
-            hit_info: HIT_INFO_NORMAL_SWING | HIT_INFO_FAKE_DAMAGE,
+            hit_info: HIT_INFO_AFFECTS_VICTIM | HIT_INFO_FAKE_DAMAGE,
             damage: 0,
             over_damage: -1,
             victim_state: VICTIM_STATE_HIT,
@@ -425,7 +459,7 @@ mod tests {
         let mut info = WorldPacket::from_bytes(&attack_round_info);
         assert_eq!(
             info.read_uint32().expect("hitInfo"),
-            HIT_INFO_NORMAL_SWING | HIT_INFO_FAKE_DAMAGE
+            HIT_INFO_AFFECTS_VICTIM | HIT_INFO_FAKE_DAMAGE
         );
         assert_eq!(info.read_packed_guid().expect("attacker"), attacker);
         assert_eq!(info.read_packed_guid().expect("victim"), victim);

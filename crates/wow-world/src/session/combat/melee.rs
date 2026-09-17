@@ -5,6 +5,34 @@
 
 use super::*;
 
+/// One resolved white swing: the damage after every C++
+/// `Unit::CalculateMeleeDamage` stage the represented model implements, plus the
+/// hit outcome `SMSG_ATTACKERSTATEUPDATE` publishes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::session) struct RepresentedMeleeSwingLikeCpp {
+    pub damage: u32,
+    /// C++ `CalcDamageInfo::HitInfo`.
+    pub hit_info: u32,
+    /// C++ `CalcDamageInfo::TargetState`.
+    pub victim_state: u8,
+}
+
+impl RepresentedMeleeSwingLikeCpp {
+    /// A plain landed hit, for the paths that resolve their own damage without
+    /// the represented attack table (the creature-owned swing).
+    pub(in crate::session) fn hit_like_cpp(damage: u32) -> Self {
+        let (hit_info, victim_state) = crate::session_rules::melee_outcome_presentation_like_cpp(
+            crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Hit,
+            false,
+        );
+        Self {
+            damage,
+            hit_info,
+            victim_state,
+        }
+    }
+}
+
 /// C++ `Unit::CalcArmorReducedDamage` inputs the swing owner resolves once per
 /// victim. `NONE` means "no represented armour": every field is zero, so the
 /// reduction is zero and the swing damage is unchanged.
@@ -66,14 +94,15 @@ impl WorldSession {
         in_melee_range: bool,
         facing_target: bool,
         within_los: bool,
-    ) -> Option<(Vec<u32>, Option<Option<u8>>)> {
+    ) -> Option<(Vec<RepresentedMeleeSwingLikeCpp>, Option<Option<u8>>)> {
         // C++ `CalculateMeleeDamage` resolves the victim-dependent terms per
         // swing; the session computes them for the victim the canonical Player
-        // is attacking and hands them to the shared swing function. Both are
-        // hoisted: resolving them inside the mutable owner borrow would
+        // is attacking and hands them to the shared swing function. All of them
+        // are hoisted: resolving them inside the mutable owner borrow would
         // re-enter the canonical manager lock.
         let melee_damage_bonus = self.represented_melee_damage_bonus_like_cpp();
         let armor_mitigation = self.represented_melee_armor_mitigation_like_cpp();
+        let outcome_facts = self.represented_melee_outcome_facts_like_cpp();
         self.mutate_canonical_player_like_cpp(|player| {
             take_canonical_player_attack_swings_like_cpp(
                 player,
@@ -83,9 +112,112 @@ impl WorldSession {
                 within_los,
                 melee_damage_bonus,
                 armor_mitigation,
+                outcome_facts,
             )
         })
         .flatten()
+    }
+
+    /// C++ `Unit::RollMeleeOutcomeAgainst` (`Unit.cpp:2272-2310`) inputs for the
+    /// canonical Player's current melee victim.
+    ///
+    /// The attacker side comes from the canonical Player snapshot and its live
+    /// auras; the victim side is only representable while the victim is a
+    /// creature, matching the creature-only armour rule. `canParryOrBlock` is
+    /// C++'s `victim->HasInArc(M_PI, attacker)`, resolved from the two world
+    /// positions.
+    pub(in crate::session) fn represented_melee_outcome_facts_like_cpp(
+        &self,
+    ) -> (
+        crate::session_rules::RepresentedMeleeAttackerFactsLikeCpp,
+        crate::session_rules::RepresentedMeleeVictimFactsLikeCpp,
+    ) {
+        use crate::session_rules::{
+            RepresentedMeleeAttackerFactsLikeCpp as AttackerFacts,
+            RepresentedMeleeVictimFactsLikeCpp as VictimFacts,
+        };
+
+        let Some(target_guid) =
+            self.canonical_player_snapshot_like_cpp(|player| player.unit().attacking())
+        else {
+            return (AttackerFacts::default(), VictimFacts::default());
+        };
+        let Some(target_guid) = target_guid else {
+            return (AttackerFacts::default(), VictimFacts::default());
+        };
+        let Some((
+            level,
+            dual_wielding,
+            melee_hit_chance_pct,
+            crit_pct,
+            offhand_crit_pct,
+            mainhand_expertise,
+            offhand_expertise,
+            attacker_position,
+        )) = self.canonical_player_snapshot_like_cpp(|player| {
+            let stats = player.effective_combat_stats_like_cpp();
+            (
+                player.level_like_cpp(),
+                player.has_offhand_weapon_for_attack_like_cpp()
+                    && !player.is_in_feral_form_like_cpp(),
+                stats.melee_hit_chance_pct,
+                stats.crit_pct,
+                stats.offhand_crit_pct,
+                stats.mainhand_expertise,
+                stats.offhand_expertise,
+                player.unit().world().position(),
+            )
+        })
+        else {
+            return (AttackerFacts::default(), VictimFacts::default());
+        };
+        let aura_sum = |aura_type: i32| -> f32 {
+            self.resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|(_, amount)| amount as f32)
+                .sum()
+        };
+        let attacker = AttackerFacts {
+            level,
+            dual_wielding,
+            melee_hit_chance_pct,
+            hit_chance_aura_pct: aura_sum(wow_data::spell::aura_types::SPELL_AURA_MOD_HIT_CHANCE),
+            crit_pct: [crit_pct, offhand_crit_pct],
+            autoattack_crit_aura_pct: aura_sum(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_AUTOATTACK_CRIT_CHANCE,
+            ),
+            expertise_reduction_pct: [mainhand_expertise / 4.0, offhand_expertise / 4.0],
+        };
+        let Some(manager) = self.map_manager.as_ref() else {
+            return (attacker, VictimFacts::default());
+        };
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let victim = {
+            let manager = manager
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            manager
+                .find_creature(self.player_map_id_like_cpp(), instance_id, target_guid)
+                .map(|creature| {
+                    let victim_position = creature.position();
+                    VictimFacts {
+                        level: creature.level(),
+                        is_creature: true,
+                        is_totem: creature.creature.is_totem_unit_type_like_cpp(),
+                        dodge_pct: creature.creature.avoidance_like_cpp().dodge_pct,
+                        parry_pct: creature.creature.avoidance_like_cpp().parry_pct,
+                        faces_attacker: is_unit_facing_target_for_melee_like_cpp(
+                            victim_position,
+                            attacker_position,
+                        ),
+                    }
+                })
+        };
+        (attacker, victim.unwrap_or_default())
     }
 
     /// C++ `Unit::CalcArmorReducedDamage` (`Unit.cpp:1623-1685`) inputs for the

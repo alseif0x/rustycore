@@ -54,6 +54,8 @@ mod scenarios_combat_1;
 mod scenarios_combat_2;
 #[path = "session/tests/scenarios_combat_3.rs"]
 mod scenarios_combat_3;
+#[path = "session/tests/scenarios_combat_4.rs"]
+mod scenarios_combat_4;
 #[path = "session/tests/scenarios_instances_1.rs"]
 mod scenarios_instances_1;
 #[path = "session/tests/scenarios_instances_2.rs"]
@@ -3458,6 +3460,10 @@ fn register_test_creature(
             creature.seed_runtime_rng_like_cpp(0x5E11_117);
         })
         .expect("registered test creature must remain available");
+
+    // Fixtures assert exact melee damage terms, so the represented attack table
+    // is inert for them until a test opts back in.
+    disable_represented_melee_attack_table_for_test_like_cpp(session, guid);
 }
 
 /// Register a legacy creature the way production does: through a session
@@ -3476,6 +3482,28 @@ fn register_test_creature_mirrored_like_cpp(
 ) {
     session.set_canonical_map_manager(Arc::clone(canonical));
     register_test_creature(session, manager, guid, hp);
+}
+
+/// Make the represented attack table inert for a fixture that asserts an exact
+/// melee damage term.
+///
+/// C++ `Player::UpdateMeleeHitChances` (`StatSystem.cpp:743-746`) gives a player
+/// `7.5 + CR_HIT_MELEE`, and `MeleeSpellMissChance` adds `19` for dual wielding.
+/// A fixture that has not run the stat projection would otherwise carry a 5%
+/// (or 24%) miss band, and a directly constructed creature carries no seeded
+/// avoidance, so this makes the represented table inert for a fixture that
+/// asserts an exact damage term.
+fn disable_represented_melee_attack_table_for_test_like_cpp(
+    session: &mut WorldSession,
+    creature_guid: ObjectGuid,
+) {
+    let _ = session.mutate_canonical_player_like_cpp(|player| {
+        let mut stats = *player.effective_combat_stats_like_cpp();
+        // `7.5` is C++'s base, plus the `19` dual-wield penalty
+        // `MeleeSpellMissChance` adds, so both hands stay table-inert.
+        stats.melee_hit_chance_pct = 26.5;
+        player.replace_effective_combat_stats_like_cpp(stats);
+    });
 }
 
 fn creature_template_lifecycle_store_for_test(

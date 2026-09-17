@@ -61,6 +61,7 @@ pub struct Creature {
     pub(super) is_contested_guard_faction: bool,
     pub(super) spell_focus: CreatureSpellFocusStateLikeCpp,
     pub(super) combat_log_stats: CreatureCombatLogStatsLikeCpp,
+    pub(super) avoidance_like_cpp: CreatureAvoidanceLikeCpp,
     /// Monotonic identity for the creature loot-producing lifetime. Async
     /// `Unit::Kill` generation captures this value and may install its pools
     /// only while the same death lifetime is still current. Corpse removal

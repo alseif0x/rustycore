@@ -75,6 +75,9 @@ pub struct PlayerEffectiveCombatStatsLikeCpp {
     /// C++ `Player::GetRatingBonusValue(CR_ARMOR_PENETRATION)`: the live
     /// percentage `Unit::CalcArmorReducedDamage` reads for a player attacker.
     pub armor_penetration_pct: f32,
+    /// C++ `Player::m_modMeleeHitChance`: `7.5 + GetRatingBonusValue(
+    /// CR_HIT_MELEE)`, the skill-based part of `MeleeSpellMissChance`.
+    pub melee_hit_chance_pct: f32,
     /// C++ `ActivePlayerData::ModTargetResistance`.
     pub mod_target_resistance: i32,
     /// C++ `ActivePlayerData::ModTargetPhysicalResistance`.
@@ -146,6 +149,7 @@ impl Default for PlayerEffectiveCombatStatsLikeCpp {
             mod_damage_done_percent: [1.0; 7],
             mod_healing_done_percent: 1.0,
             armor_penetration_pct: 0.0,
+            melee_hit_chance_pct: 0.0,
             mod_target_resistance: 0,
             mod_target_physical_resistance: 0,
             weapon_damage_pct: [1.0, 0.5, 1.0],
