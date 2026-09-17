@@ -17,10 +17,17 @@ use crate::wdc4::Wdc4Reader;
 pub const SPELL_ITEM_ENCHANTMENT_EFFECTS: usize = 3;
 
 /// C++ `SpellItemEnchantmentEntry`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// `Eq` is not derived because `EffectScalingPoints` is `f32`.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SpellItemEnchantmentEntry {
     pub id: u32,
     pub effect_arg: [u32; SPELL_ITEM_ENCHANTMENT_EFFECTS],
+    /// C++ `SpellItemEnchantmentEntry::EffectScalingPoints`
+    /// (`DB2Structure.h:3573`): the flat amount `ITEM_ENCHANTMENT_TYPE_DAMAGE`
+    /// and `ITEM_ENCHANTMENT_TYPE_TOTEM` add to `UNIT_MOD_DAMAGE_*`
+    /// (`Player::UpdateDamageDoneMods`, `Player.cpp:4965-5015`).
+    pub effect_scaling_points: [f32; SPELL_ITEM_ENCHANTMENT_EFFECTS],
     pub effect_points_min: [i16; SPELL_ITEM_ENCHANTMENT_EFFECTS],
     pub item_visual: u16,
     pub flags: SpellItemEnchantmentFlags,
@@ -73,6 +80,11 @@ impl SpellItemEnchantmentStore {
                     reader.get_array_i16(idx, 8, 0),
                     reader.get_array_i16(idx, 8, 1),
                     reader.get_array_i16(idx, 8, 2),
+                ],
+                effect_scaling_points: [
+                    f32::from_bits(reader.get_array_element(idx, 3, 0, 32)),
+                    f32::from_bits(reader.get_array_element(idx, 3, 1, 32)),
+                    f32::from_bits(reader.get_array_element(idx, 3, 2, 32)),
                 ],
                 item_visual: reader.get_field_u16(idx, 9),
                 flags: SpellItemEnchantmentFlags::from_bits_truncate(reader.get_field_u16(idx, 10)),
@@ -239,6 +251,7 @@ mod tests {
                 id: 1,
                 effect_arg: [0; SPELL_ITEM_ENCHANTMENT_EFFECTS],
                 effect_points_min: [0; SPELL_ITEM_ENCHANTMENT_EFFECTS],
+                effect_scaling_points: [0.0; SPELL_ITEM_ENCHANTMENT_EFFECTS],
                 item_visual: 0,
                 flags: SpellItemEnchantmentFlags::ALLOW_ENTERING_ARENA,
                 required_skill_id: 0,
@@ -254,6 +267,7 @@ mod tests {
                 id: 2,
                 effect_arg: [0; SPELL_ITEM_ENCHANTMENT_EFFECTS],
                 effect_points_min: [0; SPELL_ITEM_ENCHANTMENT_EFFECTS],
+                effect_scaling_points: [0.0; SPELL_ITEM_ENCHANTMENT_EFFECTS],
                 item_visual: 0,
                 flags: SpellItemEnchantmentFlags::SOULBOUND,
                 required_skill_id: 0,
@@ -278,6 +292,7 @@ mod tests {
             id: 10,
             effect_arg: [0; SPELL_ITEM_ENCHANTMENT_EFFECTS],
             effect_points_min: [0; SPELL_ITEM_ENCHANTMENT_EFFECTS],
+            effect_scaling_points: [0.0; SPELL_ITEM_ENCHANTMENT_EFFECTS],
             item_visual: 0,
             flags: SpellItemEnchantmentFlags::empty(),
             required_skill_id: 0,
@@ -334,6 +349,7 @@ mod tests {
             id: 30,
             effect_arg: [0; SPELL_ITEM_ENCHANTMENT_EFFECTS],
             effect_points_min: [0; SPELL_ITEM_ENCHANTMENT_EFFECTS],
+            effect_scaling_points: [0.0; SPELL_ITEM_ENCHANTMENT_EFFECTS],
             item_visual: 0,
             flags: SpellItemEnchantmentFlags::empty(),
             required_skill_id: 0,

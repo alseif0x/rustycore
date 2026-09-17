@@ -562,6 +562,7 @@ fn loaded_player_visible_items_for_create_includes_loaded_enchant_visual_like_cp
             id: 908,
             effect_arg: [0; 3],
             effect_points_min: [0; 3],
+            effect_scaling_points: [0.0; 3],
             item_visual: 44,
             flags: SpellItemEnchantmentFlags::empty(),
             required_skill_id: 0,

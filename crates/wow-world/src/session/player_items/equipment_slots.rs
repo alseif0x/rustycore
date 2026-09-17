@@ -8,6 +8,10 @@ use super::*;
 /// C++ `SPELL_SCHOOL_MASK_NORMAL` (`SharedDefines.h:329`): the physical school
 /// bit `Unit::UpdateDamagePctDoneMods` filters the damage-percent aura by.
 const SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP: i32 = 1;
+/// C++ `ITEM_ENCHANTMENT_TYPE_DAMAGE` (`DBCEnums.h:965`).
+const ITEM_ENCHANTMENT_TYPE_DAMAGE_LIKE_CPP: u8 = 2;
+/// C++ `ITEM_ENCHANTMENT_TYPE_TOTEM` (`DBCEnums.h:969`).
+const ITEM_ENCHANTMENT_TYPE_TOTEM_LIKE_CPP: u8 = 6;
 
 impl WorldSession {
     pub(in crate::session) fn represented_equipped_item_in_slot_fits_spell_requirements_like_cpp(
@@ -120,16 +124,13 @@ impl WorldSession {
         })
     }
 
-    /// C++ `Unit::UpdateDamageDoneMods` (`Unit.cpp:8997-9027`), reached from
+    /// C++ `Player::UpdateDamageDoneMods` (`Player.cpp:4965-5015`), reached from
     /// `HandleModDamageDone` (`SpellAuraEffects.cpp:4497-4505`) through
     /// `Unit::UpdateAllDamageDoneMods`: the `UNIT_MOD_DAMAGE_*` `TOTAL_VALUE` is
     /// the sum of every active `SPELL_AURA_MOD_DAMAGE_DONE` (13) effect that
-    /// covers `SPELL_SCHOOL_MASK_NORMAL` and fits the attack's weapon.
-    ///
-    /// The weapon-enchantment `ITEM_ENCHANTMENT_TYPE_DAMAGE`/`TOTEM` term that
-    /// `Player::UpdateDamageDoneMods` (`Player.cpp:4965-5015`) adds for an
-    /// enchanted weapon is not represented and remains a separate gate.
-    pub(crate) fn represented_weapon_damage_flat_like_cpp(&self) -> [i32; 3] {
+    /// covers `SPELL_SCHOOL_MASK_NORMAL` and fits the attack's weapon, plus the
+    /// weapon-enchantment `ITEM_ENCHANTMENT_TYPE_DAMAGE`/`TOTEM` term.
+    pub(crate) fn represented_weapon_damage_flat_like_cpp(&self) -> [f32; 3] {
         let effects = self
             .resolved_aura_effects_with_spell_and_misc_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE,
@@ -140,7 +141,7 @@ impl WorldSession {
                 <wow_constants::WeaponAttackType as num_traits::FromPrimitive>::from_usize(index)
                     .unwrap_or(wow_constants::WeaponAttackType::BaseAttack);
             let weapon_item_id = self.represented_usable_weapon_item_id_like_cpp(attack);
-            effects
+            let aura_sum = effects
                 .iter()
                 .filter(|(spell_id, misc_value, _)| {
                     misc_value & SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP != 0
@@ -148,8 +149,63 @@ impl WorldSession {
                             .represented_aura_spell_fits_weapon_like_cpp(*spell_id, weapon_item_id)
                 })
                 .map(|(_, _, amount)| *amount)
-                .sum()
+                .sum::<i32>();
+            aura_sum as f32 + self.represented_weapon_enchant_damage_like_cpp(attack)
         })
+    }
+
+    /// C++ `Player::UpdateDamageDoneMods`'s enchantment loop
+    /// (`Player.cpp:4991-5015`): for the attack's weapon, every enchantment
+    /// slot's `ITEM_ENCHANTMENT_TYPE_DAMAGE` (2) adds
+    /// `SpellItemEnchantment::EffectScalingPoints`, and
+    /// `ITEM_ENCHANTMENT_TYPE_TOTEM` (6) adds the same scaled by the weapon
+    /// delay for shamans only.
+    fn represented_weapon_enchant_damage_like_cpp(&self, attack: WeaponAttackType) -> f32 {
+        let Some(item_id) = self.represented_usable_weapon_item_id_like_cpp(attack) else {
+            return 0.0;
+        };
+        let slot = match attack {
+            WeaponAttackType::BaseAttack => EQUIPMENT_SLOT_MAINHAND,
+            WeaponAttackType::OffAttack => EQUIPMENT_SLOT_OFFHAND,
+            WeaponAttackType::RangedAttack => EQUIPMENT_SLOT_RANGED,
+            WeaponAttackType::Max => return 0.0,
+        };
+        let Some(inventory_item) = self.resolved_inventory_item_like_cpp(slot) else {
+            return 0.0;
+        };
+        let Some(item) = self.resolved_inventory_item_object_like_cpp(inventory_item.guid) else {
+            return 0.0;
+        };
+        let Some(enchantment_store) = self.spell_item_enchantment_store() else {
+            return 0.0;
+        };
+        let delay_seconds = self
+            .items
+            .stats_store
+            .as_ref()
+            .and_then(|store| store.weapon_template(item_id))
+            .map(|weapon| f32::from(weapon.item_delay) / 1000.0)
+            .unwrap_or(0.0);
+        let is_shaman = self.player_class_like_cpp() == 7;
+        item.data()
+            .enchantments
+            .iter()
+            .filter_map(|enchantment| u32::try_from(enchantment.id).ok())
+            .filter_map(|enchantment_id| enchantment_store.get(enchantment_id))
+            .flat_map(|entry| {
+                entry
+                    .effect
+                    .iter()
+                    .zip(entry.effect_scaling_points.iter())
+                    .map(move |(effect, points)| match *effect {
+                        ITEM_ENCHANTMENT_TYPE_DAMAGE_LIKE_CPP => *points,
+                        ITEM_ENCHANTMENT_TYPE_TOTEM_LIKE_CPP if is_shaman => {
+                            *points * delay_seconds
+                        }
+                        _ => 0.0,
+                    })
+            })
+            .sum()
     }
 
     /// C++ `Player::UpdateWeaponDependentCritAuras` (`Player.cpp:8079-8107`):

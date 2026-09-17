@@ -278,6 +278,7 @@ fn initial_loaded_item_mods_follow_cpp_loaded_equip_enchant_aura_order() {
         id,
         effect_arg: [spell_id, 0, 0],
         effect_points_min: [0; 3],
+        effect_scaling_points: [0.0; 3],
         item_visual: 0,
         flags: SpellItemEnchantmentFlags::empty(),
         required_skill_id: 0,

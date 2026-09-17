@@ -124,10 +124,10 @@ pub struct PlayerSpellBonusInputLikeCpp {
     /// base factor (mainhand/ranged 1.0, offhand 0.5) times the
     /// `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE` (79) physical multiplier.
     pub weapon_damage_pct: [f32; 3],
-    /// `Unit::UpdateDamageDoneMods` (`Unit.cpp:8997-9027`) per attack: the
-    /// `SPELL_AURA_MOD_DAMAGE_DONE` (13) physical sum, published as the
-    /// `UNIT_MOD_DAMAGE_*` `TOTAL_VALUE`.
-    pub weapon_damage_flat: [i32; 3],
+    /// `Player::UpdateDamageDoneMods` (`Player.cpp:4965-5015`) per attack: the
+    /// `SPELL_AURA_MOD_DAMAGE_DONE` (13) physical sum plus the weapon
+    /// enchantment damage, published as the `UNIT_MOD_DAMAGE_*` `TOTAL_VALUE`.
+    pub weapon_damage_flat: [f32; 3],
     /// `SPELL_AURA_MOD_TARGET_RESISTANCE` (123) sums covering the full
     /// `SPELL_SCHOOL_MASK_SPELL`, published as `ModTargetResistance`.
     pub target_resistance_aura: i32,
@@ -153,7 +153,7 @@ impl Default for PlayerSpellBonusInputLikeCpp {
             damage_done_percent: [1.0; 7],
             healing_done_percent: 1.0,
             weapon_damage_pct: [1.0, 0.5, 1.0],
-            weapon_damage_flat: [0; 3],
+            weapon_damage_flat: [0.0; 3],
             versatility_bonus_aura: 0,
             target_resistance_aura: 0,
             item_spell_penetration: 0,
@@ -302,7 +302,7 @@ pub struct PlayerStatSystemProjectionLikeCpp {
     /// C++ `UNIT_MOD_DAMAGE_*` `TOTAL_PCT` per attack.
     pub weapon_damage_pct: [f32; 3],
     /// C++ `UNIT_MOD_DAMAGE_*` `TOTAL_VALUE` per attack.
-    pub weapon_damage_flat: [i32; 3],
+    pub weapon_damage_flat: [f32; 3],
 }
 
 /// C++ `Unit::CalculateMinMaxDamage` for the represented player weapon
@@ -358,7 +358,7 @@ pub fn effective_weapon_damage_ranges_like_cpp(
             .weapon_damage_flat
             .get(index)
             .copied()
-            .unwrap_or(0) as f32;
+            .unwrap_or(0.0);
         [
             ((weapon_min + ap_component + total_value) * total_pct).max(1.0),
             ((weapon_max + ap_component + total_value) * total_pct).max(1.0),
@@ -1503,7 +1503,7 @@ mod tests {
             attack_power_override_by_spell_power_pct: None,
             spell_bonus: PlayerSpellBonusInputLikeCpp {
                 weapon_damage_pct: [1.5, 0.75, 1.0],
-                weapon_damage_flat: [20, 40, 0],
+                weapon_damage_flat: [20.0, 40.0, 0.0],
                 ..Default::default()
             },
             rating_bonuses: [0.0; 32],
@@ -1577,7 +1577,7 @@ mod tests {
                 healing_done_percent: 2.0,
                 // Mainhand/ranged 1.0 and offhand 0.5 with a +50% physical aura.
                 weapon_damage_pct: [1.5, 0.75, 1.5],
-                weapon_damage_flat: [20, 20, 0],
+                weapon_damage_flat: [20.0, 20.0, 0.0],
                 versatility_bonus_aura: 200,
                 // `ModTargetResistance = aura - item penetration`.
                 target_resistance_aura: 20,
@@ -1608,7 +1608,7 @@ mod tests {
         assert_eq!(projection.override_ap_by_spell_power_percent, 0.0);
         assert_eq!(projection.versatility_bonus, 200.0);
         assert_eq!(projection.weapon_damage_pct, [1.5, 0.75, 1.5]);
-        assert_eq!(projection.weapon_damage_flat, [20, 20, 0]);
+        assert_eq!(projection.weapon_damage_flat, [20.0, 20.0, 0.0]);
 
         // `SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT` replaces both bonuses with
         // `int32(CalculatePct(GetTotalAttackPowerValue(BASE_ATTACK), pct) + 0.5)`:
