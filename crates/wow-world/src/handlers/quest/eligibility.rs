@@ -301,11 +301,13 @@ impl WorldSession {
                 .and_then(|store| store.get(quest.required_min_rep_faction))
             {
                 Some(faction_entry) => {
+                    let player_race = self.player_race_like_cpp();
+                    let player_class = self.player_class_like_cpp();
                     let Some(rep) = self.with_reputation_mgr_like_cpp(|mgr| {
                         mgr.reputation_for_faction_like_cpp(
                             faction_entry,
-                            self.player_race_like_cpp(),
-                            self.player_class_like_cpp(),
+                            player_race,
+                            player_class,
                         )
                     }) else {
                         return false;
@@ -325,11 +327,13 @@ impl WorldSession {
                 .and_then(|store| store.get(quest.required_max_rep_faction))
             {
                 Some(faction_entry) => {
+                    let player_race = self.player_race_like_cpp();
+                    let player_class = self.player_class_like_cpp();
                     let Some(rep) = self.with_reputation_mgr_like_cpp(|mgr| {
                         mgr.reputation_for_faction_like_cpp(
                             faction_entry,
-                            self.player_race_like_cpp(),
-                            self.player_class_like_cpp(),
+                            player_race,
+                            player_class,
                         )
                     }) else {
                         return false;

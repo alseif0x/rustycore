@@ -814,4 +814,64 @@ impl WorldSession {
                 .bonuses_snapshot_like_cpp(),
         )
     }
+
+    /// C++ `Player::CanUseItem(ItemTemplate const*)`'s reputation term
+    /// (`Player.cpp:11106-11107`): the player's `GetReputationRank` for the
+    /// required faction. Returns `None` when the faction exists but the
+    /// reputation manager is not represented, so each caller keeps its own
+    /// fail-closed policy; an unknown faction ranks zero like C++.
+    pub(crate) fn represented_item_reputation_rank_like_cpp(
+        &self,
+        required_reputation_faction: u32,
+    ) -> Option<u32> {
+        if required_reputation_faction == 0 {
+            return Some(0);
+        }
+        let Some(faction) = self
+            .factions
+            .store
+            .as_ref()
+            .and_then(|store| store.get(required_reputation_faction))
+        else {
+            return Some(0);
+        };
+        // The session identity accessors re-enter the canonical manager lock
+        // held by `with_reputation_mgr_like_cpp`, so resolve them first.
+        let player_race = self.player_race_like_cpp();
+        let player_class = self.player_class_like_cpp();
+        let standing = self.with_reputation_mgr_like_cpp(|mgr| {
+            mgr.reputation_for_faction_like_cpp(faction, player_race, player_class)
+        })?;
+        Some(u32::from(
+            reputation_to_rank_like_cpp(
+                faction,
+                standing,
+                self.friendship_rep_reaction_store.as_deref(),
+            )
+            .as_u8(),
+        ))
+    }
+
+    /// C++ `ItemTemplate::Effects` ordered by `ItemEffectEntry` slot. The
+    /// `CanUseItem` learning-effect gate (`Player.cpp:11110-11113`) reads the
+    /// first two entries.
+    pub(crate) fn represented_item_effect_spell_ids_like_cpp(
+        &self,
+        item_id: u32,
+    ) -> Vec<(u8, i32)> {
+        let mut effects: Vec<(u8, i32)> = self
+            .items
+            .effect_store
+            .as_ref()
+            .map(|store| {
+                store
+                    .values()
+                    .filter(|effect| effect.parent_item_id == item_id)
+                    .map(|effect| (effect.legacy_slot_index, effect.spell_id))
+                    .collect()
+            })
+            .unwrap_or_default();
+        effects.sort_by_key(|(slot, _)| *slot);
+        effects
+    }
 }

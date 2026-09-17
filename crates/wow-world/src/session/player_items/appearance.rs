@@ -295,6 +295,32 @@ impl WorldSession {
         {
             return false;
         }
+        if sparse_template.required_reputation_faction != 0 {
+            let required_rank =
+                u32::try_from(sparse_template.required_reputation_rank.max(0)).unwrap_or(0);
+            if self
+                .represented_item_reputation_rank_like_cpp(u32::from(
+                    sparse_template.required_reputation_faction,
+                ))
+                .unwrap_or(0)
+                < required_rank
+            {
+                return false;
+            }
+        }
+        // C++ `CanUseItem` learning-effect pair (`Player.cpp:11110-11113`): a
+        // recipe, mount or pet item whose second effect is already known cannot
+        // be used again.
+        let effect_spell_ids = self.represented_item_effect_spell_ids_like_cpp(item_id);
+        if let (Some((_, first)), Some((_, second))) =
+            (effect_spell_ids.first(), effect_spell_ids.get(1))
+            && matches!(*first, 483 | 55_884)
+            && i32::try_from(*second)
+                .ok()
+                .is_some_and(|spell_id| self.known_spells_like_cpp().contains(&spell_id))
+        {
+            return false;
+        }
 
         let player_class_mask =
             player_class_mask_for_transmog_like_cpp(self.player_class_like_cpp());
