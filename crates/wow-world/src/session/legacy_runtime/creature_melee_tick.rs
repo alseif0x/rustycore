@@ -118,6 +118,7 @@ pub(in crate::session) fn apply_player_melee_to_legacy_creature_like_cpp(
 pub fn run_legacy_creature_melee_tick_once_like_cpp(
     legacy_map_manager: &crate::map_manager::SharedMapManager,
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
+    config: &crate::session::LegacyCreatureAggroConfigLikeCpp,
 ) -> LegacyCreatureMeleeTickOutcomeLikeCpp {
     use crate::map_manager::RuntimeTickOwner;
     use wow_entities::CurrentSpellSlot;
@@ -390,7 +391,166 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         // creature spell from claiming an exact shared-RNG position.
         attacker.invalidate_runtime_rng_authority_like_cpp();
         let damage = damage.max(1);
-        outcome.melee_outcomes_unrepresented += 1;
+
+        // C++ `CalculateMeleeDamage` rolls the attack table after mitigation and
+        // before the outcome switch (`Unit.cpp:1341-1443`). A player victim can
+        // resolve the miss band here; dodge/parry/block/crit and the
+        // player-victim armour/taken terms remain the documented boundary of
+        // this slice. Both aura sums need the spell store, so without one the
+        // pre-table always-hit bridge is preserved.
+        let mut hit_info = wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM;
+        let mut victim_state = wow_packet::packets::combat::VICTIM_STATE_HIT;
+        let mut original_damage = damage;
+        let mut avoided_outcome = None;
+        let damage = if swing.victim_guid.is_player() {
+            match config.spell_store.as_deref() {
+                Some(spell_store) => {
+                    let map_difficulty_id = canonical_manager
+                        .find_map(u32::from(swing.map_id), swing.instance_id)
+                        .map(|managed| managed.difficulty())
+                        .unwrap_or(0);
+                    // C++ `MeleeSpellMissChance` (`Unit.cpp:11652-11685`): the
+                    // creature's `m_modMeleeHitChance` is zero
+                    // (`Unit.cpp:360`), so only its `SPELL_AURA_MOD_HIT_CHANCE`
+                    // sum and the victim's `SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE`
+                    // sum move the flat 5.0.
+                    let attacker_hit_chance_aura_pct =
+                        crate::session_rules::creature_aura_effects_like_cpp(
+                            &attacker.creature.unit().subsystems().auras.applied_auras,
+                            spell_store,
+                            map_difficulty_id,
+                            config.difficulty_store.as_deref(),
+                        )
+                        .into_iter()
+                        .filter(|effect| {
+                            effect.aura_type
+                                == wow_data::spell::aura_types::SPELL_AURA_MOD_HIT_CHANCE
+                        })
+                        .map(|effect| effect.amount as f32)
+                        .sum::<f32>();
+                    let victim = canonical_manager
+                        .find_map(u32::from(swing.map_id), swing.instance_id)
+                        .and_then(|managed| managed.map().get_typed_player(swing.victim_guid))
+                        .map(|player| {
+                            let victim_hit_chance_aura_pct =
+                                crate::session_rules::player_aura_effects_by_spell_aura_type_like_cpp(
+                                    player.unit().subsystems().auras.runtime_applications_like_cpp(),
+                                    spell_store,
+                                    wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+                                )
+                                .into_iter()
+                                .map(|(_, amount)| amount as f32)
+                                .sum::<f32>();
+                            (player.level_like_cpp(), victim_hit_chance_aura_pct)
+                        });
+                    match victim {
+                        Some((victim_level, victim_hit_chance_aura_pct)) => {
+                            let attacker_facts =
+                                crate::session_rules::RepresentedMeleeAttackerFactsLikeCpp {
+                                    level: attacker.creature.level(),
+                                    melee_hit_chance_pct: 0.0,
+                                    hit_chance_aura_pct: attacker_hit_chance_aura_pct,
+                                    crit_damage_multiplier: 1.0,
+                                    ..Default::default()
+                                };
+                            let victim_facts =
+                                crate::session_rules::RepresentedMeleeVictimFactsLikeCpp {
+                                    level: victim_level,
+                                    is_player: true,
+                                    attacker_melee_hit_chance_pct: victim_hit_chance_aura_pct,
+                                    ..Default::default()
+                                };
+                            let inputs = crate::session_rules::melee_outcome_inputs_like_cpp(
+                                &attacker_facts,
+                                &victim_facts,
+                            );
+                            let rolled =
+                                crate::session_rules::rolled_melee_outcome_like_cpp(&inputs[0]);
+                            let (damage, _blocked, original) =
+                                crate::session_rules::melee_outcome_damage_like_cpp(
+                                    rolled,
+                                    damage,
+                                    attacker_facts.level,
+                                    victim_facts.level,
+                                    attacker_facts.crit_damage_multiplier,
+                                );
+                            let (info, state) =
+                                crate::session_rules::melee_outcome_presentation_like_cpp(
+                                    rolled, false,
+                                );
+                            hit_info = info;
+                            victim_state = state;
+                            original_damage = original;
+                            if matches!(
+                                rolled,
+                                crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Evade
+                                    | crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Miss
+                                    | crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Dodge
+                                    | crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Parry
+                            ) {
+                                avoided_outcome = Some(rolled);
+                            }
+                            damage
+                        }
+                        None => damage,
+                    }
+                }
+                None => damage,
+            }
+        } else {
+            damage
+        };
+        if avoided_outcome.is_none() {
+            outcome.melee_outcomes_unrepresented += 1;
+        }
+
+        // C++ `CalculateMeleeDamage` returns before `DealMeleeDamage` for an
+        // avoided swing (`Unit.cpp:1345-1355`, `1395-1407`): no health write, no
+        // death check and no proc. The command carries the victim's unchanged
+        // canonical tuple so the session's revision gate stays exact.
+        if let Some(avoided) = avoided_outcome {
+            let victim = canonical_manager
+                .find_map(u32::from(swing.map_id), swing.instance_id)
+                .and_then(|managed| managed.map().get_typed_player(swing.victim_guid))
+                .map(|victim| {
+                    (
+                        victim.unit().data().health,
+                        victim.unit().health_state_revision_like_cpp(),
+                        victim.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
+                    )
+                });
+            let Some((victim_health_after, victim_health_state_revision_after, target_level)) =
+                victim
+            else {
+                outcome.melee_precondition_rejections += 1;
+                continue;
+            };
+            // C++ `Unit::AttackerStateUpdate` removes the attacking-interrupt
+            // auras before `CalculateMeleeDamage`, so an avoided swing removes
+            // them too (`Unit.cpp:2172-2173`).
+            outcome.attacking_interrupt_auras_removed += attacker
+                .creature
+                .unit_mut()
+                .remove_attacking_interrupt_auras_like_cpp();
+            attacker.record_swing();
+            outcome.commands.push(
+                crate::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand {
+                    attacker_guid: swing.attacker_guid,
+                    victim_guid: swing.victim_guid,
+                    map_id: swing.map_id,
+                    instance_id: swing.instance_id,
+                    damage: 0,
+                    over_damage: -1,
+                    target_level,
+                    victim_health_after,
+                    victim_health_state_revision_after,
+                    hit_info,
+                    victim_state,
+                    original_damage,
+                },
+            );
+            continue;
+        }
 
         let (
             victim_applied_damage,
@@ -479,6 +639,9 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     target_level,
                     victim_health_after,
                     victim_health_state_revision_after,
+                    hit_info,
+                    victim_state,
+                    original_damage,
                 },
             );
         } else {

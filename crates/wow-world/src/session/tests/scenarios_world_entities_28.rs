@@ -92,7 +92,11 @@ fn legacy_creature_melee_tick_once_rejects_same_guid_attacker_replacement_like_c
         .unwrap()
         .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert_eq!(outcome.swings_ready, 1);
     assert_eq!(outcome.attacker_incarnation_rejections, 1);
@@ -176,7 +180,11 @@ fn legacy_creature_melee_tick_once_rejects_out_of_range_victim_like_cpp() {
         .unwrap()
         .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert!(!outcome.skipped_owner_not_global);
     assert_eq!(outcome.maps_seen, 1);
@@ -252,7 +260,11 @@ fn legacy_creature_melee_tick_once_rejects_bad_facing_victim_like_cpp() {
         .unwrap()
         .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert!(!outcome.skipped_owner_not_global);
     assert_eq!(outcome.maps_seen, 1);
@@ -315,7 +327,11 @@ fn legacy_creature_melee_tick_once_failed_auto_attack_uses_retry_timer_like_cpp(
         .unwrap()
         .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let rejected = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let rejected = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert_eq!(rejected.swings_ready, 1);
     assert_eq!(rejected.melee_range_rejections, 1);
@@ -326,7 +342,11 @@ fn legacy_creature_melee_tick_once_failed_auto_attack_uses_retry_timer_like_cpp(
         assert_eq!(creature.creature.ai_ownership().swing_timer_ms, 100);
     }
 
-    let immediate_retry = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let immediate_retry = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert_eq!(immediate_retry.swings_ready, 0);
     assert_eq!(immediate_retry.melee_range_rejections, 0);
@@ -385,7 +405,11 @@ fn legacy_creature_melee_tick_once_invalid_damage_roll_rearms_base_timer_like_cp
         .unwrap()
         .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert_eq!(outcome.swings_ready, 1);
     assert_eq!(outcome.melee_precondition_rejections, 1);
@@ -453,7 +477,11 @@ fn legacy_creature_melee_tick_once_checks_range_before_dead_victim_like_cpp() {
         .unwrap()
         .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert_eq!(outcome.swings_ready, 1);
     assert_eq!(outcome.melee_range_rejections, 1);
@@ -509,7 +537,11 @@ fn legacy_creature_melee_tick_once_attacker_state_rejection_consumes_swing_like_
         .unwrap()
         .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let rejected = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let rejected = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert_eq!(rejected.swings_ready, 1);
     assert_eq!(rejected.melee_range_rejections, 0);
@@ -539,7 +571,11 @@ fn legacy_creature_melee_tick_once_attacker_state_rejection_consumes_swing_like_
         );
     }
 
-    let immediate_retry = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let immediate_retry = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert_eq!(immediate_retry.swings_ready, 0);
     assert_eq!(immediate_retry.attacker_state_rejections, 0);
@@ -615,7 +651,11 @@ fn legacy_creature_melee_tick_once_removes_attacking_auras_on_compatibility_hit_
         .unwrap()
         .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert_eq!(outcome.swings_ready, 1);
     assert_eq!(outcome.melee_outcomes_unrepresented, 1);
@@ -698,7 +738,11 @@ fn legacy_creature_melee_tick_once_preserves_compatibility_creature_damage_like_
         .unwrap()
         .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert_eq!(outcome.swings_ready, 1);
     assert_eq!(outcome.melee_outcomes_unrepresented, 1);
@@ -788,7 +832,11 @@ fn legacy_creature_melee_tick_once_prevents_postmortem_cross_kill_like_cpp() {
         .unwrap()
         .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert_eq!(outcome.swings_ready, 2);
     assert_eq!(outcome.melee_outcomes_unrepresented, 1);
@@ -988,4 +1036,170 @@ async fn map_owned_player_melee_applies_attacker_ignore_target_resist_like_cpp()
         860,
         "50% ignore-resist halves the 5,000 armour before the reduction curve"
     );
+}
+
+/// C++ `Unit::RollMeleeOutcomeAgainst`'s miss band for a creature attacker
+/// against a player victim, through the production ownership path.
+///
+/// C++ `MeleeSpellMissChance` (`Unit.cpp:11652-11685`) starts from the victim's
+/// flat `GetUnitMissChance()` of `5.0` and subtracts the creature attacker's
+/// zero `m_modMeleeHitChance` (`Unit.cpp:360`), its
+/// `SPELL_AURA_MOD_HIT_CHANCE` sum and the victim's
+/// `SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE` sum. A miss publishes
+/// `HITINFO_MISS`/`VICTIMSTATE_INTACT` with zero dealt damage and no health
+/// transition.
+#[test]
+fn legacy_creature_melee_tick_once_resolves_player_victim_miss_like_cpp() {
+    use crate::map_manager::RuntimeTickOwner;
+    use wow_packet::packets::combat::{
+        HIT_INFO_AFFECTS_VICTIM, HIT_INFO_MISS, VICTIM_STATE_INTACT,
+    };
+
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    canonical.lock().unwrap().create_world_map(0, 0);
+
+    let player = ObjectGuid::create_player(1, 91_140);
+    let creature_guid = test_creature_guid(91_141);
+
+    let (mut session, _, _) = make_session();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+        wow_data::MapEntry {
+            id: 0,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        },
+    ])));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player,
+        "Victim".to_string(),
+        Position::new(10.0, 10.0, 0.0, 0.0),
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(100);
+        })
+        .unwrap();
+    register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+    session
+        .mutate_world_creature(creature_guid, |creature| {
+            creature
+                .creature
+                .set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
+            creature.creature.unit_mut().set_combat_reach(0.0);
+            creature.creature.ai_ownership_mut().min_damage = 10;
+            creature.creature.ai_ownership_mut().max_damage = 10;
+            creature.enter_combat(player);
+            creature.creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+        })
+        .unwrap();
+
+    let mut spell_store = wow_data::SpellStore::new();
+    for (spell_id, amount) in [(91_150_i32, 5_i32), (91_151, -100)] {
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: amount,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+                ),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura:
+                        wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+                    effect_base_points: amount,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    let spell_store = Arc::new(spell_store);
+    session.set_spell_store(Arc::clone(&spell_store));
+    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+        spell_store: Some(Arc::clone(&spell_store)),
+        ..Default::default()
+    };
+    manager
+        .write()
+        .unwrap()
+        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+    let victim_health = |canonical: &SharedCanonicalMapManager| {
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(player)
+            .unwrap()
+            .unit()
+            .data()
+            .health
+    };
+    let reset_swing = |session: &mut WorldSession| {
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            })
+            .unwrap();
+    };
+
+    // `+5` cancels the flat 5.0, so the swing is guaranteed to land.
+    session
+        .apply_aura(91_150, player, 30_000, 1)
+        .expect("apply hit-chance aura");
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    assert_eq!(outcome.swings_ready, 1);
+    assert_eq!(outcome.melee_outcomes_unrepresented, 1);
+    assert_eq!(outcome.canonical_hits, 1);
+    assert_eq!(outcome.commands.len(), 1);
+    assert_eq!(outcome.commands[0].damage, 10);
+    assert_eq!(outcome.commands[0].original_damage, 10);
+    assert_eq!(outcome.commands[0].hit_info, HIT_INFO_AFFECTS_VICTIM);
+    assert_eq!(victim_health(&canonical), 90);
+
+    // The `-100` sum makes the miss band cover the whole roll.
+    session
+        .apply_aura(91_151, player, 30_000, 1)
+        .expect("apply miss aura");
+    reset_swing(&mut session);
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    assert_eq!(outcome.swings_ready, 1);
+    assert_eq!(
+        outcome.melee_outcomes_unrepresented, 0,
+        "the represented miss band resolves the swing"
+    );
+    assert_eq!(outcome.canonical_hits, 0, "a miss commits no hit");
+    assert_eq!(outcome.commands.len(), 1);
+    assert_eq!(outcome.commands[0].damage, 0);
+    // C++ keeps the post-armour `OriginalDamage` on an avoided swing.
+    assert_eq!(outcome.commands[0].original_damage, 10);
+    assert_eq!(outcome.commands[0].hit_info, HIT_INFO_MISS);
+    assert_eq!(outcome.commands[0].victim_state, VICTIM_STATE_INTACT);
+    assert_eq!(victim_health(&canonical), 90, "a miss deals no damage");
 }

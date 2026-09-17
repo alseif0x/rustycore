@@ -566,7 +566,11 @@ fn legacy_combat_ai_no_melee_fixture_preserves_rng_until_due_15691_hit_like_cpp(
         .unwrap();
     assert!((4_750..=10_000).contains(&initial_due_in_ms));
 
-    let melee = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let melee = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
     assert_eq!(melee.melee_precondition_rejections, 1);
     assert_eq!(melee.swings_ready, 0);
     assert_eq!(melee.canonical_hits, 0);

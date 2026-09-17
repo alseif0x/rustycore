@@ -597,7 +597,11 @@ fn legacy_creature_melee_tick_once_preserves_compatibility_player_damage_like_cp
         .unwrap()
         .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert!(!outcome.skipped_owner_not_global);
     assert_eq!(outcome.maps_seen, 1);
@@ -688,7 +692,11 @@ fn legacy_creature_melee_tick_once_two_attackers_commit_only_one_lethal_player_h
         .unwrap()
         .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert_eq!(outcome.swings_ready, 2);
     assert_eq!(outcome.melee_outcomes_unrepresented, 1);
@@ -783,7 +791,11 @@ fn legacy_creature_melee_tick_once_rejects_missing_canonical_attacker_before_sid
         .unwrap()
         .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
 
     assert_eq!(outcome.swings_ready, 1);
     assert_eq!(outcome.melee_precondition_rejections, 1);

@@ -383,7 +383,11 @@ fn legacy_turret_ai_cast_resets_attack_timer_and_never_melees_like_cpp() {
             assert!(creature.can_swing());
         })
         .unwrap();
-    let melee = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let melee = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
     assert_eq!(melee.swings_ready, 0);
     assert_eq!(melee.canonical_hits, 0);
     assert!(melee.commands.is_empty());

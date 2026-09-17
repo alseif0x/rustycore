@@ -314,6 +314,9 @@ fn visibility_barrier_preserves_entire_durable_suffix_fifo_like_cpp() {
                 target_level: 80,
                 victim_health_after: 97,
                 victim_health_state_revision_after: 1,
+                hit_info: wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM,
+                victim_state: wow_packet::packets::combat::VICTIM_STATE_HIT,
+                original_damage: 3,
             },)
         );
     }

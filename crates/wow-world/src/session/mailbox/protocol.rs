@@ -423,6 +423,14 @@ pub struct ApplyCreatureMeleeDamageLikeCppCommand {
     pub target_level: u8,
     pub victim_health_after: u64,
     pub victim_health_state_revision_after: u64,
+    /// C++ `CalcDamageInfo::HitInfo` (`UnitDefines.h:440-465`), already resolved
+    /// by the map-owned swing. An avoided swing carries its avoid flags here.
+    pub hit_info: u32,
+    /// C++ `CalcDamageInfo::TargetState` (`Unit.h:45-55`).
+    pub victim_state: u8,
+    /// C++ `CalcDamageInfo::OriginalDamage`: the post-outcome value the
+    /// attacker-state packet serializes beside the dealt damage.
+    pub original_damage: u32,
 }
 
 /// Payload for a map-owned creature aggro transition against one player.

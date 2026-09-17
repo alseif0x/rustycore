@@ -181,7 +181,11 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
             assert!(creature.can_swing());
         })
         .unwrap();
-    let melee = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+    let melee = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
     assert_eq!(melee.runtime_rng_authority_rejections, 0);
     assert_eq!(melee.melee_outcomes_unrepresented, 1);
     assert_eq!(melee.swings_ready, 1);
