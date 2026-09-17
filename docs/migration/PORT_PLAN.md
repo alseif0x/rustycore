@@ -33,6 +33,17 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 creature-to-player melee miss band — 2026-09-17, implementation
+`51041a70`:** a creature swing against a player victim now rolls
+`MeleeSpellMissChance`'s flat 5.0 minus the attacker's `MOD_HIT_CHANCE` and the
+victim's `MOD_ATTACKER_MELEE_HIT_CHANCE` sums, publishes
+`HITINFO_MISS`/`VICTIMSTATE_INTACT` with zero damage and no health write, and
+removes the attacking-interrupt auras like `AttackerStateUpdate`; the runtime
+scenario drives a `+5` aura to a landed hit and a `-100` aura to a miss.
+wow-world 3986/0/1, wow-packet 744/0, wow-entities 940/0, world-server 594/0/0;
+player-victim dodge/parry/block/crit, armour and taken terms remain boundaries;
+no live DB/restart/relogin QA.
+
 **#29 ignore-target-resist armour term — 2026-09-17, implementation
 `73140a7c`:** `CalcArmorReducedDamage`'s attacker
 `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` sum now shrinks the victim's armour with
