@@ -139,9 +139,9 @@
     },
     {
       "path": "crates/wow-data/src/spell/mod.rs",
-      "observed_lines": 127,
-      "ceiling_lines": 127,
-      "split": "Separate the spell metadata and proc rules from the module root. #646 moves the `spell_effect_types` and `aura_types` constant modules to their own files and the remaining definitions into two state modules, dropping the root from 2,093 to 121 lines and tightening the ceiling to that figure; the root keeps the imports, the small inline constant modules and the composition. Item-for-item with the crate's 724 tests unchanged. #61 adds six inseparable lines to the deliberately-kept inline `attributes` module: the `SPELL_ATTR3_IGNORE_CASTER_MODIFIERS` and `SPELL_ATTR6_IGNORE_CASTER_DAMAGE_MODIFIERS` words consumed by the represented `Unit::SpellDamagePctDone` early-outs, each with its `SharedDefines.h` anchor.",
+      "observed_lines": 130,
+      "ceiling_lines": 130,
+      "split": "Separate the spell metadata and proc rules from the module root. #646 moves the `spell_effect_types` and `aura_types` constant modules to their own files and the remaining definitions into two state modules, dropping the root from 2,093 to 121 lines and tightening the ceiling to that figure; the root keeps the imports, the small inline constant modules and the composition. Item-for-item with the crate's 724 tests unchanged. #61 adds six inseparable lines to the deliberately-kept inline `attributes` module: the `SPELL_ATTR3_IGNORE_CASTER_MODIFIERS` and `SPELL_ATTR6_IGNORE_CASTER_DAMAGE_MODIFIERS` words consumed by the represented `Unit::SpellDamagePctDone` early-outs, each with its `SharedDefines.h` anchor. #61 adds three more inseparable lines for `SPELL_ATTR6_IGNORE_HEALING_MODIFIERS` (`SharedDefines.h:680`), consumed by the represented `Unit::SpellHealingPctDone` early-outs.",
       "review_checkpoint": "584:C4"
     },
     {
