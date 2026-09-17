@@ -33,6 +33,15 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 `ModHealingDonePercent` publication — 2026-09-17, implementation
+`cbbb3a49`:** `Player::UpdateHealingDonePercentMod`
+(`StatSystem.cpp:588-599`) is produced as the product of `1 + amount/100` over
+`SPELL_AURA_MOD_HEALING_DONE_PERCENT` (136) effects and published through the
+canonical snapshot, the create block and the narrow values update (bit 61).
+`ModTargetResistance`/`ModTargetPhysicalResistance` remain the next gate.
+wow-data --lib 751/0, wow-entities --lib 940/0, wow-world --lib 3926/0/1,
+wow-packet --lib 742/0; no live DB/restart/relogin QA.
+
 **#61 `ModDamageDonePercent` publication — 2026-09-17, implementation
 `b11a04cb`:** `HandleModDamagePercentDone`
 (`SpellAuraEffects.cpp:4525-4548`) is produced as the per-school product of
