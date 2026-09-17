@@ -33,12 +33,23 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 victim aurastate/aura-mechanic melee bonuses — 2026-09-17, implementation
+`1d33f078`:** the white swing now also applies `MeleeDamageBonusDone`'s
+`SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE` (303, via the victim's
+`HasAuraState`) and `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE_BY_TARGET_AURA_MECHANIC`
+(249, via `HasAuraWithMechanic`) multipliers in both owners, sharing one
+receiver-free `HasAuraWithMechanic` implementation with the spell-damage path.
+Boundary: a canonical-player victim through the runtime's non-creature branch
+still contributes no masks. wow-world --lib 3962/0/1; no live DB/restart/relogin
+QA.
+
 **#61 melee creature-type damage bonus — 2026-09-17, implementation `db3c2db6`:**
 the white swing now applies `MeleeDamageBonusDone`'s creature-type flat (`59`),
 AP-versus (`102` with `GetAPMultiplier`) and percentage (`168`) terms in both
 owners, with the victim creature type resolved from the newly plumbed
 `creature_template_lifecycle_store` on the runtime config. Versus-aurastate and
-target-aura-mechanic melee terms remain open. wow-data --lib 753/0,
+target-aura-mechanic melee terms were the next unit, delivered by the entry above.
+wow-data --lib 753/0,
 wow-entities --lib 940/0, wow-world --lib 3960/0/1; no live DB/restart/relogin
 QA.
 
