@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`d64a4aa9702bf3a78e7acd8710f6800f4a8e94e5` (PR #1099, the #29 controlled-victim
-avoidance gate, following PR #1097, the #29 ignore-dual-wield
+`d6980e2acc856968a68aba150949215a216d916b` (PR #1101, the #29 melee evade
+outcome, following PR #1099, the #29 controlled-victim
+avoidance gate, PR #1097, the #29 ignore-dual-wield
 hit-penalty aura, PR #1095, the #29 victim conditional
 critical-chance auras, PR #1093, the #29 victim avoidance
 auras, PR #1091, the #29 victim-side melee
@@ -19,6 +20,28 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 melee evade outcome — 2026-09-17, implementation `10cf9234`, integrated as
+`d6980e2a` by PR #1101:** C++ `Unit::RollMeleeOutcomeAgainst`
+(`Unit.cpp:2274-2275`) returns `MELEE_HIT_EVADE` before any band for a creature
+victim whose `IsEvadingAttacks()` holds, and `Unit::CalculateMeleeDamage`'s evade
+branch (`Unit.cpp:1345-1355`) publishes
+`HITINFO_MISS | HITINFO_SWINGNOHITSOUND` with `VICTIMSTATE_EVADES` and zero
+damage; the represented table had no evade outcome.
+`RepresentedMeleeOutcomeLikeCpp` gained `Evade`, the outcome inputs and victim
+facts an `is_evading_attacks` flag resolved from the creature in both owners, and
+`melee_outcome_like_cpp` returns it before rolling; `wow-packet` gained
+`HIT_INFO_SWING_NO_HIT_SOUND` and `VICTIM_STATE_EVADES`. Evidence: the band test
+asserts an evading victim short-circuits at rolls 0 and 9999, the damage and
+presentation tests pin `(0, 0)` and the evade flags, and
+`white_swing_publishes_an_evade_like_cpp` drives the session owner from a normal
+7 damage hit to zero damage with `VICTIMSTATE_EVADES` once
+`set_in_evade_mode_like_cpp(true)` is applied; wow-packet 744/0, wow-data 753/0,
+wow-entities 940/0, wow-world 3984/0/1 and world-server 594/0/0 pass; format,
+`git diff --check` and the physical ratchet pass without new ceiling growth, and
+`validation-v2 quick` (manifest `20260917T153350.701096Z-2963268-quick.json`)
+passes. No live DB/restart/relogin QA. #29 remains open for the remaining
+spell/melee math.
 
 **#29 controlled-victim avoidance gate — 2026-09-17, implementation `f15252bd`,
 integrated as `d64a4aa9` by PR #1099:** C++ `Unit::RollMeleeOutcomeAgainst`
