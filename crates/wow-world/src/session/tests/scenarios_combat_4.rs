@@ -407,6 +407,7 @@ fn melee_attack_table_matches_roll_melee_outcome_against_like_cpp() {
         can_parry: true,
         is_evading_attacks: false,
         always_crits: false,
+        is_immune_to_damage: false,
     };
     for (roll, expected) in [
         (0, Outcome::Miss),
@@ -528,6 +529,17 @@ fn melee_attack_table_outcome_effects_match_calculate_melee_damage_like_cpp() {
         (70, 0, 100)
     );
 
+    // C++ returns before any band on a physical-immune victim, publishing a
+    // zero `HITINFO_NORMALSWING` with `VICTIMSTATE_IS_IMMUNE`.
+    assert_eq!(
+        melee_outcome_damage_like_cpp(Outcome::Immune, 100, 80, 80, 1.0, 30.0),
+        (0, 0, 100)
+    );
+    assert_eq!(
+        melee_outcome_presentation_like_cpp(Outcome::Immune, false),
+        (0, wow_packet::packets::combat::VICTIM_STATE_IS_IMMUNE)
+    );
+
     assert_eq!(
         melee_outcome_presentation_like_cpp(Outcome::Evade, false),
         (
@@ -615,6 +627,7 @@ fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
         faces_attacker: true,
         is_controlled: false,
         is_stand_state: true,
+        is_immune_to_damage: false,
     };
     let inputs = melee_outcome_inputs_like_cpp(&attacker, &creature);
     // C++ `MeleeSpellMissChance`: 5.0 + 0 (two-hander) - 7.5 -> clamped to 0.

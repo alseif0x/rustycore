@@ -106,6 +106,13 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
             // health, which every stage keeps.
             50,
         ),
+        (
+            91_153,
+            wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY,
+            0,
+            // `MiscValue` is the school mask: the normal school.
+            0x01,
+        ),
     ] {
         spell_store.insert(
             spell_id,
@@ -125,6 +132,13 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
                     effect_aura: aura_type,
+                    effect_misc_value_1: if aura_type
+                        == wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY
+                    {
+                        misc_value_b
+                    } else {
+                        0
+                    },
                     effect_misc_value_2: misc_value_b,
                     effect_base_points: amount,
                     ..Default::default()
@@ -214,6 +228,42 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
     assert_eq!(outcome.commands[0].hit_info, HIT_INFO_MISS);
     assert_eq!(outcome.commands[0].victim_state, VICTIM_STATE_INTACT);
     assert_eq!(victim_health(&canonical), 90, "a miss deals no damage");
+
+    // C++ `IsImmunedToDamage(SPELL_SCHOOL_MASK_NORMAL)` ends the swing before
+    // every band (`Unit.cpp:1315-1324`): the packet keeps the zero
+    // `HITINFO_NORMALSWING` and publishes `VICTIMSTATE_IS_IMMUNE` with no
+    // damage.
+    session
+        .apply_aura(91_153, player, 30_000, 1)
+        .expect("apply school-immunity aura");
+    reset_swing(&mut session);
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let command = outcome.commands[0].clone();
+    assert_eq!(outcome.canonical_hits, 0, "an immune swing commits no hit");
+    assert_eq!(command.damage, 0);
+    assert_eq!(command.hit_info, 0, "HITINFO_NORMALSWING is 0x0");
+    assert_eq!(
+        command.victim_state,
+        wow_packet::packets::combat::VICTIM_STATE_IS_IMMUNE
+    );
+    assert_eq!(victim_health(&canonical), 90);
+    // The later avoidance stages need the immunity gone again.
+    let immunity_slot = session
+        .canonical_player_snapshot_like_cpp(|player| {
+            player
+                .unit()
+                .subsystems()
+                .auras
+                .runtime_applications_like_cpp()
+                .iter()
+                .find(|(_, aura)| aura.spell_id == 91_153)
+                .map(|(slot, _)| *slot)
+        })
+        .flatten()
+        .expect("immunity aura slot");
+    session
+        .remove_aura(immunity_slot)
+        .expect("remove immunity aura");
 
     // The miss aura is removed again: the `+5` victim aura keeps the flat 5.0
     // band at zero, so only the avoidance/crit bands decide the later stages.

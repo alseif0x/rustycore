@@ -12,6 +12,11 @@
 /// C++ `MeleeHitOutcome` (`UnitDefines.h:389-403`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedMeleeOutcomeLikeCpp {
+    /// C++ `CalculateMeleeDamage`'s physical immunity return
+    /// (`Unit.cpp:1315-1324`): the victim is immune to the swing's school, so
+    /// the swing ends before any damage roll or band with
+    /// `HITINFO_NORMALSWING`/`VICTIMSTATE_IS_IMMUNE` and zero damage.
+    Immune,
     /// C++ `MELEE_HIT_EVADE`: an evading creature victim returns this before any
     /// band is rolled (`Unit.cpp:2274-2275`).
     Evade,
@@ -64,6 +69,10 @@ pub(crate) struct RepresentedMeleeOutcomeInputsLikeCpp {
     pub can_dodge: bool,
     /// C++ `canParryOrBlock`: the victim faces the attacker.
     pub can_parry: bool,
+    /// C++ `victim->IsImmunedToDamage(schoolMask)`
+    /// (`Unit.cpp:7320-7336`): a physical immune check that precedes the whole
+    /// table.
+    pub is_immune_to_damage: bool,
     /// C++ `victim->ToCreature()->IsEvadingAttacks()`: the table returns
     /// `MELEE_HIT_EVADE` before rolling.
     pub is_evading_attacks: bool,
@@ -87,6 +96,7 @@ impl RepresentedMeleeOutcomeInputsLikeCpp {
         can_parry: false,
         is_evading_attacks: false,
         always_crits: false,
+        is_immune_to_damage: false,
     };
 }
 
@@ -107,6 +117,11 @@ pub(crate) fn melee_outcome_like_cpp(
     inputs: &RepresentedMeleeOutcomeInputsLikeCpp,
     roll: i32,
 ) -> RepresentedMeleeOutcomeLikeCpp {
+    // C++ ends the swing before every band when the victim is immune to the
+    // attack's school.
+    if inputs.is_immune_to_damage {
+        return RepresentedMeleeOutcomeLikeCpp::Immune;
+    }
     // C++ returns `MELEE_HIT_EVADE` before the bands when the victim is an
     // evading creature.
     if inputs.is_evading_attacks {
@@ -226,7 +241,8 @@ pub(crate) fn melee_outcome_damage_like_cpp(
     block_percent_like_cpp: f32,
 ) -> (u32, u32, u32) {
     match outcome {
-        RepresentedMeleeOutcomeLikeCpp::Evade
+        RepresentedMeleeOutcomeLikeCpp::Immune
+        | RepresentedMeleeOutcomeLikeCpp::Evade
         | RepresentedMeleeOutcomeLikeCpp::Miss
         | RepresentedMeleeOutcomeLikeCpp::Dodge
         | RepresentedMeleeOutcomeLikeCpp::Parry => (0, 0, damage),
@@ -266,12 +282,20 @@ pub(crate) fn melee_outcome_presentation_like_cpp(
 ) -> (u32, u8) {
     use wow_packet::packets::combat::{
         HIT_INFO_AFFECTS_VICTIM, HIT_INFO_BLOCK, HIT_INFO_CRITICAL_HIT, HIT_INFO_GLANCING,
-        HIT_INFO_MISS, HIT_INFO_OFFHAND, HIT_INFO_SWING_NO_HIT_SOUND, VICTIM_STATE_DODGE,
-        VICTIM_STATE_EVADES, VICTIM_STATE_HIT, VICTIM_STATE_INTACT, VICTIM_STATE_PARRY,
+        HIT_INFO_MISS, HIT_INFO_NORMALSWING, HIT_INFO_OFFHAND, HIT_INFO_SWING_NO_HIT_SOUND,
+        VICTIM_STATE_DODGE, VICTIM_STATE_EVADES, VICTIM_STATE_HIT, VICTIM_STATE_INTACT,
+        VICTIM_STATE_IS_IMMUNE, VICTIM_STATE_PARRY,
     };
 
     let mut hit_info = if offhand { HIT_INFO_OFFHAND } else { 0 };
     let victim_state = match outcome {
+        RepresentedMeleeOutcomeLikeCpp::Immune => {
+            // C++ ORs `HITINFO_NORMALSWING` (`0x0`) and returns before the
+            // `HITINFO_AFFECTS_VICTIM` line, so a main-hand immune swing
+            // publishes a zero `hitInfo` with `VICTIMSTATE_IS_IMMUNE`.
+            hit_info |= HIT_INFO_NORMALSWING;
+            VICTIM_STATE_IS_IMMUNE
+        }
         RepresentedMeleeOutcomeLikeCpp::Evade => {
             // C++ `CalculateMeleeDamage`'s `MELEE_HIT_EVADE` branch sets both
             // `HITINFO_MISS` and `HITINFO_SWINGNOHITSOUND` (`Unit.cpp:1345-1355`).
@@ -396,6 +420,10 @@ pub(crate) struct RepresentedMeleeVictimFactsLikeCpp {
     pub crit_chance_for_caster_pct: f32,
     /// C++ `canParryOrBlock`: `victim->HasInArc(M_PI, attacker)`.
     pub faces_attacker: bool,
+    /// C++ `victim->IsImmunedToDamage(SPELL_SCHOOL_MASK_NORMAL)`
+    /// (`Unit.cpp:7320-7336`): the victim's school-immunity mask covers the
+    /// whole swing school, so the swing ends before any band.
+    pub is_immune_to_damage: bool,
     /// C++ `victim->HasUnitState(UNIT_STATE_CONTROLLED)`: a controlled victim
     /// can neither dodge nor parry/block (`Unit.cpp:2296-2304`).
     pub is_controlled: bool,
@@ -488,6 +516,7 @@ pub(crate) fn melee_outcome_inputs_like_cpp(
                 can_parry: can_avoid,
                 is_evading_attacks: false,
                 always_crits: !victim.is_stand_state && crit_chance_pct > 0.0,
+                is_immune_to_damage: victim.is_immune_to_damage,
             }
         });
     }
@@ -541,6 +570,7 @@ pub(crate) fn melee_outcome_inputs_like_cpp(
             can_dodge: victim.is_creature && !victim.is_controlled,
             can_parry: victim.is_creature && victim.faces_attacker && !victim.is_controlled,
             is_evading_attacks: victim.is_evading_attacks,
+            is_immune_to_damage: victim.is_immune_to_damage,
             // The sitting-target rule only applies to a player victim.
             always_crits: false,
         }

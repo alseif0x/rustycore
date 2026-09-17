@@ -603,6 +603,14 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                     .unit()
                                     .has_unit_state(wow_constants::unit::UnitState::CONTROLLED.bits()),
                                 is_stand_state: player.unit().is_stand_state_like_cpp(),
+                                is_immune_to_damage:
+                                    crate::session_rules::player_aura_effects_full_by_spell_aura_type_like_cpp(
+                                        auras,
+                                        spell_store,
+                                        wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY,
+                                    )
+                                    .into_iter()
+                                    .any(|effect| effect.misc_value & 0x01 != 0),
                                 ..Default::default()
                             };
                             // C++ `CalcArmorReducedDamage`'s victim side: the
@@ -699,7 +707,8 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                             outcome_represented = true;
                             if matches!(
                                 rolled,
-                                crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Evade
+                                crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Immune
+                                    | crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Evade
                                     | crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Miss
                                     | crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Dodge
                                     | crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Parry
@@ -898,6 +907,15 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                             wow_constants::unit::UnitState::CONTROLLED.bits(),
                                         ),
                                         is_stand_state: true,
+                                        // C++ `IsImmunedToDamage(NORMAL)`: a
+                                        // `SPELL_AURA_SCHOOL_IMMUNITY` effect
+                                        // whose `MiscValue` covers the normal
+                                        // school.
+                                        is_immune_to_damage: effects.iter().any(|effect| {
+                                            effect.aura_type
+                                                == wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY
+                                                && effect.misc_value & 0x01 != 0
+                                        }),
                                     };
                                     (facts, victim.combat_log_stats_like_cpp().armor, effects)
                                 })
@@ -958,7 +976,8 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                             creature_victim_presentation = Some((info, state, blocked as i32));
                             creature_victim_avoided = matches!(
                                 rolled,
-                                crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Evade
+                                crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Immune
+                                    | crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Evade
                                     | crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Miss
                                     | crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Dodge
                                     | crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Parry

@@ -329,6 +329,7 @@ impl WorldSession {
                         is_creature: true,
                         is_player: false,
                         is_stand_state: true,
+                        is_immune_to_damage: false,
                         is_totem: creature.creature.is_totem_unit_type_like_cpp(),
                         is_evading_attacks: creature.creature.is_evading_attacks_like_cpp(),
                         dodge_pct: creature.creature.avoidance_like_cpp().dodge_pct,
