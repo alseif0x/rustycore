@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`4c750401b97d48e1e180221e1ba8672f0d1e9728` (PR #1137, the #29
-creature-victim evade scenario, following PR #1131, the #29
+`2884a1850dffefd2df41fd7773de0fc9af26cbff` (PR #1140, the #29
+creature-victim parry scenario, following PR #1137, the #29
+creature-victim evade scenario, PR #1131, the #29
 creature-victim melee fixture determinism fix, PR #1129, the #29
 creature-victim blocked-amount publication, PR #1127, the #29
 creature-victim block-band scenario, PR #1125, the #29
@@ -53,6 +54,23 @@ represented creature-aura producer), the player-victim block band (needs the
 the target build's negative crushing band, and live DB/restart/relogin QA. The
 next unit should be the `ExpectedStat` consumer, whose store already exists in
 `wow-data` with no consumer.
+
+**#29 creature-victim parry scenario — 2026-09-17, implementation `292e8ca4`,
+integrated as `2884a185` by PR #1140:** PR #1125 made the victim creature's
+whole avoidance table reachable, but the production runtime scenario only
+exercised miss, dodge, evade, block and crit, so the parry band had no runtime
+coverage. The scenario now sets the canonical victim's
+`CreatureAvoidanceLikeCpp::parry_pct` to 100 and asserts the swing commits no
+hit, deals no damage, and decodes `victimState` sequentially from the plan-event
+packet (after `hitInfo`, both packed guids, damage, original, over and the
+sub-damage flag) to require `VICTIMSTATE_PARRY` on the wire, matching C++
+`CalculateMeleeDamage`'s parry arm (`Unit.cpp:1380-1390`). With this, every
+creature-victim band (miss, dodge, parry, evade, block, crit) has production
+runtime coverage; the player-victim bands already did. Evidence: `wow-world
+--lib` 3990/0/1 on three consecutive runs, `world-server --lib` 594/0/0 and
+`wow-packet --lib` 744/0; format, `git diff --check` and the physical ratchet
+pass, and `validation-v2 quick` (manifest
+`20260917T194253.489532Z-3348541-quick.json`) passes.
 
 **#29 creature-victim evade scenario — 2026-09-17, implementation `772895c2`,
 integrated as `4c750401` by PR #1137:** C++ `Unit::RollMeleeOutcomeAgainst`
