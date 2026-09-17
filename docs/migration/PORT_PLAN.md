@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 `HandleShapeshiftBoosts` — 2026-09-17, implementation `9cb30cd8`:** a
+shapeshift now applies the form's hardcoded boost spells and every known passive
+whose `Stances` admits the form, and sweeps the self-cast auras the new form no
+longer admits (`SpellAuraEffects.cpp:1325-1464`). The skill-boost /
+`UpdateDisplayPower` half remains open. wow-data --lib 753/0, wow-entities --lib
+940/0, wow-world --lib 3955/0/1; no live DB/restart/relogin QA.
+
 **#61 form-change item effect refresh — 2026-09-17, implementation
 `5c427e5c`:** a shapeshift now refreshes the equipped items' form-gated equip
 spells and item-set auras, wiring the previously test-only item-set refresh
