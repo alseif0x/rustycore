@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`865dd22830b9ce4542b87016f0c110b343173364` (PR #1123, the #29
-creature-victim miss band and outcome publication, following PR #1121, the #29
+`96708a82abf172e8c7ff3fee2bd1c6570ea51d2e` (PR #1125, the #29
+creature-victim avoidance and crit bands, following PR #1123, the #29
+creature-victim miss band and outcome publication, PR #1121, the #29
 melee scenario-suite split, PR #1119, the #29
 creature-victim melee mitigation, PR #1117, the #29
 player-victim melee damage-taken chain, PR #1115, the #29
@@ -31,6 +32,37 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 creature-victim avoidance and crit bands — 2026-09-17, implementation
+`505b9fbe`, integrated as `96708a82` by PR #1125:** C++
+`Unit::RollMeleeOutcomeAgainst` (`Unit.cpp:2272-2360`) reads the victim's
+`GetUnitDodgeChance`/`GetUnitParryChance`/`GetUnitBlockChance` creature branch
+(its `CreatureBaseStats`-seeded avoidance plus the `MOD_*_PERCENT` aura sums and
+the victim-level bonus), `GetUnitCriticalChanceAgainst` and the facing/controlled
+gates for every victim, but the represented creature-victim branch only passed
+the miss terms, so a creature victim could never dodge, parry, block or be
+critically hit. The branch now resolves the full victim facts from the canonical
+creature — `CreatureAvoidanceLikeCpp`, `is_totem_unit_type_like_cpp`,
+`is_evading_attacks_like_cpp`, the percentage and attacker-side aura sums, the
+health-conditioned and for-caster critical sums, the facing and controlled gates
+— together with the full creature-attacker facts (base `5.0` critical unless
+`CREATURE_FLAG_EXTRA_NO_CRIT`, `MOD_WEAPON_CRIT_PERCENT`/`MOD_CRIT_PCT`,
+`MOD_AUTOATTACK_CRIT_CHANCE`, `MOD_EXPERTISE / 4`, combat-result and
+enemy-dodge sums, crit-damage multiplier). `melee_outcome_inputs_like_cpp` and
+`melee_outcome_damage_like_cpp` were already complete for creature victims, so
+this is the runtime resolution only; the evade short-circuit and the flat 30%
+creature block now take effect too. Evidence: the runtime scenario drives a
+landed mitigated 8-damage hit, then a 100% `CreatureAvoidanceLikeCpp` dodge with
+unchanged health and `canonical_creature_hits == 0`, then a `+100`
+`SPELL_AURA_MOD_CRIT_CHANCE_VERSUS_TARGET_HEALTH` critical for 16, then a `-200`
+hit-chance miss with `HITINFO_MISS` on the wire. wow-world 3990/0/1, wow-data
+753/0, wow-packet 744/0, wow-entities 940/0 and world-server 594/0/0 pass;
+format, `git diff --check` and the physical ratchet pass without new ceiling
+growth, and `validation-v2 quick` (manifest
+`20260917T190001.364083Z-3142500-quick.json`) passes. No live DB/restart/relogin
+QA. #29 remains open for the remaining spell/melee math; the creature attacker's
+`MeleeDamageBonusDone`, the player-victim block band and the target build's
+negative crushing term remain the melee boundaries.
 
 **#29 creature-victim miss band and outcome publication — 2026-09-17,
 implementation `242aa446`, integrated as `865dd228` by PR #1123:** C++
