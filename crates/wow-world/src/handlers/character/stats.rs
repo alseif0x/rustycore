@@ -355,6 +355,7 @@ impl WorldSession {
             item_spell_penetration: gear.spell_penetration_bonus,
             target_physical_resistance_aura,
             weapon_damage_pct: self.represented_weapon_damage_pct_like_cpp(),
+            weapon_damage_flat: self.represented_weapon_damage_flat_like_cpp(),
         }
     }
 
@@ -699,6 +700,7 @@ impl WorldSession {
             mod_target_resistance: projection.mod_target_resistance,
             mod_target_physical_resistance: projection.mod_target_physical_resistance,
             weapon_damage_pct: projection.weapon_damage_pct,
+            weapon_damage_flat: projection.weapon_damage_flat,
             versatility_bonus: projection.versatility_bonus,
             override_spell_power_by_ap_percent: projection.override_spell_power_by_ap_percent,
             override_ap_by_spell_power_percent: projection.override_ap_by_spell_power_percent,

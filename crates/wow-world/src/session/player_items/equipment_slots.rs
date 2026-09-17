@@ -118,6 +118,38 @@ impl WorldSession {
         })
     }
 
+    /// C++ `Unit::UpdateDamageDoneMods` (`Unit.cpp:8997-9027`), reached from
+    /// `HandleModDamageDone` (`SpellAuraEffects.cpp:4497-4505`) through
+    /// `Unit::UpdateAllDamageDoneMods`: the `UNIT_MOD_DAMAGE_*` `TOTAL_VALUE` is
+    /// the sum of every active `SPELL_AURA_MOD_DAMAGE_DONE` (13) effect that
+    /// covers `SPELL_SCHOOL_MASK_NORMAL` and fits the attack's weapon.
+    ///
+    /// The weapon-enchantment `ITEM_ENCHANTMENT_TYPE_DAMAGE`/`TOTEM` term that
+    /// `Player::UpdateDamageDoneMods` (`Player.cpp:4965-5015`) adds for an
+    /// enchanted weapon is not represented and remains a separate gate.
+    pub(crate) fn represented_weapon_damage_flat_like_cpp(&self) -> [i32; 3] {
+        let effects = self
+            .resolved_aura_effects_with_spell_and_misc_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE,
+            )
+            .unwrap_or_default();
+        std::array::from_fn(|index| {
+            let attack =
+                <wow_constants::WeaponAttackType as num_traits::FromPrimitive>::from_usize(index)
+                    .unwrap_or(wow_constants::WeaponAttackType::BaseAttack);
+            let weapon_item_id = self.represented_usable_weapon_item_id_like_cpp(attack);
+            effects
+                .iter()
+                .filter(|(spell_id, misc_value, _)| {
+                    misc_value & SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP != 0
+                        && self
+                            .represented_aura_spell_fits_weapon_like_cpp(*spell_id, weapon_item_id)
+                })
+                .map(|(_, _, amount)| *amount)
+                .sum()
+        })
+    }
+
     /// C++ `Player::UpdateWeaponDependentCritAuras` (`Player.cpp:8079-8107`):
     /// the `SPELL_AURA_MOD_WEAPON_CRIT_PERCENT` sum filtered by
     /// `CheckAttackFitToAuraRequirement` (`Player.cpp:8145-8156`) for the
