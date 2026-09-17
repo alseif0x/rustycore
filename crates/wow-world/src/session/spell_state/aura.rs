@@ -362,6 +362,69 @@ impl WorldSession {
             .unwrap_or(0)
     }
 
+    /// C++ `AuraEffect::HandleModAttackSpeed`/`HandleModMeleeSpeedPct`/
+    /// `HandleModCombatSpeedPct`/`HandleAuraModRangedHaste`
+    /// (`SpellAuraEffects.cpp:4353-4393`): the per-attack `m_modAttackSpeedPct`
+    /// product over the player's active attack-speed auras.
+    ///
+    /// `Unit::ApplyAttackTimePercentMod` converts a positive amount with
+    /// `100 / (100 + amount)` and a negative amount with `(100 - amount) / 100`,
+    /// which this reproduces. Boundary: the C++
+    /// `GetHighestExclusiveSameEffectSpellGroupValue` de-duplication of
+    /// `SPELL_AURA_MOD_MELEE_HASTE`/`MELEE_SLOW` needs the spell-group tables
+    /// that the represented session does not load yet, so every active effect is
+    /// multiplied here.
+    pub(in crate::session) fn represented_attack_speed_multipliers_like_cpp(&self) -> [f32; 3] {
+        use wow_data::spell::aura_types::{
+            SPELL_AURA_MELEE_SLOW, SPELL_AURA_MOD_ATTACKSPEED, SPELL_AURA_MOD_MELEE_HASTE,
+            SPELL_AURA_MOD_MELEE_HASTE_2, SPELL_AURA_MOD_MELEE_HASTE_3,
+            SPELL_AURA_MOD_MELEE_RANGED_HASTE, SPELL_AURA_MOD_MELEE_RANGED_HASTE_2,
+            SPELL_AURA_MOD_RANGED_HASTE, SPELL_AURA_MOD_SPEED_SLOW_ALL,
+        };
+
+        let mut multipliers = [1.0_f32; 3];
+        let mut apply = |aura_type: i32, attacks: &[usize]| {
+            for (_, amount) in self
+                .resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
+                .unwrap_or_default()
+            {
+                let amount = amount as f32;
+                let factor = if amount > 0.0 {
+                    100.0 / (100.0 + amount)
+                } else {
+                    (100.0 - amount) / 100.0
+                };
+                for attack in attacks {
+                    if let Some(slot) = multipliers.get_mut(*attack) {
+                        *slot *= factor;
+                    }
+                }
+            }
+        };
+        apply(SPELL_AURA_MOD_ATTACKSPEED, &[0]);
+        apply(SPELL_AURA_MOD_MELEE_HASTE, &[0, 1]);
+        apply(SPELL_AURA_MOD_MELEE_HASTE_2, &[0, 1]);
+        apply(SPELL_AURA_MOD_MELEE_HASTE_3, &[0, 1]);
+        apply(SPELL_AURA_MOD_RANGED_HASTE, &[2]);
+        apply(SPELL_AURA_MOD_MELEE_RANGED_HASTE, &[0, 1, 2]);
+        apply(SPELL_AURA_MOD_MELEE_RANGED_HASTE_2, &[0, 1, 2]);
+        apply(SPELL_AURA_MELEE_SLOW, &[0, 1, 2]);
+        apply(SPELL_AURA_MOD_SPEED_SLOW_ALL, &[0, 1, 2]);
+        multipliers
+    }
+
+    /// Re-install the represented attack-time multipliers on the canonical
+    /// Player after any aura mutation, mirroring the C++ aura handlers that call
+    /// `Unit::ApplyAttackTimePercentMod` at apply/remove time.
+    pub(in crate::session) fn sync_represented_attack_speed_like_cpp(&mut self) {
+        let multipliers = self.represented_attack_speed_multipliers_like_cpp();
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player
+                .unit_mut()
+                .apply_attack_time_multipliers_like_cpp(multipliers);
+        });
+    }
+
     pub(in crate::session) fn calculate_represented_mounted_aura_amount_like_cpp(
         &self,
         spell_id: i32,

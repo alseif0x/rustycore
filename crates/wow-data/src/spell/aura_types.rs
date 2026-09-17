@@ -103,6 +103,10 @@ pub const SPELL_AURA_MOD_INCREASE_HEALTH_PERCENT: i32 = 133;
 pub const SPELL_AURA_MOD_MANA_REGEN_INTERRUPT: i32 = 134;
 pub const SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS: i32 = 130;
 pub const SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE: i32 = 137;
+/// C++ `AuraType::SPELL_AURA_MOD_ATTACKSPEED` (`SpellAuraDefines.h:104`):
+/// `AuraEffect::HandleModAttackSpeed` (`SpellAuraEffects.cpp:4353-4361`) scales
+/// the main-hand attack time.
+pub const SPELL_AURA_MOD_ATTACKSPEED: i32 = 9;
 pub const SPELL_AURA_MOD_MELEE_HASTE: i32 = 138;
 pub const SPELL_AURA_FORCE_REACTION: i32 = 139;
 pub const SPELL_AURA_MOD_RANGED_HASTE: i32 = 140;
@@ -120,6 +124,19 @@ pub const SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK: i32 = 172;
 pub const SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE: i32 = 184;
 pub const SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED: i32 = 191;
 pub const SPELL_AURA_MOD_MELEE_RANGED_HASTE: i32 = 192;
+/// C++ `AuraType::SPELL_AURA_MELEE_SLOW` (`SpellAuraDefines.h:288`):
+/// `AuraEffect::HandleModCombatSpeedPct` (`SpellAuraEffects.cpp:4330-4351`)
+/// scales every attack time (and the cast time).
+pub const SPELL_AURA_MELEE_SLOW: i32 = 193;
+/// C++ `AuraType::SPELL_AURA_MOD_MELEE_HASTE_2` (`SpellAuraDefines.h:312`),
+/// handled like `SPELL_AURA_MOD_MELEE_HASTE`.
+pub const SPELL_AURA_MOD_MELEE_HASTE_2: i32 = 217;
+/// C++ `AuraType::SPELL_AURA_MOD_SPEED_SLOW_ALL` (`SpellAuraDefines.h:347`),
+/// handled like `SPELL_AURA_MELEE_SLOW`.
+pub const SPELL_AURA_MOD_SPEED_SLOW_ALL: i32 = 252;
+/// C++ `AuraType::SPELL_AURA_MOD_MELEE_RANGED_HASTE_2`
+/// (`SpellAuraDefines.h:437`), handled like `SPELL_AURA_MOD_MELEE_RANGED_HASTE`.
+pub const SPELL_AURA_MOD_MELEE_RANGED_HASTE_2: i32 = 342;
 /// C++ `AuraType::SPELL_AURA_MOD_XP_PCT`.
 pub const SPELL_AURA_MOD_XP_PCT: i32 = 200;
 pub const SPELL_AURA_FLY: i32 = 201;
