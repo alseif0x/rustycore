@@ -33,6 +33,16 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 white-swing armour mitigation — 2026-09-17, implementation `a739c8a4`:** the
+white swing now applies `Unit::CalcArmorReducedDamage` (victim `GetArmor()`,
+`CR_ARMOR_PENETRATION` with the C++ cap, the attacker's normal-school
+`SPELL_AURA_MOD_TARGET_RESISTANCE` sum, the level-59 extension and the 75% clamp)
+in both owners, from one receiver-free rule; the attacker's armour-penetration
+percentage is a new canonical `PlayerEffectiveCombatStatsLikeCpp` value so the map
+runtime needs no combat-ratings table. The hit table and the
+`MeleeDamageBonusTaken` chain remain open. wow-world --lib 3967/0/1,
+world-server --lib 594/0/0; no live DB/restart/relogin QA.
+
 **#29 white-swing damage roll — 2026-09-17, implementation `cdc6ea1a`:** the white
 swing now rolls `Unit::CalculateDamage`'s `urand(min, max)` over the published
 `UnitData` range instead of always using the lower bound; the rule lives in the

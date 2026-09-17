@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`eae76cf230a1175b7ec2caf4bee4ea6e4a044cd5` (PR #1083, the #29 white-swing
-damage roll, following PR #1081, the #65 GameObject
+`9cc0ea20fcee1f058c5933294936a18ed7a4992b` (PR #1085, the #29 white-swing armour
+mitigation, following PR #1083, the #29 white-swing
+damage roll, PR #1081, the #65 GameObject
 respawn-save test fidelity fix, PR #1079, the #61 victim
 aurastate/aura-mechanic melee bonuses, PR #1077, the #61 melee
 creature-type damage bonus, PR #1075, the #61 cast-speed auras, PR #1073, the #61 white-swing auto-attack damage aura, PR #1071, the #61 displayed-power ownership, PR #1069, the #61 `HandleShapeshiftBoosts`, PR #1067, the #61 form-change item effect refresh, PR #1065, the #61 shapeshift form ownership and `CombatRoundTime`, PR #1063, the #61 attack-speed aura application, PR #1061, the #61 `CONFIG_STATS_LIMITS_*` caps, PR #1059, the #61 `BonusCoefficientFromAP` table term, PR #1057, the #61 `SpellHealingPctDone` completion, PR #1055, the #61 remaining `SpellDamagePctDone` terms, PR #1053, the #61 health-derived unit aura states, PR #1051, the #61 mechanic-based damage multipliers, PR #1049, the #61 versus-aurastate damage multiplier, following PR #1047, the creature missing-health heal scaling, PR #1045, the versus-creature-type damage multiplier, PR #1043, the missing-health healing scaling, PR #1041, the `SpellHealingBonusTaken`, PR #1039, the victim `ModHealing` term, PR #1037, the direct-heal spell-power bonus, PR #1035, the school damage percentage, PR #1033, the caster spell-power damage bonus, PR #1031, the weapon-enchantment damage term, PR #1029, the ranged weapon fit, PR #1027, the `Unit::UpdateDamageDoneMods` representation, PR #1025, the `UpdateDamagePctDoneMods` representation, PR #1023, the `VersatilityBonus` publication, PR #1021, the override percentage publication, PR #1019, the `ModTargetResistance`/spell-penetration publication, PR #1017, the `ModHealingDonePercent` publication, PR #1015, the `ModDamageDonePercent` publication, PR #1013, the narrow values-update negative spell field, PR #1011, the spell field wire publication, PR #1009, the spell damage/healing done producers, PR #1007, the override-attack-power-by-spell-power aura, PR #1005, the seven stale `wow-world --lib` expectations, PR #1003, the quest party fixture identity fix, PR #1001, the save-snapshot manager-lock re-entry fix, PR #999, the session reputation-closure lock re-entry deadlock fix, PR #997, the collection appearance `CanUseItem` template gates, PR #995, the collection appearance weapon-proficiency gate, PR #993, the #61 attack power aura producers, PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
@@ -11,6 +12,48 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 white-swing armour mitigation — 2026-09-17, implementation `a739c8a4`,
+integrated as `9cc0ea20` by PR #1085:** C++ `Unit::CalculateMeleeDamage`
+(`Unit.cpp:1326-1339`) runs the rolled and bonus-adjusted damage through
+`Unit::CalcArmorReducedDamage` (`Unit.cpp:1623-1685`) before the hit table; the
+represented white swing skipped armour, so every auto-attack landed at full value
+against armoured victims. `session_rules::armor_reduced_damage_like_cpp`
+implements the formula — the victim's `GetArmor()` (a creature's
+`CreatureBaseStats::GenerateArmor`), the attacker's live
+`CR_ARMOR_PENETRATION` percentage with C++'s `maxArmorPen` cap, the attacker's
+`SPELL_AURA_MOD_TARGET_RESISTANCE` (123) sum covering
+`SPELL_SCHOOL_MASK_NORMAL`, the level-59 extension and the 75% clamp — while
+`GetArmorMultiplierForTarget` is `1.0` for every 3.4.3 unit.
+`PlayerEffectiveCombatStatsLikeCpp` gained `armor_penetration_pct`, written once
+by the stat projection as `GetRatingBonusValue(CR_ARMOR_PENETRATION)` clamped to
+100, so both swing owners read one canonical value and the map runtime needs no
+combat-ratings table; `RepresentedArmorMitigationLikeCpp` carries the resolved
+inputs into the shared `take_canonical_player_attack_swings_like_cpp`, with the
+session resolving them in `represented_melee_armor_mitigation_like_cpp` and the
+map-owned `GlobalLegacy` runtime resolving the creature's armour/level plus the
+attacker's snapshot and aura sum. Boundary:
+`SPELL_AURA_BYPASS_ARMOR_FOR_CASTER` (345) and
+`SPELL_AURA_MOD_IGNORE_TARGET_RESIST` (269) have no represented producer, the
+`SpellModOp::TargetResistance` adjustment cannot apply to an auto-attack, a
+canonical-player victim contributes no armour in either owner (that snapshot
+belongs to the victim's session), the represented Player has no
+`SetMeleeDamageSchool` override so the swing is physical, and the final
+`max(1.0).round()` conversion is unchanged. Evidence:
+`armor_reduction_matches_calc_armor_reduced_damage_like_cpp` pins the formula
+(armour 0/5,000/10,000,000, 25%/100% penetration, a cancelled armour value and
+the sub-60 cap), `white_swing_applies_victim_armor_mitigation_like_cpp` holds the
+session owner to 753/1,000 damage and proves a non-normal
+`MOD_TARGET_RESISTANCE` row is ignored while the normal row cancels the armour,
+and `map_owned_player_melee_applies_victim_armor_mitigation_like_cpp` holds the
+production map-owned tick to the same 753/1,000; wow-world --lib is 3967/0/1 and
+world-server --lib 594/0/0; format, `git diff --check` and the physical ratchet
+pass, and `validation-v2 quick` (manifest
+`20260917T124035.688694Z-2724130-quick.json`) passes. `validation-v2 final` stops
+only at the pre-existing `hotspot-ratchet` baseline failure (manifest
+`20260917T124051.127247Z-2724225-final.json`). No live DB/restart/relogin QA. #29
+remains open for the `RollMeleeOutcomeAgainst` hit table, the
+`MeleeDamageBonusTaken` victim chain and the remaining spell/melee math.
 
 **#29 white-swing damage roll — 2026-09-17, implementation `cdc6ea1a`, integrated
 as `eae76cf2` by PR #1083:** C++ `Unit::CalculateMeleeDamage`
@@ -28,7 +71,8 @@ is not ready consumes nothing. The draw mirrors C++'s process-global
 wrapper (the mapping `docs/migration/common.md` records for `urand`); the
 creature-owned RNG stream is a separate later design for creature runtime
 authority and is untouched. Boundary: the rest of `CalculateMeleeDamage` (the
-`RollMeleeOutcomeAgainst` hit table and `CalcArmorReducedDamage` mitigation), the
+`RollMeleeOutcomeAgainst` hit table and the `CalcArmorReducedDamage` mitigation,
+the latter delivered by the entry above), the
 `MeleeDamageBonusTaken` victim chain and the final `max(1.0).round()` conversion
 remain as they were. Evidence:
 `white_swing_roll_bounds_follow_calculate_damage_like_cpp` pins the
