@@ -1058,6 +1058,12 @@ async fn spell_direct_heal_applies_spell_power_and_healing_percent_like_cpp() {
             0,
             25,
         ),
+        (
+            90_953_i32,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_DONE_PCT_VERSUS_TARGET_HEALTH,
+            0,
+            100,
+        ),
     ] {
         spell_store.insert(
             aura_spell_id,
@@ -1122,6 +1128,28 @@ async fn spell_direct_heal_applies_spell_power_and_healing_percent_like_cpp() {
 
     // The third cast: `int32(255 * (1 - 0.5) * (1 + 0.25)) = 159`.
     assert_eq!(session.player_health_like_cpp(), 739);
+
+    // C++ `SpellHealingPctDone`: the target's missing health scales healing for
+    // `SPELL_AURA_MOD_HEALING_DONE_PCT_VERSUS_TARGET_HEALTH` (100 -> +50% at
+    // half health). The taken auras are removed so the assertions stay exact.
+    for aura_spell_id in [90_951_i32, 90_952_i32] {
+        let slot = session
+            .visible_aura_slot_for_spell_like_cpp(aura_spell_id)
+            .expect("taken aura slot");
+        session.remove_aura(slot).expect("remove taken aura");
+    }
+    session
+        .apply_aura(90_953, guid, 30_000, 1)
+        .expect("apply missing-health healing aura");
+    session.set_player_health_like_cpp(500, 1_000);
+    session
+        .execute_spell(spell_id, guid)
+        .await
+        .expect("fourth represented direct heal should scale by missing health");
+
+    // `int32((100 + int32(140 * 0.5)) * (1.5 * (1 + (100 * 50 / 100) / 100)))`
+    // `= int32(170 * 2.25) = 382`.
+    assert_eq!(session.player_health_like_cpp(), 882);
 }
 
 #[tokio::test]
