@@ -499,14 +499,17 @@ impl WorldSession {
     /// `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE_BY_TARGET_AURA_MECHANIC` (249)
     /// multiplier for every victim aura mechanic, and the additive
     /// `SPELL_AURA_MOD_DAMAGE_DONE_FOR_MECHANIC` (276) percentage for the cast
-    /// effect's mechanic.
+    /// effect's mechanic, then the Mage Ice Lance (`*3` on a frozen victim) and
+    /// Warlock Drain Soul (`*2` while the caster is wounded) scripted terms.
+    /// `SPELL_ATTR3_IGNORE_CASTER_MODIFIERS` and
+    /// `SPELL_ATTR6_IGNORE_CASTER_DAMAGE_MODIFIERS` return `1.0f` before any term
+    /// is read.
     ///
-    /// Boundary: the family-scripted terms (`SPELLFAMILY_MAGE` Ice Lance,
-    /// `SPELLFAMILY_WARLOCK` Shadow Bite / Drain Soul) and the
-    /// `SPELL_ATTR3_IGNORE_CASTER_MODIFIERS` /
-    /// `SPELL_ATTR6_IGNORE_CASTER_DAMAGE_MODIFIERS` early-outs remain
-    /// unrepresented, and a target whose creature type, aura state or mechanics
-    /// cannot be resolved keeps only the multipliers that did resolve.
+    /// Boundary: the Warlock Shadow Bite per-DoT term, the
+    /// `SPELL_AURA_ABILITY_IGNORE_AURASTATE` shortcut of `Unit::HasAuraState` and
+    /// the `SpellFamilyName` switch guard (the id is family-unique instead)
+    /// remain unrepresented, and a target whose creature type, aura state or
+    /// mechanics cannot be resolved keeps only the multipliers that did resolve.
     fn represented_spell_damage_pct_done_like_cpp(
         &self,
         spell_id: i32,
@@ -514,6 +517,26 @@ impl WorldSession {
         school_mask: u8,
         target_guid: ObjectGuid,
     ) -> Option<f32> {
+        // C++ `SpellDamagePctDone` early-outs (`Unit.cpp:6690-6698`).
+        if let Some(spell_store) = self.spell_store() {
+            let difficulty = self.current_map_difficulty_id_like_cpp();
+            let difficulty_store = self.difficulty_store().map(AsRef::as_ref);
+            if spell_store.has_attribute_for_difficulty_like_cpp(
+                spell_id,
+                difficulty,
+                difficulty_store,
+                3,
+                wow_data::spell::attributes::SPELL_ATTR3_IGNORE_CASTER_MODIFIERS,
+            ) || spell_store.has_attribute_for_difficulty_like_cpp(
+                spell_id,
+                difficulty,
+                difficulty_store,
+                6,
+                wow_data::spell::attributes::SPELL_ATTR6_IGNORE_CASTER_DAMAGE_MODIFIERS,
+            ) {
+                return Some(1.0);
+            }
+        }
         let snapshot = self.canonical_player_effective_combat_stats_like_cpp()?;
         let mask = u32::from(school_mask);
         let mut max_mod = 0.0_f32;
@@ -578,6 +601,32 @@ impl WorldSession {
                 .sum::<i32>();
             if pct != 0 {
                 max_mod *= 1.0 + pct as f32 / 100.0;
+            }
+        }
+        // Custom scripted damage (`Unit.cpp:6748-6770`). The represented
+        // `SpellInfo` has no `SpellFamilyName`, so the family switch is keyed by
+        // the globally unique spell id and the `SPELLFAMILY_MAGE` /
+        // `SPELLFAMILY_WARLOCK` guard is implied rather than read.
+        const ICE_LANCE_LIKE_CPP: i32 = 228598;
+        const DRAIN_SOUL_LIKE_CPP: i32 = 198590;
+        if spell_id == ICE_LANCE_LIKE_CPP {
+            // C++ `victim->HasAuraState(AURA_STATE_FROZEN, spellProto, this)`.
+            // Boundary: the `SPELL_AURA_ABILITY_IGNORE_AURASTATE` caster
+            // shortcut in `Unit::HasAuraState` is not represented.
+            let frozen = 1_u32 << (wow_entities::AURA_STATE_FROZEN - 1);
+            if self.represented_target_aura_state_mask_like_cpp(target_guid) & frozen != 0 {
+                max_mod *= 3.0;
+            }
+        } else if spell_id == DRAIN_SOUL_LIKE_CPP {
+            // C++ `HasAuraState(AURA_STATE_WOUNDED_20_PERCENT)` reads the caster.
+            let wounded = 1_u32 << (wow_entities::AURA_STATE_WOUNDED_20_PERCENT - 1);
+            if self
+                .represented_player_aura_state_mask_like_cpp()
+                .unwrap_or(0)
+                & wounded
+                != 0
+            {
+                max_mod *= 2.0;
             }
         }
         Some(max_mod)
