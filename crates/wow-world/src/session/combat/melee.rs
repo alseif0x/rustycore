@@ -49,6 +49,9 @@ pub(in crate::session) struct RepresentedArmorMitigationLikeCpp {
     pub victim_armor: i32,
     pub armor_penetration_pct: f32,
     pub target_resistance_normal_aura: i32,
+    /// The attacker's `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` (269) sum for
+    /// `SPELL_SCHOOL_MASK_NORMAL`.
+    pub ignore_target_resist_normal_pct: f32,
 }
 
 impl RepresentedArmorMitigationLikeCpp {
@@ -58,6 +61,7 @@ impl RepresentedArmorMitigationLikeCpp {
         victim_armor: 0,
         armor_penetration_pct: 0.0,
         target_resistance_normal_aura: 0,
+        ignore_target_resist_normal_pct: 0.0,
     };
 }
 
@@ -444,6 +448,17 @@ impl WorldSession {
             .filter(|(misc_value, _)| misc_value & 0x01 != 0)
             .map(|(_, amount)| amount)
             .sum::<i32>();
+        // C++ applies every `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` effect of the
+        // normal school as `std::floor(AddPct(armor, -amount))`.
+        let ignore_target_resist_normal_pct = self
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST,
+            )
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|(misc_value, _)| misc_value & 0x01 != 0)
+            .map(|(_, amount)| amount as f32)
+            .sum::<f32>();
         let Some(manager) = self.map_manager.as_ref() else {
             return RepresentedArmorMitigationLikeCpp::NONE;
         };
@@ -473,6 +488,7 @@ impl WorldSession {
             victim_armor,
             armor_penetration_pct,
             target_resistance_normal_aura,
+            ignore_target_resist_normal_pct,
         }
     }
 
