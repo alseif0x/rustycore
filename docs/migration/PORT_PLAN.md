@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 cast-speed auras — 2026-09-17, implementation `fa7abbfd`:** haste auras now
+shorten the prepared cast time (state, `timed` gate and `SMSG_SPELL_START`),
+with `SetInstantCast` represented as a zero multiplier, and the mislabeled
+`SPELL_AURA_HASTE_SPELLS` constant fixed. Cooldown recovery (`ModHasteRegen`) and
+spell-group de-duplication remain open. wow-data --lib 753/0, wow-entities --lib
+940/0, wow-world --lib 3959/0/1; no live DB/restart/relogin QA.
+
 **#61 white-swing auto-attack damage aura — 2026-09-17, implementation
 `02f1affc`:** `SPELL_AURA_MOD_AUTOATTACK_DAMAGE` now scales the represented white
 swing for both owners; the aura-effect projection moved into a receiver-free

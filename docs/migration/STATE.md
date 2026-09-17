@@ -1,12 +1,48 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`ccab6018cab0b681ad3ed0645b398f1429566bc5` (PR #1073, the #61 white-swing auto-attack damage aura, following PR #1071, the #61 displayed-power ownership, PR #1069, the #61 `HandleShapeshiftBoosts`, PR #1067, the #61 form-change item effect refresh, PR #1065, the #61 shapeshift form ownership and `CombatRoundTime`, PR #1063, the #61 attack-speed aura application, PR #1061, the #61 `CONFIG_STATS_LIMITS_*` caps, PR #1059, the #61 `BonusCoefficientFromAP` table term, PR #1057, the #61 `SpellHealingPctDone` completion, PR #1055, the #61 remaining `SpellDamagePctDone` terms, PR #1053, the #61 health-derived unit aura states, PR #1051, the #61 mechanic-based damage multipliers, PR #1049, the #61 versus-aurastate damage multiplier, following PR #1047, the creature missing-health heal scaling, PR #1045, the versus-creature-type damage multiplier, PR #1043, the missing-health healing scaling, PR #1041, the `SpellHealingBonusTaken`, PR #1039, the victim `ModHealing` term, PR #1037, the direct-heal spell-power bonus, PR #1035, the school damage percentage, PR #1033, the caster spell-power damage bonus, PR #1031, the weapon-enchantment damage term, PR #1029, the ranged weapon fit, PR #1027, the `Unit::UpdateDamageDoneMods` representation, PR #1025, the `UpdateDamagePctDoneMods` representation, PR #1023, the `VersatilityBonus` publication, PR #1021, the override percentage publication, PR #1019, the `ModTargetResistance`/spell-penetration publication, PR #1017, the `ModHealingDonePercent` publication, PR #1015, the `ModDamageDonePercent` publication, PR #1013, the narrow values-update negative spell field, PR #1011, the spell field wire publication, PR #1009, the spell damage/healing done producers, PR #1007, the override-attack-power-by-spell-power aura, PR #1005, the seven stale `wow-world --lib` expectations, PR #1003, the quest party fixture identity fix, PR #1001, the save-snapshot manager-lock re-entry fix, PR #999, the session reputation-closure lock re-entry deadlock fix, PR #997, the collection appearance `CanUseItem` template gates, PR #995, the collection appearance weapon-proficiency gate, PR #993, the #61 attack power aura producers, PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`a7b1faf00d61cd293eed3396f9d12521cca3bfc0` (PR #1075, the #61 cast-speed auras, following PR #1073, the #61 white-swing auto-attack damage aura, PR #1071, the #61 displayed-power ownership, PR #1069, the #61 `HandleShapeshiftBoosts`, PR #1067, the #61 form-change item effect refresh, PR #1065, the #61 shapeshift form ownership and `CombatRoundTime`, PR #1063, the #61 attack-speed aura application, PR #1061, the #61 `CONFIG_STATS_LIMITS_*` caps, PR #1059, the #61 `BonusCoefficientFromAP` table term, PR #1057, the #61 `SpellHealingPctDone` completion, PR #1055, the #61 remaining `SpellDamagePctDone` terms, PR #1053, the #61 health-derived unit aura states, PR #1051, the #61 mechanic-based damage multipliers, PR #1049, the #61 versus-aurastate damage multiplier, following PR #1047, the creature missing-health heal scaling, PR #1045, the versus-creature-type damage multiplier, PR #1043, the missing-health healing scaling, PR #1041, the `SpellHealingBonusTaken`, PR #1039, the victim `ModHealing` term, PR #1037, the direct-heal spell-power bonus, PR #1035, the school damage percentage, PR #1033, the caster spell-power damage bonus, PR #1031, the weapon-enchantment damage term, PR #1029, the ranged weapon fit, PR #1027, the `Unit::UpdateDamageDoneMods` representation, PR #1025, the `UpdateDamagePctDoneMods` representation, PR #1023, the `VersatilityBonus` publication, PR #1021, the override percentage publication, PR #1019, the `ModTargetResistance`/spell-penetration publication, PR #1017, the `ModHealingDonePercent` publication, PR #1015, the `ModDamageDonePercent` publication, PR #1013, the narrow values-update negative spell field, PR #1011, the spell field wire publication, PR #1009, the spell damage/healing done producers, PR #1007, the override-attack-power-by-spell-power aura, PR #1005, the seven stale `wow-world --lib` expectations, PR #1003, the quest party fixture identity fix, PR #1001, the save-snapshot manager-lock re-entry fix, PR #999, the session reputation-closure lock re-entry deadlock fix, PR #997, the collection appearance `CanUseItem` template gates, PR #995, the collection appearance weapon-proficiency gate, PR #993, the #61 attack power aura producers, PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#61 cast-speed auras — 2026-09-17, implementation `fa7abbfd`, integrated as
+`a7b1faf0` by PR #1075:** C++ `Spell::prepare` stores `m_casttime` after
+`Unit::ApplyCastTimePercentMod` (`Unit.cpp:10229-10252`), driven by
+`AuraEffect::HandleModCastingSpeed` (`SpellAuraEffects.cpp:4272-4315`) and
+`HandleModCombatSpeedPct` (`4330-4351`). The represented cast state copied the
+raw DB2 `CastTime`, so haste auras never shortened a cast.
+`represented_cast_speed_multiplier_like_cpp` folds
+`SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK` (65), `SPELL_AURA_HASTE_SPELLS` (216),
+`SPELL_AURA_MELEE_SLOW` (193) and `SPELL_AURA_MOD_SPEED_SLOW_ALL` (252) with the
+C++ conversion (positive `100/(100+amount)`, negative `(100-amount)/100`), and a
+total of `1000` is C++'s `SetInstantCast`, represented as a zero multiplier. The
+`player_cast::Runtime` seam gained `cast_time_multiplier` (default `1.0`) and
+`prepare` applies it once when building `SpellCastState`, so the stored state,
+the `timed` gate and the published `SMSG_SPELL_START` agree; the session
+implements it from its canonical auras. A mislabeled constant found while wiring
+this was fixed: the file declared both `SPELL_AURA_HASTE_SPELLS = 73` and
+`SPELL_AURA_MOD_POWER_COST_SCHOOL = 73`, while C++ has
+`MOD_POWER_COST_SCHOOL = 73` and `HASTE_SPELLS = 216`, so the duplicate was
+removed and its only (test) consumer updated. Boundary: the spell-group
+de-duplication and the `ModHasteRegen` cooldown-recovery consumer remain
+unrepresented. Evidence: the new scenario prepares a 1500 ms cast with and
+without a +50% aura and asserts the stored cast time is 1500 then 1000, with the
+multiplier reading `100/150`; wow-data --lib 753/0, wow-entities --lib 940/0 and
+wow-world --lib 3959/0/1 pass, as do format, `git diff --check`, the physical
+ratchet and `validation-v2 quick` (manifest
+`20260917T095808.364454Z-2630347-quick.json`). No live DB/restart/relogin QA.
+#61 stays open for the remaining `MeleeDamageBonusDone` terms (which need the
+victim's creature type and mechanic masks, so the map-owned runtime needs the
+creature-template store plumbed into `LegacyCreatureAggroConfigLikeCpp`), the
+Shadow Bite per-DoT term, the blocked victim-side
+`SpellDamageBonusTaken`/`MeleeDamageBonusTaken` chains (creature aura producers
+are absent), the ranged/offhand attack-type selection for the AP term, the
+offhand-damage aura scale, the player-killer (PvP)
+`CONFIG_DURABILITY_LOSS_IN_PVP` branch, alternate powers, rune regeneration and
+live DB/restart/relogin QA.
 
 **#61 white-swing auto-attack damage aura — 2026-09-17, implementation
 `02f1affc`, integrated as `ccab6018` by PR #1073:** C++
