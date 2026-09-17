@@ -151,6 +151,10 @@ pub const SPELL_AURA_MOD_SPEED_NO_CONTROL: i32 = 373;
 pub const SPELL_AURA_MOD_MANA_REGEN_PCT: i32 = 379;
 pub const SPELL_AURA_SCHOOL_HEAL_ABSORB: i32 = 301;
 pub const SPELL_AURA_IGNORE_SPELL_COOLDOWN: i32 = 383;
+/// C++ `AuraType::SPELL_AURA_MOD_HEALING_DONE_PCT_VERSUS_TARGET_HEALTH`
+/// (`SpellAuraDefines.h:449`): `Unit::SpellHealingPctDone` (`Unit.cpp:7224-7227`)
+/// scales healing done by the target's missing health percentage.
+pub const SPELL_AURA_MOD_HEALING_DONE_PCT_VERSUS_TARGET_HEALTH: i32 = 354;
 /// C++ `AuraType::SPELL_AURA_MOD_HEALING_PCT` (`SpellAuraDefines.h:213`):
 /// `Unit::SpellHealingBonusTaken` (`Unit.cpp:7231-7239`) applies the most
 /// positive and most negative active amount to healing the unit receives.

@@ -552,7 +552,28 @@ impl WorldSession {
             return base_heal;
         };
         let done_total = (benefit as f32 * coefficient) as i32;
-        let heal = (base_heal as f32 + done_total as f32) * snapshot.mod_healing_done_percent;
+        // C++ `Unit::SpellHealingPctDone` (`Unit.cpp:7204-7229`): the healing
+        // done percentage plus the missing-health scaling auras. The aura's
+        // `IsAffectingSpell` family/flag gate is not represented, so the term
+        // applies to any represented heal the aura owner casts.
+        let mut done_total_mod = snapshot.mod_healing_done_percent;
+        if target_guid == player_guid {
+            let effects = self
+                .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_DONE_PCT_VERSUS_TARGET_HEALTH,
+                )
+                .unwrap_or_default();
+            if !effects.is_empty()
+                && let Some((health, max_health, _)) = self.resolved_player_vitals_like_cpp()
+            {
+                let health_pct_diff =
+                    (100.0 - 100.0 * health as f32 / max_health.max(1) as f32).max(0.0);
+                for (_, amount) in effects {
+                    done_total_mod *= 1.0 + (amount as f32 * health_pct_diff / 100.0) / 100.0;
+                }
+            }
+        }
+        let heal = (base_heal as f32 + done_total as f32) * done_total_mod;
         u32::try_from(heal.max(0.0).min(u32::MAX as f32) as u32).unwrap_or(u32::MAX)
     }
 
