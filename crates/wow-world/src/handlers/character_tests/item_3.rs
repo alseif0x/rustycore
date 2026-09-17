@@ -521,6 +521,7 @@ fn mainhand_bank_remove_clears_and_persists_weapon_only_enchant_like_cpp() {
         id,
         effect_arg: [0; 3],
         effect_points_min: [0; 3],
+        effect_scaling_points: [0.0; 3],
         item_visual: 0,
         flags,
         required_skill_id: 0,

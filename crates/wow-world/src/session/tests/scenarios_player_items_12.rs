@@ -1045,7 +1045,7 @@ async fn weapon_damage_pct_follows_update_damage_pct_done_mods_like_cpp() {
     let _ = session.send_stat_update();
     let baseline = stats(&session);
     assert_eq!(baseline.weapon_damage_pct, [1.0, 0.5, 1.0]);
-    assert_eq!(baseline.weapon_damage_flat, [0; 3]);
+    assert_eq!(baseline.weapon_damage_flat, [0.0; 3]);
     assert!(
         (baseline.weapon_damage[1][0] * 2.0 - baseline.weapon_damage[0][0]).abs() < 0.01,
         "the offhand TOTAL_PCT halves the represented range"
@@ -1057,7 +1057,7 @@ async fn weapon_damage_pct_follows_update_damage_pct_done_mods_like_cpp() {
     let _ = session.send_stat_update();
     let neutral = stats(&session);
     assert_eq!(neutral.weapon_damage_pct, [1.5, 0.75, 1.5]);
-    assert_eq!(neutral.weapon_damage_flat, [0; 3]);
+    assert_eq!(neutral.weapon_damage_flat, [0.0; 3]);
 
     // The sword-restricted aura applies to the mainhand only: the offhand
     // dagger fails `CheckAttackFitToAuraRequirement`, and the ranged attack has
@@ -1078,7 +1078,7 @@ async fn weapon_damage_pct_follows_update_damage_pct_done_mods_like_cpp() {
         .expect("apply physical flat damage aura");
     let _ = session.send_stat_update();
     let flat = stats(&session);
-    assert_eq!(flat.weapon_damage_flat, [20, 20, 20]);
+    assert_eq!(flat.weapon_damage_flat, [20.0, 20.0, 20.0]);
     assert!(
         (flat.weapon_damage[0][0] - (mainhand_before + 20.0 * 3.0)).abs() < 0.01,
         "the flat bonus is multiplied by the attack percentage"
@@ -1218,6 +1218,124 @@ async fn weapon_fit_resolves_the_ranged_weapon_like_cpp() {
     assert_eq!(stats.crit_pct, 5.0);
     assert_eq!(stats.offhand_crit_pct, 5.0);
     assert_eq!(stats.weapon_damage_pct, [1.0, 0.5, 2.0]);
+}
+
+#[tokio::test]
+async fn weapon_enchant_damage_adds_flat_and_shaman_totem_scaling_like_cpp() {
+    let weapon_id = 62_100u32;
+    let enchantment_id = 9_001u32;
+
+    let enchantment = wow_data::SpellItemEnchantmentEntry {
+        id: enchantment_id,
+        effect_arg: [0; 3],
+        // 25 flat damage and a shaman totem scaled by the 2.0 s weapon delay.
+        effect_scaling_points: [25.0, 10.0, 0.0],
+        effect_points_min: [0; 3],
+        item_visual: 0,
+        flags: wow_constants::SpellItemEnchantmentFlags::empty(),
+        required_skill_id: 0,
+        required_skill_rank: 0,
+        item_level: 0,
+        charges: 0,
+        effect: [2, 6, 0],
+        condition_id: 0,
+        min_level: 0,
+        max_level: 0,
+    };
+
+    for (class, expected_flat) in [(7u8, 45.0f32), (1u8, 25.0f32)] {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 62_100 + i64::from(class));
+        let weapon_guid = ObjectGuid::create_item(1, 62_100 + i64::from(class));
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, class, 80, 0);
+        session.set_player_stats(Arc::new(wow_data::PlayerStatsStore::from_entries([(
+            (1, class, 80),
+            wow_data::PlayerLevelStats {
+                strength: 10,
+                agility: 10,
+                stamina: 10,
+                intellect: 40,
+                spirit: 30,
+                base_mana: 0,
+            },
+        )])));
+        session.set_chr_classes_store(Arc::new(
+            wow_data::character_progression::ChrClassesStore::from_entries([{
+                let mut entry = wow_data::character_progression::ChrClassesEntry::default();
+                entry.id = u32::from(class);
+                entry
+            }]),
+        ));
+        crate::canonical_player_access::install_canonical_player_owner_for_test(
+            &mut session,
+            571,
+            0,
+        );
+        session.set_loaded_player_identity_like_cpp(571, 1, class, 80, 0);
+        session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
+            id: weapon_id,
+            class_id: ItemClass::Weapon as u8,
+            subclass_id: ItemSubClassWeapon::Sword as u8,
+            material: 0,
+            inventory_type: InventoryType::WeaponMainhand as i8,
+            sheathe_type: 0,
+            random_select: 0,
+            random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
+        }])));
+        session.set_item_stats_store(Arc::new(ItemStatsStore::from_weapon_templates([(
+            weapon_id,
+            wow_data::ItemWeaponTemplateEntry {
+                dmg_variance: 1.0,
+                item_delay: 2_000,
+                min_damage: [10, 0, 0, 0, 0],
+                max_damage: [20, 0, 0, 0, 0],
+                damage_damage_type: 0,
+            },
+        )])));
+        session.set_spell_item_enchantment_store(Arc::new(
+            wow_data::SpellItemEnchantmentStore::from_entries([enchantment]),
+        ));
+        session.set_spell_store(Arc::new(wow_data::SpellStore::new()));
+        let mut item = session.make_inventory_item_object(
+            weapon_guid,
+            weapon_id,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            wow_entities::EQUIPMENT_SLOT_MAINHAND,
+        );
+        item.set_enchantment(
+            wow_constants::EnchantmentSlot::EnhancementPermanent,
+            enchantment_id as i32,
+            0,
+            0,
+        );
+        session.insert_inventory_item_object(item);
+        session.insert_inventory_item_like_cpp(
+            wow_entities::EQUIPMENT_SLOT_MAINHAND,
+            InventoryItem {
+                guid: weapon_guid,
+                entry_id: weapon_id,
+                db_guid: weapon_guid.counter() as u64,
+                inventory_type: Some(InventoryType::WeaponMainhand as u8),
+            },
+        );
+        session.set_state(crate::session::SessionState::LoggedIn);
+        let _ = session.send_stat_update();
+        let stats = session
+            .canonical_player_effective_combat_stats_like_cpp()
+            .expect("enchant damage projection");
+        assert_eq!(
+            stats.weapon_damage_flat,
+            [expected_flat, 0.0, 0.0],
+            "class {class}: ITEM_ENCHANTMENT_TYPE_DAMAGE always applies and \
+             ITEM_ENCHANTMENT_TYPE_TOTEM applies to shamans only"
+        );
+    }
 }
 
 #[tokio::test]
