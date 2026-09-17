@@ -818,6 +818,7 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
             victim: victim_guid,
             hit_info,
             damage: damage.min(i32::MAX as u32) as i32,
+            original_damage: damage.min(i32::MAX as u32) as i32,
             over_damage,
             blocked: 0,
             victim_state: VICTIM_STATE_HIT,

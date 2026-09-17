@@ -52,7 +52,12 @@ pub(in crate::session) fn apply_player_melee_to_legacy_creature_like_cpp(
         // no damage, no tap and no threat.
         if damage == 0 {
             swings.push((0, false, -1));
-            swing_presentations.push((swing.hit_info, swing.victim_state, swing.blocked));
+            swing_presentations.push((
+                swing.hit_info,
+                swing.victim_state,
+                swing.blocked,
+                swing.original_damage,
+            ));
             continue;
         }
         let health_before = creature.current_hp();
@@ -72,7 +77,12 @@ pub(in crate::session) fn apply_player_melee_to_legacy_creature_like_cpp(
             .combat
             .add_threat(player_guid, damage as f32);
         swings.push((damage, died, over_damage));
-        swing_presentations.push((swing.hit_info, swing.victim_state, swing.blocked));
+        swing_presentations.push((
+            swing.hit_info,
+            swing.victim_state,
+            swing.blocked,
+            swing.original_damage,
+        ));
         if died {
             let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
             combat.clear_threat();

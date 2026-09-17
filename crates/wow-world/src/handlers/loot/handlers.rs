@@ -1677,6 +1677,7 @@ impl WorldSession {
                 victim: command.victim_guid,
                 hit_info: HIT_INFO_AFFECTS_VICTIM,
                 damage: command.damage.min(i32::MAX as u32) as i32,
+                original_damage: command.damage.min(i32::MAX as u32) as i32,
                 over_damage: command.over_damage,
                 blocked: 0,
                 victim_state: VICTIM_STATE_HIT,

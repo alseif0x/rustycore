@@ -810,6 +810,8 @@ fn white_swing_publishes_the_attack_table_outcome_like_cpp() {
 
     let misses = swing(&mut session).expect("missed swing still resolves");
     assert_eq!(misses[0].damage, 0);
+    // C++ keeps the post-armour `OriginalDamage` on an avoided swing.
+    assert_eq!(misses[0].original_damage, 7);
     assert_eq!(misses[0].hit_info, HIT_INFO_MISS);
     assert_eq!(misses[0].victim_state, VICTIM_STATE_INTACT);
 }

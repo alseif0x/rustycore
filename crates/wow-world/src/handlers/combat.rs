@@ -107,6 +107,7 @@ impl WorldSession {
                         victim: victim_guid,
                         hit_info: swing.hit_info,
                         damage: swing.damage as i32,
+                        original_damage: swing.original_damage as i32,
                         over_damage: swing.over_damage,
                         blocked: swing.blocked,
                         victim_state: swing.victim_state,
