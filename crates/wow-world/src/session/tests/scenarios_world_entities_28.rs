@@ -1082,6 +1082,11 @@ fn legacy_creature_melee_tick_once_mitigates_creature_victim_like_cpp() {
             creature.creature.unit_mut().set_level(80);
             creature.creature.ai_ownership_mut().min_damage = 10;
             creature.creature.ai_ownership_mut().max_damage = 10;
+            // The stages assert exact mitigated damage, so the attacker's flat
+            // 5% critical band stays off.
+            creature.creature.set_flags_extra_runtime_like_cpp(
+                wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
+            );
             creature.enter_combat(victim_guid);
             creature.creature.ai_ownership_mut().last_swing_ms = 0;
             creature.creature.ai_ownership_mut().swing_timer_ms = 0;
@@ -1264,6 +1269,12 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
             creature.creature.unit_mut().set_level(80);
             creature.creature.ai_ownership_mut().min_damage = 10;
             creature.creature.ai_ownership_mut().max_damage = 10;
+            // The landed and dodge stages assert exact numbers, so the flat 5%
+            // critical band is disabled; the critical stage supplies its own
+            // `+100` victim aura.
+            creature.creature.set_flags_extra_runtime_like_cpp(
+                wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
+            );
             creature.enter_combat(victim_guid);
             creature.creature.ai_ownership_mut().last_swing_ms = 0;
             creature.creature.ai_ownership_mut().swing_timer_ms = 0;
