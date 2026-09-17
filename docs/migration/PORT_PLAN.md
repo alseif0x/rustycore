@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 ranged weapon fit — 2026-09-17, implementation `9dd5c131`:** the
+weapon-fit producers now resolve `EQUIPMENT_SLOT_RANGED` through
+`GetWeaponForAttack` (`Player.cpp:9243-9270`), so bow/gun/crossbow restricted
+crit and damage auras apply to the ranged attack; the `UpdateExpertise` callers
+keep their own ranged skip. wow-world --lib 3929/0/1; no live DB/restart/relogin
+QA.
+
 **#61 `Unit::UpdateDamageDoneMods` representation — 2026-09-17, implementation
 `7c0232da`:** the physical `SPELL_AURA_MOD_DAMAGE_DONE` (13) sum is applied as
 the `UNIT_MOD_DAMAGE_*` `TOTAL_VALUE` inside `CalculateMinMaxDamage`, filtered by
