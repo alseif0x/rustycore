@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 versus-aurastate damage multiplier — 2026-09-17, implementation
+`cf8190d5`:** `SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE` (303) now multiplies
+direct spell damage when the victim's unit aura state mask contains the effect's
+misc (`Unit.cpp:6728-6734`), for player and creature targets. The
+mechanic/family terms remain open. wow-data --lib 752/0, wow-world --lib
+3936/0/1; no live DB/restart/relogin QA.
+
 **#61 creature missing-health heal scaling — 2026-09-17, implementation
 `5011ad4a`:** the aura-354 missing-health scaling now resolves the target's
 health percentage for creatures as well as the session player, so creature heals
