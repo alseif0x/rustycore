@@ -331,10 +331,11 @@ pub(crate) struct RepresentedMeleeVictimFactsLikeCpp {
     /// The victim's `SPELL_AURA_MOD_CRIT_CHANCE_FOR_CASTER` sum, kept only for
     /// effects the attacker cast (the owner applies C++'s caster predicate).
     pub crit_chance_for_caster_pct: f32,
-    /// C++ `canParryOrBlock`: `victim->HasInArc(M_PI, attacker)`. C++
-    /// `canDodge` is true for every creature victim outside casting/control,
-    /// which the represented model does not resolve yet.
+    /// C++ `canParryOrBlock`: `victim->HasInArc(M_PI, attacker)`.
     pub faces_attacker: bool,
+    /// C++ `victim->HasUnitState(UNIT_STATE_CONTROLLED)`: a controlled victim
+    /// can neither dodge nor parry/block (`Unit.cpp:2296-2304`).
+    pub is_controlled: bool,
 }
 
 /// C++ `Unit::RollMeleeOutcomeAgainst` (`Unit.cpp:2272-2310`) chance assembly
@@ -403,8 +404,12 @@ pub(crate) fn melee_outcome_inputs_like_cpp(
                 + victim.attacker_melee_crit_chance_pct
                 + victim.crit_chance_vs_target_health_pct
                 + victim.crit_chance_for_caster_pct,
-            can_dodge: victim.is_creature,
-            can_parry: victim.is_creature && victim.faces_attacker,
+            // C++ clears both gates when the victim is casting a non-melee spell
+            // or is `UNIT_STATE_CONTROLLED`; the represented creature runtime
+            // does not track its current spell slots, so only the unit-state
+            // gate is resolved.
+            can_dodge: victim.is_creature && !victim.is_controlled,
+            can_parry: victim.is_creature && victim.faces_attacker && !victim.is_controlled,
         }
     })
 }
