@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 ExpectedStat table load — 2026-09-17, implementation `179e9b92`:** the
+`ExpectedStat` DB2 table is now loaded at startup and its
+`armor_constant_like_cpp(level, expansion)` lookup (row, `(lvl, -2)` fallback,
+`1.0f` default) feeds `Player::GetBlockPercent` in the map-owned block arm; the
+runtime scenario shows the fallback blocking 85 of a 10,000-damage swing versus
+20 with a level-80 `ArmorConstant = 8000` row. wow-world 3992/0/1,
+world-server 594/0/0, wow-data 753/0, wow-packet 744/0.
+
 **#29 player-victim block band — 2026-09-17, implementation `f21031f1`:** a
 player victim now blocks from the published `BlockPercentage` with
 `Player::GetBlockPercent` as the reduction (`Player.cpp:25288-25298`), mirroring

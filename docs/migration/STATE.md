@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`7a808e4db73ca04101b82800a9884f0728624bbc` (PR #1142, the #29
-player-victim block band, following PR #1140, the #29
+`7bab6a408d410c245b345fb5edbca7e849d29eae` (PR #1144, the #29
+ExpectedStat table load, following PR #1142, the #29
+player-victim block band, PR #1140, the #29
 creature-victim parry scenario, PR #1137, the #29
 creature-victim evade scenario, PR #1131, the #29
 creature-victim melee fixture determinism fix, PR #1129, the #29
@@ -55,6 +56,31 @@ represented creature-aura producer), the player-victim block band (needs the
 the target build's negative crushing band, and live DB/restart/relogin QA. The
 next unit should be the `ExpectedStat` consumer, whose store already exists in
 `wow-data` with no consumer.
+
+**#29 ExpectedStat table load — 2026-09-17, implementation `179e9b92`,
+integrated as `7bab6a40` by PR #1144:** C++ `Player::GetBlockPercent`
+(`Player.cpp:25288-25298`) reads
+`DB2Manager::EvaluateExpectedStat(ExpectedStatType::ArmorConstant, attackerLevel,
+-2, 0, CLASS_NONE)` (`DB2Stores.cpp:2103-2173`), but the represented block band
+used C++'s empty-store fallback unconditionally because nothing loaded the table.
+`ExpectedStatStore::armor_constant_like_cpp(level, expansion)` now reproduces the
+target lookup: the `(lvl, expansion_id)` row, the `(lvl, -2)` fallback, and
+`1.0f` when the level row is absent (`CLASS_NONE` applies no class modifier and
+`contentTuningId` is unused in this fork).
+`LegacyCreatureAggroConfigLikeCpp` gained an `expected_stat_store` handle, the
+map-owned creature melee tick passes the resolved constant into
+`player_block_percent_like_cpp`, and `world-server` loads `ExpectedStat.db2` once
+at startup beside the other stores, tolerating a missing file through C++'s own
+fallback. Evidence: the new production runtime scenario uses a 10,000-damage
+swing so the blocked amount is visible on the wire — with no store the `1.0`
+fallback gives `min(2000/2001, 0.85) = 0.85` and 85 blocked, while a level-80 row
+with `ArmorConstant = 8000` gives `2000/10000 = 0.2` and 20 blocked, proving the
+store value reaches the block arm end to end. wow-world 3992/0/1 on two
+consecutive runs, world-server 594/0/0, wow-data 753/0 and wow-packet 744/0 pass;
+format, `git diff --check` and the physical ratchet pass with recorded one-line
+`session/mod.rs` and three-line `app.rs` ceiling growth, and `validation-v2
+quick` (manifest `20260917T203033.611468Z-3426762-quick.json`) passes. No live
+DB/restart/relogin QA. #29 remains open for the remaining spell/melee math.
 
 **#29 player-victim block band — 2026-09-17, implementation `f21031f1`,
 integrated as `7a808e4d` by PR #1142:** C++
