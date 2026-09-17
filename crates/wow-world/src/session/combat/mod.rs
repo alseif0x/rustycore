@@ -9,3 +9,5 @@ mod melee;
 mod regeneration;
 mod state;
 mod vitals;
+
+pub(in crate::session) use melee::RepresentedArmorMitigationLikeCpp;

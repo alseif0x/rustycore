@@ -18245,15 +18245,13 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
     facing_target: bool,
     within_los: bool,
     melee_damage_bonus: [RepresentedMeleeDamageBonusLikeCpp; 2],
+    armor_mitigation: combat::RepresentedArmorMitigationLikeCpp,
 ) -> Option<(Vec<u32>, Option<Option<u8>>)> {
     // C++ `Unit::MeleeDamageBonusDone`'s `SPELL_AURA_MOD_AUTOATTACK_DAMAGE`
-    // product, written by the owning session and read here so both swing owners
-    // apply the same value.
+    // product, written by the owning session and read here by both owners.
     let autoattack_damage_multiplier = player.unit().mod_autoattack_damage_pct_like_cpp();
-    // C++ `DoMeleeAttackIfReady` reads UnitData damage ranges that were
-    // recalculated by `UpdateDamagePhysical` after equipment changes. The
-    // Player-owned effective snapshot is the canonical Rust equivalent; take
-    // both ranges before borrowing Unit mutably for the timer transition.
+    // C++ `DoMeleeAttackIfReady` reads the `UnitData` ranges recalculated by
+    // `UpdateDamagePhysical`; the Player-owned snapshot is the Rust equivalent.
     let base_weapon_damage = player.weapon_damage_like_cpp(WeaponAttackType::BaseAttack);
     let offhand_weapon_damage = player.weapon_damage_like_cpp(WeaponAttackType::OffAttack);
     // C++ `Unit::DoMeleeAttackIfReady` admits the offhand branch only when
@@ -18328,6 +18326,7 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
                         max_damage,
                         autoattack_damage_multiplier,
                         melee_damage_bonus[0],
+                        armor_mitigation,
                     ));
                 }
             }
@@ -18357,6 +18356,7 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
                     max_damage,
                     autoattack_damage_multiplier,
                     melee_damage_bonus[1],
+                    armor_mitigation,
                 ));
             }
             unit.reset_attack_timer_like_cpp(WeaponAttackType::OffAttack);
@@ -18523,29 +18523,29 @@ pub(crate) struct PlayerMeleeCreatureHitLikeCpp {
     pub values_update: wow_entities::UnitValuesUpdate,
 }
 
-/// Melee geometry, decided the same way whoever owns the tick.
-///
-/// These were `impl WorldSession` associated functions taking no `self`. The
-/// global legacy loop has no session, so #28 lifts them to module level
-/// unchanged; the arithmetic and the C++ anchors are untouched.
-///
-/// C++ `Unit::MeleeDamageBonusDone`'s tail for the represented white swing:
-/// take the `UnitData` range the way the represented model already did and
-/// multiply by the attacker's `SPELL_AURA_MOD_AUTOATTACK_DAMAGE` factor
-/// (`Unit.cpp:7620-7627`, `7666-7667`).
+/// Module-level so the global legacy loop, which has no session, shares the
+/// same arithmetic as the session owner (#28): C++ `CalculateMeleeDamage`
+/// (`Unit.cpp:1326-1334`) rolls `CalculateDamage`, passes it through
+/// `MeleeDamageBonusDone` and applies `CalcArmorReducedDamage`.
 fn represented_white_swing_damage_like_cpp(
     min_damage: f32,
     max_damage: f32,
     autoattack_damage_multiplier: f32,
     melee_damage_bonus: RepresentedMeleeDamageBonusLikeCpp,
+    armor_mitigation: combat::RepresentedArmorMitigationLikeCpp,
 ) -> u32 {
-    // C++ `Unit::CalculateMeleeDamage` rolls `CalculateDamage` first and passes
-    // the value into `MeleeDamageBonusDone` (`Unit.cpp:1326-1334`, `7666-7667`).
     let rolled = crate::session_rules::white_swing_roll_like_cpp(min_damage, max_damage) as f32;
     let damage = (rolled + melee_damage_bonus.flat as f32)
         * melee_damage_bonus.pct
         * autoattack_damage_multiplier;
-    damage.max(1.0).round() as u32
+    crate::session_rules::armor_reduced_damage_like_cpp(
+        damage.max(1.0).round() as u32,
+        armor_mitigation.attacker_level,
+        armor_mitigation.victim_level,
+        armor_mitigation.victim_armor,
+        armor_mitigation.armor_penetration_pct,
+        armor_mitigation.target_resistance_normal_aura,
+    )
 }
 
 /// C++ `Unit::GetAPMultiplier(attType, normalized = false)` clamped by
