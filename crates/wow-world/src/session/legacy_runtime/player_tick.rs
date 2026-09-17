@@ -449,6 +449,19 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                         level: attacker_player.level_like_cpp(),
                         dual_wielding: attacker_player.has_offhand_weapon_for_attack_like_cpp()
                             && !attacker_player.is_in_feral_form_like_cpp(),
+                        crit_damage_multiplier:
+                            crate::session_rules::
+                                player_aura_effects_by_spell_aura_type_like_cpp(
+                                    auras,
+                                    spell_store,
+                                    wow_data::spell::aura_types::
+                                        SPELL_AURA_MOD_CRIT_DAMAGE_BONUS,
+                                )
+                                .into_iter()
+                                .filter(|(misc_value, _)| misc_value & 0x01 != 0)
+                                .fold(1.0_f32, |total, (_, amount)| {
+                                    total * (1.0 + amount as f32 / 100.0)
+                                }),
                         ignores_dual_wield_hit_penalty:
                             !crate::session_rules::
                                 player_aura_effects_by_spell_aura_type_like_cpp(

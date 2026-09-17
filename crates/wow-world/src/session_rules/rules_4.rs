@@ -198,6 +198,7 @@ pub(crate) fn melee_outcome_damage_like_cpp(
     damage: u32,
     attacker_level: u8,
     victim_level: u8,
+    crit_damage_multiplier: f32,
 ) -> (u32, u32) {
     match outcome {
         RepresentedMeleeOutcomeLikeCpp::Evade
@@ -219,7 +220,12 @@ pub(crate) fn melee_outcome_damage_like_cpp(
             let blocked = (damage as f32 * CREATURE_BLOCK_PERCENT_LIKE_CPP / 100.0) as u32;
             (damage.saturating_sub(blocked), blocked)
         }
-        RepresentedMeleeOutcomeLikeCpp::Crit => (damage.saturating_mul(2), 0),
+        RepresentedMeleeOutcomeLikeCpp::Crit => {
+            // C++ doubles the damage and then applies
+            // `SPELL_AURA_MOD_CRIT_DAMAGE_BONUS` (`Unit.cpp:1362-1375`).
+            let doubled = damage as f32 * 2.0 * crit_damage_multiplier;
+            (doubled.max(0.0) as u32, 0)
+        }
         RepresentedMeleeOutcomeLikeCpp::Hit => (damage, 0),
     }
 }
@@ -288,6 +294,10 @@ pub(crate) struct RepresentedMeleeAttackerFactsLikeCpp {
     pub level: u8,
     /// `haveOffhandWeapon() && !IsInFeralForm()`.
     pub dual_wielding: bool,
+    /// C++ `GetTotalAuraMultiplierByMiscMask(SPELL_AURA_MOD_CRIT_DAMAGE_BONUS,
+    /// NORMAL)`: the attacker's critical-damage multiplier for physical damage.
+    /// `1.0` when nothing is active.
+    pub crit_damage_multiplier: f32,
     /// C++ `HasAuraType(SPELL_AURA_IGNORE_DUAL_WIELD_HIT_PENALTY)`: an active
     /// aura of that type removes the dual-wield miss penalty regardless of its
     /// amount.
