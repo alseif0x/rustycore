@@ -321,6 +321,13 @@ pub(crate) struct RepresentedMeleeVictimFactsLikeCpp {
     /// `SPELL_AURA_MOD_ATTACKER_SPELL_AND_WEAPON_CRIT_CHANCE` sums, added to the
     /// attacker's critical chance.
     pub attacker_melee_crit_chance_pct: f32,
+    /// The victim's `SPELL_AURA_MOD_CRIT_CHANCE_VERSUS_TARGET_HEALTH` sum, kept
+    /// only for effects whose `MiscValueB` health threshold the victim is not
+    /// below (the owner applies C++'s `!HealthBelowPct` predicate).
+    pub crit_chance_vs_target_health_pct: f32,
+    /// The victim's `SPELL_AURA_MOD_CRIT_CHANCE_FOR_CASTER` sum, kept only for
+    /// effects the attacker cast (the owner applies C++'s caster predicate).
+    pub crit_chance_for_caster_pct: f32,
     /// C++ `canParryOrBlock`: `victim->HasInArc(M_PI, attacker)`. C++
     /// `canDodge` is true for every creature victim outside casting/control,
     /// which the represented model does not resolve yet.
@@ -390,7 +397,9 @@ pub(crate) fn melee_outcome_inputs_like_cpp(
             glancing_chance_pct,
             crit_chance_pct: attacker.crit_pct[index]
                 + attacker.autoattack_crit_aura_pct
-                + victim.attacker_melee_crit_chance_pct,
+                + victim.attacker_melee_crit_chance_pct
+                + victim.crit_chance_vs_target_health_pct
+                + victim.crit_chance_for_caster_pct,
             can_dodge: victim.is_creature,
             can_parry: victim.is_creature && victim.faces_attacker,
         }
