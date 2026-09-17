@@ -448,6 +448,16 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     let attacker_ignore_target_resist_normal_pct = attacker_armor_pen(
                         wow_data::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST,
                     );
+                    // C++ `MeleeDamageBonusTaken`'s Sanctified Wrath bypass reads
+                    // the same attacker effects as `(MiscValue, amount)` pairs.
+                    let attacker_ignore_resist: Vec<(i32, i32)> = attacker_effects
+                        .iter()
+                        .filter(|effect| {
+                            effect.aura_type
+                                == wow_data::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST
+                        })
+                        .map(|effect| (effect.misc_value, effect.amount))
+                        .collect();
                     let no_crit = wow_constants::CreatureFlagsExtra::from_bits_truncate(
                         attacker.creature.lifecycle_metadata().flags_extra,
                     )
@@ -587,18 +597,44 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                 .filter(|effect| effect.caster_guid == swing.attacker_guid)
                                 .map(|effect| effect.amount as f32)
                                 .sum::<f32>();
-                            (facts, stats.armor, bypass_armor_pct_by_caster)
+                            // C++ `Unit::MeleeDamageBonusTaken` for a white swing
+                            // (`Unit.cpp:7670-7778`) reads the victim's whole
+                            // active-aura list across several aura types, so the
+                            // projection is unfiltered and re-shaped into the
+                            // shared creature-aura form.
+                            let taken_effects =
+                                crate::session_rules::player_aura_effects_all_like_cpp(
+                                    auras, spell_store,
+                                )
+                                .into_iter()
+                                .map(|effect| effect.as_applied_like_cpp())
+                                .collect::<Vec<_>>();
+                            (facts, stats.armor, bypass_armor_pct_by_caster, taken_effects)
                         });
                     match victim {
-                        Some((victim_facts, victim_armor, bypass_armor_pct_by_caster)) => {
+                        Some((
+                            victim_facts,
+                            victim_armor,
+                            bypass_armor_pct_by_caster,
+                            victim_taken_effects,
+                        )) => {
                             // C++ `CalculateMeleeDamage` runs
                             // `MeleeDamageBonusTaken` and
                             // `CalcArmorReducedDamage` before the outcome switch
-                            // (`Unit.cpp:1326-1343`); a player victim's taken
-                            // chain is still unrepresented, so armour is the
-                            // represented mitigation.
+                            // (`Unit.cpp:1326-1343`), in that order.
+                            let taken = crate::session_rules::melee_damage_taken_flat_pct_like_cpp(
+                                &victim_taken_effects,
+                                &attacker_ignore_resist,
+                                swing.attacker_guid,
+                                // C++ `SPELL_SCHOOL_MASK_NORMAL` (0x01).
+                                0x01,
+                            );
+                            let after_taken =
+                                crate::session_rules::melee_damage_taken_apply_like_cpp(
+                                    taken, damage,
+                                );
                             let mitigated = crate::session_rules::armor_reduced_damage_like_cpp(
-                                damage,
+                                after_taken,
                                 attacker_facts.level,
                                 victim_facts.level,
                                 victim_armor,
