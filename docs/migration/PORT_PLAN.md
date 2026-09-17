@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 `BonusCoefficientFromAP` table term — 2026-09-17, implementation
+`de597571`:** the runtime `SpellEffectInfo` now carries the DB2 field and both
+the damage and heal bonus helpers add `int32(stack * coefficient * AP)`, with
+the `SPELL_ATTR3_IGNORE_CASTER_MODIFIERS` early-out also skipping the flat
+benefit as C++ does. Ranged/offhand attack-type selection remains open.
+wow-data --lib 752/0, wow-entities --lib 940/0, wow-world --lib 3949/0/1; no
+live DB/restart/relogin QA.
+
 **#61 `SpellHealingPctDone` completion — 2026-09-17, implementation
 `1eab52dc`:** the direct-heal percentage chain now honours the
 `SPELL_ATTR3_IGNORE_CASTER_MODIFIERS` / `SPELL_ATTR6_IGNORE_HEALING_MODIFIERS`
