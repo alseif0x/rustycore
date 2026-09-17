@@ -1019,3 +1019,193 @@ async fn represented_shapeshift_combat_round_time_sets_form_attack_time_like_cpp
     // time while the ranged arm stays at `BASE_ATTACK_TIME`.
     assert_eq!(restored, [1_000, 1_000, 2_000]);
 }
+
+/// Shared fixture for the C++ `Player::UpdateEquipSpellsAtFormChange` scenarios:
+/// a cat-form shapeshift aura spell plus the form store that gives form 1 a
+/// `CombatRoundTime`.
+fn represented_cat_form_fixture_like_cpp(
+    session: &mut WorldSession,
+    player_guid: ObjectGuid,
+    mut spell_store: wow_data::SpellStore,
+) -> (i32, u32) {
+    let form_id = 1_u32;
+    let shapeshift_spell_id = 90_996_i32;
+    spell_store.insert(
+        shapeshift_spell_id,
+        represented_aura_spell_like_cpp(
+            shapeshift_spell_id,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_SHAPESHIFT,
+            form_id as i32,
+            0,
+        ),
+    );
+    session.set_spell_store(Arc::new(spell_store));
+    session.set_spell_shapeshift_form_store(Arc::new(
+        wow_data::SpellShapeshiftFormStore::from_entries([wow_data::SpellShapeshiftFormEntry {
+            id: form_id,
+            name: "Cat Form".to_string(),
+            creature_type: 0,
+            flags: 0,
+            attack_icon_file_id: 0,
+            bonus_action_bar: 0,
+            combat_round_time: 1_000,
+            damage_variance: 0.0,
+            mount_type_id: 0,
+            creature_display_id: [0; 4],
+            preset_spell_id: [0; wow_data::MAX_SHAPESHIFT_SPELLS],
+        }]),
+    ));
+    let _ = player_guid;
+    (shapeshift_spell_id, form_id)
+}
+
+#[tokio::test]
+async fn represented_form_change_refreshes_item_equip_spells_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 78);
+    session.player_guid = Some(player_guid);
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+
+    let item_id = 30_100_u32;
+    let item_guid = ObjectGuid::create_item(1, 917);
+    let equip_spell_id = 90_997_i32;
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        equip_spell_id,
+        represented_aura_spell_like_cpp(
+            equip_spell_id,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS,
+            1,
+            10,
+        ),
+    );
+    // C++ `SpellInfo::CheckShapeshift`: the equip spell is allowed in cat form.
+    spell_store.insert_spell_shapeshift_masks_like_cpp(equip_spell_id, 1 << 0, 0);
+    let (shapeshift_spell_id, _form_id) =
+        represented_cat_form_fixture_like_cpp(&mut session, player_guid, spell_store);
+    session.set_item_effect_store(Arc::new(wow_data::ItemEffectStore::from_entries([
+        wow_data::ItemEffectEntry {
+            id: 1,
+            legacy_slot_index: 0,
+            trigger_type: 1,
+            charges: 0,
+            cooldown_msec: 0,
+            category_cooldown_msec: 0,
+            spell_category_id: 0,
+            spell_id: equip_spell_id,
+            chr_specialization_id: 0,
+            parent_item_id: item_id,
+        },
+    ])));
+    equip_represented_test_item_like_cpp(
+        &mut session,
+        EQUIPMENT_SLOT_CHEST,
+        item_guid,
+        item_id,
+        InventoryType::Chest,
+    );
+
+    assert_eq!(
+        session.player_has_visible_aura_spell_like_cpp(equip_spell_id),
+        Some(false)
+    );
+
+    session
+        .apply_aura(shapeshift_spell_id, player_guid, 30_000, 1)
+        .expect("apply cat form aura");
+    assert_eq!(
+        session.player_has_visible_aura_spell_like_cpp(equip_spell_id),
+        Some(true),
+        "C++ ApplyItemEquipSpell(item, true, true) adds the now-fitting equip spell"
+    );
+
+    session.remove_aura(0).expect("remove cat form aura");
+    assert_eq!(
+        session.player_has_visible_aura_spell_like_cpp(equip_spell_id),
+        Some(false),
+        "C++ ApplyItemEquipSpell(item, false, true) removes the stale equip spell"
+    );
+}
+
+#[tokio::test]
+async fn represented_form_change_refreshes_item_set_auras_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 79);
+    session.player_guid = Some(player_guid);
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+
+    let chest_guid = ObjectGuid::create_item(1, 918);
+    let hands_guid = ObjectGuid::create_item(1, 919);
+    let set_spell_id = 90_998_i32;
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        set_spell_id,
+        represented_aura_spell_like_cpp(
+            set_spell_id,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS,
+            1,
+            10,
+        ),
+    );
+    spell_store.insert_spell_shapeshift_masks_like_cpp(set_spell_id, 1 << 0, 0);
+    let (shapeshift_spell_id, _form_id) =
+        represented_cat_form_fixture_like_cpp(&mut session, player_guid, spell_store);
+    session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+        id: 708,
+        name: "Form Set".to_string(),
+        set_flags: 0,
+        required_skill: 0,
+        required_skill_rank: 0,
+        item_id: std::array::from_fn(|i| match i {
+            0 => 111,
+            1 => 112,
+            _ => 0,
+        }),
+    }])));
+    session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+        ItemSetSpellEntry {
+            id: 40,
+            chr_spec_id: 0,
+            spell_id: set_spell_id as u32,
+            threshold: 2,
+            item_set_id: 708,
+        },
+    ])));
+    equip_represented_test_item_like_cpp(
+        &mut session,
+        EQUIPMENT_SLOT_CHEST,
+        chest_guid,
+        111,
+        InventoryType::Chest,
+    );
+    equip_represented_test_item_like_cpp(
+        &mut session,
+        EQUIPMENT_SLOT_HANDS,
+        hands_guid,
+        112,
+        InventoryType::Hands,
+    );
+    let _ = session.record_represented_items_set_item_like_cpp(chest_guid, true);
+    assert!(session.record_represented_items_set_item_like_cpp(hands_guid, true));
+    // The set bonus is stance-gated, so the initial equip pass cannot apply it.
+    assert_eq!(
+        session.player_has_visible_aura_spell_like_cpp(set_spell_id),
+        Some(false)
+    );
+
+    session
+        .apply_aura(shapeshift_spell_id, player_guid, 30_000, 1)
+        .expect("apply cat form aura");
+    assert_eq!(
+        session.player_has_visible_aura_spell_like_cpp(set_spell_id),
+        Some(true),
+        "C++ ApplyEquipSpell(itemSet, true, formChange) applies the now-fitting set aura"
+    );
+
+    session.remove_aura(0).expect("remove cat form aura");
+    assert_eq!(
+        session.player_has_visible_aura_spell_like_cpp(set_spell_id),
+        Some(false),
+        "the set aura is removed once the form no longer fits"
+    );
+}

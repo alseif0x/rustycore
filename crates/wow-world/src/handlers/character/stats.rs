@@ -672,6 +672,10 @@ impl WorldSession {
         if !self.apply_represented_shapeshift_base_attack_time_like_cpp() {
             return;
         }
+        // C++ `Player::InitDataForForm` (`Player.cpp:22093-22094`) refreshes the
+        // equipped items' form-gated spells and item-set auras before
+        // `UpdateAttackPowerAndDamage` republishes the derived stats.
+        self.refresh_represented_item_effects_at_form_change_like_cpp();
         let _ = self.send_stat_update();
     }
 

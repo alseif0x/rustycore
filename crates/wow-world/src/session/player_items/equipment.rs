@@ -41,6 +41,53 @@ impl WorldSession {
             .unwrap_or(SpellCastResult::Success)
             == SpellCastResult::Success
     }
+    /// C++ `Player::UpdateEquipSpellsAtFormChange` (`Player.cpp:22093-22094`,
+    /// reached from `InitDataForForm`): drop the equipped items' spell auras the
+    /// old form allowed and the new one rejects (`ApplyItemEquipSpell(item,
+    /// false, true)`), re-apply every item's now-fitting equip spells
+    /// (`ApplyItemEquipSpell(item, true, true)`) and replay the item-set auras
+    /// under the new form. Returns the number of applied or removed effects.
+    pub(crate) fn refresh_represented_item_effects_at_form_change_like_cpp(&mut self) -> usize {
+        let Some(equipped) = self
+            .resolved_inventory_item_objects_like_cpp()
+            .map(|items| {
+                items
+                    .values()
+                    .filter(|item| {
+                        item.container_guid().is_empty() && item.slot() < INVENTORY_SLOT_BAG_END
+                    })
+                    .map(|item| (item.slot(), item.object().guid()))
+                    .collect::<Vec<_>>()
+            })
+        else {
+            return 0;
+        };
+        let item_guids: Vec<ObjectGuid> = equipped.iter().map(|(_, guid)| *guid).collect();
+        let mut stale_slots: Vec<u8> = self
+            .resolved_player_visible_auras_like_cpp()
+            .unwrap_or_default()
+            .values()
+            .filter(|aura| {
+                item_guids.contains(&aura.caster_guid)
+                    && !self.represented_equip_spell_fits_shapeshift_like_cpp(aura.spell_id as u32)
+            })
+            .map(|aura| aura.slot)
+            .collect();
+        stale_slots.sort_unstable();
+        let mut changed = 0usize;
+        for slot in stale_slots {
+            if self.remove_aura(slot).is_ok() {
+                changed += 1;
+            }
+        }
+        let mut equipped = equipped;
+        equipped.sort_by_key(|(slot, guid)| (*slot, guid.counter()));
+        for (_slot, item_guid) in equipped {
+            changed += self.apply_initial_item_equip_auras_like_cpp(item_guid);
+        }
+        self.apply_represented_item_set_aura_refresh_events_like_cpp(true);
+        changed
+    }
     pub(crate) fn apply_initial_equipped_item_equip_auras_like_cpp(&mut self) -> Option<usize> {
         let mut equipped: Vec<_> = self
             .resolved_inventory_item_objects_like_cpp()?
