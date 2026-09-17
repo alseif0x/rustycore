@@ -633,3 +633,101 @@ async fn armor_aura_producers_follow_update_armor_like_cpp() {
     let _ = session.send_stat_update();
     assert_eq!(armor(&session), 90);
 }
+
+#[tokio::test]
+async fn avoidance_aura_percentages_follow_update_percentages_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 61_300);
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    session.set_player_stats(Arc::new(wow_data::PlayerStatsStore::from_entries([(
+        (1, 1, 80),
+        wow_data::PlayerLevelStats {
+            strength: 10,
+            agility: 10,
+            stamina: 10,
+            intellect: 40,
+            spirit: 30,
+            base_mana: 0,
+        },
+    )])));
+    session.set_chr_classes_store(Arc::new(
+        wow_data::character_progression::ChrClassesStore::from_entries([{
+            let mut entry = wow_data::character_progression::ChrClassesEntry::default();
+            entry.id = 1;
+            entry
+        }]),
+    ));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    assert!(
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().set_can_parry_like_cpp(true);
+                player.unit_mut().set_can_block_like_cpp(true);
+            })
+            .is_some()
+    );
+
+    // C++ `SPELL_AURA_MOD_PARRY_PERCENT`/`MOD_DODGE_PERCENT`/`MOD_BLOCK_PERCENT`
+    // feed `Player::UpdateParryPercentage`/`UpdateDodgePercentage`/
+    // `UpdateBlockPercentage` (`StatSystem.cpp:483-499`, `659-679`, `700-717`).
+    let mut spell_store = wow_data::SpellStore::new();
+    for (spell_id, aura_type, amount) in [(90_500, 47, 3), (90_501, 49, 10), (90_502, 51, 7)] {
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: amount,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(aura_type),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: aura_type,
+                    effect_base_points: amount,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    session.set_spell_store(Arc::new(spell_store));
+    session.set_state(crate::session::SessionState::LoggedIn);
+
+    let stats = |session: &WorldSession| {
+        session
+            .canonical_player_effective_combat_stats_like_cpp()
+            .expect("avoidance projection")
+    };
+
+    let _ = session.send_stat_update();
+    let before = stats(&session);
+    assert_eq!(before.dodge_pct, 0.0);
+    assert_eq!(before.parry_pct, 5.0);
+    assert_eq!(before.block_pct, 5.0);
+
+    for spell_id in [90_500, 90_501, 90_502] {
+        session
+            .apply_aura(spell_id, player_guid, 30_000, 1)
+            .expect("apply avoidance aura");
+    }
+    let _ = session.send_stat_update();
+    let with_auras = stats(&session);
+    assert_eq!(with_auras.dodge_pct, 10.0);
+    assert_eq!(with_auras.parry_pct, 8.0);
+    assert_eq!(with_auras.block_pct, 12.0);
+
+    let dodge_slot = session
+        .visible_aura_slot_for_spell_like_cpp(90_501)
+        .expect("dodge aura slot");
+    session.remove_aura(dodge_slot).expect("remove dodge aura");
+    let _ = session.send_stat_update();
+    assert_eq!(stats(&session).dodge_pct, 0.0);
+}

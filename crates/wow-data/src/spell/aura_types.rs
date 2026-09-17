@@ -51,6 +51,12 @@ pub const SPELL_AURA_MOD_SHAPESHIFT: i32 = 36;
 pub const SPELL_AURA_DAMAGE_IMMUNITY: i32 = 40;
 pub const SPELL_AURA_PROC_TRIGGER_SPELL: i32 = 42;
 pub const SPELL_AURA_PROC_TRIGGER_DAMAGE: i32 = 43;
+/// C++ `AuraType::SPELL_AURA_MOD_PARRY_PERCENT` (`SpellAuraDefines.h:173`):
+/// flat parry percentage fed into `Player::UpdateParryPercentage`.
+pub const SPELL_AURA_MOD_PARRY_PERCENT: i32 = 47;
+/// C++ `AuraType::SPELL_AURA_MOD_DODGE_PERCENT` (`SpellAuraDefines.h:175`):
+/// flat dodge percentage fed into `Player::UpdateDodgePercentage`.
+pub const SPELL_AURA_MOD_DODGE_PERCENT: i32 = 49;
 pub const SPELL_AURA_MOD_BLOCK_PERCENT: i32 = 51;
 pub const SPELL_AURA_MOD_WEAPON_CRIT_PERCENT: i32 = 52;
 pub const SPELL_AURA_MOD_HIT_CHANCE: i32 = 54;

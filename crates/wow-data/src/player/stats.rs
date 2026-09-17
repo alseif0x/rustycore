@@ -116,6 +116,12 @@ pub struct PlayerStatSystemInputLikeCpp {
     pub armor_total_pct: f32,
     /// C++ `GetTotalAuraMultiplier(SPELL_AURA_MOD_BONUS_ARMOR_PCT)`.
     pub armor_bonus_pct: f32,
+    /// C++ `GetTotalAuraModifier(SPELL_AURA_MOD_DODGE_PERCENT)`.
+    pub spell_dodge_pct: f32,
+    /// C++ `GetTotalAuraModifier(SPELL_AURA_MOD_PARRY_PERCENT)`.
+    pub spell_parry_pct: f32,
+    /// C++ `GetTotalAuraModifier(SPELL_AURA_MOD_BLOCK_PERCENT)`.
+    pub spell_block_pct: f32,
     pub gear_attack_power: i32,
     pub gear_ranged_attack_power: i32,
     pub rating_bonuses: [f32; 32],
@@ -292,18 +298,28 @@ pub fn calculate_player_stat_system_like_cpp(
     let crit_pct = 5.0 + rating(8);
     let ranged_crit_pct = 5.0 + rating(9);
     let spell_crit = 5.0 + rating(10);
-    let dodge_pct = diminishing_returns_like_cpp(&DODGE_CAP_LIKE_CPP, input.class, 0.0, rating(2));
+    let dodge_pct = diminishing_returns_like_cpp(
+        &DODGE_CAP_LIKE_CPP,
+        input.class,
+        input.spell_dodge_pct,
+        rating(2),
+    );
     let parry_pct = if input.can_parry
         && PARRY_CAP_LIKE_CPP
             .get(usize::from(input.class.saturating_sub(1)))
             .is_some_and(|cap| *cap > 0.0)
     {
-        diminishing_returns_like_cpp(&PARRY_CAP_LIKE_CPP, input.class, 5.0, rating(3))
+        diminishing_returns_like_cpp(
+            &PARRY_CAP_LIKE_CPP,
+            input.class,
+            5.0 + input.spell_parry_pct,
+            rating(3),
+        )
     } else {
         0.0
     };
     let block_pct = if input.can_block {
-        5.0 + rating(4)
+        5.0 + input.spell_block_pct + rating(4)
     } else {
         0.0
     };
@@ -638,6 +654,9 @@ mod tests {
             armor_of_stat_percent: [0; 5],
             armor_total_pct: 1.0,
             armor_bonus_pct: 1.0,
+            spell_dodge_pct: 0.0,
+            spell_parry_pct: 0.0,
+            spell_block_pct: 0.0,
             gear_attack_power: 17,
             gear_ranged_attack_power: 4,
             rating_bonuses: [0.0; 32],
@@ -689,6 +708,9 @@ mod tests {
             armor_of_stat_percent: [0, 50, 0, 0, 0],
             armor_total_pct: 1.25,
             armor_bonus_pct: 1.1,
+            spell_dodge_pct: 0.0,
+            spell_parry_pct: 0.0,
+            spell_block_pct: 0.0,
             gear_attack_power: 0,
             gear_ranged_attack_power: 0,
             rating_bonuses: [0.0; 32],
@@ -698,6 +720,65 @@ mod tests {
 
         // ((100 * 1.5) + 12 * 2 + 40 + 12 * 50 / 100) * 1.25 * 1.1 = 302.5
         assert_eq!(projection.armor, 302);
+    }
+
+    #[test]
+    fn stat_system_applies_cpp_avoidance_aura_percentages_like_cpp() {
+        // C++ `Player::UpdateBlockPercentage`/`UpdateParryPercentage`/
+        // `UpdateDodgePercentage` (`StatSystem.cpp:483-499`, `659-679`,
+        // `700-717`): the aura `GetTotalAuraModifier` terms are flat
+        // percentages added to the non-diminishing side.
+        let warrior = PlayerStatSystemInputLikeCpp {
+            base: PlayerLevelStats {
+                strength: 10,
+                agility: 12,
+                stamina: 30,
+                intellect: 40,
+                spirit: 20,
+                base_mana: 0,
+            },
+            class: 1,
+            level: 80,
+            attack_power_per_strength: 2,
+            attack_power_per_agility: 0,
+            ranged_attack_power_per_agility: 0,
+            stat_total_multipliers: [1.0; 5],
+            stat_buff_total_multipliers: [1.0; 5],
+            gear_stats: [0; 5],
+            gear_health: 0,
+            gear_mana: 0,
+            gear_armor: 0,
+            armor_base_pct: 1.0,
+            armor_flat_aura: 0,
+            armor_of_stat_percent: [0; 5],
+            armor_total_pct: 1.0,
+            armor_bonus_pct: 1.0,
+            spell_dodge_pct: 10.0,
+            spell_parry_pct: 3.0,
+            spell_block_pct: 7.0,
+            gear_attack_power: 0,
+            gear_ranged_attack_power: 0,
+            rating_bonuses: [0.0; 32],
+            can_parry: true,
+            can_block: true,
+        };
+        let projection = calculate_player_stat_system_like_cpp(warrior);
+
+        // With no rating bonus the diminishing term is zero, so the result is
+        // exactly the non-diminishing side.
+        assert_eq!(projection.dodge_pct, 10.0);
+        assert_eq!(projection.parry_pct, 8.0);
+        assert_eq!(projection.block_pct, 12.0);
+
+        // A class whose parry cap is zero keeps parry at zero even with the
+        // aura and `can_parry` set, matching `UpdateParryPercentage`.
+        let priest = PlayerStatSystemInputLikeCpp {
+            class: 5,
+            can_block: false,
+            ..warrior
+        };
+        let projection = calculate_player_stat_system_like_cpp(priest);
+        assert_eq!(projection.parry_pct, 0.0);
     }
 
     #[test]
@@ -728,6 +809,9 @@ mod tests {
             armor_of_stat_percent: [0; 5],
             armor_total_pct: 1.0,
             armor_bonus_pct: 1.0,
+            spell_dodge_pct: 0.0,
+            spell_parry_pct: 0.0,
+            spell_block_pct: 0.0,
             gear_attack_power: 0,
             gear_ranged_attack_power: 0,
             rating_bonuses,
@@ -774,6 +858,9 @@ mod tests {
             armor_of_stat_percent: [0; 5],
             armor_total_pct: 1.0,
             armor_bonus_pct: 1.0,
+            spell_dodge_pct: 0.0,
+            spell_parry_pct: 0.0,
+            spell_block_pct: 0.0,
             gear_attack_power: 0,
             gear_ranged_attack_power: 0,
             rating_bonuses: [0.0; 32],
@@ -815,6 +902,9 @@ mod tests {
             armor_of_stat_percent: [0; 5],
             armor_total_pct: 1.0,
             armor_bonus_pct: 1.0,
+            spell_dodge_pct: 0.0,
+            spell_parry_pct: 0.0,
+            spell_block_pct: 0.0,
             gear_attack_power: 0,
             gear_ranged_attack_power: 0,
             rating_bonuses: [0.0; 32],

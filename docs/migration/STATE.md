@@ -8,6 +8,38 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#61 avoidance aura percentages — 2026-09-17, implementation `255c888f`:** the
+represented avoidance projection now consumes the C++ aura producers of
+`Player::UpdateBlockPercentage` (`StatSystem.cpp:483-499`),
+`Player::UpdateParryPercentage` (`659-679`) and `Player::UpdateDodgePercentage`
+(`700-717`): the flat `GetTotalAuraModifier(SPELL_AURA_MOD_BLOCK_PERCENT)` /
+`MOD_PARRY_PERCENT` / `MOD_DODGE_PERCENT` sums feed
+`PlayerStatSystemInputLikeCpp.spell_block_pct`/`spell_parry_pct`/
+`spell_dodge_pct`, added after the 5% base and on the non-diminishing side before
+the class diminishing-returns formula, with the class parry caps honoured (a
+zero cap keeps parry at zero). The session resolves them from the canonical
+visible applications through the shared `GetTotalAuraModifier` helper;
+`block_pct`/`dodge_pct`/`parry_pct` were already published through the create
+block and the post-login stat update, so no packet, mirror, lock or clock change
+is needed. The two new aura type constants carry their `SpellAuraDefines.h`
+anchors. Focused coverage: a pure stat-system test pins the aura terms plus the
+zero-cap class branch, and an end-to-end session test applies the three avoidance
+auras and the removal path; `wow-data stat_system` (6),
+`scenarios_player_items_12` (8), `scenarios_player_items_1` (49),
+`persistence::` (105), `handlers::character::tests::login` (11) and
+`scenarios_spell_state_22` (9) stay green; format, `git diff --check`, the
+physical ratchet and `validation-v2 quick` (manifest
+`20260917T003635.249782Z-2114404-quick.json`, 84.2 s) pass. The
+`GetTotalAuraModifier` same-effect stack-rule grouping is not applied (consistent
+with the older aura modifier helpers), melee/ranged/spell crit aura producers,
+the school (1-6) resistance publication and `GetDodgeFromAgility` (empty in this
+3.4.3 fork) remain separate gates, the full `wow-world --lib` suite stays
+unusable on this host because several unrelated pre-existing async tests hang,
+and `validation-v2 final` stops at the pre-existing runtime hotspot LOC ratchet,
+which keeps its drift and was not regenerated. #61 remains open for the
+player-killer (PvP) `CONFIG_DURABILITY_LOSS_IN_PVP` branch and `SetPvPDeath`,
+alternate powers, rune regeneration and live DB/restart/relogin QA.
+
 **#61 armor aura producers (`Player::UpdateArmor`) — 2026-09-17, implementation
 `6b7334a0`, integrated as `487cd1d3` by PR #985:** the pure stat system now applies every C++ `Player::UpdateArmor`
 producer (`StatSystem.cpp:251-276`): `SPELL_AURA_MOD_BASE_RESISTANCE_PCT` (142)

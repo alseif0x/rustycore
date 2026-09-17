@@ -159,6 +159,17 @@ impl WorldSession {
         per_stat
     }
 
+    /// C++ `GetTotalAuraModifier(auraType)` for the avoidance percentages
+    /// (`Player::UpdateBlockPercentage`/`UpdateParryPercentage`/
+    /// `UpdateDodgePercentage`): the sum of every active effect amount.
+    fn represented_total_aura_modifier_like_cpp(&self, aura_type: i32) -> f32 {
+        self.resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(_, amount)| amount)
+            .sum::<i32>() as f32
+    }
+
     pub(super) fn represented_player_gear_stats_like_cpp(
         &self,
         _include_represented_item_bonuses: bool,
@@ -245,6 +256,15 @@ impl WorldSession {
                 ),
                 armor_bonus_pct: self.represented_armor_aura_multiplier_like_cpp(
                     wow_data::spell::aura_types::SPELL_AURA_MOD_BONUS_ARMOR_PCT,
+                ),
+                spell_dodge_pct: self.represented_total_aura_modifier_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_DODGE_PERCENT,
+                ),
+                spell_parry_pct: self.represented_total_aura_modifier_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_PARRY_PERCENT,
+                ),
+                spell_block_pct: self.represented_total_aura_modifier_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_BLOCK_PERCENT,
                 ),
                 gear_attack_power: gear.attack_power,
                 gear_ranged_attack_power: gear.ranged_attack_power,
