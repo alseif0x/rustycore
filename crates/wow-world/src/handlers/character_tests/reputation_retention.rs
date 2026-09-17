@@ -17,6 +17,12 @@ fn repeated_login_attachment_preserves_loaded_reputation_for_final_save() {
         0,
     ));
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    // C++ `Player::LoadFromDB` publishes the loaded race/class/level onto the
+    // Player before `_LoadReputation` reads it (CharacterHandler.cpp:1070).
+    // The canonical Player must already carry this identity when the rows load;
+    // otherwise the later unchanged-identity `send_login_sequence` ensure reads
+    // a race change and reinitializes the manager.
+    session.set_loaded_player_identity_like_cpp(0, 10, 3, 80, 0);
     let mut faction = wow_data::progression_rewards::FactionEntry::for_test_like_cpp(910, 54);
     faction.reputation_race_mask[0] = 1791;
     faction.reputation_base[0] = -42000;

@@ -411,8 +411,9 @@ fn movement_fall_land_lethal_damage_sends_player_values_update_like_cpp() {
             ServerOpcodes::HealthUpdate,
             ServerOpcodes::EnvironmentalDamageLog,
             ServerOpcodes::UpdateObject,
+            ServerOpcodes::DurabilityDamageDeath,
         ],
-        "C++ lethal EnvironmentalDamage goes through Unit::Kill/Player::setDeathState before release/cemetery flows; Rust must publish the zero-health values update, not only the combat log"
+        "C++ lethal EnvironmentalDamage goes through Unit::Kill/Player::setDeathState before release/cemetery flows and runs the fall-death durability loss (Player.cpp:655-670, MiscPackets.cpp:481-486); Rust must publish the zero-health values update and the loss message, not only the combat log"
     );
 }
 

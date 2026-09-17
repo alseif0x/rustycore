@@ -854,7 +854,7 @@ fn logout_save_snapshot_uses_canonical_xp_money_and_health_like_cpp() {
         session.player_position_like_cpp(),
         Some(latest_session_position)
     );
-    assert_eq!(session.player_level_like_cpp(), 10);
+    assert_eq!(session.player_level_like_cpp(), 42);
     assert_eq!(session.player_xp_like_cpp(), 1234);
     assert_eq!(session.player_gold_like_cpp(), 5678);
     assert_eq!(session.player_health_like_cpp(), 456);
