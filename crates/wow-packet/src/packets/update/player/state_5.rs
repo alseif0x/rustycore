@@ -197,8 +197,8 @@ pub(in crate::packets::update) fn write_active_player_data_values_update(
         buf.write_float(0.0); // bit 64: ModResiliencePercent
         buf.write_float(-1.0); // bit 65: OverrideSpellPowerByAPPercent
         buf.write_float(-1.0); // bit 66: OverrideAPBySpellPowerPercent
-        buf.write_int32(0); // bit 67: ModTargetResistance
-        buf.write_int32(0); // bit 68: ModTargetPhysicalResistance
+        buf.write_int32(sc.mod_target_resistance); // bit 67: ModTargetResistance
+        buf.write_int32(sc.mod_target_physical_resistance); // bit 68: ModTargetPhysicalResistance
         buf.write_uint32(0); // bit 69: LocalFlags
     }
 

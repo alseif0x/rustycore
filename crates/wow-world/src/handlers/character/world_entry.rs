@@ -2666,6 +2666,8 @@ impl WorldSession {
             mod_healing_done_pos: projection.mod_healing_done_pos,
             mod_damage_done_percent: projection.mod_damage_done_percent,
             mod_healing_done_pct: projection.mod_healing_done_percent,
+            mod_target_resistance: projection.mod_target_resistance,
+            mod_target_physical_resistance: projection.mod_target_physical_resistance,
         };
         let max_power0 = primary_max_power_for_class_like_cpp(class, combat.max_mana);
         Some((

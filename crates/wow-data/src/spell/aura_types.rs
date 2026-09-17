@@ -161,6 +161,13 @@ pub const SPELL_AURA_MOD_HEALING_DONE: i32 = 135;
 /// `Player::UpdateHealingDonePercentMod` (`StatSystem.cpp:588-599`), the product
 /// of `1 + amount/100` published as `ModHealingDonePercent`.
 pub const SPELL_AURA_MOD_HEALING_DONE_PERCENT: i32 = 136;
+/// C++ `AuraType::SPELL_AURA_MOD_TARGET_RESISTANCE`
+/// (`SpellAuraDefines.h:218`): `HandleModTargetResistance`
+/// (`SpellAuraEffects.cpp:3507-3530`) adds the amount to
+/// `ModTargetPhysicalResistance` when the effect covers
+/// `SPELL_SCHOOL_MASK_NORMAL` and to `ModTargetResistance` when it covers the
+/// full `SPELL_SCHOOL_MASK_SPELL`.
+pub const SPELL_AURA_MOD_TARGET_RESISTANCE: i32 = 123;
 /// C++ `AuraType::SPELL_AURA_MOD_SPELL_DAMAGE_OF_STAT_PERCENT`
 /// (`SpellAuraDefines.h:269`): `MiscValue` is the school mask and `MiscValueB`
 /// the stat.

@@ -1194,6 +1194,14 @@ async fn spell_damage_and_healing_bonus_auras_publish_update_spell_bonus_like_cp
             apply: true,
         }
     ));
+    // C++ `ApplySpellPenetrationBonus` subtracts the item penetration from
+    // `ModTargetResistance`.
+    assert!(session.apply_represented_item_bonus_action_state_like_cpp(
+        ApplyEnchantmentEffectAction::SpellPenetrationBonus {
+            amount: 15,
+            apply: true,
+        }
+    ));
 
     let mut spell_store = wow_data::SpellStore::new();
     for (spell_id, aura_type, misc_value_1, misc_value_2, amount) in [
@@ -1214,6 +1222,9 @@ async fn spell_damage_and_healing_bonus_auras_publish_update_spell_bonus_like_cp
         // +50% and +100% healing done.
         (90_910, 136, 0, 0, 50),
         (90_911, 136, 0, 0, 100),
+        // Spell penetration aura (full magic mask) and armor-only penetration.
+        (90_912, 123, 0x3E, 0, 20),
+        (90_913, 123, 1, 0, 30),
     ] {
         spell_store.insert(
             spell_id,
@@ -1273,6 +1284,7 @@ async fn spell_damage_and_healing_bonus_auras_publish_update_spell_bonus_like_cp
 
     for spell_id in [
         90_900, 90_901, 90_902, 90_903, 90_904, 90_905, 90_907, 90_908, 90_909, 90_910, 90_911,
+        90_912, 90_913,
     ] {
         session
             .apply_aura(spell_id, player_guid, 30_000, 1)
@@ -1298,6 +1310,9 @@ async fn spell_damage_and_healing_bonus_auras_publish_update_spell_bonus_like_cp
     assert_eq!(stats.mod_damage_done_percent[3..], [1.0; 4]);
     // `UpdateHealingDonePercentMod`: (1 + 0.5) * (1 + 1.0) = 3.0.
     assert_eq!(stats.mod_healing_done_percent, 3.0);
+    // Aura 123 magic mask 20 minus item penetration 15; armor mask 30.
+    assert_eq!(stats.mod_target_resistance, 5);
+    assert_eq!(stats.mod_target_physical_resistance, 30);
 
     // `HasAuraType` on 404 then replaces both attack mods with
     // `CalculatePct(min(ModHealingDonePos, ModDamageDonePos[HOLY..MAX]), 50)`:

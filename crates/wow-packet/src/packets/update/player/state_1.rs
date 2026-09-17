@@ -607,6 +607,10 @@ pub struct PlayerStatChanges {
     pub mod_healing_done_pct: f32,     // bit 61 (1.0)
     pub mod_periodic_healing_pct: f32, // bit 62 (1.0)
     pub mod_spell_power_pct: f32,      // bit 63 (1.0)
+    /// C++ `ActivePlayerData::ModTargetResistance` (bit 67).
+    pub mod_target_resistance: i32,
+    /// C++ `ActivePlayerData::ModTargetPhysicalResistance` (bit 68).
+    pub mod_target_physical_resistance: i32,
 }
 
 impl Default for PlayerStatChanges {
@@ -661,6 +665,8 @@ impl Default for PlayerStatChanges {
             mod_healing_done_pct: 1.0,
             mod_periodic_healing_pct: 1.0,
             mod_spell_power_pct: 1.0,
+            mod_target_resistance: 0,
+            mod_target_physical_resistance: 0,
         }
     }
 }
@@ -713,6 +719,10 @@ pub struct PlayerCombatStats {
     pub mod_damage_done_percent: [f32; 7],
     /// C++ `ActivePlayerData::ModHealingDonePercent` (1.0 = no modifier).
     pub mod_healing_done_pct: f32,
+    /// C++ `ActivePlayerData::ModTargetResistance`.
+    pub mod_target_resistance: i32,
+    /// C++ `ActivePlayerData::ModTargetPhysicalResistance`.
+    pub mod_target_physical_resistance: i32,
 }
 
 impl Default for PlayerCombatStats {
@@ -752,6 +762,8 @@ impl Default for PlayerCombatStats {
             mod_healing_done_pos: 0,
             mod_damage_done_percent: [1.0; 7],
             mod_healing_done_pct: 1.0,
+            mod_target_resistance: 0,
+            mod_target_physical_resistance: 0,
         }
     }
 }
@@ -832,6 +844,10 @@ pub struct PlayerCreateData {
     pub mod_damage_done_percent: [f32; 7],
     /// C++ `ActivePlayerData::ModHealingDonePercent` (1.0 = no modifier).
     pub mod_healing_done_pct: f32,
+    /// C++ `ActivePlayerData::ModTargetResistance`.
+    pub mod_target_resistance: i32,
+    /// C++ `ActivePlayerData::ModTargetPhysicalResistance`.
+    pub mod_target_physical_resistance: i32,
     /// Visible equipment items (19 slots).
     /// Each entry: (ItemID, AppearanceModID, ItemVisual).
     /// Slots: Head(0), Neck(1), Shoulders(2), Shirt(3), Chest(4), Waist(5),
