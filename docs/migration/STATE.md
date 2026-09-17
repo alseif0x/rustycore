@@ -8,6 +8,26 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**Save-snapshot manager-lock re-entry — 2026-09-17, implementation `f55d9ef3`:**
+`fixture_player_save_to_db_snapshot_like_cpp` held the canonical map-manager lock
+for its `do_for_all_maps` scan and resolved `self.player_level_like_cpp()` inside
+that closure; the accessor re-enters the same non-reentrant lock, so both
+`save_snapshot_owner` scenarios hung forever (they also hung on the clean base
+`b3f36c1b`). The level is now resolved before the lock, with the snapshot fields
+unchanged and no production path affected (`current_player_save_to_db_snapshot_like_cpp`'s
+header helper only reads the borrowed Player). This was the last known hang:
+**`wow-world --lib` now runs to completion with no skips — 3896 passed, 28 failed,
+1 ignored, 0 filtered.** The 28 failures are pre-existing (their filters fail
+identically on the clean base, re-checked here): 21 `handlers::quest::tests`
+`push_quest_to_party` fan-out cases, two `scenarios_world_entities_16`
+quest-giver queries, `reputation_retention`, `movement_fall_land_lethal`,
+`void_storage` login appearance, `scenarios_persistence_2` logout snapshot and
+`scenarios_world_entities_1` durable creature rail; they form a separate defect
+track and are not claimed fixed. Focused: `save_snapshot_owner` (5). Format,
+`git diff --check`, the physical ratchet and `validation-v2 quick` (manifest
+`20260917T021722.275999Z-2169415-quick.json`, 38.3 s) pass. No live
+DB/restart/relogin QA.
+
 **Session reputation-closure lock re-entry deadlock — 2026-09-17, implementation
 `299fe975`, integrated as `3c3f2ce4` by PR #999:** six call sites ran `self.player_race_like_cpp()`/
 `self.player_class_like_cpp()` (and the friendship store) inside

@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**Save-snapshot manager-lock re-entry — 2026-09-17, implementation `f55d9ef3`:**
+the fixture save-snapshot path resolved `player_level_like_cpp` inside a
+manager-locked `do_for_all_maps` closure and self-deadlocked; the level is now
+hoisted, which removed the last `wow-world --lib` hang. The suite completes
+(3896 passed, 28 pre-existing failures) and those failures are recorded as a
+separate defect track, not parity work.
+
 **Session reputation-closure lock re-entry deadlock — 2026-09-17, implementation
 `299fe975`:** `with_reputation_mgr_like_cpp` holds the canonical manager lock while
 its closure runs, so resolving `player_race_like_cpp`/`player_class_like_cpp`
