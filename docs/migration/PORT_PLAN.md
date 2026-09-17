@@ -33,6 +33,20 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**Seven stale `wow-world --lib` expectations — 2026-09-17, implementation
+`2534b97e`:** the seven scenarios left red by PR #1003 were reproduced on clean
+base `6b46be23` and corrected as harness/expectation defects, not production
+changes: the void-storage fixture now seeds the learned one-handed-sword
+proficiency required by `CollectionMgr::CanAddAppearance`
+(`CollectionMgr.cpp:649-726`; first-login `playercreateinfo_cast_spell` →
+`SPELL_EFFECT_PROFICIENCY`, `CharacterHandler.cpp:1284-1288`,
+`SpellEffects.cpp:1785-1804`); the reputation-retention fixture publishes the
+loaded identity before the rows load (`Player::LoadFromDB`,
+`CharacterHandler.cpp:1070`); the logout snapshot, durable creature rail, fall
+death and two quest-giver queries match the owned C++ order and canonical level
+readers. `wow-world --lib` is **3924 passed/0 failed/1 ignored**. No gameplay
+parity and no live DB/restart/relogin QA.
+
 **Represented quest-share party fixture identity — 2026-09-17, implementation
 `05d0d5e4`:** the party fixture adopted an identity-less canonical Player, so the
 registry level snapshot was overwritten with 0 and 21 `push_quest_to_party`
