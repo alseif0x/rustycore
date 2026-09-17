@@ -878,6 +878,192 @@ async fn crit_aura_percentages_follow_weapon_dependent_auras_like_cpp() {
 }
 
 #[tokio::test]
+async fn weapon_damage_pct_follows_update_damage_pct_done_mods_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 61_900);
+    let mainhand_guid = ObjectGuid::create_item(1, 61_900);
+    let offhand_guid = ObjectGuid::create_item(1, 61_901);
+    let mainhand_id = 61_900u32;
+    let offhand_id = 61_901u32;
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    session.set_player_stats(Arc::new(wow_data::PlayerStatsStore::from_entries([(
+        (1, 1, 80),
+        wow_data::PlayerLevelStats {
+            strength: 10,
+            agility: 10,
+            stamina: 10,
+            intellect: 40,
+            spirit: 30,
+            base_mana: 0,
+        },
+    )])));
+    session.set_chr_classes_store(Arc::new(
+        wow_data::character_progression::ChrClassesStore::from_entries([{
+            let mut entry = wow_data::character_progression::ChrClassesEntry::default();
+            entry.id = 1;
+            entry
+        }]),
+    ));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    session.set_item_store(Arc::new(ItemStore::from_records([
+        ItemRecord {
+            id: mainhand_id,
+            class_id: ItemClass::Weapon as u8,
+            subclass_id: ItemSubClassWeapon::Sword as u8,
+            material: 0,
+            inventory_type: InventoryType::WeaponMainhand as i8,
+            sheathe_type: 0,
+            random_select: 0,
+            random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
+        },
+        ItemRecord {
+            id: offhand_id,
+            class_id: ItemClass::Weapon as u8,
+            subclass_id: ItemSubClassWeapon::Dagger as u8,
+            material: 0,
+            inventory_type: InventoryType::WeaponOffhand as i8,
+            sheathe_type: 0,
+            random_select: 0,
+            random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
+        },
+    ])));
+    session.set_item_stats_store(Arc::new(ItemStatsStore::from_parts(
+        [
+            (
+                mainhand_id,
+                ItemStatEntry {
+                    stats: std::array::from_fn(|_| (wow_constants::ItemModType::None as i8, 0)),
+                    resistances: [0; 7],
+                    armor: 0,
+                },
+            ),
+            (
+                offhand_id,
+                ItemStatEntry {
+                    stats: std::array::from_fn(|_| (wow_constants::ItemModType::None as i8, 0)),
+                    resistances: [0; 7],
+                    armor: 0,
+                },
+            ),
+        ],
+        [],
+    )));
+    for (guid, item_id, slot, inventory_type) in [
+        (
+            mainhand_guid,
+            mainhand_id,
+            wow_entities::EQUIPMENT_SLOT_MAINHAND,
+            InventoryType::WeaponMainhand,
+        ),
+        (
+            offhand_guid,
+            offhand_id,
+            wow_entities::EQUIPMENT_SLOT_OFFHAND,
+            InventoryType::WeaponOffhand,
+        ),
+    ] {
+        let item = session.make_inventory_item_object(
+            guid,
+            item_id,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            slot,
+        );
+        session.insert_inventory_item_object(item);
+        session.insert_inventory_item_like_cpp(
+            slot,
+            InventoryItem {
+                guid,
+                entry_id: item_id,
+                db_guid: guid.counter() as u64,
+                inventory_type: Some(inventory_type as u8),
+            },
+        );
+    }
+
+    // `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE` effects: one item-neutral +50% and
+    // one +100% restricted to swords.
+    let mut spell_store = wow_data::SpellStore::new();
+    for (spell_id, misc_value, amount) in [(90_930, 1, 50), (90_931, 1, 100)] {
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: amount,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(79),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: 79,
+                    effect_misc_value_1: misc_value,
+                    effect_base_points: amount,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    session.set_spell_store(Arc::new(spell_store));
+    session.set_spell_equipped_items_store(Arc::new(SpellEquippedItemsStore::from_entries([
+        SpellEquippedItemsEntry {
+            id: 1,
+            spell_id: 90_931,
+            equipped_item_class: ItemClass::Weapon as i8,
+            equipped_item_inv_types: 0,
+            equipped_item_subclass: 1_i32 << (ItemSubClassWeapon::Sword as u32),
+        },
+    ])));
+    session.set_state(crate::session::SessionState::LoggedIn);
+
+    let stats = |session: &WorldSession| {
+        session
+            .canonical_player_effective_combat_stats_like_cpp()
+            .expect("weapon damage projection")
+    };
+
+    // C++ `UpdateDamagePctDoneMods`: mainhand/ranged 1.0, offhand 0.5.
+    let _ = session.send_stat_update();
+    let baseline = stats(&session);
+    assert_eq!(baseline.weapon_damage_pct, [1.0, 0.5, 1.0]);
+    assert!(
+        (baseline.weapon_damage[1][0] * 2.0 - baseline.weapon_damage[0][0]).abs() < 0.01,
+        "the offhand TOTAL_PCT halves the represented range"
+    );
+
+    session
+        .apply_aura(90_930, player_guid, 30_000, 1)
+        .expect("apply physical damage percentage aura");
+    let _ = session.send_stat_update();
+    let neutral = stats(&session);
+    assert_eq!(neutral.weapon_damage_pct, [1.5, 0.75, 1.5]);
+
+    // The sword-restricted aura applies to the mainhand only: the offhand
+    // dagger fails `CheckAttackFitToAuraRequirement`, and the ranged attack has
+    // no resolved weapon.
+    session
+        .apply_aura(90_931, player_guid, 30_000, 1)
+        .expect("apply sword damage percentage aura");
+    let _ = session.send_stat_update();
+    let restricted = stats(&session);
+    assert_eq!(restricted.weapon_damage_pct, [3.0, 0.75, 1.5]);
+}
+
+#[tokio::test]
 async fn school_resistances_follow_update_resistances_like_cpp() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 61_500);

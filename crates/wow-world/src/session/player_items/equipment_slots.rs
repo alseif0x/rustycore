@@ -5,6 +5,10 @@
 
 use super::*;
 
+/// C++ `SPELL_SCHOOL_MASK_NORMAL` (`SharedDefines.h:329`): the physical school
+/// bit `Unit::UpdateDamagePctDoneMods` filters the damage-percent aura by.
+const SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP: i32 = 1;
+
 impl WorldSession {
     pub(in crate::session) fn represented_equipped_item_in_slot_fits_spell_requirements_like_cpp(
         &self,
@@ -67,6 +71,50 @@ impl WorldSession {
         }
         weapon_item_id.is_some_and(|item_id| {
             self.represented_item_fits_spell_requirements_like_cpp(item_id, equipped)
+        })
+    }
+
+    /// C++ `Unit::UpdateDamagePctDoneMods` (`Unit.cpp:9033-9072`), reached from
+    /// `Player::UpdateWeaponDependentAuras` on equip and login: the
+    /// `UNIT_MOD_DAMAGE_*` `TOTAL_PCT` is the C++ base factor (mainhand and
+    /// ranged 1.0, offhand 0.5) multiplied by every active
+    /// `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE` effect that covers
+    /// `SPELL_SCHOOL_MASK_NORMAL` and fits the attack's weapon.
+    ///
+    /// Deliberate departure: the source then multiplies the offhand factor by
+    /// `GetTotalAuraModifier(SPELL_AURA_MOD_OFFHAND_DAMAGE_PCT, ...)`, a raw sum
+    /// that is 0 when no such aura is active and therefore zeroes offhand
+    /// damage on every equip/login. RustyCore keeps the evident intent (the 0.5
+    /// base times the physical multiplier) and does not apply that term;
+    /// `SPELL_AURA_MOD_OFFHAND_DAMAGE_PCT` remains a separate gate that needs
+    /// capture evidence for its scale. Ranged weapon requirements are also
+    /// excluded rather than resolved because the represented
+    /// `GetWeaponForAttack` helper covers the melee slots only.
+    pub(crate) fn represented_weapon_damage_pct_like_cpp(&self) -> [f32; 3] {
+        let effects = self
+            .resolved_aura_effects_with_spell_and_misc_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE,
+            )
+            .unwrap_or_default();
+        std::array::from_fn(|index| {
+            let attack =
+                <wow_constants::WeaponAttackType as num_traits::FromPrimitive>::from_usize(index)
+                    .unwrap_or(wow_constants::WeaponAttackType::BaseAttack);
+            let base = match attack {
+                wow_constants::WeaponAttackType::OffAttack => 0.5_f32,
+                _ => 1.0_f32,
+            };
+            let weapon_item_id = self.represented_usable_weapon_item_id_like_cpp(attack);
+            base * effects
+                .iter()
+                .filter(|(spell_id, misc_value, _)| {
+                    misc_value & SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP != 0
+                        && self
+                            .represented_aura_spell_fits_weapon_like_cpp(*spell_id, weapon_item_id)
+                })
+                .fold(1.0_f32, |acc, (_, _, amount)| {
+                    acc * (1.0 + *amount as f32 / 100.0)
+                })
         })
     }
 
