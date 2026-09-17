@@ -33,6 +33,15 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 melee creature-type damage bonus — 2026-09-17, implementation `db3c2db6`:**
+the white swing now applies `MeleeDamageBonusDone`'s creature-type flat (`59`),
+AP-versus (`102` with `GetAPMultiplier`) and percentage (`168`) terms in both
+owners, with the victim creature type resolved from the newly plumbed
+`creature_template_lifecycle_store` on the runtime config. Versus-aurastate and
+target-aura-mechanic melee terms remain open. wow-data --lib 753/0,
+wow-entities --lib 940/0, wow-world --lib 3960/0/1; no live DB/restart/relogin
+QA.
+
 **#61 cast-speed auras — 2026-09-17, implementation `fa7abbfd`:** haste auras now
 shorten the prepared cast time (state, `timed` gate and `SMSG_SPELL_START`),
 with `SetInstantCast` represented as a zero multiplier, and the mislabeled
