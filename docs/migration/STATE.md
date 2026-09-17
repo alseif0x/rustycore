@@ -1,12 +1,43 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`150664e5d7940f7038789a2282394adfdcf2d8c1` (PR #1055, the #61 remaining `SpellDamagePctDone` terms, following PR #1053, the #61 health-derived unit aura states, PR #1051, the #61 mechanic-based damage multipliers, PR #1049, the #61 versus-aurastate damage multiplier, following PR #1047, the creature missing-health heal scaling, PR #1045, the versus-creature-type damage multiplier, PR #1043, the missing-health healing scaling, PR #1041, the `SpellHealingBonusTaken`, PR #1039, the victim `ModHealing` term, PR #1037, the direct-heal spell-power bonus, PR #1035, the school damage percentage, PR #1033, the caster spell-power damage bonus, PR #1031, the weapon-enchantment damage term, PR #1029, the ranged weapon fit, PR #1027, the `Unit::UpdateDamageDoneMods` representation, PR #1025, the `UpdateDamagePctDoneMods` representation, PR #1023, the `VersatilityBonus` publication, PR #1021, the override percentage publication, PR #1019, the `ModTargetResistance`/spell-penetration publication, PR #1017, the `ModHealingDonePercent` publication, PR #1015, the `ModDamageDonePercent` publication, PR #1013, the narrow values-update negative spell field, PR #1011, the spell field wire publication, PR #1009, the spell damage/healing done producers, PR #1007, the override-attack-power-by-spell-power aura, PR #1005, the seven stale `wow-world --lib` expectations, PR #1003, the quest party fixture identity fix, PR #1001, the save-snapshot manager-lock re-entry fix, PR #999, the session reputation-closure lock re-entry deadlock fix, PR #997, the collection appearance `CanUseItem` template gates, PR #995, the collection appearance weapon-proficiency gate, PR #993, the #61 attack power aura producers, PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
+`003e1bb9d05530445375330039e0591f4f3ccaa3` (PR #1057, the #61 `SpellHealingPctDone` completion, following PR #1055, the #61 remaining `SpellDamagePctDone` terms, PR #1053, the #61 health-derived unit aura states, PR #1051, the #61 mechanic-based damage multipliers, PR #1049, the #61 versus-aurastate damage multiplier, following PR #1047, the creature missing-health heal scaling, PR #1045, the versus-creature-type damage multiplier, PR #1043, the missing-health healing scaling, PR #1041, the `SpellHealingBonusTaken`, PR #1039, the victim `ModHealing` term, PR #1037, the direct-heal spell-power bonus, PR #1035, the school damage percentage, PR #1033, the caster spell-power damage bonus, PR #1031, the weapon-enchantment damage term, PR #1029, the ranged weapon fit, PR #1027, the `Unit::UpdateDamageDoneMods` representation, PR #1025, the `UpdateDamagePctDoneMods` representation, PR #1023, the `VersatilityBonus` publication, PR #1021, the override percentage publication, PR #1019, the `ModTargetResistance`/spell-penetration publication, PR #1017, the `ModHealingDonePercent` publication, PR #1015, the `ModDamageDonePercent` publication, PR #1013, the narrow values-update negative spell field, PR #1011, the spell field wire publication, PR #1009, the spell damage/healing done producers, PR #1007, the override-attack-power-by-spell-power aura, PR #1005, the seven stale `wow-world --lib` expectations, PR #1003, the quest party fixture identity fix, PR #1001, the save-snapshot manager-lock re-entry fix, PR #999, the session reputation-closure lock re-entry deadlock fix, PR #997, the collection appearance `CanUseItem` template gates, PR #995, the collection appearance weapon-proficiency gate, PR #993, the #61 attack power aura producers, PR #991, the #61 school resistances, PR #989, the #61 critical-strike aura percentages, PR #987, the #61 avoidance aura percentages, PR #985, the #61 armor aura producers, PR #983, the #61 `Unit::m_transformSpell`/`IsPolymorphed` owner, PR #980, the #61 aura-backed per-attack expertise, PR #978, the #61 food/drink regeneration emote visual, PR #976, the #61 observer `SMSG_POWER_UPDATE` fan-out, PR #974, the #61 creature-kill durability loss, PR #972, the #61 durability-damage spell effects, PR #970, the #61 fall-death item durability loss, PR #968, the #61 C++ regeneration rates, PR #966, the #61 non-mana power-regeneration loop, PR #964, the #61 health-regeneration tick, PR #962, the #61 mana-regeneration docs sync, PR #960, PR #959/#958, docs-only PR #956, and PR #957/#955/#954/#953/#950/#948/#935/#933/#931/#929/#926/#925/#924/#923/#922/#921/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853, PR #851, PR #848, PR #846, PR #844 and PR #842). The entries below preserve
 dated evidence and limits; they do not select an already integrated macro again.
 The active architecture sequence is the remaining measured work in #584, followed
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#61 `SpellHealingPctDone` completion — 2026-09-17, implementation
+`1eab52dc`, integrated as `003e1bb9` by PR #1057:** the represented direct heal
+applied only the published `ModHealingDonePercent` and the missing-health aura,
+so C++ `Unit::SpellHealingPctDone` (`Unit.cpp:7185-7229`) was incomplete in two
+ways. `represented_healing_pct_done_gated_like_cpp` now returns `1.0f` for
+`SPELL_ATTR3_IGNORE_CASTER_MODIFIERS` (`SharedDefines.h:571`) and
+`SPELL_ATTR6_IGNORE_HEALING_MODIFIERS` (`SharedDefines.h:680`) while the flat
+`SpellBaseHealingBonusDone` benefit stays in place, exactly as C++ returns from
+`SpellHealingPctDone` alone; the un-gated chain multiplies by
+`SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE` (303) for every active victim aura
+state before the missing-health term. `represented_aura_state_bit_like_cpp`
+fails closed on an out-of-range aura state instead of shifting out of range, and
+the damage path uses the same helper. Boundary: the `SPELLFAMILY_POTION`
+early-out (the represented `SpellInfo` has no family name), the 354
+`IsAffectingSpell` family/flag gate, the totem redirect and the scripted handlers
+remain unrepresented. Evidence: the two new scenarios in
+`session/tests/scenarios_spell_state_25.rs` assert a 100 heal becomes 200 against
+a defensive-aurastate creature, and that a coefficient-0.5 heal with 100 spell
+power heals 225 without the attribute and 150 with
+`SPELL_ATTR6_IGNORE_HEALING_MODIFIERS` (proving the flat benefit survives the
+gate); wow-data --lib 752/0, wow-entities --lib 940/0 and wow-world --lib
+3946/0/1 pass, as do format, `git diff --check`, the physical ratchet (the
+three-line `SPELL_ATTR6_IGNORE_HEALING_MODIFIERS` constant is recorded on
+`crates/wow-data/src/spell/mod.rs`, 127 -> 130) and `validation-v2 quick`
+(manifest `20260917T071254.960525Z-2480943-quick.json`). No live DB/restart/
+relogin QA. #61 stays open for the Shadow Bite per-DoT term, the blocked
+victim-side `SpellDamageBonusTaken`/`MeleeDamageBonusTaken` chains (creature aura
+producers are absent), the offhand-damage aura scale, the player-killer (PvP)
+`CONFIG_DURABILITY_LOSS_IN_PVP` branch and `SetPvPDeath`, alternate powers, rune
+regeneration and live DB/restart/relogin QA.
 
 **#61 remaining `SpellDamagePctDone` terms — 2026-09-17, implementation
 `04dd26c3`, integrated as `150664e5` by PR #1055:** the last three pieces of
