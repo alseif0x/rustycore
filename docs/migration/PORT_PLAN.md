@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 missing-health healing scaling — 2026-09-17, implementation `c4453097`:**
+`SpellHealingPctDone`'s `MOD_HEALING_DONE_PCT_VERSUS_TARGET_HEALTH` (354) term
+(`Unit.cpp:7224-7227`) now scales represented self-heals by the target's missing
+health; the `IsAffectingSpell` family gate is not represented and is recorded as
+the boundary. wow-data --lib 752/0, wow-world --lib 3933/0/1; no live
+DB/restart/relogin QA.
+
 **#61 `SpellHealingBonusTaken` — 2026-09-17, implementation `b5a2f7a7`:** the
 most positive and most negative `SPELL_AURA_MOD_HEALING_PCT` (118) amounts now
 multiply healing received by the session player (`Unit.cpp:7231-7239`); creature
