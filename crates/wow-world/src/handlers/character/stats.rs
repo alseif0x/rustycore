@@ -137,6 +137,35 @@ impl WorldSession {
             .fold(1.0, |acc, (_, amount)| acc * (1.0 + amount as f32 / 100.0))
     }
 
+    /// C++ `ActivePlayerData::OverrideAPBySpellPowerPercent` from
+    /// `SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT`
+    /// (`SpellAuraDefines.h:499`, `SpellAuraEffects.cpp:3785-3796`): every
+    /// active effect amount is summed through `ApplyModUpdateFieldValue`.
+    ///
+    /// `Player::UpdateAttackPowerAndDamage` (`StatSystem.cpp:341`) tests
+    /// `HasAuraType`, so an active effect whose summed amount is zero still
+    /// replaces the base. C++ takes `min(ModHealingDonePos,
+    /// ModDamageDonePos[HOLY..MAX])`; this runtime publishes the item spell
+    /// power to both fields, so that minimum is the represented spell power.
+    /// The `SPELL_AURA_MOD_DAMAGE_DONE`/`MOD_HEALING_DONE` producers that would
+    /// widen those fields remain a separate gate.
+    fn represented_override_attack_power_by_spell_power_like_cpp(
+        &self,
+        spell_power: i32,
+    ) -> Option<(i32, f32)> {
+        let effects = self.resolved_aura_effects_by_spell_aura_type_like_cpp(
+            wow_data::spell::aura_types::SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT,
+        )?;
+        if effects.is_empty() {
+            return None;
+        }
+        let percent = effects
+            .into_iter()
+            .map(|(_, amount)| amount as f32)
+            .sum::<f32>();
+        Some((spell_power, percent))
+    }
+
     /// C++ `GetFlatModifierValue(UNIT_MOD_ATTACK_POWER, TOTAL_VALUE)` from the
     /// `SPELL_AURA_MOD_ATTACK_POWER` producers
     /// (`HandleAuraModAttackPower`).
@@ -380,6 +409,8 @@ impl WorldSession {
                     .represented_ranged_attack_power_flat_aura_like_cpp(class),
                 ranged_attack_power_total_pct: self
                     .represented_ranged_attack_power_total_pct_like_cpp(class),
+                attack_power_override_by_spell_power: self
+                    .represented_override_attack_power_by_spell_power_like_cpp(gear.spell_power),
                 rating_bonuses,
                 can_parry,
                 can_block,

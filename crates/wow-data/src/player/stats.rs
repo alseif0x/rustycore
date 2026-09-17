@@ -146,6 +146,12 @@ pub struct PlayerStatSystemInputLikeCpp {
     /// C++ `GetPctModifierValue(UNIT_MOD_ATTACK_POWER_RANGED, TOTAL_PCT)` from
     /// `SPELL_AURA_MOD_RANGED_ATTACK_POWER_PCT` (167).
     pub ranged_attack_power_total_pct: f32,
+    /// C++ `Player::UpdateAttackPowerAndDamage` (`StatSystem.cpp:341-379`):
+    /// `Some((min(ModHealingDonePos, ModDamageDonePos[HOLY..MAX]),
+    /// ActivePlayerData::OverrideAPBySpellPowerPercent))` while
+    /// `SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT` is active. `None` keeps the
+    /// strength/agility/level base for both attack mods.
+    pub attack_power_override_by_spell_power: Option<(i32, f32)>,
     pub rating_bonuses: [f32; 32],
     pub can_parry: bool,
     pub can_block: bool,
@@ -313,12 +319,25 @@ pub fn calculate_player_stat_system_like_cpp(
         3 | 4 | 7 | 11 => f32::from(input.level) * 2.0 - 20.0,
         _ => -20.0,
     };
-    let attack_power = ((stats[0] as f32 * f32::from(input.attack_power_per_strength)).max(0.0)
-        + (stats[1] as f32 * f32::from(input.attack_power_per_agility)).max(0.0)
-        + class_specific_attack_power) as i32;
-    let ranged_attack_power = ((f32::from(input.level) + (stats[1] as f32).max(0.0))
-        * f32::from(input.ranged_attack_power_per_agility)
-        - 10.0) as i32;
+    // C++ `Player::UpdateAttackPowerAndDamage` (`StatSystem.cpp:341-379`):
+    // while `SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT` is active, both the
+    // melee and the ranged unit mod replace the strength/agility/level base
+    // with `CalculatePct(float(minSpellPower), percent)` truncated by the
+    // `int32(base_attPower)` store.
+    let (attack_power, ranged_attack_power) = match input.attack_power_override_by_spell_power {
+        Some((min_spell_power, percent)) => {
+            let overridden = (min_spell_power as f32 * percent / 100.0) as i32;
+            (overridden, overridden)
+        }
+        None => (
+            ((stats[0] as f32 * f32::from(input.attack_power_per_strength)).max(0.0)
+                + (stats[1] as f32 * f32::from(input.attack_power_per_agility)).max(0.0)
+                + class_specific_attack_power) as i32,
+            ((f32::from(input.level) + (stats[1] as f32).max(0.0))
+                * f32::from(input.ranged_attack_power_per_agility)
+                - 10.0) as i32,
+        ),
+    };
 
     // C++ `Player::UpdateAttackPowerAndDamage` (`StatSystem.cpp:333-403`):
     // `SetAttackPower(BASE_VALUE)`, `SetAttackPowerModPos(TOTAL_VALUE)` with
@@ -718,6 +737,7 @@ mod tests {
             attack_power_total_pct: 1.0,
             ranged_attack_power_flat_aura: 0,
             ranged_attack_power_total_pct: 1.0,
+            attack_power_override_by_spell_power: None,
             rating_bonuses: [0.0; 32],
             can_parry: false,
             can_block: false,
@@ -785,6 +805,7 @@ mod tests {
             attack_power_total_pct: 1.5,
             ranged_attack_power_flat_aura: 40,
             ranged_attack_power_total_pct: 2.0,
+            attack_power_override_by_spell_power: None,
             rating_bonuses: [0.0; 32],
             can_parry: false,
             can_block: false,
@@ -848,6 +869,7 @@ mod tests {
             attack_power_total_pct: 1.0,
             ranged_attack_power_flat_aura: 0,
             ranged_attack_power_total_pct: 1.0,
+            attack_power_override_by_spell_power: None,
             rating_bonuses: [0.0; 32],
             can_parry: false,
             can_block: false,
@@ -901,6 +923,7 @@ mod tests {
             attack_power_total_pct: 1.0,
             ranged_attack_power_flat_aura: 0,
             ranged_attack_power_total_pct: 1.0,
+            attack_power_override_by_spell_power: None,
             rating_bonuses: [0.0; 32],
             can_parry: true,
             can_block: true,
@@ -967,6 +990,7 @@ mod tests {
             attack_power_total_pct: 1.0,
             ranged_attack_power_flat_aura: 0,
             ranged_attack_power_total_pct: 1.0,
+            attack_power_override_by_spell_power: None,
             rating_bonuses: [0.0; 32],
             can_parry: false,
             can_block: false,
@@ -1020,6 +1044,7 @@ mod tests {
             attack_power_total_pct: 1.0,
             ranged_attack_power_flat_aura: 0,
             ranged_attack_power_total_pct: 1.0,
+            attack_power_override_by_spell_power: None,
             rating_bonuses,
             can_parry: true,
             can_block: true,
@@ -1077,6 +1102,7 @@ mod tests {
             attack_power_total_pct: 1.0,
             ranged_attack_power_flat_aura: 0,
             ranged_attack_power_total_pct: 1.0,
+            attack_power_override_by_spell_power: None,
             rating_bonuses: [0.0; 32],
             can_parry: false,
             can_block: false,
@@ -1129,6 +1155,7 @@ mod tests {
             attack_power_total_pct: 1.0,
             ranged_attack_power_flat_aura: 0,
             ranged_attack_power_total_pct: 1.0,
+            attack_power_override_by_spell_power: None,
             rating_bonuses: [0.0; 32],
             can_parry: false,
             can_block: false,
@@ -1137,5 +1164,73 @@ mod tests {
         assert_eq!(projection.stats[..2], [113, 103]);
         assert_eq!(projection.stat_pos_buff[..2], [103, 0]);
         assert_eq!(projection.stat_neg_buff[..2], [0, -103]);
+    }
+
+    #[test]
+    fn stat_system_overrides_attack_power_by_spell_power_like_cpp() {
+        let input = PlayerStatSystemInputLikeCpp {
+            base: PlayerLevelStats {
+                strength: 10,
+                agility: 10,
+                stamina: 10,
+                intellect: 10,
+                spirit: 10,
+                base_mana: 0,
+            },
+            class: 1,
+            level: 80,
+            attack_power_per_strength: 0,
+            attack_power_per_agility: 0,
+            ranged_attack_power_per_agility: 0,
+            stat_total_multipliers: [1.0; 5],
+            stat_buff_total_multipliers: [1.0; 5],
+            gear_stats: [0; 5],
+            gear_health: 0,
+            gear_mana: 0,
+            gear_armor: 0,
+            armor_base_pct: 1.0,
+            armor_flat_aura: 0,
+            armor_of_stat_percent: [0; 5],
+            armor_total_pct: 1.0,
+            armor_bonus_pct: 1.0,
+            spell_dodge_pct: 0.0,
+            spell_parry_pct: 0.0,
+            spell_block_pct: 0.0,
+            crit_mainhand_aura_pct: 0.0,
+            crit_offhand_aura_pct: 0.0,
+            crit_ranged_aura_pct: 0.0,
+            spell_crit_aura_pct: 0.0,
+            gear_attack_power: 0,
+            gear_ranged_attack_power: 0,
+            attack_power_flat_aura: 0,
+            attack_power_total_pct: 1.0,
+            ranged_attack_power_flat_aura: 0,
+            ranged_attack_power_total_pct: 1.0,
+            attack_power_override_by_spell_power: None,
+            rating_bonuses: [0.0; 32],
+            can_parry: false,
+            can_block: false,
+        };
+        let baseline = calculate_player_stat_system_like_cpp(input);
+        assert_eq!(baseline.attack_power, 220);
+        assert_eq!(baseline.ranged_attack_power, -10);
+
+        // C++ `CalculatePct(1234.0f, 12.5f)` = 154.25, truncated by the
+        // `int32(base_attPower)` store; both attack mods share the base.
+        let overridden = calculate_player_stat_system_like_cpp(PlayerStatSystemInputLikeCpp {
+            attack_power_override_by_spell_power: Some((1_234, 12.5)),
+            ..input
+        });
+        assert_eq!(overridden.attack_power, 154);
+        assert_eq!(overridden.ranged_attack_power, 154);
+
+        // `HasAuraType` presence alone overrides: an active effect whose summed
+        // percent is zero yields `CalculatePct(spellPower, 0.0) == 0`.
+        let zeroed = calculate_player_stat_system_like_cpp(PlayerStatSystemInputLikeCpp {
+            attack_power_override_by_spell_power: Some((1_234, 0.0)),
+            ..input
+        });
+        assert_eq!(zeroed.attack_power, 0);
+        assert_eq!(zeroed.ranged_attack_power, 0);
     }
 }
