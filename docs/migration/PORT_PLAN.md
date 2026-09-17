@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 creature-victim melee fixture determinism — 2026-09-17, implementation
+`50bef0de`:** PR #1125's creature-victim critical band made two exact-damage
+fixtures non-deterministic (12 vs 24 and 8 vs 16, about two failures in fourteen
+full runs); both now set `CREATURE_FLAG_EXTRA_NO_CRIT` on the attacker while the
+dedicated `+100` crit-vs-health stage keeps the critical arm covered. Twelve
+consecutive full `wow-world --lib` runs pass (3990/0/1); world-server 594/0/0,
+wow-packet 744/0; no live DB/restart/relogin QA.
+
 **#29 creature-victim blocked-amount publication — 2026-09-17, implementation
 `da3cf981`:** the bridge packet now carries the blocked amount alongside
 `HITINFO_BLOCK` (tuple `(HitInfo, TargetState, Blocked)`); the scenario decodes

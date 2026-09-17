@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`0ab5ad7bcc3c52b22835a6d256fb88a8e7626df0` (PR #1129, the #29
-creature-victim blocked-amount publication, following PR #1127, the #29
+`32914a563eac0d13cfd64c77abd3374511f574e8` (PR #1131, the #29
+creature-victim melee fixture determinism fix, following PR #1129, the #29
+creature-victim blocked-amount publication, PR #1127, the #29
 creature-victim block-band scenario, PR #1125, the #29
 creature-victim avoidance and crit bands, PR #1123, the #29
 creature-victim miss band and outcome publication, PR #1121, the #29
@@ -34,6 +35,28 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 creature-victim melee fixture determinism — 2026-09-17, implementation
+`50bef0de`, integrated as `32914a56` by PR #1131:** the full `wow-world --lib`
+suite failed intermittently (about two runs in fourteen):
+`legacy_creature_melee_tick_once_mitigates_creature_victim_like_cpp` expected 12
+damage and occasionally saw 24, and
+`legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp`
+expected 8 and occasionally saw 16 — the doubling of an unplanned critical hit.
+The creature-victim branch only started rolling the victim's critical band in
+PR #1125, and those two fixtures kept the attacker's flat 5% critical. Both now
+set `CREATURE_FLAG_EXTRA_NO_CRIT` on the attacker, exactly like the other
+exact-damage melee fixtures; the bands scenario still covers the critical arm
+because its dedicated stage supplies a `+100`
+`SPELL_AURA_MOD_CRIT_CHANCE_VERSUS_TARGET_HEALTH` victim aura. The blocked-amount
+entry above called this a pre-existing flaky case; it was not — PR #1125
+introduced it in these two fixtures, and this change corrects the record.
+Evidence: twelve consecutive full `wow-world --lib` runs pass (3990/0/1 each)
+after the change, against the reproduced `12 vs 24`
+(`scenarios_world_entities_28.rs:1198`) and `8 vs 16` (`:1424`) failures before
+it; world-server 594/0/0 and wow-packet 744/0 pass; format, `git diff --check`
+and `validation-v2 quick` (manifest
+`20260917T192526.288811Z-3288980-quick.json`) pass.
 
 **#29 creature-victim blocked-amount publication — 2026-09-17, implementation
 `da3cf981`, integrated as `0ab5ad7b` by PR #1129:** round 75 left the bridge
