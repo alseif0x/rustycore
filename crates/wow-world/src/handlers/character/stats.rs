@@ -15,6 +15,13 @@ use super::*;
 /// C++ `SPELL_SCHOOL_MASK_NORMAL` (`SharedDefines.h:329`).
 const SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP: i32 = 1;
 
+/// C++ `CLASSMASK_WAND_USERS` (`SharedDefines.h:190`): the priest, mage and
+/// warlock classes ignore the ranged attack power aura producers
+/// (`HandleAuraModRangedAttackPower`).
+fn class_uses_wands_like_cpp(class: u8) -> bool {
+    matches!(class, 5 | 8 | 9)
+}
+
 #[derive(Debug, Clone, Default)]
 pub(crate) struct RepresentedPlayerGearStatsLikeCpp {
     pub(super) stats: [i32; 5],
@@ -128,6 +135,46 @@ impl WorldSession {
             .unwrap_or_default()
             .into_iter()
             .fold(1.0, |acc, (_, amount)| acc * (1.0 + amount as f32 / 100.0))
+    }
+
+    /// C++ `GetFlatModifierValue(UNIT_MOD_ATTACK_POWER, TOTAL_VALUE)` from the
+    /// `SPELL_AURA_MOD_ATTACK_POWER` producers
+    /// (`HandleAuraModAttackPower`).
+    fn represented_attack_power_flat_aura_like_cpp(&self) -> i32 {
+        self.resolved_aura_effects_by_spell_aura_type_like_cpp(
+            wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACK_POWER,
+        )
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(_, amount)| amount)
+        .sum()
+    }
+
+    /// C++ `GetFlatModifierValue(UNIT_MOD_ATTACK_POWER_RANGED, TOTAL_VALUE)`
+    /// from `SPELL_AURA_MOD_RANGED_ATTACK_POWER`, skipped for
+    /// `CLASSMASK_WAND_USERS` (`HandleAuraModRangedAttackPower`).
+    fn represented_ranged_attack_power_flat_aura_like_cpp(&self, class: u8) -> i32 {
+        if class_uses_wands_like_cpp(class) {
+            return 0;
+        }
+        self.resolved_aura_effects_by_spell_aura_type_like_cpp(
+            wow_data::spell::aura_types::SPELL_AURA_MOD_RANGED_ATTACK_POWER,
+        )
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(_, amount)| amount)
+        .sum()
+    }
+
+    /// C++ `GetPctModifierValue(UNIT_MOD_ATTACK_POWER_RANGED, TOTAL_PCT)` from
+    /// `SPELL_AURA_MOD_RANGED_ATTACK_POWER_PCT`, skipped for wand users.
+    fn represented_ranged_attack_power_total_pct_like_cpp(&self, class: u8) -> f32 {
+        if class_uses_wands_like_cpp(class) {
+            return 1.0;
+        }
+        self.represented_total_aura_multiplier_like_cpp(
+            wow_data::spell::aura_types::SPELL_AURA_MOD_RANGED_ATTACK_POWER_PCT,
+        )
     }
 
     /// C++ `GetFlatModifierValue(UNIT_MOD_RESISTANCE_START + school, TOTAL_VALUE)`
@@ -325,6 +372,14 @@ impl WorldSession {
                 ),
                 gear_attack_power: gear.attack_power,
                 gear_ranged_attack_power: gear.ranged_attack_power,
+                attack_power_flat_aura: self.represented_attack_power_flat_aura_like_cpp(),
+                attack_power_total_pct: self.represented_total_aura_multiplier_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACK_POWER_PCT,
+                ),
+                ranged_attack_power_flat_aura: self
+                    .represented_ranged_attack_power_flat_aura_like_cpp(class),
+                ranged_attack_power_total_pct: self
+                    .represented_ranged_attack_power_total_pct_like_cpp(class),
                 rating_bonuses,
                 can_parry,
                 can_block,
@@ -400,10 +455,10 @@ impl WorldSession {
             resistances,
             attack_power: projection.attack_power,
             attack_power_mod_pos: projection.attack_power_mod_pos,
-            attack_power_multiplier: 0.0,
+            attack_power_multiplier: projection.attack_power_multiplier,
             ranged_attack_power: projection.ranged_attack_power,
             ranged_attack_power_mod_pos: projection.ranged_attack_power_mod_pos,
-            ranged_attack_power_multiplier: 0.0,
+            ranged_attack_power_multiplier: projection.ranged_attack_power_multiplier,
             min_damage: weapon_damage[0][0],
             max_damage: weapon_damage[0][1],
             weapon_damage,

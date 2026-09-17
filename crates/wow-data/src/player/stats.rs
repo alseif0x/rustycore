@@ -134,6 +134,18 @@ pub struct PlayerStatSystemInputLikeCpp {
     pub spell_crit_aura_pct: f32,
     pub gear_attack_power: i32,
     pub gear_ranged_attack_power: i32,
+    /// C++ `GetFlatModifierValue(UNIT_MOD_ATTACK_POWER, TOTAL_VALUE)` from
+    /// `SPELL_AURA_MOD_ATTACK_POWER` (99).
+    pub attack_power_flat_aura: i32,
+    /// C++ `GetPctModifierValue(UNIT_MOD_ATTACK_POWER, TOTAL_PCT)` from
+    /// `SPELL_AURA_MOD_ATTACK_POWER_PCT` (166).
+    pub attack_power_total_pct: f32,
+    /// C++ `GetFlatModifierValue(UNIT_MOD_ATTACK_POWER_RANGED, TOTAL_VALUE)`
+    /// from `SPELL_AURA_MOD_RANGED_ATTACK_POWER` (124).
+    pub ranged_attack_power_flat_aura: i32,
+    /// C++ `GetPctModifierValue(UNIT_MOD_ATTACK_POWER_RANGED, TOTAL_PCT)` from
+    /// `SPELL_AURA_MOD_RANGED_ATTACK_POWER_PCT` (167).
+    pub ranged_attack_power_total_pct: f32,
     pub rating_bonuses: [f32; 32],
     pub can_parry: bool,
     pub can_block: bool,
@@ -152,8 +164,12 @@ pub struct PlayerStatSystemProjectionLikeCpp {
     pub armor: i32,
     pub attack_power: i32,
     pub attack_power_mod_pos: i32,
+    /// C++ `UnitData::AttackPowerMultiplier` (`TOTAL_PCT - 1.0`).
+    pub attack_power_multiplier: f32,
     pub ranged_attack_power: i32,
     pub ranged_attack_power_mod_pos: i32,
+    /// C++ `UnitData::RangedAttackPowerMultiplier` (`TOTAL_PCT - 1.0`).
+    pub ranged_attack_power_multiplier: f32,
     pub total_attack_power: i32,
     pub total_ranged_attack_power: i32,
     pub block_pct: f32,
@@ -304,6 +320,27 @@ pub fn calculate_player_stat_system_like_cpp(
         * f32::from(input.ranged_attack_power_per_agility)
         - 10.0) as i32;
 
+    // C++ `Player::UpdateAttackPowerAndDamage` (`StatSystem.cpp:333-403`):
+    // `SetAttackPower(BASE_VALUE)`, `SetAttackPowerModPos(TOTAL_VALUE)` with
+    // gear plus the `MOD_ATTACK_POWER` auras, and
+    // `SetAttackPowerMultiplier(TOTAL_PCT - 1.0)` from `MOD_ATTACK_POWER_PCT`.
+    // `Unit::GetTotalAttackPowerValue` then clamps the base plus modifier at
+    // zero before the multiplier.
+    let attack_power_mod_pos = input
+        .gear_attack_power
+        .saturating_add(input.attack_power_flat_aura);
+    let attack_power_multiplier = input.attack_power_total_pct - 1.0;
+    let total_attack_power = (attack_power.saturating_add(attack_power_mod_pos)).max(0) as f32
+        * input.attack_power_total_pct;
+    let ranged_attack_power_mod_pos = input
+        .gear_attack_power
+        .saturating_add(input.gear_ranged_attack_power)
+        .saturating_add(input.ranged_attack_power_flat_aura);
+    let ranged_attack_power_multiplier = input.ranged_attack_power_total_pct - 1.0;
+    let total_ranged_attack_power =
+        (ranged_attack_power.saturating_add(ranged_attack_power_mod_pos)).max(0) as f32
+            * input.ranged_attack_power_total_pct;
+
     let rating = |index: usize| input.rating_bonuses.get(index).copied().unwrap_or(0.0);
     // C++ `Player::UpdateAllCritPercentages`/`UpdateCritPercentage`
     // (`StatSystem.cpp:502-538`) seeds each group with 5%, adds the
@@ -366,15 +403,13 @@ pub fn calculate_player_stat_system_like_cpp(
         max_mana,
         armor,
         attack_power,
-        attack_power_mod_pos: input.gear_attack_power,
+        attack_power_mod_pos,
+        attack_power_multiplier,
         ranged_attack_power,
-        ranged_attack_power_mod_pos: input
-            .gear_attack_power
-            .saturating_add(input.gear_ranged_attack_power),
-        total_attack_power: attack_power.saturating_add(input.gear_attack_power),
-        total_ranged_attack_power: ranged_attack_power
-            .saturating_add(input.gear_attack_power)
-            .saturating_add(input.gear_ranged_attack_power),
+        ranged_attack_power_mod_pos,
+        ranged_attack_power_multiplier,
+        total_attack_power: total_attack_power as i32,
+        total_ranged_attack_power: total_ranged_attack_power as i32,
         block_pct,
         dodge_pct,
         dodge_from_attr: 0.0,
@@ -679,6 +714,10 @@ mod tests {
             spell_crit_aura_pct: 0.0,
             gear_attack_power: 17,
             gear_ranged_attack_power: 4,
+            attack_power_flat_aura: 0,
+            attack_power_total_pct: 1.0,
+            ranged_attack_power_flat_aura: 0,
+            ranged_attack_power_total_pct: 1.0,
             rating_bonuses: [0.0; 32],
             can_parry: false,
             can_block: false,
@@ -691,9 +730,77 @@ mod tests {
         assert_eq!(projection.armor, 12 * 2 + 25);
         assert_eq!(projection.attack_power, -20);
         assert_eq!(projection.attack_power_mod_pos, 17);
-        assert_eq!(projection.total_attack_power, -3);
+        // C++ `Unit::GetTotalAttackPowerValue` clamps the base plus modifier at
+        // zero before the multiplier, so -20 + 17 yields zero.
+        assert_eq!(projection.total_attack_power, 0);
+        assert_eq!(projection.attack_power_multiplier, 0.0);
         assert_eq!(projection.ranged_attack_power, -10);
         assert_eq!(projection.ranged_attack_power_mod_pos, 21);
+        assert_eq!(projection.total_ranged_attack_power, 11);
+        assert_eq!(projection.ranged_attack_power_multiplier, 0.0);
+    }
+
+    #[test]
+    fn stat_system_applies_cpp_attack_power_aura_producers_like_cpp() {
+        // C++ `Player::UpdateAttackPowerAndDamage` (`StatSystem.cpp:333-403`)
+        // and `Unit::GetTotalAttackPowerValue`: gear plus the
+        // `MOD_ATTACK_POWER`/`MOD_RANGED_ATTACK_POWER` flats form the modifier,
+        // the `..._PCT` auras form `TOTAL_PCT - 1.0`, and the total clamps the
+        // base plus modifier at zero before multiplying.
+        let input = PlayerStatSystemInputLikeCpp {
+            base: PlayerLevelStats {
+                strength: 10,
+                agility: 10,
+                stamina: 10,
+                intellect: 40,
+                spirit: 30,
+                base_mana: 0,
+            },
+            class: 1,
+            level: 80,
+            attack_power_per_strength: 2,
+            attack_power_per_agility: 0,
+            ranged_attack_power_per_agility: 0,
+            stat_total_multipliers: [1.0; 5],
+            stat_buff_total_multipliers: [1.0; 5],
+            gear_stats: [0; 5],
+            gear_health: 0,
+            gear_mana: 0,
+            gear_armor: 0,
+            armor_base_pct: 1.0,
+            armor_flat_aura: 0,
+            armor_of_stat_percent: [0; 5],
+            armor_total_pct: 1.0,
+            armor_bonus_pct: 1.0,
+            spell_dodge_pct: 0.0,
+            spell_parry_pct: 0.0,
+            spell_block_pct: 0.0,
+            crit_mainhand_aura_pct: 0.0,
+            crit_offhand_aura_pct: 0.0,
+            crit_ranged_aura_pct: 0.0,
+            spell_crit_aura_pct: 0.0,
+            gear_attack_power: 50,
+            gear_ranged_attack_power: 20,
+            attack_power_flat_aura: 100,
+            attack_power_total_pct: 1.5,
+            ranged_attack_power_flat_aura: 40,
+            ranged_attack_power_total_pct: 2.0,
+            rating_bonuses: [0.0; 32],
+            can_parry: false,
+            can_block: false,
+        };
+        let projection = calculate_player_stat_system_like_cpp(input);
+
+        // Class 1 (warrior): 10 Strength * 2 + (80 * 3 - 20) = 240 base AP,
+        // and (80 + 10) * 0 - 10 = -10 ranged.
+        assert_eq!(projection.attack_power, 240);
+        assert_eq!(projection.attack_power_mod_pos, 150);
+        assert_eq!(projection.attack_power_multiplier, 0.5);
+        assert_eq!(projection.total_attack_power, 585);
+        assert_eq!(projection.ranged_attack_power, -10);
+        assert_eq!(projection.ranged_attack_power_mod_pos, 110);
+        assert_eq!(projection.ranged_attack_power_multiplier, 1.0);
+        assert_eq!(projection.total_ranged_attack_power, 200);
     }
 
     #[test]
@@ -737,6 +844,10 @@ mod tests {
             spell_crit_aura_pct: 0.0,
             gear_attack_power: 0,
             gear_ranged_attack_power: 0,
+            attack_power_flat_aura: 0,
+            attack_power_total_pct: 1.0,
+            ranged_attack_power_flat_aura: 0,
+            ranged_attack_power_total_pct: 1.0,
             rating_bonuses: [0.0; 32],
             can_parry: false,
             can_block: false,
@@ -786,6 +897,10 @@ mod tests {
             spell_crit_aura_pct: 0.0,
             gear_attack_power: 0,
             gear_ranged_attack_power: 0,
+            attack_power_flat_aura: 0,
+            attack_power_total_pct: 1.0,
+            ranged_attack_power_flat_aura: 0,
+            ranged_attack_power_total_pct: 1.0,
             rating_bonuses: [0.0; 32],
             can_parry: true,
             can_block: true,
@@ -848,6 +963,10 @@ mod tests {
             spell_crit_aura_pct: 5.0,
             gear_attack_power: 0,
             gear_ranged_attack_power: 0,
+            attack_power_flat_aura: 0,
+            attack_power_total_pct: 1.0,
+            ranged_attack_power_flat_aura: 0,
+            ranged_attack_power_total_pct: 1.0,
             rating_bonuses: [0.0; 32],
             can_parry: false,
             can_block: false,
@@ -897,6 +1016,10 @@ mod tests {
             spell_crit_aura_pct: 0.0,
             gear_attack_power: 0,
             gear_ranged_attack_power: 0,
+            attack_power_flat_aura: 0,
+            attack_power_total_pct: 1.0,
+            ranged_attack_power_flat_aura: 0,
+            ranged_attack_power_total_pct: 1.0,
             rating_bonuses,
             can_parry: true,
             can_block: true,
@@ -950,6 +1073,10 @@ mod tests {
             spell_crit_aura_pct: 0.0,
             gear_attack_power: 0,
             gear_ranged_attack_power: 0,
+            attack_power_flat_aura: 0,
+            attack_power_total_pct: 1.0,
+            ranged_attack_power_flat_aura: 0,
+            ranged_attack_power_total_pct: 1.0,
             rating_bonuses: [0.0; 32],
             can_parry: false,
             can_block: false,
@@ -998,6 +1125,10 @@ mod tests {
             spell_crit_aura_pct: 0.0,
             gear_attack_power: 0,
             gear_ranged_attack_power: 0,
+            attack_power_flat_aura: 0,
+            attack_power_total_pct: 1.0,
+            ranged_attack_power_flat_aura: 0,
+            ranged_attack_power_total_pct: 1.0,
             rating_bonuses: [0.0; 32],
             can_parry: false,
             can_block: false,
