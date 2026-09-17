@@ -970,6 +970,21 @@ impl ConditionalContentTuningStore {
 }
 
 impl ExpectedStatStore {
+    /// C++ `DB2Manager::EvaluateExpectedStat(ExpectedStatType::ArmorConstant,
+    /// level, expansion, 0, CLASS_NONE)` (`DB2Stores.cpp:2103-2173`): the
+    /// `(lvl, expansion_id)` row, falling back to `(lvl, -2)`, then `1.0f` when
+    /// the level row is absent. `CLASS_NONE` applies no class modifier and
+    /// `contentTuningId` is unused in the target build, so neither participates.
+    pub fn armor_constant_like_cpp(&self, level: u32, expansion: i32) -> f32 {
+        self.entries()
+            .find(|entry| entry.lvl == level && entry.expansion_id == expansion)
+            .or_else(|| {
+                self.entries()
+                    .find(|entry| entry.lvl == level && entry.expansion_id == -2)
+            })
+            .map_or(1.0, |entry| entry.armor_constant)
+    }
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "ExpectedStat.db2", |id, idx, r| {
             ExpectedStatEntry {

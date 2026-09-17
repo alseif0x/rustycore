@@ -5161,6 +5161,10 @@ async fn run_inner(
     info!("Starting instance listener on {instance_addr}");
 
     let mut legacy_creature_aggro_config = legacy_creature_aggro_config_like_cpp(&world_configs);
+    legacy_creature_aggro_config.expected_stat_store =
+        wow_data::ExpectedStatStore::load(&data_dir, &locale)
+            .ok()
+            .map(Arc::new);
     legacy_creature_aggro_config.faction_template_store = Some(Arc::clone(&faction_template_store));
     legacy_creature_aggro_config.faction_store = Some(Arc::clone(&progression_faction_store));
     legacy_creature_aggro_config.map_store = Some(Arc::clone(&map_store));
