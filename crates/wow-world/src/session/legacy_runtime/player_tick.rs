@@ -225,6 +225,22 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                 .auras
                 .applied_auras
                 .clone();
+            // The victim's avoidance and attacker-facing aura terms
+            // (`Unit::GetUnitDodgeChance` and friends, `Unit.cpp:2313-2378`).
+            let victim_aura_sum = |aura_type: i32| -> f32 {
+                config.spell_store.as_deref().map_or(0.0, |spell_store| {
+                    crate::session_rules::creature_aura_effects_like_cpp(
+                        &creature_applied_auras,
+                        spell_store,
+                        map_difficulty_id,
+                        config.difficulty_store.as_deref(),
+                    )
+                    .into_iter()
+                    .filter(|effect| effect.aura_type == aura_type)
+                    .map(|effect| effect.amount as f32)
+                    .sum()
+                })
+            };
             victim_outcome_facts = crate::session_rules::RepresentedMeleeVictimFactsLikeCpp {
                 level: victim_level,
                 is_creature: true,
@@ -232,6 +248,24 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                 dodge_pct: creature.creature.avoidance_like_cpp().dodge_pct,
                 parry_pct: creature.creature.avoidance_like_cpp().parry_pct,
                 block_pct: creature.creature.avoidance_like_cpp().block_pct,
+                dodge_aura_pct: victim_aura_sum(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_DODGE_PERCENT,
+                ),
+                parry_aura_pct: victim_aura_sum(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_PARRY_PERCENT,
+                ),
+                block_aura_pct: victim_aura_sum(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_BLOCK_PERCENT,
+                ),
+                attacker_melee_hit_chance_pct: victim_aura_sum(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+                ),
+                attacker_melee_crit_chance_pct: victim_aura_sum(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_CRIT_CHANCE,
+                ) + victim_aura_sum(
+                    wow_data::spell::aura_types::
+                        SPELL_AURA_MOD_ATTACKER_SPELL_AND_WEAPON_CRIT_CHANCE,
+                ),
                 faces_attacker: false,
             };
             victim_creature_type_mask = config
@@ -376,6 +410,18 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                             stats.mainhand_expertise / 4.0,
                             stats.offhand_expertise / 4.0,
                         ],
+                        // `GetUnitDodgeChance`'s attacker-side reductions.
+                        dodge_reduction_pct:
+                            crate::session_rules::player_aura_effects_by_spell_aura_type_like_cpp(
+                                auras,
+                                spell_store,
+                                wow_data::spell::aura_types::SPELL_AURA_MOD_COMBAT_RESULT_CHANCE,
+                            )
+                            .into_iter()
+                            .filter(|(misc_value, _)| *misc_value == 2)
+                            .map(|(_, amount)| amount as f32)
+                            .sum::<f32>()
+                                + aura_sum(wow_data::spell::aura_types::SPELL_AURA_MOD_ENEMY_DODGE),
                     };
                 (
                     bonus,

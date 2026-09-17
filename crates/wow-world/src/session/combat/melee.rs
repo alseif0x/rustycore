@@ -253,6 +253,19 @@ impl WorldSession {
                 wow_data::spell::aura_types::SPELL_AURA_MOD_AUTOATTACK_CRIT_CHANCE,
             ),
             expertise_reduction_pct: [mainhand_expertise / 4.0, offhand_expertise / 4.0],
+            // `GetUnitDodgeChance`'s attacker-side reductions: the
+            // `VICTIMSTATE_DODGE` row of `SPELL_AURA_MOD_COMBAT_RESULT_CHANCE`
+            // plus every `SPELL_AURA_MOD_ENEMY_DODGE` amount.
+            dodge_reduction_pct: self
+                .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_COMBAT_RESULT_CHANCE,
+                )
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|(misc_value, _)| *misc_value == 2)
+                .map(|(_, amount)| amount as f32)
+                .sum::<f32>()
+                + aura_sum(wow_data::spell::aura_types::SPELL_AURA_MOD_ENEMY_DODGE),
         };
         let Some(manager) = self.map_manager.as_ref() else {
             return (attacker, VictimFacts::default());
@@ -269,6 +282,22 @@ impl WorldSession {
                 .find_creature(self.player_map_id_like_cpp(), instance_id, target_guid)
                 .map(|creature| {
                     let victim_position = creature.position();
+                    // The victim's avoidance and attacker-facing aura terms
+                    // (`Unit::GetUnitDodgeChance` and friends).
+                    let victim_aura_sum = |aura_type: i32| -> f32 {
+                        self.spell_store().map_or(0.0, |spell_store| {
+                            crate::session_rules::creature_aura_effects_like_cpp(
+                                &creature.creature.unit().subsystems().auras.applied_auras,
+                                spell_store,
+                                self.current_map_difficulty_id_like_cpp(),
+                                self.difficulty_store().map(AsRef::as_ref),
+                            )
+                            .into_iter()
+                            .filter(|effect| effect.aura_type == aura_type)
+                            .map(|effect| effect.amount as f32)
+                            .sum()
+                        })
+                    };
                     VictimFacts {
                         level: creature.level(),
                         is_creature: true,
@@ -276,6 +305,24 @@ impl WorldSession {
                         dodge_pct: creature.creature.avoidance_like_cpp().dodge_pct,
                         parry_pct: creature.creature.avoidance_like_cpp().parry_pct,
                         block_pct: creature.creature.avoidance_like_cpp().block_pct,
+                        dodge_aura_pct: victim_aura_sum(
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_DODGE_PERCENT,
+                        ),
+                        parry_aura_pct: victim_aura_sum(
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_PARRY_PERCENT,
+                        ),
+                        block_aura_pct: victim_aura_sum(
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_BLOCK_PERCENT,
+                        ),
+                        attacker_melee_hit_chance_pct: victim_aura_sum(
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+                        ),
+                        attacker_melee_crit_chance_pct: victim_aura_sum(
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_CRIT_CHANCE,
+                        ) + victim_aura_sum(
+                            wow_data::spell::aura_types::
+                                SPELL_AURA_MOD_ATTACKER_SPELL_AND_WEAPON_CRIT_CHANCE,
+                        ),
                         faces_attacker: is_unit_facing_target_for_melee_like_cpp(
                             victim_position,
                             attacker_position,
