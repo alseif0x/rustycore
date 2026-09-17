@@ -280,6 +280,11 @@ impl WorldSession {
         if spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP {
             let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
         }
+        // C++ `AuraEffect::HandleModAttackSpeed`/`HandleModMeleeSpeedPct`/
+        // `HandleModCombatSpeedPct`/`HandleAuraModRangedHaste`
+        // (`SpellAuraEffects.cpp:4353-4393`) reinstall the attack-time
+        // multipliers on every apply.
+        self.sync_represented_attack_speed_like_cpp();
 
         Ok(())
     }
@@ -632,6 +637,9 @@ impl WorldSession {
                 self.total_stat_percentage_aura_preserves_health_pct_like_cpp(&aura);
             self.send_total_stat_percentage_update_like_cpp(preserve_health_pct);
         }
+        // C++ removes the aura's attack-time multiplier through the same
+        // `ApplyAttackTimePercentMod` handlers the apply path used.
+        self.sync_represented_attack_speed_like_cpp();
 
         Ok(())
     }

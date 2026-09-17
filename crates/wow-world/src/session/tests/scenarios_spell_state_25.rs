@@ -861,3 +861,91 @@ async fn spell_school_damage_ignores_the_flat_benefit_of_ignore_caster_modifiers
         750
     );
 }
+
+#[tokio::test]
+async fn represented_haste_aura_scales_attack_time_multiplier_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 76);
+    session.player_guid = Some(player_guid);
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let mut spell_store = wow_data::SpellStore::new();
+    // `SPELL_AURA_MOD_MELEE_HASTE` and `SPELL_AURA_MOD_SPEED_SLOW_ALL` with
+    // opposite signs exercise both branches of `ApplyAttackTimePercentMod`.
+    spell_store.insert(
+        90_991,
+        represented_aura_spell_like_cpp(
+            90_991,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_MELEE_HASTE,
+            0,
+            30,
+        ),
+    );
+    spell_store.insert(
+        90_992,
+        represented_aura_spell_like_cpp(
+            90_992,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_SPEED_SLOW_ALL,
+            0,
+            -30,
+        ),
+    );
+    session.set_spell_store(Arc::new(spell_store));
+
+    assert_eq!(
+        session
+            .canonical_player_snapshot_like_cpp(|player| player.unit().mod_attack_speed_pct())
+            .expect("canonical player"),
+        [1.0, 1.0, 1.0]
+    );
+
+    session
+        .apply_aura(90_991, player_guid, 30_000, 1)
+        .expect("apply melee haste aura");
+    // `100 / (100 + 30)` for main hand and off hand, ranged untouched. The
+    // consumer is the swing timer reset, which reads the same multiplier.
+    let hasted = session
+        .mutate_canonical_player_like_cpp(|player| {
+            player
+                .unit_mut()
+                .reset_attack_timer_like_cpp(wow_constants::WeaponAttackType::BaseAttack);
+            (
+                player.unit().mod_attack_speed_pct(),
+                player
+                    .unit()
+                    .attack_timer(wow_constants::WeaponAttackType::BaseAttack),
+                player.unit().base_attack_speed()[0],
+            )
+        })
+        .expect("canonical player");
+    assert!((hasted.0[0] - 100.0 / 130.0).abs() < 1e-6, "{:?}", hasted.0);
+    assert!((hasted.0[1] - 100.0 / 130.0).abs() < 1e-6, "{:?}", hasted.0);
+    assert_eq!(hasted.0[2], 1.0);
+    assert_eq!(hasted.1, (hasted.2 as f32 * 100.0 / 130.0) as u32);
+
+    session
+        .apply_aura(90_992, player_guid, 30_000, 1)
+        .expect("apply combat slow aura");
+    // `100 / 130 * (100 + 30) / 100` for every attack.
+    let slowed = session
+        .canonical_player_snapshot_like_cpp(|player| player.unit().mod_attack_speed_pct())
+        .expect("canonical player");
+    assert!((slowed[0] - 1.0).abs() < 1e-6, "{slowed:?}");
+    assert!((slowed[1] - 1.0).abs() < 1e-6, "{slowed:?}");
+    assert!((slowed[2] - 1.3).abs() < 1e-6, "{slowed:?}");
+
+    session.remove_aura(0).expect("remove melee haste aura");
+    let restored = session
+        .canonical_player_snapshot_like_cpp(|player| player.unit().mod_attack_speed_pct())
+        .expect("canonical player");
+    assert!((restored[0] - 1.3).abs() < 1e-6, "{restored:?}");
+    assert!((restored[1] - 1.3).abs() < 1e-6, "{restored:?}");
+    assert!((restored[2] - 1.3).abs() < 1e-6, "{restored:?}");
+
+    session.remove_aura(1).expect("remove combat slow aura");
+    assert_eq!(
+        session
+            .canonical_player_snapshot_like_cpp(|player| player.unit().mod_attack_speed_pct())
+            .expect("canonical player"),
+        [1.0, 1.0, 1.0]
+    );
+}

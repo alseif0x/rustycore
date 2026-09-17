@@ -143,6 +143,28 @@ impl Unit {
             self.attack_timer[slot] = time_ms;
         }
     }
+    /// C++ `Unit::ApplyAttackTimePercentMod` (`Unit.cpp:10201-10227`): install
+    /// the per-attack `m_modAttackSpeedPct` values while preserving the
+    /// remaining fraction of the current swing, so a haste apply or removal
+    /// never resets the timer to a full duration.
+    pub fn apply_attack_time_multipliers_like_cpp(&mut self, multipliers: [f32; MAX_ATTACK]) {
+        for slot in 0..MAX_ATTACK {
+            let old = self.mod_attack_speed_pct[slot];
+            let new = multipliers[slot];
+            if new == old {
+                continue;
+            }
+            let base = self.base_attack_speed[slot] as f32;
+            let old_duration = base * old;
+            let remaining_pct = if old_duration > 0.0 {
+                self.attack_timer[slot] as f32 / old_duration
+            } else {
+                0.0
+            };
+            self.mod_attack_speed_pct[slot] = new;
+            self.attack_timer[slot] = (base * new * remaining_pct) as u32;
+        }
+    }
     pub fn reset_attack_timer_like_cpp(&mut self, attack: WeaponAttackType) {
         let slot = attack as usize;
         if slot < MAX_ATTACK {
