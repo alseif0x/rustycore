@@ -1313,6 +1313,9 @@ async fn spell_damage_and_healing_bonus_auras_publish_update_spell_bonus_like_cp
     // Aura 123 magic mask 20 minus item penetration 15; armor mask 30.
     assert_eq!(stats.mod_target_resistance, 5);
     assert_eq!(stats.mod_target_physical_resistance, 30);
+    // No override aura is active yet: C++ fields hold the 0.0 default.
+    assert_eq!(stats.override_spell_power_by_ap_percent, 0.0);
+    assert_eq!(stats.override_ap_by_spell_power_percent, 0.0);
 
     // `HasAuraType` on 404 then replaces both attack mods with
     // `CalculatePct(min(ModHealingDonePos, ModDamageDonePos[HOLY..MAX]), 50)`:
@@ -1330,6 +1333,94 @@ async fn spell_damage_and_healing_bonus_auras_publish_update_spell_bonus_like_cp
         overridden.mod_healing_done_pos, 187,
         "the attack-power override does not rewrite the spell fields"
     );
+    assert_eq!(
+        overridden.override_ap_by_spell_power_percent, 50.0,
+        "the aura amount is published on ActivePlayerData"
+    );
+}
+
+#[tokio::test]
+async fn override_spell_power_by_ap_publishes_the_field_and_recomputes_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 61_850);
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    session.set_player_stats(Arc::new(wow_data::PlayerStatsStore::from_entries([(
+        (1, 1, 80),
+        wow_data::PlayerLevelStats {
+            strength: 10,
+            agility: 10,
+            stamina: 10,
+            intellect: 40,
+            spirit: 30,
+            base_mana: 0,
+        },
+    )])));
+    session.set_chr_classes_store(Arc::new(
+        wow_data::character_progression::ChrClassesStore::from_entries([{
+            let mut entry = wow_data::character_progression::ChrClassesEntry::default();
+            entry.id = 1;
+            entry
+        }]),
+    ));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    assert!(session.apply_represented_item_bonus_action_state_like_cpp(
+        ApplyEnchantmentEffectAction::SpellPowerBonus {
+            amount: 100,
+            apply: true,
+        }
+    ));
+
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        90_920,
+        wow_data::SpellInfo {
+            spell_id: 90_920,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_base_points: 50,
+            effect_bonus_coefficient: 0.0,
+            aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT),
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_aura: wow_data::spell::aura_types::SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT,
+                effect_base_points: 50,
+                ..Default::default()
+            }],
+        },
+    );
+    session.set_spell_store(Arc::new(spell_store));
+    session.set_state(crate::session::SessionState::LoggedIn);
+
+    let _ = session.send_stat_update();
+    let baseline = session
+        .canonical_player_effective_combat_stats_like_cpp()
+        .expect("baseline projection");
+    assert_eq!(baseline.override_spell_power_by_ap_percent, 0.0);
+    assert_eq!(baseline.mod_healing_done_pos, 100);
+    assert_eq!(baseline.attack_power, 220);
+
+    session
+        .apply_aura(90_920, player_guid, 30_000, 1)
+        .expect("apply override spell power aura");
+    let _ = session.send_stat_update();
+    let overridden = session
+        .canonical_player_effective_combat_stats_like_cpp()
+        .expect("override spell power projection");
+    assert_eq!(overridden.override_spell_power_by_ap_percent, 50.0);
+    // `SpellBaseDamageBonusDone`/`SpellBaseHealingBonusDone` return
+    // `int32(CalculatePct(melee AP 220, 50) + 0.5) = 110` and discard the item
+    // spell power.
+    assert_eq!(overridden.mod_healing_done_pos, 110);
+    assert_eq!(overridden.mod_damage_done_pos[1..], [110; 6]);
+    assert_eq!(overridden.attack_power, 220);
 }
 
 #[tokio::test]

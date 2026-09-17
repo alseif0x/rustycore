@@ -663,6 +663,8 @@ impl UpdateObject {
             mod_healing_done_pct: combat.mod_healing_done_pct,
             mod_target_resistance: combat.mod_target_resistance,
             mod_target_physical_resistance: combat.mod_target_physical_resistance,
+            override_spell_power_by_ap_percent: combat.override_spell_power_by_ap_percent,
+            override_ap_by_spell_power_percent: combat.override_ap_by_spell_power_percent,
             visible_items,
             customizations: Vec::new(),
             inv_slots,

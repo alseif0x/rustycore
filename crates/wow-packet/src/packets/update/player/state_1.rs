@@ -611,6 +611,10 @@ pub struct PlayerStatChanges {
     pub mod_target_resistance: i32,
     /// C++ `ActivePlayerData::ModTargetPhysicalResistance` (bit 68).
     pub mod_target_physical_resistance: i32,
+    /// C++ `ActivePlayerData::OverrideSpellPowerByAPPercent` (bit 65).
+    pub override_spell_power_by_ap_percent: f32,
+    /// C++ `ActivePlayerData::OverrideAPBySpellPowerPercent` (bit 66).
+    pub override_ap_by_spell_power_percent: f32,
 }
 
 impl Default for PlayerStatChanges {
@@ -667,6 +671,8 @@ impl Default for PlayerStatChanges {
             mod_spell_power_pct: 1.0,
             mod_target_resistance: 0,
             mod_target_physical_resistance: 0,
+            override_spell_power_by_ap_percent: 0.0,
+            override_ap_by_spell_power_percent: 0.0,
         }
     }
 }
@@ -723,6 +729,10 @@ pub struct PlayerCombatStats {
     pub mod_target_resistance: i32,
     /// C++ `ActivePlayerData::ModTargetPhysicalResistance`.
     pub mod_target_physical_resistance: i32,
+    /// C++ `ActivePlayerData::OverrideSpellPowerByAPPercent`.
+    pub override_spell_power_by_ap_percent: f32,
+    /// C++ `ActivePlayerData::OverrideAPBySpellPowerPercent`.
+    pub override_ap_by_spell_power_percent: f32,
 }
 
 impl Default for PlayerCombatStats {
@@ -764,6 +774,8 @@ impl Default for PlayerCombatStats {
             mod_healing_done_pct: 1.0,
             mod_target_resistance: 0,
             mod_target_physical_resistance: 0,
+            override_spell_power_by_ap_percent: 0.0,
+            override_ap_by_spell_power_percent: 0.0,
         }
     }
 }
@@ -848,6 +860,10 @@ pub struct PlayerCreateData {
     pub mod_target_resistance: i32,
     /// C++ `ActivePlayerData::ModTargetPhysicalResistance`.
     pub mod_target_physical_resistance: i32,
+    /// C++ `ActivePlayerData::OverrideSpellPowerByAPPercent`.
+    pub override_spell_power_by_ap_percent: f32,
+    /// C++ `ActivePlayerData::OverrideAPBySpellPowerPercent`.
+    pub override_ap_by_spell_power_percent: f32,
     /// Visible equipment items (19 slots).
     /// Each entry: (ItemID, AppearanceModID, ItemVisual).
     /// Slots: Head(0), Neck(1), Shoulders(2), Shirt(3), Chest(4), Waist(5),

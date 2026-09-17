@@ -2668,6 +2668,8 @@ impl WorldSession {
             mod_healing_done_pct: projection.mod_healing_done_percent,
             mod_target_resistance: projection.mod_target_resistance,
             mod_target_physical_resistance: projection.mod_target_physical_resistance,
+            override_spell_power_by_ap_percent: projection.override_spell_power_by_ap_percent,
+            override_ap_by_spell_power_percent: projection.override_ap_by_spell_power_percent,
         };
         let max_power0 = primary_max_power_for_class_like_cpp(class, combat.max_mana);
         Some((
