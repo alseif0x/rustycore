@@ -70,6 +70,38 @@ impl WorldSession {
         })
     }
 
+    /// C++ `Player::UpdateWeaponDependentCritAuras` (`Player.cpp:8079-8107`):
+    /// the `SPELL_AURA_MOD_WEAPON_CRIT_PERCENT` sum filtered by
+    /// `CheckAttackFitToAuraRequirement` (`Player.cpp:8145-8156`) for the
+    /// attack's weapon, plus the unfiltered `SPELL_AURA_MOD_CRIT_PCT` sum. C++
+    /// stores the result per attack as the `FLAT_MOD` critical base value.
+    pub(crate) fn represented_weapon_crit_aura_modifier_like_cpp(
+        &self,
+        attack: WeaponAttackType,
+    ) -> f32 {
+        let weapon_item_id = self.represented_usable_weapon_item_id_like_cpp(attack);
+        let weapon_dependent = self
+            .resolved_aura_effect_amounts_by_spell_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_WEAPON_CRIT_PERCENT,
+            )
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|(spell_id, _)| {
+                self.represented_aura_spell_fits_weapon_like_cpp(*spell_id, weapon_item_id)
+            })
+            .map(|(_, amount)| amount)
+            .sum::<i32>();
+        let global = self
+            .resolved_aura_effect_amounts_by_spell_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_PCT,
+            )
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(_, amount)| amount)
+            .sum::<i32>();
+        (weapon_dependent + global) as f32
+    }
+
     /// C++ `Player::UpdateExpertise`'s
     /// `GetTotalAuraModifier(SPELL_AURA_MOD_EXPERTISE, predicate)`
     /// (`StatSystem.cpp:767-770`): sum of every active

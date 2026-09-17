@@ -731,3 +731,148 @@ async fn avoidance_aura_percentages_follow_update_percentages_like_cpp() {
     let _ = session.send_stat_update();
     assert_eq!(stats(&session).dodge_pct, 0.0);
 }
+
+#[tokio::test]
+async fn crit_aura_percentages_follow_weapon_dependent_auras_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 61_400);
+    let weapon_guid = ObjectGuid::create_item(1, 61_400);
+    let weapon_id = 61_400u32;
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    session.set_player_stats(Arc::new(wow_data::PlayerStatsStore::from_entries([(
+        (1, 1, 80),
+        wow_data::PlayerLevelStats {
+            strength: 10,
+            agility: 10,
+            stamina: 10,
+            intellect: 40,
+            spirit: 30,
+            base_mana: 0,
+        },
+    )])));
+    session.set_chr_classes_store(Arc::new(
+        wow_data::character_progression::ChrClassesStore::from_entries([{
+            let mut entry = wow_data::character_progression::ChrClassesEntry::default();
+            entry.id = 1;
+            entry
+        }]),
+    ));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
+        id: weapon_id,
+        class_id: ItemClass::Weapon as u8,
+        subclass_id: ItemSubClassWeapon::Sword as u8,
+        material: 0,
+        inventory_type: InventoryType::WeaponMainhand as i8,
+        sheathe_type: 0,
+        random_select: 0,
+        random_suffix_group_id: 0,
+        scaling_stat_distribution_id: 0,
+        scaling_stat_value: 0,
+    }])));
+    session.set_item_stats_store(Arc::new(ItemStatsStore::from_parts(
+        [(
+            weapon_id,
+            ItemStatEntry {
+                stats: std::array::from_fn(|_| (wow_constants::ItemModType::None as i8, 0)),
+                resistances: [0; 7],
+                armor: 0,
+            },
+        )],
+        [],
+    )));
+
+    // C++ `Player::UpdateWeaponDependentCritAuras` (`Player.cpp:8079-8107`):
+    // `SPELL_AURA_MOD_WEAPON_CRIT_PERCENT` is filtered by the attack's weapon
+    // requirement, while `SPELL_AURA_MOD_CRIT_PCT` is global.
+    let mut spell_store = wow_data::SpellStore::new();
+    for (spell_id, aura_type, amount) in [
+        (90_600, 52, 2),
+        (90_601, 52, 5),
+        (90_602, 290, 1),
+        (90_603, 57, 4),
+    ] {
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: amount,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(aura_type),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: aura_type,
+                    effect_base_points: amount,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    session.set_spell_store(Arc::new(spell_store));
+    session.set_spell_equipped_items_store(Arc::new(SpellEquippedItemsStore::from_entries([
+        SpellEquippedItemsEntry {
+            id: 1,
+            spell_id: 90_601,
+            equipped_item_class: ItemClass::Weapon as i8,
+            equipped_item_inv_types: 0,
+            equipped_item_subclass: 1_i32 << (ItemSubClassWeapon::Sword as u32),
+        },
+    ])));
+    session.set_state(crate::session::SessionState::LoggedIn);
+    for spell_id in [90_600, 90_601, 90_602, 90_603] {
+        session
+            .apply_aura(spell_id, player_guid, 30_000, 1)
+            .expect("apply crit aura");
+    }
+
+    let stats = |session: &WorldSession| {
+        session
+            .canonical_player_effective_combat_stats_like_cpp()
+            .expect("crit projection")
+    };
+
+    // Without a weapon the item-dependent aura is rejected, so only the
+    // item-neutral `MOD_WEAPON_CRIT_PERCENT` (2) and `MOD_CRIT_PCT` (1) apply.
+    let _ = session.send_stat_update();
+    let unarmed = stats(&session);
+    assert_eq!(unarmed.crit_pct, 8.0);
+    assert_eq!(unarmed.offhand_crit_pct, 8.0);
+    assert_eq!(unarmed.ranged_crit_pct, 8.0);
+    assert_eq!(unarmed.spell_crit_pct, [10.0; 7]);
+
+    // Equipping the sword enables the sword-only aura for the mainhand only.
+    let weapon = session.make_inventory_item_object(
+        weapon_guid,
+        weapon_id,
+        player_guid,
+        1,
+        0,
+        ItemContext::None,
+        wow_entities::EQUIPMENT_SLOT_MAINHAND,
+    );
+    session.insert_inventory_item_object(weapon);
+    session.insert_inventory_item_like_cpp(
+        wow_entities::EQUIPMENT_SLOT_MAINHAND,
+        InventoryItem {
+            guid: weapon_guid,
+            entry_id: weapon_id,
+            db_guid: weapon_guid.counter() as u64,
+            inventory_type: Some(InventoryType::WeaponMainhand as u8),
+        },
+    );
+    let _ = session.send_stat_update();
+    let armed = stats(&session);
+    assert_eq!(armed.crit_pct, 13.0);
+    assert_eq!(armed.offhand_crit_pct, 8.0);
+    assert_eq!(armed.ranged_crit_pct, 8.0);
+}

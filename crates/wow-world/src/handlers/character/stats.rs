@@ -266,6 +266,20 @@ impl WorldSession {
                 spell_block_pct: self.represented_total_aura_modifier_like_cpp(
                     wow_data::spell::aura_types::SPELL_AURA_MOD_BLOCK_PERCENT,
                 ),
+                crit_mainhand_aura_pct: self.represented_weapon_crit_aura_modifier_like_cpp(
+                    wow_constants::WeaponAttackType::BaseAttack,
+                ),
+                crit_offhand_aura_pct: self.represented_weapon_crit_aura_modifier_like_cpp(
+                    wow_constants::WeaponAttackType::OffAttack,
+                ),
+                crit_ranged_aura_pct: self.represented_weapon_crit_aura_modifier_like_cpp(
+                    wow_constants::WeaponAttackType::RangedAttack,
+                ),
+                spell_crit_aura_pct: self.represented_total_aura_modifier_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_SPELL_CRIT_CHANCE,
+                ) + self.represented_total_aura_modifier_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_PCT,
+                ),
                 gear_attack_power: gear.attack_power,
                 gear_ranged_attack_power: gear.ranged_attack_power,
                 rating_bonuses,
