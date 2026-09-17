@@ -4419,6 +4419,10 @@ pub struct LegacyCreatureAggroConfigLikeCpp {
     pub spell_linked_rejected_trigger_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
     pub spell_custom_attribute_store: Option<Arc<SpellCustomAttributeStoreLikeCpp>>,
     pub difficulty_store: Option<Arc<DifficultyStore>>,
+    /// C++ `sObjectMgr->GetCreatureTemplate` subset the map-owned runtime needs
+    /// to resolve a victim's `GetCreatureTypeMask` for `MeleeDamageBonusDone`.
+    pub creature_template_lifecycle_store:
+        Option<Arc<wow_data::CreatureTemplateLifecycleStoreLikeCpp>>,
     pub visibility_distance_continents: f32,
     pub visibility_distance_instances: f32,
     pub visibility_distance_battlegrounds: f32,
@@ -4457,6 +4461,7 @@ impl Default for LegacyCreatureAggroConfigLikeCpp {
             spell_linked_rejected_trigger_spell_ids_like_cpp: None,
             spell_custom_attribute_store: None,
             difficulty_store: None,
+            creature_template_lifecycle_store: None,
             visibility_distance_continents: wow_entities::DEFAULT_VISIBILITY_DISTANCE,
             visibility_distance_instances: wow_entities::DEFAULT_VISIBILITY_INSTANCE,
             visibility_distance_battlegrounds: DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP,
@@ -18239,6 +18244,7 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
     in_melee_range: bool,
     facing_target: bool,
     within_los: bool,
+    melee_damage_bonus: [RepresentedMeleeDamageBonusLikeCpp; 2],
 ) -> Option<(Vec<u32>, Option<Option<u8>>)> {
     // C++ `Unit::MeleeDamageBonusDone`'s `SPELL_AURA_MOD_AUTOATTACK_DAMAGE`
     // product, written by the owning session and read here so both swing owners
@@ -18321,6 +18327,7 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
                         min_damage,
                         max_damage,
                         autoattack_damage_multiplier,
+                        melee_damage_bonus[0],
                     ));
                 }
             }
@@ -18349,6 +18356,7 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
                     min_damage,
                     max_damage,
                     autoattack_damage_multiplier,
+                    melee_damage_bonus[1],
                 ));
             }
             unit.reset_attack_timer_like_cpp(WeaponAttackType::OffAttack);
@@ -18528,9 +18536,41 @@ fn represented_white_swing_damage_like_cpp(
     min_damage: f32,
     max_damage: f32,
     autoattack_damage_multiplier: f32,
+    melee_damage_bonus: RepresentedMeleeDamageBonusLikeCpp,
 ) -> u32 {
+    // C++ `MeleeDamageBonusDone`: `int32(max(float(damage + DoneFlatBenefit) *
+    // DoneTotalMod, 0.0f))`, with the `SPELL_AURA_MOD_AUTOATTACK_DAMAGE`
+    // percentage already folded into `DoneTotalMod`.
     let rolled = min_damage.max(1.0).min(max_damage.max(1.0));
-    (rolled * autoattack_damage_multiplier).max(1.0).round() as u32
+    let damage = (rolled + melee_damage_bonus.flat as f32)
+        * melee_damage_bonus.pct
+        * autoattack_damage_multiplier;
+    damage.max(1.0).round() as u32
+}
+
+/// C++ `Unit::GetAPMultiplier(attType, normalized = false)` clamped by
+/// `Player::CalculateMinMaxDamage`: the equipped delay in seconds, or the
+/// two-second unarmed default, never below the 0.25 floor.
+pub(in crate::session) fn legacy_attack_power_multiplier_like_cpp(
+    base_attack_speed_ms: u32,
+) -> f32 {
+    if base_attack_speed_ms > 0 {
+        (base_attack_speed_ms as f32 / 1000.0).max(0.25)
+    } else {
+        2.0
+    }
+}
+
+/// C++ `Unit::MeleeDamageBonusDone`'s `(DoneFlatBenefit, DoneTotalMod)` pair the
+/// swing owner computes for one attack type.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(in crate::session) struct RepresentedMeleeDamageBonusLikeCpp {
+    pub flat: i32,
+    pub pct: f32,
+}
+
+impl RepresentedMeleeDamageBonusLikeCpp {
+    pub(in crate::session) const NONE: Self = Self { flat: 0, pct: 1.0 };
 }
 
 fn is_within_melee_range_like_cpp(

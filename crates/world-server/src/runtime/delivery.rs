@@ -877,6 +877,7 @@ pub(crate) fn legacy_creature_aggro_config_like_cpp(
         spell_linked_rejected_trigger_spell_ids_like_cpp: None,
         spell_custom_attribute_store: None,
         difficulty_store: None,
+        creature_template_lifecycle_store: None,
     }
 }
 
@@ -993,6 +994,7 @@ pub(crate) fn run_legacy_player_melee_tick_and_deliver_once_like_cpp(
     group_registry: Option<&Arc<wow_social::group::GroupRegistry>>,
     diff_ms: u32,
     phase_state: &SharedPlayerMeleePhaseStateLikeCpp,
+    config: &wow_world::session::LegacyCreatureAggroConfigLikeCpp,
 ) -> (
     wow_world::session::LegacyPlayerMeleeTickOutcomeLikeCpp,
     RuntimePlayerMeleeDeliverySummaryLikeCpp,
@@ -1009,6 +1011,7 @@ pub(crate) fn run_legacy_player_melee_tick_and_deliver_once_like_cpp(
             &attackers,
             diff_ms,
             &mut state,
+            config,
         )
     };
     let delivery = deliver_player_melee_results_like_cpp(&outcome.commands, registry);
@@ -1593,6 +1596,7 @@ pub(crate) fn run_legacy_creature_runtime_tick_with_input_and_deliver_once_like_
             group_registry,
             input.diff_ms,
             player_melee_phase_state,
+            &aggro_config,
         );
 
     // Hold the same ordering gate as the canonical tick from before the

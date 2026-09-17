@@ -844,7 +844,10 @@ impl WorldSession {
     /// C++ `Unit::GetCreatureTypeMask` (`Unit.cpp:8796-8800`): the bit of the
     /// victim creature's template type, `0` for players or when the template is
     /// unavailable.
-    fn represented_target_creature_type_mask_like_cpp(&self, target_guid: ObjectGuid) -> u32 {
+    pub(in crate::session) fn represented_target_creature_type_mask_like_cpp(
+        &self,
+        target_guid: ObjectGuid,
+    ) -> u32 {
         let Some(manager) = self.map_manager.as_ref() else {
             return 0;
         };

@@ -413,6 +413,7 @@ fn the_player_melee_phase_is_inert_under_the_session_owner_like_cpp() {
         &[],
         100,
         &mut phase_state,
+        &crate::session::LegacyCreatureAggroConfigLikeCpp::default(),
     );
     assert!(outcome.skipped_owner_not_global);
     assert_eq!(outcome.attackers_seen, 0);
