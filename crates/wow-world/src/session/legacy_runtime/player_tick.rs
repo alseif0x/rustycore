@@ -183,6 +183,8 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
         // session owner applies the same creature-only rule.
         let mut victim_armor = 0_i32;
         let mut victim_level = 0_u8;
+        // C++ `Unit::MeleeDamageBonusTaken` reads the victim's applied auras.
+        let mut creature_applied_auras = Vec::new();
         let mut victim_outcome_facts =
             crate::session_rules::RepresentedMeleeVictimFactsLikeCpp::default();
         let victim_runtime = if let Some(creature) = legacy_manager.find_creature_mut(
@@ -216,6 +218,13 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
             });
             victim_armor = creature.creature.combat_log_stats_like_cpp().armor;
             victim_level = creature.level();
+            creature_applied_auras = creature
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .applied_auras
+                .clone();
             victim_outcome_facts = crate::session_rules::RepresentedMeleeVictimFactsLikeCpp {
                 level: victim_level,
                 is_creature: true,
@@ -291,7 +300,7 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
         // C++ `Unit::MeleeDamageBonusDone` resolves the victim-creature-type
         // terms per swing from the attacker's auras; the map-owned path uses the
         // same receiver-free rule as the session.
-        let (melee_damage_bonus, armor_mitigation, outcome_facts) = match (
+        let (melee_damage_bonus, armor_mitigation, outcome_facts, damage_taken) = match (
             map.get_typed_player(attacker.player_guid),
             config.spell_store.as_deref(),
         ) {
@@ -372,12 +381,28 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                     bonus,
                     armor_mitigation,
                     (attacker_outcome_facts, victim_outcome_facts),
+                    crate::session_rules::melee_damage_taken_flat_pct_like_cpp(
+                        &crate::session_rules::creature_aura_effects_like_cpp(
+                            &creature_applied_auras,
+                            spell_store,
+                            map_difficulty_id,
+                            config.difficulty_store.as_deref(),
+                        ),
+                        &crate::session_rules::player_aura_effects_by_spell_aura_type_like_cpp(
+                            auras,
+                            spell_store,
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST,
+                        ),
+                        attacker.player_guid,
+                        0x01,
+                    ),
                 )
             }
             _ => (
                 [crate::session::RepresentedMeleeDamageBonusLikeCpp::NONE; 2],
                 crate::session::combat::RepresentedArmorMitigationLikeCpp::NONE,
                 Default::default(),
+                crate::session_rules::RepresentedMeleeDamageTakenLikeCpp::NONE,
             ),
         };
         let Some(player) = map.get_typed_player_mut(attacker.player_guid) else {
@@ -393,6 +418,7 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
             melee_damage_bonus,
             armor_mitigation,
             outcome_facts,
+            damage_taken,
         );
         let Some((damages, swing_error_update)) = swing_result else {
             continue;

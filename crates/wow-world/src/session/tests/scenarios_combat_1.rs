@@ -714,6 +714,7 @@ fn combat_tick_los_failure_resets_timer_without_damage_like_cpp() {
                 [crate::session::RepresentedMeleeDamageBonusLikeCpp::NONE; 2],
                 crate::session::combat::RepresentedArmorMitigationLikeCpp::NONE,
                 Default::default(),
+                crate::session_rules::RepresentedMeleeDamageTakenLikeCpp::NONE,
             )
         })
         .flatten();
@@ -967,6 +968,7 @@ fn white_swing_applies_autoattack_damage_auras_like_cpp() {
                     [crate::session::RepresentedMeleeDamageBonusLikeCpp::NONE; 2],
                     crate::session::combat::RepresentedArmorMitigationLikeCpp::NONE,
                     Default::default(),
+                    crate::session_rules::RepresentedMeleeDamageTakenLikeCpp::NONE,
                 )
             })
             .flatten()
@@ -1130,6 +1132,7 @@ fn white_swing_applies_creature_type_melee_bonus_like_cpp() {
                     melee_damage_bonus,
                     crate::session::combat::RepresentedArmorMitigationLikeCpp::NONE,
                     Default::default(),
+                    crate::session_rules::RepresentedMeleeDamageTakenLikeCpp::NONE,
                 )
             })
             .flatten()
@@ -1300,6 +1303,7 @@ fn white_swing_applies_victim_aurastate_and_mechanic_melee_bonus_like_cpp() {
                     melee_damage_bonus,
                     crate::session::combat::RepresentedArmorMitigationLikeCpp::NONE,
                     Default::default(),
+                    crate::session_rules::RepresentedMeleeDamageTakenLikeCpp::NONE,
                 )
             })
             .flatten()

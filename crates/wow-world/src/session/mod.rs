@@ -18250,6 +18250,7 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
         crate::session_rules::RepresentedMeleeAttackerFactsLikeCpp,
         crate::session_rules::RepresentedMeleeVictimFactsLikeCpp,
     ),
+    damage_taken: crate::session_rules::RepresentedMeleeDamageTakenLikeCpp,
 ) -> Option<(
     Vec<combat::RepresentedMeleeSwingLikeCpp>,
     Option<Option<u8>>,
@@ -18335,6 +18336,7 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
                         melee_damage_bonus[0],
                         armor_mitigation,
                         outcome_facts,
+                        damage_taken,
                         false,
                     ));
                 }
@@ -18367,6 +18369,7 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
                     melee_damage_bonus[1],
                     armor_mitigation,
                     outcome_facts,
+                    damage_taken,
                     true,
                 ));
             }
@@ -18557,14 +18560,21 @@ fn represented_white_swing_damage_like_cpp(
         crate::session_rules::RepresentedMeleeAttackerFactsLikeCpp,
         crate::session_rules::RepresentedMeleeVictimFactsLikeCpp,
     ),
+    damage_taken: crate::session_rules::RepresentedMeleeDamageTakenLikeCpp,
     offhand: bool,
 ) -> combat::RepresentedMeleeSwingLikeCpp {
     let rolled = crate::session_rules::white_swing_roll_like_cpp(min_damage, max_damage) as f32;
     let damage = (rolled + melee_damage_bonus.flat as f32)
         * melee_damage_bonus.pct
         * autoattack_damage_multiplier;
-    let damage = crate::session_rules::armor_reduced_damage_like_cpp(
+    // C++ `CalculateMeleeDamage` runs `MeleeDamageBonusTaken` between the done
+    // bonus and the armour reduction (`Unit.cpp:1326-1341`).
+    let damage = crate::session_rules::melee_damage_taken_apply_like_cpp(
+        damage_taken,
         damage.max(1.0).round() as u32,
+    );
+    let damage = crate::session_rules::armor_reduced_damage_like_cpp(
+        damage,
         armor_mitigation.attacker_level,
         armor_mitigation.victim_level,
         armor_mitigation.victim_armor,

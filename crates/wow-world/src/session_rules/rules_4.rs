@@ -375,3 +375,112 @@ pub(crate) fn melee_outcome_inputs_like_cpp(
         }
     })
 }
+
+/// C++ `Unit::MeleeDamageBonusTaken`'s `(TakenFlatBenefit, TakenTotalMod)` for a
+/// white swing, already resolved from the victim's and attacker's auras by the
+/// swing owner.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct RepresentedMeleeDamageTakenLikeCpp {
+    pub flat: i32,
+    pub pct: f32,
+}
+
+impl RepresentedMeleeDamageTakenLikeCpp {
+    /// No represented taken modifiers: the damage passes through unchanged.
+    pub(crate) const NONE: Self = Self { flat: 0, pct: 1.0 };
+}
+
+/// C++ `Unit::MeleeDamageBonusTaken` for `spellProto == null` and a melee attack
+/// type (`Unit.cpp:1687-1756`): the victim's `SPELL_AURA_MOD_DAMAGE_TAKEN` sum
+/// for the attacker's melee school, its `SPELL_AURA_MOD_MELEE_DAMAGE_TAKEN` sum,
+/// the `SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN` multiplier for that school, the
+/// `SPELL_AURA_MOD_MELEE_DAMAGE_FROM_CASTER` multiplier restricted to auras the
+/// attacker cast, and the `SPELL_AURA_MOD_MELEE_DAMAGE_TAKEN_PCT` multiplier.
+///
+/// The Sanctified Wrath bypass C++ applies afterwards is summed from the
+/// attacker's `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` effects covering the same
+/// school. Boundaries: the fixed cheat-death aura (45182), the ranged variants
+/// and every `spellProto` branch cannot apply to a represented white swing; the
+/// versatility term is commented out in the 3.4.3 source itself.
+pub(crate) fn melee_damage_taken_flat_pct_like_cpp(
+    victim_effects: &[crate::session_rules::AppliedAuraEffectLikeCpp],
+    attacker_ignore_resist: &[(i32, i32)],
+    attacker_guid: wow_core::ObjectGuid,
+    school_mask: i32,
+) -> RepresentedMeleeDamageTakenLikeCpp {
+    use wow_data::spell::aura_types::{
+        SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN, SPELL_AURA_MOD_DAMAGE_TAKEN,
+        SPELL_AURA_MOD_MELEE_DAMAGE_FROM_CASTER, SPELL_AURA_MOD_MELEE_DAMAGE_TAKEN,
+        SPELL_AURA_MOD_MELEE_DAMAGE_TAKEN_PCT,
+    };
+
+    let flat = victim_effects
+        .iter()
+        .filter(|effect| {
+            effect.aura_type == SPELL_AURA_MOD_DAMAGE_TAKEN && effect.misc_value & school_mask != 0
+        })
+        .map(|effect| effect.amount)
+        .sum::<i32>()
+        + victim_effects
+            .iter()
+            .filter(|effect| effect.aura_type == SPELL_AURA_MOD_MELEE_DAMAGE_TAKEN)
+            .map(|effect| effect.amount)
+            .sum::<i32>();
+
+    let multiplier = |aura_type: i32, caster: Option<wow_core::ObjectGuid>| {
+        victim_effects
+            .iter()
+            .filter(|effect| {
+                effect.aura_type == aura_type
+                    && caster.is_none_or(|guid| effect.caster_guid == guid)
+            })
+            .fold(1.0_f32, |total, effect| {
+                total * (1.0 + effect.amount as f32 / 100.0)
+            })
+    };
+    let mut pct = 1.0_f32;
+    pct *= victim_effects
+        .iter()
+        .filter(|effect| {
+            effect.aura_type == SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN
+                && effect.misc_value & school_mask != 0
+        })
+        .fold(1.0_f32, |total, effect| {
+            total * (1.0 + effect.amount as f32 / 100.0)
+        });
+    pct *= multiplier(SPELL_AURA_MOD_MELEE_DAMAGE_FROM_CASTER, Some(attacker_guid));
+    pct *= multiplier(SPELL_AURA_MOD_MELEE_DAMAGE_TAKEN_PCT, None);
+
+    // C++ `Unit::MeleeDamageBonusTaken`'s Sanctified Wrath bypass: while the
+    // victim's total modifier reduces damage, the attacker's
+    // `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` shrinks that reduction.
+    if pct < 1.0 {
+        let mut damage_reduction = 1.0 - pct;
+        for (misc_value, amount) in attacker_ignore_resist {
+            if misc_value & school_mask == 0 {
+                continue;
+            }
+            damage_reduction *= 1.0 - *amount as f32 / 100.0;
+        }
+        pct = 1.0 - damage_reduction;
+    }
+
+    RepresentedMeleeDamageTakenLikeCpp { flat, pct }
+}
+
+/// C++ `Unit::MeleeDamageBonusTaken`'s tail (`Unit.cpp:1758-1759`): the flat
+/// benefit is added, the total modifier multiplies and the result truncates at
+/// zero. C++ returns zero before the arithmetic when the flat benefit is
+/// negative enough to absorb the whole hit.
+pub(crate) fn melee_damage_taken_apply_like_cpp(
+    taken: RepresentedMeleeDamageTakenLikeCpp,
+    damage: u32,
+) -> u32 {
+    if damage == 0 {
+        return 0;
+    }
+    if taken.flat < 0 && (damage as i32) < -taken.flat {
+        return 0;
+    }
+    (((damage as i32 + taken.flat) as f32) * taken.pct).max(0.0) as u32
+}
