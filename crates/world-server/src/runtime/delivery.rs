@@ -820,6 +820,7 @@ pub(crate) fn legacy_creature_aggro_config_like_cpp(
 ) -> wow_world::session::LegacyCreatureAggroConfigLikeCpp {
     let creature_aggro_rate = world_config_f32(configs, "RATE_CREATURE_AGGRO", 1.0);
     wow_world::session::LegacyCreatureAggroConfigLikeCpp {
+        expected_stat_store: None,
         no_gray_aggro_above: world_config_u32(configs, "CONFIG_NO_GRAY_AGGRO_ABOVE", 0),
         no_gray_aggro_below: world_config_u32(configs, "CONFIG_NO_GRAY_AGGRO_BELOW", 0),
         creature_aggro_rate,

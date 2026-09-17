@@ -4419,6 +4419,8 @@ pub struct LegacyCreatureAggroConfigLikeCpp {
     pub spell_linked_rejected_trigger_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
     pub spell_custom_attribute_store: Option<Arc<SpellCustomAttributeStoreLikeCpp>>,
     pub difficulty_store: Option<Arc<DifficultyStore>>,
+    /// C++ `sDB2Manager`'s `ExpectedStat` table (`Player::GetBlockPercent`).
+    pub expected_stat_store: Option<Arc<wow_data::ExpectedStatStore>>,
     /// C++ `sObjectMgr->GetCreatureTemplate` subset the map-owned runtime needs
     /// to resolve a victim's `GetCreatureTypeMask` for `MeleeDamageBonusDone`.
     pub creature_template_lifecycle_store:
@@ -4461,6 +4463,7 @@ impl Default for LegacyCreatureAggroConfigLikeCpp {
             spell_linked_rejected_trigger_spell_ids_like_cpp: None,
             spell_custom_attribute_store: None,
             difficulty_store: None,
+            expected_stat_store: None,
             creature_template_lifecycle_store: None,
             visibility_distance_continents: wow_entities::DEFAULT_VISIBILITY_DISTANCE,
             visibility_distance_instances: wow_entities::DEFAULT_VISIBILITY_INSTANCE,

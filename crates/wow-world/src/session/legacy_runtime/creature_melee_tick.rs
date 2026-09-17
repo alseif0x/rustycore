@@ -539,14 +539,21 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                     / player.unit().data().max_health as f32
                             };
                             let stats = player.effective_combat_stats_like_cpp();
-                            let player_block_percent =
-                                crate::session_rules::player_block_percent_like_cpp(
-                                    stats.shield_block,
+                        let player_block_percent =
+                            crate::session_rules::player_block_percent_like_cpp(
+                                stats.shield_block,
+                                config.expected_stat_store.as_ref().map_or(
                                     // C++'s empty-store `EvaluateExpectedStat`
-                                    // fallback (`1.0`); loading
-                                    // `ExpectedStat.db2` is a later unit.
+                                    // fallback (`1.0`).
                                     1.0,
-                                );
+                                    |store| {
+                                        store.armor_constant_like_cpp(
+                                            u32::from(attacker_facts.level),
+                                            -2,
+                                        )
+                                    },
+                                ),
+                            );
                             let victim_position = player.unit().world().position();
                             let facts = crate::session_rules::RepresentedMeleeVictimFactsLikeCpp {
                                 level: player.level_like_cpp(),
