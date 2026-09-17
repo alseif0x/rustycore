@@ -16,9 +16,13 @@ use wow_entities::{AppliedAuraRef, AuraApplicationLikeCpp};
 
 /// One resolved effect of a player's applied auras, the shape C++
 /// `Unit::GetAuraEffectsByType` exposes to every predicate that also reads
-/// `MiscValueB` or the effect's caster.
+/// `MiscValueB`, the effect's caster or its spell.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct PlayerAuraEffectLikeCpp {
+    /// C++ `AuraEffect::GetId()`: the owning spell.
+    pub spell_id: i32,
+    /// C++ `AuraEffect::GetAuraType()`.
+    pub aura_type: i32,
     /// C++ `AuraEffect::GetMiscValue()`.
     pub misc_value: i32,
     /// C++ `AuraEffect::GetMiscValueB()`, read by predicates such as
@@ -27,6 +31,21 @@ pub(crate) struct PlayerAuraEffectLikeCpp {
     pub amount: i32,
     /// C++ `AuraEffect::GetCasterGUID()`.
     pub caster_guid: wow_core::ObjectGuid,
+}
+
+impl PlayerAuraEffectLikeCpp {
+    /// The creature-aura projection's shape, which the shared
+    /// `MeleeDamageBonusTaken` chain consumes.
+    pub(crate) fn as_applied_like_cpp(&self) -> AppliedAuraEffectLikeCpp {
+        AppliedAuraEffectLikeCpp {
+            spell_id: self.spell_id,
+            caster_guid: self.caster_guid,
+            aura_type: self.aura_type,
+            misc_value: self.misc_value,
+            misc_value_b: self.misc_value_b,
+            amount: self.amount,
+        }
+    }
 }
 
 /// C++ `Unit::GetAuraEffectsByType(auraType)` for one player's applied auras.
@@ -40,6 +59,24 @@ pub(crate) fn player_aura_effects_full_by_spell_aura_type_like_cpp(
     spell_store: &SpellStore,
     aura_type: i32,
 ) -> Vec<PlayerAuraEffectLikeCpp> {
+    player_aura_effects_filtered_like_cpp(auras, spell_store, Some(aura_type))
+}
+
+/// Every active effect of a player's applied auras, the input C++
+/// `MeleeDamageBonusTaken`'s `GetTotalAuraModifier*` chain reads across several
+/// aura types at once.
+pub(crate) fn player_aura_effects_all_like_cpp(
+    auras: &HashMap<u8, AuraApplicationLikeCpp>,
+    spell_store: &SpellStore,
+) -> Vec<PlayerAuraEffectLikeCpp> {
+    player_aura_effects_filtered_like_cpp(auras, spell_store, None)
+}
+
+fn player_aura_effects_filtered_like_cpp(
+    auras: &HashMap<u8, AuraApplicationLikeCpp>,
+    spell_store: &SpellStore,
+    aura_type: Option<i32>,
+) -> Vec<PlayerAuraEffectLikeCpp> {
     let mut slots: Vec<u8> = auras.keys().copied().collect();
     slots.sort_unstable();
     let mut effects = Vec::new();
@@ -49,7 +86,7 @@ pub(crate) fn player_aura_effects_full_by_spell_aura_type_like_cpp(
             continue;
         };
         for effect in spell.effects().iter().filter(|effect| {
-            effect.effect_aura == aura_type
+            aura_type.is_none_or(|aura_type| effect.effect_aura == aura_type)
                 && 1u32
                     .checked_shl(effect.effect_index)
                     .is_some_and(|bit| aura.effect_mask & bit != 0)
@@ -63,6 +100,8 @@ pub(crate) fn player_aura_effects_full_by_spell_aura_type_like_cpp(
                 .map(|represented| represented.amount)
                 .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
             effects.push(PlayerAuraEffectLikeCpp {
+                spell_id: aura.spell_id,
+                aura_type: effect.effect_aura,
                 misc_value: effect.effect_misc_value_1,
                 misc_value_b: effect.effect_misc_value_2,
                 amount,
