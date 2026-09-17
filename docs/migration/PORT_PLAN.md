@@ -33,6 +33,15 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 health-derived unit aura states — 2026-09-17, implementation
+`4555be48`:** the represented `Unit::m_unitData->AuraState` is now the union of
+the aura-driven bits and the `Unit::Update` health bits for the player and for
+world creatures, so the aura-303 damage multiplier and the `Spell::CheckCast`
+caster-aura-state restriction see wound/health states; the
+`represented_has_aura_state_like_cpp` stub is gone. The per-caster aura-state
+branch and `ABILITY_IGNORE_AURASTATE` remain open. wow-entities --lib 940/0,
+wow-world --lib 3941/0/1; no live DB/restart/relogin QA.
+
 **#61 mechanic-based damage multipliers — 2026-09-17, implementation
 `f190dd97`:** `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE_BY_TARGET_AURA_MECHANIC` (249)
 and `SPELL_AURA_MOD_DAMAGE_DONE_FOR_MECHANIC` (276) now apply to direct spell
