@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 override percentage field publication — 2026-09-17, implementation
+`204958b6`:** `OverrideSpellPowerByAPPercent` and
+`OverrideAPBySpellPowerPercent` now carry the accumulated aura 366/404 amounts
+(0.0 when absent) instead of the uncorroborated `-1.0` sentinel, through the
+canonical snapshot, the create block and the narrow values update (bits 65-66).
+wow-data --lib 751/0, wow-entities --lib 940/0, wow-world --lib 3927/0/1,
+wow-packet --lib 742/0; no live DB/restart/relogin QA.
+
 **#61 `ModTargetResistance` and item spell penetration publication —
 2026-09-17, implementation `2715525d`:** aura 123
 (`SpellAuraEffects.cpp:3507-3530`) feeds `ModTargetPhysicalResistance` from the
