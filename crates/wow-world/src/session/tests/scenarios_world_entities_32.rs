@@ -172,6 +172,7 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
                 let mut stats = *player.effective_combat_stats_like_cpp();
                 stats.dodge_pct = dodge;
                 stats.parry_pct = parry;
+                stats.block_pct = 0.0;
                 player.replace_effective_combat_stats_like_cpp(stats);
             })
             .expect("canonical victim");
@@ -257,6 +258,32 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
     assert_eq!(command.victim_state, VICTIM_STATE_PARRY);
     assert_eq!(victim_health(&canonical), 90);
 
+    // C++ `GetUnitBlockChance`'s player branch reads the published
+    // `BlockPercentage`, and the blocked amount is
+    // `CalculatePct(damage, Player::GetBlockPercent(attackerLevel))` — a
+    // fraction over 100, so 8 damage over a 0.85 fraction truncates to 0 while
+    // the swing still reports `HITINFO_BLOCK`.
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            let mut stats = *player.effective_combat_stats_like_cpp();
+            stats.dodge_pct = 0.0;
+            stats.parry_pct = 0.0;
+            stats.block_pct = 100.0;
+            stats.shield_block = 2_000;
+            player.replace_effective_combat_stats_like_cpp(stats);
+        })
+        .unwrap();
+    reset_swing(&mut session);
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let command = last_command(&outcome);
+    assert_eq!(outcome.canonical_hits, 1);
+    assert_eq!(command.damage, 10);
+    assert_eq!(
+        command.hit_info,
+        HIT_INFO_AFFECTS_VICTIM | wow_packet::packets::combat::HIT_INFO_BLOCK
+    );
+    assert_eq!(victim_health(&canonical), 80);
+
     // C++ returns `MELEE_HIT_CRIT` before the avoidance bands for a player
     // victim that is not in a stand state while the critical chance is
     // non-zero, so the creature's flat 5% is enough once the flag is cleared.
@@ -285,7 +312,7 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
         HIT_INFO_AFFECTS_VICTIM | HIT_INFO_CRITICAL_HIT
     );
     assert_eq!(command.victim_state, VICTIM_STATE_HIT);
-    assert_eq!(victim_health(&canonical), 70);
+    assert_eq!(victim_health(&canonical), 60);
 
     // Standing again, the victim's
     // `SPELL_AURA_MOD_CRIT_CHANCE_VERSUS_TARGET_HEALTH` aura over the whole
@@ -313,7 +340,7 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
         HIT_INFO_AFFECTS_VICTIM | HIT_INFO_CRITICAL_HIT
     );
     assert_eq!(command.victim_state, VICTIM_STATE_HIT);
-    assert_eq!(victim_health(&canonical), 50);
+    assert_eq!(victim_health(&canonical), 40);
 }
 
 /// C++ `Unit::CalcArmorReducedDamage` for a creature attacker against a player
@@ -786,4 +813,14 @@ fn legacy_creature_melee_tick_once_applies_player_victim_taken_like_cpp() {
     let command = swing(&manager, &mut session);
     assert_eq!(command.damage, 10);
     assert_eq!(victim_health(&canonical), 35);
+}
+
+#[test]
+fn player_block_percent_matches_get_block_percent_like_cpp() {
+    use crate::session_rules::player_block_percent_like_cpp as percent;
+    // C++ `Player::GetBlockPercent` (`Player.cpp:25288-25298`): a fraction
+    // capped at `0.85`, and `0` when both inputs are zero.
+    assert_eq!(percent(2_000, 1.0), 0.85);
+    assert_eq!(percent(2_000, 8_000.0), 0.2);
+    assert_eq!(percent(0, 0.0), 0.0);
 }

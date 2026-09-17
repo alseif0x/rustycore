@@ -18597,6 +18597,7 @@ fn represented_white_swing_damage_like_cpp(
         armor_mitigation.attacker_level,
         armor_mitigation.victim_level,
         outcome_facts.0.crit_damage_multiplier,
+        crate::session_rules::CREATURE_BLOCK_PERCENT_LIKE_CPP,
     );
     let (hit_info, victim_state) =
         crate::session_rules::melee_outcome_presentation_like_cpp(outcome, offhand);

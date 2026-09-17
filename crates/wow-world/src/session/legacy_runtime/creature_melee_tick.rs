@@ -539,6 +539,14 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                     / player.unit().data().max_health as f32
                             };
                             let stats = player.effective_combat_stats_like_cpp();
+                            let player_block_percent =
+                                crate::session_rules::player_block_percent_like_cpp(
+                                    stats.shield_block,
+                                    // C++'s empty-store `EvaluateExpectedStat`
+                                    // fallback (`1.0`); loading
+                                    // `ExpectedStat.db2` is a later unit.
+                                    1.0,
+                                );
                             let victim_position = player.unit().world().position();
                             let facts = crate::session_rules::RepresentedMeleeVictimFactsLikeCpp {
                                 level: player.level_like_cpp(),
@@ -548,9 +556,9 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                 // `CanParry()` is false.
                                 dodge_pct: stats.dodge_pct,
                                 parry_pct: stats.parry_pct,
-                                // The block band needs C++ `Player::GetBlockPercent`'s
-                                // DB2 `ExpectedStatType::ArmorConstant` table.
-                                block_pct: 0.0,
+                                // C++ `GetUnitBlockChance`'s player branch reads
+                                // the published `BlockPercentage`.
+                                block_pct: stats.block_pct,
                                 attacker_melee_hit_chance_pct: aura_sum(
                                     wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
                                 ),
@@ -616,7 +624,13 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                 .into_iter()
                                 .map(|effect| effect.as_applied_like_cpp())
                                 .collect::<Vec<_>>();
-                            (facts, stats.armor, bypass_armor_pct_by_caster, taken_effects)
+                            (
+                                facts,
+                                stats.armor,
+                                bypass_armor_pct_by_caster,
+                                taken_effects,
+                                player_block_percent,
+                            )
                         });
                     match victim {
                         Some((
@@ -624,6 +638,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                             victim_armor,
                             bypass_armor_pct_by_caster,
                             victim_taken_effects,
+                            player_block_percent,
                         )) => {
                             // C++ `CalculateMeleeDamage` runs
                             // `MeleeDamageBonusTaken` and
@@ -665,6 +680,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                     attacker_facts.level,
                                     victim_facts.level,
                                     attacker_facts.crit_damage_multiplier,
+                                    player_block_percent,
                                 );
                             let (info, state) =
                                 crate::session_rules::melee_outcome_presentation_like_cpp(
@@ -930,6 +946,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                     attacker_facts.level,
                                     victim_facts.level,
                                     attacker_facts.crit_damage_multiplier,
+                                    crate::session_rules::CREATURE_BLOCK_PERCENT_LIKE_CPP,
                                 );
                             creature_victim_presentation = Some((info, state, blocked as i32));
                             creature_victim_avoided = matches!(
