@@ -923,6 +923,14 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                 crate::session_rules::melee_outcome_presentation_like_cpp(
                                     rolled, false,
                                 );
+                            let (outcome_damage, _blocked, _original) =
+                                crate::session_rules::melee_outcome_damage_like_cpp(
+                                    rolled,
+                                    mitigated,
+                                    attacker_facts.level,
+                                    victim_facts.level,
+                                    attacker_facts.crit_damage_multiplier,
+                                );
                             creature_victim_presentation = Some((info, state));
                             creature_victim_avoided = matches!(
                                 rolled,
@@ -932,14 +940,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                     | crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Parry
                             );
                             outcome_represented = true;
-                            crate::session_rules::melee_outcome_damage_like_cpp(
-                                rolled,
-                                mitigated,
-                                attacker_facts.level,
-                                victim_facts.level,
-                                attacker_facts.crit_damage_multiplier,
-                            )
-                            .0
+                            outcome_damage
                         }
                         None => damage,
                     }

@@ -1408,6 +1408,31 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
     assert_eq!(outcome.canonical_creature_hits, 0, "a dodge commits no hit");
     assert_eq!(victim_health(&canonical), before);
 
+    // The victim's flat 30% creature block (`Unit.h:947`) reduces the
+    // mitigated 8 by `CalculatePct(8, 30) = 2`, and the packet carries
+    // `HITINFO_BLOCK` plus the blocked amount.
+    canonical
+        .lock()
+        .unwrap()
+        .find_map_mut(0, 0)
+        .unwrap()
+        .map_mut()
+        .with_creature_mut_like_cpp(victim_guid, |victim| {
+            victim.set_avoidance_like_cpp(wow_entities::CreatureAvoidanceLikeCpp {
+                block_pct: 100.0,
+                ..Default::default()
+            });
+        })
+        .unwrap();
+    let before = victim_health(&canonical);
+    let outcome = tick(&mut session);
+    assert_eq!(outcome.canonical_creature_hits, 1);
+    assert_eq!(before - victim_health(&canonical), 6);
+    assert_eq!(
+        wire_hit_info(&outcome) & wow_packet::packets::combat::HIT_INFO_BLOCK,
+        wow_packet::packets::combat::HIT_INFO_BLOCK
+    );
+
     // The victim's `SPELL_AURA_MOD_CRIT_CHANCE_VERSUS_TARGET_HEALTH` over the
     // whole health range makes the critical band certain: the mitigated 8
     // doubles to 16.
