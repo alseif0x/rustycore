@@ -483,6 +483,47 @@ impl WorldSession {
     /// Re-install the represented attack-time multipliers on the canonical
     /// Player after any aura mutation, mirroring the C++ aura handlers that call
     /// `Unit::ApplyAttackTimePercentMod` at apply/remove time.
+    /// C++ `Unit::ApplyCastTimePercentMod` (`Unit.cpp:10229-10252`), reached from
+    /// `AuraEffect::HandleModCastingSpeed` (`SpellAuraEffects.cpp:4272-4315`)
+    /// and `HandleModCombatSpeedPct` (`4330-4351`): the caster's cast-time
+    /// multiplier over `SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK` (65),
+    /// `SPELL_AURA_HASTE_SPELLS` (216), `SPELL_AURA_MELEE_SLOW` (193) and
+    /// `SPELL_AURA_MOD_SPEED_SLOW_ALL` (252).
+    ///
+    /// A total of `1000` or more is C++'s `SetInstantCast(true)`, represented as
+    /// a zero multiplier. Boundary: the spell-group de-duplication and the
+    /// `ModHasteRegen` cooldown-recovery consumer remain unrepresented.
+    pub(in crate::session) fn represented_cast_speed_multiplier_like_cpp(&self) -> f32 {
+        use wow_data::spell::aura_types::{
+            SPELL_AURA_HASTE_SPELLS, SPELL_AURA_MELEE_SLOW, SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK,
+            SPELL_AURA_MOD_SPEED_SLOW_ALL,
+        };
+
+        let mut multiplier = 1.0_f32;
+        for aura_type in [
+            SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK,
+            SPELL_AURA_HASTE_SPELLS,
+            SPELL_AURA_MELEE_SLOW,
+            SPELL_AURA_MOD_SPEED_SLOW_ALL,
+        ] {
+            for (_, amount) in self
+                .resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
+                .unwrap_or_default()
+            {
+                if amount >= 1000 {
+                    return 0.0;
+                }
+                let amount = amount as f32;
+                multiplier *= if amount > 0.0 {
+                    100.0 / (100.0 + amount)
+                } else {
+                    (100.0 - amount) / 100.0
+                };
+            }
+        }
+        multiplier.max(0.0)
+    }
+
     pub(in crate::session) fn sync_represented_attack_speed_like_cpp(&mut self) {
         let multipliers = self.represented_attack_speed_multipliers_like_cpp();
         // C++ computes `Unit::MeleeDamageBonusDone`'s auto-attack factor from the

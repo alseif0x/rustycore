@@ -79,6 +79,10 @@ impl WorldSession {
 }
 
 impl Runtime for WorldSession {
+    fn cast_time_multiplier(&self) -> f32 {
+        self.represented_cast_speed_multiplier_like_cpp()
+    }
+
     fn spell(&self, id: i32) -> Option<wow_data::SpellInfo> {
         self.spell_store().and_then(|store| store.get(id)).cloned()
     }

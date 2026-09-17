@@ -40,6 +40,11 @@ pub(crate) trait Runtime {
     ) -> bool;
     fn install(&mut self, cast: SpellCastState) -> bool;
     fn start(&mut self, cast: &SpellCastState, spell: &SpellInfo);
+    /// C++ `Unit::ModCastingSpeed` product for this caster
+    /// (`Unit::ApplyCastTimePercentMod`). `1.0` when the caster has none.
+    fn cast_time_multiplier(&self) -> f32 {
+        1.0
+    }
 }
 
 /// C++ `Player::CancelPendingCastRequest` always publishes a CastFailed:
@@ -165,13 +170,16 @@ pub(crate) fn prepare(runtime: &mut impl Runtime, request: PendingSpellCastReque
     metadata.original_cast_id = ObjectGuid::EMPTY;
     metadata.from_client = true;
     metadata.client_started_global_cooldown = spell.cooldown_ms != 0;
+    // C++ `Spell::prepare` stores `m_casttime = GetSpellCastTime(...)`, which
+    // already includes the caster's `ModCastingSpeed`.
+    let cast_time_ms = (spell.cast_time_ms as f32 * runtime.cast_time_multiplier()).max(0.0) as u32;
     let cast = SpellCastState {
         spell_id: spell.spell_id,
         target_guid: request.target_guid,
         target_data: request.target_data,
         cast_id: server_id,
         cast_start_time: std::time::Instant::now(),
-        cast_time_ms: spell.cast_time_ms,
+        cast_time_ms,
         spell_visual: visual,
         metadata,
     };
