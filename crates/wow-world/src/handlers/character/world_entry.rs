@@ -2626,6 +2626,7 @@ impl WorldSession {
             projection,
             gear.weapon_damage,
             gear.base_attack_time,
+            self.represented_shapeshift_combat_round_time_like_cpp(),
         );
         let min_damage = weapon_damage[0][0];
         let max_damage = weapon_damage[0][1];

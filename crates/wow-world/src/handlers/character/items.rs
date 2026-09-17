@@ -3728,6 +3728,7 @@ impl WorldSession {
             projection,
             gear.weapon_damage,
             gear.base_attack_time,
+            self.represented_shapeshift_combat_round_time_like_cpp(),
         );
 
         // Power for slot 0 (mana/rage/energy/runic). Keep current power from

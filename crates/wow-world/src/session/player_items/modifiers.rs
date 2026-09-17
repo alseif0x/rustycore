@@ -338,6 +338,20 @@ impl WorldSession {
         ) {
             let (min_damage, max_damage) =
                 self.represented_weapon_damage_bounds_like_cpp(item_entry, weapon);
+            // C++ `Player::_ApplyWeaponDamage` (`Player.cpp:7979-8020`) skips the
+            // disarm gate in feral form and keeps the existing attack time while
+            // the active form carries a `CombatRoundTime`.
+            let is_in_feral_form = self
+                .canonical_player_snapshot_like_cpp(|player| player.is_in_feral_form_like_cpp())
+                .unwrap_or(false);
+            // C++ reaches `_ApplyWeaponDamage` for any unit that is not
+            // disarmed; an unavailable canonical owner is treated as unflagged.
+            let can_use_attack_type = self
+                .represented_can_use_attack_type_like_cpp(slot, Some(inventory_type))
+                != Some(false);
+            let has_shapeshift_combat_round_time = self
+                .represented_shapeshift_combat_round_time_like_cpp()
+                .is_some();
             planned_actions.extend(
                 item_weapon_damage_actions_like_cpp(
                     slot,
@@ -346,9 +360,9 @@ impl WorldSession {
                     max_damage,
                     weapon.item_delay,
                     apply,
-                    false,
-                    true,
-                    false,
+                    is_in_feral_form,
+                    can_use_attack_type,
+                    has_shapeshift_combat_round_time,
                     true,
                 )
                 .into_iter()
@@ -728,11 +742,29 @@ impl WorldSession {
         let inventory_type = self
             .item_storage_template(item.object().entry())
             .map(|template| template.inventory_type);
-        // C++ `Player::GetAttackBySlot` has cases only for MAINHAND and
-        // OFFHAND. In particular, legacy `EQUIPMENT_SLOT_RANGED` deliberately
-        // falls through to `MAX_ATTACK`; ranged inventory types map to
-        // `RANGED_ATTACK` only when stored in MAINHAND.
-        let attack_type = match item.slot() {
+        self.represented_can_use_attack_type_like_cpp(item.slot(), inventory_type) == Some(true)
+    }
+
+    /// C++ `Player::CanUseAttackType` for the attack an equipment slot maps to:
+    /// `BASE_ATTACK` requires no `UNIT_FLAG_DISARMED`, `OFF_ATTACK` no
+    /// `UNIT_FLAG2_DISARM_OFFHAND`, `RANGED_ATTACK` no
+    /// `UNIT_FLAG2_DISARM_RANGED`, and any other slot is unaffected.
+    ///
+    /// `None` when the canonical Player owner is unavailable, so a caller can
+    /// choose whether an unknown disarm state is fail-closed (enchantments) or
+    /// fail-open (the `_ApplyWeaponDamage` producer, which C++ reaches for an
+    /// unflagged unit).
+    ///
+    /// C++ `Player::GetAttackBySlot` has cases only for MAINHAND and OFFHAND.
+    /// In particular, legacy `EQUIPMENT_SLOT_RANGED` deliberately falls through
+    /// to `MAX_ATTACK`; ranged inventory types map to `RANGED_ATTACK` only when
+    /// stored in MAINHAND.
+    pub(in crate::session) fn represented_can_use_attack_type_like_cpp(
+        &self,
+        slot: u8,
+        inventory_type: Option<InventoryType>,
+    ) -> Option<bool> {
+        let attack_type = match slot {
             EQUIPMENT_SLOT_MAINHAND
                 if matches!(
                     inventory_type,
@@ -745,34 +777,27 @@ impl WorldSession {
             EQUIPMENT_SLOT_OFFHAND => WeaponAttackType::OffAttack,
             _ => WeaponAttackType::Max,
         };
-        let can_use_attack_type = match attack_type {
-            WeaponAttackType::BaseAttack => self
-                .canonical_player_snapshot_like_cpp(|player| {
-                    !player
-                        .unit()
-                        .unit_flags_like_cpp()
-                        .contains(UnitFlags::DISARMED)
-                })
-                .unwrap_or(false),
-            WeaponAttackType::OffAttack => self
-                .canonical_player_snapshot_like_cpp(|player| {
-                    !player
-                        .unit()
-                        .unit_flags2_like_cpp()
-                        .contains(UnitFlags2::DISARM_OFFHAND)
-                })
-                .unwrap_or(false),
-            WeaponAttackType::RangedAttack => self
-                .canonical_player_snapshot_like_cpp(|player| {
-                    !player
-                        .unit()
-                        .unit_flags2_like_cpp()
-                        .contains(UnitFlags2::DISARM_RANGED)
-                })
-                .unwrap_or(false),
-            WeaponAttackType::Max => true,
-        };
-        can_use_attack_type
+        match attack_type {
+            WeaponAttackType::BaseAttack => self.canonical_player_snapshot_like_cpp(|player| {
+                !player
+                    .unit()
+                    .unit_flags_like_cpp()
+                    .contains(UnitFlags::DISARMED)
+            }),
+            WeaponAttackType::OffAttack => self.canonical_player_snapshot_like_cpp(|player| {
+                !player
+                    .unit()
+                    .unit_flags2_like_cpp()
+                    .contains(UnitFlags2::DISARM_OFFHAND)
+            }),
+            WeaponAttackType::RangedAttack => self.canonical_player_snapshot_like_cpp(|player| {
+                !player
+                    .unit()
+                    .unit_flags2_like_cpp()
+                    .contains(UnitFlags2::DISARM_RANGED)
+            }),
+            WeaponAttackType::Max => Some(true),
+        }
     }
     #[cfg(test)]
     pub(crate) fn represented_item_bonus_actions_like_cpp(
