@@ -106,6 +106,7 @@ impl WorldSession {
         let melee_damage_bonus = self.represented_melee_damage_bonus_like_cpp();
         let armor_mitigation = self.represented_melee_armor_mitigation_like_cpp();
         let outcome_facts = self.represented_melee_outcome_facts_like_cpp();
+        let damage_taken = self.represented_melee_damage_taken_like_cpp();
         self.mutate_canonical_player_like_cpp(|player| {
             take_canonical_player_attack_swings_like_cpp(
                 player,
@@ -116,9 +117,70 @@ impl WorldSession {
                 melee_damage_bonus,
                 armor_mitigation,
                 outcome_facts,
+                damage_taken,
             )
         })
         .flatten()
+    }
+
+    /// C++ `Unit::MeleeDamageBonusTaken` (`Unit.cpp:1687-1759`) inputs for the
+    /// canonical Player's current melee victim: the creature's applied-aura
+    /// effects and the attacker's `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` sum for
+    /// the physical school. A canonical-player victim keeps `NONE`, like the
+    /// other creature-only victim terms.
+    pub(in crate::session) fn represented_melee_damage_taken_like_cpp(
+        &self,
+    ) -> crate::session_rules::RepresentedMeleeDamageTakenLikeCpp {
+        use crate::session_rules::RepresentedMeleeDamageTakenLikeCpp;
+
+        let Some(target_guid) =
+            self.canonical_player_snapshot_like_cpp(|player| player.unit().attacking())
+        else {
+            return RepresentedMeleeDamageTakenLikeCpp::NONE;
+        };
+        let Some(target_guid) = target_guid else {
+            return RepresentedMeleeDamageTakenLikeCpp::NONE;
+        };
+        let Some(attacker_guid) = self.player_guid() else {
+            return RepresentedMeleeDamageTakenLikeCpp::NONE;
+        };
+        let Some(spell_store) = self.spell_store() else {
+            return RepresentedMeleeDamageTakenLikeCpp::NONE;
+        };
+        let Some(manager) = self.map_manager.as_ref() else {
+            return RepresentedMeleeDamageTakenLikeCpp::NONE;
+        };
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let victim_effects = {
+            let manager = manager
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            manager
+                .find_creature(self.player_map_id_like_cpp(), instance_id, target_guid)
+                .map(|creature| {
+                    crate::session_rules::creature_aura_effects_like_cpp(
+                        &creature.creature.unit().subsystems().auras.applied_auras,
+                        spell_store,
+                        self.current_map_difficulty_id_like_cpp(),
+                        self.difficulty_store().map(AsRef::as_ref),
+                    )
+                })
+                .unwrap_or_default()
+        };
+        let attacker_ignore_resist = self
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST,
+            )
+            .unwrap_or_default();
+        crate::session_rules::melee_damage_taken_flat_pct_like_cpp(
+            &victim_effects,
+            &attacker_ignore_resist,
+            attacker_guid,
+            0x01,
+        )
     }
 
     /// C++ `Unit::RollMeleeOutcomeAgainst` (`Unit.cpp:2272-2310`) inputs for the

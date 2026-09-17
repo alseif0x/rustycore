@@ -282,6 +282,7 @@ fn combat_tick_uses_canonical_player_offhand_timer_like_cpp() {
                 [crate::session::RepresentedMeleeDamageBonusLikeCpp::NONE; 2],
                 crate::session::combat::RepresentedArmorMitigationLikeCpp::NONE,
                 Default::default(),
+                crate::session_rules::RepresentedMeleeDamageTakenLikeCpp::NONE,
             )
         })
         .flatten();

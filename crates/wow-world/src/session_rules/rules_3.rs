@@ -327,3 +327,58 @@ pub(crate) fn armor_reduced_damage_like_cpp(
 
     (damage as f32 * (1.0 - damage_reduction)).max(0.0).ceil() as u32
 }
+
+/// One resolved effect of a creature's `AppliedAuraRef`, the shape every
+/// victim-side C++ `GetTotalAuraModifier*` query reads.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct AppliedAuraEffectLikeCpp {
+    pub spell_id: i32,
+    pub caster_guid: wow_core::ObjectGuid,
+    /// The effect's `AuraType`.
+    pub aura_type: i32,
+    /// The effect's `MiscValue`, matched against a school mask where C++ uses
+    /// `GetTotalAuraModifierByMiscMask`.
+    pub misc_value: i32,
+    pub amount: i32,
+}
+
+/// C++ `Unit::GetAuraEffectsByType`/`GetTotalAuraModifier*` over a creature's
+/// `AuraApplicationMap`: every active effect of the unit's applied auras,
+/// resolved at the caller's difficulty.
+///
+/// The player-side counterpart is
+/// [`player_aura_effects_by_spell_aura_type_like_cpp`]; a creature's
+/// `AppliedAuraRef` carries no represented effect amounts, so the effect's
+/// no-caster calculation is the value, exactly like the mechanic-mask
+/// projection.
+pub(crate) fn creature_aura_effects_like_cpp(
+    applied_auras: &[AppliedAuraRef],
+    spell_store: &SpellStore,
+    difficulty_id: u8,
+    difficulty_store: Option<&wow_data::DifficultyStore>,
+) -> Vec<AppliedAuraEffectLikeCpp> {
+    let mut effects = Vec::new();
+    for aura in applied_auras {
+        let spell_id = i32::try_from(aura.spell_id).unwrap_or(0);
+        let Some(spell_effects) =
+            spell_store.effects_for_difficulty_like_cpp(spell_id, difficulty_id, difficulty_store)
+        else {
+            continue;
+        };
+        for effect in spell_effects.iter().filter(|effect| {
+            effect.effect_aura != 0
+                && 1u32
+                    .checked_shl(effect.effect_index)
+                    .is_some_and(|bit| aura.effect_mask & bit != 0)
+        }) {
+            effects.push(AppliedAuraEffectLikeCpp {
+                spell_id,
+                caster_guid: aura.caster_guid,
+                aura_type: effect.effect_aura,
+                misc_value: effect.effect_misc_value_1,
+                amount: effect.calc_value_no_caster_like_cpp(),
+            });
+        }
+    }
+    effects
+}

@@ -246,6 +246,15 @@ pub const SPELL_AURA_MOD_TARGET_RESISTANCE: i32 = 123;
 /// C++ `AuraType::SPELL_AURA_MOD_AUTOATTACK_CRIT_CHANCE` (`SpellAuraDefines.h:429`):
 /// flat auto-attack critical chance, read by `Unit::RollMeleeOutcomeAgainst`.
 pub const SPELL_AURA_MOD_AUTOATTACK_CRIT_CHANCE: i32 = 334;
+
+/// C++ `AuraType::SPELL_AURA_MOD_MELEE_DAMAGE_TAKEN` (`SpellAuraDefines.h:220`).
+pub const SPELL_AURA_MOD_MELEE_DAMAGE_TAKEN: i32 = 125;
+/// C++ `AuraType::SPELL_AURA_MOD_MELEE_DAMAGE_TAKEN_PCT` (`SpellAuraDefines.h:221`).
+pub const SPELL_AURA_MOD_MELEE_DAMAGE_TAKEN_PCT: i32 = 126;
+/// C++ `AuraType::SPELL_AURA_MOD_IGNORE_TARGET_RESIST` (`SpellAuraDefines.h:364`).
+pub const SPELL_AURA_MOD_IGNORE_TARGET_RESIST: i32 = 269;
+/// C++ `AuraType::SPELL_AURA_MOD_MELEE_DAMAGE_FROM_CASTER` (`SpellAuraDefines.h:438`).
+pub const SPELL_AURA_MOD_MELEE_DAMAGE_FROM_CASTER: i32 = 343;
 /// C++ `AuraType::SPELL_AURA_MOD_SPELL_DAMAGE_OF_STAT_PERCENT`
 /// (`SpellAuraDefines.h:269`): `MiscValue` is the school mask and `MiscValueB`
 /// the stat.
