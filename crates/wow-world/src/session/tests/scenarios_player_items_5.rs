@@ -187,6 +187,10 @@ fn add_item_appearance_for_item_resolves_modified_appearance_like_cpp() {
         0,
     ));
     add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+    grant_learned_weapon_proficiency_like_cpp(
+        &mut session,
+        1 << (ItemSubClassWeapon::Sword as u32),
+    );
     session.set_item_modified_appearance_store(Arc::new(
         ItemModifiedAppearanceStore::from_entries([ItemModifiedAppearanceEntry {
             id: 65,
@@ -240,6 +244,10 @@ fn on_item_added_adds_heirloom_and_permanent_appearance_like_cpp() {
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+    grant_learned_weapon_proficiency_like_cpp(
+        &mut session,
+        1 << (ItemSubClassWeapon::Sword as u32),
+    );
     session.set_heirloom_store(Arc::new(HeirloomStore::from_entries([HeirloomEntry {
         id: 1,
         source_text: "collection item".to_string(),
@@ -314,6 +322,10 @@ fn on_item_added_records_refundable_appearance_as_temporary_like_cpp() {
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+    grant_learned_weapon_proficiency_like_cpp(
+        &mut session,
+        1 << (ItemSubClassWeapon::Sword as u32),
+    );
     session.set_item_modified_appearance_store(Arc::new(
         ItemModifiedAppearanceStore::from_entries([ItemModifiedAppearanceEntry {
             id: 96,
@@ -357,6 +369,77 @@ fn on_item_added_records_refundable_appearance_as_temporary_like_cpp() {
     );
 }
 #[test]
+fn can_add_item_appearance_uses_learned_weapon_proficiency_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 90);
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "TransmogProficiencyTester".to_string(),
+        Position::new(0.0, 0.0, 0.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session.set_item_modified_appearance_store(Arc::new(
+        ItemModifiedAppearanceStore::from_entries([
+            ItemModifiedAppearanceEntry {
+                id: 65,
+                item_id: 777,
+                item_appearance_modifier_id: 0,
+                item_appearance_id: 9_000,
+                order_index: 0,
+                transmog_source_type_enum: 0,
+            },
+            ItemModifiedAppearanceEntry {
+                id: 66,
+                item_id: 778,
+                item_appearance_modifier_id: 0,
+                item_appearance_id: 9_001,
+                order_index: 0,
+                transmog_source_type_enum: 0,
+            },
+        ]),
+    ));
+    install_transmog_can_add_test_items(
+        &mut session,
+        [
+            (
+                777,
+                ItemClass::Weapon,
+                ItemSubClassWeapon::Sword as u8,
+                InventoryType::Weapon,
+                ItemQuality::Uncommon,
+                [0, 0, 0, 0],
+                0,
+            ),
+            (
+                778,
+                ItemClass::Weapon,
+                ItemSubClassWeapon::Mace as u8,
+                InventoryType::Weapon,
+                ItemQuality::Uncommon,
+                [0, 0, 0, 0],
+                0,
+            ),
+        ],
+    );
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    grant_learned_weapon_proficiency_like_cpp(&mut session, 1 << (ItemSubClassWeapon::Mace as u32));
+
+    // C++ `CollectionMgr::CanAddAppearance` reads the learned
+    // `Player::GetWeaponProficiency` mask, so the warrior class default is not
+    // enough to collect a sword appearance.
+    assert!(
+        !session.can_add_item_appearance_represented_like_cpp(65),
+        "an unlearned sword subclass must be rejected"
+    );
+    assert!(session.can_add_item_appearance_represented_like_cpp(66));
+}
+
+#[test]
 fn can_add_item_appearance_represented_applies_cpp_gates() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 79);
@@ -370,6 +453,12 @@ fn can_add_item_appearance_represented_applies_cpp_gates() {
         80,
         0,
     ));
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    grant_learned_weapon_proficiency_like_cpp(
+        &mut session,
+        1 << (ItemSubClassWeapon::Sword as u32),
+    );
     session.set_item_modified_appearance_store(Arc::new(
         ItemModifiedAppearanceStore::from_entries([
             ItemModifiedAppearanceEntry {
@@ -529,7 +618,9 @@ fn can_add_item_appearance_represented_applies_cpp_gates() {
     assert!(session.can_add_item_appearance_represented_like_cpp(70));
     assert!(!session.can_add_item_appearance_represented_like_cpp(71));
     assert!(!session.can_add_item_appearance_represented_like_cpp(72));
-    session.represented_item_appearances_like_cpp.insert(65);
+    // The canonical Player owns the collection; the session mirror is only the
+    // handle-less fixture path.
+    assert!(session.add_item_appearance_like_cpp(65).is_some());
     assert!(!session.can_add_item_appearance_represented_like_cpp(65));
 }
 #[test]
@@ -550,6 +641,10 @@ fn replay_rewarded_quest_direct_item_appearances_adds_choice_and_fixed_like_cpp(
         0,
     ));
     add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+    grant_learned_weapon_proficiency_like_cpp(
+        &mut session,
+        1 << (ItemSubClassWeapon::Sword as u32),
+    );
     session.set_item_modified_appearance_store(Arc::new(
         ItemModifiedAppearanceStore::from_entries([
             ItemModifiedAppearanceEntry {

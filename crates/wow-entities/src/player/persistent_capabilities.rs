@@ -36,6 +36,15 @@ impl Player {
         removed
     }
 
+    /// C++ `Player::GetWeaponProficiency` (`Player.h:1432`) returns the mask
+    /// accumulated by the learned `SPELL_EFFECT_PROFICIENCY` spells.
+    #[must_use]
+    pub fn weapon_proficiency_like_cpp(&self) -> u32 {
+        self.gameplay_state()
+            .persistent_capabilities
+            .weapon_proficiency
+    }
+
     /// C++ `Player::AddWeaponProficiency` (`Player.h:1433`) ORs one subclass
     /// mask and returns the resulting mask only when it changed.
     pub fn add_weapon_proficiency_like_cpp(&mut self, subclass_mask: u32) -> Option<u32> {

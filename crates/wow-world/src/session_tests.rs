@@ -4380,6 +4380,21 @@ fn currency_entry(id: u32) -> wow_data::CurrencyTypesEntry {
     }
 }
 
+/// Acceptance fixture for `CollectionMgr::CanAddAppearance`: C++ reads the
+/// learned `Player::GetWeaponProficiency` mask, which the login
+/// `SPELL_EFFECT_PROFICIENCY` spells seed. Grant the weapon subclass under
+/// test on the canonical Player.
+fn grant_learned_weapon_proficiency_like_cpp(session: &mut WorldSession, subclass_mask: u32) {
+    assert!(
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.add_weapon_proficiency_like_cpp(subclass_mask);
+            })
+            .is_some(),
+        "the canonical Player must own the learned weapon proficiency"
+    );
+}
+
 fn install_transmog_can_add_test_item(
     session: &mut WorldSession,
     item_id: u32,
