@@ -58,6 +58,8 @@ fn active_player_stats_values_update_matches_cpp_common_runtime_masks() {
         shield_block_crit_pct: 21.0,
         mod_healing_pct: 1.0,
         mod_healing_done_pct: 1.5,
+        mod_target_resistance: 5,
+        mod_target_physical_resistance: 30,
         mod_periodic_healing_pct: 1.0,
         mod_spell_power_pct: 1.0,
     };
@@ -109,6 +111,19 @@ fn active_player_stats_values_update_matches_cpp_common_runtime_masks() {
         stats.mod_healing_done_pct,
         "ModHealingDonePercent must be the represented multiplier"
     );
+
+    // Parent-38 fields 27 and 28 (bits 67-68) are the target resistances.
+    for (index, expected) in [
+        (27usize, stats.mod_target_resistance),
+        (28usize, stats.mod_target_physical_resistance),
+    ] {
+        let field_offset = values_start + 8 + index * 4;
+        assert_eq!(
+            i32::from_le_bytes(bytes[field_offset..field_offset + 4].try_into().unwrap()),
+            expected,
+            "parent-38 field {index}"
+        );
+    }
 
     // Parent-38 section is 30 fields (bits 39-49, 51-69); field bit 50 is
     // reserved and not emitted, so skip 30 floats (not 31) to reach SpellCrit.

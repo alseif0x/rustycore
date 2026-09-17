@@ -647,8 +647,8 @@ impl PlayerCreateData {
         buf.write_float(-1.0);
 
         // ModTargetResistance, ModTargetPhysicalResistance
-        buf.write_int32(0);
-        buf.write_int32(0);
+        buf.write_int32(self.mod_target_resistance);
+        buf.write_int32(self.mod_target_physical_resistance);
 
         // LocalFlags
         buf.write_uint32(0);

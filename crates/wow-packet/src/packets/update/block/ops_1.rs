@@ -661,6 +661,8 @@ impl UpdateObject {
             mod_healing_done_pos: combat.mod_healing_done_pos,
             mod_damage_done_percent: combat.mod_damage_done_percent,
             mod_healing_done_pct: combat.mod_healing_done_pct,
+            mod_target_resistance: combat.mod_target_resistance,
+            mod_target_physical_resistance: combat.mod_target_physical_resistance,
             visible_items,
             customizations: Vec::new(),
             inv_slots,

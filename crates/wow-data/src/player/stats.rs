@@ -117,6 +117,16 @@ pub struct PlayerSpellBonusInputLikeCpp {
     /// product of `1 + amount/100` over the active
     /// `SPELL_AURA_MOD_HEALING_DONE_PERCENT` (136) effects, `1.0` when none.
     pub healing_done_percent: f32,
+    /// `SPELL_AURA_MOD_TARGET_RESISTANCE` (123) sums covering the full
+    /// `SPELL_SCHOOL_MASK_SPELL`, published as `ModTargetResistance`.
+    pub target_resistance_aura: i32,
+    /// C++ `Player::m_spellPenetrationItemMod` from item/enchant
+    /// `ITEM_MOD_SPELL_PENETRATION`; `ApplySpellPenetrationBonus`
+    /// (`StatSystem.cpp:231-235`) writes `-amount` into `ModTargetResistance`.
+    pub item_spell_penetration: i32,
+    /// `SPELL_AURA_MOD_TARGET_RESISTANCE` (123) sums covering
+    /// `SPELL_SCHOOL_MASK_NORMAL`, published as `ModTargetPhysicalResistance`.
+    pub target_physical_resistance_aura: i32,
 }
 
 impl Default for PlayerSpellBonusInputLikeCpp {
@@ -131,6 +141,9 @@ impl Default for PlayerSpellBonusInputLikeCpp {
             override_spell_power_by_ap_pct: 0.0,
             damage_done_percent: [1.0; 7],
             healing_done_percent: 1.0,
+            target_resistance_aura: 0,
+            item_spell_penetration: 0,
+            target_physical_resistance_aura: 0,
         }
     }
 }
@@ -256,6 +269,11 @@ pub struct PlayerStatSystemProjectionLikeCpp {
     /// C++ `ActivePlayerData::ModHealingDonePercent`
     /// (`StatSystem.cpp:588-599`).
     pub mod_healing_done_percent: f32,
+    /// C++ `ActivePlayerData::ModTargetResistance` (`StatSystem.cpp:231-235`,
+    /// `SpellAuraEffects.cpp:3507-3530`).
+    pub mod_target_resistance: i32,
+    /// C++ `ActivePlayerData::ModTargetPhysicalResistance`.
+    pub mod_target_physical_resistance: i32,
 }
 
 /// C++ `Unit::CalculateMinMaxDamage` for the represented player weapon
@@ -579,6 +597,11 @@ pub fn calculate_player_stat_system_like_cpp(
         mod_healing_done_pos,
         mod_damage_done_percent: input.spell_bonus.damage_done_percent,
         mod_healing_done_percent: input.spell_bonus.healing_done_percent,
+        mod_target_resistance: input
+            .spell_bonus
+            .target_resistance_aura
+            .saturating_sub(input.spell_bonus.item_spell_penetration),
+        mod_target_physical_resistance: input.spell_bonus.target_physical_resistance_aura,
     }
 }
 
@@ -1448,6 +1471,10 @@ mod tests {
                 damage_done_percent: [1.0, 3.0, 1.25, 1.0, 1.0, 1.0, 1.0],
                 // `UpdateHealingDonePercentMod` starts from 1.0.
                 healing_done_percent: 2.0,
+                // `ModTargetResistance = aura - item penetration`.
+                target_resistance_aura: 20,
+                item_spell_penetration: 15,
+                target_physical_resistance_aura: 30,
             },
             rating_bonuses: [0.0; 32],
             can_parry: false,
@@ -1467,6 +1494,8 @@ mod tests {
             [1.0, 3.0, 1.25, 1.0, 1.0, 1.0, 1.0]
         );
         assert_eq!(projection.mod_healing_done_percent, 2.0);
+        assert_eq!(projection.mod_target_resistance, 5);
+        assert_eq!(projection.mod_target_physical_resistance, 30);
 
         // `SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT` replaces both bonuses with
         // `int32(CalculatePct(GetTotalAttackPowerValue(BASE_ATTACK), pct) + 0.5)`:

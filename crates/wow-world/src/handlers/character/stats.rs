@@ -17,6 +17,9 @@ const SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP: i32 = 1;
 /// C++ `SPELL_SCHOOL_MASK_ALL` (`SharedDefines.h:335`): the seven school bits
 /// `SpellBaseHealingBonusDone` uses for `ModHealingDonePos`.
 const SPELL_SCHOOL_MASK_ALL_LIKE_CPP: i32 = 0x7F;
+/// C++ `SPELL_SCHOOL_MASK_SPELL` (`SharedDefines.h:340-343`): fire, nature,
+/// frost, shadow and arcane — the full magic mask aura 123 tests against.
+const SPELL_SCHOOL_MASK_SPELL_LIKE_CPP: i32 = 0x3E;
 
 /// C++ `CLASSMASK_WAND_USERS` (`SharedDefines.h:190`): the priest, mage and
 /// warlock classes ignore the ranged attack power aura producers
@@ -283,6 +286,29 @@ impl WorldSession {
             })
             .max(0.0);
 
+        // C++ `AuraEffect::HandleModTargetResistance`
+        // (`SpellAuraEffects.cpp:3507-3530`) adds an effect covering
+        // `SPELL_SCHOOL_MASK_NORMAL` to `ModTargetPhysicalResistance` and one
+        // covering the whole `SPELL_SCHOOL_MASK_SPELL` to `ModTargetResistance`;
+        // `Player::ApplySpellPenetrationBonus` (`StatSystem.cpp:231-235`)
+        // subtracts the item/enchant `ITEM_MOD_SPELL_PENETRATION` there.
+        let mut target_resistance_aura = 0i32;
+        let mut target_physical_resistance_aura = 0i32;
+        for (misc_value, amount) in self
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE,
+            )
+            .unwrap_or_default()
+        {
+            if misc_value & SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP != 0 {
+                target_physical_resistance_aura =
+                    target_physical_resistance_aura.saturating_add(amount);
+            }
+            if misc_value & SPELL_SCHOOL_MASK_SPELL_LIKE_CPP == SPELL_SCHOOL_MASK_SPELL_LIKE_CPP {
+                target_resistance_aura = target_resistance_aura.saturating_add(amount);
+            }
+        }
+
         let override_effects = self
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT,
@@ -311,6 +337,9 @@ impl WorldSession {
             override_spell_power_by_ap_pct,
             damage_done_percent,
             healing_done_percent,
+            target_resistance_aura,
+            item_spell_penetration: gear.spell_penetration_bonus,
+            target_physical_resistance_aura,
         }
     }
 
@@ -652,6 +681,8 @@ impl WorldSession {
             mod_healing_done_pos: projection.mod_healing_done_pos,
             mod_damage_done_percent: projection.mod_damage_done_percent,
             mod_healing_done_percent: projection.mod_healing_done_percent,
+            mod_target_resistance: projection.mod_target_resistance,
+            mod_target_physical_resistance: projection.mod_target_physical_resistance,
             mana_regen: mana_regen_from_spirit + mana_regen_mp5,
             mana_regen_combat,
             health_regen: gear.health_regen_bonus,
