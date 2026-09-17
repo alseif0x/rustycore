@@ -1336,6 +1336,12 @@ fn install_represented_party(
 
     receiver_session.register_in_player_registry();
     assert!(receiver_session.adopt_registered_canonical_player_fixture_like_cpp());
+    // Production `Player::LoadFromDB` builds the canonical Player with the
+    // character's identity, and later registry movement publications read
+    // `player_level_like_cpp`. Apply the session's loaded identity after
+    // adoption so the fixture party member matches that owner instead of the
+    // identity-less synthetic Player.
+    receiver_session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
 
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(sender_guid);
