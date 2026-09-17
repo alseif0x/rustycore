@@ -33,6 +33,26 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 creature-victim evade scenario — 2026-09-17, implementation `772895c2`:**
+the runtime scenario proves the evade short-circuit (`MELEE_HIT_EVADE` before
+every band, no hit, no damage, `HITINFO_MISS | HITINFO_SWINGNOHITSOUND` on the
+wire) that PR #1125 made reachable. wow-world 3990/0/1 (three runs), world-server
+594/0/0, wow-packet 744/0; no live DB/restart/relogin QA.
+
+**#29 player-victim block band preparation — 2026-09-17, no code change:** the
+next melee unit's contract is traced: `Player::GetBlockPercent`
+(`Player.cpp:25288-25298`) returns a fraction and the block arm applies
+`CalculatePct` = `base * pct / 100` (`Util.h:72-75`), so the target build blocks
+at most `0.85%` — a quirk to mirror, not silently repair;
+`EvaluateExpectedStat` (`DB2Stores.cpp:2103-2173`) looks up
+`(level, expansion)` with a `(level, -2)` fallback and a `1.0f` default;
+`ExpectedStatStore` exists in `wow-data` with no consumer and exposes
+`get(id)`/`len()` while the entry carries `lvl`/`expansion_id`, so a scan or a
+small composite index is needed. Preferred wiring: publish a
+`block_reduction_fraction` in the player stat projection instead of adding a
+store handle to the runtime config (whose `session/mod.rs` ceiling is at its
+recorded limit). No code or test delta.
+
 **#29 creature-victim melee fixture determinism — 2026-09-17, implementation
 `50bef0de`:** PR #1125's creature-victim critical band made two exact-damage
 fixtures non-deterministic (12 vs 24 and 8 vs 16, about two failures in fourteen
