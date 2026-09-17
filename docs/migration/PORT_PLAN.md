@@ -33,6 +33,12 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 weapon-enchantment damage term — 2026-09-17, implementation `54c1f8ec`:**
+`SpellItemEnchantment::EffectScalingPoints` is now loaded and
+`ITEM_ENCHANTMENT_TYPE_DAMAGE`/`TOTEM` (`Player.cpp:4991-5015`) feed the
+`UNIT_MOD_DAMAGE_*` `TOTAL_VALUE`, which becomes `f32`. wow-data --lib 752/0,
+wow-world --lib 3930/0/1; no live DB/restart/relogin QA.
+
 **#61 ranged weapon fit — 2026-09-17, implementation `9dd5c131`:** the
 weapon-fit producers now resolve `EQUIPMENT_SLOT_RANGED` through
 `GetWeaponForAttack` (`Player.cpp:9243-9270`), so bow/gun/crossbow restricted
