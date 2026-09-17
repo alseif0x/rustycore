@@ -689,9 +689,10 @@ impl WorldSession {
                 self.remove_represented_shapeshift_boosts_like_cpp(removed_form, new_form);
             }
         }
-        // C++ `Player::InitDataForForm` (`Player.cpp:22093-22094`) refreshes the
-        // equipped items' form-gated spells and item-set auras before
-        // `UpdateAttackPowerAndDamage` republishes the derived stats.
+        // C++ `Player::InitDataForForm` (`Player.cpp:22090`) updates the displayed
+        // power before refreshing the equipped items' form-gated spells and
+        // item-set auras, and `UpdateAttackPowerAndDamage` republishes after.
+        self.sync_represented_display_power_like_cpp();
         self.refresh_represented_item_effects_at_form_change_like_cpp();
         let _ = self.send_stat_update();
     }

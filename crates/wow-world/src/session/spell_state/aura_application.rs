@@ -291,6 +291,10 @@ impl WorldSession {
         if let Some(mutation) = self.sync_represented_shapeshift_form_ownership_like_cpp(spell_id) {
             self.sync_represented_shapeshift_form_like_cpp(mutation);
         }
+        // C++ `AuraEffect::HandleAuraModPowerDisplay` (`SpellAuraEffects.cpp:4027-4039`).
+        if self.represented_spell_has_power_display_effect_like_cpp(spell_id) {
+            self.sync_represented_display_power_like_cpp();
+        }
 
         Ok(())
     }
@@ -650,6 +654,10 @@ impl WorldSession {
             self.sync_represented_shapeshift_form_ownership_like_cpp(aura.spell_id)
         {
             self.sync_represented_shapeshift_form_like_cpp(mutation);
+        }
+        // C++ `AuraEffect::HandleAuraModPowerDisplay` (`SpellAuraEffects.cpp:4027-4039`).
+        if self.represented_spell_has_power_display_effect_like_cpp(aura.spell_id) {
+            self.sync_represented_display_power_like_cpp();
         }
 
         Ok(())
