@@ -33,6 +33,12 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 `SpellHealingBonusTaken` — 2026-09-17, implementation `b5a2f7a7`:** the
+most positive and most negative `SPELL_AURA_MOD_HEALING_PCT` (118) amounts now
+multiply healing received by the session player (`Unit.cpp:7231-7239`); creature
+targets keep the raw amount. wow-data --lib 752/0, wow-world --lib 3933/0/1; no
+live DB/restart/relogin QA.
+
 **#61 victim `ModHealing` term — 2026-09-17, implementation `2d158052`:** the
 victim's `SPELL_AURA_MOD_HEALING` (115) flat sum now feeds direct heals when the
 victim is the represented session player (`Unit.cpp:7123-7124`); creature
