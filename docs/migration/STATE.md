@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-17:** `3.4.3` is at
-`e26133e5dd7b80d40c2246cfa9961c46dbf7f6fa` (PR #1115, the #29
-creature-to-player armour mitigation, following PR #1113, the #29
+`316b10b201c8d8df67224c48ff3b9f787e37dbd2` (PR #1117, the #29
+player-victim melee damage-taken chain, following PR #1115, the #29
+creature-to-player armour mitigation, PR #1113, the #29
 creature-to-player dodge/parry/crit bands, PR #1111, the #29
 creature-to-player melee miss band, PR #1109, the #29
 ignore-target-resist armour term, PR #1107, the #29 critical
@@ -27,6 +28,39 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 player-victim melee damage-taken chain — 2026-09-17, implementation
+`908a6927`, integrated as `316b10b2` by PR #1117:** C++
+`Unit::CalculateMeleeDamage` (`Unit.cpp:1326-1343`) runs the victim's
+`MeleeDamageBonusTaken` before `CalcArmorReducedDamage`, but the represented
+creature bridge only had the armour step, so a player's damage-taken auras never
+applied to creature melee. The map-owned creature melee tick now resolves the
+victim player's whole active aura list once and feeds it through the shared
+`melee_damage_taken_flat_pct_like_cpp`/`melee_damage_taken_apply_like_cpp`
+chain — the flat `SPELL_AURA_MOD_MELEE_DAMAGE_TAKEN` benefit, the school-masked
+`SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN` and
+`SPELL_AURA_MOD_MELEE_DAMAGE_TAKEN_PCT` multipliers and the
+`SPELL_AURA_MOD_MELEE_DAMAGE_FROM_CASTER` term restricted to the attacker —
+before the armour reduction, with the attacker's
+`SPELL_AURA_MOD_IGNORE_TARGET_RESIST` pairs feeding C++'s Sanctified Wrath
+bypass (`Unit.cpp:7670-7778`). `player_aura_effects_all_like_cpp` is the
+unfiltered projection the chain needs, and
+`PlayerAuraEffectLikeCpp::as_applied_like_cpp` re-shapes it into the shared
+creature-aura form, so both victim kinds keep one arithmetic implementation.
+Evidence: the production runtime scenario drives 5,000 armour to 8 damage, a
+`+5` flat taken aura to 12, a fire-school `+100 %` percent aura to no change,
+the normal-school row to 23, and then, with the total modifier below one, a
+`-50 %` taken aura plus a creature `+50` ignore-resist aura to 10 (the bypass
+shrinks the reduction to `0.75` while the same aura halves the armour); the
+existing pure taken tests pin the bypass arithmetic. wow-world 3988/0/1,
+wow-data 753/0, wow-packet 744/0, wow-entities 940/0 and world-server 594/0/0
+pass; format, `git diff --check` and the physical ratchet pass without new
+ceiling growth, and `validation-v2 quick` (manifest
+`20260917T182258.318808Z-3099266-quick.json`) passes. Boundaries: the attacker's
+`MeleeDamageBonusDone` for a creature, the player-victim block band and the
+target build's negative crushing term remain unrepresented; without a spell
+store the runtime keeps the pre-table bridge. No live DB/restart/relogin QA. #29
+remains open for the remaining spell/melee math.
 
 **#29 creature-to-player armour mitigation — 2026-09-17, implementation
 `fc8cadf8`, integrated as `e26133e5` by PR #1115:** C++

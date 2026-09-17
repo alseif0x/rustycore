@@ -33,6 +33,18 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 player-victim melee damage-taken chain — 2026-09-17, implementation
+`908a6927`:** a creature swing now runs the player victim's
+`MeleeDamageBonusTaken` before armour — flat `MOD_MELEE_DAMAGE_TAKEN`,
+school-masked `MOD_DAMAGE_PERCENT_TAKEN`, `MOD_MELEE_DAMAGE_TAKEN_PCT`,
+attacker-restricted `MOD_MELEE_DAMAGE_FROM_CASTER` and the Sanctified Wrath
+bypass from the attacker's `MOD_IGNORE_TARGET_RESIST` — through the shared
+taken arithmetic, with a new unfiltered player-aura projection;
+the runtime scenario drives 8 → 12 → 23 → 10 across the flat, school-mask,
+percent and bypass stages. wow-world 3988/0/1, wow-data 753/0, wow-packet 744/0,
+wow-entities 940/0, world-server 594/0/0; creature `MeleeDamageBonusDone` and the
+block band remain boundaries; no live DB/restart/relogin QA.
+
 **#29 creature-to-player armour mitigation — 2026-09-17, implementation
 `fc8cadf8`:** the map-owned creature swing now mitigates through the player
 victim's published `GetArmor()` with the attacker's normal-school
