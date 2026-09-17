@@ -33,6 +33,15 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 victim-side melee damage-taken chain — 2026-09-17, implementation
+`45b7571c`:** a creature's applied-aura effects are now resolvable
+(`creature_aura_effects_like_cpp`), and `MeleeDamageBonusTaken`'s white-swing
+terms (flat damage-taken, school/caster/melee-taken percentages, the
+ignore-target-resist bypass) apply in both owners between the done bonus and the
+armour reduction. Cheat-death, ranged and spellProto branches stay out of scope
+for a white swing, and a player victim keeps `NONE`. wow-data 753/0,
+wow-world 3978/0/1, world-server 594/0/0; no live DB/restart/relogin QA.
+
 **#29 melee block band — 2026-09-17, implementation `91c3df70`:** the attack
 table now includes `MELEE_HIT_BLOCK` between glancing and crit, subtracts
 `CalculatePct(damage, 30)` for the creature block and publishes `HITINFO_BLOCK`
