@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 attack-speed aura application — 2026-09-17, implementation
+`dc8dac1b`:** the attack-speed aura handlers now write the represented
+`modAttackSpeedPct` and the swing timer reads it, including the C++ non-inverse
+conversion for negative amounts; applying or removing a haste/slow aura
+preserves the remaining swing fraction. Spell-group de-duplication and cast
+speed remain open. wow-data --lib 753/0, wow-entities --lib 940/0, wow-world
+--lib 3950/0/1; no live DB/restart/relogin QA.
+
 **#61 `CONFIG_STATS_LIMITS_*` caps — 2026-09-17, implementation
 `5eef7a77`:** the `Stats.Limits.Enable/Dodge/Parry/Block/Crit` world config
 values are resolved, carried on the session and applied once in the stat
