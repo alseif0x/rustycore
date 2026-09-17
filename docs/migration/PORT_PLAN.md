@@ -33,6 +33,17 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#61 `ModTargetResistance` and item spell penetration publication —
+2026-09-17, implementation `2715525d`:** aura 123
+(`SpellAuraEffects.cpp:3507-3530`) feeds `ModTargetPhysicalResistance` from the
+normal mask and `ModTargetResistance` from the full magic mask, with
+`Player::ApplySpellPenetrationBonus` (`StatSystem.cpp:231-235`) subtracting the
+item/enchant penetration; both are now published through the canonical snapshot,
+the create block and the narrow values update (bits 67-68). The override
+percentage create sentinels remain a separate contract decision.
+wow-data --lib 751/0, wow-entities --lib 940/0, wow-world --lib 3926/0/1,
+wow-packet --lib 742/0; no live DB/restart/relogin QA.
+
 **#61 `ModHealingDonePercent` publication — 2026-09-17, implementation
 `cbbb3a49`:** `Player::UpdateHealingDonePercentMod`
 (`StatSystem.cpp:588-599`) is produced as the product of `1 + amount/100` over
