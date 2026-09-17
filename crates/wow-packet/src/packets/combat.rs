@@ -203,6 +203,9 @@ pub const HIT_INFO_SWING_NO_HIT_SOUND: u32 = 0x0020_0000;
 pub const HIT_INFO_BLOCK: u32 = 0x0000_2000;
 /// C++ `HITINFO_FAKE_DAMAGE`: enables a damage animation even if no damage is done.
 pub const HIT_INFO_FAKE_DAMAGE: u32 = 0x0100_0000;
+/// C++ `HITINFO_NORMALSWING`: the `0x0` flag the immune path ORs, so a main-hand
+/// immune swing publishes a zero `HitInfo` (`UnitDefines.h:440-465`).
+pub const HIT_INFO_NORMALSWING: u32 = 0x0;
 
 /// C++ `VictimState` (`Unit.h:45-55` in the 3.4.3 target).
 pub const VICTIM_STATE_INTACT: u8 = 0;
@@ -214,6 +217,8 @@ pub const VICTIM_STATE_DODGE: u8 = 2;
 pub const VICTIM_STATE_PARRY: u8 = 3;
 /// C++ `VICTIMSTATE_EVADES`.
 pub const VICTIM_STATE_EVADES: u8 = 6;
+/// C++ `VICTIMSTATE_IS_IMMUNE`.
+pub const VICTIM_STATE_IS_IMMUNE: u8 = 7;
 
 impl ServerPacket for AttackerStateUpdate {
     const OPCODE: ServerOpcodes = ServerOpcodes::AttackerStateUpdate;
