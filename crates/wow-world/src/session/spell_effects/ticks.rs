@@ -461,6 +461,7 @@ impl WorldSession {
                         .as_deref()
                         .and_then(|swings| swings.get(index))
                         .map_or(0, |swing| swing.blocked as i32),
+                    absorbed: 0,
                     victim_state,
                     school_mask: 1,
                     target_level,
@@ -526,6 +527,7 @@ impl WorldSession {
                 original_damage: original_damage as i32,
                 over_damage: *over_damage,
                 blocked: blocked as i32,
+                absorbed: 0,
                 victim_state,
                 school_mask: 1,
                 target_level,

@@ -172,6 +172,9 @@ pub struct AttackerStateUpdate {
     pub over_damage: i32,
     /// C++ `CalcDamageInfo::Blocked`, serialized only for `HITINFO_BLOCK`.
     pub blocked: i32,
+    /// C++ `CalcDamageInfo::Absorb` (`SubDmg.Absorbed`), serialized only for
+    /// `HITINFO_FULL_ABSORB | HITINFO_PARTIAL_ABSORB`.
+    pub absorbed: i32,
     /// C++ `VictimState`: 0=intact (miss), 1=hit, 2=dodge, 3=parry,
     /// 4=interrupt, 5=blocks, 6=evades, 7=immune, 8=deflects.
     pub victim_state: u8,
@@ -201,6 +204,12 @@ pub const HIT_INFO_SWING_NO_HIT_SOUND: u32 = 0x0020_0000;
 /// C++ `HITINFO_BLOCK`: the packet then carries `blocked` and the trailing
 /// `float Unk` C++ writes for `HITINFO_BLOCK | HITINFO_UNK12`.
 pub const HIT_INFO_BLOCK: u32 = 0x0000_2000;
+/// C++ `HITINFO_FULL_ABSORB`: `CalcAbsorbResist` consumed the whole hit, so the
+/// packet carries a zero `Damage` and the `SubDmg.Absorbed` amount
+/// (`Unit.cpp:1452-1460`, `CombatLogPackets.cpp:361-362`).
+pub const HIT_INFO_FULL_ABSORB: u32 = 0x0000_0020;
+/// C++ `HITINFO_PARTIAL_ABSORB`: a school absorb consumed part of the hit.
+pub const HIT_INFO_PARTIAL_ABSORB: u32 = 0x0000_0040;
 /// C++ `HITINFO_FAKE_DAMAGE`: enables a damage animation even if no damage is done.
 pub const HIT_INFO_FAKE_DAMAGE: u32 = 0x0100_0000;
 /// C++ `HITINFO_NORMALSWING`: the `0x0` flag the immune path ORs, so a main-hand
@@ -232,7 +241,21 @@ impl ServerPacket for AttackerStateUpdate {
         info.write_int32(self.damage);
         info.write_int32(self.original_damage);
         info.write_int32(self.over_damage); // over damage (-1 if alive)
-        info.write_uint8(0u8); // no SubDmg
+        // C++ `Unit::SendAttackStateUpdate(CalcDamageInfo*)` always emplaces
+        // `SubDmg` for a melee swing (`Unit.cpp:5473-5479`), and
+        // `AttackerStateUpdate::Write` (`CombatLogPackets.cpp:355-365`)
+        // serializes the presence byte, the school mask, the float and integer
+        // damage and then the absorbed/resisted amounts when their hit-info
+        // bits are set. Physical melee never resists: `Unit::CalcSpellResistedDamage`
+        // returns zero for a non-magic school mask (`Unit.cpp:2058-2060`), so no
+        // `HITINFO_*_RESIST` bit and no `Resisted` field is ever produced here.
+        info.write_uint8(1u8); // SubDmg present
+        info.write_int32(self.school_mask);
+        info.write_float(self.damage as f32);
+        info.write_int32(self.damage);
+        if self.hit_info & (HIT_INFO_FULL_ABSORB | HIT_INFO_PARTIAL_ABSORB) != 0 {
+            info.write_int32(self.absorbed);
+        }
         info.write_uint8(self.victim_state);
         info.write_uint32(0u32); // attacker state
         info.write_uint32(0u32); // melee spell id
@@ -449,6 +472,7 @@ mod tests {
             original_damage: 100,
             over_damage: -1,
             blocked: 30,
+            absorbed: 0,
             victim_state: VICTIM_STATE_HIT,
             school_mask: 1,
             target_level: 80,
@@ -476,7 +500,13 @@ mod tests {
         assert_eq!(info.read_int32().expect("damage"), 70);
         assert_eq!(info.read_int32().expect("original damage"), 100);
         assert_eq!(info.read_int32().expect("over damage"), -1);
-        assert_eq!(info.read_uint8().expect("sub damage"), 0);
+        // `CombatLogPackets.cpp:355-365`: the presence byte, then the sub-damage
+        // struct. This swing carries no absorb/resist bit, so neither amount is
+        // serialized.
+        assert_eq!(info.read_uint8().expect("sub damage present"), 1);
+        assert_eq!(info.read_int32().expect("sub damage school mask"), 1);
+        assert_eq!(info.read_float().expect("sub damage float"), 70.0);
+        assert_eq!(info.read_int32().expect("sub damage"), 70);
         assert_eq!(info.read_uint8().expect("victim state"), VICTIM_STATE_HIT);
         assert_eq!(info.read_uint32().expect("attacker state"), 0);
         assert_eq!(info.read_uint32().expect("melee spell id"), 0);
@@ -495,6 +525,8 @@ mod tests {
         assert_eq!(HIT_INFO_OFFHAND, 0x0000_0004);
         assert_eq!(HIT_INFO_MISS, 0x0000_0010);
         assert_eq!(HIT_INFO_CRITICAL_HIT, 0x0000_0200);
+        assert_eq!(HIT_INFO_FULL_ABSORB, 0x0000_0020);
+        assert_eq!(HIT_INFO_PARTIAL_ABSORB, 0x0000_0040);
         assert_eq!(HIT_INFO_GLANCING, 0x0001_0000);
         assert_eq!(HIT_INFO_FAKE_DAMAGE, 0x0100_0000);
         assert_eq!(VICTIM_STATE_INTACT, 0);
@@ -503,6 +535,7 @@ mod tests {
         assert_eq!(VICTIM_STATE_PARRY, 3);
     }
 
+    #[test]
     fn attacker_state_update_writes_custom_hit_info_like_cpp() {
         let attacker = ObjectGuid::create_world_object(
             wow_core::guid::HighGuid::Creature,
@@ -530,6 +563,7 @@ mod tests {
             original_damage: 0,
             over_damage: -1,
             blocked: 0,
+            absorbed: 0,
             victim_state: VICTIM_STATE_HIT,
             school_mask: 1,
             target_level: 80,
@@ -560,7 +594,10 @@ mod tests {
         assert_eq!(info.read_int32().expect("damage"), 0);
         assert_eq!(info.read_int32().expect("original damage"), 0);
         assert_eq!(info.read_int32().expect("over damage"), -1);
-        assert_eq!(info.read_uint8().expect("sub damage"), 0);
+        assert_eq!(info.read_uint8().expect("sub damage present"), 1);
+        assert_eq!(info.read_int32().expect("sub damage school mask"), 1);
+        assert_eq!(info.read_float().expect("sub damage float"), 0.0);
+        assert_eq!(info.read_int32().expect("sub damage"), 0);
         assert_eq!(info.read_uint8().expect("victim state"), VICTIM_STATE_HIT);
         assert_eq!(info.read_uint32().expect("attacker state"), 0);
         assert_eq!(info.read_uint32().expect("melee spell id"), 0);
@@ -579,6 +616,66 @@ mod tests {
             info.is_empty(),
             "attackRoundInfo must not contain the combat-log bit"
         );
+    }
+
+    /// C++ `AttackerStateUpdate::Write` (`CombatLogPackets.cpp:355-365`): a
+    /// school absorb sets `HITINFO_PARTIAL_ABSORB`/`HITINFO_FULL_ABSORB` and the
+    /// packet then carries `SubDmg.Absorbed` after the sub-damage integers.
+    #[test]
+    fn attacker_state_update_writes_absorbed_sub_damage_like_cpp() {
+        let guid = |entry: u32, low: i64| {
+            ObjectGuid::create_world_object(
+                wow_core::guid::HighGuid::Creature,
+                0,
+                0,
+                0,
+                0,
+                entry,
+                low,
+            )
+        };
+        for (hit_info, damage, absorbed) in [
+            (HIT_INFO_AFFECTS_VICTIM | HIT_INFO_PARTIAL_ABSORB, 70, 30),
+            (HIT_INFO_AFFECTS_VICTIM | HIT_INFO_FULL_ABSORB, 0, 100),
+        ] {
+            let bytes = AttackerStateUpdate {
+                attacker: guid(123, 0x1234),
+                victim: guid(124, 0x1235),
+                hit_info,
+                damage,
+                original_damage: 100,
+                over_damage: -1,
+                blocked: 0,
+                absorbed,
+                victim_state: VICTIM_STATE_HIT,
+                school_mask: 1,
+                target_level: 80,
+                expansion: 2,
+            }
+            .to_bytes();
+
+            let mut pkt = WorldPacket::from_bytes(&bytes);
+            assert_eq!(
+                pkt.read_uint16().expect("opcode"),
+                ServerOpcodes::AttackerStateUpdate as u16
+            );
+            let _ = pkt.read_bit().expect("has_log_data");
+            let size = pkt.read_uint32().expect("attackRoundInfo size") as usize;
+            let round_info = pkt.read_bytes(size).expect("attackRoundInfo bytes");
+            let mut info = WorldPacket::from_bytes(&round_info);
+            assert_eq!(info.read_uint32().expect("hitInfo"), hit_info);
+            let _ = info.read_packed_guid().expect("attacker");
+            let _ = info.read_packed_guid().expect("victim");
+            assert_eq!(info.read_int32().expect("damage"), damage);
+            assert_eq!(info.read_int32().expect("original damage"), 100);
+            assert_eq!(info.read_int32().expect("over damage"), -1);
+            assert_eq!(info.read_uint8().expect("sub damage present"), 1);
+            assert_eq!(info.read_int32().expect("sub damage school mask"), 1);
+            assert_eq!(info.read_float().expect("sub damage float"), damage as f32);
+            assert_eq!(info.read_int32().expect("sub damage"), damage);
+            assert_eq!(info.read_int32().expect("absorbed"), absorbed);
+            assert_eq!(info.read_uint8().expect("victim state"), VICTIM_STATE_HIT);
+        }
     }
 
     #[test]

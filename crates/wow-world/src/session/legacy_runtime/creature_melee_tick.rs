@@ -5,6 +5,76 @@
 
 use super::*;
 
+/// C++ `Unit::CalcAbsorbResist`'s school-absorb stage for a player victim
+/// (`Unit.cpp:1789-1880`), committed inside the same map-owned phase as the
+/// victim's health write.
+///
+/// C++ spends each shield effect's amount while it calculates the swing, so the
+/// amount is pool data and this map-owned stage is its writer; the session's
+/// aura transition at delivery owns the *removal* of an exhausted shield and
+/// its publication. A shield C++ would remove is left at zero here, which the
+/// session removes through the same `remove_aura` path it owns for every other
+/// aura.
+///
+/// Returns `None` when the map or the canonical player cannot be resolved,
+/// which keeps the caller's pre-absorb damage unchanged.
+fn apply_melee_absorb_to_canonical_player_like_cpp(
+    canonical_manager: &mut wow_map::MapManager,
+    map_id: u32,
+    instance_id: u32,
+    victim_guid: ObjectGuid,
+    school_mask: u32,
+    damage: u32,
+    spell_store: &wow_data::SpellStore,
+    difficulty_id: u8,
+    difficulty_store: Option<&wow_data::DifficultyStore>,
+) -> Option<crate::session_rules::RepresentedMeleeAbsorbLikeCpp> {
+    let managed = canonical_manager.find_map_mut(map_id, instance_id)?;
+    let player = managed.map_mut().get_typed_player_mut(victim_guid)?;
+    let auras = player
+        .unit()
+        .subsystems()
+        .auras
+        .runtime_applications_like_cpp()
+        .clone();
+    let shields = crate::session_rules::player_absorb_shields_like_cpp(
+        &auras,
+        spell_store,
+        difficulty_id,
+        difficulty_store,
+        school_mask,
+    );
+    let absorb = crate::session_rules::represented_melee_absorb_like_cpp(&shields, damage);
+    for consumption in &absorb.consumed {
+        let Some(aura) = player
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .runtime_application_mut_like_cpp(consumption.slot)
+        else {
+            continue;
+        };
+        // The represented `AuraEffect` amount is the shield pool the projection
+        // reads first; an amount this stage has not written yet falls back to
+        // the spell effect's no-caster value, so the first depletion writes the
+        // exact remainder the next swing must see.
+        match aura
+            .represented_effect_amounts
+            .iter_mut()
+            .find(|represented| represented.effect_index == consumption.effect_index)
+        {
+            Some(represented) => represented.amount = consumption.remaining.max(0),
+            None => aura.represented_effect_amounts.push(
+                wow_entities::RepresentedAuraEffectAmountLikeCpp {
+                    effect_index: consumption.effect_index,
+                    amount: consumption.remaining.max(0),
+                },
+            ),
+        }
+    }
+    Some(absorb)
+}
+
 /// Apply one player's melee swings to a legacy creature.
 ///
 /// Lifted out of `run_combat_tick` by #28. This is the write path that made
@@ -409,6 +479,11 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         let mut creature_victim_presentation: Option<(u32, u8, i32)> = None;
         let mut creature_victim_avoided = false;
         let mut outcome_represented = false;
+        // C++ `CalcAbsorbResist`'s result for this swing: the absorbed amount
+        // the packet publishes and the shields it exhausted, which the victim
+        // session removes through its own aura transition at delivery.
+        let mut absorbed_damage = 0u32;
+        let mut exhausted_absorb_slots: Vec<u8> = Vec::new();
         let damage = if swing.victim_guid.is_player() {
             match config.spell_store.as_deref() {
                 Some(spell_store) => {
@@ -715,6 +790,43 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                             ) {
                                 avoided_outcome = Some(rolled);
                             }
+                            // C++ `Unit::CalculateMeleeDamage`'s absorb stage
+                            // (`Unit.cpp:1449-1466`) runs after the outcome
+                            // switch and before `DealMeleeDamage`, so the
+                            // committed damage and the published `SubDmg`
+                            // already carry the reduced amount. Physical melee
+                            // always uses `SPELL_SCHOOL_MASK_NORMAL`.
+                            let absorb = apply_melee_absorb_to_canonical_player_like_cpp(
+                                &mut canonical_manager,
+                                u32::from(swing.map_id),
+                                swing.instance_id,
+                                swing.victim_guid,
+                                0x01,
+                                damage,
+                                spell_store,
+                                map_difficulty_id,
+                                config.difficulty_store.as_deref(),
+                            );
+                            let damage = match absorb {
+                                Some(absorb) => {
+                                    if absorb.absorbed > 0 {
+                                        absorbed_damage = absorb.absorbed;
+                                        exhausted_absorb_slots = absorb
+                                            .consumed
+                                            .iter()
+                                            .filter(|consumption| consumption.removed)
+                                            .map(|consumption| consumption.slot)
+                                            .collect();
+                                        hit_info |= if absorb.damage == 0 {
+                                            wow_packet::packets::combat::HIT_INFO_FULL_ABSORB
+                                        } else {
+                                            wow_packet::packets::combat::HIT_INFO_PARTIAL_ABSORB
+                                        };
+                                    }
+                                    absorb.damage
+                                }
+                                None => damage,
+                            };
                             damage
                         }
                         None => damage,
@@ -1038,6 +1150,8 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     hit_info,
                     victim_state,
                     original_damage,
+                    absorbed: 0,
+                    exhausted_absorb_slots: Vec::new(),
                 },
             );
             continue;
@@ -1138,6 +1252,8 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     hit_info,
                     victim_state,
                     original_damage,
+                    absorbed: absorbed_damage,
+                    exhausted_absorb_slots: exhausted_absorb_slots.clone(),
                 },
             );
         } else {

@@ -431,6 +431,14 @@ pub struct ApplyCreatureMeleeDamageLikeCppCommand {
     /// C++ `CalcDamageInfo::OriginalDamage`: the post-outcome value the
     /// attacker-state packet serializes beside the dealt damage.
     pub original_damage: u32,
+    /// C++ `CalcDamageInfo::Absorb` (`Unit.cpp:1452-1460`): the school-absorb
+    /// amount the map already subtracted from `damage`.
+    pub absorbed: u32,
+    /// Shield slots the map's absorb stage spent to zero, in
+    /// `AbsorbAuraOrderPred` order. C++ removes those auras while it calculates
+    /// the swing; the victim session owns the aura transition, so it performs
+    /// the removal (and its publication) when it delivers this command.
+    pub exhausted_absorb_slots: Vec<u8>,
 }
 
 /// Payload for a map-owned creature aggro transition against one player.

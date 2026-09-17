@@ -1409,8 +1409,26 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
         attack_round_info.read_uint32().expect("hitInfo")
     };
 
+    // `CombatLogPackets.cpp:355-365`: the presence byte, then the school mask,
+    // float and integer sub-damage. The absorbed amount is only serialized when
+    // the hit carries one of the absorb bits.
+    let read_sub_damage = |info: &mut wow_packet::world_packet::WorldPacket, hit_info: u32| {
+        if info.read_uint8().expect("sub damage present") != 0 {
+            info.read_int32().expect("sub damage school mask");
+            info.read_float().expect("sub damage float");
+            info.read_int32().expect("sub damage");
+            if hit_info
+                & (wow_packet::packets::combat::HIT_INFO_FULL_ABSORB
+                    | wow_packet::packets::combat::HIT_INFO_PARTIAL_ABSORB)
+                != 0
+            {
+                info.read_int32().expect("absorbed");
+            }
+        }
+    };
+
     // Decode `victimState` sequentially: hitInfo, both packed guids, damage,
-    // original, over, the sub-damage flag and then the victim state.
+    // original, over, the sub-damage block and then the victim state.
     let wire_victim_state = |outcome: &crate::session::LegacyCreatureMeleeTickOutcomeLikeCpp| {
         let event = outcome
             .plan
@@ -1428,13 +1446,13 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
         let info_len = packet.read_uint32().expect("attackRoundInfo size") as usize;
         let info_bytes = packet.read_bytes(info_len).expect("attackRoundInfo bytes");
         let mut info = wow_packet::world_packet::WorldPacket::from_bytes(&info_bytes);
-        info.read_uint32().expect("hitInfo");
+        let hit_info = info.read_uint32().expect("hitInfo");
         info.read_packed_guid().expect("attacker");
         info.read_packed_guid().expect("victim");
         info.read_int32().expect("damage");
         info.read_int32().expect("original damage");
         info.read_int32().expect("over damage");
-        info.read_uint8().expect("sub damage");
+        read_sub_damage(&mut info, hit_info);
         info.read_uint8().expect("victim state")
     };
 
@@ -1457,13 +1475,13 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
         let info_len = packet.read_uint32().expect("attackRoundInfo size") as usize;
         let info_bytes = packet.read_bytes(info_len).expect("attackRoundInfo bytes");
         let mut info = wow_packet::world_packet::WorldPacket::from_bytes(&info_bytes);
-        info.read_uint32().expect("hitInfo");
+        let hit_info = info.read_uint32().expect("hitInfo");
         info.read_packed_guid().expect("attacker");
         info.read_packed_guid().expect("victim");
         info.read_int32().expect("damage");
         info.read_int32().expect("original damage");
         info.read_int32().expect("over damage");
-        info.read_uint8().expect("sub damage");
+        read_sub_damage(&mut info, hit_info);
         info.read_uint8().expect("victim state");
         info.read_uint32().expect("attacker state");
         info.read_uint32().expect("melee spell id");

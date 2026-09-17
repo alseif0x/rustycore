@@ -110,6 +110,7 @@ impl WorldSession {
                         original_damage: swing.original_damage as i32,
                         over_damage: swing.over_damage,
                         blocked: swing.blocked,
+                        absorbed: 0,
                         victim_state: swing.victim_state,
                         school_mask: 1,
                         target_level: command.target_level,

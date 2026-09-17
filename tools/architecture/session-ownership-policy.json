@@ -60386,6 +60386,13 @@
         "kind": "struct",
         "fields": [
           {
+            "name": "absorbed",
+            "type": "u32",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
             "name": "attacker_guid",
             "type": "ObjectGuid",
             "visibility": "pub",
@@ -60395,6 +60402,13 @@
           {
             "name": "damage",
             "type": "u32",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "exhausted_absorb_slots",
+            "type": "Vec < u8 >",
             "visibility": "pub",
             "cfg": [],
             "source_class": "production"
@@ -79044,8 +79058,8 @@
               "side": "canonical",
               "kind": "value_reference",
               "symbol": "canonical_manager",
-              "fingerprint": "fnv1a64x2:69aab4224548b6f8f8bd3f9af730fed3:len=599",
-              "multiplicity": 12
+              "fingerprint": "fnv1a64x2:6cb1b4e6197d9221f4ff7888da837172:len=649",
+              "multiplicity": 13
             },
             {
               "side": "canonical",
@@ -79058,8 +79072,8 @@
               "side": "canonical",
               "kind": "value_reference",
               "symbol": "map_difficulty_id",
-              "fingerprint": "fnv1a64x2:d26286f216a6fa711a3c486a921a3272:len=149",
-              "multiplicity": 3
+              "fingerprint": "fnv1a64x2:5eda7c34322c8b3809e59f7ae7583a13:len=199",
+              "multiplicity": 4
             },
             {
               "side": "canonical",
@@ -79713,7 +79727,7 @@
               "multiplicity": 3
             }
           ],
-          "fingerprint": "signature=fn run_legacy_creature_melee_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , config : & crate :: session :: LegacyCreatureAggroConfigLikeCpp ,) -> LegacyCreatureMeleeTickOutcomeLikeCpp|body=fnv1a64x2:0136d5b78fa0343b948de235b7c16ff8:len=32037|evidence=fnv1a64x2:7bcb7e7d55e99999806306de4c825838:len=26244",
+          "fingerprint": "signature=fn run_legacy_creature_melee_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , config : & crate :: session :: LegacyCreatureAggroConfigLikeCpp ,) -> LegacyCreatureMeleeTickOutcomeLikeCpp|body=fnv1a64x2:95a5a944b505f80a38b729ab5f8484b1:len=33015|evidence=fnv1a64x2:bf22f91e7a02041bb923fb5d36d6289a:len=26430",
           "cfg": [],
           "multiplicity": 1
         },
