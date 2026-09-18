@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`413f379e` (PR #1191, the #31 zero-amplitude creature burn regression, following
+`e2af51e0` (PR #1193, the #31 zero-pool drain log repair, following
+PR #1191, the #31 zero-amplitude creature burn regression, following
 PR #1189, the #31 creature power-type drain regression, following
 PR #1187, the #31 drained-creature power publication, following
 PR #1185, the #31 creature power burn through the damage path,
@@ -62,6 +63,40 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 zero-pool drain log repair — 2026-09-18, implementation `54263163`,
+integrated as `e2af51e0` by PR #1193:** C++ `Spell::EffectPowerDrain`
+(`SpellEffects.cpp:1069-1102`) computes
+`newDamage = -(unitTarget->ModifyPower(powerType, -damage))` and then, for any
+target that passed the `IsAlive()`/`GetPowerType()` gate, calls
+`ExecuteLogEffectTakeTargetPower(..., newDamage, ...)` and — when the caster is
+not the target — `EnergizeBySpell(caster, spellInfo, gain, powerType)`
+unconditionally (`:1090-1101`), so an empty pool still produces a take-power row
+with `points 0` and a zeroed energize log. The represented path returned early
+whenever the drained amount was zero, so a valid-but-empty target published
+nothing. Both branches now distinguish a gate refusal (dead target, mismatched
+`DisplayPower`, negative damage — still silent) from a valid zero-drain, which
+logs the zeroed rows and still calls the energize path for a non-self caster.
+Coverage: `spell_power_drain_on_an_empty_creature_pool_logs_zero_like_cpp` drains
+a creature with 0 of 100 mana and matching `DisplayPower` for 15, asserting the
+caster gains nothing and the cast publishes
+`[SpellGo, SpellEnergizeLog, SpellExecuteLog, CooldownEvent]` with the decoded
+energize `amount 0`/`over 0`, while the mismatch and negative-amount scenarios
+still publish `[SpellGo, CooldownEvent]`. The new scenario lives in the new
+terminal-limit-bounded `session/tests/scenarios_spell_state_26.rs` (split out of
+`scenarios_spell_state_12.rs`, which had reached the 2,000-line test-file limit),
+with the two inseparable module-registration lines and the recorded
+`session_tests.rs` ceiling bump in the physical policy. Evidence at `54263163`:
+`wow-world --lib` 4017/0/1, `cargo fmt --all --check` and `git diff --check`
+clean, physical ratchet PASS (2235 files, one recorded ceiling bump), ownership
+syntax PASS with no baseline delta; `validation-v2 quick` PASS 43.4 s (manifest
+`20260918T053713.736131Z-3818986.six`-family run) and `final --architecture`
+86.7 s, exit 1, 2 of 9 steps with `session-syntax-acceptance` PASS and the
+pre-existing hotspot ratchet as the only red; the runner campaign is 130.1 s,
+inside the 600 s ordinary budget. Boundaries: the player self-drain path still
+publishes no caster gain (C++ skips it when caster == target) and keeps its
+existing burn damage handling; drain/burn still skip C++'s
+`SpellDamageBonusDone/Taken` pre-scaling (`SpellEffects.cpp:1082-1088`).
 
 **#31 zero-amplitude creature burn regression — 2026-09-18, implementation
 `4c0f67e9`, integrated as `413f379e` by PR #1191:** test-only coverage for the
