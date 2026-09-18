@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 drained-creature power publication — 2026-09-18, implementation
+`e7943b27`:** the creature drain now publishes the target's
+`Unit::values_update()` through the same helper the creature heal uses for health,
+so the drained `UNIT_FIELD_POWER*` reaches the client instead of staying
+server-side. Limits: the player target keeps its existing representation and the
+observer broadcast of that values update remains the session-local rail.
+
 **#31 creature power burn through the damage path — 2026-09-18, implementation
 `ee80e538`:** `EffectPowerBurn` on a creature now adds
 `int32(drained * CalcValueMultiplier)` to the represented creature damage path

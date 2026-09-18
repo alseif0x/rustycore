@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`51c6ae5a` (PR #1185, the #31 creature power burn through the damage path,
+`f407cda6` (PR #1187, the #31 drained-creature power publication, following
+PR #1185, the #31 creature power burn through the damage path,
 following PR #1183, the #31 creature-target power drain, following
 PR #1181, the #31 durability rows in the spell execute log, following
 PR #1179, the #31 spell execute log with take-power entries, following
@@ -59,6 +60,34 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 drained-creature power publication — 2026-09-18, implementation
+`e7943b27`, integrated as `f407cda6` by PR #1187:** C++ drains a creature's power
+through `Unit::ModifyPower`, which writes the `UNIT_FIELD_POWER*` data field the
+client receives over the normal values-update rail; the represented drain mutated
+the canonical creature pool without publishing it, so the drained power never
+reached the client. The creature drain branch now captures
+`Unit::values_update()` from the same canonical mutation and publishes it through
+`represented_unit_values_update_to_update_object_like_cpp` — the mechanism the
+represented creature heal already uses for its health change — for a creature the
+session can see. Coverage:
+`spell_power_burn_on_a_creature_applies_the_scaled_damage_like_cpp` now also
+asserts the cast's opcode list contains `UpdateObject` (the drained power field)
+and `SpellExecuteLog` (the take-power row), with the pool and health assertions
+unchanged, and the creature drain, player drain/burn, self-drain, mismatched-power
+and negative-amount scenarios still pass. Evidence at `e7943b27`: `wow-world
+--lib` 4014/0/1, `cargo fmt --all --check` and `git diff --check` clean, physical
+ratchet PASS with no ceiling moved, `session-ownership-check --syntax-only` PASS
+with no baseline delta (no `WorldSession` surface changed); `validation-v2 quick`
+PASS 42.9 s (manifest `20260918T050307.904865Z-3791776-quick.json`) and `final
+--architecture` 83.2 s, exit 1, 2 of 9 steps with `session-syntax-acceptance` PASS
+and the pre-existing hotspot ratchet as the only red; the runner campaign is
+126.1 s, inside the 600 s ordinary budget. Boundaries: the player target's own
+power change keeps its existing representation (the energize log plus the session's
+normal player values publication), and the publication reaches the session's own
+client when it can see the creature, matching the represented creature-heal
+pattern, so the observer broadcast of that values update remains the session-local
+rail.
 
 **#31 creature power burn through the damage path — 2026-09-18, implementation
 `ee80e538`, integrated as `51c6ae5a` by PR #1185:** C++
