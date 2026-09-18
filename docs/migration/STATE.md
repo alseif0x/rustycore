@@ -83,10 +83,21 @@ creature aura with base `-50` and matching misc bit registers its amount
 unchanged and folds to exactly `0.5` in
 `total_aura_multiplier_by_misc_mask_like_cpp`, so the creature-aura amount path
 and multiplier fold are correct for reductions. That isolates the failed bypass
-attempt to the *caster-side* aura application: the next attempt must first assert
-that the caster's `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` aura registers effect
-data through `apply_aura` (or apply it through a path that does) before wiring the
-bypass term. Evidence: `wow-world --lib` 4026/0/1, `cargo fmt --all --check` and
+attempt to the *caster-side* aura application, and a follow-up diagnostic resolved
+it: `apply_aura` (through `apply_aura_with_effect_mask_like_cpp`) inserts only the
+Player-visible `AuraApplication` and syncs *threat-relevant* effect data into the
+canonical Unit aura subsystem (`sync_canonical_threat_relevant_aura_like_cpp`), so
+a +50 `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` aura reads back as
+`total_aura_modifier_like_cpp(269) == 0`. Every canonical-subsystem consumer
+(`total_aura_modifier_like_cpp`, `total_aura_multiplier_by_misc_mask_like_cpp`,
+`aura_school_mask_like_cpp`, `has_aura_type_like_cpp`) is therefore blind to
+ordinary player auras applied through that path. Two routes exist and both are
+larger than a slice: extend the canonical sync from threat-relevant to all applied
+effects (broad consumer impact, per-consumer review) or read the bypass term from
+the Player-visible list (which needs a `ModIgnoreTargetResist` variant on
+`RepresentedAuraEffectLikeCpp`). The minimal enabler for the Sanctified Wrath term
+is adding type 269 to `sync_canonical_threat_relevant_aura_like_cpp` alongside its
+amount and misc value. Evidence: `wow-world --lib` 4026/0/1, `cargo fmt --all --check` and
 `git diff --check` clean, physical ratchet PASS with no ceiling moved, ownership
 syntax PASS with no baseline delta (test-only); `validation-v2 quick` PASS 103.4 s
 (manifest `20260918T075849.424866Z-3904210-quick.json`) and `final
