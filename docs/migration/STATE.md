@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`e6b33d5cbdba03a45ee004c0cf84ec964a094322` (PR #1169, the #29 melee
+`b08ffff5` (PR #1171, the #31 creature-target aura application, following
+PR #1169, the #29 melee
 ignore-absorb term, following PR #1167, the #31 spell energize
 log, following PR #1165, the #31 player-target
 heal-absorb stage, following PR #1163, the #31 direct spell heal
@@ -51,6 +52,50 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 creature-target aura application — 2026-09-18, implementation `8e062b6e`,
+integrated as `b08ffff5` by PR #1171:** C++ `Spell::EffectApplyAura` applies the
+aura to `unitTarget` (`SpellEffects.cpp:6150-6220`), but the represented
+`SPELL_EFFECT_APPLY_AURA` chain always applied to the caster, so a debuff cast
+at a creature landed on the player and a creature target could only ever hold
+the addon auras created at spawn. `apply_creature_aura_like_cpp` now creates the
+canonical creature's `AuraApplication` with each applied effect slot's
+represented aura type, amount and misc value — so
+`total_aura_modifier_like_cpp`, `aura_school_mask_like_cpp` and
+`has_aura_type_like_cpp` see it, unlike the addon path — its
+`LoadedAuraStateLikeCpp` duration and its visible slot; a second application of
+the same spell by the same caster is refused like the spawn-addon path.
+`publish_creature_aura_slot_update_like_cpp` sends the slot's
+`SMSG_AURA_UPDATE` to the caster and to the creature's observers over the
+existing creature visibility rail, and `tick_represented_creature_auras_like_cpp`,
+driven by the session's existing aura sweep, removes the canonical application
+and publishes the removal when the represented duration elapses. The
+`SPELL_EFFECT_APPLY_AURA` loop routes a creature target to the generic
+application once per spell; `SPELL_AURA_MOD_TAUNT` keeps flowing through the
+represented taunt path that owns its `EffectTaunt` current-victim gate.
+Coverage: a production-shaped scenario in `scenarios_world_entities_10.rs` casts
+a `SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN` debuff at a creature and asserts the
+canonical application and its registered amount, that the caster keeps none of
+it, the `[SpellGo, AuraUpdate, CooldownEvent]` sequence, that a
+`SPELL_AURA_MOD_DETECT_RANGE` aura feeds the creature's own aura-modifier
+consumer (the aggro-range input), and that an elapsed duration removes both
+auras with one removal packet each. Evidence at `b08ffff5`: `wow-world --lib`
+4003/0/1, `wow-packet --lib` 751/0, `cargo fmt --all --check` and `git diff
+--check` clean, physical ratchet PASS (2234 files; one recorded ceiling bump for
+the six-line session field with its reason),
+`session-ownership-check --syntax-only` PASS with a reviewed `print-baseline`
+delta (the new field, its four methods and the `WorldSession` bridge);
+`validation-v2 quick` PASS in 130.4 s (manifest
+`20260918T015451.857756Z-3687347-quick.json`) and `final --architecture` 85.9 s,
+exit 1, 2 of 9 steps with `session-syntax-acceptance` PASS and the pre-existing
+hotspot ratchet as the only red; the campaign is 216.3 s, inside the 600 s
+ordinary budget. Boundaries: the represented model has no stack or refresh rule,
+so an identical application is refused rather than refreshed, and the duration
+is the represented 30-second convention rather than `SpellDuration.db2`; the
+periodic effect amount is registered but nothing ticks it while no periodic tick
+exists; an aura whose applying session logs out before its duration ends has no
+other expiry owner; specially-cased player-only auras other than
+`SPELL_AURA_MOD_TAUNT` now reach a creature target through the generic path.
 
 **#29 melee ignore-absorb term — 2026-09-18, implementation `05568f2e`,
 integrated as `e6b33d5c` by PR #1169:** C++ `Unit::CalcAbsorbResist` reduces how
