@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 caster spell-family damage-taken term — 2026-09-18, implementation
+`424efd37`:** the drain/burn pre-scaling also folds the caster's
+`SPELL_AURA_MOD_SPELL_DAMAGE_FROM_CASTER` auras whose spell affects the damaging
+spell (family and flags compared through `SpellClassOptions`). Limits: the
+label-based caster term needs spell labels, and the DOT and Sanctified Wrath terms
+stay unrepresented.
+
 **#31 mechanic damage-taken term — 2026-09-18, implementation `7c32137d`:** the
 drain/burn pre-scaling also folds the victim's
 `SPELL_AURA_MOD_MECHANIC_DAMAGE_TAKEN_PERCENT` auras against the spell's
