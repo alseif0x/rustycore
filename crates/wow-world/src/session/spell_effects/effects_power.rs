@@ -28,6 +28,37 @@ fn drain_taken_cheat_death_multiplier_like_cpp(auras: &wow_entities::AuraSubsyst
     1.0 + amount as f32 / 100.0
 }
 
+/// C++ `Unit::SpellDamageBonusTaken` (`Unit.cpp:6815-6822`), caster term:
+/// `GetTotalAuraMultiplier(SPELL_AURA_MOD_SCHOOL_MASK_DAMAGE_FROM_CASTER)` over
+/// the auras the damaging caster applied whose misc value intersects the
+/// spell's school mask. The `MOD_SPELL_DAMAGE_FROM_CASTER` and
+/// `MOD_DAMAGE_TAKEN_FROM_CASTER_BY_LABEL` terms need the C++
+/// `AuraEffect::IsAffectingSpell`/label relation and remain unrepresented.
+fn drain_taken_school_from_caster_multiplier_like_cpp(
+    auras: &wow_entities::AuraSubsystem,
+    caster_guid: ObjectGuid,
+    school_mask: u32,
+) -> f32 {
+    let aura_type = wow_data::spell::aura_types::SPELL_AURA_MOD_SCHOOL_MASK_DAMAGE_FROM_CASTER;
+    let Some(typed) = auras.applied_aura_types.get(&aura_type) else {
+        return 1.0;
+    };
+    let mut multiplier = 1.0;
+    for aura in typed.iter().filter(|aura| aura.caster_guid == caster_guid) {
+        let misc = auras
+            .applied_aura_misc_values
+            .get(aura)
+            .copied()
+            .unwrap_or(0) as u32;
+        if misc & school_mask == 0 {
+            continue;
+        }
+        let amount = auras.applied_aura_amounts.get(aura).copied().unwrap_or(0);
+        multiplier *= 1.0 + amount as f32 / 100.0;
+    }
+    multiplier
+}
+
 impl WorldSession {
     /// C++ `Spell::EffectEnergize` (`SpellEffects.cpp:1488-1530`) /
     /// `Spell::EffectEnergizePct` (`SpellEffects.cpp:1532-1554`).
@@ -333,6 +364,11 @@ impl WorldSession {
                 let auras = &player.unit().subsystems().auras;
                 auras.total_aura_multiplier_by_misc_mask_like_cpp(aura_type, school_mask)
                     * drain_taken_cheat_death_multiplier_like_cpp(auras)
+                    * drain_taken_school_from_caster_multiplier_like_cpp(
+                        auras,
+                        caster_guid,
+                        school_mask,
+                    )
             })
             .unwrap_or(1.0)
         } else {
@@ -340,6 +376,11 @@ impl WorldSession {
                 let auras = &creature.unit().subsystems().auras;
                 auras.total_aura_multiplier_by_misc_mask_like_cpp(aura_type, school_mask)
                     * drain_taken_cheat_death_multiplier_like_cpp(auras)
+                    * drain_taken_school_from_caster_multiplier_like_cpp(
+                        auras,
+                        caster_guid,
+                        school_mask,
+                    )
             })
             .unwrap_or(1.0)
         };
