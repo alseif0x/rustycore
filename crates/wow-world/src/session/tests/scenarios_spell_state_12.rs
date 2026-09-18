@@ -939,3 +939,238 @@ async fn spell_reputation_effect_ignores_non_player_target_like_cpp() {
         vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
     );
 }
+
+/// C++ `Spell::EffectEnergize` level-dependent cases
+/// (`SpellEffects.cpp:1507-1524`): Blood Fury subtracts
+/// `10 * max(0, min(30, level - 60))` and Burst of Energy
+/// `4 * max(0, min(15, level - 60))` before `EnergizeBySpell`.
+#[tokio::test]
+async fn spell_energize_level_dependent_spells_scale_the_amount_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 1_245);
+    configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 100, 100);
+
+    let blood_fury = 24_571_i32;
+    let burst_of_energy = 24_532_i32;
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        blood_fury,
+        power_spell_info_like_cpp(
+            blood_fury,
+            wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE,
+            300,
+            PowerType::Mana,
+        ),
+    );
+    spell_store.insert(
+        burst_of_energy,
+        power_spell_info_like_cpp(
+            burst_of_energy,
+            wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE,
+            100,
+            PowerType::Energy,
+        ),
+    );
+    session.set_spell_store(Arc::new(spell_store));
+
+    session
+        .execute_spell(blood_fury, player_guid)
+        .await
+        .expect("represented Blood Fury should execute");
+    session
+        .execute_spell(burst_of_energy, player_guid)
+        .await
+        .expect("represented Burst of Energy should execute");
+
+    // Level 80: mana gains 300 - 10 * min(30, 20) = 100; energy gains
+    // 100 - 4 * min(15, 20) = 40.
+    let (mana, energy) = session
+        .mutate_canonical_player_like_cpp(|player| {
+            (
+                player.get_power(PowerType::Mana),
+                player.get_power(PowerType::Energy),
+            )
+        })
+        .unwrap();
+    assert_eq!(mana, 125);
+    assert_eq!(energy, 70);
+}
+
+/// C++ `Spell::EffectEnergize` Runic Mana Injector case
+/// (`SpellEffects.cpp:1518-1524`): a caster Player with `SKILL_ENGINEERING`
+/// gains an extra `AddPct(damage, 25)`.
+#[tokio::test]
+async fn spell_energize_runic_mana_injector_engineering_bonus_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 1_246);
+    configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 100, 100);
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_max_power(PowerType::Mana, 600);
+            player.unit_mut().set_power(PowerType::Mana, 25);
+            player.clear_data_changes();
+        })
+        .unwrap();
+
+    let injector = 67_490_i32;
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        injector,
+        power_spell_info_like_cpp(
+            injector,
+            wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE,
+            100,
+            PowerType::Mana,
+        ),
+    );
+    session.set_spell_store(Arc::new(spell_store));
+
+    session
+        .execute_spell(injector, player_guid)
+        .await
+        .expect("represented Runic Mana Injector should execute");
+    let without_skill = session
+        .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
+        .unwrap();
+    assert_eq!(
+        without_skill, 125,
+        "C++ `HasSkill(SKILL_ENGINEERING)` is false without a skill record"
+    );
+
+    session.set_represented_player_skill_like_cpp(202, 1, 1, 450);
+    session
+        .execute_spell(injector, player_guid)
+        .await
+        .expect("represented Runic Mana Injector should execute for an engineer");
+    let with_skill = session
+        .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
+        .unwrap();
+    assert_eq!(
+        with_skill, 250,
+        "C++ `AddPct(damage, 25)` turns 100 into 125 for an engineer"
+    );
+}
+
+/// C++ `Unit::EnergizeBySpell` (`Unit.cpp:6586`) forwards `damage / 2`
+/// assisting threat with `ignoreModifiers = true`, so the spell's threat
+/// percentage does not modify the forwarded amount.
+#[tokio::test]
+async fn spell_energize_forwards_half_requested_threat_without_modifiers_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 1_247);
+    let creature_guid = test_creature_guid(18_247);
+    let energize_spell_id = 18_247;
+    let position = Position::new(10.0, 20.0, 30.0, 0.0);
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "Energizer".to_string(),
+        position,
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session.set_player_health_like_cpp(100, 100);
+    register_test_creature(&mut session, manager.clone(), creature_guid, 100);
+    add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 7);
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_power_index(PowerType::Mana, Some(0));
+            player.unit_mut().set_max_power(PowerType::Mana, 200);
+            player.unit_mut().set_power(PowerType::Mana, 25);
+            player.clear_data_changes();
+        })
+        .unwrap();
+    add_canonical_test_creature_indexed_on_map_with_level(
+        &canonical,
+        creature_guid,
+        9_001,
+        position,
+        0,
+        7,
+        80,
+    );
+    {
+        let mut legacy = manager.write().unwrap();
+        let creature = legacy
+            .remove_creature_any(0, 0, creature_guid)
+            .expect("move the represented creature into the test instance");
+        let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
+        legacy.add_creature(0, 7, grid_x, grid_y, creature);
+    }
+    session
+        .mutate_world_creature(creature_guid, |creature| {
+            creature.enter_combat(player_guid);
+            creature
+                .creature
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .add_threat(player_guid, 10.0);
+        })
+        .unwrap();
+    session.sync_represented_creature_threat_to_canonical_like_cpp(
+        creature_guid,
+        player_guid,
+        10.0,
+    );
+    // A threat entry would double the forwarded amount when modifiers applied.
+    session.set_spell_threat_store(Arc::new(wow_data::SpellThreatStoreLikeCpp {
+        entries_by_spell_id: HashMap::from([(
+            energize_spell_id as u32,
+            wow_data::SpellThreatEntryLikeCpp {
+                flat_mod: 4,
+                pct_mod: 2.0,
+                ap_pct_mod: 0.0,
+            },
+        )]),
+    }));
+
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        energize_spell_id,
+        power_spell_info_like_cpp(
+            energize_spell_id,
+            wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE,
+            50,
+            PowerType::Mana,
+        ),
+    );
+    session.set_spell_store(Arc::new(spell_store));
+
+    session
+        .execute_spell(energize_spell_id, player_guid)
+        .await
+        .expect("represented energize should execute");
+
+    let threat = session
+        .mutate_world_creature(creature_guid, |creature| {
+            creature
+                .creature
+                .unit()
+                .subsystems()
+                .combat
+                .threat_value(player_guid)
+        })
+        .flatten()
+        .expect("the threatening creature records the forwarded threat");
+    // 10 existing threat + the cast-level positive `HandleThreatSpells` bonus
+    // (flat 4 * pctMod 2.0 = 8) + the `EnergizeBySpell` forwarding
+    // (50 / 2 = 25, `ignoreModifiers = true`), which the 2.0 percentage must
+    // not double to 50.
+    assert_eq!(threat, 43.0);
+    assert_eq!(
+        session.canonical_creature_threat_value_like_cpp(creature_guid, player_guid),
+        Some(43.0)
+    );
+    assert_eq!(
+        session
+            .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
+            .unwrap(),
+        75
+    );
+}

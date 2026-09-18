@@ -5,11 +5,19 @@
 use super::*;
 
 impl WorldSession {
-    /// C++ `Spell::EffectEnergize` / `Spell::EffectEnergizePct`.
+    /// C++ `Spell::EffectEnergize` (`SpellEffects.cpp:1488-1530`) /
+    /// `Spell::EffectEnergizePct` (`SpellEffects.cpp:1532-1554`).
     ///
-    /// Represented boundary: current canonical player target only. C++ spell-id
-    /// special cases in `EffectEnergize` (Blood Fury, Burst of Energy, Runic
-    /// Mana Injector engineering bonus) remain outside this bounded slice.
+    /// The `EffectEnergize` branch applies the level-dependent overrides and the
+    /// Runic Mana Injector engineering bonus before `Unit::EnergizeBySpell`,
+    /// which then forwards `damage / 2` assisting threat with
+    /// `ignoreModifiers = true` (`Unit.cpp:6578-6590`).
+    ///
+    /// Represented boundary: current canonical player target only. The
+    /// caster-side level and skill are read from the session Player, so a
+    /// non-player caster keeps the unmodified effect amount; the
+    /// `PowerTypeFlags::UseRegenInterrupt` branch still needs the DB2
+    /// `PowerType` entry at the effect site and is not represented here.
     pub(in crate::session) fn apply_energize_effect_like_cpp(
         &mut self,
         spell_id: i32,
@@ -32,6 +40,11 @@ impl WorldSession {
             return false;
         };
         let power = party_member_power_kind_from_u8_like_cpp(power_id);
+        let damage = if percent {
+            damage
+        } else {
+            self.energize_caster_scaled_amount_like_cpp(spell_id, caster_guid, damage)
+        };
 
         let outcome = self
             .mutate_canonical_player_like_cpp(|player| {
@@ -54,6 +67,15 @@ impl WorldSession {
         let Some((requested, applied)) = outcome else {
             return false;
         };
+        // C++ `Unit::EnergizeBySpell` (`Unit.cpp:6586`) forwards `damage / 2`
+        // assisting threat before the log, with `ignoreModifiers = true`.
+        self.forward_assisting_threat_like_cpp(
+            Some(spell_id),
+            caster_guid,
+            target_guid,
+            requested as f32 / 2.0,
+            true,
+        );
         // C++ `Unit::EnergizeBySpell` (`Unit.cpp:6578-6590`): `gain` is the
         // delta `ModifyPower` actually applied and `OverEnergize` is what the
         // pool could not take.
@@ -66,6 +88,43 @@ impl WorldSession {
             over_energize: requested.saturating_sub(applied),
         });
         true
+    }
+
+    /// C++ `Spell::EffectEnergize`'s caster-scaled amount
+    /// (`SpellEffects.cpp:1507-1527`).
+    ///
+    /// The switch runs before `Unit::EnergizeBySpell`, so it uses the caster's
+    /// level and, for the Runic Mana Injector, the caster Player's engineering
+    /// skill. `AddPct(damage, 25)` is `damage += int32(damage * 25 / 100.0f)`.
+    fn energize_caster_scaled_amount_like_cpp(
+        &self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        damage: i32,
+    ) -> i32 {
+        let caster_is_player = self.player_guid() == Some(caster_guid);
+        let caster_level = if caster_is_player {
+            self.player_level_like_cpp()
+        } else {
+            0
+        };
+        let mut damage = match spell_id {
+            // Blood Fury: `damage -= 10 * max(0, min(30, level - 60))`.
+            24_571 => damage - 10 * i32::from(caster_level.saturating_sub(60).min(30)),
+            // Burst of Energy: `damage -= 4 * max(0, min(15, level - 60))`.
+            24_532 => damage - 4 * i32::from(caster_level.saturating_sub(60).min(15)),
+            _ => damage,
+        };
+        // Runic Mana Injector: engineers gain 25% more.
+        if spell_id == 67_490
+            && caster_is_player
+            && self
+                .resolved_player_skill_value_like_cpp(wow_entities::SKILL_ENGINEERING_LIKE_CPP)
+                .is_some_and(|value| value != 0)
+        {
+            damage += (damage as f32 * 25.0 / 100.0) as i32;
+        }
+        damage
     }
     /// C++ `Spell::EffectPowerDrain` / `Spell::EffectPowerBurn`.
     ///

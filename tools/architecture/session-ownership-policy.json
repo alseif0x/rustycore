@@ -27583,6 +27583,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "energize_caster_scaled_amount_like_cpp",
+          "visibility": "private",
+          "signature": "fn energize_caster_scaled_amount_like_cpp (& self , spell_id : i32 , caster_guid : ObjectGuid , damage : i32 ,) -> i32",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "enqueue_represented_quest_objective_progress_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn enqueue_represented_quest_objective_progress_like_cpp (& mut self , event : RepresentedQuestObjectiveProgressEventLikeCpp ,)",
@@ -28518,6 +28529,19 @@
           "name": "forget_represented_player_recent_instance_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn forget_represented_player_recent_instance_like_cpp (& mut self , map_id : u32 ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "forward_assisting_threat_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn forward_assisting_threat_like_cpp (& mut self , spell_id : Option < i32 > , assistant_guid : ObjectGuid , assisted_guid : ObjectGuid , base_amount : f32 , ignore_modifiers : bool ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
