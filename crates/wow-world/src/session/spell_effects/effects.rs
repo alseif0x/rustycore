@@ -537,6 +537,7 @@ impl WorldSession {
     /// outside this bounded slice.
     pub(in crate::session) fn apply_add_extra_attacks_effect_like_cpp(
         &mut self,
+        effect: u32,
         damage: i32,
         target_guid: ObjectGuid,
     ) -> bool {
@@ -547,13 +548,23 @@ impl WorldSession {
             return false;
         }
         let count = damage as u32;
-        self.mutate_canonical_player_like_cpp(|player| {
-            player
-                .unit_mut()
-                .add_extra_attacks_like_cpp(count)
-                .is_some()
-        })
-        .unwrap_or(false)
+        let queued = self
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .add_extra_attacks_like_cpp(count)
+                    .is_some()
+            })
+            .unwrap_or(false);
+        if queued {
+            // C++ `ExecuteLogEffectExtraAttacks` (`Spell.cpp:5088-5095`).
+            self.record_spell_execute_log_extra_attacks_like_cpp(
+                i32::try_from(effect).unwrap_or(0),
+                target_guid,
+                count,
+            );
+        }
+        queued
     }
     /// C++ `Spell::EffectInebriate`.
     ///

@@ -148,20 +148,106 @@ impl WorldSession {
         }
         damage
     }
+    /// C++ `Spell::GetExecuteLogEffect` (`Spell.cpp:5062-5074`): the cast's log
+    /// entry for one `SpellEffectName`, created on first use.
+    fn represented_spell_execute_log_effect_like_cpp(
+        &mut self,
+        effect: i32,
+    ) -> &mut wow_packet::packets::combat::SpellLogEffect {
+        if let Some(index) = self
+            .represented_spell_execute_log_effects_like_cpp
+            .iter()
+            .position(|entry| entry.effect == effect)
+        {
+            return &mut self.represented_spell_execute_log_effects_like_cpp[index];
+        }
+        self.represented_spell_execute_log_effects_like_cpp.push(
+            wow_packet::packets::combat::SpellLogEffect {
+                effect,
+                ..Default::default()
+            },
+        );
+        let index = self.represented_spell_execute_log_effects_like_cpp.len() - 1;
+        &mut self.represented_spell_execute_log_effects_like_cpp[index]
+    }
+
+    /// C++ `Spell::ExecuteLogEffectTakeTargetPower` (`Spell.cpp:5076-5086`).
+    pub(in crate::session) fn record_spell_execute_log_take_target_power_like_cpp(
+        &mut self,
+        effect: i32,
+        victim: ObjectGuid,
+        points: u32,
+        power_type: u32,
+        amplitude: f32,
+    ) {
+        self.represented_spell_execute_log_effect_like_cpp(effect)
+            .power_drain_targets
+            .push(
+                wow_packet::packets::combat::SpellLogEffectPowerDrainParams {
+                    victim,
+                    points,
+                    power_type,
+                    amplitude,
+                },
+            );
+    }
+
+    /// C++ `Spell::ExecuteLogEffectExtraAttacks` (`Spell.cpp:5088-5095`).
+    pub(in crate::session) fn record_spell_execute_log_extra_attacks_like_cpp(
+        &mut self,
+        effect: i32,
+        victim: ObjectGuid,
+        num_attacks: u32,
+    ) {
+        self.represented_spell_execute_log_effect_like_cpp(effect)
+            .extra_attacks_targets
+            .push(
+                wow_packet::packets::combat::SpellLogEffectExtraAttacksParams {
+                    victim,
+                    num_attacks,
+                },
+            );
+    }
+
+    /// C++ `Spell::SendSpellExecuteLog` (`Spell.cpp:5048-5060`), called from
+    /// `FinishTargetProcessing` (`Spell.cpp:8493-8496`) once every effect has
+    /// resolved. The cast's accumulator is taken, so a later cast starts clean.
+    pub(in crate::session) fn send_spell_execute_log_like_cpp(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+    ) {
+        if self
+            .represented_spell_execute_log_effects_like_cpp
+            .is_empty()
+        {
+            return;
+        }
+        let effects = std::mem::take(&mut self.represented_spell_execute_log_effects_like_cpp);
+        self.send_packet(&wow_packet::packets::combat::SpellExecuteLog {
+            caster: caster_guid,
+            spell_id,
+            effects,
+        });
+    }
+
     /// C++ `Spell::EffectPowerDrain` / `Spell::EffectPowerBurn`.
     ///
-    /// Represented boundary: current canonical player target/caster only.
-    /// `EffectPowerDrain` does not restore power on self-drain in C++, and this
-    /// represented path has no generic non-self caster yet. `EffectPowerBurn`
-    /// applies the drained amount as damage with multiplier 1.0; the exact C++
-    /// `SpellEffectInfo::CalcValueMultiplier` and take-power log packet remain
-    /// outside this bounded slice.
+    /// Represented boundary: current canonical player target/caster only, so
+    /// `EffectPowerDrain` never restores power (C++ skips the gain for a self
+    /// drain). `EffectPowerBurn` applies the drained amount scaled by
+    /// `SpellEffectInfo::CalcValueMultiplier` (`SpellEffects.cpp:1157-1164`);
+    /// both effects publish `ExecuteLogEffectTakeTargetPower`
+    /// (`SpellEffects.cpp:1101`, `1160`).
     pub(in crate::session) fn apply_power_drain_effect_like_cpp(
         &mut self,
+        spell_id: i32,
+        effect: u32,
         damage: i32,
         misc_value: i32,
         target_guid: ObjectGuid,
         burn_damage: bool,
+        value_multiplier: f32,
     ) -> bool {
         let Some(player_guid) = self.player_guid() else {
             return false;
@@ -194,13 +280,38 @@ impl WorldSession {
             })
             .unwrap_or(0);
 
-        if burn_damage && drained > 0 {
-            let _ = self.apply_owned_player_damage_like_cpp(
-                u32::try_from(drained).unwrap_or(u32::MAX),
-                wow_constants::DeathState::Corpse,
+        if drained > 0 {
+            let drained_u32 = u32::try_from(drained).unwrap_or(u32::MAX);
+            // C++ logs the drained power before the burn multiplier
+            // (`SpellEffects.cpp:1160`), and with `gainMultiplier` for drain.
+            self.record_spell_execute_log_take_target_power_like_cpp(
+                i32::try_from(effect).unwrap_or(0),
+                target_guid,
+                drained_u32,
+                u32::try_from(misc_value).unwrap_or(0),
+                if burn_damage { 0.0 } else { value_multiplier },
             );
-            self.sync_player_registry_state_like_cpp();
         }
+
+        if burn_damage && drained > 0 {
+            // C++ `newDamage = int32(newDamage * dmgMultiplier)`
+            // (`SpellEffects.cpp:1162`); the represented target is the player,
+            // so this stays the owned-player damage path.
+            let burned = (drained as f32 * value_multiplier) as i32;
+            if burned > 0 {
+                let _ = self.apply_owned_player_damage_like_cpp(
+                    u32::try_from(burned).unwrap_or(u32::MAX),
+                    wow_constants::DeathState::Corpse,
+                );
+                self.sync_player_registry_state_like_cpp();
+            }
+        }
+
+        // The represented caster is always the victim here, so C++'s
+        // `unitCaster != unitTarget` gain (`EnergizeBySpell`,
+        // `SpellEffects.cpp:1094-1100`) has no producer yet. `spell_id` keeps
+        // the call site's cast identity for that future branch.
+        let _ = spell_id;
 
         drained > 0
     }

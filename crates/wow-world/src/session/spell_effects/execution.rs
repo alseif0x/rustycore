@@ -328,9 +328,9 @@ impl WorldSession {
                 .await;
         }
 
-        let direct_spell_effects_like_cpp: Vec<(u32, i32, u32, i32, i32, f32)> =
+        let direct_spell_effects_like_cpp: Vec<(u32, i32, u32, i32, i32, f32, f32)> =
             if spell_info.effects().is_empty() {
-                vec![(effect_type, effect_base_points, 0, 0, 0, 0.0)]
+                vec![(effect_type, effect_base_points, 0, 0, 0, 0.0, 0.0)]
             } else {
                 spell_info
                     .effects()
@@ -344,10 +344,14 @@ impl WorldSession {
                             effect.effect_misc_value_1,
                             effect.effect_trigger_spell,
                             effect.effect_bonus_coefficient_from_ap,
+                            effect.effect_amplitude,
                         )
                     })
                     .collect()
             };
+        // C++ owns one `Spell` object per cast, so `_executeLogEffects` starts
+        // empty for it; the represented session reuses one accumulator.
+        self.represented_spell_execute_log_effects_like_cpp.clear();
         for (
             direct_effect_type,
             direct_effect_base_points,
@@ -355,6 +359,7 @@ impl WorldSession {
             direct_effect_misc_value_1,
             direct_effect_trigger_spell,
             direct_effect_bonus_coefficient_from_ap,
+            direct_effect_amplitude,
         ) in direct_spell_effects_like_cpp
         {
             let direct_effect_target_data = effect_target_data_like_cpp
@@ -434,6 +439,7 @@ impl WorldSession {
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ADD_EXTRA_ATTACKS => {
                     self.apply_add_extra_attacks_effect_like_cpp(
+                        x,
                         direct_effect_base_points,
                         target_guid,
                     );
@@ -450,10 +456,13 @@ impl WorldSession {
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_DRAIN => {
                     self.apply_power_drain_effect_like_cpp(
+                        spell_id,
+                        x,
                         direct_effect_base_points,
                         direct_effect_misc_value_1,
                         target_guid,
                         false,
+                        direct_effect_amplitude,
                     );
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE => {
@@ -478,10 +487,13 @@ impl WorldSession {
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_BURN => {
                     self.apply_power_drain_effect_like_cpp(
+                        spell_id,
+                        x,
                         direct_effect_base_points,
                         direct_effect_misc_value_1,
                         target_guid,
                         true,
+                        direct_effect_amplitude,
                     );
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEALTH_LEECH => {
@@ -1120,6 +1132,10 @@ impl WorldSession {
                 debug!("Spell effect type {} not yet implemented", effect_type);
             }
         }
+
+        // C++ `Spell::FinishTargetProcessing` (`Spell.cpp:8493-8496`) publishes
+        // the execute log once every effect of the cast has resolved.
+        self.send_spell_execute_log_like_cpp(spell_id, caster_guid);
 
         let mut threat_spell_info = spell_info.clone();
         let difficulty = self.current_map_difficulty_id_like_cpp();

@@ -4387,6 +4387,13 @@
           "source_class": "test_fixture"
         },
         {
+          "name": "represented_spell_execute_log_effects_like_cpp",
+          "type": "Vec < wow_packet :: packets :: combat :: SpellLogEffect >",
+          "visibility": "private",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "represented_spell_history_packets_like_cpp",
           "type": "(Vec < SpellHistoryEntry > , Vec < SpellChargeEntry >)",
           "visibility": "private",
@@ -21213,7 +21220,7 @@
           "kind": "method",
           "name": "apply_add_extra_attacks_effect_like_cpp",
           "visibility": "pub (in crate :: session)",
-          "signature": "fn apply_add_extra_attacks_effect_like_cpp (& mut self , damage : i32 , target_guid : ObjectGuid ,) -> bool",
+          "signature": "fn apply_add_extra_attacks_effect_like_cpp (& mut self , effect : u32 , damage : i32 , target_guid : ObjectGuid ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -22491,7 +22498,7 @@
           "kind": "method",
           "name": "apply_power_drain_effect_like_cpp",
           "visibility": "pub (in crate :: session)",
-          "signature": "fn apply_power_drain_effect_like_cpp (& mut self , damage : i32 , misc_value : i32 , target_guid : ObjectGuid , burn_damage : bool ,) -> bool",
+          "signature": "fn apply_power_drain_effect_like_cpp (& mut self , spell_id : i32 , effect : u32 , damage : i32 , misc_value : i32 , target_guid : ObjectGuid , burn_damage : bool , value_multiplier : f32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -37470,6 +37477,32 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "record_spell_execute_log_extra_attacks_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn record_spell_execute_log_extra_attacks_like_cpp (& mut self , effect : i32 , victim : ObjectGuid , num_attacks : u32 ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "record_spell_execute_log_take_target_power_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn record_spell_execute_log_take_target_power_like_cpp (& mut self , effect : i32 , victim : ObjectGuid , points : u32 , power_type : u32 , amplitude : f32 ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "record_time_sync_response_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn record_time_sync_response_like_cpp (& mut self , sequence_index : u32 , client_time : u32 ,)",
@@ -43374,6 +43407,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "represented_spell_execute_log_effect_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_spell_execute_log_effect_like_cpp (& mut self , effect : i32 ,) -> & mut wow_packet :: packets :: combat :: SpellLogEffect",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "represented_spell_has_attribute_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn represented_spell_has_attribute_like_cpp (& self , spell_id : i32 , attribute_word : usize , attribute : u32 ,) -> bool",
@@ -47944,6 +47988,19 @@
           "name": "send_set_viewpoint_target_visibility_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn send_set_viewpoint_target_visibility_like_cpp (& mut self , dynamic_object_guid : ObjectGuid ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "send_spell_execute_log_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn send_spell_execute_log_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -78753,7 +78810,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:f63ac5cca5438d9cb15eb94767522b87:len=94690|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:4748d343851ded76b4bcf915540f4d31:len=94799|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
