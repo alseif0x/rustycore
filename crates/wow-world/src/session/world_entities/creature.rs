@@ -489,3 +489,286 @@ impl WorldSession {
         Some(canonical_health)
     }
 }
+
+/// One creature aura this session applied, with the wall-clock deadline its
+/// represented duration expires at.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(in crate::session) struct RepresentedCreatureAuraLikeCpp {
+    pub target_guid: ObjectGuid,
+    pub spell_id: i32,
+    pub caster_guid: ObjectGuid,
+    pub slot: u8,
+    pub effect_mask: u32,
+    pub applied_at: Instant,
+    pub duration_ms: u32,
+}
+
+impl WorldSession {
+    /// C++ `Spell::EffectApplyAura` for a creature target: create the canonical
+    /// `AuraApplication` with its represented effect data, misc values and
+    /// duration, and publish `SMSG_AURA_UPDATE` to the caster and the
+    /// creature's observers.
+    ///
+    /// Boundaries of this slice: the represented model has no stack/refresh
+    /// rule (a second application of the same spell by the same caster is
+    /// refused, like the spawn-addon path), the duration comes from the
+    /// caller's represented value rather than `SpellDuration.db2`, and the
+    /// periodic effect amount is registered but not yet ticked.
+    pub(crate) fn apply_creature_aura_like_cpp(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        target_guid: ObjectGuid,
+        effect_mask: u32,
+        duration_ms: u32,
+    ) -> Result<(), &'static str> {
+        let Ok(spell_key) = u32::try_from(spell_id) else {
+            return Err("invalid spell id");
+        };
+        let spell_store = self
+            .spell_store()
+            .cloned()
+            .ok_or("Spell store not loaded")?;
+        let Some(spell) = spell_store.get(spell_id) else {
+            return Err("Spell not found");
+        };
+        let effects: Vec<(i32, i32, i32, u8)> = spell
+            .effects()
+            .iter()
+            .filter(|effect| {
+                1u32.checked_shl(effect.effect_index)
+                    .is_some_and(|bit| effect_mask & bit != 0)
+            })
+            .map(|effect| {
+                (
+                    effect.effect_aura,
+                    effect.calc_value_no_caster_like_cpp(),
+                    effect.effect_misc_value_1,
+                    u8::try_from(effect.effect_index).unwrap_or(0),
+                )
+            })
+            .collect();
+        if effects.is_empty() {
+            return Err("no represented effects for this aura");
+        }
+        let applied = self
+            .mutate_canonical_creature_by_guid_like_cpp(target_guid, |creature| {
+                let auras = &mut creature.unit_mut().subsystems_mut().auras;
+                if auras
+                    .applied_auras
+                    .iter()
+                    .any(|aura| aura.spell_id == spell_key && aura.caster_guid == caster_guid)
+                {
+                    return None;
+                }
+                let slot = (0..u8::MAX).find(|slot| !auras.visible_auras.contains_key(slot))?;
+                let aura =
+                    wow_entities::AppliedAuraRef::new(spell_key, caster_guid, slot, effect_mask);
+                auras.add_owned(wow_entities::OwnedAuraRef::new(
+                    spell_key,
+                    caster_guid,
+                    None,
+                ));
+                auras.add_applied(aura);
+                for (aura_type, amount, misc_value, _) in &effects {
+                    auras.register_applied_aura_effect_like_cpp(
+                        aura,
+                        *aura_type,
+                        *amount,
+                        *misc_value,
+                    );
+                }
+                auras.set_loaded_aura_state_like_cpp(
+                    aura.aura_ref(),
+                    wow_entities::LoadedAuraStateLikeCpp::new(
+                        i32::try_from(duration_ms).unwrap_or(i32::MAX),
+                        i32::try_from(duration_ms).unwrap_or(i32::MAX),
+                        0,
+                        1,
+                        0,
+                    ),
+                );
+                auras.set_visible_with_application_like_cpp(
+                    slot,
+                    aura.aura_ref(),
+                    wow_entities::VisibleAuraApplicationLikeCpp::new(
+                        0,
+                        effects
+                            .iter()
+                            .filter_map(|(_, amount, _, effect_index)| {
+                                Some(wow_entities::VisibleAuraEffectAmountLikeCpp {
+                                    effect_index: *effect_index,
+                                    amount: *amount,
+                                })
+                            })
+                            .collect(),
+                    ),
+                );
+                Some(())
+            })
+            .flatten()
+            .ok_or("creature target unavailable or aura already applied")?;
+        let _ = applied;
+        let slot = self
+            .canonical_creature_aura_slot_like_cpp(target_guid, spell_key, caster_guid)
+            .ok_or("creature aura slot missing after application")?;
+        self.represented_creature_auras_like_cpp
+            .push(RepresentedCreatureAuraLikeCpp {
+                target_guid,
+                spell_id,
+                caster_guid,
+                slot,
+                effect_mask,
+                applied_at: Instant::now(),
+                duration_ms,
+            });
+        self.publish_creature_aura_slot_update_like_cpp(target_guid, slot, true);
+        Ok(())
+    }
+
+    /// The canonical creature aura slot of one `(spell, caster)` application.
+    fn canonical_creature_aura_slot_like_cpp(
+        &mut self,
+        target_guid: ObjectGuid,
+        spell_id: u32,
+        caster_guid: ObjectGuid,
+    ) -> Option<u8> {
+        self.mutate_canonical_creature_by_guid_like_cpp(target_guid, |creature| {
+            creature
+                .unit()
+                .subsystems()
+                .auras
+                .applied_auras
+                .iter()
+                .find(|aura| aura.spell_id == spell_id && aura.caster_guid == caster_guid)
+                .map(|aura| aura.slot)
+        })
+        .flatten()
+    }
+
+    /// C++ `AuraApplication` publication: the slot's current state when
+    /// `applied`, or a removal entry (`AuraInfoLikeCpp { aura_data: None }`)
+    /// when not. The caster's session receives it directly and the creature's
+    /// nearby observers through the existing creature visibility rail.
+    pub(in crate::session) fn publish_creature_aura_slot_update_like_cpp(
+        &self,
+        target_guid: ObjectGuid,
+        slot: u8,
+        applied: bool,
+    ) {
+        use wow_packet::ServerPacket;
+        let Some(map_key) =
+            self.canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))
+        else {
+            return;
+        };
+        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+            return;
+        };
+        let Some(aura_info) = ({
+            let mut manager = match manager.lock() {
+                Ok(manager) => manager,
+                Err(_) => return,
+            };
+            let Some(managed) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
+                return;
+            };
+            managed
+                .map()
+                .with_creature_like_cpp(target_guid, |creature| {
+                    let level = creature.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8;
+                    let auras = &creature.unit().subsystems().auras;
+                    if !applied {
+                        return wow_packet::packets::misc::AuraInfoLikeCpp {
+                            slot,
+                            aura_data: None,
+                        };
+                    }
+                    let Some(aura_ref) = auras.visible_auras.get(&slot).copied() else {
+                        return wow_packet::packets::misc::AuraInfoLikeCpp {
+                            slot,
+                            aura_data: None,
+                        };
+                    };
+                    let active_flags = auras
+                        .applied_auras
+                        .iter()
+                        .filter(|aura| aura.aura_ref() == aura_ref)
+                        .fold(0u32, |mask, aura| mask | aura.effect_mask);
+                    wow_packet::packets::misc::AuraInfoLikeCpp {
+                        slot,
+                        aura_data: Some(wow_packet::packets::misc::AuraDataInfoLikeCpp {
+                            cast_id: ObjectGuid::create_world_object(
+                                HighGuid::Cast,
+                                3,
+                                1,
+                                self.player_map_id_like_cpp(),
+                                0,
+                                aura_ref.spell_id,
+                                i64::from(slot) + 1,
+                            ),
+                            spell_id: i32::try_from(aura_ref.spell_id).unwrap_or(i32::MAX),
+                            flags: 0,
+                            active_flags,
+                            caster_guid: aura_ref.caster_guid,
+                            cast_level: level.into(),
+                            applications: 0,
+                            duration_ms: None,
+                            remaining_ms: None,
+                            points: Vec::new(),
+                        }),
+                    }
+                })
+        }) else {
+            return;
+        };
+        let packet = wow_packet::packets::misc::AuraUpdate {
+            unit_guid: target_guid,
+            update_all: false,
+            auras: vec![aura_info],
+        };
+        self.send_packet(&packet);
+        self.broadcast_creature_packet_to_visible_set_like_cpp(target_guid, packet.to_bytes());
+    }
+
+    /// C++ `Creature::Update`'s aura lifetime for the auras this session
+    /// applied: a duration that elapsed removes the canonical application and
+    /// publishes the removal.
+    pub(in crate::session) fn tick_represented_creature_auras_like_cpp(&mut self) {
+        if self.represented_creature_auras_like_cpp.is_empty() {
+            return;
+        }
+        let expired: Vec<RepresentedCreatureAuraLikeCpp> = self
+            .represented_creature_auras_like_cpp
+            .iter()
+            .filter(|aura| {
+                aura.duration_ms > 0
+                    && aura.applied_at.elapsed().as_millis() as u32 >= aura.duration_ms
+            })
+            .copied()
+            .collect();
+        for aura in expired {
+            let removed = self
+                .mutate_canonical_creature_by_guid_like_cpp(aura.target_guid, |creature| {
+                    let auras = &mut creature.unit_mut().subsystems_mut().auras;
+                    let applied = wow_entities::AppliedAuraRef::new(
+                        u32::try_from(aura.spell_id).unwrap_or(0),
+                        aura.caster_guid,
+                        aura.slot,
+                        aura.effect_mask,
+                    );
+                    // `unapply_aura` removes the application and its loaded
+                    // state; `clear_visible` drops the published slot.
+                    let removed = auras.unapply_aura(applied, 0);
+                    let _ = auras.clear_visible(aura.slot);
+                    removed
+                })
+                .unwrap_or(false);
+            self.represented_creature_auras_like_cpp
+                .retain(|tracked| *tracked != aura);
+            if removed {
+                self.publish_creature_aura_slot_update_like_cpp(aura.target_guid, aura.slot, false);
+            }
+        }
+    }
+}

@@ -5546,6 +5546,11 @@ pub struct WorldSession {
     // C++ `sShieldBlockRegularGameTable` used by `ItemTemplate::GetShieldBlockValue`.
     shield_block_regular_game_table: Option<Arc<ShieldBlockRegularGameTableLikeCpp>>,
 
+    // Creature auras this session applied, with the wall-clock deadline the
+    // represented duration expires at (`Aura::Update`).
+    represented_creature_auras_like_cpp:
+        Vec<crate::session::world_entities::RepresentedCreatureAuraLikeCpp>,
+
     // Transmog set item store (TransmogSetItem.db2 data)
     transmog_set_item_store: Option<Arc<TransmogSetItemStore>>,
 
@@ -7945,6 +7950,7 @@ impl WorldSession {
             combat_ratings_game_table: None,
             regen_game_tables: None,
             shield_block_regular_game_table: None,
+            represented_creature_auras_like_cpp: Vec::new(),
             transmog_set_item_store: None,
             #[cfg(test)]
             item_price_base_store: None,
