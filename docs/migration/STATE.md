@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`b08ffff5` (PR #1171, the #31 creature-target aura application, following
+`a6128cd0` (PR #1173, the #31 per-slot creature addon aura effects, following
+PR #1171, the #31 creature-target aura application, following
 PR #1169, the #29 melee
 ignore-absorb term, following PR #1167, the #31 spell energize
 log, following PR #1165, the #31 player-target
@@ -52,6 +53,66 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 per-slot creature addon aura effects — 2026-09-18, implementation
+`3082a93e`, integrated as `a6128cd0` by PR #1173:** two gaps in the represented
+creature-aura model. First, C++ `Creature::LoadCreaturesAddon`
+(`Creature.cpp:2777-2798`) applies each `auras` row through
+`Unit::AddAura(spellId, this)`, which filters the spell's effects with
+`Aura::BuildEffectMaskForOwner` (`SpellAuras.cpp:344-357`) and creates one
+`AuraEffect` per surviving slot with its own type, amount and misc value; the
+represented addon path created a bare mask-only application, so the canonical
+aura consumers — the aggro tick's `SPELL_AURA_MOD_DETECT_RANGE` modifier,
+`Unit::GetSchoolImmunityMask` through `aura_school_mask_like_cpp`, and
+`has_aura_type_like_cpp` — could not see spawn-addon auras at all.
+`CreatureAddonAuraApplicationLikeCpp` now carries a resolved `effects` list from
+the data seam (`CreatureAddonStoreLikeCpp`, which already owns the
+`SpellStore`), `effect_mask` is derived from that list so the two cannot drift,
+and `AuraSubsystem::add_self_cast_addon_aura_application_with_effects_like_cpp`
+registers it. Because the data seam resolves the effects once, the session
+registry, the pending-respawn queue and the loaded-grid resolver all apply the
+same data without a store at entity level. Second, both this path and the #1171
+`Spell::EffectApplyAura` creature path registered every slot under one aggregate
+`AppliedAuraRef`, so a two-slot aura answered `GetTotalAuraModifier` with
+whichever amount was registered last; effect data now uses the per-slot
+`AppliedAuraRef` (`1 << effect_index`) convention the pet-load
+(`summoning.rs:451-459`) and threat-snapshot (`player/auras.rs`) paths already
+establish, and the represented expiry removes every covered slot. The single
+slot `SMSG_AURA_UPDATE` and the full aura update now share one `AuraDataInfo`
+builder (`represented_creature_aura_info_like_cpp`), so the single-slot
+publication no longer drops the application's `AFLAG` value and scalable points
+that `AuraApplication::BuildUpdateData` always sends. Coverage:
+`creature_addon_store_normalizes_auras_like_cpp` asserts the resolved per-slot
+effect list and its derived mask in `wow-data`;
+`creature_addon_aura_applications_register_effect_data_like_cpp` applies a
+two-slot addon aura plus a school-immunity aura and asserts each slot's own
+amount, the immunity misc value, `has_aura_type_like_cpp` and the visible slot
+amounts; `registered_creature_addon_aura_effects_feed_canonical_consumers_like_cpp`
+registers a world creature whose addon carries detect-range and school-immunity
+auras and reads the consumers the aggro tick uses;
+`spell_apply_aura_on_creature_keeps_each_effect_slot_amount_like_cpp` casts a
+two-slot creature aura and asserts the per-slot masks and amounts plus the
+expiry of both slots. Evidence at `a6128cd0`: `wow-entities --lib` 941/0,
+`wow-data --lib` 753/0, `wow-world --lib` 4005/0/1, `cargo fmt --all --check`
+and `git diff --check` clean, physical ratchet PASS (2234 files, no ceiling
+moved), `session-ownership-check --syntax-only` PASS with no baseline delta (no
+`WorldSession` surface changed); `validation-v2 quick` PASS (manifest
+`20260918T023252.159860Z-3706760-quick.json`) and `final --architecture` 84.4 s,
+exit 1, 2 of 9 steps with `session-syntax-acceptance` PASS and the pre-existing
+hotspot ratchet as the only red. **The ordinary warm campaign is 649.7 s, over
+the 600 s budget**: changing the foundational `wow-entities`/`wow-data` crates
+forced a full recompile of the dependent `world-server`/`wow-packet`/`wow-world`
+check and test graph under `CARGO_BUILD_JOBS=1` (`path-04` alone 555.6 s), the
+same dependency-forced overrun recorded for the earlier `wow-packet` rebuild. No
+step was skipped, split or relabelled. Boundaries: a record whose data seam
+resolved no unit-owned effect slot keeps the previous represented behavior (one
+bare application per `auras` entry), while C++ `Unit::AddAura` creates nothing
+there — production rows always carry the resolved applications and the
+divergence is asserted as fixture behavior; addon effect amounts use
+`SpellEffectInfo::calc_value_no_caster_like_cpp()`, the convention the creature
+aura-effect projection already uses, rather than C++'s caster-evaluated amount;
+aura recalculation on stat change, stack/refresh rules and periodic ticks remain
+unrepresented.
 
 **#31 creature-target aura application — 2026-09-18, implementation `8e062b6e`,
 integrated as `b08ffff5` by PR #1171:** C++ `Spell::EffectApplyAura` applies the

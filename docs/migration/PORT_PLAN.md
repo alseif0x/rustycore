@@ -33,6 +33,20 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 per-slot creature addon aura effects — 2026-09-18, implementation
+`3082a93e`:** spawn-addon auras now carry the `AuraEffect` data
+`Unit::AddAura`/`Aura::BuildEffectMaskForOwner` create — resolved once at the
+`CreatureAddonStoreLikeCpp` data seam and registered per effect slot by
+`add_self_cast_addon_aura_application_with_effects_like_cpp` — so the aggro
+detect-range modifier, `GetSchoolImmunityMask` and `HasAuraType` see addon
+auras; creature aura effect data is keyed per slot (`1 << effect_index`, the
+pet-load/threat convention) so a multi-slot aura keeps each slot's own amount and
+misc value, and the single-slot and full aura updates share one
+`AuraDataInfo` builder. Limits: a record with no resolved effect slot keeps the
+previous bare application (C++ creates nothing); amounts use
+`calc_value_no_caster_like_cpp()`; recalculation, stacks and periodic ticks stay
+unrepresented.
+
 **#31 creature-target aura application — 2026-09-18, implementation `8e062b6e`:**
 `Spell::EffectApplyAura`'s creature target is now represented: the
 `SPELL_EFFECT_APPLY_AURA` chain creates the canonical creature application with
