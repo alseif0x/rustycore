@@ -455,11 +455,20 @@ impl WorldSession {
                     );
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_DRAIN => {
+                    let drain_damage = self.power_drain_pre_scaled_damage_like_cpp(
+                        spell_id,
+                        direct_effect_index,
+                        caster_guid,
+                        target_guid,
+                        spell_info.effect_bonus_coefficient,
+                        direct_effect_bonus_coefficient_from_ap,
+                        direct_effect_base_points,
+                    );
                     self.apply_power_drain_effect_like_cpp(
                         item_guid_generator,
                         spell_id,
                         x,
-                        direct_effect_base_points,
+                        drain_damage,
                         direct_effect_misc_value_1,
                         target_guid,
                         false,
@@ -490,11 +499,20 @@ impl WorldSession {
                     );
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_BURN => {
+                    let burn_damage = self.power_drain_pre_scaled_damage_like_cpp(
+                        spell_id,
+                        direct_effect_index,
+                        caster_guid,
+                        target_guid,
+                        spell_info.effect_bonus_coefficient,
+                        direct_effect_bonus_coefficient_from_ap,
+                        direct_effect_base_points,
+                    );
                     self.apply_power_drain_effect_like_cpp(
                         item_guid_generator,
                         spell_id,
                         x,
-                        direct_effect_base_points,
+                        burn_damage,
                         direct_effect_misc_value_1,
                         target_guid,
                         true,
