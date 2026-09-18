@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`2c6e8966` (PR #1177, the #31 flagged-power regen interrupt on energize, following
+`adefbfe9` (PR #1179, the #31 spell execute log with take-power entries, following
+PR #1177, the #31 flagged-power regen interrupt on energize, following
 PR #1175, the #31 `EnergizeBySpell` casing and assisting threat, following
 PR #1173, the #31 per-slot creature addon aura effects, following
 PR #1171, the #31 creature-target aura application, following
@@ -55,6 +56,55 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 spell execute log with take-power entries — 2026-09-18, implementation
+`1e1b3655`, integrated as `adefbfe9` by PR #1179:** C++
+`Spell::FinishTargetProcessing` (`Spell.cpp:8493-8496`) calls
+`Spell::SendSpellExecuteLog` (`Spell.cpp:5048-5060`), which publishes
+`SMSG_SPELL_EXECUTE_LOG` with every effect's `_executeLogEffects` entry, but the
+represented chain had no such packet. `wow-packet` gained `SpellExecuteLog` with
+`SpellLogEffect` and its six row families (`Spell.h:165-213`), written exactly
+like `CombatLogPackets.cpp:90-155` (caster, `int32(SpellID)`, effect count, per
+effect its id and six list counts, then each list's rows, closing with the basic
+packet's log-data bit). The session owns a per-cast accumulator
+(`represented_spell_execute_log_effects_like_cpp`) cleared at cast start and
+taken by `send_spell_execute_log_like_cpp` after the effect loop, mirroring the
+C++ `_executeLogEffects` lifetime; `represented_spell_execute_log_effect_like_cpp`
+reproduces `GetExecuteLogEffect`'s find-or-create. Producers:
+`ExecuteLogEffectTakeTargetPower` (`Spell.cpp:5076-5086`) from `EffectPowerDrain`
+(amplitude = `CalcValueMultiplier`, `SpellEffects.cpp:1101`) and
+`EffectPowerBurn` (amplitude `0.0f`, drained power logged before the multiplier,
+`SpellEffects.cpp:1160`), and `ExecuteLogEffectExtraAttacks`
+(`Spell.cpp:5088-5095`) from `EffectAddExtraAttacks`. The same change repairs a
+recorded placeholder with C++ evidence: `EffectPowerBurn` now scales the drained
+power by `SpellEffectInfo::CalcValueMultiplier` (`SpellEffects.cpp:1157-1164`)
+instead of the previous multiplier 1.0, with the effect amplitude carried through
+the cast loop's effect tuple. Coverage:
+`spell_execute_log_writes_cpp_effect_lists` (writer shape for two effects and both
+list kinds); `spell_power_drain_publishes_take_target_power_execute_log_like_cpp`
+(15 drained of 25 mana with amplitude 0.5 logs points 15, power type 0,
+amplitude 0.5); `spell_power_burn_scales_damage_by_the_value_multiplier_like_cpp`
+(amplitude 0.5 burns `int32(15 * 0.5) = 7` health while the logged amplitude stays
+`0.0f`); and the extra-attacks scenario decodes the `ExtraAttacksTargets` row
+(victim = the spell's `unitTarget`, 2 attacks), while the amplitude-1.0 burn keeps
+its previous 15 damage and the mismatched/negative drain cases still publish no
+execute log. Evidence at `1e1b3655`: `wow-packet --lib` 753/0, `wow-world --lib`
+4011/0/1, `cargo fmt --all --check` and `git diff --check` clean, physical ratchet
+PASS with one recorded ceiling bump (`session/mod.rs` 18992 to 18997, reason
+appended to the entry's `split`), `session-ownership-check --syntax-only` PASS
+after a reviewed `print-baseline` delta (the new field, three new methods and two
+changed signatures; 225 production + 429 fixture fields, 3927 associated items);
+`validation-v2 quick` PASS 139.7 s (manifest
+`20260918T040425.959549Z-3753317-quick.json`) and `final --architecture` 87.2 s,
+exit 1, 2 of 9 steps with `session-syntax-acceptance` PASS and the pre-existing
+hotspot ratchet as the only red; the runner campaign is 226.9 s, inside the 600 s
+ordinary budget. Boundaries: only the take-power and extra-attacks lists have
+producers (the other four are written as empty counts, like C++'s absent
+`Optional` vectors); `EffectPowerDrain`'s target and caster are still the canonical
+player, so C++'s `unitCaster != unitTarget` `EnergizeBySpell` gain has no producer
+and drain/burn still skip the `SpellDamageBonusDone/Taken` pre-scaling
+(`SpellEffects.cpp:1082-1088`); the packet carries the basic variant like the
+other represented combat logs.
 
 **#31 flagged-power regen interrupt on energize — 2026-09-18, implementation
 `1e89ffa8`, integrated as `2c6e8966` by PR #1177:** C++

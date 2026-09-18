@@ -33,6 +33,16 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 spell execute log with take-power entries — 2026-09-18, implementation
+`1e1b3655`:** the cast now publishes `SMSG_SPELL_EXECUTE_LOG`
+(`Spell::SendSpellExecuteLog`, `Spell.cpp:5048-5060`) from a per-cast accumulator,
+with the drain/burn take-target-power rows (`ExecuteLogEffectTakeTargetPower`) and
+the extra-attacks rows (`ExecuteLogEffectExtraAttacks`); `EffectPowerBurn` scales
+its damage by `CalcValueMultiplier` as C++ does. Limits: the durability, generic
+victim, trade-skill and feed-pet lists have no producer, drain/burn remain
+self-targeted without the non-self gain and pre-scaling, and the basic log variant
+is what ships.
+
 **#31 flagged-power regen interrupt on energize — 2026-09-18, implementation
 `1e89ffa8`:** `Unit::EnergizeBySpell` now interrupts a target power whose DB2
 `PowerTypeEntry` carries `PowerTypeFlags::UseRegenInterrupt` before the power
