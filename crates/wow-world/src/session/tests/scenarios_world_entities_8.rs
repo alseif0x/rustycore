@@ -536,6 +536,104 @@ fn register_world_creature_applies_addon_lifecycle_like_cpp() {
         "C++ Creature::LoadCreaturesAddon applies addon auras"
     );
 }
+
+/// C++ `Creature::LoadCreaturesAddon` → `Unit::AddAura(spellId, this)`
+/// (`Creature.cpp:2777-2798`, `Unit.cpp:11473-11483`) creates a real
+/// `AuraEffect` per slot, so the registered creature's spawn-addon auras feed
+/// the same consumers a cast aura does — here the detect-range modifier the
+/// aggro tick reads and the aura-type lookup.
+#[test]
+fn registered_creature_addon_aura_effects_feed_canonical_consumers_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let manager = shared_map_manager();
+    let guid = test_creature_guid(615);
+
+    session.set_map_manager(Arc::clone(&manager));
+    session.current_map_id = 571;
+    session.register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp(
+        571,
+        Position::new(10.0, 20.0, 30.0, 1.0),
+        test_creature_create_data(guid, 9001, 25),
+        3,
+        5,
+        20.0,
+        0,
+        0,
+        0,
+        0,
+        wow_entities::DEFAULT_RESPAWN_DELAY_SECS,
+        0,
+        0,
+        String::new(),
+        None,
+        Some(CreatureAddonLifecycleRecordLikeCpp {
+            auras: vec![70_020, 70_021],
+            aura_applications: vec![
+                wow_entities::CreatureAddonAuraApplicationLikeCpp {
+                    spell_id: 70_020,
+                    effect_mask: 0x1,
+                    flags: 0x0103,
+                    effects: vec![wow_entities::CreatureAddonAuraEffectLikeCpp {
+                        aura_type: wow_data::spell::aura_types::SPELL_AURA_MOD_DETECT_RANGE,
+                        amount: 7,
+                        misc_value: 0,
+                        effect_index: 0,
+                    }],
+                },
+                wow_entities::CreatureAddonAuraApplicationLikeCpp {
+                    spell_id: 70_021,
+                    effect_mask: 0x1,
+                    flags: 0x0103,
+                    effects: vec![wow_entities::CreatureAddonAuraEffectLikeCpp {
+                        aura_type: wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY,
+                        amount: 0,
+                        misc_value: 0x04,
+                        effect_index: 0,
+                    }],
+                },
+            ],
+            ..CreatureAddonLifecycleRecordLikeCpp::default()
+        }),
+        None,
+        0,
+        0,
+        0,
+        0,
+        -1,
+        0,
+        wow_constants::CreatureGroundMovementType::Run as u8,
+        true,
+        0,
+        false,
+        wow_constants::CreatureChaseMovementType::Run as u8,
+        wow_constants::CreatureRandomMovementType::Walk as u8,
+        wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
+        0.0,
+        wow_entities::MovementGeneratorType::Idle,
+        0,
+    );
+
+    let guard = manager.read().unwrap();
+    let creature = guard
+        .find_creature(571, 0, guid)
+        .expect("creature inserted into legacy map");
+    let auras = &creature.creature.unit().subsystems().auras;
+    assert_eq!(
+        auras
+            .total_aura_modifier_like_cpp(wow_data::spell::aura_types::SPELL_AURA_MOD_DETECT_RANGE),
+        7,
+        "C++ Unit::AddAura registers the addon aura's detect-range AuraEffect"
+    );
+    assert_eq!(
+        auras.aura_school_mask_like_cpp(wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY),
+        0x04,
+        "C++ Unit::GetSchoolImmunityMask reads the addon aura's immunity misc value"
+    );
+    assert!(
+        auras.has_aura_type_like_cpp(wow_data::spell::aura_types::SPELL_AURA_MOD_DETECT_RANGE),
+        "C++ Unit::HasAuraType sees addon auras, not only cast auras"
+    );
+}
 #[test]
 fn represented_gameobject_owner_syncs_to_canonical_created_by_like_cpp() {
     let (mut session, _, _) = make_session();

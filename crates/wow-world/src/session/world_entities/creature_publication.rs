@@ -5,6 +5,72 @@
 
 use super::*;
 
+/// C++ `AuraApplication::BuildUpdateData` for one creature aura slot: the
+/// application's `AFLAG` values and, when the aura is scalable, its per-effect
+/// point amounts. The full aura update and the single-slot publication both go
+/// through this builder so their payloads cannot diverge.
+pub(super) fn represented_creature_aura_info_like_cpp(
+    aura_subsystem: &wow_entities::AuraSubsystem,
+    slot: u8,
+    level: u8,
+    map_id: u16,
+) -> wow_packet::packets::misc::AuraInfoLikeCpp {
+    let Some(aura_ref) = aura_subsystem.visible_auras.get(&slot).copied() else {
+        return wow_packet::packets::misc::AuraInfoLikeCpp {
+            slot,
+            aura_data: None,
+        };
+    };
+    let active_flags = aura_subsystem
+        .applied_auras
+        .iter()
+        .filter(|applied| applied.aura_ref() == aura_ref)
+        .fold(0u32, |mask, applied| mask | applied.effect_mask);
+    let application = aura_subsystem.visible_aura_applications_like_cpp.get(&slot);
+    let flags = application.map_or(active_flags, |application| application.flags);
+    let points = if flags & AFLAG_SCALABLE_LIKE_CPP != 0 {
+        application
+            .map(|application| {
+                application
+                    .effect_amounts
+                    .iter()
+                    .filter(|effect| {
+                        effect.effect_index < u32::BITS as u8
+                            && active_flags & (1u32 << effect.effect_index) != 0
+                    })
+                    .map(|effect| effect.amount as f32)
+                    .collect()
+            })
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
+    wow_packet::packets::misc::AuraInfoLikeCpp {
+        slot,
+        aura_data: Some(wow_packet::packets::misc::AuraDataInfoLikeCpp {
+            cast_id: ObjectGuid::create_world_object(
+                HighGuid::Cast,
+                3,
+                1,
+                map_id,
+                0,
+                aura_ref.spell_id,
+                i64::from(slot) + 1,
+            ),
+            spell_id: i32::try_from(aura_ref.spell_id).unwrap_or(i32::MAX),
+            flags: flags.min(u32::from(u16::MAX)) as u16,
+            active_flags,
+            caster_guid: aura_ref.caster_guid,
+            cast_level: level.into(),
+            applications: 0,
+            duration_ms: None,
+            remaining_ms: None,
+            points,
+        }),
+    }
+}
+
 impl WorldSession {
     pub(crate) fn send_initial_visible_packets_for_creature_like_cpp(
         &self,
@@ -15,59 +81,14 @@ impl WorldSession {
             return;
         }
 
-        let mut visible: Vec<_> = aura_subsystem.visible_auras.iter().collect();
-        visible.sort_by_key(|(slot, _)| **slot);
+        let mut visible: Vec<_> = aura_subsystem.visible_auras.keys().copied().collect();
+        visible.sort_unstable();
+        let level = creature.level();
+        let map_id = self.player_map_id_like_cpp();
         let auras = visible
             .into_iter()
-            .map(|(slot, aura_ref)| {
-                let active_flags = aura_subsystem
-                    .applied_auras
-                    .iter()
-                    .filter(|applied| applied.aura_ref() == *aura_ref)
-                    .fold(0u32, |mask, applied| mask | applied.effect_mask);
-                let application = aura_subsystem.visible_aura_applications_like_cpp.get(slot);
-                let flags = application.map_or(active_flags, |application| application.flags);
-                let points = if flags & AFLAG_SCALABLE_LIKE_CPP != 0 {
-                    application
-                        .map(|application| {
-                            application
-                                .effect_amounts
-                                .iter()
-                                .filter(|effect| {
-                                    effect.effect_index < u32::BITS as u8
-                                        && active_flags & (1u32 << effect.effect_index) != 0
-                                })
-                                .map(|effect| effect.amount as f32)
-                                .collect()
-                        })
-                        .unwrap_or_default()
-                } else {
-                    Vec::new()
-                };
-
-                wow_packet::packets::misc::AuraInfoLikeCpp {
-                    slot: *slot,
-                    aura_data: Some(wow_packet::packets::misc::AuraDataInfoLikeCpp {
-                        cast_id: ObjectGuid::create_world_object(
-                            HighGuid::Cast,
-                            3,
-                            1,
-                            self.player_map_id_like_cpp(),
-                            0,
-                            aura_ref.spell_id,
-                            i64::from(*slot) + 1,
-                        ),
-                        spell_id: i32::try_from(aura_ref.spell_id).unwrap_or(i32::MAX),
-                        flags: flags.min(u32::from(u16::MAX)) as u16,
-                        active_flags,
-                        caster_guid: aura_ref.caster_guid,
-                        cast_level: creature.level().into(),
-                        applications: 0,
-                        duration_ms: None,
-                        remaining_ms: None,
-                        points,
-                    }),
-                }
+            .map(|slot| {
+                represented_creature_aura_info_like_cpp(aura_subsystem, slot, level, map_id)
             })
             .collect();
 

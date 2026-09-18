@@ -7,8 +7,8 @@ use wow_constants::{
     UnitStandStateType,
 };
 use wow_entities::{
-    CreatureAddonAuraApplicationLikeCpp, CreatureAddonLifecycleRecordLikeCpp,
-    VisibilityDistanceTypeLikeCpp,
+    CreatureAddonAuraApplicationLikeCpp, CreatureAddonAuraEffectLikeCpp,
+    CreatureAddonLifecycleRecordLikeCpp, VisibilityDistanceTypeLikeCpp,
 };
 
 use crate::creature::model_info::CreatureModelInfoStoreLikeCpp;

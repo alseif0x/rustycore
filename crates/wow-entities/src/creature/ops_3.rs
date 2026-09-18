@@ -499,6 +499,11 @@ impl Creature {
         }
         let self_guid = self.unit.world().object().guid();
         if addon.aura_applications.is_empty() {
+            // A record whose data seam resolved no unit-owned effect slot keeps
+            // the previous represented behavior: one bare application per
+            // listed aura. C++ `Unit::AddAura` creates nothing when
+            // `Aura::BuildEffectMaskForOwner` is empty; production rows always
+            // carry the resolved `aura_applications` instead.
             for spell_id in &addon.auras {
                 self.unit
                     .subsystems_mut()
@@ -510,11 +515,12 @@ impl Creature {
                 self.unit
                     .subsystems_mut()
                     .auras
-                    .add_self_cast_addon_aura_application_like_cpp(
+                    .add_self_cast_addon_aura_application_with_effects_like_cpp(
                         aura.spell_id,
                         self_guid,
                         aura.effect_mask,
                         aura.flags,
+                        &aura.effects,
                     );
             }
         }

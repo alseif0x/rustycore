@@ -880,3 +880,85 @@ fn creature_load_path_sets_waypoint_path_id_like_cpp() {
         "C++ Creature::LoadPath stores the waypoint path id used by WaypointMovementGenerator::DoInitialize"
     );
 }
+
+#[test]
+fn creature_addon_aura_applications_register_effect_data_like_cpp() {
+    let mut record = creature_lifecycle_create_record();
+    let mut addon = CreatureAddonLifecycleRecordLikeCpp {
+        auras: vec![70_010, 70_011],
+        ..CreatureAddonLifecycleRecordLikeCpp::default()
+    };
+    addon.aura_applications = vec![
+        CreatureAddonAuraApplicationLikeCpp {
+            spell_id: 70_010,
+            effect_mask: 0x3,
+            flags: 0x0103,
+            effects: vec![
+                CreatureAddonAuraEffectLikeCpp {
+                    aura_type: crate::SPELL_AURA_MOD_DETECT_RANGE_LIKE_CPP,
+                    amount: 7,
+                    misc_value: 0,
+                    effect_index: 0,
+                },
+                CreatureAddonAuraEffectLikeCpp {
+                    aura_type: 138, /* SPELL_AURA_MOD_MELEE_HASTE */
+                    amount: -30,
+                    misc_value: 0,
+                    effect_index: 1,
+                },
+            ],
+        },
+        CreatureAddonAuraApplicationLikeCpp {
+            spell_id: 70_011,
+            effect_mask: 0x1,
+            flags: 0x0103,
+            effects: vec![CreatureAddonAuraEffectLikeCpp {
+                aura_type: 39, /* SPELL_AURA_SCHOOL_IMMUNITY */
+                amount: 0,
+                misc_value: 0x04,
+                effect_index: 0,
+            }],
+        },
+    ];
+    record.addon = Some(addon);
+
+    let creature = Creature::create_from_lifecycle(record);
+    let auras = &creature.unit().subsystems().auras;
+
+    assert_eq!(
+        auras.total_aura_modifier_like_cpp(crate::SPELL_AURA_MOD_DETECT_RANGE_LIKE_CPP),
+        7,
+        "C++ Unit::AddAura creates one AuraEffect per slot; the detect-range slot keeps its own amount"
+    );
+    assert_eq!(
+        auras.total_aura_modifier_like_cpp(138 /* SPELL_AURA_MOD_MELEE_HASTE */),
+        -30,
+        "the second slot of the same addon aura keeps its own amount instead of overwriting the first"
+    );
+    assert_eq!(
+        auras.aura_school_mask_like_cpp(39 /* SPELL_AURA_SCHOOL_IMMUNITY */),
+        0x04,
+        "C++ Unit::GetSchoolImmunityMask reads the immunity slot's misc value"
+    );
+    assert!(
+        auras.has_aura_type_like_cpp(crate::SPELL_AURA_MOD_DETECT_RANGE_LIKE_CPP),
+        "C++ Unit::HasAuraType sees every AuraEffect the addon aura created"
+    );
+    assert_eq!(
+        auras
+            .visible_aura_applications_like_cpp
+            .get(&0)
+            .map(|application| application.effect_amounts.clone()),
+        Some(vec![
+            crate::VisibleAuraEffectAmountLikeCpp {
+                effect_index: 0,
+                amount: 7,
+            },
+            crate::VisibleAuraEffectAmountLikeCpp {
+                effect_index: 1,
+                amount: -30,
+            },
+        ]),
+        "C++ AuraApplication::BuildUpdateData carries the slot amounts for a scalable aura"
+    );
+}

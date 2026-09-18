@@ -458,7 +458,7 @@ fn loaded_grid_db_backed_builder_resolves_creature_addon_fallback_like_cpp() {
         |_| false,
         |_| false,
         |_| 0,
-        |_| 0,
+        |_| Vec::new(),
         |_| 0,
     );
     let (display_store, model_store) = empty_display_stores();
