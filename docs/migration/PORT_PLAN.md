@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 caster label damage-taken term — 2026-09-18, implementation `c11833e6`:**
+the drain/burn pre-scaling now folds the caster's
+`SPELL_AURA_MOD_DAMAGE_TAKEN_FROM_CASTER_BY_LABEL` auras against the damaging
+spell's `SpellLabel.db2` labels, with the store loaded at startup and carried
+through the session catalog bundle. Limits: the DOT and Sanctified Wrath terms
+stay unrepresented and the mechanic mask is `u32`.
+
 **#31 damage-taken term stacking regression — 2026-09-18, implementation
 `66c6bf3f`:** test-only proof that the produced `SpellDamageBonusTaken` terms
 accumulate multiplicatively into one `TakenTotalMod` (two +50% terms give 225 from
