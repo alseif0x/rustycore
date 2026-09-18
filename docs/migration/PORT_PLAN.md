@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 zero-pool drain log repair — 2026-09-18, implementation `54263163`:** a
+drain against a valid but empty target now logs `points 0` and a zeroed energize
+log for a non-self caster, exactly as C++ does, while gate refusals stay silent.
+The new scenario lives in `session/tests/scenarios_spell_state_26.rs` (split from
+`scenarios_spell_state_12.rs` at the 2,000-line test-file limit). Limits: the
+player self-drain keeps no caster gain and drain/burn still skip the
+`SpellDamageBonusDone/Taken` pre-scaling.
+
 **#31 zero-amplitude creature burn regression — 2026-09-18, implementation
 `4c0f67e9`:** test-only coverage that an amplitude-0 `EffectPowerBurn` still
 drains the creature pool and logs the take-power row while dealing no damage
