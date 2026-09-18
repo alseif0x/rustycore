@@ -21,9 +21,6 @@
 
 use super::*;
 
-/// C++ `PowerTypeFlags::UseRegenInterrupt` (`DBCEnums.h:1799`).
-const POWER_TYPE_FLAG_USE_REGEN_INTERRUPT_LIKE_CPP: i16 = 0x0002;
-
 /// C++ `SPELL_VISUAL_KIT_FOOD` (`SharedDefines.h:397`).
 const SPELL_VISUAL_KIT_FOOD_LIKE_CPP: i32 = 406;
 
@@ -311,9 +308,7 @@ impl WorldSession {
                     regen_combat: power_entry.regen_combat,
                     min_power: power_entry.min_power,
                     center_power: power_entry.center_power,
-                    use_regen_interrupt: power_entry.flags
-                        & POWER_TYPE_FLAG_USE_REGEN_INTERRUPT_LIKE_CPP
-                        != 0,
+                    use_regen_interrupt: power_types.uses_regen_interrupt_like_cpp(power as i8),
                     regen_interrupt_time_ms: power_entry.regen_interrupt_time_ms,
                     power_regen_flat,
                     power_regen_interrupted,

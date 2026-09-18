@@ -1174,3 +1174,87 @@ async fn spell_energize_forwards_half_requested_threat_without_modifiers_like_cp
         75
     );
 }
+
+/// C++ `Unit::EnergizeBySpell` (`Unit.cpp:6581-6585`) → `Player::InterruptPowerRegen`
+/// (`Player.cpp:1831-1840`): a power whose DB2 entry carries
+/// `PowerTypeFlags::UseRegenInterrupt` publishes `SMSG_INTERRUPT_POWER_REGEN`
+/// before the energize log; a power without the flag publishes nothing.
+#[tokio::test]
+async fn spell_energize_interrupts_flagged_power_regen_like_cpp() {
+    fn power_type_store(
+        use_regen_interrupt: bool,
+    ) -> wow_data::character_progression::PowerTypeStore {
+        wow_data::character_progression::PowerTypeStore::from_entries([
+            wow_data::character_progression::PowerTypeEntry {
+                id: 0,
+                name_global_string_tag: String::new(),
+                cost_global_string_tag: String::new(),
+                power_type_enum: PowerType::Mana as i8,
+                min_power: 0,
+                max_base_power: 0,
+                center_power: 0,
+                default_power: 0,
+                display_modifier: 1,
+                regen_interrupt_time_ms: 5_000,
+                regen_peace: 0.0,
+                regen_combat: 0.0,
+                flags: if use_regen_interrupt { 0x0002 } else { 0 },
+            },
+        ])
+    }
+
+    for (use_regen_interrupt, expected) in [
+        (
+            true,
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::InterruptPowerRegen,
+                ServerOpcodes::SpellEnergizeLog,
+                ServerOpcodes::CooldownEvent,
+            ],
+        ),
+        (
+            false,
+            vec![
+                ServerOpcodes::SpellGo,
+                ServerOpcodes::SpellEnergizeLog,
+                ServerOpcodes::CooldownEvent,
+            ],
+        ),
+    ] {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 797_i32;
+        let player_guid = ObjectGuid::create_player(1, 797);
+        configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 100, 100);
+        session.set_power_type_store(Arc::new(power_type_store(use_regen_interrupt)));
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            power_spell_info_like_cpp(
+                spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE,
+                50,
+                PowerType::Mana,
+            ),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented EffectEnergize should execute");
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            expected,
+            "C++ `Player::InterruptPowerRegen` fires only for `UseRegenInterrupt` powers, before `SendEnergizeSpellLog`"
+        );
+        assert_eq!(
+            session
+                .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
+                .unwrap(),
+            75
+        );
+    }
+}

@@ -259,6 +259,9 @@ pub struct PowerTypeEntry {
     pub flags: i16,
 }
 
+/// C++ `PowerTypeFlags::UseRegenInterrupt` (`DBCEnums.h:1796-1810`).
+pub const POWER_TYPE_FLAG_USE_REGEN_INTERRUPT_LIKE_CPP: i16 = 0x0002;
+
 /// C++ `Creature::UpdateLevelDependantStats` power seed after
 /// `SetCreateMana`, `SetStatPctModifier`, `SetPowerType`, and the
 /// `PowerTypeEntry` default/full-power branch.
@@ -716,6 +719,16 @@ impl PowerTypeStore {
             .find(|entry| entry.power_type_enum == power_type)
     }
 
+    /// C++ `PowerTypeEntry::GetFlags().HasFlag(PowerTypeFlags::UseRegenInterrupt)`
+    /// (`DBCEnums.h:1799`), read by `Player::RegeneratePower`
+    /// (`Player.cpp:1706`) and `Unit::EnergizeBySpell` (`Unit.cpp:6583`).
+    /// A missing entry is false, matching C++'s early return when
+    /// `GetPowerTypeEntry` yields nothing.
+    pub fn uses_regen_interrupt_like_cpp(&self, power_type: i8) -> bool {
+        self.get_by_power_type_like_cpp(power_type)
+            .is_some_and(|entry| entry.flags & POWER_TYPE_FLAG_USE_REGEN_INTERRUPT_LIKE_CPP != 0)
+    }
+
     /// Mirrors the creature-specific create/max/current power rules in:
     /// - `Creature::UpdateLevelDependantStats`
     /// - `Creature::GetCreatePowerValue`
@@ -897,6 +910,24 @@ mod tests {
                 power: 0,
             },
             "Creature::GetCreatePowerValue rejects powers without IsUsedByNPCs"
+        );
+    }
+
+    #[test]
+    fn use_regen_interrupt_reads_the_db2_flag_like_cpp() {
+        let store = PowerTypeStore::from_entries([
+            power_type_entry(700, 0, 0, 0, 0x0002),
+            power_type_entry(701, 3, 0, 0, 0),
+        ]);
+
+        assert!(
+            store.uses_regen_interrupt_like_cpp(0),
+            "C++ `PowerTypeFlags::UseRegenInterrupt` is 0x0002"
+        );
+        assert!(!store.uses_regen_interrupt_like_cpp(3));
+        assert!(
+            !store.uses_regen_interrupt_like_cpp(9),
+            "a missing PowerType entry is false, like C++'s null GetPowerTypeEntry"
         );
     }
 

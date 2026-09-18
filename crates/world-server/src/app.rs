@@ -4930,6 +4930,7 @@ async fn run_inner(
             num_talents_at_level_store: Arc::clone(&num_talents_at_level_store),
             chr_races_store: Arc::clone(&chr_races_store),
             chr_classes_store: Arc::clone(&chr_classes_store),
+            power_type_store: Arc::clone(&power_type_store),
         },
         spells: SessionSpellCatalogCapabilitiesLikeCpp {
             spell_chain_store: Arc::clone(&spell_chain_store),

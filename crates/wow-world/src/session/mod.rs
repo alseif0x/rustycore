@@ -6715,7 +6715,6 @@ pub struct WorldSession {
     spell_linked_rejected_trigger_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
     talent_store: Option<Arc<TalentStore>>,
     num_talents_at_level_store: Option<Arc<NumTalentsAtLevelStore>>,
-    #[cfg(test)]
     power_type_store: Option<Arc<PowerTypeStore>>,
     cinematic_sequences_store: Option<Arc<CinematicSequencesStore>>,
     movie_store: Option<Arc<MovieStore>>,
@@ -8676,7 +8675,6 @@ impl WorldSession {
             spell_linked_rejected_trigger_spell_ids_like_cpp: None,
             talent_store: None,
             num_talents_at_level_store: None,
-            #[cfg(test)]
             power_type_store: None,
             cinematic_sequences_store: None,
             movie_store: None,

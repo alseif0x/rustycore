@@ -173,6 +173,10 @@ pub(super) struct SessionPlayerCatalogCapabilitiesLikeCpp {
         Arc<wow_data::progression_rewards::NumTalentsAtLevelStore>,
     pub(super) chr_races_store: Arc<wow_data::character_progression::ChrRacesStore>,
     pub(super) chr_classes_store: Arc<wow_data::character_progression::ChrClassesStore>,
+    /// C++ `sDB2Manager.GetPowerTypeEntry`: `Unit::EnergizeBySpell` reads the
+    /// `UseRegenInterrupt` flag from it and `Player::RegeneratePower` reads the
+    /// regen rates (`Unit.cpp:6581-6585`, `Player.cpp:1706`).
+    pub(super) power_type_store: Arc<wow_data::character_progression::PowerTypeStore>,
 }
 
 /// Immutable SpellMgr-style catalogs and audited spell authority.
@@ -387,6 +391,7 @@ impl SessionPlayerCatalogCapabilitiesLikeCpp {
         session.set_num_talents_at_level_store(Arc::clone(&self.num_talents_at_level_store));
         session.set_chr_races_store(Arc::clone(&self.chr_races_store));
         session.set_chr_classes_store(Arc::clone(&self.chr_classes_store));
+        session.set_power_type_store(Arc::clone(&self.power_type_store));
     }
 }
 
