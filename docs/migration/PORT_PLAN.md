@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 mechanic damage-taken term — 2026-09-18, implementation `7c32137d`:** the
+drain/burn pre-scaling also folds the victim's
+`SPELL_AURA_MOD_MECHANIC_DAMAGE_TAKEN_PERCENT` auras against the spell's
+`GetAllEffectsMechanicMask`, which required carrying `effect_mechanic` on
+`SpellEffectInfo` from the existing DB2 entry and adding the aura-type constant.
+Limits: the mask is `u32` (C++ is `uint64`), and the specific-spell/label caster
+terms, the DOT term and Sanctified Wrath stay unrepresented.
+
 **#31 caster school-mask damage-taken term — 2026-09-18, implementation
 `f832c5f0`:** the drain/burn pre-scaling also folds the auras the damaging caster
 applied with `SPELL_AURA_MOD_SCHOOL_MASK_DAMAGE_FROM_CASTER` whose misc value
