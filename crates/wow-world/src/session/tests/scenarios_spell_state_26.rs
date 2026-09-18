@@ -334,3 +334,106 @@ async fn spell_power_drain_applies_the_victim_school_damage_taken_aura_like_cpp(
         "the caster share is `int32(150 * 0.5) = 75`"
     );
 }
+
+/// C++ cheat-death term of `Unit::SpellDamageBonusTaken` (`Unit.cpp:6793-6795`):
+/// aura spell `45182` adds its amount as a percentage when its misc value
+/// intersects `SPELL_SCHOOL_MASK_NORMAL`.
+#[tokio::test]
+async fn spell_power_drain_applies_the_cheat_death_taken_term_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let spell_id = 90_308_i32;
+    let cheat_death_spell_id = 45_182_i32;
+    let player_guid = ObjectGuid::create_player(1, 910);
+    let creature_guid = test_creature_guid(19_307);
+    let position = Position::new(10.0, 20.0, 30.0, 0.0);
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "Drainer".to_string(),
+        position,
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session.set_player_health_like_cpp(100, 100);
+    register_test_creature(&mut session, manager.clone(), creature_guid, 100);
+    add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 7);
+    add_canonical_test_creature_indexed_on_map_with_level(
+        &canonical,
+        creature_guid,
+        9_001,
+        position,
+        0,
+        7,
+        80,
+    );
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_power_index(PowerType::Mana, Some(0));
+            player.unit_mut().set_max_power(PowerType::Mana, 200);
+            player.unit_mut().set_power(PowerType::Mana, 25);
+            player.clear_data_changes();
+        })
+        .unwrap();
+    session
+        .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
+            let unit = creature.unit_mut();
+            unit.set_power_index(PowerType::Mana, Some(0));
+            unit.set_max_power(PowerType::Mana, 200);
+            unit.set_power(PowerType::Mana, 200);
+            unit.set_display_power(PowerType::Mana);
+            creature.clear_data_changes();
+        })
+        .unwrap();
+
+    // `SPELL_AURA_MOD_DAMAGE_DONE` so the school damage-taken term stays 1.0.
+    let mut cheat_death = power_spell_info_like_cpp(
+        cheat_death_spell_id,
+        wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+        20,
+        PowerType::Mana,
+    );
+    cheat_death.effects[0].effect_aura = wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE;
+    cheat_death.effects[0].effect_misc_value_1 = 0x01;
+    let mut spell = power_spell_info_like_cpp(
+        spell_id,
+        wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_DRAIN,
+        100,
+        PowerType::Mana,
+    );
+    spell.effects[0].effect_amplitude = 0.5;
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(cheat_death_spell_id, cheat_death);
+    spell_store.insert(spell_id, spell);
+    session.set_spell_store(Arc::new(spell_store));
+
+    session
+        .apply_creature_aura_like_cpp(cheat_death_spell_id, player_guid, creature_guid, 1, 30_000)
+        .expect("represented creature cheat-death aura should apply");
+
+    session
+        .execute_spell(spell_id, creature_guid)
+        .await
+        .expect("represented creature EffectPowerDrain should execute");
+
+    assert_eq!(
+        session
+            .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| creature
+                .unit()
+                .get_power(PowerType::Mana))
+            .unwrap(),
+        80,
+        "C++ drains `int32(100 * 1.2) = 120` with the cheat-death term"
+    );
+    assert_eq!(
+        session
+            .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
+            .unwrap(),
+        85,
+        "the caster share is `int32(120 * 0.5) = 60`"
+    );
+}

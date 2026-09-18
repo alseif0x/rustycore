@@ -4,6 +4,30 @@
 
 use super::*;
 
+/// C++ cheat-death term of `Unit::SpellDamageBonusTaken` (`Unit.cpp:6793-6795`):
+/// `GetAuraEffect(45182, EFFECT_0)` adds its amount as a percentage when its
+/// misc value intersects `SPELL_SCHOOL_MASK_NORMAL`.
+fn drain_taken_cheat_death_multiplier_like_cpp(auras: &wow_entities::AuraSubsystem) -> f32 {
+    const CHEAT_DEATH_SPELL_LIKE_CPP: u32 = 45_182;
+    const SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP: i32 = 0x1;
+    let Some(aura) = auras
+        .applied_auras
+        .iter()
+        .find(|aura| aura.spell_id == CHEAT_DEATH_SPELL_LIKE_CPP)
+    else {
+        return 1.0;
+    };
+    if !auras
+        .applied_aura_misc_values
+        .get(aura)
+        .is_some_and(|misc| misc & SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP != 0)
+    {
+        return 1.0;
+    }
+    let amount = auras.applied_aura_amounts.get(aura).copied().unwrap_or(0);
+    1.0 + amount as f32 / 100.0
+}
+
 impl WorldSession {
     /// C++ `Spell::EffectEnergize` (`SpellEffects.cpp:1488-1530`) /
     /// `Spell::EffectEnergizePct` (`SpellEffects.cpp:1532-1554`).
@@ -306,20 +330,16 @@ impl WorldSession {
         let aura_type = wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN;
         let multiplier = if target_guid == self.player_guid().unwrap_or(ObjectGuid::EMPTY) {
             self.mutate_canonical_player_like_cpp(|player| {
-                player
-                    .unit()
-                    .subsystems()
-                    .auras
-                    .total_aura_multiplier_by_misc_mask_like_cpp(aura_type, school_mask)
+                let auras = &player.unit().subsystems().auras;
+                auras.total_aura_multiplier_by_misc_mask_like_cpp(aura_type, school_mask)
+                    * drain_taken_cheat_death_multiplier_like_cpp(auras)
             })
             .unwrap_or(1.0)
         } else {
             self.mutate_canonical_creature_by_guid_like_cpp(target_guid, |creature| {
-                creature
-                    .unit()
-                    .subsystems()
-                    .auras
-                    .total_aura_multiplier_by_misc_mask_like_cpp(aura_type, school_mask)
+                let auras = &creature.unit().subsystems().auras;
+                auras.total_aura_multiplier_by_misc_mask_like_cpp(aura_type, school_mask)
+                    * drain_taken_cheat_death_multiplier_like_cpp(auras)
             })
             .unwrap_or(1.0)
         };
