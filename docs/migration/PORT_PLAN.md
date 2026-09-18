@@ -33,6 +33,15 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 direct spell heal combat log — 2026-09-18, implementation
+`5958c9a1`:** C++ `Unit::HealBySpell`'s `SMSG_SPELL_HEAL_LOG`
+(`Unit.cpp:6538-6563`) now publishes from both heal branches after the committed
+heal through a new `SpellHealLog` writer, carrying the requested heal, its
+original, the over-heal the health cap discarded and the C++ bit tail. Limits:
+heal absorb and critical heals are not represented (`Absorbed` zero, `Crit`
+false), the log is session-local rather than fanned out to the visible set, and
+creature-cast spell effects remain unimplemented.
+
 **#31 direct spell damage combat log — 2026-09-18, implementation
 `8808bb91`:** C++ `Unit::DealSpellDamage`'s `SMSG_SPELL_NON_MELEE_DAMAGE_LOG`
 (`Unit.cpp:1250-1260`, `5353-5380`) now publishes for direct spell hits through
