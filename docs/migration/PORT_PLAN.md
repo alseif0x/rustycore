@@ -33,6 +33,15 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 flagged-power regen interrupt on energize — 2026-09-18, implementation
+`1e89ffa8`:** `Unit::EnergizeBySpell` now interrupts a target power whose DB2
+`PowerTypeEntry` carries `PowerTypeFlags::UseRegenInterrupt` before the power
+change (`Player::InterruptPowerRegen` plus `SMSG_INTERRUPT_POWER_REGEN`), reading
+the same production `PowerTypeStore` the regen gate consumes through the new
+`uses_regen_interrupt_like_cpp` rule. Limits: only the represented self-energize
+target has regen state to interrupt; creature caster/target energize is still
+outside the slice.
+
 **#31 `EnergizeBySpell` casing and assisting threat — 2026-09-18, implementation
 `fb3aabdb`:** `EffectEnergize` now applies its level-dependent cases (Blood Fury,
 Burst of Energy) and the Runic Mana Injector `AddPct(damage, 25)` engineering
