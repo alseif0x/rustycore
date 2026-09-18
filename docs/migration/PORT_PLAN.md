@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 negative damage-taken aura regression — 2026-09-18, implementation
+`6f1a5c02`:** test-only pin proving the creature-aura amount path folds a `-50`
+damage-taken aura to a `0.5` multiplier, which isolates the failed Sanctified
+Wrath attempt to its caster-side aura application. Next attempt: assert the
+caster's `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` aura registers effect data before
+wiring the bypass term.
+
 **#31 caster label damage-taken term — 2026-09-18, implementation `c11833e6`:**
 the drain/burn pre-scaling now folds the caster's
 `SPELL_AURA_MOD_DAMAGE_TAKEN_FROM_CASTER_BY_LABEL` auras against the damaging
