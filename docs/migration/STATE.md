@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`c2405506` (PR #1183, the #31 creature-target power drain, following
+`51c6ae5a` (PR #1185, the #31 creature power burn through the damage path,
+following PR #1183, the #31 creature-target power drain, following
 PR #1181, the #31 durability rows in the spell execute log, following
 PR #1179, the #31 spell execute log with take-power entries, following
 PR #1177, the #31 flagged-power regen interrupt on energize, following
@@ -58,6 +59,36 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 creature power burn through the damage path — 2026-09-18, implementation
+`ee80e538`, integrated as `51c6ae5a` by PR #1185:** C++
+`Spell::EffectPowerBurn` (`SpellEffects.cpp:1142-1165`) drains the target's power
+and adds `int32(drained * SpellEffectInfo::CalcValueMultiplier)` to `m_damage`,
+which the spell applies through the normal damage pipeline; PR #1183 delivered the
+creature drain but left the creature burn a no-op because that damage needs the
+represented creature damage path, which is async and needs the cast identity.
+`apply_power_drain_effect_like_cpp` is now async and takes the item-GUID
+generator plus `cast_id`/`spell_visual_id`, and a creature target with
+`burn_damage` routes the scaled amount through `apply_damage_from_caster_like_cpp`
+— the same path `SPELL_EFFECT_SCHOOL_DAMAGE` uses — so the damage lands with its
+combat log, tap and kill-cascade behavior; the drain-on-creature and both
+player-target branches are unchanged. Coverage:
+`spell_power_burn_on_a_creature_applies_the_scaled_damage_like_cpp` burns a
+creature with 40 of 100 mana and 100 health for 15 at amplitude 1.0, asserting the
+pool drops to 25 and the health to 85, alongside the unchanged creature-drain and
+player drain/burn scenarios. Evidence at `ee80e538`: `wow-world --lib` 4014/0/1,
+`cargo fmt --all --check` and `git diff --check` clean, physical ratchet PASS with
+no ceiling moved, `session-ownership-check --syntax-only` PASS after a reviewed
+`print-baseline` delta of exactly the changed drain signature (225 production +
+429 fixture fields, 3928 associated items); `validation-v2 quick` PASS 43.7 s
+(manifest `20260918T044904.085914Z-3783747-quick.json`) and `final --architecture`
+85.2 s, exit 1, 2 of 9 steps with `session-syntax-acceptance` PASS and the
+pre-existing hotspot ratchet as the only red; the runner campaign is 128.9 s,
+inside the 600 s ordinary budget. Boundaries: the creature's power change is still
+not published to observers (no represented creature power update-field writer)
+while the health damage uses the existing creature damage path, and drain/burn
+still skip C++'s `SpellDamageBonusDone/Taken` pre-scaling
+(`SpellEffects.cpp:1082-1088`).
 
 **#31 creature-target power drain — 2026-09-18, implementation `5cce3a15`,
 integrated as `c2405506` by PR #1183:** C++ `Spell::EffectPowerDrain`

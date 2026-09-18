@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 creature power burn through the damage path — 2026-09-18, implementation
+`ee80e538`:** `EffectPowerBurn` on a creature now adds
+`int32(drained * CalcValueMultiplier)` to the represented creature damage path
+(the drain effect became async and carries the cast identity), closing the no-op
+recorded with the drain. Limits: the creature power change itself is still not
+published to observers and drain/burn still skip the
+`SpellDamageBonusDone/Taken` pre-scaling.
+
 **#31 creature-target power drain — 2026-09-18, implementation `5cce3a15`:** a
 player's `EffectPowerDrain` now drains a creature target's canonical pool,
 records the take-power execute-log row and restores
