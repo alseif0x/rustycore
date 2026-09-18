@@ -35764,6 +35764,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "publish_heal_spell_log_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn publish_heal_spell_log_like_cpp (& self , spell_id : Option < i32 > , healer_guid : ObjectGuid , target_guid : ObjectGuid , heal_amount : u32 , effective_heal : u32 ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "publish_melee_absorb_consumption_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn publish_melee_absorb_consumption_like_cpp (& mut self , attacker_guid : ObjectGuid , victim_guid : ObjectGuid , original_damage : i32 , mana_spent : u32 , consumptions : & [crate :: session :: mailbox :: CreatureMeleeAbsorbConsumptionLikeCpp] ,)",

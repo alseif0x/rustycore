@@ -802,6 +802,7 @@ async fn spell_direct_heal_and_damage_use_spell_effect_rows_like_cpp() {
             ServerOpcodes::SpellGo,
             ServerOpcodes::SpellNonMeleeDamageLog,
             ServerOpcodes::UpdateObject,
+            ServerOpcodes::SpellHealLog,
             ServerOpcodes::UpdateObject,
             ServerOpcodes::CooldownEvent,
         ]
