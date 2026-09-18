@@ -252,12 +252,20 @@ impl WorldSession {
 
     /// C++ `Spell::EffectPowerDrain` / `Spell::EffectPowerBurn`.
     ///
-    /// Represented boundary: current canonical player target/caster only, so
-    /// `EffectPowerDrain` never restores power (C++ skips the gain for a self
-    /// drain). `EffectPowerBurn` applies the drained amount scaled by
-    /// `SpellEffectInfo::CalcValueMultiplier` (`SpellEffects.cpp:1157-1164`);
-    /// both effects publish `ExecuteLogEffectTakeTargetPower`
+    /// A creature target drains its canonical pool and restores
+    /// `drained * CalcValueMultiplier` to the caster through the represented
+    /// `EnergizeBySpell` (`SpellEffects.cpp:1094-1100`); the canonical player
+    /// target keeps C++'s self-drain rule, where no gain is restored.
+    /// `EffectPowerBurn` applies the drained amount scaled by
+    /// `SpellEffectInfo::CalcValueMultiplier` (`SpellEffects.cpp:1157-1164`),
+    /// and both effects publish `ExecuteLogEffectTakeTargetPower`
     /// (`SpellEffects.cpp:1101`, `1160`).
+    ///
+    /// Represented boundaries: `EffectPowerBurn` on a creature target is a
+    /// no-op because C++ accumulates that damage into the spell's damage
+    /// pipeline, which the represented chain applies to player victims only;
+    /// and a creature power change is not published to observers yet (no
+    /// represented creature power update field writer).
     pub(in crate::session) fn apply_power_drain_effect_like_cpp(
         &mut self,
         spell_id: i32,
@@ -271,10 +279,10 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return false;
         };
-        if target_guid != player_guid
-            || self.resolved_player_is_alive_like_cpp() != Some(true)
-            || damage < 0
-        {
+        if damage < 0 || (target_guid != player_guid && !target_guid.is_creature()) {
+            return false;
+        }
+        if target_guid == player_guid && self.resolved_player_is_alive_like_cpp() != Some(true) {
             return false;
         }
         if misc_value < 0 || misc_value >= MAX_POWERS as i32 {
@@ -284,6 +292,58 @@ impl WorldSession {
             return false;
         };
         let power = party_member_power_kind_from_u8_like_cpp(power_id);
+
+        // C++ accepts any living target whose `GetPowerType()` matches the
+        // effect (`SpellEffects.cpp:1078`, `1151`). Only the drain branch is
+        // represented for a creature target: C++ `EffectPowerBurn` accumulates
+        // its damage into the spell's damage pipeline, which the represented
+        // chain applies only to player victims.
+        if target_guid.is_creature() {
+            if burn_damage {
+                return false;
+            }
+            let drained = self
+                .mutate_canonical_creature_by_guid_like_cpp(target_guid, |creature| {
+                    if !creature.is_alive()
+                        || party_member_power_kind_from_u8_like_cpp(
+                            creature.unit().data().display_power,
+                        ) != power
+                    {
+                        return 0;
+                    }
+                    let current = creature.unit().get_power(power).max(0);
+                    let drain = current.min(damage);
+                    creature.unit_mut().set_power(power, current - drain);
+                    drain
+                })
+                .unwrap_or(0);
+            if drained == 0 {
+                return false;
+            }
+            self.record_spell_execute_log_take_target_power_like_cpp(
+                i32::try_from(effect).unwrap_or(0),
+                target_guid,
+                u32::try_from(drained).unwrap_or(u32::MAX),
+                u32::try_from(misc_value).unwrap_or(0),
+                value_multiplier,
+            );
+            // C++ `unitCaster->EnergizeBySpell(unitCaster, m_spellInfo, gain,
+            // powerType)` restores the caster's share
+            // (`SpellEffects.cpp:1094-1100`); the represented energize path
+            // owns its log, assisting threat and regen interrupt.
+            let gain = (drained as f32 * value_multiplier) as i32;
+            if gain > 0 {
+                self.apply_energize_effect_like_cpp(
+                    spell_id,
+                    player_guid,
+                    gain,
+                    misc_value,
+                    player_guid,
+                    false,
+                );
+            }
+            return true;
+        }
 
         let drained = self
             .mutate_canonical_player_like_cpp(|player| {
