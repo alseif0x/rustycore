@@ -33,6 +33,16 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 melee ignore-absorb term — 2026-09-18, implementation `05568f2e`:** the
+school-absorb and mana-shield shields now carry
+`SPELL_ATTR6_ABSORB_CANNOT_BE_IGNORE`, and both loops subtract the attacker's
+`SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL` share (`GetMaxPositiveAuraModifierByMiscMask`
+clamped to `[0, 100]`, `CalculatePct`) from what such a shield may take before
+restoring it for the next shield, exactly like C++'s `ModifyDamage(±x)` pair.
+Limits: C++'s negative-temporary-damage clamp artifact is floored at zero in the
+represented loop, and the spell-side absorb path still waits on a mutable
+represented shield pool for creature targets.
+
 **#31 spell energize log — 2026-09-18, implementation `c1fc0309`:** C++
 `Unit::EnergizeBySpell`'s `SMSG_SPELL_ENERGIZE_LOG` (`Unit.cpp:6566-6590`) now
 publishes through a new `SpellEnergizeLog` writer, with `Amount` computed as the
