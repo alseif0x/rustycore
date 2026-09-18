@@ -114,6 +114,9 @@ pub mod attributes {
     pub const SPELL_ATTR4_AURA_EXPIRES_OFFLINE: u32 = 0x0000_0004;
     /// C++ `SPELL_ATTR4_NO_HELPFUL_THREAT` (`SharedDefines.h`).
     pub const SPELL_ATTR4_NO_HELPFUL_THREAT: u32 = 0x0000_0008;
+    /// C++ `SPELL_ATTR4_IGNORE_DAMAGE_TAKEN_MODIFIERS` (`SharedDefines.h:587`),
+    /// read by `Unit::SpellDamageBonusTaken` (`Unit.cpp:6798`).
+    pub const SPELL_ATTR4_IGNORE_DAMAGE_TAKEN_MODIFIERS: u32 = 0x0000_0100;
     /// C++ `SPELL_ATTR4_NO_HARMFUL_THREAT` (`SharedDefines.h`).
     pub const SPELL_ATTR4_NO_HARMFUL_THREAT: u32 = 0x0000_0010;
     pub const SPELL_ATTR4_USE_FACING_FROM_SPELL: u32 = 0x8000_0000;

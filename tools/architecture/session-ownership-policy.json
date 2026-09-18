@@ -35534,7 +35534,7 @@
           "kind": "method",
           "name": "power_drain_pre_scaled_damage_like_cpp",
           "visibility": "pub (in crate :: session)",
-          "signature": "fn power_drain_pre_scaled_damage_like_cpp (& self , spell_id : i32 , effect_index : u32 , caster_guid : ObjectGuid , target_guid : ObjectGuid , coefficient : f32 , coefficient_from_ap : f32 , base_damage : i32 ,) -> i32",
+          "signature": "fn power_drain_pre_scaled_damage_like_cpp (& mut self , spell_id : i32 , effect_index : u32 , caster_guid : ObjectGuid , target_guid : ObjectGuid , coefficient : f32 , coefficient_from_ap : f32 , base_damage : i32 ,) -> i32",
           "cfg": [],
           "source_class": "production",
           "guards": [

@@ -259,7 +259,7 @@ impl WorldSession {
     /// `SpellDamageBonusTaken` has no represented producer yet, so the taken
     /// half of the C++ pre-scaling remains a recorded boundary.
     pub(in crate::session) fn power_drain_pre_scaled_damage_like_cpp(
-        &self,
+        &mut self,
         spell_id: i32,
         effect_index: u32,
         caster_guid: ObjectGuid,
@@ -271,7 +271,7 @@ impl WorldSession {
         if base_damage < 0 {
             return base_damage;
         }
-        i32::try_from(self.represented_spell_damage_bonus_done_like_cpp(
+        let scaled = i32::try_from(self.represented_spell_damage_bonus_done_like_cpp(
             spell_id,
             effect_index,
             caster_guid,
@@ -280,7 +280,50 @@ impl WorldSession {
             coefficient_from_ap,
             u32::try_from(base_damage).unwrap_or(0),
         ))
-        .unwrap_or(i32::MAX)
+        .unwrap_or(i32::MAX);
+
+        // C++ `Unit::SpellDamageBonusTaken` (`Unit.cpp:6775-6820`), school
+        // term: `GetTotalAuraMultiplierByMiscMask(SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN,
+        // spellProto->GetSchoolMask())` unless the spell carries
+        // `SPELL_ATTR4_IGNORE_DAMAGE_TAKEN_MODIFIERS`. The creator- and
+        // mechanic-specific terms of that function remain unrepresented.
+        let difficulty = self.current_map_difficulty_id_like_cpp();
+        if self.spell_store().is_some_and(|store| {
+            store.has_attribute_for_difficulty_like_cpp(
+                spell_id,
+                difficulty,
+                self.difficulty_store().map(AsRef::as_ref),
+                4,
+                wow_data::spell::attributes::SPELL_ATTR4_IGNORE_DAMAGE_TAKEN_MODIFIERS,
+            )
+        }) {
+            return scaled;
+        }
+        let Ok(spell_id_u32) = u32::try_from(spell_id) else {
+            return scaled;
+        };
+        let school_mask = self.spell_school_mask_for_difficulty_like_cpp(spell_id_u32, difficulty);
+        let aura_type = wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN;
+        let multiplier = if target_guid == self.player_guid().unwrap_or(ObjectGuid::EMPTY) {
+            self.mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit()
+                    .subsystems()
+                    .auras
+                    .total_aura_multiplier_by_misc_mask_like_cpp(aura_type, school_mask)
+            })
+            .unwrap_or(1.0)
+        } else {
+            self.mutate_canonical_creature_by_guid_like_cpp(target_guid, |creature| {
+                creature
+                    .unit()
+                    .subsystems()
+                    .auras
+                    .total_aura_multiplier_by_misc_mask_like_cpp(aura_type, school_mask)
+            })
+            .unwrap_or(1.0)
+        };
+        (scaled as f32 * multiplier) as i32
     }
 
     /// C++ `Spell::EffectPowerDrain` / `Spell::EffectPowerBurn`.
