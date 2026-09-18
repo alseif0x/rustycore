@@ -302,27 +302,27 @@ impl WorldSession {
         // its damage into the spell's damage pipeline, which the represented
         // chain applies only to player victims.
         if target_guid.is_creature() {
-            let (drained, values_update) = self
+            let drained = self
                 .mutate_canonical_creature_by_guid_like_cpp(target_guid, |creature| {
                     if !creature.is_alive()
                         || party_member_power_kind_from_u8_like_cpp(
                             creature.unit().data().display_power,
                         ) != power
                     {
-                        return (0, None);
+                        return None;
                     }
                     let current = creature.unit().get_power(power).max(0);
                     let drain = current.min(damage);
                     creature.unit_mut().set_power(power, current - drain);
-                    (drain, Some(creature.unit().values_update()))
+                    Some((drain, creature.unit().values_update()))
                 })
-                .unwrap_or((0, None));
-            if drained == 0 {
+                .flatten();
+            let Some((drained, values_update)) = drained else {
                 return false;
-            }
+            };
             // The drained pool is a unit data field, published the same way the
             // represented creature heal publishes its health change.
-            if let Some(values_update) = values_update
+            if drained > 0
                 && self.client_visible_guids_like_cpp.contains(&target_guid)
                 && let Some(update) = self.represented_unit_values_update_to_update_object_like_cpp(
                     target_guid,
@@ -361,20 +361,20 @@ impl WorldSession {
                 return true;
             }
             // C++ `unitCaster->EnergizeBySpell(unitCaster, m_spellInfo, gain,
-            // powerType)` restores the caster's share
-            // (`SpellEffects.cpp:1094-1100`); the represented energize path
-            // owns its log, assisting threat and regen interrupt.
+            // powerType)` restores the caster's share unconditionally when the
+            // caster is not the target (`SpellEffects.cpp:1094-1100`), so a
+            // zero drain still publishes its zeroed energize log; the
+            // represented energize path owns that log, the assisting threat and
+            // the regen interrupt.
             let gain = (drained as f32 * value_multiplier) as i32;
-            if gain > 0 {
-                self.apply_energize_effect_like_cpp(
-                    spell_id,
-                    player_guid,
-                    gain,
-                    misc_value,
-                    player_guid,
-                    false,
-                );
-            }
+            self.apply_energize_effect_like_cpp(
+                spell_id,
+                player_guid,
+                gain,
+                misc_value,
+                player_guid,
+                false,
+            );
             return true;
         }
 
@@ -383,29 +383,30 @@ impl WorldSession {
                 if party_member_power_kind_from_u8_like_cpp(player.unit().data().display_power)
                     != power
                 {
-                    return 0;
+                    return None;
                 }
                 let current = player.get_power(power).max(0);
                 let drain = current.min(damage);
                 player.unit_mut().set_power(power, current - drain);
-                drain
+                Some(drain)
             })
-            .unwrap_or(0);
+            .flatten();
+        let Some(drained) = drained else {
+            return false;
+        };
 
-        if drained > 0 {
-            let drained_u32 = u32::try_from(drained).unwrap_or(u32::MAX);
-            // C++ logs the drained power before the burn multiplier
-            // (`SpellEffects.cpp:1160`), and with `gainMultiplier` for drain.
-            self.record_spell_execute_log_take_target_power_like_cpp(
-                i32::try_from(effect).unwrap_or(0),
-                target_guid,
-                drained_u32,
-                u32::try_from(misc_value).unwrap_or(0),
-                if burn_damage { 0.0 } else { value_multiplier },
-            );
-        }
+        // C++ logs the drained power before the burn multiplier
+        // (`SpellEffects.cpp:1160`), and with `gainMultiplier` for drain; an
+        // empty pool logs `points 0` rather than skipping the row.
+        self.record_spell_execute_log_take_target_power_like_cpp(
+            i32::try_from(effect).unwrap_or(0),
+            target_guid,
+            u32::try_from(drained).unwrap_or(u32::MAX),
+            u32::try_from(misc_value).unwrap_or(0),
+            if burn_damage { 0.0 } else { value_multiplier },
+        );
 
-        if burn_damage && drained > 0 {
+        if burn_damage {
             // C++ `newDamage = int32(newDamage * dmgMultiplier)`
             // (`SpellEffects.cpp:1162`); the represented target is the player,
             // so this stays the owned-player damage path.

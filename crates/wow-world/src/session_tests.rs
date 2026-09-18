@@ -198,6 +198,8 @@ mod scenarios_spell_state_23;
 mod scenarios_spell_state_24;
 #[path = "session/tests/scenarios_spell_state_25.rs"]
 mod scenarios_spell_state_25;
+#[path = "session/tests/scenarios_spell_state_26.rs"]
+mod scenarios_spell_state_26;
 #[path = "session/tests/scenarios_spell_state_3.rs"]
 mod scenarios_spell_state_3;
 #[path = "session/tests/scenarios_spell_state_4.rs"]
