@@ -33,6 +33,16 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 creature-target power drain — 2026-09-18, implementation `5cce3a15`:** a
+player's `EffectPowerDrain` now drains a creature target's canonical pool,
+records the take-power execute-log row and restores
+`drained * CalcValueMultiplier` to the caster through the represented
+`EnergizeBySpell` (log, assisting threat, regen interrupt); the player
+self-drain rule is unchanged. Limits: burn on a creature stays a no-op (C++
+routes it through the spell damage pipeline), the creature power change is not
+published to observers yet, and the `SpellDamageBonusDone/Taken` pre-scaling is
+still unported for drain.
+
 **#31 durability rows in the spell execute log — 2026-09-18, implementation
 `d8688e97`:** `EffectDurabilityDamage` now logs its execute-log row exactly as C++
 does (`-1`/`-1` for all items, the equipped item entry plus the slot otherwise),
