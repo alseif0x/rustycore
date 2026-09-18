@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`7a40dba2` (PR #1211, the #31 caster label damage-taken term and its label authority,
+`b96ac6f4`-family head after PR #1213, the #31 negative damage-taken aura regression
+(following PR #1211, the #31 caster label damage-taken term and its label authority,
 following PR #1209, the #31 damage-taken term stacking regression, following
 PR #1207, the #31 caster spell-family damage-taken term, following
 PR #1205, the #31 mechanic damage-taken term and its data seam,
@@ -72,6 +73,27 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 negative damage-taken aura regression — 2026-09-18, implementation
+`6f1a5c02`, integrated by PR #1213:** test-only pin of the amount path the
+drain/burn pre-scaling reads, added while attempting the Sanctified Wrath bypass
+term (`Unit.cpp:6840-6854`), whose fixture behaved as if the bypass did nothing.
+`creature_negative_damage_taken_aura_registers_a_reduction_like_cpp` proves that a
+creature aura with base `-50` and matching misc bit registers its amount
+unchanged and folds to exactly `0.5` in
+`total_aura_multiplier_by_misc_mask_like_cpp`, so the creature-aura amount path
+and multiplier fold are correct for reductions. That isolates the failed bypass
+attempt to the *caster-side* aura application: the next attempt must first assert
+that the caster's `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` aura registers effect
+data through `apply_aura` (or apply it through a path that does) before wiring the
+bypass term. Evidence: `wow-world --lib` 4026/0/1, `cargo fmt --all --check` and
+`git diff --check` clean, physical ratchet PASS with no ceiling moved, ownership
+syntax PASS with no baseline delta (test-only); `validation-v2 quick` PASS 103.4 s
+(manifest `20260918T075849.424866Z-3904210-quick.json`) and `final
+--architecture` 87.8 s, exit 1, 2 of 9 steps with `session-syntax-acceptance` PASS
+and the pre-existing hotspot ratchet as the only red; the runner campaign is
+191.2 s, inside the 600 s ordinary budget. No production behavior, packet layout
+or ownership surface changed.
 
 **#31 caster label damage-taken term — 2026-09-18, implementation `c11833e6`,
 integrated as `7a40dba2` by PR #1211:** C++ `Unit::SpellDamageBonusTaken`
