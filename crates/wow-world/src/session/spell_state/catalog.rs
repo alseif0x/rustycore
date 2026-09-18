@@ -157,6 +157,13 @@ impl WorldSession {
     pub fn set_spell_class_options_store(&mut self, store: Arc<wow_data::SpellClassOptionsStore>) {
         self.spell_catalogs.set_spell_class_options_store(store);
     }
+    /// C++ `sSpellMgr` label authority, read by `SpellInfo::HasLabel`.
+    pub fn set_spell_label_store(&mut self, store: Arc<wow_data::SpellLabelStore>) {
+        self.spell_catalogs.set_spell_label_store(store);
+    }
+    pub fn spell_label_store(&self) -> Option<&Arc<wow_data::SpellLabelStore>> {
+        self.spell_catalogs.spell_label_store()
+    }
     pub fn set_spell_learn_spell_store(&mut self, store: Arc<SpellLearnSpellStoreLikeCpp>) {
         self.spell_catalogs.set_spell_learn_spell_store(store);
     }

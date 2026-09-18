@@ -204,6 +204,9 @@ pub(super) struct SessionSpellCatalogCapabilitiesLikeCpp {
     /// C++ `SpellInfo::SpellFamilyName`/`SpellFamilyFlags` source
     /// (`SpellClassOptions.db2`).
     pub(super) spell_class_options_store: Arc<wow_data::SpellClassOptionsStore>,
+    /// C++ `sSpellMgr` label authority (`SpellLabel.db2`), read by
+    /// `SpellInfo::HasLabel` for the caster-label damage-taken term.
+    pub(super) spell_label_store: Arc<wow_data::SpellLabelStore>,
     pub(super) npc_spell_click_store: Arc<wow_data::NpcSpellClickStoreLikeCpp>,
     pub(super) spell_aura_options_store: Arc<wow_data::SpellAuraOptionsStore>,
     pub(super) spell_aura_restrictions_store: Arc<wow_data::SpellAuraRestrictionsStore>,
@@ -414,6 +417,7 @@ impl SessionSpellCatalogCapabilitiesLikeCpp {
         session.set_spell_chain_store(Arc::clone(&self.spell_chain_store));
         session.set_spell_category_store(Arc::clone(&self.spell_category_store));
         session.set_spell_class_options_store(Arc::clone(&self.spell_class_options_store));
+        session.set_spell_label_store(Arc::clone(&self.spell_label_store));
         session.set_npc_spell_click_store(Arc::clone(&self.npc_spell_click_store));
         session.set_spell_aura_options_store(Arc::clone(&self.spell_aura_options_store));
         session.set_spell_aura_restrictions_store(Arc::clone(&self.spell_aura_restrictions_store));

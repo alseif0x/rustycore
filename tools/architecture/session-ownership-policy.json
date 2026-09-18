@@ -54235,6 +54235,20 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "set_spell_label_store",
+          "visibility": "pub",
+          "signature": "fn set_spell_label_store (& mut self , store : Arc < wow_data :: SpellLabelStore >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "set_spell_learn_skill_store",
           "visibility": "pub",
           "signature": "fn set_spell_learn_skill_store (& mut self , store : Arc < SpellLearnSkillStoreLikeCpp >)",
@@ -55239,6 +55253,19 @@
           "name": "spell_item_enchantment_store",
           "visibility": "pub",
           "signature": "fn spell_item_enchantment_store (& self) -> Option < & Arc < SpellItemEnchantmentStore > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "spell_label_store",
+          "visibility": "pub",
+          "signature": "fn spell_label_store (& self) -> Option < & Arc < wow_data :: SpellLabelStore > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
