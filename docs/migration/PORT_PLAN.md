@@ -33,6 +33,17 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 `EnergizeBySpell` casing and assisting threat — 2026-09-18, implementation
+`fb3aabdb`:** `EffectEnergize` now applies its level-dependent cases (Blood Fury,
+Burst of Energy) and the Runic Mana Injector `AddPct(damage, 25)` engineering
+bonus before the power change, and `EnergizeBySpell` forwards `damage / 2`
+assisting threat through the shared
+`forward_assisting_threat_like_cpp(..., ignore_modifiers = true)` helper the heal
+path now also uses. Limits: the `UseRegenInterrupt` trigger still needs the DB2
+`PowerType` entry at the effect site (the regen gate already consumes it), caster
+level/skill come from the session Player, and the owner split keeps its
+pre-existing representation.
+
 **#31 per-slot creature addon aura effects — 2026-09-18, implementation
 `3082a93e`:** spawn-addon auras now carry the `AuraEffect` data
 `Unit::AddAura`/`Aura::BuildEffectMaskForOwner` create — resolved once at the
