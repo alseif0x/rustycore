@@ -33,6 +33,17 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 player-target heal absorb — 2026-09-18, implementation `71286ca2`:** C++
+`Unit::CalcHealAbsorb` (`Unit.cpp:2020-2084`) now runs for the session's own
+player target before `DealHeal`: the `SPELL_AURA_SCHOOL_HEAL_ABSORB` shields are
+spent, each consuming shield publishes `SMSG_SPELL_HEAL_ABSORB_LOG` through a
+new `SpellHealAbsorbLog` writer, spent shields are removed by the aura
+transition and the heal log reports the reduced heal, its original and the
+absorbed amount. The shield-amount depletion is now one shared implementation
+for the melee and heal stages. Limits: a creature heal target has no mutable
+represented aura amount, critical heals remain unrepresented and combat-log
+delivery stays session-local.
+
 **#31 direct spell heal combat log — 2026-09-18, implementation
 `5958c9a1`:** C++ `Unit::HealBySpell`'s `SMSG_SPELL_HEAL_LOG`
 (`Unit.cpp:6538-6563`) now publishes from both heal branches after the committed

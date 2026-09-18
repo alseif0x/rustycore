@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`8b0c0d49c6227da101fcc7894889a64a793b3c4e` (PR #1163, the #31 direct spell heal
+`06aa842e4bec35d9d4f6e0a59a702643208cf7f7` (PR #1165, the #31 player-target
+heal-absorb stage, following PR #1163, the #31 direct spell heal
 combat log, following PR #1161, the #31 direct spell
 damage combat log, following PR #1159, the #29 player-victim
 melee mana-shield absorb stage, following PR #1157, the #29 player-victim
@@ -48,6 +49,50 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 player-target heal absorb — 2026-09-18, implementation `71286ca2`,
+integrated as `06aa842e` by PR #1165:** C++ `Unit::CalcHealAbsorb`
+(`Unit.cpp:2020-2084`) had no represented producer: a target's
+`SPELL_AURA_SCHOOL_HEAL_ABSORB` shields absorbed nothing and the heal log always
+reported a zero `Absorbed`. `session_rules::player_heal_absorb_shields_like_cpp`
+projects each active heal-absorb effect (slot, effect index, amount) whose
+`MiscValue` covers the heal's school mask, and
+`represented_heal_absorb_like_cpp` reproduces C++'s loop: the amount is clamped
+to the heal left, an amount-counting shield is depleted and removed at zero and
+a negative amount is clamped to zero and never removed (no priority sort and no
+ignore-absorb term exist in this C++ loop).
+`WorldSession::apply_owned_player_heal_absorb_like_cpp` runs the stage for the
+session's own player target before `DealHeal`, publishing one
+`SMSG_SPELL_HEAL_ABSORB_LOG` per consuming shield through the new
+`SpellHealAbsorbLog` writer (`WorldPackets::CombatLog::SpellHealAbsorbLog::Write`,
+`CombatLogPackets.cpp:471-486`: target, absorb caster and healer packed GUIDs,
+`AbsorbSpellID`, `AbsorbedSpellID`, `Absorbed`, `OriginalHeal`, content-tuning
+presence bit), depleting the canonical `AuraEffect` amount and removing spent
+shields through the aura transition that owns the publication; the heal then
+receives the reduced amount and the heal log reports
+`HealInfo::GetHeal()`/`GetOriginalHeal()`/`GetAbsorb()` exactly like
+`HealInfo::AbsorbHeal`. The shield-amount depletion is now one shared
+implementation (`session::combat::write_absorbed_shield_amount_like_cpp`) used
+by both the map-owned melee absorb stage and this session-owned heal stage.
+Coverage: the bounded `session/tests/scenarios_combat_5.rs` rules suite (no
+shield, zero heal, partial/exact/spill consumption, negative infinite shield,
+aura-order spending) and a production-shaped scenario in
+`scenarios_spell_state_16.rs` where a 30-point shield absorbs a 20-point heal
+whole and keeps 10, the absorb log decodes field by field, the heal log reports
+`health 0`/`original 20`/`absorbed 20`, and the next heal spends the last 10 and
+removes the shield. Evidence at `06aa842e`: `wow-world --lib` 3999/0/1,
+`wow-packet --lib` 750/0, `cargo fmt --all --check` and `git diff --check`
+clean, physical ratchet PASS (2234 files, no ceiling moved),
+`session-ownership-check --syntax-only` PASS with a reviewed `print-baseline`
+delta (the new heal-absorb method at 3915 exact associated items);
+`validation-v2 quick` PASS in 117.8 s (manifest
+`20260918T004911.084986Z-3632218-quick.json`) and `final --architecture` 85.3 s,
+exit 1, 2 of 8 steps with `session-syntax-acceptance` PASS and the pre-existing
+hotspot ratchet as the only red; the campaign is 203.0 s, inside the 600 s
+ordinary budget. Limits: a creature heal target has no mutable represented aura
+amount, so its heal absorb stays open exactly like the damage absorb for
+creature victims; critical heals remain unrepresented and the combat-log
+visible-set fan-out is still session-local.
 
 **#31 direct spell heal combat log — 2026-09-18, implementation `5958c9a1`,
 integrated as `8b0c0d49` by PR #1163:** C++ `Unit::HealBySpell` publishes
