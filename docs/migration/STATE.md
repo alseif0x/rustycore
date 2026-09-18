@@ -96,9 +96,15 @@ ordinary player auras applied through that path. Two routes exist and both are
 larger than a slice: extend the canonical sync from threat-relevant to all applied
 effects (broad consumer impact, per-consumer review) or read the bypass term from
 the Player-visible list (which needs a `ModIgnoreTargetResist` variant on
-`RepresentedAuraEffectLikeCpp`). The minimal enabler for the Sanctified Wrath term
-is adding type 269 to `sync_canonical_threat_relevant_aura_like_cpp` alongside its
-amount and misc value. Evidence: `wow-world --lib` 4026/0/1, `cargo fmt --all --check` and
+`RepresentedAuraEffectLikeCpp`). A first idea — adding type 269 to
+`sync_canonical_threat_relevant_aura_like_cpp` — was inspected and rejected: that
+sync is built on the threat-snapshot machinery
+(`canonical_threat_aura_snapshot_for_difficulty_like_cpp`,
+`AuraThreatSnapshotLikeCpp`) and is not the right carrier for an unrelated effect
+type. The real options remain the two above: a general player-aura effect
+registration in the canonical subsystem (faithful, but every canonical consumer
+must be reviewed and its regressions re-run) or a Player-visible reader for the
+bypass term with a new `ModIgnoreTargetResist` variant. Evidence: `wow-world --lib` 4026/0/1, `cargo fmt --all --check` and
 `git diff --check` clean, physical ratchet PASS with no ceiling moved, ownership
 syntax PASS with no baseline delta (test-only); `validation-v2 quick` PASS 103.4 s
 (manifest `20260918T075849.424866Z-3904210-quick.json`) and `final
