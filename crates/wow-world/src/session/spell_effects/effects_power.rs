@@ -59,6 +59,24 @@ fn drain_taken_school_from_caster_multiplier_like_cpp(
     multiplier
 }
 
+/// C++ `Unit::SpellDamageBonusTaken` (`Unit.cpp:6783-6791`), mechanic term:
+/// `GetTotalAuraMultiplier(SPELL_AURA_MOD_MECHANIC_DAMAGE_TAKEN_PERCENT)` over
+/// the auras whose misc value intersects `SpellInfo::GetAllEffectsMechanicMask`.
+/// Represented with a `u32` mask, so a mechanic index of 32 or above cannot be
+/// represented.
+fn drain_taken_mechanic_multiplier_like_cpp(
+    auras: &wow_entities::AuraSubsystem,
+    mechanic_mask: u32,
+) -> f32 {
+    if mechanic_mask == 0 {
+        return 1.0;
+    }
+    auras.total_aura_multiplier_by_misc_mask_like_cpp(
+        wow_data::spell::aura_types::SPELL_AURA_MOD_MECHANIC_DAMAGE_TAKEN_PERCENT,
+        mechanic_mask,
+    )
+}
+
 impl WorldSession {
     /// C++ `Spell::EffectEnergize` (`SpellEffects.cpp:1488-1530`) /
     /// `Spell::EffectEnergizePct` (`SpellEffects.cpp:1532-1554`).
@@ -358,6 +376,27 @@ impl WorldSession {
             return scaled;
         };
         let school_mask = self.spell_school_mask_for_difficulty_like_cpp(spell_id_u32, difficulty);
+        // C++ `SpellInfo::GetAllEffectsMechanicMask` (`SpellInfo.cpp:4770-4785`):
+        // the OR of `1 << EffectInfo.Mechanic` over the spell's effects.
+        let mechanic_mask = self
+            .spell_store()
+            .and_then(|store| {
+                store.effects_for_difficulty_like_cpp(
+                    spell_id,
+                    difficulty,
+                    self.difficulty_store().map(AsRef::as_ref),
+                )
+            })
+            .map(|effects| {
+                effects.iter().fold(0u32, |mask, effect| {
+                    if effect.effect_mechanic > 0 && effect.effect_mechanic < 32 {
+                        mask | (1u32 << effect.effect_mechanic)
+                    } else {
+                        mask
+                    }
+                })
+            })
+            .unwrap_or(0);
         let aura_type = wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN;
         let multiplier = if target_guid == self.player_guid().unwrap_or(ObjectGuid::EMPTY) {
             self.mutate_canonical_player_like_cpp(|player| {
@@ -369,6 +408,7 @@ impl WorldSession {
                         caster_guid,
                         school_mask,
                     )
+                    * drain_taken_mechanic_multiplier_like_cpp(auras, mechanic_mask)
             })
             .unwrap_or(1.0)
         } else {
@@ -381,6 +421,7 @@ impl WorldSession {
                         caster_guid,
                         school_mask,
                     )
+                    * drain_taken_mechanic_multiplier_like_cpp(auras, mechanic_mask)
             })
             .unwrap_or(1.0)
         };

@@ -59,6 +59,10 @@ pub struct SpellEffectInfo {
     pub effect: u32,
     pub effect_aura: i32,
     pub effect_base_points: i32,
+    /// C++ `SpellEffectInfo::Mechanic` (`SpellEffectEntry::EffectMechanic`),
+    /// read by `SpellInfo::GetAllEffectsMechanicMask` and
+    /// `Unit::SpellDamageBonusTaken` (`Unit.cpp:6783-6791`).
+    pub effect_mechanic: i32,
     /// C++ `SpellEffectInfo::Amplitude` (`SpellEffectEntry::EffectAmplitude`,
     /// `DB2Structure.h:3510`): the periodic period and, for
     /// `SPELL_AURA_MANA_SHIELD`, the mana the shield drains per point of damage
