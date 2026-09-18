@@ -454,6 +454,48 @@ impl ServerPacket for SpellHealLog {
     }
 }
 
+// ── SpellHealAbsorbLog (SMSG_SPELL_HEAL_ABSORB_LOG) ───────────────
+
+/// Combat-log packet C++ `Unit::CalcHealAbsorb` sends for every heal-absorbing
+/// aura that consumed part of a heal (`Unit.cpp:2070-2083`).
+///
+/// C++ anchor: `WorldPackets::CombatLog::SpellHealAbsorbLog::Write`
+/// (`CombatLogPackets.cpp:471-486`) writes the target, the absorb aura's caster
+/// and the healer packed GUIDs, `int32(AbsorbSpellID)`,
+/// `int32(AbsorbedSpellID)`, `int32(Absorbed)`, `int32(OriginalHeal)` and then
+/// the content-tuning presence bit. Unlike the damage absorb log this packet is
+/// a plain `ServerPacket`, so it has no log-data bit; the represented path has
+/// no generated content-tuning parameters, so that bit is false and no
+/// parameters follow.
+#[derive(Debug, Clone)]
+pub struct SpellHealAbsorbLog {
+    pub target: ObjectGuid,
+    /// C++ `AbsorbCaster`: the heal-absorb aura's caster.
+    pub absorb_caster: ObjectGuid,
+    pub healer: ObjectGuid,
+    pub absorb_spell_id: i32,
+    /// C++ `AbsorbedSpellID`: the heal being absorbed (`0` without a spell).
+    pub absorbed_spell_id: i32,
+    pub absorbed: i32,
+    pub original_heal: i32,
+}
+
+impl ServerPacket for SpellHealAbsorbLog {
+    const OPCODE: ServerOpcodes = ServerOpcodes::SpellHealAbsorbLog;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.target);
+        pkt.write_packed_guid(&self.absorb_caster);
+        pkt.write_packed_guid(&self.healer);
+        pkt.write_int32(self.absorb_spell_id);
+        pkt.write_int32(self.absorbed_spell_id);
+        pkt.write_int32(self.absorbed);
+        pkt.write_int32(self.original_heal);
+        pkt.write_bit(false); // `ContentTuning.has_value()`
+        pkt.flush_bits();
+    }
+}
+
 // ── HealthUpdate (SMSG_HEALTH_UPDATE) ─────────────────────────────
 
 /// Direct owner health update sent by C++ `Unit::ModifyHealth` when damage
@@ -1053,6 +1095,41 @@ mod tests {
         assert!(!pkt.has_bit().expect("crit roll made"));
         assert!(!pkt.has_bit().expect("crit roll needed"));
         assert!(!pkt.has_bit().expect("has log data"));
+        assert!(!pkt.has_bit().expect("content tuning"));
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn spell_heal_absorb_log_writes_cpp_field_order_like_cpp() {
+        let target = ObjectGuid::create_player(1, 0x0102_0304_0506_0708);
+        let absorb_caster = ObjectGuid::create_player(1, 0x1112_1314_1516_1718);
+        let healer = ObjectGuid::create_player(1, 0x2122_2324_2526_2728);
+        let bytes = SpellHealAbsorbLog {
+            target,
+            absorb_caster,
+            healer,
+            absorb_spell_id: 17_262,
+            absorbed_spell_id: 2_066_001,
+            absorbed: 120,
+            original_heal: 300,
+        }
+        .to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::SpellHealAbsorbLog as u16
+        );
+        assert_eq!(pkt.read_packed_guid().expect("target"), target);
+        assert_eq!(
+            pkt.read_packed_guid().expect("absorb caster"),
+            absorb_caster
+        );
+        assert_eq!(pkt.read_packed_guid().expect("healer"), healer);
+        assert_eq!(pkt.read_int32().expect("absorb spell id"), 17_262);
+        assert_eq!(pkt.read_int32().expect("absorbed spell id"), 2_066_001);
+        assert_eq!(pkt.read_int32().expect("absorbed"), 120);
+        assert_eq!(pkt.read_int32().expect("original heal"), 300);
         assert!(!pkt.has_bit().expect("content tuning"));
         assert!(pkt.is_empty());
     }

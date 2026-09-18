@@ -211,3 +211,62 @@ fn represented_melee_mana_absorb_matches_calc_absorb_resist_like_cpp() {
     assert_eq!(dry.consumed[0].remaining, 30);
     assert!(!dry.consumed[0].removed);
 }
+
+/// C++ `Unit::CalcHealAbsorb`'s heal-absorb loop (`Unit.cpp:2026-2068`) for one
+/// heal.
+///
+/// Each shield's amount is clamped to the heal left, an amount-counting shield
+/// is depleted and removed at zero, and a negative (infinite) shield is clamped
+/// to zero and never removed. C++ has no priority sort and no ignore-absorb
+/// term in this loop.
+#[test]
+fn represented_heal_absorb_matches_calc_heal_absorb_like_cpp() {
+    use crate::session_rules::{
+        RepresentedHealAbsorbShieldLikeCpp as Shield, represented_heal_absorb_like_cpp,
+    };
+
+    let shield = |slot: u8, amount: i32| Shield {
+        slot,
+        effect_index: 0,
+        amount,
+    };
+
+    let none = represented_heal_absorb_like_cpp(&[], 20);
+    assert_eq!((none.absorbed, none.heal), (0, 20));
+    assert!(none.consumed.is_empty());
+
+    let zero = represented_heal_absorb_like_cpp(&[shield(0, 30)], 0);
+    assert_eq!((zero.absorbed, zero.heal), (0, 0));
+
+    // A shield larger than the heal consumes it whole and keeps the remainder.
+    let partial = represented_heal_absorb_like_cpp(&[shield(2, 30)], 20);
+    assert_eq!((partial.absorbed, partial.heal), (20, 0));
+    assert_eq!(partial.consumed[0].consumed, 20);
+    assert_eq!(partial.consumed[0].remaining, 10);
+    assert!(!partial.consumed[0].removed);
+
+    // A shield exactly the size of the heal is spent and removed.
+    let exact = represented_heal_absorb_like_cpp(&[shield(3, 20)], 20);
+    assert_eq!((exact.absorbed, exact.heal), (20, 0));
+    assert_eq!(exact.consumed[0].remaining, 0);
+    assert!(exact.consumed[0].removed);
+
+    // A small shield absorbs what it can; the rest of the heal lands.
+    let spill = represented_heal_absorb_like_cpp(&[shield(4, 7)], 20);
+    assert_eq!((spill.absorbed, spill.heal), (7, 13));
+    assert!(spill.consumed[0].removed);
+
+    // A negative amount is an infinite shield C++ clamps to zero and never
+    // removes.
+    let infinite = represented_heal_absorb_like_cpp(&[shield(5, -1)], 20);
+    assert_eq!((infinite.absorbed, infinite.heal), (0, 20));
+    assert_eq!(infinite.consumed[0].remaining, -1);
+    assert!(!infinite.consumed[0].removed);
+
+    // Shields are spent in aura order and the loop stops once the heal is gone.
+    let ordered = represented_heal_absorb_like_cpp(&[shield(6, 8), shield(7, 8)], 20);
+    assert_eq!((ordered.absorbed, ordered.heal), (16, 4));
+    assert_eq!(ordered.consumed.len(), 2);
+    assert_eq!(ordered.consumed[0].slot, 6);
+    assert_eq!(ordered.consumed[1].slot, 7);
+}

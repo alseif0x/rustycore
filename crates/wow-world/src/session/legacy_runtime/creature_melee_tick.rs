@@ -116,37 +116,16 @@ fn apply_melee_absorb_to_canonical_player_like_cpp(
 }
 
 /// Commit one spent shield's `AuraEffect` remainder on the canonical player.
-///
-/// The represented `AuraEffect` amount is the shield pool the projections read
-/// first; an amount this stage has not written yet falls back to the spell
-/// effect's no-caster value, so the first depletion writes the exact remainder
-/// the next swing must see.
 fn write_absorbed_shield_amount_like_cpp(
     player: &mut wow_entities::Player,
     consumption: &crate::session_rules::RepresentedAbsorbConsumptionLikeCpp,
 ) {
-    let Some(aura) = player
-        .unit_mut()
-        .subsystems_mut()
-        .auras
-        .runtime_application_mut_like_cpp(consumption.slot)
-    else {
-        return;
-    };
-    match aura
-        .represented_effect_amounts
-        .iter_mut()
-        .find(|represented| represented.effect_index == consumption.effect_index)
-    {
-        Some(represented) => represented.amount = consumption.remaining.max(0),
-        None => {
-            aura.represented_effect_amounts
-                .push(wow_entities::RepresentedAuraEffectAmountLikeCpp {
-                    effect_index: consumption.effect_index,
-                    amount: consumption.remaining.max(0),
-                })
-        }
-    }
+    crate::session::combat::write_absorbed_shield_amount_like_cpp(
+        player,
+        consumption.slot,
+        consumption.effect_index,
+        consumption.remaining,
+    );
 }
 
 /// Apply one player's melee swings to a legacy creature.
