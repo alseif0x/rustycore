@@ -5,6 +5,11 @@
 
 use super::*;
 
+/// Represented aura duration for a creature target: the same bounded 30-second
+/// convention the player self-cast chain uses until `SpellDuration.db2` is
+/// consumed for every represented aura.
+const REPRESENTED_CREATURE_AURA_DURATION_MS_LIKE_CPP: u32 = 30_000;
+
 impl WorldSession {
     pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
         &mut self,
@@ -735,9 +740,45 @@ impl WorldSession {
                         && effect.effect_aura != wow_data::spell::aura_types::SPELL_AURA_MOD_TAUNT
                 })
                 .count();
+            // C++ `Spell::EffectApplyAura` applies to `unitTarget`, not to the
+            // caster. The represented player chain below is the self-cast path;
+            // a creature target receives one canonical `AuraApplication`
+            // carrying every applied effect slot.
+            let mut creature_aura_applied = false;
             for effect in spell_info.effects().iter().filter(|effect| {
                 effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
             }) {
+                // The represented taunt path owns `SPELL_AURA_MOD_TAUNT` and
+                // its `EffectTaunt` current-victim gate, so that aura keeps
+                // flowing through the chain below instead of the generic
+                // creature application.
+                if target_guid != player_guid
+                    && target_guid.is_creature()
+                    && effect.effect_aura != wow_data::spell::aura_types::SPELL_AURA_MOD_TAUNT
+                {
+                    if creature_aura_applied {
+                        continue;
+                    }
+                    creature_aura_applied = true;
+                    let effect_mask = spell_info
+                        .effects()
+                        .iter()
+                        .filter(|candidate| {
+                            candidate.effect
+                                == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
+                        })
+                        .fold(0u32, |mask, candidate| {
+                            mask | 1u32.checked_shl(candidate.effect_index).unwrap_or(0)
+                        });
+                    self.apply_creature_aura_like_cpp(
+                        spell_id,
+                        caster_guid,
+                        target_guid,
+                        effect_mask,
+                        REPRESENTED_CREATURE_AURA_DURATION_MS_LIKE_CPP,
+                    )?;
+                    continue;
+                }
                 if effect.is_mounted_aura_like_cpp() {
                     self.apply_represented_mounted_aura_like_cpp(spell_id, player_guid, effect)?;
                 } else if effect.is_provide_spell_focus_aura_like_cpp() {

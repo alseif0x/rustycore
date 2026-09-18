@@ -840,6 +840,10 @@ impl WorldSession {
     /// Check all active auras for expiry and remove those whose duration has elapsed.
     /// Called from the synchronous tick loop (~every 200ms via creature_tick).
     pub(crate) fn tick_auras(&mut self) {
+        // C++ `Creature::Update` owns creature aura lifetimes; this session
+        // expires the creature auras it applied through the same wall-clock
+        // sweep it uses for its own auras.
+        self.tick_represented_creature_auras_like_cpp();
         let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
             return;
         };

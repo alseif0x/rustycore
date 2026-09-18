@@ -4,6 +4,7 @@
 
 use super::*;
 mod aggro;
+pub(in crate::session) use creature::RepresentedCreatureAuraLikeCpp;
 mod creature;
 mod creature_interaction;
 mod creature_kill;
