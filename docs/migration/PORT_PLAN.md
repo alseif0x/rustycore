@@ -33,6 +33,17 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 creature-target aura application — 2026-09-18, implementation `8e062b6e`:**
+`Spell::EffectApplyAura`'s creature target is now represented: the
+`SPELL_EFFECT_APPLY_AURA` chain creates the canonical creature application with
+its effect types/amounts/misc values, duration and visible slot, publishes
+`SMSG_AURA_UPDATE` to the caster and the creature's observers, and expires it
+from the session aura sweep; `SPELL_AURA_MOD_TAUNT` keeps its dedicated
+`EffectTaunt` path. Limits: no stack or refresh rule (an identical application is
+refused), the represented 30-second duration stands in for
+`SpellDuration.db2`, the periodic amount is registered but unticked, and an aura
+whose applying session logs out keeps no other expiry owner.
+
 **#29 melee ignore-absorb term — 2026-09-18, implementation `05568f2e`:** the
 school-absorb and mana-shield shields now carry
 `SPELL_ATTR6_ABSORB_CANNOT_BE_IGNORE`, and both loops subtract the attacker's
