@@ -1669,6 +1669,128 @@ async fn spell_power_drain_on_a_creature_restores_the_caster_share_like_cpp() {
     assert_eq!(log.read_float().expect("amplitude"), 0.5);
 }
 
+/// C++ `Spell::EffectPowerBurn` (`SpellEffects.cpp:1157-1164`) multiplies the
+/// drained power by `CalcValueMultiplier`, so a zero amplitude burns nothing
+/// while the take-power row still logs the drained amount.
+#[tokio::test]
+async fn spell_power_burn_on_a_creature_with_zero_amplitude_deals_no_damage_like_cpp() {
+    let (mut session, _, send_rx) = make_session();
+    let spell_id = 90_303_i32;
+    let player_guid = ObjectGuid::create_player(1, 906);
+    let creature_guid = test_creature_guid(19_303);
+    let position = Position::new(10.0, 20.0, 30.0, 0.0);
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "Burner".to_string(),
+        position,
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session.set_player_health_like_cpp(100, 100);
+    session.client_visible_guids_like_cpp.insert(creature_guid);
+    register_test_creature(&mut session, manager.clone(), creature_guid, 100);
+    add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 7);
+    add_canonical_test_creature_indexed_on_map_with_level(
+        &canonical,
+        creature_guid,
+        9_001,
+        position,
+        0,
+        7,
+        80,
+    );
+    {
+        let mut legacy = manager.write().unwrap();
+        let creature = legacy
+            .remove_creature_any(0, 0, creature_guid)
+            .expect("move the represented creature into the test instance");
+        let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
+        legacy.add_creature(0, 7, grid_x, grid_y, creature);
+    }
+    session
+        .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
+            let unit = creature.unit_mut();
+            unit.set_health(100);
+            unit.set_power_index(PowerType::Mana, Some(0));
+            unit.set_max_power(PowerType::Mana, 100);
+            unit.set_power(PowerType::Mana, 40);
+            unit.set_display_power(PowerType::Mana);
+            creature.clear_data_changes();
+        })
+        .unwrap();
+
+    // `power_spell_info_like_cpp` leaves `effect_amplitude` at its 0.0 default.
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        spell_id,
+        power_spell_info_like_cpp(
+            spell_id,
+            wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_BURN,
+            15,
+            PowerType::Mana,
+        ),
+    );
+    session.set_spell_store(Arc::new(spell_store));
+
+    session
+        .execute_spell(spell_id, creature_guid)
+        .await
+        .expect("represented creature EffectPowerBurn should execute");
+
+    assert_eq!(
+        session
+            .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| creature
+                .unit()
+                .get_power(PowerType::Mana))
+            .unwrap(),
+        25,
+        "the pool is burned regardless of the damage multiplier"
+    );
+    assert_eq!(
+        manager
+            .read()
+            .unwrap()
+            .find_creature(0, 7, creature_guid)
+            .expect("creature in the test instance")
+            .current_hp(),
+        100,
+        "C++ `int32(15 * 0.0)` burns no health"
+    );
+
+    let packets = drain_server_packet_bytes(&send_rx);
+    let log_bytes = packets
+        .iter()
+        .find(|bytes| {
+            wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                == Some(ServerOpcodes::SpellExecuteLog)
+        })
+        .expect("execute log packet");
+    let mut log = wow_packet::WorldPacket::from_bytes(log_bytes);
+    log.read_uint16().expect("opcode");
+    log.read_packed_guid().expect("caster");
+    log.read_int32().expect("spell id");
+    log.read_uint32().expect("effect count");
+    log.read_int32().expect("effect");
+    assert_eq!(log.read_uint32().expect("power drain count"), 1);
+    for _ in 0..5 {
+        log.read_uint32().expect("empty list count");
+    }
+    log.read_packed_guid().expect("victim");
+    assert_eq!(
+        log.read_uint32().expect("points"),
+        15,
+        "C++ logs the drained power before applying the zero multiplier"
+    );
+    log.read_uint32().expect("power type");
+    assert_eq!(log.read_float().expect("amplitude"), 0.0);
+}
+
 /// C++ `Spell::EffectPowerBurn` (`SpellEffects.cpp:1142-1165`) drains the
 /// target's power and adds `int32(drained * CalcValueMultiplier)` to the
 /// spell's damage; for a creature target the represented damage path applies it.
