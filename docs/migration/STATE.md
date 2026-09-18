@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`7c070d0e` (PR #1175, the #31 `EnergizeBySpell` casing and assisting threat,
-following PR #1173, the #31 per-slot creature addon aura effects, following
+`2c6e8966` (PR #1177, the #31 flagged-power regen interrupt on energize, following
+PR #1175, the #31 `EnergizeBySpell` casing and assisting threat, following
+PR #1173, the #31 per-slot creature addon aura effects, following
 PR #1171, the #31 creature-target aura application, following
 PR #1169, the #29 melee
 ignore-absorb term, following PR #1167, the #31 spell energize
@@ -54,6 +55,50 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 flagged-power regen interrupt on energize — 2026-09-18, implementation
+`1e89ffa8`, integrated as `2c6e8966` by PR #1177:** C++
+`Unit::EnergizeBySpell` (`Unit.cpp:6578-6590`) first calls
+`Player::InterruptPowerRegen` (`Player.cpp:1831-1840`) when the target power's DB2
+`PowerTypeEntry` carries `PowerTypeFlags::UseRegenInterrupt`
+(`DBCEnums.h:1796-1810`, `0x0002`), resetting `m_regenInterruptTimestamp` and
+`m_powerFraction[powerIndex]` and publishing `SMSG_INTERRUPT_POWER_REGEN`. The
+represented regen tick already consumed `use_regen_interrupt`, but nothing ever
+set the interrupt, so a flagged power kept regenerating through an energize.
+`PowerTypeStore::uses_regen_interrupt_like_cpp` now owns the flag rule (missing
+entry false, like C++'s null `GetPowerTypeEntry`) and
+`POWER_TYPE_FLAG_USE_REGEN_INTERRUPT_LIKE_CPP` is public with its anchor;
+`regeneration.rs` reads that helper instead of its private copy of the constant,
+so the gate and the trigger cannot drift. `wow-packet` gained the
+`InterruptPowerRegen` writer matching `CombatPackets.cpp:117-122`
+(`int32(PowerType)` only). The previously `#[cfg(test)]` `power_type_store` slot
+is now a production read-only session handle (`set_power_type_store` /
+`power_type_store_like_cpp`) installed from the composition root, with the
+already-loaded `PowerTypeStore` attached to
+`SessionPlayerCatalogCapabilitiesLikeCpp`, so the session reads the same
+process-owned DB2 store the spawn and regeneration paths use;
+`apply_energize_effect_like_cpp` interrupts before the power change and publishes
+the packet before `SpellEnergizeLog`, matching C++ order. Coverage:
+`interrupt_power_regen_writes_only_the_power_type_like_cpp` (writer shape),
+`use_regen_interrupt_reads_the_db2_flag_like_cpp` (set, clear, missing entry) and
+`spell_energize_interrupts_flagged_power_regen_like_cpp`, where the flagged power
+produces `[SpellGo, InterruptPowerRegen, SpellEnergizeLog, CooldownEvent]`, the
+unflagged one `[SpellGo, SpellEnergizeLog, CooldownEvent]`, and the power still
+lands (25 to 75 mana). Evidence at `1e89ffa8`: `wow-data --lib` 754/0,
+`wow-packet --lib` 752/0, `wow-world --lib` 4009/0/1, `cargo fmt --all --check`
+and `git diff --check` clean, physical ratchet PASS with one recorded ceiling
+bump (`world-server/src/app.rs` 5665 to 5666, reason appended to the entry's
+`split`), `session-ownership-check --syntax-only` PASS after a reviewed
+`print-baseline` delta (`set_power_type_store` moves from test fixture to
+production, the `WorldSession` bridge surface fingerprint follows the field, and
+`interrupt_player_power_regen_like_cpp` plus `power_type_store_like_cpp` appear;
+224 production + 429 fixture fields, 3923 associated items); `validation-v2 quick`
+PASS 93.3 s (manifest `20260918T034220.005229Z-3740769-quick.json`) and `final
+--architecture` 84.5 s, exit 1, 2 of 9 steps with `session-syntax-acceptance` PASS
+and the pre-existing hotspot ratchet as the only red; the runner campaign is
+177.8 s, inside the 600 s ordinary budget. Boundaries: the trigger runs only for
+the represented self-energize target, so a creature caster or target still has no
+energized-regen state to interrupt.
 
 **#31 `EnergizeBySpell` casing and assisting threat — 2026-09-18,
 implementation `fb3aabdb` (tested tree `6b72eb84`), integrated as `7c070d0e` by
