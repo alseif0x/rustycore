@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`5424658aa25469dc03c6a4b4ae695ef3cf92ab9c` (PR #1161, the #31 direct spell
+`8b0c0d49c6227da101fcc7894889a64a793b3c4e` (PR #1163, the #31 direct spell heal
+combat log, following PR #1161, the #31 direct spell
 damage combat log, following PR #1159, the #29 player-victim
 melee mana-shield absorb stage, following PR #1157, the #29 player-victim
 melee absorb log, following PR #1155, the #29 player-victim
@@ -47,6 +48,42 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 direct spell heal combat log — 2026-09-18, implementation `5958c9a1`,
+integrated as `8b0c0d49` by PR #1163:** C++ `Unit::HealBySpell` publishes
+`SMSG_SPELL_HEAL_LOG` for every spell heal (`Unit.cpp:6538-6563`), but the
+represented heal path applied the health and threat without any combat log, so a
+player's heals never reached the client. `wow-packet` gained `SpellHealLog`
+matching `WorldPackets::CombatLog::SpellHealLog::Write`
+(`CombatLogPackets.cpp:180-212`): target and caster packed GUIDs,
+`int32(SpellID)`, `int32(Health)`, `int32(OriginalHeal)`, `int32(OverHeal)`,
+`int32(Absorbed)`, the empty supporter count and the bit tail (`Crit`, the
+crit-roll-made and crit-roll-needed presence bits, the log-data bit and the
+content-tuning presence bit). `WorldSession::publish_heal_spell_log_like_cpp`
+(`session/spell_effects/effect_combat.rs`) publishes from both heal branches
+after the committed heal — the owner-player branch before its health values
+update, the creature branch after `forward_heal_threat_like_cpp` and before the
+target's object update — mirroring C++'s
+`CalcHealAbsorb -> DealHeal -> SendHealSpellLog` order; a heal without a
+represented spell stays silent, like C++ with no `SpellInfo`. Coverage: the
+packet wire test, the healed opcode sequence in the nine affected heal/leech
+scenarios and a field-level decode in
+`spell_heal_mechanical_effect_row_heals_player_like_cpp_without_type_gate`
+asserting target, caster, spell id, requested heal, original heal, zero
+over-heal, zero absorbed, empty supporters and the bit tail. Evidence at
+`8b0c0d49`: `wow-world --lib` 3997/0/1, `wow-packet --lib` 749/0, `cargo fmt
+--all --check` and `git diff --check` clean, physical ratchet PASS (2234 files,
+no ceiling moved), `session-ownership-check --syntax-only` PASS with a reviewed
+`print-baseline` delta (the new publication method at 3914 exact associated
+items); `validation-v2 quick` PASS in 123.3 s (manifest
+`20260918T003100.511665Z-3616696-quick.json`) and `final --architecture` 83.5 s,
+exit 1, 2 of 8 steps with `session-syntax-acceptance` PASS and the pre-existing
+hotspot ratchet as the only red; the campaign is 206.8 s, inside the 600 s
+ordinary budget. Limits: heal absorb (`Unit::CalcHealAbsorb`) and critical heals
+are not represented, so `Absorbed` is zero and `Crit` false with no crit-roll
+floats; the log reaches the caster's session while C++
+`SendCombatLogMessage` also fans it out to the visible set; creature-cast spell
+effects remain unimplemented, so this covers player heals today.
 
 **#31 direct spell damage combat log — 2026-09-18, implementation `8808bb91`,
 integrated as `5424658a` by PR #1161:** C++ `Unit::DealSpellDamage` publishes
