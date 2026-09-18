@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`529c4dd6` (PR #1209, the #31 damage-taken term stacking regression, following
+`7a40dba2` (PR #1211, the #31 caster label damage-taken term and its label authority,
+following PR #1209, the #31 damage-taken term stacking regression, following
 PR #1207, the #31 caster spell-family damage-taken term, following
 PR #1205, the #31 mechanic damage-taken term and its data seam,
 following PR #1203, the #31 caster school-mask damage-taken term, following
@@ -71,6 +72,42 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 caster label damage-taken term — 2026-09-18, implementation `c11833e6`,
+integrated as `7a40dba2` by PR #1211:** C++ `Unit::SpellDamageBonusTaken`
+(`Unit.cpp:6830-6835`) multiplies the amount by
+`GetTotalAuraMultiplier(SPELL_AURA_MOD_DAMAGE_TAKEN_FROM_CASTER_BY_LABEL)` over
+the auras the damaging caster applied whose `MiscValue` is a label the damaging
+spell carries (`SpellInfo::HasLabel`, `SpellInfo.h:598`); the represented model
+had neither the aura-type constant nor a label authority at the effect site.
+`SPELL_AURA_MOD_DAMAGE_TAKEN_FROM_CASTER_BY_LABEL = 507` joins the aura-type
+constants with its `SpellAuraEffects.cpp:578` anchor,
+`SpellLabelStore::has_label_like_cpp` scans the store's own entries for a
+`(spell_id, label_id)` pair, and the existing `SpellLabel.db2` loader is now
+loaded at startup and carried through `SessionSpellCatalogCapabilitiesLikeCpp` to
+a new session catalog slot (`set_spell_label_store`/`spell_label_store`), so
+`power_drain_pre_scaled_damage_like_cpp` folds the label term for player and
+creature victims alongside the other five. Coverage:
+`spell_power_drain_applies_the_caster_label_damage_taken_aura_like_cpp` applies a
++50% aura of type 507 with misc label 7 from the draining player against a spell
+carrying label 7 through `SpellLabel.db2`, draining base 100 at amplitude 0.5 to
+150 (pool 50) with a 75 caster share. Evidence at `c11833e6`: `wow-data --lib`
+754/0, `wow-world --lib` 4025/0/1, `cargo fmt --all --check` and `git diff
+--check` clean, physical ratchet PASS with two recorded ceiling bumps (`app.rs`
+5666 to 5674 and `spell_db2.rs` to 239, reasons appended), ownership syntax PASS
+after a reviewed `print-baseline` delta of exactly the two new session methods;
+`validation-v2 quick` PASS 561.4 s (manifest
+`20260918T073832.458445Z-3894381-quick.json`), where `path-06` alone took 550.4 s
+because adding a field to the composition root invalidated the whole
+`world-server`/`wow-packet`/`wow-world` test check graph under
+`CARGO_BUILD_JOBS=1`, and `final --architecture` 84.9 s, exit 1, 2 of 9 steps with
+`session-syntax-acceptance` PASS and the pre-existing hotspot ratchet as the only
+red — **the runner campaign is 646.3 s, over the 600 s ordinary budget**, the same
+dependency-forced overrun class as the earlier `wow-packet` and
+`wow-entities`/`wow-data` rebuilds, with no step skipped, split or relabelled.
+Boundaries: the DOT term and Sanctified Wrath of `SpellDamageBonusTaken` remain
+unrepresented, the represented mechanic mask is still `u32` while C++ uses
+`uint64`, and the label store is loaded but only this term consumes it so far.
 
 **#31 damage-taken term stacking regression — 2026-09-18, implementation
 `66c6bf3f`, integrated as `529c4dd6` by PR #1209:** test-only proof of the
