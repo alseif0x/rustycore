@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`06d7f251` (PR #1207, the #31 caster spell-family damage-taken term, following
+`529c4dd6` (PR #1209, the #31 damage-taken term stacking regression, following
+PR #1207, the #31 caster spell-family damage-taken term, following
 PR #1205, the #31 mechanic damage-taken term and its data seam,
 following PR #1203, the #31 caster school-mask damage-taken term, following
 PR #1201, the #31 cheat-death damage-taken term, following
@@ -70,6 +71,26 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 damage-taken term stacking regression — 2026-09-18, implementation
+`66c6bf3f`, integrated as `529c4dd6` by PR #1209:** test-only proof of the
+composition semantics of the five produced `SpellDamageBonusTaken` terms. C++
+`Unit::SpellDamageBonusTaken` (`Unit.cpp:6775-6840`) accumulates every term into a
+single `TakenTotalMod` and scales `pdamage` once, so two +50% terms yield `225`
+from a base of `100` rather than `200`;
+`spell_power_drain_stacks_damage_taken_terms_multiplicatively_like_cpp` gives a
+creature both a +50% school damage-taken aura and a +50% mechanic damage-taken
+aura matching the drain spell's mechanic, draining base 100 at amplitude 0.5 to
+225 from a 400-point pool (175 left) with a 112 caster share (137 mana), which an
+additive implementation would fail. Evidence: `wow-world --lib` 4024/0/1,
+`cargo fmt --all --check` and `git diff --check` clean, physical ratchet PASS with
+no ceiling moved, ownership syntax PASS with no baseline delta (test-only);
+`validation-v2 quick` PASS 38.2 s (manifest
+`20260918T070125.697106Z-3878083-quick.json`) and `final --architecture` 84.5 s,
+exit 1, 2 of 9 steps with `session-syntax-acceptance` PASS and the pre-existing
+hotspot ratchet as the only red; the runner campaign is 122.7 s, inside the 600 s
+ordinary budget. No production behavior, packet layout or ownership surface
+changed.
 
 **#31 caster spell-family damage-taken term — 2026-09-18, implementation
 `424efd37`, integrated as `06d7f251` by PR #1207:** C++
