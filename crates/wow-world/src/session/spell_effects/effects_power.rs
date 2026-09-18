@@ -209,6 +209,25 @@ impl WorldSession {
             );
     }
 
+    /// C++ `Spell::ExecuteLogEffectDurabilityDamage` (`Spell.cpp:5108-5116`).
+    pub(in crate::session) fn record_spell_execute_log_durability_damage_like_cpp(
+        &mut self,
+        effect: i32,
+        victim: ObjectGuid,
+        item_id: i32,
+        amount: i32,
+    ) {
+        self.represented_spell_execute_log_effect_like_cpp(effect)
+            .durability_damage_targets
+            .push(
+                wow_packet::packets::combat::SpellLogEffectDurabilityDamageParams {
+                    victim,
+                    item_id,
+                    amount,
+                },
+            );
+    }
+
     /// C++ `Spell::SendSpellExecuteLog` (`Spell.cpp:5048-5060`), called from
     /// `FinishTargetProcessing` (`Spell.cpp:8493-8496`) once every effect has
     /// resolved. The cast's accumulator is taken, so a later cast starts clean.

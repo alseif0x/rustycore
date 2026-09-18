@@ -21558,7 +21558,7 @@
           "kind": "method",
           "name": "apply_durability_damage_effect_like_cpp",
           "visibility": "pub (in crate :: session)",
-          "signature": "fn apply_durability_damage_effect_like_cpp (& mut self , damage : i32 , slot : i32 , target_guid : ObjectGuid ,)",
+          "signature": "fn apply_durability_damage_effect_like_cpp (& mut self , effect : u32 , damage : i32 , slot : i32 , target_guid : ObjectGuid ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -37467,6 +37467,19 @@
           "name": "record_spell_acquisition_post_commit_action_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn record_spell_acquisition_post_commit_action_like_cpp (& mut self , action : crate :: spell_acquisition :: SpellAcquisitionPostCommitActionLikeCpp ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "record_spell_execute_log_durability_damage_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn record_spell_execute_log_durability_damage_like_cpp (& mut self , effect : i32 , victim : ObjectGuid , item_id : i32 , amount : i32 ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [

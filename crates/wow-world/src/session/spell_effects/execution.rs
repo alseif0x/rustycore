@@ -522,6 +522,7 @@ impl WorldSession {
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DURABILITY_DAMAGE => {
                     self.apply_durability_damage_effect_like_cpp(
+                        x,
                         direct_effect_base_points,
                         direct_effect_misc_value_1,
                         target_guid,
