@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`32e9a5d44b1fcb8314d28586aab99dfdcf2628c8` (PR #1167, the #31 spell energize
+`e6b33d5cbdba03a45ee004c0cf84ec964a094322` (PR #1169, the #29 melee
+ignore-absorb term, following PR #1167, the #31 spell energize
 log, following PR #1165, the #31 player-target
 heal-absorb stage, following PR #1163, the #31 direct spell heal
 combat log, following PR #1161, the #31 direct spell
@@ -50,6 +51,42 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#29 melee ignore-absorb term — 2026-09-18, implementation `05568f2e`,
+integrated as `e6b33d5c` by PR #1169:** C++ `Unit::CalcAbsorbResist` reduces how
+much of a hit a school-absorb or mana shield may take when the attacker carries
+`SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL` and the shield's spell lacks
+`SPELL_ATTR6_ABSORB_CANNOT_BE_IGNORE` (`Unit.cpp:1803-1832`); neither half was
+represented. `wow-data` gained `SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL = 194` and
+`SPELL_ATTR6_ABSORB_CANNOT_BE_IGNORE = 0x0040_0000` (`SharedDefines.h:675`); the
+school-absorb and mana-shield projections now carry `cannot_be_ignored`,
+resolved through `SpellStore::has_attribute_for_difficulty_like_cpp` at the
+aura's difficulty; `represented_melee_ignore_absorb_like_cpp` reproduces
+`GetMaxPositiveAuraModifierByMiscMask` plus `RoundToInterval(0, 100)` and
+`represented_melee_ignored_absorb_amount_like_cpp` reproduces
+`CalculatePct(damage, auraAbsorbMod)`; both absorb loops subtract that amount
+from the damage a shield without the attribute may take and restore it for the
+next shield, exactly like C++'s `ModifyDamage(-x)`/`ModifyDamage(+x)` pair, and
+the map-owned melee stage computes the modifier from the creature attacker's
+aura effects. Coverage: a rules test for the maximum/clamp/`CalculatePct`
+truncation and both loops with and without the attribute, plus a
+production-shaped scenario in `scenarios_world_entities_32.rs` where a creature
+attacker with a 50% modifier lands 5 of its 10-point hit into a 30-point shield
+(absorbed 5, damage 5, `HITINFO_PARTIAL_ABSORB`) while a shield whose spell
+carries `SPELL_ATTR6_ABSORB_CANNOT_BE_IGNORE` absorbs the whole hit. Evidence at
+`e6b33d5c`: `wow-world --lib` 4002/0/1, `wow-packet --lib` 751/0, `wow-data
+--lib` 753/0, `cargo fmt --all --check` and `git diff --check` clean, physical
+ratchet PASS (2234 files; one recorded ceiling bump for the three-line constant
+in `wow-data/src/spell/mod.rs` with its reason),
+`session-ownership-check --syntax-only` PASS with a reviewed `print-baseline`
+delta (the melee tick bridge body); `validation-v2 quick` PASS in 52.8 s
+(manifest `20260918T012740.730059Z-3660302-quick.json`) and `final
+--architecture` 82.9 s, exit 1, 2 of 9 steps with `session-syntax-acceptance`
+PASS and the pre-existing hotspot ratchet as the only red; the campaign is
+135.7 s, inside the 600 s ordinary budget. Boundary: C++ can drive the temporary
+damage negative when the ignoring amount exceeds what is left and then clamps
+with a negative maximum; the represented loop floors that temporary damage at
+zero instead of reproducing the artifact.
 
 **#31 spell energize log — 2026-09-18, implementation `c1fc0309`, integrated as
 `32e9a5d4` by PR #1167:** C++ `Unit::EnergizeBySpell` publishes
