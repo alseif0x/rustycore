@@ -239,6 +239,7 @@ async fn spell_health_leech_effect_row_damages_target_and_heals_caster_like_cpp(
         opcodes,
         vec![
             ServerOpcodes::SpellGo,
+            ServerOpcodes::SpellNonMeleeDamageLog,
             ServerOpcodes::UpdateObject,
             ServerOpcodes::UpdateObject,
             ServerOpcodes::CooldownEvent
@@ -306,6 +307,7 @@ async fn spell_health_leech_lethal_damage_heals_only_effective_damage_like_cpp()
         opcodes,
         vec![
             ServerOpcodes::SpellGo,
+            ServerOpcodes::SpellNonMeleeDamageLog,
             ServerOpcodes::LogXpGain,
             ServerOpcodes::UpdateObject,
             ServerOpcodes::UpdateObject,

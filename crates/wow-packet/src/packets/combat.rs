@@ -338,6 +338,72 @@ impl ServerPacket for SpellAbsorbLog {
     }
 }
 
+// ── SpellNonMeleeDamageLog (SMSG_SPELL_NON_MELEE_DAMAGE_LOG) ──────
+
+/// Combat-log packet C++ `Unit::SendSpellNonMeleeDamageLog` emits for a direct
+/// spell hit (`Unit.cpp:5353-5380`).
+///
+/// C++ anchor: `WorldPackets::CombatLog::SpellNonMeleeDamageLog::Write`
+/// (`CombatLogPackets.cpp:92-124`) writes the target (`Me`), caster and cast
+/// GUIDs, `int32(SpellID)`, the `SpellCastVisual` (one `SpellXSpellVisualID` in
+/// the 3.4.3 branch), `int32(Damage)`, `int32(OriginalDamage)`,
+/// `int32(Overkill)`, `uint8(SchoolMask)`, `int32(Absorbed)`,
+/// `int32(Resisted)`, `int32(ShieldBlock)`, the empty world-text-viewer and
+/// supporter counts, then the bit tail: `Periodic`, `Flags` in seven bits, the
+/// false debug-info bit, the basic packet's log-data bit and the content-tuning
+/// presence bit. The represented path has no world text viewers, supporters or
+/// generated content-tuning parameters, so those stay empty and absent.
+#[derive(Debug, Clone)]
+pub struct SpellNonMeleeDamageLog {
+    /// C++ `Me`: the unit whose combat log this entry belongs to.
+    pub target: ObjectGuid,
+    pub caster: ObjectGuid,
+    pub cast_id: ObjectGuid,
+    pub spell_id: i32,
+    /// C++ `SpellCastVisual::SpellXSpellVisualID`.
+    pub visual_id: i32,
+    pub damage: i32,
+    pub original_damage: i32,
+    /// `damage - preHitHealth` when the hit overkilled, else `-1`.
+    pub overkill: i32,
+    pub school_mask: u8,
+    pub absorbed: i32,
+    pub resisted: i32,
+    pub shield_block: i32,
+    /// C++ `Periodic`: false for a direct hit.
+    pub periodic: bool,
+    /// C++ `CalcDamageInfo`/`SpellNonMeleeDamage::HitInfo`.
+    pub flags: i32,
+}
+
+impl ServerPacket for SpellNonMeleeDamageLog {
+    const OPCODE: ServerOpcodes = ServerOpcodes::SpellNonMeleeDamageLog;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.target);
+        pkt.write_packed_guid(&self.caster);
+        pkt.write_packed_guid(&self.cast_id);
+        pkt.write_int32(self.spell_id);
+        pkt.write_int32(self.visual_id);
+        pkt.write_int32(self.damage);
+        pkt.write_int32(self.original_damage);
+        pkt.write_int32(self.overkill);
+        pkt.write_uint8(self.school_mask);
+        pkt.write_int32(self.absorbed);
+        pkt.write_int32(self.resisted);
+        pkt.write_int32(self.shield_block);
+        // `uint32(WorldTextViewers.size())` and `uint32(Supporters.size())`.
+        pkt.write_uint32(0u32);
+        pkt.write_uint32(0u32);
+        pkt.write_bit(self.periodic);
+        pkt.write_bits(self.flags as u32, 7);
+        pkt.write_bit(false); // Debug info
+        pkt.write_bit(false); // `CombatLogServerPacket::WriteLogDataBit`
+        pkt.write_bit(false); // `ContentTuning.has_value()`
+        pkt.flush_bits();
+    }
+}
+
 // ── HealthUpdate (SMSG_HEALTH_UPDATE) ─────────────────────────────
 
 /// Direct owner health update sent by C++ `Unit::ModifyHealth` when damage
@@ -833,6 +899,74 @@ mod tests {
         // false bits and no log data.
         assert!(!pkt.has_bit().expect("unk"));
         assert!(!pkt.has_bit().expect("has log data"));
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn spell_non_melee_damage_log_writes_cpp_field_order_like_cpp() {
+        let caster = ObjectGuid::create_player(1, 0x0102_0304_0506_0708);
+        let target = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            0,
+            0,
+            0,
+            123,
+            0x1234,
+        );
+        let cast_id = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Cast,
+            0,
+            1,
+            0,
+            0,
+            456,
+            0x5678,
+        );
+        let bytes = SpellNonMeleeDamageLog {
+            target,
+            caster,
+            cast_id,
+            spell_id: 116,
+            visual_id: 42,
+            damage: 83,
+            original_damage: 100,
+            overkill: -1,
+            school_mask: 4,
+            absorbed: 10,
+            resisted: 7,
+            shield_block: 0,
+            periodic: false,
+            flags: 0,
+        }
+        .to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::SpellNonMeleeDamageLog as u16
+        );
+        assert_eq!(pkt.read_packed_guid().expect("me"), target);
+        assert_eq!(pkt.read_packed_guid().expect("caster"), caster);
+        assert_eq!(pkt.read_packed_guid().expect("cast id"), cast_id);
+        assert_eq!(pkt.read_int32().expect("spell id"), 116);
+        assert_eq!(pkt.read_int32().expect("visual"), 42);
+        assert_eq!(pkt.read_int32().expect("damage"), 83);
+        assert_eq!(pkt.read_int32().expect("original damage"), 100);
+        assert_eq!(pkt.read_int32().expect("overkill"), -1);
+        assert_eq!(pkt.read_uint8().expect("school mask"), 4);
+        assert_eq!(pkt.read_int32().expect("absorbed"), 10);
+        assert_eq!(pkt.read_int32().expect("resisted"), 7);
+        assert_eq!(pkt.read_int32().expect("shield block"), 0);
+        assert_eq!(pkt.read_uint32().expect("world text viewers"), 0);
+        assert_eq!(pkt.read_uint32().expect("supporters"), 0);
+        // Bits: `Periodic`, seven `Flags`, debug info, log data and content
+        // tuning, all flushed together.
+        assert!(!pkt.has_bit().expect("periodic"));
+        assert_eq!(pkt.read_bits(7).expect("flags"), 0);
+        assert!(!pkt.has_bit().expect("debug info"));
+        assert!(!pkt.has_bit().expect("has log data"));
+        assert!(!pkt.has_bit().expect("content tuning"));
         assert!(pkt.is_empty());
     }
 
