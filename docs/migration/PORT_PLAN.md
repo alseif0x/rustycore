@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 cheat-death damage-taken term — 2026-09-18, implementation `27a544be`:**
+the drain/burn pre-scaling also applies the `45182` aura's percentage when its
+misc value intersects the normal school, alongside the school
+`MOD_DAMAGE_PERCENT_TAKEN` term. Limits: the mechanic, caster-specific, DOT and
+Sanctified Wrath terms stay unrepresented; the mechanic term first needs an
+`effect_mechanic` field and its aura-type constant.
+
 **#31 victim school damage-taken term — 2026-09-18, implementation `c3f86243`:**
 the drain/burn pre-scaling now multiplies by the victim's
 `SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN` for the spell's school, gated by
