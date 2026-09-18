@@ -250,6 +250,39 @@ impl WorldSession {
         });
     }
 
+    /// C++ `Spell::EffectPowerDrain`/`EffectPowerBurn` pre-scale the effect
+    /// amount with `Unit::SpellDamageBonusDone(..., SPELL_DIRECT_DAMAGE, ...)`
+    /// (`SpellEffects.cpp:1082-1088`) before draining or burning. The
+    /// `damage < 0` gate runs before that call, so a negative base keeps its
+    /// value for the effect's own refusal.
+    ///
+    /// `SpellDamageBonusTaken` has no represented producer yet, so the taken
+    /// half of the C++ pre-scaling remains a recorded boundary.
+    pub(in crate::session) fn power_drain_pre_scaled_damage_like_cpp(
+        &self,
+        spell_id: i32,
+        effect_index: u32,
+        caster_guid: ObjectGuid,
+        target_guid: ObjectGuid,
+        coefficient: f32,
+        coefficient_from_ap: f32,
+        base_damage: i32,
+    ) -> i32 {
+        if base_damage < 0 {
+            return base_damage;
+        }
+        i32::try_from(self.represented_spell_damage_bonus_done_like_cpp(
+            spell_id,
+            effect_index,
+            caster_guid,
+            target_guid,
+            coefficient,
+            coefficient_from_ap,
+            u32::try_from(base_damage).unwrap_or(0),
+        ))
+        .unwrap_or(i32::MAX)
+    }
+
     /// C++ `Spell::EffectPowerDrain` / `Spell::EffectPowerBurn`.
     ///
     /// A creature target drains its canonical pool and restores
