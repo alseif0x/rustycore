@@ -980,7 +980,7 @@ fn durability_points_loss_breaks_and_removes_equipped_item_mods_like_cpp() {
 
 #[tokio::test]
 async fn durability_damage_spell_effect_reduces_equipped_items_like_cpp() {
-    let (mut session, _, _) = make_session();
+    let (mut session, _, send_rx) = make_session();
     let spell_id = 90_200_i32;
     let player_guid = ObjectGuid::create_player(1, 44);
     let weapon_guid = ObjectGuid::create_item(1, 904);
@@ -1005,6 +1005,99 @@ async fn durability_damage_spell_effect_reduces_equipped_items_like_cpp() {
         43,
         "C++ EffectDurabilityDamage slot < 0 calls DurabilityPointsLossAll"
     );
+    assert_eq!(
+        durability_execute_log_row_like_cpp(&send_rx, player_guid, spell_id),
+        (-1, -1),
+        "C++ logs ItemID -1 and Amount -1 for the all-items branch"
+    );
+}
+
+/// C++ `Spell::EffectDurabilityDamage` (`SpellEffects.cpp:4336-4340`) logs
+/// `ExecuteLogEffectDurabilityDamage(effect, unitTarget, item->GetEntry(), slot)`.
+#[tokio::test]
+async fn durability_damage_spell_effect_logs_the_item_entry_and_slot_like_cpp() {
+    let (mut session, _, send_rx) = make_session();
+    let spell_id = 90_202_i32;
+    let player_guid = ObjectGuid::create_player(1, 46);
+    let weapon_guid = ObjectGuid::create_item(1, 906);
+    session.set_player_guid(Some(player_guid));
+    equip_durability_test_weapon_like_cpp(&mut session, player_guid, weapon_guid, 50);
+    let slot = i32::from(EQUIPMENT_SLOT_MAINHAND);
+    session.set_spell_store(Arc::new(durability_spell_store_like_cpp(
+        spell_id,
+        wow_data::spell::spell_effect_types::SPELL_EFFECT_DURABILITY_DAMAGE,
+        7,
+        slot,
+    )));
+
+    session
+        .execute_spell(spell_id, player_guid)
+        .await
+        .expect("represented durability-damage spell should execute");
+
+    assert_eq!(
+        session.inventory_item_objects_like_cpp()[&weapon_guid]
+            .data()
+            .durability,
+        43
+    );
+    assert_eq!(
+        durability_execute_log_row_like_cpp(&send_rx, player_guid, spell_id),
+        (300, slot),
+        "C++ logs the equipped item entry as ItemID and the slot as Amount"
+    );
+}
+
+/// Decode the single `DurabilityDamageTargets` row of a cast's execute log.
+fn durability_execute_log_row_like_cpp(
+    send_rx: &flume::Receiver<Vec<u8>>,
+    player_guid: ObjectGuid,
+    spell_id: i32,
+) -> (i32, i32) {
+    let packets = crate::session::tests::drain_server_packet_bytes(send_rx);
+    assert_eq!(
+        packets
+            .iter()
+            .map(|bytes| {
+                wow_packet::WorldPacket::from_bytes(bytes)
+                    .server_opcode()
+                    .expect("server opcode")
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            ServerOpcodes::SpellGo,
+            ServerOpcodes::SpellExecuteLog,
+            ServerOpcodes::CooldownEvent
+        ]
+    );
+    let log_bytes = packets
+        .iter()
+        .find(|bytes| {
+            wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                == Some(ServerOpcodes::SpellExecuteLog)
+        })
+        .expect("execute log packet");
+    let mut log = wow_packet::WorldPacket::from_bytes(log_bytes);
+    log.read_uint16().expect("opcode");
+    assert_eq!(log.read_packed_guid().expect("caster"), player_guid);
+    assert_eq!(log.read_int32().expect("spell id"), spell_id);
+    assert_eq!(log.read_uint32().expect("effect count"), 1);
+    assert_eq!(
+        log.read_int32().expect("effect"),
+        i32::try_from(wow_data::spell::spell_effect_types::SPELL_EFFECT_DURABILITY_DAMAGE).unwrap()
+    );
+    assert_eq!(log.read_uint32().expect("power drain count"), 0);
+    assert_eq!(log.read_uint32().expect("extra attacks count"), 0);
+    assert_eq!(log.read_uint32().expect("durability count"), 1);
+    for _ in 0..3 {
+        assert_eq!(log.read_uint32().expect("empty list count"), 0);
+    }
+    let victim = log.read_packed_guid().expect("victim");
+    assert_eq!(victim, player_guid);
+    (
+        log.read_int32().expect("item id"),
+        log.read_int32().expect("amount"),
+    )
 }
 
 #[tokio::test]
