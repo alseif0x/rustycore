@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`a6128cd0` (PR #1173, the #31 per-slot creature addon aura effects, following
+`7c070d0e` (PR #1175, the #31 `EnergizeBySpell` casing and assisting threat,
+following PR #1173, the #31 per-slot creature addon aura effects, following
 PR #1171, the #31 creature-target aura application, following
 PR #1169, the #29 melee
 ignore-absorb term, following PR #1167, the #31 spell energize
@@ -53,6 +54,53 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 `EnergizeBySpell` casing and assisting threat — 2026-09-18,
+implementation `fb3aabdb` (tested tree `6b72eb84`), integrated as `7c070d0e` by
+PR #1175:** three pieces of C++ `Spell::EffectEnergize`
+(`SpellEffects.cpp:1488-1530`) and `Unit::EnergizeBySpell` (`Unit.cpp:6578-6590`)
+were outside the represented slice. The `EffectEnergize` switch runs before the
+power change: Blood Fury (24571) subtracts `10 * max(0, min(30, level - 60))`,
+Burst of Energy (24532) subtracts `4 * max(0, min(15, level - 60))`, and the
+Runic Mana Injector (67490) adds `AddPct(damage, 25)` when the caster Player has
+`SKILL_ENGINEERING` (`SharedDefines.h:5388`, `Player::HasSkill`,
+`Player.cpp:5880-5887`); `energize_caster_scaled_amount_like_cpp` reproduces all
+three and the `EffectEnergizePct` branch keeps its unscaled percentage.
+`EnergizeBySpell` also forwards `damage / 2` through
+`ThreatManager::ForwardThreatForAssistingMe(..., ignoreModifiers = true)` before
+the log, so the forwarding body the heal path alone had became
+`forward_assisting_threat_like_cpp` with `ignore_modifiers` mirroring the C++
+parameter — heals keep `false` (`Spell.cpp:2883`, percentage and school-threat
+multiplier applied) and `forward_heal_threat_like_cpp` is now a thin wrapper, so
+heal behavior is unchanged. Cast-level `Spell::HandleThreatSpells`
+(`Spell.cpp:5599-5601`) still applies on top, exactly as C++ runs both.
+Coverage: level-80 Blood Fury turns 300 into 100 mana and Burst of Energy 100
+into 40 energy; the Runic Mana Injector gives 100 without a skill record and 125
+with `SKILL_ENGINEERING`; a creature threatening the energizing player ends with
+10 existing + 8 cast-level + 25 forwarded (`50 / 2`, not the `pct_mod 2.0`-doubled
+50), asserted on both the legacy facade and the canonical creature; the existing
+`spell_self_heal_adds_half_effective_heal_threat_like_cpp` regression still
+passes. Evidence at the identical tree of `6b72eb84`/`fb3aabdb`: `wow-entities
+--lib` 941/0, `wow-world --lib` 4008/0/1, `cargo fmt --all --check` and
+`git diff --check` clean, physical ratchet PASS (2234 files, no ceiling moved),
+`session-ownership-check --syntax-only` PASS after a reviewed `print-baseline`
+delta that adds exactly the two new methods (3921 exact associated items);
+`validation-v2 quick` PASS 80.8 s (manifest
+`20260918T030827.726019Z-3724047-quick.json`) and `final --architecture` 89.1 s,
+exit 1, 2 of 9 steps with `session-syntax-acceptance` PASS and the pre-existing
+hotspot ratchet as the only red; the runner campaign is 169.9 s, inside the 600 s
+ordinary budget. Landing note: the change was first pushed directly to `3.4.3`
+by mistake as `6b72eb84`; it was reverted on the integration branch (`a59c08fb`)
+and re-landed through the required branch/PR path, and the re-landed commit has
+the byte-identical tree (`9c4b607f`), so the evidence applies to the merged
+candidate. Boundaries: the `PowerTypeFlags::UseRegenInterrupt` branch
+(`Player::InterruptPowerRegen` plus `SMSG_INTERRUPT_POWER_REGEN`) still needs the
+DB2 `PowerType` entry at the effect site, because the trigger would require
+threading that production store through the spell-effect chain — the regen gate
+already consumes `use_regen_interrupt` from it; caster level and skill come from
+the session Player, so a non-player caster keeps the unmodified amount; the
+represented forwarding splits by eligible threatening owners where C++ first
+divides by the number of spell targets, a pre-existing representation.
 
 **#31 per-slot creature addon aura effects — 2026-09-18, implementation
 `3082a93e`, integrated as `a6128cd0` by PR #1173:** two gaps in the represented
