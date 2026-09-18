@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Integration head — 2026-09-18:** `3.4.3` is at
-`8448bdb4` (PR #1215, the #31 player-aura canonical-sync diagnosis, following
-PR #1213, the #31 negative damage-taken aura regression,
+**Integration head — 2026-09-18:** the last implementation on `3.4.3` is
+`cc8ae12b` (PR #1213, the #31 negative damage-taken aura regression, following
+`8448bdb4`, the #31 player-aura canonical-sync diagnosis and its route
+correction, following
 following PR #1211, the #31 caster label damage-taken term and its label authority,
 following PR #1209, the #31 damage-taken term stacking regression, following
 PR #1207, the #31 caster spell-family damage-taken term, following
