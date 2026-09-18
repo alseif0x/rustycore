@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 victim school damage-taken term — 2026-09-18, implementation `c3f86243`:**
+the drain/burn pre-scaling now multiplies by the victim's
+`SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN` for the spell's school, gated by
+`SPELL_ATTR4_IGNORE_DAMAGE_TAKEN_MODIFIERS`. Limits: the mechanic, cheat-death,
+caster-specific, DOT and Sanctified Wrath terms of `SpellDamageBonusTaken` stay
+unrepresented.
+
 **#31 drain/burn `SpellDamageBonusDone` pre-scaling — 2026-09-18, implementation
 `482bc9f7`:** `EffectPowerDrain`/`EffectPowerBurn` now pre-scale their amount with
 the represented `SpellDamageBonusDone` before draining, so spell power and its
