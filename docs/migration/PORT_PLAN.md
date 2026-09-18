@@ -33,6 +33,16 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 direct spell damage combat log — 2026-09-18, implementation
+`8808bb91`:** C++ `Unit::DealSpellDamage`'s `SMSG_SPELL_NON_MELEE_DAMAGE_LOG`
+(`Unit.cpp:1250-1260`, `5353-5380`) now publishes for direct spell hits through
+a new `SpellNonMeleeDamageLog` writer, carrying the cast identity the
+`SMSG_SPELL_GO` advertised and reading `preHitHealth` for the overkill field.
+Limits: a creature target has no represented spell absorb, resist, block or
+critical stage, so those packet fields stay zero and the spell-side
+`CalcAbsorbResist` remains #31 work; creature-cast spell effects are still
+unimplemented.
+
 **#29 player-victim melee mana shield — 2026-09-17, implementation
 `e701fcd8`:** C++ `Unit::CalcAbsorbResist`'s mana-shield loop
 (`Unit.cpp:1886-1930`) now runs for a creature swing against a player: the

@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Integration head — 2026-09-17:** `3.4.3` is at
-`0e53a4029b5f66a380f502ccac3bb0a67d70cf04` (PR #1159, the #29 player-victim
+**Integration head — 2026-09-18:** `3.4.3` is at
+`5424658aa25469dc03c6a4b4ae695ef3cf92ab9c` (PR #1161, the #31 direct spell
+damage combat log, following PR #1159, the #29 player-victim
 melee mana-shield absorb stage, following PR #1157, the #29 player-victim
 melee absorb log, following PR #1155, the #29 player-victim
 melee school absorb with the C++ sub-damage wire block, following PR #1153, the
@@ -46,6 +47,45 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 direct spell damage combat log — 2026-09-18, implementation `8808bb91`,
+integrated as `5424658a` by PR #1161:** C++ `Unit::DealSpellDamage` publishes
+`SMSG_SPELL_NON_MELEE_DAMAGE_LOG` for every direct spell hit
+(`Unit.cpp:1250-1260`, `Unit::SendSpellNonMeleeDamageLog` `Unit.cpp:5353-5380`),
+but the represented direct-damage path applied damage, threat, kill, loot and
+experience without any combat log, so a player's spell damage never reached the
+client. `wow-packet` gained `SpellNonMeleeDamageLog` matching
+`WorldPackets::CombatLog::SpellNonMeleeDamageLog::Write`
+(`CombatLogPackets.cpp:92-124`): `Me`/caster/cast packed GUIDs,
+`int32(SpellID)`, the `SpellCastVisual` id, damage, original damage, overkill,
+`uint8(SchoolMask)`, absorbed, resisted, shield block, the empty
+world-text-viewer and supporter counts and the bit tail (`Periodic`, seven
+`Flags` bits, the false debug, log-data and content-tuning bits).
+`apply_damage_from_caster_like_cpp` now takes the cast identity
+(`SpellNonMeleeDamage::castId` plus the visual) from its cast-context caller and
+sends the log right after the committed hit and before the kill cascade, reading
+`preHitHealth` before the damage so `Overkill` matches C++; callers without a
+represented cast context pass an empty GUID and no visual. Coverage: the packet
+wire test decodes the exact order and tail, the direct-damage, health-leech and
+instakill scenarios assert the log's position in the sent opcode sequence
+(`[SpellGo, SpellNonMeleeDamageLog, UpdateObject, ..., CooldownEvent]`), and the
+clicker-cast scenario decodes the packet and asserts target, caster, non-empty
+cast identity, spell id, damage, overkill, school mask, zero absorb/resist/block
+and the bit tail. Evidence at `5424658a`: `wow-world --lib` 3997/0/1,
+`wow-packet --lib` 748/0, `world-server --lib` 594/0, `cargo fmt --all --check`
+and `git diff --check` clean, physical ratchet PASS (2234 files, no ceiling
+moved), `session-ownership-check --syntax-only` PASS with a reviewed
+`print-baseline` delta (the damage-application method's signature);
+`validation-v2 quick` PASS in 123.6 s (manifest
+`20260918T001503.658454Z-3593488-quick.json`) and `final --architecture` 85.7 s,
+exit 1, 2 of 8 steps with `session-syntax-acceptance` PASS and the pre-existing
+hotspot ratchet as the only red; the campaign is 209.3 s, inside the 600 s
+ordinary budget. Limits: a creature target has no represented spell absorb,
+resist, block or critical stage, so those packet fields and `HitInfo` stay zero
+and the spell-side `CalcAbsorbResist` remains #31 work; the log reaches the
+caster's session while C++ `SendCombatLogMessage` also fans it out to the
+visible set; creature-cast spell effects remain unimplemented, so this log
+covers player direct damage today.
 
 **#29 player-victim melee mana shield — 2026-09-17, implementation `e701fcd8`,
 integrated as `0e53a402` by PR #1159:** a creature swing against a player now
