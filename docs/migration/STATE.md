@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`adefbfe9` (PR #1179, the #31 spell execute log with take-power entries, following
+`2b7d2449` (PR #1181, the #31 durability rows in the spell execute log, following
+PR #1179, the #31 spell execute log with take-power entries, following
 PR #1177, the #31 flagged-power regen interrupt on energize, following
 PR #1175, the #31 `EnergizeBySpell` casing and assisting threat, following
 PR #1173, the #31 per-slot creature addon aura effects, following
@@ -56,6 +57,34 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 durability rows in the spell execute log — 2026-09-18, implementation
+`d8688e97`, integrated as `2b7d2449` by PR #1181:** C++
+`Spell::EffectDurabilityDamage` (`SpellEffects.cpp:4314-4341`) calls
+`Spell::ExecuteLogEffectDurabilityDamage` (`Spell.cpp:5108-5116`) with `(-1, -1)`
+for the all-items branch (`SpellEffects.cpp:4328`) and
+`(item->GetEntry(), slot)` for the equipped-slot branch
+(`SpellEffects.cpp:4339`); `EffectDurabilityDamagePCT` has no execute-log call.
+The represented durability effect now takes its effect id and fills the
+`durability_damage_targets` list of the `SpellLogEffect` the PR #1179 writer
+already serializes, recording the all-items row unconditionally and the item row
+only after the represented loss found and changed the equipped item. Coverage:
+`durability_damage_spell_effect_reduces_equipped_items_like_cpp` now asserts the
+`[SpellGo, SpellExecuteLog, CooldownEvent]` sequence and decodes the `-1/-1` row,
+and `durability_damage_spell_effect_logs_the_item_entry_and_slot_like_cpp` equips
+entry 300 in the mainhand, drains 7 points and decodes the `(300, slot)` row
+through the shared `durability_execute_log_row_like_cpp` decoder, which checks the
+six effect counts before the row. Evidence at `d8688e97`: `wow-world --lib`
+4012/0/1, `cargo fmt --all --check` and `git diff --check` clean, physical ratchet
+PASS with no ceiling moved, `session-ownership-check --syntax-only` PASS after a
+reviewed `print-baseline` delta (one changed signature plus the new recorder; 225
+production + 429 fixture fields, 3928 associated items); `validation-v2 quick`
+PASS 62.6 s (manifest `20260918T041851.085493Z-3761517-quick.json`) and `final
+--architecture` 83.8 s, exit 1, 2 of 9 steps with `session-syntax-acceptance` PASS
+and the pre-existing hotspot ratchet as the only red; the runner campaign is
+146.4 s, inside the 600 s ordinary budget. Boundaries: the generic-victim,
+trade-skill and feed-pet lists still have no producer, and the percent variant
+emits no row because C++ emits none.
 
 **#31 spell execute log with take-power entries — 2026-09-18, implementation
 `1e1b3655`, integrated as `adefbfe9` by PR #1179:** C++

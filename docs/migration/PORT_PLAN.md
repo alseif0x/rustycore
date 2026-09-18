@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 durability rows in the spell execute log — 2026-09-18, implementation
+`d8688e97`:** `EffectDurabilityDamage` now logs its execute-log row exactly as C++
+does (`-1`/`-1` for all items, the equipped item entry plus the slot otherwise),
+through the packet and accumulator landed with the take-power rows. Limits: the
+percent variant logs nothing (C++ logs nothing) and the generic-victim,
+trade-skill and feed-pet lists still have no producer.
+
 **#31 spell execute log with take-power entries — 2026-09-18, implementation
 `1e1b3655`:** the cast now publishes `SMSG_SPELL_EXECUTE_LOG`
 (`Spell::SendSpellExecuteLog`, `Spell.cpp:5048-5060`) from a per-cast accumulator,
