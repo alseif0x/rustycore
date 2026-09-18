@@ -2549,10 +2549,8 @@
           "name": "power_type_store",
           "type": "Option < Arc < PowerTypeStore > >",
           "visibility": "private",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
+          "cfg": [],
+          "source_class": "production"
         },
         {
           "name": "pvp_item_store",
@@ -29937,6 +29935,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "interrupt_player_power_regen_like_cpp",
+          "visibility": "private",
+          "signature": "fn interrupt_player_power_regen_like_cpp (& mut self , power : PowerType , power_type : i32)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "invalidate_canonical_player_spell_hit_aura_authority_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn invalidate_canonical_player_spell_hit_aura_authority_like_cpp (& mut self ,)",
@@ -35506,6 +35515,19 @@
           "name": "poll_instance_link_with_module_registry_like_cpp",
           "visibility": "pub (super)",
           "signature": "async fn poll_instance_link_with_module_registry_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , modules : & wow_module_api :: ModuleRegistry , creature_spawn_catalogs : & super :: CreatureSpawnCatalogsLikeCpp , player_bootstrap : & super :: PlayerBootstrapCatalogsLikeCpp , player_rest_rates : & super :: PlayerRestRatePolicyLikeCpp , progression : & super :: ProgressionCatalogsLikeCpp , feature_policy : & super :: SupportFeaturePolicyLikeCpp , player_grid_loader : & super :: PlayerGridLoadResolverLikeCpp ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "power_type_store_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn power_type_store_like_cpp (& self) -> Option < & PowerTypeStore >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -52282,10 +52304,8 @@
           "name": "set_power_type_store",
           "visibility": "pub",
           "signature": "fn set_power_type_store (& mut self , store : Arc < PowerTypeStore >)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
+          "cfg": [],
+          "source_class": "production",
           "guards": [
             "setter",
             "visible"
@@ -78733,7 +78753,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:ad171cb08fa6b22ef08a0f6e01b5ba01:len=94705|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:f63ac5cca5438d9cb15eb94767522b87:len=94690|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

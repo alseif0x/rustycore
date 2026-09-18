@@ -536,6 +536,29 @@ impl ServerPacket for SpellEnergizeLog {
     }
 }
 
+// ── InterruptPowerRegen (SMSG_INTERRUPT_POWER_REGEN) ──────────────
+
+/// C++ `Player::InterruptPowerRegen` (`Player.cpp:1831-1840`) sends this when
+/// `Unit::EnergizeBySpell` fills a power flagged
+/// `PowerTypeFlags::UseRegenInterrupt` (`Unit.cpp:6581-6585`).
+///
+/// C++ anchor: `WorldPackets::Combat::InterruptPowerRegen::Write`
+/// (`CombatPackets.cpp:117-122`) writes only `int32(PowerType)` (the `Powers`
+/// value).
+#[derive(Debug, Clone)]
+pub struct InterruptPowerRegen {
+    /// C++ `Powers` value whose regeneration is interrupted.
+    pub power_type: i32,
+}
+
+impl ServerPacket for InterruptPowerRegen {
+    const OPCODE: ServerOpcodes = ServerOpcodes::InterruptPowerRegen;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32(self.power_type);
+    }
+}
+
 // ── HealthUpdate (SMSG_HEALTH_UPDATE) ─────────────────────────────
 
 /// Direct owner health update sent by C++ `Unit::ModifyHealth` when damage
@@ -1200,6 +1223,23 @@ mod tests {
         assert_eq!(pkt.read_int32().expect("amount"), 50);
         assert_eq!(pkt.read_int32().expect("over energize"), 10);
         assert!(!pkt.has_bit().expect("has log data"));
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn interrupt_power_regen_writes_only_the_power_type_like_cpp() {
+        let bytes = InterruptPowerRegen { power_type: 3 }.to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::InterruptPowerRegen as u16
+        );
+        assert_eq!(
+            pkt.read_int32().expect("power type"),
+            3,
+            "C++ `InterruptPowerRegen::Write` emits `int32(PowerType)` only"
+        );
         assert!(pkt.is_empty());
     }
 

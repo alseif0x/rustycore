@@ -10,14 +10,14 @@ impl WorldSession {
     ///
     /// The `EffectEnergize` branch applies the level-dependent overrides and the
     /// Runic Mana Injector engineering bonus before `Unit::EnergizeBySpell`,
-    /// which then forwards `damage / 2` assisting threat with
+    /// which interrupts the regeneration of a `PowerTypeFlags::UseRegenInterrupt`
+    /// power (`Player::InterruptPowerRegen`, `Unit.cpp:6581-6585`), applies the
+    /// power and then forwards `damage / 2` assisting threat with
     /// `ignoreModifiers = true` (`Unit.cpp:6578-6590`).
     ///
     /// Represented boundary: current canonical player target only. The
     /// caster-side level and skill are read from the session Player, so a
-    /// non-player caster keeps the unmodified effect amount; the
-    /// `PowerTypeFlags::UseRegenInterrupt` branch still needs the DB2
-    /// `PowerType` entry at the effect site and is not represented here.
+    /// non-player caster keeps the unmodified effect amount.
     pub(in crate::session) fn apply_energize_effect_like_cpp(
         &mut self,
         spell_id: i32,
@@ -45,6 +45,15 @@ impl WorldSession {
         } else {
             self.energize_caster_scaled_amount_like_cpp(spell_id, caster_guid, damage)
         };
+        // C++ `Unit::EnergizeBySpell` (`Unit.cpp:6581-6585`) interrupts the
+        // target Player's regeneration before `ModifyPower` for a power whose
+        // DB2 entry carries `PowerTypeFlags::UseRegenInterrupt`.
+        if self
+            .power_type_store_like_cpp()
+            .is_some_and(|store| store.uses_regen_interrupt_like_cpp(power as i8))
+        {
+            self.interrupt_player_power_regen_like_cpp(power, misc_value);
+        }
 
         let outcome = self
             .mutate_canonical_player_like_cpp(|player| {
@@ -88,6 +97,19 @@ impl WorldSession {
             over_energize: requested.saturating_sub(applied),
         });
         true
+    }
+
+    /// C++ `Player::InterruptPowerRegen` (`Player.cpp:1831-1840`): reset the
+    /// canonical Player's regen interrupt timestamp and fractional power, then
+    /// publish `SMSG_INTERRUPT_POWER_REGEN` with the `Powers` value.
+    fn interrupt_player_power_regen_like_cpp(&mut self, power: PowerType, power_type: i32) {
+        let now_ms = crate::session_rules::game_time_ms_like_cpp();
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player
+                .unit_mut()
+                .interrupt_power_regen_like_cpp(power, now_ms);
+        });
+        self.send_packet(&wow_packet::packets::combat::InterruptPowerRegen { power_type });
     }
 
     /// C++ `Spell::EffectEnergize`'s caster-scaled amount

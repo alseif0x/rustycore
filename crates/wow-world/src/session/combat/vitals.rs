@@ -247,9 +247,16 @@ impl WorldSession {
         self.send_packet(&packet);
         self.broadcast_player_packet_to_visible_set_realm_like_cpp(packet.to_bytes());
     }
-    #[cfg(test)]
+    /// Installs the process-owned DB2 `PowerType` catalog. C++
+    /// `sDB2Manager.GetPowerTypeEntry(power)` (`Unit.cpp:6581-6585`); the
+    /// spawn/regeneration paths read the same store through
+    /// `CreatureSpawnCatalogsLikeCpp`, so this slot is the session's read-only
+    /// handle for the spell-effect chain.
     pub fn set_power_type_store(&mut self, store: Arc<PowerTypeStore>) {
         self.power_type_store = Some(store);
+    }
+    pub(crate) fn power_type_store_like_cpp(&self) -> Option<&PowerTypeStore> {
+        self.power_type_store.as_deref()
     }
     #[cfg(test)]
     pub(crate) fn set_represented_player_power_slot_like_cpp(
