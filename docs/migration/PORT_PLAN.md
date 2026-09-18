@@ -33,6 +33,11 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 damage-taken term stacking regression — 2026-09-18, implementation
+`66c6bf3f`:** test-only proof that the produced `SpellDamageBonusTaken` terms
+accumulate multiplicatively into one `TakenTotalMod` (two +50% terms give 225 from
+a base of 100, not 200). No production surface changed.
+
 **#31 caster spell-family damage-taken term — 2026-09-18, implementation
 `424efd37`:** the drain/burn pre-scaling also folds the caster's
 `SPELL_AURA_MOD_SPELL_DAMAGE_FROM_CASTER` auras whose spell affects the damaging
