@@ -146,6 +146,10 @@ pub(crate) struct RepresentedAbsorbShieldLikeCpp {
     /// C++ `AuraEffect::GetAmount()`. A negative amount is an infinite-absorb
     /// script shield, which C++ clamps to zero before absorbing.
     pub amount: i32,
+    /// C++ `SpellInfo::HasAttribute(SPELL_ATTR6_ABSORB_CANNOT_BE_IGNORE)`: an
+    /// absorb that an attacker's `SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL` cannot
+    /// reduce (`Unit.cpp:1830-1832`).
+    pub cannot_be_ignored: bool,
 }
 
 /// C++ `Unit::CalcAbsorbResist`'s `SPELL_AURA_SCHOOL_ABSORB` selection
@@ -196,6 +200,13 @@ pub(crate) fn player_absorb_shields_like_cpp(
                 spell_id: aura.spell_id,
                 category_id,
                 amount,
+                cannot_be_ignored: spell_store.has_attribute_for_difficulty_like_cpp(
+                    aura.spell_id,
+                    difficulty_id,
+                    difficulty_store,
+                    6,
+                    wow_data::spell::attributes::SPELL_ATTR6_ABSORB_CANNOT_BE_IGNORE,
+                ),
             });
         }
     }
@@ -222,6 +233,8 @@ pub(crate) struct RepresentedManaShieldLikeCpp {
     /// C++ `SpellEffectInfo::CalcValueMultiplier(caster)`'s data term: the mana
     /// the shield drains per point of absorbed damage.
     pub mana_multiplier: f32,
+    /// C++ `SpellInfo::HasAttribute(SPELL_ATTR6_ABSORB_CANNOT_BE_IGNORE)`.
+    pub cannot_be_ignored: bool,
 }
 
 /// C++ `Unit::CalcAbsorbResist`'s `SPELL_AURA_MANA_SHIELD` selection
@@ -234,6 +247,8 @@ pub(crate) struct RepresentedManaShieldLikeCpp {
 pub(crate) fn player_mana_shields_like_cpp(
     auras: &HashMap<u8, AuraApplicationLikeCpp>,
     spell_store: &SpellStore,
+    difficulty_id: u8,
+    difficulty_store: Option<&wow_data::DifficultyStore>,
     school_mask: u32,
 ) -> Vec<RepresentedManaShieldLikeCpp> {
     let mut slots: Vec<u8> = auras.keys().copied().collect();
@@ -266,6 +281,13 @@ pub(crate) fn player_mana_shields_like_cpp(
                 spell_id: aura.spell_id,
                 amount,
                 mana_multiplier: effect.calc_value_multiplier_like_cpp(),
+                cannot_be_ignored: spell_store.has_attribute_for_difficulty_like_cpp(
+                    aura.spell_id,
+                    difficulty_id,
+                    difficulty_store,
+                    6,
+                    wow_data::spell::attributes::SPELL_ATTR6_ABSORB_CANNOT_BE_IGNORE,
+                ),
             });
         }
     }

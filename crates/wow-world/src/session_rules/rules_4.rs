@@ -756,9 +756,38 @@ pub(crate) struct RepresentedMeleeAbsorbLikeCpp {
 /// attribute projection, `SPELL_AURA_MANA_SHIELD` needs a power write the melee
 /// path does not own, and `Unit::CalcSpellResistedDamage` returns zero for a
 /// non-magic school mask (`Unit.cpp:2058-2060`), so physical melee never resists.
+/// C++ `Unit::CalcAbsorbResist`'s `auraAbsorbMod`
+/// (`Unit.cpp:1803-1811`): the attacker's
+/// `GetMaxPositiveAuraModifierByMiscMask(SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL,
+/// schoolMask)` clamped to `[0, 100]`.
+pub(crate) fn represented_melee_ignore_absorb_like_cpp(
+    attacker_effects: &[crate::session_rules::AppliedAuraEffectLikeCpp],
+    school_mask: u32,
+) -> f32 {
+    attacker_effects
+        .iter()
+        .filter(|effect| {
+            effect.aura_type == wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL
+                && (effect.misc_value as u32) & school_mask != 0
+        })
+        .map(|effect| effect.amount as f32)
+        .fold(0.0_f32, f32::max)
+        .clamp(0.0, 100.0)
+}
+
+/// C++ `CalculatePct(damage, auraAbsorbMod)`: the damage portion the attacker's
+/// ignore-absorb modifier removes from what a shield may take.
+pub(crate) fn represented_melee_ignored_absorb_amount_like_cpp(damage: u32, pct: f32) -> u32 {
+    if pct <= 0.0 {
+        return 0;
+    }
+    ((damage as f32) * pct / 100.0) as u32
+}
+
 pub(crate) fn represented_melee_absorb_like_cpp(
     shields: &[crate::session_rules::RepresentedAbsorbShieldLikeCpp],
     damage: u32,
+    ignore_absorb_pct: f32,
 ) -> RepresentedMeleeAbsorbLikeCpp {
     let mut result = RepresentedMeleeAbsorbLikeCpp {
         absorbed: 0,
@@ -768,6 +797,7 @@ pub(crate) fn represented_melee_absorb_like_cpp(
     if damage == 0 || shields.is_empty() {
         return result;
     }
+    let ignore = represented_melee_ignored_absorb_amount_like_cpp(damage, ignore_absorb_pct);
     let mut ordered: Vec<&crate::session_rules::RepresentedAbsorbShieldLikeCpp> =
         shields.iter().collect();
     ordered.sort_by_key(|shield| represented_absorb_priority_like_cpp(shield));
@@ -776,9 +806,20 @@ pub(crate) fn represented_melee_absorb_like_cpp(
         if remaining_damage == 0 {
             break;
         }
+        // C++ `damageInfo.ModifyDamage(-absorbIgnoringDamage)` for every shield
+        // whose spell lacks `SPELL_ATTR6_ABSORB_CANNOT_BE_IGNORE`, then the
+        // `[0, damage]` clamp. C++ restores the reduction after the shield; the
+        // temporary damage is floored at zero here instead of reproducing the
+        // negative clamp C++ can reach when the ignoring amount exceeds what is
+        // left.
+        let absorbable_damage = if shield.cannot_be_ignored {
+            remaining_damage
+        } else {
+            remaining_damage.saturating_sub(ignore)
+        };
         // C++ `if (currentAbsorb < 0) currentAbsorb = 0;`
         let available = shield.amount.max(0);
-        let consumed = available.min(i32::try_from(remaining_damage).unwrap_or(i32::MAX));
+        let consumed = available.min(i32::try_from(absorbable_damage).unwrap_or(i32::MAX));
         if consumed > 0 {
             remaining_damage -= consumed as u32;
             result.absorbed += consumed as u32;
@@ -848,6 +889,7 @@ pub(crate) fn represented_melee_mana_absorb_like_cpp(
     shields: &[crate::session_rules::RepresentedManaShieldLikeCpp],
     damage: u32,
     available_mana: u32,
+    ignore_absorb_pct: f32,
 ) -> RepresentedMeleeManaAbsorbLikeCpp {
     let mut result = RepresentedMeleeManaAbsorbLikeCpp {
         absorbed: 0,
@@ -858,16 +900,25 @@ pub(crate) fn represented_melee_mana_absorb_like_cpp(
     if damage == 0 || shields.is_empty() {
         return result;
     }
+    let ignore = represented_melee_ignored_absorb_amount_like_cpp(damage, ignore_absorb_pct);
     let mut remaining_damage = damage;
     let mut remaining_mana = available_mana;
     for shield in shields {
         if remaining_damage == 0 {
             break;
         }
+        // C++ `damageInfo.ModifyDamage(-absorbIgnoringDamage)` for a mana shield
+        // without `SPELL_ATTR6_ABSORB_CANNOT_BE_IGNORE`, then the `[0, damage]`
+        // clamp.
+        let absorbable_damage = if shield.cannot_be_ignored {
+            remaining_damage
+        } else {
+            remaining_damage.saturating_sub(ignore)
+        };
         // C++ `if (currentAbsorb < 0) currentAbsorb = 0;` then the `[0, damage]`
         // clamp.
         let current = shield.amount.max(0) as u32;
-        let current = current.min(remaining_damage);
+        let current = current.min(absorbable_damage);
         let base_reduction = i32::try_from(current).unwrap_or(i32::MAX);
         // C++ `if (float manaMultiplier = CalcValueMultiplier(caster))
         // manaReduction = int32(float(manaReduction) * manaMultiplier);`

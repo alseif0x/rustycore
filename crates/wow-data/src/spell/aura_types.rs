@@ -9,6 +9,10 @@ pub const SPELL_AURA_SCHOOL_ABSORB: i32 = 69;
 /// C++ `AuraType::SPELL_AURA_MANA_SHIELD` (`SpellAuraDefines.h:192`), resolved
 /// by `Unit::CalcAbsorbResist`'s mana-shield loop (`Unit.cpp:1886-1930`).
 pub const SPELL_AURA_MANA_SHIELD: i32 = 97;
+/// C++ `AuraType::SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL`
+/// (`SpellAuraDefines.h:289`): the attacker-side modifier that reduces how much
+/// of a hit a school-absorb shield may take (`Unit.cpp:1803-1811`).
+pub const SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL: i32 = 194;
 pub const SPELL_AURA_SCHOOL_IMMUNITY: i32 = 39;
 pub const SPELL_AURA_DUMMY_ABSORB: i32 = 3;
 pub const SPELL_AURA_PERIODIC_DAMAGE: i32 = 3;
