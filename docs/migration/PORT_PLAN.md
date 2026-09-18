@@ -33,6 +33,11 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 creature power-type drain regression — 2026-09-18, implementation
+`bae3875a`:** test-only coverage for the `GetPowerType()` gate of
+`EffectPowerDrain` on a creature target (wrong active power → no drain, no caster
+share, no logs). No production surface changed.
+
 **#31 drained-creature power publication — 2026-09-18, implementation
 `e7943b27`:** the creature drain now publishes the target's
 `Unit::values_update()` through the same helper the creature heal uses for health,
