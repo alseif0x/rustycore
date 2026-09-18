@@ -309,6 +309,7 @@ async fn spell_instakill_effect_row_kills_creature_and_logs_like_cpp() {
         vec![
             ServerOpcodes::SpellGo,
             ServerOpcodes::SpellInstakillLog,
+            ServerOpcodes::SpellNonMeleeDamageLog,
             ServerOpcodes::CooldownEvent
         ]
     );

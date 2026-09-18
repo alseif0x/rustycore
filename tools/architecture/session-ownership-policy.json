@@ -21442,7 +21442,7 @@
           "kind": "method",
           "name": "apply_damage_from_caster_like_cpp",
           "visibility": "pub (in crate :: session)",
-          "signature": "async fn apply_damage_from_caster_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , spell_id : Option < i32 > , caster_guid : ObjectGuid , target_guid : ObjectGuid , damage_amount : u32 ,) -> Result < () , & 'static str >",
+          "signature": "async fn apply_damage_from_caster_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , spell_id : Option < i32 > , caster_guid : ObjectGuid , target_guid : ObjectGuid , damage_amount : u32 , cast_id : ObjectGuid , spell_visual_id : u32 ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
           "guards": [

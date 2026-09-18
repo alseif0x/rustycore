@@ -351,15 +351,61 @@ async fn represented_spellclick_executes_clicker_cast_to_clickee_like_cpp() {
         "C++ calls CreatureAI::OnSpellClick(clicker, true) after a handled spellclick row"
     );
     drop(manager);
-    let opcodes = drain_server_opcodes(&send_rx);
+    // C++ `Unit::DealSpellDamage` publishes the hit through
+    // `SMSG_SPELL_NON_MELEE_DAMAGE_LOG` before the victim's object update
+    // (`Unit.cpp:1250-1260`, `5353-5380`); the cast identity it carries is the
+    // same `HighGuid::Cast` the `SMSG_SPELL_GO` advertised.
+    let packets = drain_server_packet_bytes(&send_rx);
+    let opcodes: Vec<_> = packets
+        .iter()
+        .map(|bytes| {
+            wow_packet::WorldPacket::from_bytes(bytes)
+                .server_opcode()
+                .expect("server opcode")
+        })
+        .collect();
     assert_eq!(
         opcodes,
         vec![
             ServerOpcodes::SpellGo,
+            ServerOpcodes::SpellNonMeleeDamageLog,
             ServerOpcodes::UpdateObject,
             ServerOpcodes::CooldownEvent
         ]
     );
+    let log_bytes = packets
+        .iter()
+        .find(|bytes| {
+            wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                == Some(ServerOpcodes::SpellNonMeleeDamageLog)
+        })
+        .expect("spell damage log packet");
+    let mut log = wow_packet::WorldPacket::from_bytes(log_bytes);
+    log.read_uint16().expect("opcode");
+    assert_eq!(log.read_packed_guid().expect("me"), creature_guid);
+    assert_eq!(log.read_packed_guid().expect("caster"), player_guid);
+    let log_cast_id = log.read_packed_guid().expect("cast id");
+    assert!(
+        !log_cast_id.is_empty() && log_cast_id != player_guid && log_cast_id != creature_guid,
+        "the log carries the cast identity the SMSG_SPELL_GO advertised"
+    );
+    assert_eq!(log.read_int32().expect("spell id"), spell_id);
+    log.read_int32().expect("visual");
+    assert_eq!(log.read_int32().expect("damage"), 7);
+    assert_eq!(log.read_int32().expect("original damage"), 7);
+    assert_eq!(log.read_int32().expect("overkill"), -1);
+    assert_eq!(log.read_uint8().expect("school mask"), 1);
+    assert_eq!(log.read_int32().expect("absorbed"), 0);
+    assert_eq!(log.read_int32().expect("resisted"), 0);
+    assert_eq!(log.read_int32().expect("shield block"), 0);
+    assert_eq!(log.read_uint32().expect("world text viewers"), 0);
+    assert_eq!(log.read_uint32().expect("supporters"), 0);
+    assert!(!log.has_bit().expect("periodic"));
+    assert_eq!(log.read_bits(7).expect("flags"), 0);
+    assert!(!log.has_bit().expect("debug info"));
+    assert!(!log.has_bit().expect("has log data"));
+    assert!(!log.has_bit().expect("content tuning"));
+    assert!(log.is_empty());
 }
 #[tokio::test]
 async fn represented_spellclick_executes_clickee_caster_self_damage_like_cpp() {
@@ -741,6 +787,7 @@ async fn represented_spellclick_executes_owner_original_caster_when_owner_is_cli
         drain_server_opcodes(&send_rx),
         vec![
             ServerOpcodes::SpellGo,
+            ServerOpcodes::SpellNonMeleeDamageLog,
             ServerOpcodes::UpdateObject,
             ServerOpcodes::CooldownEvent
         ]

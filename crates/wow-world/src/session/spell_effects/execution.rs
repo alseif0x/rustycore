@@ -675,6 +675,8 @@ impl WorldSession {
                             caster_guid,
                             target_guid,
                             damage_amount,
+                            cast_id,
+                            spell_visual_id,
                         )
                         .await?;
                     } else {

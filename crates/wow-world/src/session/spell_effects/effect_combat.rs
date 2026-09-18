@@ -428,6 +428,8 @@ impl WorldSession {
             player_guid,
             target_guid,
             damage_amount,
+            ObjectGuid::create_null(),
+            0,
         )
         .await
     }
@@ -1111,6 +1113,11 @@ impl WorldSession {
         caster_guid: ObjectGuid,
         target_guid: ObjectGuid,
         damage_amount: u32,
+        // C++ `SpellNonMeleeDamage::castId`/`SpellVisual`: the combat log needs
+        // the cast identity the client correlates with `SMSG_SPELL_GO`. Callers
+        // without a represented cast context pass an empty GUID and no visual.
+        cast_id: ObjectGuid,
+        spell_visual_id: u32,
     ) -> Result<(), &'static str> {
         use wow_packet::ServerPacket;
         use wow_packet::packets::movement::MonsterMoveStop;
@@ -1220,6 +1227,9 @@ impl WorldSession {
                         .creature
                         .set_tapped_by_player(player_guid, &tap_group_guids);
                 }
+                // C++ `SpellNonMeleeDamage::preHitHealth`, read before
+                // `DealDamage` so the log can report the overkill.
+                let pre_hit_health = creature.current_hp();
                 let died = creature.take_damage_before_death_state_like_cpp(damage_amount);
                 let newly_engaged = !died
                     && damage_amount > 0
@@ -1277,13 +1287,44 @@ impl WorldSession {
                     creature.creature.unit().values_update(),
                     threat_value,
                     newly_engaged,
+                    pre_hit_health,
                 ))
             })
             .ok_or("Target creature not found")?;
-        let Some((kill_info, mut values_update, threat_value, newly_engaged)) = damage_outcome
+        let Some((kill_info, mut values_update, threat_value, newly_engaged, pre_hit_health)) =
+            damage_outcome
         else {
             return Ok(());
         };
+
+        // C++ `Unit::DealSpellDamage` sends the combat log for the hit before
+        // the kill cascade (`Unit.cpp:1250-1260`, `Unit::SendSpellNonMeleeDamageLog`
+        // `Unit.cpp:5353-5380`). The represented hit has no spell absorb, resist
+        // or block stage for a creature target yet, and no spell critical
+        // representation, so those fields and `HitInfo` stay zero.
+        if let Some(spell_id) = spell_id {
+            let damage = damage_amount.min(i32::MAX as u32) as i32;
+            self.send_packet(&wow_packet::packets::combat::SpellNonMeleeDamageLog {
+                target: target_guid,
+                caster: caster_guid,
+                cast_id,
+                spell_id,
+                visual_id: spell_visual_id.min(i32::MAX as u32) as i32,
+                damage,
+                original_damage: damage,
+                overkill: if damage_amount > pre_hit_health {
+                    i32::try_from(damage_amount - pre_hit_health).unwrap_or(i32::MAX)
+                } else {
+                    -1
+                },
+                school_mask: spell_school_mask.min(u32::from(u8::MAX)) as u8,
+                absorbed: 0,
+                resisted: 0,
+                shield_block: 0,
+                periodic: false,
+                flags: 0,
+            });
+        }
         if let Some(threat_value) = threat_value {
             self.sync_represented_creature_threat_to_canonical_like_cpp(
                 target_guid,
