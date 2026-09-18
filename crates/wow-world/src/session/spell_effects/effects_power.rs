@@ -123,6 +123,42 @@ fn drain_taken_spell_from_caster_multiplier_like_cpp(
     multiplier
 }
 
+/// C++ `Unit::SpellDamageBonusTaken` (`Unit.cpp:6830-6835`), label caster term:
+/// `GetTotalAuraMultiplier(SPELL_AURA_MOD_DAMAGE_TAKEN_FROM_CASTER_BY_LABEL)` over
+/// the auras the damaging caster applied whose `MiscValue` is a label the
+/// damaging spell carries (`SpellInfo::HasLabel`).
+fn drain_taken_label_from_caster_multiplier_like_cpp(
+    auras: &wow_entities::AuraSubsystem,
+    labels: Option<&wow_data::SpellLabelStore>,
+    caster_guid: ObjectGuid,
+    damaging_spell_id: u32,
+) -> f32 {
+    let Some(labels) = labels else {
+        return 1.0;
+    };
+    let aura_type = wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_TAKEN_FROM_CASTER_BY_LABEL;
+    let Some(typed) = auras.applied_aura_types.get(&aura_type) else {
+        return 1.0;
+    };
+    let mut multiplier = 1.0;
+    for aura in typed.iter().filter(|aura| aura.caster_guid == caster_guid) {
+        let label = auras
+            .applied_aura_misc_values
+            .get(aura)
+            .copied()
+            .unwrap_or(0);
+        let Ok(label) = u32::try_from(label) else {
+            continue;
+        };
+        if !labels.has_label_like_cpp(damaging_spell_id, label) {
+            continue;
+        }
+        let amount = auras.applied_aura_amounts.get(aura).copied().unwrap_or(0);
+        multiplier *= 1.0 + amount as f32 / 100.0;
+    }
+    multiplier
+}
+
 impl WorldSession {
     /// C++ `Spell::EffectEnergize` (`SpellEffects.cpp:1488-1530`) /
     /// `Spell::EffectEnergizePct` (`SpellEffects.cpp:1532-1554`).
@@ -443,6 +479,7 @@ impl WorldSession {
                 })
             })
             .unwrap_or(0);
+        let spell_labels = self.spell_label_store().cloned();
         let class_options = self.spell_class_options_store().cloned();
         let damaging_class = class_options.as_ref().and_then(|store| {
             store
@@ -467,6 +504,12 @@ impl WorldSession {
                         caster_guid,
                         damaging_class,
                     )
+                    * drain_taken_label_from_caster_multiplier_like_cpp(
+                        auras,
+                        spell_labels.as_deref(),
+                        caster_guid,
+                        spell_id_u32,
+                    )
             })
             .unwrap_or(1.0)
         } else {
@@ -485,6 +528,12 @@ impl WorldSession {
                         class_options.as_deref(),
                         caster_guid,
                         damaging_class,
+                    )
+                    * drain_taken_label_from_caster_multiplier_like_cpp(
+                        auras,
+                        spell_labels.as_deref(),
+                        caster_guid,
+                        spell_id_u32,
                     )
             })
             .unwrap_or(1.0)

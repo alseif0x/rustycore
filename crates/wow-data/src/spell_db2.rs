@@ -89,6 +89,16 @@ db2_store!(
 );
 db2_store!(SpellKeyboundOverrideStore, SpellKeyboundOverrideEntry);
 db2_store!(SpellLabelStore, SpellLabelEntry);
+
+impl SpellLabelStore {
+    /// C++ `SpellInfo::HasLabel` (`SpellInfo.h:598`): any `SpellLabel.db2` row
+    /// pairs this spell with the requested label.
+    pub fn has_label_like_cpp(&self, spell_id: u32, label_id: u32) -> bool {
+        self.entries
+            .values()
+            .any(|entry| entry.spell_id == spell_id && entry.label_id == label_id)
+    }
+}
 db2_store!(SpellLearnSpellStore, SpellLearnSpellEntry);
 db2_store!(SpellLevelsStore, SpellLevelsEntry);
 db2_store!(SpellMiscStore, SpellMiscEntry);

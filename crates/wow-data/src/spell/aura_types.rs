@@ -93,6 +93,11 @@ pub const SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN: i32 = 87;
 /// (`SpellAuraEffects.cpp:326`, index 255), read by
 /// `Unit::SpellDamageBonusTaken` (`Unit.cpp:6783-6791`).
 pub const SPELL_AURA_MOD_MECHANIC_DAMAGE_TAKEN_PERCENT: i32 = 255;
+
+/// C++ `SPELL_AURA_MOD_DAMAGE_TAKEN_FROM_CASTER_BY_LABEL`
+/// (`SpellAuraEffects.cpp:578`, index 507), read by
+/// `Unit::SpellDamageBonusTaken` (`Unit.cpp:6830-6835`).
+pub const SPELL_AURA_MOD_DAMAGE_TAKEN_FROM_CASTER_BY_LABEL: i32 = 507;
 /// C++ `AuraType::SPELL_AURA_MOD_HEALTH_REGEN_PERCENT` (`SpellAuraDefines.h:183`).
 pub const SPELL_AURA_MOD_HEALTH_REGEN_PERCENT: i32 = 88;
 pub const SPELL_AURA_PERIODIC_DAMAGE_PERCENT: i32 = 89;

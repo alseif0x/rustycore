@@ -1260,6 +1260,13 @@ async fn run_inner(
         "Loaded {} spell class options rows",
         spell_class_options_store.len()
     );
+    // C++ `sSpellMgr` label authority, read by `SpellInfo::HasLabel`
+    // (`SpellInfo.cpp`) for the damage-taken-from-caster-by-label term.
+    let spell_label_store = Arc::new(
+        wow_data::SpellLabelStore::load(&data_dir, &locale)
+            .context("Failed to load SpellLabel.db2")?,
+    );
+    info!("Loaded {} spell label rows", spell_label_store.len());
     let spell_equipped_items_store = Arc::new(
         spell::core_db2_hotfix::load_spell_equipped_items_store_like_cpp(
             &data_dir,
@@ -4951,6 +4958,7 @@ async fn run_inner(
             spell_levels_store: Arc::clone(&spell_levels_store),
             spell_category_store: Arc::clone(&spell_category_store),
             spell_class_options_store: Arc::clone(&spell_class_options_store),
+            spell_label_store: Arc::clone(&spell_label_store),
             npc_spell_click_store: Arc::clone(&npc_spell_click_store),
             spell_aura_options_store: Arc::clone(&spell_aura_options_store),
             spell_aura_restrictions_store: Arc::clone(&spell_aura_restrictions_store),

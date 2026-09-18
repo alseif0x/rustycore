@@ -38,6 +38,7 @@ pub(crate) struct SpellCatalogsLikeCpp {
     /// (`SpellClassOptions.db2`), consumed by spell-specific classification
     /// such as `Player::IsPolymorphed`.
     pub(crate) spell_class_options_store: Option<Arc<wow_data::SpellClassOptionsStore>>,
+    pub(crate) spell_label_store: Option<Arc<wow_data::SpellLabelStore>>,
     pub(crate) spell_custom_attribute_store:
         Option<Arc<wow_data::SpellCustomAttributeStoreLikeCpp>>,
     pub(crate) spell_duration_store: Option<Arc<wow_data::SpellDurationStore>>,
@@ -112,6 +113,12 @@ impl SpellCatalogsLikeCpp {
         store: Arc<wow_data::SpellClassOptionsStore>,
     ) {
         self.spell_class_options_store = Some(store);
+    }
+    pub(crate) fn set_spell_label_store(&mut self, store: Arc<wow_data::SpellLabelStore>) {
+        self.spell_label_store = Some(store);
+    }
+    pub(crate) fn spell_label_store(&self) -> Option<&Arc<wow_data::SpellLabelStore>> {
+        self.spell_label_store.as_ref()
     }
     pub(crate) fn spell_class_options_store(
         &self,
