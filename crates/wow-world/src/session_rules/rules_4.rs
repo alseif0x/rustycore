@@ -911,3 +911,62 @@ pub(crate) fn represented_melee_mana_absorb_like_cpp(
     result.damage = remaining_damage;
     result
 }
+
+/// C++ `Unit::CalcHealAbsorb`'s result for one heal.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub(crate) struct RepresentedHealAbsorbLikeCpp {
+    /// C++ `HealInfo::GetAbsorb()`.
+    pub absorbed: u32,
+    /// C++ `HealInfo::GetHeal()` after the shields were spent.
+    pub heal: u32,
+    /// The per-shield depletion the canonical owner must commit.
+    pub consumed: Vec<RepresentedAbsorbConsumptionLikeCpp>,
+}
+
+/// C++ `Unit::CalcHealAbsorb`'s loop (`Unit.cpp:2026-2068`) for one heal.
+///
+/// Each heal-absorb shield's amount is clamped to the heal left, an
+/// amount-counting shield is depleted and removed at zero, and a negative
+/// (infinite) amount is clamped to zero and never removed. Unlike the damage
+/// absorb loop there is no priority sort and no ignore-absorb term in C++.
+pub(crate) fn represented_heal_absorb_like_cpp(
+    shields: &[crate::session_rules::RepresentedHealAbsorbShieldLikeCpp],
+    heal: u32,
+) -> RepresentedHealAbsorbLikeCpp {
+    let mut result = RepresentedHealAbsorbLikeCpp {
+        absorbed: 0,
+        heal,
+        consumed: Vec::new(),
+    };
+    if heal == 0 || shields.is_empty() {
+        return result;
+    }
+    let mut remaining_heal = heal;
+    for shield in shields {
+        if remaining_heal == 0 {
+            break;
+        }
+        // C++ `if (currentAbsorb < 0) currentAbsorb = 0;` then the `[0, heal]`
+        // clamp.
+        let available = shield.amount.max(0);
+        let consumed = available.min(i32::try_from(remaining_heal).unwrap_or(i32::MAX));
+        if consumed > 0 {
+            remaining_heal -= consumed as u32;
+            result.absorbed += consumed as u32;
+        }
+        let remaining = if shield.amount >= 0 {
+            shield.amount - consumed
+        } else {
+            shield.amount
+        };
+        result.consumed.push(RepresentedAbsorbConsumptionLikeCpp {
+            slot: shield.slot,
+            effect_index: shield.effect_index,
+            consumed,
+            remaining,
+            removed: shield.amount >= 0 && remaining <= 0,
+        });
+    }
+    result.heal = remaining_heal;
+    result
+}

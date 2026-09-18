@@ -71,6 +71,11 @@ impl WorldSession {
         };
         // Si target es el mismo jugador
         if target_guid == player_guid {
+            // C++ `Unit::HealBySpell` runs `CalcHealAbsorb` before `DealHeal`
+            // (`Unit.cpp:6557-6562`, `2020-2084`), so the heal the target
+            // receives is what the heal-absorb shields left.
+            let (heal_amount, absorbed) =
+                self.apply_owned_player_heal_absorb_like_cpp(spell_id, healer_guid, heal_amount);
             let Some((current, healed, _, effective_heal)) =
                 self.apply_owned_player_heal_like_cpp(heal_amount)
             else {
@@ -92,6 +97,7 @@ impl WorldSession {
                 target_guid,
                 heal_amount,
                 effective_heal,
+                absorbed,
             );
             info!(account = self.account_id, heal = heal_amount, "Healed self");
             if healed != current {
@@ -144,6 +150,7 @@ impl WorldSession {
             target_guid,
             heal_amount,
             effective_heal,
+            0,
         );
 
         if self.client_visible_guids_like_cpp.contains(&target_guid)
@@ -160,8 +167,12 @@ impl WorldSession {
     }
     /// C++ `Unit::SendHealSpellLog` (`Unit.cpp:6538-6555`): the heal combat log
     /// the client shows for a spell heal. A heal without a represented spell has
-    /// no `HealInfo` spell to log, so it stays silent; heal absorb and critical
-    /// heals are not represented, so `Absorbed` is zero and `Crit` false.
+    /// no `HealInfo` spell to log, so it stays silent; critical heals are not
+    /// represented, so `Crit` stays false and no crit-roll float follows.
+    ///
+    /// `heal_amount` is `HealInfo::GetHeal()` after the heal-absorb shields;
+    /// `HealInfo::GetOriginalHeal()` is that amount plus `absorbed`, exactly
+    /// like C++ `HealInfo::AbsorbHeal`.
     pub(in crate::session) fn publish_heal_spell_log_like_cpp(
         &self,
         spell_id: Option<i32>,
@@ -169,22 +180,114 @@ impl WorldSession {
         target_guid: ObjectGuid,
         heal_amount: u32,
         effective_heal: u32,
+        absorbed: u32,
     ) {
         let Some(spell_id) = spell_id else {
             return;
         };
-        let health = i32::try_from(heal_amount).unwrap_or(i32::MAX);
         self.send_packet(&wow_packet::packets::combat::SpellHealLog {
             target: target_guid,
             caster: healer_guid,
             spell_id,
-            health,
-            original_heal: health,
+            health: i32::try_from(heal_amount).unwrap_or(i32::MAX),
+            original_heal: i32::try_from(heal_amount.saturating_add(absorbed)).unwrap_or(i32::MAX),
             over_heal: i32::try_from(heal_amount.saturating_sub(effective_heal))
                 .unwrap_or(i32::MAX),
-            absorbed: 0,
+            absorbed: i32::try_from(absorbed).unwrap_or(i32::MAX),
             crit: false,
         });
+    }
+
+    /// C++ `Unit::CalcHealAbsorb` (`Unit.cpp:2020-2084`) for the session's own
+    /// player target: every `SPELL_AURA_SCHOOL_HEAL_ABSORB` whose `MiscValue`
+    /// covers the heal's school spends its amount before the heal lands,
+    /// publishes one `SMSG_SPELL_HEAL_ABSORB_LOG` per consuming shield and is
+    /// removed once spent. Returns `(remaining heal, absorbed)`.
+    ///
+    /// Boundary: a creature heal target keeps its auras with no represented
+    /// mutable amount, so its heal absorb stays open, exactly like the damage
+    /// absorb for creature victims.
+    pub(in crate::session) fn apply_owned_player_heal_absorb_like_cpp(
+        &mut self,
+        spell_id: Option<i32>,
+        healer_guid: ObjectGuid,
+        heal_amount: u32,
+    ) -> (u32, u32) {
+        let Some(spell_id) = spell_id else {
+            return (heal_amount, 0);
+        };
+        let Ok(spell_id_key) = u32::try_from(spell_id) else {
+            return (heal_amount, 0);
+        };
+        let Some(spell_store) = self.spell_store().cloned() else {
+            return (heal_amount, 0);
+        };
+        let school_mask = self.spell_school_mask_for_difficulty_like_cpp(
+            spell_id_key,
+            self.current_map_difficulty_id_like_cpp(),
+        );
+        let Some(auras) = self.canonical_player_snapshot_like_cpp(|player| {
+            player
+                .unit()
+                .subsystems()
+                .auras
+                .runtime_applications_like_cpp()
+                .clone()
+        }) else {
+            return (heal_amount, 0);
+        };
+        let shields = crate::session_rules::player_heal_absorb_shields_like_cpp(
+            &auras,
+            spell_store.as_ref(),
+            school_mask,
+        );
+        let absorb = crate::session_rules::represented_heal_absorb_like_cpp(&shields, heal_amount);
+        if absorb.absorbed == 0 {
+            return (absorb.heal, 0);
+        }
+        let Some(victim_guid) = self.player_guid() else {
+            return (absorb.heal, absorb.absorbed);
+        };
+        let original_heal = i32::try_from(heal_amount).unwrap_or(i32::MAX);
+        for consumption in &absorb.consumed {
+            let shield = self
+                .canonical_player_snapshot_like_cpp(|player| {
+                    player
+                        .unit()
+                        .subsystems()
+                        .auras
+                        .runtime_application_like_cpp(consumption.slot)
+                        .map(|aura| (aura.caster_guid, aura.spell_id))
+                })
+                .flatten();
+            if let Some((absorb_caster, absorb_spell_id)) = shield
+                && consumption.consumed > 0
+            {
+                // C++ `healInfo.GetTarget()->SendMessageToSet(absorbLog.Write(), true)`
+                // (`Unit.cpp:2070-2083`); the represented rail is session-local.
+                self.send_packet(&wow_packet::packets::combat::SpellHealAbsorbLog {
+                    target: victim_guid,
+                    absorb_caster,
+                    healer: healer_guid,
+                    absorb_spell_id,
+                    absorbed_spell_id: spell_id,
+                    absorbed: consumption.consumed,
+                    original_heal,
+                });
+            }
+            let _ = self.with_owned_player_mut_like_cpp(|player| {
+                crate::session::combat::write_absorbed_shield_amount_like_cpp(
+                    player,
+                    consumption.slot,
+                    consumption.effect_index,
+                    consumption.remaining,
+                );
+            });
+            if consumption.removed {
+                let _ = self.remove_aura(consumption.slot);
+            }
+        }
+        (absorb.heal, absorb.absorbed)
     }
     pub(in crate::session) async fn apply_heal_max_health_like_cpp(
         &mut self,

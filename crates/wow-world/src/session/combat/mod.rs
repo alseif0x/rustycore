@@ -10,6 +10,7 @@ mod regeneration;
 mod state;
 mod vitals;
 
+pub(in crate::session) use damage::write_absorbed_shield_amount_like_cpp;
 pub(in crate::session) use melee::{
     RepresentedArmorMitigationLikeCpp, RepresentedMeleeSwingLikeCpp,
 };

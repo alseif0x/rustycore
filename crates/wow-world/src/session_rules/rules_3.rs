@@ -272,6 +272,66 @@ pub(crate) fn player_mana_shields_like_cpp(
     shields
 }
 
+/// One represented `SPELL_AURA_SCHOOL_HEAL_ABSORB` of a player victim.
+///
+/// C++ `Unit::CalcHealAbsorb` (`Unit.cpp:2020-2084`) copies
+/// `GetAuraEffectsByType(SPELL_AURA_SCHOOL_HEAL_ABSORB)` and depletes each
+/// effect's amount by the heal it consumed; the application slot and effect
+/// index are carried so the depletion is a canonical aura-amount write.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) struct RepresentedHealAbsorbShieldLikeCpp {
+    /// The aura application slot that owns the effect.
+    pub slot: u8,
+    /// C++ `AuraEffect::GetEffIndex()`.
+    pub effect_index: u8,
+    /// C++ `AuraEffect::GetAmount()`. A negative amount is an infinite-absorb
+    /// script shield, which C++ clamps to zero.
+    pub amount: i32,
+}
+
+/// C++ `Unit::CalcHealAbsorb`'s `SPELL_AURA_SCHOOL_HEAL_ABSORB` selection
+/// (`Unit.cpp:2025-2034`): every active heal-absorb effect whose `MiscValue`
+/// covers the heal's school mask, in the aura order C++
+/// `GetAuraEffectsByType` returns.
+pub(crate) fn player_heal_absorb_shields_like_cpp(
+    auras: &HashMap<u8, AuraApplicationLikeCpp>,
+    spell_store: &SpellStore,
+    school_mask: u32,
+) -> Vec<RepresentedHealAbsorbShieldLikeCpp> {
+    let mut slots: Vec<u8> = auras.keys().copied().collect();
+    slots.sort_unstable();
+    let mut shields = Vec::new();
+    for slot in slots {
+        let aura = &auras[&slot];
+        let Some(spell) = spell_store.get(aura.spell_id) else {
+            continue;
+        };
+        for effect in spell.effects().iter().filter(|effect| {
+            effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_SCHOOL_HEAL_ABSORB
+                && 1u32
+                    .checked_shl(effect.effect_index)
+                    .is_some_and(|bit| aura.effect_mask & bit != 0)
+                // C++ `!(absorbAurEff->GetMiscValue() & healInfo.GetSchoolMask())`.
+                && (effect.effect_misc_value_1 as u32) & school_mask != 0
+        }) {
+            let amount = aura
+                .represented_effect_amounts
+                .iter()
+                .find(|represented| {
+                    u8::try_from(effect.effect_index).ok() == Some(represented.effect_index)
+                })
+                .map(|represented| represented.amount)
+                .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
+            shields.push(RepresentedHealAbsorbShieldLikeCpp {
+                slot,
+                effect_index: u8::try_from(effect.effect_index).unwrap_or(0),
+                amount,
+            });
+        }
+    }
+    shields
+}
+
 /// C++ `Unit::MeleeDamageBonusDone`'s auto-attack percentage term
 /// (`Unit.cpp:7620-7627`): `AddPct(DoneTotalMod, amount)` for every active
 /// `SPELL_AURA_MOD_AUTOATTACK_DAMAGE` effect. The represented white swing

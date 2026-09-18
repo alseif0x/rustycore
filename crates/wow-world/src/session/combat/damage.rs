@@ -5,6 +5,43 @@
 
 use super::*;
 
+/// Commit one spent absorb shield's `AuraEffect` remainder on a canonical
+/// Player (`AuraEffect::ChangeAmount`).
+///
+/// The represented `AuraEffect` amount is the shield pool the absorb
+/// projections read first; an amount no stage has written yet falls back to the
+/// spell effect's no-caster value, so the first depletion writes the exact
+/// remainder the next hit must see.
+pub(crate) fn write_absorbed_shield_amount_like_cpp(
+    player: &mut wow_entities::Player,
+    slot: u8,
+    effect_index: u8,
+    remaining: i32,
+) {
+    let Some(aura) = player
+        .unit_mut()
+        .subsystems_mut()
+        .auras
+        .runtime_application_mut_like_cpp(slot)
+    else {
+        return;
+    };
+    match aura
+        .represented_effect_amounts
+        .iter_mut()
+        .find(|represented| represented.effect_index == effect_index)
+    {
+        Some(represented) => represented.amount = remaining.max(0),
+        None => {
+            aura.represented_effect_amounts
+                .push(wow_entities::RepresentedAuraEffectAmountLikeCpp {
+                    effect_index,
+                    amount: remaining.max(0),
+                })
+        }
+    }
+}
+
 impl WorldSession {
     pub(in crate::session) fn represented_weapon_damage_bounds_like_cpp(
         &self,

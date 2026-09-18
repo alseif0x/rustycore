@@ -22378,6 +22378,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "apply_owned_player_heal_absorb_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn apply_owned_player_heal_absorb_like_cpp (& mut self , spell_id : Option < i32 > , healer_guid : ObjectGuid , heal_amount : u32 ,) -> (u32 , u32)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "apply_owned_player_heal_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn apply_owned_player_heal_like_cpp (& mut self , requested_heal : u32 ,) -> Option < (u32 , u32 , u32 , u32) >",
@@ -35766,7 +35779,7 @@
           "kind": "method",
           "name": "publish_heal_spell_log_like_cpp",
           "visibility": "pub (in crate :: session)",
-          "signature": "fn publish_heal_spell_log_like_cpp (& self , spell_id : Option < i32 > , healer_guid : ObjectGuid , target_guid : ObjectGuid , heal_amount : u32 , effective_heal : u32 ,)",
+          "signature": "fn publish_heal_spell_log_like_cpp (& self , spell_id : Option < i32 > , healer_guid : ObjectGuid , target_guid : ObjectGuid , heal_amount : u32 , effective_heal : u32 , absorbed : u32 ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
