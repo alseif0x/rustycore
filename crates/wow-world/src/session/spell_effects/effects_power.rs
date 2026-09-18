@@ -77,6 +77,52 @@ fn drain_taken_mechanic_multiplier_like_cpp(
     )
 }
 
+/// C++ `Unit::SpellDamageBonusTaken` (`Unit.cpp:6823-6828`), specific-spell
+/// caster term:
+/// `GetTotalAuraMultiplier(SPELL_AURA_MOD_SPELL_DAMAGE_FROM_CASTER)` over the
+/// auras the damaging caster applied whose spell affects the damaging spell
+/// through `AuraEffect::IsAffectingSpell` — the same `SpellFamilyName` and an
+/// intersecting `SpellFamilyFlags`, read here from `SpellClassOptions`. The
+/// `SPELL_AURA_MOD_DAMAGE_TAKEN_FROM_CASTER_BY_LABEL` term needs spell labels
+/// and remains unrepresented.
+fn drain_taken_spell_from_caster_multiplier_like_cpp(
+    auras: &wow_entities::AuraSubsystem,
+    class_options: Option<&wow_data::SpellClassOptionsStore>,
+    caster_guid: ObjectGuid,
+    damaging_class: Option<(u8, [u32; 4])>,
+) -> f32 {
+    let (Some(class_options), Some((damaging_set, damaging_mask))) =
+        (class_options, damaging_class)
+    else {
+        return 1.0;
+    };
+    if damaging_set == 0 {
+        return 1.0;
+    }
+    let aura_type = wow_data::spell::aura_types::SPELL_AURA_MOD_SPELL_DAMAGE_FROM_CASTER;
+    let Some(typed) = auras.applied_aura_types.get(&aura_type) else {
+        return 1.0;
+    };
+    let mut multiplier = 1.0;
+    for aura in typed.iter().filter(|aura| aura.caster_guid == caster_guid) {
+        let Some(entry) = class_options.entry_for_spell_like_cpp(aura.spell_id) else {
+            continue;
+        };
+        if entry.spell_class_set != damaging_set
+            || !entry
+                .spell_class_mask
+                .iter()
+                .zip(damaging_mask.iter())
+                .any(|(aura_mask, spell_mask)| aura_mask & spell_mask != 0)
+        {
+            continue;
+        }
+        let amount = auras.applied_aura_amounts.get(aura).copied().unwrap_or(0);
+        multiplier *= 1.0 + amount as f32 / 100.0;
+    }
+    multiplier
+}
+
 impl WorldSession {
     /// C++ `Spell::EffectEnergize` (`SpellEffects.cpp:1488-1530`) /
     /// `Spell::EffectEnergizePct` (`SpellEffects.cpp:1532-1554`).
@@ -397,6 +443,12 @@ impl WorldSession {
                 })
             })
             .unwrap_or(0);
+        let class_options = self.spell_class_options_store().cloned();
+        let damaging_class = class_options.as_ref().and_then(|store| {
+            store
+                .entry_for_spell_like_cpp(spell_id_u32)
+                .map(|entry| (entry.spell_class_set, entry.spell_class_mask))
+        });
         let aura_type = wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN;
         let multiplier = if target_guid == self.player_guid().unwrap_or(ObjectGuid::EMPTY) {
             self.mutate_canonical_player_like_cpp(|player| {
@@ -409,6 +461,12 @@ impl WorldSession {
                         school_mask,
                     )
                     * drain_taken_mechanic_multiplier_like_cpp(auras, mechanic_mask)
+                    * drain_taken_spell_from_caster_multiplier_like_cpp(
+                        auras,
+                        class_options.as_deref(),
+                        caster_guid,
+                        damaging_class,
+                    )
             })
             .unwrap_or(1.0)
         } else {
@@ -422,6 +480,12 @@ impl WorldSession {
                         school_mask,
                     )
                     * drain_taken_mechanic_multiplier_like_cpp(auras, mechanic_mask)
+                    * drain_taken_spell_from_caster_multiplier_like_cpp(
+                        auras,
+                        class_options.as_deref(),
+                        caster_guid,
+                        damaging_class,
+                    )
             })
             .unwrap_or(1.0)
         };
