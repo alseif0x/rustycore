@@ -1580,7 +1580,7 @@ async fn spell_power_drain_on_a_creature_restores_the_caster_share_like_cpp() {
 /// spell's damage; for a creature target the represented damage path applies it.
 #[tokio::test]
 async fn spell_power_burn_on_a_creature_applies_the_scaled_damage_like_cpp() {
-    let (mut session, _, _) = make_session();
+    let (mut session, _, send_rx) = make_session();
     let spell_id = 90_301_i32;
     let player_guid = ObjectGuid::create_player(1, 904);
     let creature_guid = test_creature_guid(19_301);
@@ -1670,5 +1670,14 @@ async fn spell_power_burn_on_a_creature_applies_the_scaled_damage_like_cpp() {
     assert_eq!(
         health, 85,
         "C++ adds int32(15 * 1.0) to the spell damage, applied by the represented creature damage path"
+    );
+    let opcodes = drain_server_opcodes(&send_rx);
+    assert!(
+        opcodes.contains(&ServerOpcodes::UpdateObject),
+        "the drained power is a unit data field and is published to the visible client: {opcodes:?}"
+    );
+    assert!(
+        opcodes.contains(&ServerOpcodes::SpellExecuteLog),
+        "the take-power row still ships with the finished cast: {opcodes:?}"
     );
 }

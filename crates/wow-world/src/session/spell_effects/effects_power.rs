@@ -302,23 +302,35 @@ impl WorldSession {
         // its damage into the spell's damage pipeline, which the represented
         // chain applies only to player victims.
         if target_guid.is_creature() {
-            let drained = self
+            let (drained, values_update) = self
                 .mutate_canonical_creature_by_guid_like_cpp(target_guid, |creature| {
                     if !creature.is_alive()
                         || party_member_power_kind_from_u8_like_cpp(
                             creature.unit().data().display_power,
                         ) != power
                     {
-                        return 0;
+                        return (0, None);
                     }
                     let current = creature.unit().get_power(power).max(0);
                     let drain = current.min(damage);
                     creature.unit_mut().set_power(power, current - drain);
-                    drain
+                    (drain, Some(creature.unit().values_update()))
                 })
-                .unwrap_or(0);
+                .unwrap_or((0, None));
             if drained == 0 {
                 return false;
+            }
+            // The drained pool is a unit data field, published the same way the
+            // represented creature heal publishes its health change.
+            if let Some(values_update) = values_update
+                && self.client_visible_guids_like_cpp.contains(&target_guid)
+                && let Some(update) = self.represented_unit_values_update_to_update_object_like_cpp(
+                    target_guid,
+                    self.player_map_id_like_cpp(),
+                    &values_update,
+                )
+            {
+                self.send_packet(&update);
             }
             self.record_spell_execute_log_take_target_power_like_cpp(
                 i32::try_from(effect).unwrap_or(0),
