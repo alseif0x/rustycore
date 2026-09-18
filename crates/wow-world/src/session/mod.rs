@@ -5551,6 +5551,12 @@ pub struct WorldSession {
     represented_creature_auras_like_cpp:
         Vec<crate::session::world_entities::RepresentedCreatureAuraLikeCpp>,
 
+    // C++ `Spell::_executeLogEffects` (`Spell.h:519`, `Spell.cpp:5048-5095`):
+    // the current cast's execute-log effects, published once by
+    // `Spell::FinishTargetProcessing`.
+    represented_spell_execute_log_effects_like_cpp:
+        Vec<wow_packet::packets::combat::SpellLogEffect>,
+
     // Transmog set item store (TransmogSetItem.db2 data)
     transmog_set_item_store: Option<Arc<TransmogSetItemStore>>,
 
@@ -7950,6 +7956,7 @@ impl WorldSession {
             regen_game_tables: None,
             shield_block_regular_game_table: None,
             represented_creature_auras_like_cpp: Vec::new(),
+            represented_spell_execute_log_effects_like_cpp: Vec::new(),
             transmog_set_item_store: None,
             #[cfg(test)]
             item_price_base_store: None,

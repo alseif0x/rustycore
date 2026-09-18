@@ -609,6 +609,130 @@ impl ServerPacket for PowerUpdate {
     }
 }
 
+// ── SpellExecuteLog (SMSG_SPELL_EXECUTE_LOG) ─────────────────────
+
+/// C++ `SpellLogEffectPowerDrainParams` (`Spell.h:165-171`), produced by
+/// `Spell::ExecuteLogEffectTakeTargetPower` (`Spell.cpp:5076-5086`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SpellLogEffectPowerDrainParams {
+    pub victim: ObjectGuid,
+    pub points: u32,
+    pub power_type: u32,
+    pub amplitude: f32,
+}
+
+/// C++ `SpellLogEffectExtraAttacksParams` (`Spell.h:173-177`), produced by
+/// `Spell::ExecuteLogEffectExtraAttacks` (`Spell.cpp:5088-5095`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellLogEffectExtraAttacksParams {
+    pub victim: ObjectGuid,
+    pub num_attacks: u32,
+}
+
+/// C++ `SpellLogEffectDurabilityDamageParams` (`Spell.h:179-184`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellLogEffectDurabilityDamageParams {
+    pub victim: ObjectGuid,
+    pub item_id: i32,
+    pub amount: i32,
+}
+
+/// C++ `SpellLogEffectGenericVictimParams` (`Spell.h:186-189`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellLogEffectGenericVictimParams {
+    pub victim: ObjectGuid,
+}
+
+/// C++ `SpellLogEffectTradeSkillItemParams` (`Spell.h:191-194`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellLogEffectTradeSkillItemParams {
+    pub item_id: i32,
+}
+
+/// C++ `SpellLogEffectFeedPetParams` (`Spell.h:196-199`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellLogEffectFeedPetParams {
+    pub item_id: i32,
+}
+
+/// C++ `SpellLogEffect` (`Spell.h:201-213`): one effect of the cast's execute
+/// log. C++ models each list as an `Optional` vector and only writes a list
+/// when it exists; an empty represented vector is exactly the absent list, so
+/// the count is written as zero and no rows follow.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct SpellLogEffect {
+    /// C++ `Effect`: the `SpellEffectName` value of the effect.
+    pub effect: i32,
+    pub power_drain_targets: Vec<SpellLogEffectPowerDrainParams>,
+    pub extra_attacks_targets: Vec<SpellLogEffectExtraAttacksParams>,
+    pub durability_damage_targets: Vec<SpellLogEffectDurabilityDamageParams>,
+    pub generic_victim_targets: Vec<SpellLogEffectGenericVictimParams>,
+    pub trade_skill_targets: Vec<SpellLogEffectTradeSkillItemParams>,
+    pub feed_pet_targets: Vec<SpellLogEffectFeedPetParams>,
+}
+
+/// C++ `Spell::SendSpellExecuteLog` (`Spell.cpp:5048-5060`), sent from
+/// `Spell::FinishTargetProcessing` after every effect has resolved.
+///
+/// C++ anchor: `WorldPackets::CombatLog::SpellExecuteLog::Write`
+/// (`CombatLogPackets.cpp:90-155`) writes the caster, `int32(SpellID)`, the
+/// effect count, then per effect its id, the six list counts, and each list's
+/// rows; the basic packet closes with the log-data bit.
+#[derive(Debug, Clone)]
+pub struct SpellExecuteLog {
+    pub caster: ObjectGuid,
+    pub spell_id: i32,
+    pub effects: Vec<SpellLogEffect>,
+}
+
+impl ServerPacket for SpellExecuteLog {
+    const OPCODE: ServerOpcodes = ServerOpcodes::SpellExecuteLog;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.caster);
+        pkt.write_int32(self.spell_id);
+        pkt.write_uint32(self.effects.len() as u32);
+
+        for effect in &self.effects {
+            pkt.write_int32(effect.effect);
+            pkt.write_uint32(effect.power_drain_targets.len() as u32);
+            pkt.write_uint32(effect.extra_attacks_targets.len() as u32);
+            pkt.write_uint32(effect.durability_damage_targets.len() as u32);
+            pkt.write_uint32(effect.generic_victim_targets.len() as u32);
+            pkt.write_uint32(effect.trade_skill_targets.len() as u32);
+            pkt.write_uint32(effect.feed_pet_targets.len() as u32);
+
+            for row in &effect.power_drain_targets {
+                pkt.write_packed_guid(&row.victim);
+                pkt.write_uint32(row.points);
+                pkt.write_uint32(row.power_type);
+                pkt.write_float(row.amplitude);
+            }
+            for row in &effect.extra_attacks_targets {
+                pkt.write_packed_guid(&row.victim);
+                pkt.write_uint32(row.num_attacks);
+            }
+            for row in &effect.durability_damage_targets {
+                pkt.write_packed_guid(&row.victim);
+                pkt.write_int32(row.item_id);
+                pkt.write_int32(row.amount);
+            }
+            for row in &effect.generic_victim_targets {
+                pkt.write_packed_guid(&row.victim);
+            }
+            for row in &effect.trade_skill_targets {
+                pkt.write_int32(row.item_id);
+            }
+            for row in &effect.feed_pet_targets {
+                pkt.write_int32(row.item_id);
+            }
+        }
+
+        pkt.write_bit(false); // `CombatLogServerPacket::WriteLogDataBit`
+        pkt.flush_bits();
+    }
+}
+
 // ── SpellInstakillLog (SMSG_SPELL_INSTAKILL_LOG) ─────────────────
 
 /// Combat-log packet emitted by C++ `Spell::EffectInstaKill` before
@@ -1222,6 +1346,82 @@ mod tests {
         assert_eq!(pkt.read_int32().expect("power type"), 0);
         assert_eq!(pkt.read_int32().expect("amount"), 50);
         assert_eq!(pkt.read_int32().expect("over energize"), 10);
+        assert!(!pkt.has_bit().expect("has log data"));
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn spell_execute_log_writes_cpp_effect_lists() {
+        let caster = ObjectGuid::create_player(1, 0x0102_0304_0506_0708);
+        let victim = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            1,
+            0,
+            0,
+            9_001,
+            44,
+        );
+        let bytes = SpellExecuteLog {
+            caster,
+            spell_id: 2_971,
+            effects: vec![
+                SpellLogEffect {
+                    effect: 122, // SPELL_EFFECT_POWER_DRAIN
+                    power_drain_targets: vec![SpellLogEffectPowerDrainParams {
+                        victim,
+                        points: 40,
+                        power_type: 0,
+                        amplitude: 0.5,
+                    }],
+                    ..Default::default()
+                },
+                SpellLogEffect {
+                    effect: 16, // SPELL_EFFECT_ADD_EXTRA_ATTACKS
+                    extra_attacks_targets: vec![SpellLogEffectExtraAttacksParams {
+                        victim,
+                        num_attacks: 3,
+                    }],
+                    ..Default::default()
+                },
+            ],
+        }
+        .to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::SpellExecuteLog as u16
+        );
+        assert_eq!(pkt.read_packed_guid().expect("caster"), caster);
+        assert_eq!(pkt.read_int32().expect("spell id"), 2_971);
+        assert_eq!(pkt.read_uint32().expect("effect count"), 2);
+        // C++ writes each effect's id, the six list counts, then the rows.
+        assert_eq!(pkt.read_int32().expect("effect"), 122);
+        assert_eq!(pkt.read_uint32().expect("power drain count"), 1);
+        for list in 0..5 {
+            assert_eq!(
+                pkt.read_uint32().expect("empty list count"),
+                0,
+                "list {list} has no producer in this represented cast"
+            );
+        }
+        assert_eq!(pkt.read_packed_guid().expect("drain victim"), victim);
+        assert_eq!(pkt.read_uint32().expect("points"), 40);
+        assert_eq!(pkt.read_uint32().expect("power type"), 0);
+        assert_eq!(pkt.read_float().expect("amplitude"), 0.5);
+        assert_eq!(pkt.read_int32().expect("effect"), 16);
+        assert_eq!(pkt.read_uint32().expect("power drain count"), 0);
+        assert_eq!(pkt.read_uint32().expect("extra attacks count"), 1);
+        for list in 0..4 {
+            assert_eq!(
+                pkt.read_uint32().expect("empty list count"),
+                0,
+                "list {list} has no producer in this represented cast"
+            );
+        }
+        assert_eq!(pkt.read_packed_guid().expect("extra victim"), victim);
+        assert_eq!(pkt.read_uint32().expect("num attacks"), 3);
         assert!(!pkt.has_bit().expect("has log data"));
         assert!(pkt.is_empty());
     }
