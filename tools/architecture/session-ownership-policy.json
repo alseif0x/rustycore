@@ -22498,7 +22498,7 @@
           "kind": "method",
           "name": "apply_power_drain_effect_like_cpp",
           "visibility": "pub (in crate :: session)",
-          "signature": "fn apply_power_drain_effect_like_cpp (& mut self , spell_id : i32 , effect : u32 , damage : i32 , misc_value : i32 , target_guid : ObjectGuid , burn_damage : bool , value_multiplier : f32 ,) -> bool",
+          "signature": "async fn apply_power_drain_effect_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , spell_id : i32 , effect : u32 , damage : i32 , misc_value : i32 , target_guid : ObjectGuid , burn_damage : bool , value_multiplier : f32 , cast_id : ObjectGuid , spell_visual_id : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
