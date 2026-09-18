@@ -107,6 +107,9 @@ pub mod attributes {
     /// C++ `SPELL_ATTR6_IGNORE_HEALING_MODIFIERS` (`SharedDefines.h:680`):
     /// `Unit::SpellHealingPctDone` returns `1.0f`.
     pub const SPELL_ATTR6_IGNORE_HEALING_MODIFIERS: u32 = 0x0800_0000;
+    /// C++ `SPELL_ATTR6_ABSORB_CANNOT_BE_IGNORE` (`SharedDefines.h:675`): an
+    /// absorb that `SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL` cannot reduce.
+    pub const SPELL_ATTR6_ABSORB_CANNOT_BE_IGNORE: u32 = 0x0040_0000;
     /// C++ `SPELL_ATTR4_AURA_EXPIRES_OFFLINE` (`SharedDefines.h`).
     pub const SPELL_ATTR4_AURA_EXPIRES_OFFLINE: u32 = 0x0000_0004;
     /// C++ `SPELL_ATTR4_NO_HELPFUL_THREAT` (`SharedDefines.h`).

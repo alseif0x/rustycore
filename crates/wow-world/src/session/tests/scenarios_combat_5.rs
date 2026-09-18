@@ -25,23 +25,24 @@ fn represented_melee_absorb_matches_calc_absorb_resist_like_cpp() {
         spell_id,
         category_id: 0,
         amount,
+        cannot_be_ignored: false,
     };
 
     // No shield: the damage passes through untouched and nothing is consumed.
-    let none = represented_melee_absorb_like_cpp(&[], 100);
+    let none = represented_melee_absorb_like_cpp(&[], 100, 0.0);
     assert_eq!(none.absorbed, 0);
     assert_eq!(none.damage, 100);
     assert!(none.consumed.is_empty());
 
     // Zero damage returns before the loop (`if (!damageInfo.GetDamage()) return;`).
-    let zero = represented_melee_absorb_like_cpp(&[shield(0, 91_200, 500)], 0);
+    let zero = represented_melee_absorb_like_cpp(&[shield(0, 91_200, 500)], 0, 0.0);
     assert_eq!(zero.absorbed, 0);
     assert_eq!(zero.damage, 0);
     assert!(zero.consumed.is_empty());
 
     // A shield larger than the hit absorbs it whole and survives with the
     // remainder.
-    let partial = represented_melee_absorb_like_cpp(&[shield(3, 91_200, 30)], 10);
+    let partial = represented_melee_absorb_like_cpp(&[shield(3, 91_200, 30)], 10, 0.0);
     assert_eq!(partial.absorbed, 10);
     assert_eq!(partial.damage, 0);
     assert_eq!(partial.consumed.len(), 1);
@@ -51,7 +52,7 @@ fn represented_melee_absorb_matches_calc_absorb_resist_like_cpp() {
     assert!(!partial.consumed[0].removed);
 
     // A shield exactly the size of the hit is spent and removed.
-    let exact = represented_melee_absorb_like_cpp(&[shield(4, 91_200, 10)], 10);
+    let exact = represented_melee_absorb_like_cpp(&[shield(4, 91_200, 10)], 10, 0.0);
     assert_eq!(exact.absorbed, 10);
     assert_eq!(exact.damage, 0);
     assert_eq!(exact.consumed[0].remaining, 0);
@@ -59,7 +60,7 @@ fn represented_melee_absorb_matches_calc_absorb_resist_like_cpp() {
 
     // A small shield absorbs what it can and the rest lands; the spent shield
     // is removed and C++ carries on with the reduced damage.
-    let spill = represented_melee_absorb_like_cpp(&[shield(5, 91_200, 4)], 10);
+    let spill = represented_melee_absorb_like_cpp(&[shield(5, 91_200, 4)], 10, 0.0);
     assert_eq!(spill.absorbed, 4);
     assert_eq!(spill.damage, 6);
     assert_eq!(spill.consumed[0].consumed, 4);
@@ -68,7 +69,7 @@ fn represented_melee_absorb_matches_calc_absorb_resist_like_cpp() {
     // A negative amount is an infinite-absorb script shield: without the
     // scripts C++ clamps it to zero, so it absorbs nothing and is never
     // removed here.
-    let infinite = represented_melee_absorb_like_cpp(&[shield(6, 91_200, -1)], 10);
+    let infinite = represented_melee_absorb_like_cpp(&[shield(6, 91_200, -1)], 10, 0.0);
     assert_eq!(infinite.absorbed, 0);
     assert_eq!(infinite.damage, 10);
     assert_eq!(infinite.consumed[0].consumed, 0);
@@ -89,10 +90,12 @@ fn represented_melee_absorb_matches_calc_absorb_resist_like_cpp() {
                 spell_id: 91_202,
                 category_id: 471, // Ice Barrier, rank 1
                 amount: 10,
+                cannot_be_ignored: false,
             },
             shield(9, 86949, 10), // Cauterize, rank 4
         ],
         10,
+        0.0,
     );
     assert_eq!(ordered.absorbed, 10);
     assert_eq!(ordered.damage, 0);
@@ -122,6 +125,7 @@ fn represented_absorb_priority_matches_absorb_aura_order_pred_like_cpp() {
         spell_id,
         category_id,
         amount: 0,
+        cannot_be_ignored: false,
     };
     let fel_blossom = represented_absorb_priority_like_cpp(&shield(28527, 0));
     let ice_barrier = represented_absorb_priority_like_cpp(&shield(11426, 471));
@@ -155,24 +159,25 @@ fn represented_melee_mana_absorb_matches_calc_absorb_resist_like_cpp() {
         spell_id: 91_520,
         amount,
         mana_multiplier,
+        cannot_be_ignored: false,
     };
 
     // No shield and zero damage both return before the loop.
-    let none = represented_melee_mana_absorb_like_cpp(&[], 10, 100);
+    let none = represented_melee_mana_absorb_like_cpp(&[], 10, 100, 0.0);
     assert_eq!((none.absorbed, none.damage, none.mana_spent), (0, 10, 0));
-    let zero = represented_melee_mana_absorb_like_cpp(&[shield(0, 30, 1.0)], 0, 100);
+    let zero = represented_melee_mana_absorb_like_cpp(&[shield(0, 30, 1.0)], 0, 100, 0.0);
     assert_eq!((zero.absorbed, zero.damage, zero.mana_spent), (0, 0, 0));
 
     // Plenty of mana: the whole hit is absorbed, one point of mana per point of
     // damage, and the shield keeps the remainder.
-    let full = represented_melee_mana_absorb_like_cpp(&[shield(1, 30, 1.0)], 10, 100);
+    let full = represented_melee_mana_absorb_like_cpp(&[shield(1, 30, 1.0)], 10, 100, 0.0);
     assert_eq!((full.absorbed, full.damage, full.mana_spent), (10, 0, 10));
     assert_eq!(full.consumed[0].remaining, 20);
     assert!(!full.consumed[0].removed);
 
     // The victim can only pay part of the drain, so only that fraction is
     // absorbed (`currentAbsorb * manaTaken / manaReduction`).
-    let limited = represented_melee_mana_absorb_like_cpp(&[shield(1, 30, 1.0)], 10, 3);
+    let limited = represented_melee_mana_absorb_like_cpp(&[shield(1, 30, 1.0)], 10, 3, 0.0);
     assert_eq!(
         (limited.absorbed, limited.damage, limited.mana_spent),
         (3, 7, 3)
@@ -180,14 +185,14 @@ fn represented_melee_mana_absorb_matches_calc_absorb_resist_like_cpp() {
     assert_eq!(limited.consumed[0].remaining, 27);
 
     // `Amplitude` 2 drains two mana per absorbed point.
-    let doubled = represented_melee_mana_absorb_like_cpp(&[shield(1, 30, 2.0)], 10, 100);
+    let doubled = represented_melee_mana_absorb_like_cpp(&[shield(1, 30, 2.0)], 10, 100, 0.0);
     assert_eq!(
         (doubled.absorbed, doubled.damage, doubled.mana_spent),
         (10, 0, 20)
     );
 
     // The shield's own amount caps the hit and a fully spent shield is removed.
-    let capped = represented_melee_mana_absorb_like_cpp(&[shield(1, 4, 1.0)], 10, 100);
+    let capped = represented_melee_mana_absorb_like_cpp(&[shield(1, 4, 1.0)], 10, 100, 0.0);
     assert_eq!(
         (capped.absorbed, capped.damage, capped.mana_spent),
         (4, 6, 4)
@@ -197,7 +202,7 @@ fn represented_melee_mana_absorb_matches_calc_absorb_resist_like_cpp() {
 
     // A negative amount is an infinite shield C++ clamps to zero for safety: it
     // absorbs nothing and is never removed by this loop.
-    let negative = represented_melee_mana_absorb_like_cpp(&[shield(1, -1, 1.0)], 10, 100);
+    let negative = represented_melee_mana_absorb_like_cpp(&[shield(1, -1, 1.0)], 10, 100, 0.0);
     assert_eq!(
         (negative.absorbed, negative.damage, negative.mana_spent),
         (0, 10, 0)
@@ -206,7 +211,7 @@ fn represented_melee_mana_absorb_matches_calc_absorb_resist_like_cpp() {
     assert!(!negative.consumed[0].removed);
 
     // No mana at all: nothing is absorbed and nothing is spent.
-    let dry = represented_melee_mana_absorb_like_cpp(&[shield(1, 30, 1.0)], 10, 0);
+    let dry = represented_melee_mana_absorb_like_cpp(&[shield(1, 30, 1.0)], 10, 0, 0.0);
     assert_eq!((dry.absorbed, dry.damage, dry.mana_spent), (0, 10, 0));
     assert_eq!(dry.consumed[0].remaining, 30);
     assert!(!dry.consumed[0].removed);
@@ -269,4 +274,107 @@ fn represented_heal_absorb_matches_calc_heal_absorb_like_cpp() {
     assert_eq!(ordered.consumed.len(), 2);
     assert_eq!(ordered.consumed[0].slot, 6);
     assert_eq!(ordered.consumed[1].slot, 7);
+}
+
+/// C++ `Unit::CalcAbsorbResist`'s `auraAbsorbMod` term (`Unit.cpp:1803-1832`):
+/// an attacker's `SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL` reduces how much of a hit
+/// a school-absorb or mana shield may take, unless the shield's spell carries
+/// `SPELL_ATTR6_ABSORB_CANNOT_BE_IGNORE`.
+#[test]
+fn represented_melee_ignore_absorb_matches_calc_absorb_resist_like_cpp() {
+    use crate::session_rules::{
+        AppliedAuraEffectLikeCpp, RepresentedAbsorbShieldLikeCpp as Shield,
+        RepresentedManaShieldLikeCpp as ManaShield, represented_melee_absorb_like_cpp,
+        represented_melee_ignore_absorb_like_cpp, represented_melee_ignored_absorb_amount_like_cpp,
+        represented_melee_mana_absorb_like_cpp,
+    };
+
+    let effect = |misc_value: i32, amount: i32| AppliedAuraEffectLikeCpp {
+        spell_id: 91_300,
+        caster_guid: ObjectGuid::create_null(),
+        aura_type: wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL,
+        misc_value,
+        misc_value_b: 0,
+        amount,
+    };
+
+    // `GetMaxPositiveAuraModifierByMiscMask` then `RoundToInterval(0, 100)`.
+    assert_eq!(represented_melee_ignore_absorb_like_cpp(&[], 0x01), 0.0);
+    assert_eq!(
+        represented_melee_ignore_absorb_like_cpp(&[effect(0x04, 50)], 0x01),
+        0.0,
+        "a different school's modifier does not match"
+    );
+    assert_eq!(
+        represented_melee_ignore_absorb_like_cpp(&[effect(0x01, 50)], 0x01),
+        50.0
+    );
+    assert_eq!(
+        represented_melee_ignore_absorb_like_cpp(&[effect(0x01, 25), effect(0x01, 40)], 0x01),
+        40.0
+    );
+    assert_eq!(
+        represented_melee_ignore_absorb_like_cpp(&[effect(0x01, -10)], 0x01),
+        0.0,
+        "the maximum starts at zero"
+    );
+    assert_eq!(
+        represented_melee_ignore_absorb_like_cpp(&[effect(0x01, 150)], 0x01),
+        100.0
+    );
+
+    // `CalculatePct(damage, pct)` truncates.
+    assert_eq!(
+        represented_melee_ignored_absorb_amount_like_cpp(100, 50.0),
+        50
+    );
+    assert_eq!(represented_melee_ignored_absorb_amount_like_cpp(7, 50.0), 3);
+    assert_eq!(
+        represented_melee_ignored_absorb_amount_like_cpp(100, 0.0),
+        0
+    );
+
+    let shield = |amount: i32, cannot_be_ignored: bool| Shield {
+        slot: 1,
+        effect_index: 0,
+        spell_id: 91_200,
+        category_id: 0,
+        amount,
+        cannot_be_ignored,
+    };
+    // A shield without the attribute may only take what the modifier left.
+    let ignored = represented_melee_absorb_like_cpp(&[shield(100, false)], 100, 50.0);
+    assert_eq!((ignored.absorbed, ignored.damage), (50, 50));
+    // With the attribute the whole hit is absorbable.
+    let protected = represented_melee_absorb_like_cpp(&[shield(100, true)], 100, 50.0);
+    assert_eq!((protected.absorbed, protected.damage), (100, 0));
+
+    let mana_shield = |amount: i32, cannot_be_ignored: bool| ManaShield {
+        slot: 1,
+        effect_index: 0,
+        spell_id: 91_520,
+        amount,
+        mana_multiplier: 1.0,
+        cannot_be_ignored,
+    };
+    let mana_ignored =
+        represented_melee_mana_absorb_like_cpp(&[mana_shield(100, false)], 100, 1_000, 50.0);
+    assert_eq!(
+        (
+            mana_ignored.absorbed,
+            mana_ignored.damage,
+            mana_ignored.mana_spent
+        ),
+        (50, 50, 50)
+    );
+    let mana_protected =
+        represented_melee_mana_absorb_like_cpp(&[mana_shield(100, true)], 100, 1_000, 50.0);
+    assert_eq!(
+        (
+            mana_protected.absorbed,
+            mana_protected.damage,
+            mana_protected.mana_spent
+        ),
+        (100, 0, 100)
+    );
 }

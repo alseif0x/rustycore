@@ -32,6 +32,9 @@ fn apply_melee_absorb_to_canonical_player_like_cpp(
     spell_store: &wow_data::SpellStore,
     difficulty_id: u8,
     difficulty_store: Option<&wow_data::DifficultyStore>,
+    // C++ `CalcAbsorbResist`'s `auraAbsorbMod` from the attacker's
+    // `SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL`.
+    ignore_absorb_pct: f32,
 ) -> Option<(
     u32,
     u32,
@@ -53,7 +56,11 @@ fn apply_melee_absorb_to_canonical_player_like_cpp(
         difficulty_store,
         school_mask,
     );
-    let absorb = crate::session_rules::represented_melee_absorb_like_cpp(&shields, damage);
+    let absorb = crate::session_rules::represented_melee_absorb_like_cpp(
+        &shields,
+        damage,
+        ignore_absorb_pct,
+    );
     let mut consumptions = Vec::with_capacity(absorb.consumed.len());
     for consumption in &absorb.consumed {
         write_absorbed_shield_amount_like_cpp(player, consumption);
@@ -68,8 +75,13 @@ fn apply_melee_absorb_to_canonical_player_like_cpp(
 
     // C++ runs the mana-shield loop after the school-absorb loop
     // (`Unit.cpp:1886-1930`) over the damage the school shields left.
-    let mana_shields =
-        crate::session_rules::player_mana_shields_like_cpp(&auras, spell_store, school_mask);
+    let mana_shields = crate::session_rules::player_mana_shields_like_cpp(
+        &auras,
+        spell_store,
+        difficulty_id,
+        difficulty_store,
+        school_mask,
+    );
     let mana_before = player
         .unit()
         .get_power(wow_constants::PowerType::Mana)
@@ -78,6 +90,7 @@ fn apply_melee_absorb_to_canonical_player_like_cpp(
         &mana_shields,
         absorb.damage,
         mana_before as u32,
+        ignore_absorb_pct,
     );
     if mana_absorb.mana_spent > 0 {
         // `Unit::ModifyPower(POWER_MANA, -manaReduction)`: the same locked map
@@ -863,6 +876,10 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                 spell_store,
                                 map_difficulty_id,
                                 config.difficulty_store.as_deref(),
+                                crate::session_rules::represented_melee_ignore_absorb_like_cpp(
+                                    &attacker_effects,
+                                    0x01,
+                                ),
                             );
                             let damage = match absorb {
                                 Some((absorbed, remaining, spent, consumptions)) => {
