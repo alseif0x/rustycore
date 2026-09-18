@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`6e821bad` (PR #1195, the #31 remaining execute-log list layouts, following
+`956d43cf` (PR #1197, the #31 drain/burn `SpellDamageBonusDone` pre-scaling,
+following PR #1195, the #31 remaining execute-log list layouts, following
 PR #1193, the #31 zero-pool drain log repair, following
 PR #1191, the #31 zero-amplitude creature burn regression, following
 PR #1189, the #31 creature power-type drain regression, following
@@ -64,6 +65,36 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 drain/burn `SpellDamageBonusDone` pre-scaling — 2026-09-18, implementation
+`482bc9f7`, integrated as `956d43cf` by PR #1197:** C++
+`Spell::EffectPowerDrain`/`EffectPowerBurn` (`SpellEffects.cpp:1082-1088`) call
+`Unit::SpellDamageBonusDone(..., SPELL_DIRECT_DAMAGE, ...)` on the effect amount
+before draining it, so spell power and its coefficient grow the drained pool and
+the caster's share; the represented path used the raw `effect_base_points`.
+`power_drain_pre_scaled_damage_like_cpp` routes a non-negative base through the
+existing `represented_spell_damage_bonus_done_like_cpp` (the `damage < 0` gate
+runs first in C++, so a negative base keeps its value for the effect's own
+refusal), and both the drain and burn call sites pass the pre-scaled amount, which
+feeds the pool drain, the take-power row, the burn damage and the caster gain.
+Coverage: `spell_power_drain_pre_scales_with_spell_damage_bonus_done_like_cpp`
+runs spell power 100, `BonusCoefficient` 0.5, base 100 and amplitude 0.5 against a
+200-point creature pool, ending at 50 pool and 100 caster mana
+(`int32(100 + int32(100 * 0.5)) = 150` drained, `int32(150 * 0.5) = 75` share) —
+without the scaling the assertions fail, so the test proves the integration — and
+every existing drain/burn scenario (self-drain, mismatched power, empty pool, gate
+refusal, zero-amplitude burn, creature burn) still passes unchanged. Evidence at
+`482bc9f7`: `wow-world --lib` 4018/0/1, `cargo fmt --all --check` and `git diff
+--check` clean, physical ratchet PASS with no ceiling moved, ownership syntax PASS
+after a reviewed `print-baseline` delta of exactly the new helper; `validation-v2
+quick` PASS 62.3 s (manifest `20260918T055903.110763Z-3831043-quick.json`) and
+`final --architecture` 84.4 s, exit 1, 2 of 9 steps with
+`session-syntax-acceptance` PASS and the pre-existing hotspot ratchet as the only
+red; the runner campaign is 146.7 s, inside the 600 s ordinary budget. Boundaries:
+`SpellDamageBonusTaken` has no represented producer yet, so the taken half of
+C++'s pre-scaling (`SpellEffects.cpp:1087`) stays unrepresented and recorded, and
+the helper's own documented limits apply (family-scripted terms, one
+`BonusCoefficient` per spell, creature casters keep the raw value).
 
 **#31 remaining execute-log list layouts — 2026-09-18, implementation
 `6dda6e3c`, integrated as `6e821bad` by PR #1195:** test-only byte-level coverage

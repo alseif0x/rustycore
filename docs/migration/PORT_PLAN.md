@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 drain/burn `SpellDamageBonusDone` pre-scaling — 2026-09-18, implementation
+`482bc9f7`:** `EffectPowerDrain`/`EffectPowerBurn` now pre-scale their amount with
+the represented `SpellDamageBonusDone` before draining, so spell power and its
+coefficient grow the pool drain, the take-power row, the burn damage and the
+caster share. Limits: `SpellDamageBonusTaken` is still unrepresented, and the
+helper keeps its own documented limits (family-scripted terms, one
+`BonusCoefficient` per spell, creature casters raw).
+
 **#31 remaining execute-log list layouts — 2026-09-18, implementation
 `6dda6e3c`:** test-only byte-level coverage for the durability, generic-victim,
 trade-skill and feed-pet execute-log rows (no producer yet), locking the
