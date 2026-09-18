@@ -33,6 +33,14 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 spell energize log — 2026-09-18, implementation `c1fc0309`:** C++
+`Unit::EnergizeBySpell`'s `SMSG_SPELL_ENERGIZE_LOG` (`Unit.cpp:6566-6590`) now
+publishes through a new `SpellEnergizeLog` writer, with `Amount` computed as the
+delta `ModifyPower` actually applied and `OverEnergize` as the requested amount
+the pool could not take. Limits: the drain/burn path stays silent (C++ uses the
+take-power log there), the `EffectEnergize` spell-id special cases and
+`InterruptPowerRegen` remain open, and combat-log delivery is session-local.
+
 **#31 player-target heal absorb — 2026-09-18, implementation `71286ca2`:** C++
 `Unit::CalcHealAbsorb` (`Unit.cpp:2020-2084`) now runs for the session's own
 player target before `DealHeal`: the `SPELL_AURA_SCHOOL_HEAL_ABSORB` shields are

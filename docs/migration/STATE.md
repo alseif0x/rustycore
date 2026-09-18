@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`06aa842e4bec35d9d4f6e0a59a702643208cf7f7` (PR #1165, the #31 player-target
+`32e9a5d44b1fcb8314d28586aab99dfdcf2628c8` (PR #1167, the #31 spell energize
+log, following PR #1165, the #31 player-target
 heal-absorb stage, following PR #1163, the #31 direct spell heal
 combat log, following PR #1161, the #31 direct spell
 damage combat log, following PR #1159, the #29 player-victim
@@ -49,6 +50,37 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 spell energize log — 2026-09-18, implementation `c1fc0309`, integrated as
+`32e9a5d4` by PR #1167:** C++ `Unit::EnergizeBySpell` publishes
+`SMSG_SPELL_ENERGIZE_LOG` for every spell power change
+(`Unit.cpp:6566-6590`), but the represented energize path only set the power, so
+a player's rage/energy/mana gains never reached the client. `wow-packet` gained
+`SpellEnergizeLog` matching
+`WorldPackets::CombatLog::SpellEnergizeLog::Write` (`CombatLogPackets.cpp:214-234`):
+target and caster packed GUIDs, `int32(SpellID)`, `int32(Type)` (the `Powers`
+value), `int32(Amount)` and `int32(OverEnergize)`, then the basic packet's
+log-data bit. `apply_energize_effect_like_cpp` now takes the cast identity and
+computes what C++ publishes — `Amount` is the delta `ModifyPower` actually
+applied (the pool clamp included) and `OverEnergize` is the requested amount the
+pool could not take — and its flat and percentage effect call sites pass the
+spell and caster. Coverage: the flat and percentage energize scenarios assert the
+log's position in the sent opcode sequence, the flat one decodes the packet
+field by field, and a new scenario proves the clamp (with only 10 points of room
+a 50-point energize publishes `amount 10`/`over_energize 40`). Evidence at
+`32e9a5d4`: `wow-world --lib` 4000/0/1, `wow-packet --lib` 751/0, `cargo fmt
+--all --check` and `git diff --check` clean, physical ratchet PASS (2234 files,
+no ceiling moved), `session-ownership-check --syntax-only` PASS with a reviewed
+`print-baseline` delta (the energize method's signature); `validation-v2 quick`
+PASS in 104.8 s (manifest `20260918T010408.124942Z-3646754-quick.json`) and
+`final --architecture` 82.8 s, exit 1, 2 of 8 steps with
+`session-syntax-acceptance` PASS and the pre-existing hotspot ratchet as the only
+red; the campaign is 187.7 s, inside the 600 s ordinary budget. Limits: the
+power-drain/burn path stays silent because C++ publishes the target side through
+the take-power log and restores no power on a self-drain; the C++ spell-id
+special cases in `EffectEnergize` and `InterruptPowerRegen` remain outside this
+slice; the log reaches the caster's session while C++ `SendCombatLogMessage` also
+fans it out to the visible set.
 
 **#31 player-target heal absorb — 2026-09-18, implementation `71286ca2`,
 integrated as `06aa842e` by PR #1165:** C++ `Unit::CalcHealAbsorb`
