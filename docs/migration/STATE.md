@@ -3,8 +3,7 @@
 **Integration head — 2026-09-18:** the last implementation on `3.4.3` is
 `cc8ae12b` (PR #1213, the #31 negative damage-taken aura regression, following
 `8448bdb4`, the #31 player-aura canonical-sync diagnosis and its route
-correction, following
-following PR #1211, the #31 caster label damage-taken term and its label authority,
+correction, following PR #1211, the #31 caster label damage-taken term and its label authority,
 following PR #1209, the #31 damage-taken term stacking regression, following
 PR #1207, the #31 caster spell-family damage-taken term, following
 PR #1205, the #31 mechanic damage-taken term and its data seam,
