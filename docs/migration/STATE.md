@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`02f0d08b` (PR #1203, the #31 caster school-mask damage-taken term, following
+`e623b648` (PR #1205, the #31 mechanic damage-taken term and its data seam,
+following PR #1203, the #31 caster school-mask damage-taken term, following
 PR #1201, the #31 cheat-death damage-taken term, following
 PR #1199, the #31 victim school damage-taken term, following
 PR #1197, the #31 drain/burn `SpellDamageBonusDone` pre-scaling, following
@@ -68,6 +69,36 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 mechanic damage-taken term — 2026-09-18, implementation `7c32137d`,
+integrated as `e623b648` by PR #1205:** C++ `Unit::SpellDamageBonusTaken`
+(`Unit.cpp:6783-6791`) multiplies the amount by
+`GetTotalAuraMultiplier(SPELL_AURA_MOD_MECHANIC_DAMAGE_TAKEN_PERCENT)` over the
+auras whose misc value intersects `SpellInfo::GetAllEffectsMechanicMask()`, and
+that mask needs each effect's `Mechanic`, which the represented `SpellEffectInfo`
+did not carry. `SpellEffectInfo` gains `effect_mechanic`, mapped from the
+already-loaded `SpellEffectDb2Entry::effect_mechanic` in
+`spell_effect_from_db2_like_cpp` — no new DB2 read or field index was invented —
+and `SPELL_AURA_MOD_MECHANIC_DAMAGE_TAKEN_PERCENT = 255` joins the aura-type
+constants with its `SpellAuraEffects.cpp:326` anchor.
+`power_drain_pre_scaled_damage_like_cpp` builds the mask from the spell's effects
+(mechanic indices below 32, the represented `u32` bound) and folds the victim's
+mechanic auras for both player and creature victims. Coverage:
+`spell_power_drain_applies_the_mechanic_damage_taken_aura_like_cpp` gives the
+drain spell `effect_mechanic = 5` and the victim a +50% aura of type 255 with misc
+`1 << 5`, draining base 100 at amplitude 0.5 to 150 (pool 50) with a 75 caster
+share. Evidence at `7c32137d`: `wow-data --lib` 754/0, `wow-world --lib` 4022/0/1,
+`cargo fmt --all --check` and `git diff --check` clean, physical ratchet PASS with
+no ceiling moved, ownership syntax PASS with no baseline delta; `validation-v2
+quick` PASS 77.9 s (manifest `20260918T064131.850771Z-3863900-quick.json`) and
+`final --architecture` 84.7 s, exit 1, 2 of 9 steps with
+`session-syntax-acceptance` PASS and the pre-existing hotspot ratchet as the only
+red; the runner campaign is 162.6 s, inside the 600 s ordinary budget. Boundaries:
+the represented mechanic mask is `u32` while the C++ mask is `uint64`, so a
+mechanic index of 32 or above cannot be represented, and
+`SPELL_AURA_MOD_SPELL_DAMAGE_FROM_CASTER`,
+`SPELL_AURA_MOD_DAMAGE_TAKEN_FROM_CASTER_BY_LABEL`, the DOT term and Sanctified
+Wrath remain unrepresented.
 
 **#31 caster school-mask damage-taken term — 2026-09-18, implementation
 `f832c5f0`, integrated as `02f0d08b` by PR #1203:** C++
