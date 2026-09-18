@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`dd92f76b` (PR #1201, the #31 cheat-death damage-taken term, following
+`02f0d08b` (PR #1203, the #31 caster school-mask damage-taken term, following
+PR #1201, the #31 cheat-death damage-taken term, following
 PR #1199, the #31 victim school damage-taken term, following
 PR #1197, the #31 drain/burn `SpellDamageBonusDone` pre-scaling, following
 PR #1195, the #31 remaining execute-log list layouts, following
@@ -67,6 +68,35 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 caster school-mask damage-taken term — 2026-09-18, implementation
+`f832c5f0`, integrated as `02f0d08b` by PR #1203:** C++
+`Unit::SpellDamageBonusTaken` (`Unit.cpp:6815-6822`) multiplies the amount by
+`GetTotalAuraMultiplier(SPELL_AURA_MOD_SCHOOL_MASK_DAMAGE_FROM_CASTER)` over the
+auras the damaging caster applied whose misc value intersects the spell's school
+mask. The module-level
+`drain_taken_school_from_caster_multiplier_like_cpp` walks the victim's typed
+auras of that type, keeps the ones whose `caster_guid` is the damaging caster and
+whose misc value intersects the school mask, and folds `1 + amount / 100`; the
+victim lookup applies it for both player and creature victims after the school and
+cheat-death terms. Coverage:
+`spell_power_drain_applies_the_caster_school_damage_taken_aura_like_cpp` gives a
+creature a +50% caster-school aura applied by the draining player (misc bit 0) and
+drains base 100 at amplitude 0.5, ending at 50 pool (`int32(100 * 1.5) = 150`
+drained) and 100 caster mana (`int32(150 * 0.5) = 75`), while all existing
+drain/burn scenarios and the other two produced terms keep passing. Evidence at
+`f832c5f0`: `wow-world --lib` 4021/0/1, `cargo fmt --all --check` and `git diff
+--check` clean, physical ratchet PASS with no ceiling moved, ownership syntax PASS
+with no baseline delta (module-level helper); `validation-v2 quick` PASS 41.2 s
+(manifest `20260918T062935.408007Z-3854851-quick.json`) and `final --architecture`
+86.5 s, exit 1, 2 of 9 steps with `session-syntax-acceptance` PASS and the
+pre-existing hotspot ratchet as the only red; the runner campaign is 127.7 s,
+inside the 600 s ordinary budget. Boundaries:
+`SPELL_AURA_MOD_SPELL_DAMAGE_FROM_CASTER` and
+`SPELL_AURA_MOD_DAMAGE_TAKEN_FROM_CASTER_BY_LABEL` need C++
+`AuraEffect::IsAffectingSpell`/label relations and remain unrepresented, as do the
+mechanic-mask (needs an `effect_mechanic` field and its aura-type constant), DOT
+and Sanctified Wrath terms.
 
 **#31 cheat-death damage-taken term — 2026-09-18, implementation `27a544be`,
 integrated as `dd92f76b` by PR #1201:** C++ `Unit::SpellDamageBonusTaken`

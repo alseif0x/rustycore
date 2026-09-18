@@ -33,6 +33,13 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 caster school-mask damage-taken term — 2026-09-18, implementation
+`f832c5f0`:** the drain/burn pre-scaling also folds the auras the damaging caster
+applied with `SPELL_AURA_MOD_SCHOOL_MASK_DAMAGE_FROM_CASTER` whose misc value
+intersects the spell's school. Limits: the specific-spell and label caster terms
+need `IsAffectingSpell`/label relations, and the mechanic, DOT and Sanctified
+Wrath terms stay unrepresented.
+
 **#31 cheat-death damage-taken term — 2026-09-18, implementation `27a544be`:**
 the drain/burn pre-scaling also applies the `45182` aura's percentage when its
 misc value intersects the normal school, alongside the school
