@@ -1,8 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`956d43cf` (PR #1197, the #31 drain/burn `SpellDamageBonusDone` pre-scaling,
-following PR #1195, the #31 remaining execute-log list layouts, following
+`eff6323c` (PR #1199, the #31 victim school damage-taken term, following
+PR #1197, the #31 drain/burn `SpellDamageBonusDone` pre-scaling, following
+PR #1195, the #31 remaining execute-log list layouts, following
 PR #1193, the #31 zero-pool drain log repair, following
 PR #1191, the #31 zero-amplitude creature burn regression, following
 PR #1189, the #31 creature power-type drain regression, following
@@ -65,6 +66,37 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 victim school damage-taken term — 2026-09-18, implementation `c3f86243`,
+integrated as `eff6323c` by PR #1199:** C++ `Unit::SpellDamageBonusTaken`
+(`Unit.cpp:6775-6820`) multiplies the pre-scaled amount by
+`GetTotalAuraMultiplierByMiscMask(SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN,
+spellProto->GetSchoolMask())`, skipped when the spell carries
+`SPELL_ATTR4_IGNORE_DAMAGE_TAKEN_MODIFIERS` (`SharedDefines.h:587`,
+`0x0000_0100`); the produced effect was missing the victim's damage-taken auras,
+so a +50% debuff on the victim did not grow the drained amount.
+`SPELL_ATTR4_IGNORE_DAMAGE_TAKEN_MODIFIERS` joins the wow-data attribute
+constants with its anchor, and `power_drain_pre_scaled_damage_like_cpp` applies
+that multiplier from the victim's aura subsystem (player or creature) after the
+`Done` scaling and the attribute gate. Coverage:
+`spell_power_drain_applies_the_victim_school_damage_taken_aura_like_cpp` gives a
+creature a +50% `SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN` aura through the
+creature-aura path and drains base 100 at amplitude 0.5, ending at 50 pool
+(`int32(100 * 1.5) = 150` drained) and 100 caster mana (`int32(150 * 0.5) = 75`),
+while every existing drain/burn scenario keeps passing with the implicit 1.0
+multiplier. Evidence at `c3f86243`: `wow-world --lib` 4019/0/1, `wow-data --lib`
+754/0, `cargo fmt --all --check` and `git diff --check` clean, physical ratchet
+PASS with one recorded ceiling bump (`wow-data/src/spell/mod.rs` 133 to 136,
+reason appended), ownership syntax PASS after a reviewed `print-baseline` delta of
+exactly the changed helper receiver; `validation-v2 quick` PASS 66.5 s (manifest
+`20260918T061107.158168Z-3840558-quick.json`) and `final --architecture` 85.6 s,
+exit 1, 2 of 9 steps with `session-syntax-acceptance` PASS and the pre-existing
+hotspot ratchet as the only red; the runner campaign is 152.1 s, inside the 600 s
+ordinary budget. Boundaries: the mechanic-mask, cheat-death (`45182`),
+caster-specific aura types, DOT and Sanctified Wrath terms of
+`SpellDamageBonusTaken` remain unrepresented — only the school
+`MOD_DAMAGE_PERCENT_TAKEN` term and its attribute gate are produced — and the
+helper keeps its documented `Done`-side limits.
 
 **#31 drain/burn `SpellDamageBonusDone` pre-scaling — 2026-09-18, implementation
 `482bc9f7`, integrated as `956d43cf` by PR #1197:** C++
