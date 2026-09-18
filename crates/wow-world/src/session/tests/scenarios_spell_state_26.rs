@@ -335,6 +335,125 @@ async fn spell_power_drain_applies_the_victim_school_damage_taken_aura_like_cpp(
     );
 }
 
+/// C++ `Unit::SpellDamageBonusTaken` (`Unit.cpp:6775-6840`) accumulates the
+/// school, mechanic and caster terms multiplicatively into one `TakenTotalMod`
+/// that scales the amount once, so two +50% terms yield `225` from a base of
+/// `100`, not `200`.
+#[tokio::test]
+async fn spell_power_drain_stacks_damage_taken_terms_multiplicatively_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let spell_id = 90_315_i32;
+    let school_aura_id = 90_316_i32;
+    let mechanic_aura_id = 90_317_i32;
+    let player_guid = ObjectGuid::create_player(1, 914);
+    let creature_guid = test_creature_guid(19_311);
+    let position = Position::new(10.0, 20.0, 30.0, 0.0);
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "Drainer".to_string(),
+        position,
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session.set_player_health_like_cpp(100, 100);
+    register_test_creature(&mut session, manager.clone(), creature_guid, 100);
+    add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 7);
+    add_canonical_test_creature_indexed_on_map_with_level(
+        &canonical,
+        creature_guid,
+        9_001,
+        position,
+        0,
+        7,
+        80,
+    );
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_power_index(PowerType::Mana, Some(0));
+            player.unit_mut().set_max_power(PowerType::Mana, 200);
+            player.unit_mut().set_power(PowerType::Mana, 25);
+            player.clear_data_changes();
+        })
+        .unwrap();
+    session
+        .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
+            let unit = creature.unit_mut();
+            unit.set_power_index(PowerType::Mana, Some(0));
+            unit.set_max_power(PowerType::Mana, 400);
+            unit.set_power(PowerType::Mana, 400);
+            unit.set_display_power(PowerType::Mana);
+            creature.clear_data_changes();
+        })
+        .unwrap();
+
+    let mut school_aura = power_spell_info_like_cpp(
+        school_aura_id,
+        wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+        50,
+        PowerType::Mana,
+    );
+    school_aura.effects[0].effect_aura =
+        wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN;
+    school_aura.effects[0].effect_misc_value_1 = 0x01;
+    let mut mechanic_aura = power_spell_info_like_cpp(
+        mechanic_aura_id,
+        wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+        50,
+        PowerType::Mana,
+    );
+    mechanic_aura.effects[0].effect_aura =
+        wow_data::spell::aura_types::SPELL_AURA_MOD_MECHANIC_DAMAGE_TAKEN_PERCENT;
+    mechanic_aura.effects[0].effect_misc_value_1 = 1 << 5;
+    let mut spell = power_spell_info_like_cpp(
+        spell_id,
+        wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_DRAIN,
+        100,
+        PowerType::Mana,
+    );
+    spell.effects[0].effect_amplitude = 0.5;
+    spell.effects[0].effect_mechanic = 5;
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(school_aura_id, school_aura);
+    spell_store.insert(mechanic_aura_id, mechanic_aura);
+    spell_store.insert(spell_id, spell);
+    session.set_spell_store(Arc::new(spell_store));
+
+    session
+        .apply_creature_aura_like_cpp(school_aura_id, player_guid, creature_guid, 1, 30_000)
+        .expect("represented creature school aura should apply");
+    session
+        .apply_creature_aura_like_cpp(mechanic_aura_id, player_guid, creature_guid, 1, 30_000)
+        .expect("represented creature mechanic aura should apply");
+
+    session
+        .execute_spell(spell_id, creature_guid)
+        .await
+        .expect("represented creature EffectPowerDrain should execute");
+
+    assert_eq!(
+        session
+            .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| creature
+                .unit()
+                .get_power(PowerType::Mana))
+            .unwrap(),
+        175,
+        "C++ multiplies the terms: `int32(100 * 1.5 * 1.5) = 225`"
+    );
+    assert_eq!(
+        session
+            .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
+            .unwrap(),
+        137,
+        "the caster share is `int32(225 * 0.5) = 112`"
+    );
+}
+
 /// C++ cheat-death term of `Unit::SpellDamageBonusTaken` (`Unit.cpp:6793-6795`):
 /// aura spell `45182` adds its amount as a percentage when its misc value
 /// intersects `SPELL_SCHOOL_MASK_NORMAL`.
