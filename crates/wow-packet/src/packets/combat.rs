@@ -1427,6 +1427,63 @@ mod tests {
     }
 
     #[test]
+    fn spell_execute_log_writes_the_durability_generic_trade_and_feed_lists() {
+        let caster = ObjectGuid::create_player(1, 0x0102_0304_0506_0708);
+        let victim = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            1,
+            0,
+            0,
+            9_001,
+            45,
+        );
+        let bytes = SpellExecuteLog {
+            caster,
+            spell_id: 4_036,
+            effects: vec![SpellLogEffect {
+                effect: 25, // SPELL_EFFECT_DURABILITY_DAMAGE
+                durability_damage_targets: vec![SpellLogEffectDurabilityDamageParams {
+                    victim,
+                    item_id: 300,
+                    amount: 15,
+                }],
+                generic_victim_targets: vec![SpellLogEffectGenericVictimParams { victim }],
+                trade_skill_targets: vec![SpellLogEffectTradeSkillItemParams { item_id: 1_234 }],
+                feed_pet_targets: vec![SpellLogEffectFeedPetParams { item_id: 5_678 }],
+                ..Default::default()
+            }],
+        }
+        .to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::SpellExecuteLog as u16
+        );
+        assert_eq!(pkt.read_packed_guid().expect("caster"), caster);
+        assert_eq!(pkt.read_int32().expect("spell id"), 4_036);
+        assert_eq!(pkt.read_uint32().expect("effect count"), 1);
+        assert_eq!(pkt.read_int32().expect("effect"), 25);
+        assert_eq!(pkt.read_uint32().expect("power drain count"), 0);
+        assert_eq!(pkt.read_uint32().expect("extra attacks count"), 0);
+        assert_eq!(pkt.read_uint32().expect("durability count"), 1);
+        assert_eq!(pkt.read_uint32().expect("generic victim count"), 1);
+        assert_eq!(pkt.read_uint32().expect("trade skill count"), 1);
+        assert_eq!(pkt.read_uint32().expect("feed pet count"), 1);
+        // C++ writes the rows in list order after all six counts
+        // (`CombatLogPackets.cpp:120-153`).
+        assert_eq!(pkt.read_packed_guid().expect("durability victim"), victim);
+        assert_eq!(pkt.read_int32().expect("item id"), 300);
+        assert_eq!(pkt.read_int32().expect("amount"), 15);
+        assert_eq!(pkt.read_packed_guid().expect("generic victim"), victim);
+        assert_eq!(pkt.read_int32().expect("trade skill item"), 1_234);
+        assert_eq!(pkt.read_int32().expect("feed pet item"), 5_678);
+        assert!(!pkt.has_bit().expect("has log data"));
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
     fn interrupt_power_regen_writes_only_the_power_type_like_cpp() {
         let bytes = InterruptPowerRegen { power_type: 3 }.to_bytes();
 
