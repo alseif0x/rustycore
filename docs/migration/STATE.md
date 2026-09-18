@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`8afca1dd` (PR #1189, the #31 creature power-type drain regression, following
+`413f379e` (PR #1191, the #31 zero-amplitude creature burn regression, following
+PR #1189, the #31 creature power-type drain regression, following
 PR #1187, the #31 drained-creature power publication, following
 PR #1185, the #31 creature power burn through the damage path,
 following PR #1183, the #31 creature-target power drain, following
@@ -61,6 +62,25 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 zero-amplitude creature burn regression — 2026-09-18, implementation
+`4c0f67e9`, integrated as `413f379e` by PR #1191:** test-only coverage for the
+`CalcValueMultiplier` semantics PR #1185 landed. C++
+`Spell::EffectPowerBurn` (`SpellEffects.cpp:1157-1164`) scales the burned health
+by the effect amplitude with no implicit 1.0 default, so an amplitude-0 burn still
+drains the pool and still logs the take-power row while dealing no damage.
+`spell_power_burn_on_a_creature_with_zero_amplitude_deals_no_damage_like_cpp`
+burns a creature with 40 of 100 mana and 100 health for 15 at the default 0.0
+amplitude, asserting the pool drops to 25, the health stays 100 and the decoded
+execute-log row carries points 15 with amplitude 0.0. Evidence at `4c0f67e9`:
+`wow-world --lib` 4016/0/1, `cargo fmt --all --check` and `git diff --check`
+clean, physical ratchet PASS with no ceiling moved, ownership syntax PASS with no
+baseline delta (test-only); `validation-v2 quick` PASS 32.9 s (manifest
+`20260918T052241.497206Z-3806015-quick.json`) and `final --architecture` 86.8 s,
+exit 1, 2 of 9 steps with `session-syntax-acceptance` PASS and the pre-existing
+hotspot ratchet as the only red; the runner campaign is 119.7 s, inside the 600 s
+ordinary budget. No production behavior, packet layout or ownership surface
+changed.
 
 **#31 creature power-type drain regression — 2026-09-18, implementation
 `bae3875a`, integrated as `8afca1dd` by PR #1189:** test-only regression for the

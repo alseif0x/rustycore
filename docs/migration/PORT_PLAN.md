@@ -33,6 +33,12 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 zero-amplitude creature burn regression — 2026-09-18, implementation
+`4c0f67e9`:** test-only coverage that an amplitude-0 `EffectPowerBurn` still
+drains the creature pool and logs the take-power row while dealing no damage
+(`CalcValueMultiplier` has no implicit 1.0 default). No production surface
+changed.
+
 **#31 creature power-type drain regression — 2026-09-18, implementation
 `bae3875a`:** test-only coverage for the `GetPowerType()` gate of
 `EffectPowerDrain` on a creature target (wrong active power → no drain, no caster
