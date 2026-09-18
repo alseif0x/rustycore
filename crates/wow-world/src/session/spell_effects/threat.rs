@@ -8,8 +8,7 @@ use super::*;
 impl WorldSession {
     /// C++ `ThreatManager::ForwardThreatForAssistingMe` for direct healing.
     ///
-    /// `Spell::DoAllEffectOnTarget` (`Spell.cpp:2883`) forwards half of the
-    /// effective heal with modifiers applied (`ignoreModifiers` false), split
+    /// `Spell::DoAllEffectOnTarget` forwards half of the effective heal, split
     /// evenly across non-controlled creatures that already threaten the healed
     /// unit. Controlled owners receive a zero-threat combat reference instead.
     pub(in crate::session) fn forward_heal_threat_like_cpp(
@@ -22,33 +21,6 @@ impl WorldSession {
         if effective_heal == 0 {
             return;
         }
-        self.forward_assisting_threat_like_cpp(
-            spell_id,
-            healer_guid,
-            target_guid,
-            effective_heal as f32 * 0.5,
-            false,
-        );
-    }
-
-    /// C++ `ThreatManager::ForwardThreatForAssistingMe`
-    /// (`ThreatManager.cpp:718-744`): every creature that already threatens
-    /// `assisted_guid` gains `base_amount` threat on `assistant_guid`, split
-    /// evenly across the non-controlled owners; controlled owners get the
-    /// zero-threat combat reference instead.
-    ///
-    /// `ignore_modifiers` mirrors the C++ parameter: `Unit::EnergizeBySpell`
-    /// passes `true`, so its `damage / 2` is added unmodified, while the heal
-    /// and threat paths pass `false` and apply the spell's threat percentage
-    /// and the assistant's school threat multiplier.
-    pub(in crate::session) fn forward_assisting_threat_like_cpp(
-        &mut self,
-        spell_id: Option<i32>,
-        assistant_guid: ObjectGuid,
-        assisted_guid: ObjectGuid,
-        base_amount: f32,
-        ignore_modifiers: bool,
-    ) {
         let difficulty = self.current_map_difficulty_id_like_cpp();
         let difficulty_store = self.difficulty_store().cloned();
         if spell_id.is_some_and(|spell_id| {
@@ -74,11 +46,7 @@ impl WorldSession {
             .and_then(|spell_id| u32::try_from(spell_id).ok())
             .and_then(|spell_id| self.spell_threat_entry_like_cpp(spell_id))
             .copied();
-        let spell_threat_pct_mod = if ignore_modifiers {
-            1.0
-        } else {
-            spell_threat_entry.map_or(1.0, |entry| entry.pct_mod)
-        };
+        let spell_threat_pct_mod = spell_threat_entry.map_or(1.0, |entry| entry.pct_mod);
         let spell_school_mask = spell_id
             .and_then(|spell_id| u32::try_from(spell_id).ok())
             .map_or(1, |spell_id| {
@@ -87,23 +55,22 @@ impl WorldSession {
                     self.current_map_difficulty_id_like_cpp(),
                 )
             });
-        let caster_school_threat_mod =
-            if !ignore_modifiers && self.player_guid() == Some(assistant_guid) {
-                self.hydrate_canonical_threat_relevant_auras_like_cpp();
-                self.mutate_canonical_player_like_cpp(|player| {
-                    player
-                        .unit()
-                        .subsystems()
-                        .auras
-                        .total_aura_multiplier_by_misc_mask_like_cpp(
-                            wow_data::spell::aura_types::SPELL_AURA_MOD_THREAT,
-                            spell_school_mask,
-                        )
-                })
-                .unwrap_or(1.0)
-            } else {
-                1.0
-            };
+        let caster_school_threat_mod = if self.player_guid() == Some(healer_guid) {
+            self.hydrate_canonical_threat_relevant_auras_like_cpp();
+            self.mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit()
+                    .subsystems()
+                    .auras
+                    .total_aura_multiplier_by_misc_mask_like_cpp(
+                        wow_data::spell::aura_types::SPELL_AURA_MOD_THREAT,
+                        spell_school_mask,
+                    )
+            })
+            .unwrap_or(1.0)
+        } else {
+            1.0
+        };
         let no_initial_threat = spell_id.is_some_and(|spell_id| {
             self.spell_store().is_some_and(|store| {
                 store.has_attribute_for_difficulty_like_cpp(
@@ -115,7 +82,7 @@ impl WorldSession {
                 )
             })
         });
-        let owner_guids = self.canonical_threatened_by_me_owner_guids_like_cpp(assisted_guid);
+        let owner_guids = self.canonical_threatened_by_me_owner_guids_like_cpp(target_guid);
         if owner_guids.is_empty() {
             return;
         }
@@ -133,7 +100,8 @@ impl WorldSession {
         let per_owner = if eligible_count == 0 {
             0.0
         } else {
-            base_amount * spell_threat_pct_mod * caster_school_threat_mod / eligible_count as f32
+            effective_heal as f32 * 0.5 * spell_threat_pct_mod * caster_school_threat_mod
+                / eligible_count as f32
         };
 
         for owner_guid in owner_guids {
@@ -147,17 +115,17 @@ impl WorldSession {
                         return None;
                     }
                     if !controlled && creature.creature.ai_ownership().combat_target.is_none() {
-                        creature.enter_combat(assistant_guid);
+                        creature.enter_combat(healer_guid);
                     }
                     let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
-                    combat.add_threat(assistant_guid, if controlled { 0.0 } else { per_owner });
-                    combat.threat_value(assistant_guid)
+                    combat.add_threat(healer_guid, if controlled { 0.0 } else { per_owner });
+                    combat.threat_value(healer_guid)
                 })
                 .flatten();
             if let Some(threat_value) = threat_value {
                 self.sync_represented_creature_threat_to_canonical_like_cpp(
                     owner_guid,
-                    assistant_guid,
+                    healer_guid,
                     threat_value,
                 );
             }

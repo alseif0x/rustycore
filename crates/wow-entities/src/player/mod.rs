@@ -127,9 +127,6 @@ pub const CLASS_HUNTER: u8 = 3;
 pub const CLASS_SHAMAN: u8 = 7;
 pub const SKILL_PLATE_MAIL: u32 = 293;
 pub const SKILL_MAIL: u32 = 413;
-/// C++ `SKILL_ENGINEERING` (`SharedDefines.h:5388`), read by
-/// `Spell::EffectEnergize`'s Runic Mana Injector bonus.
-pub const SKILL_ENGINEERING_LIKE_CPP: u16 = 202;
 pub const NULL_BAG: u8 = 0;
 /// C++ `TRADE_SLOT_COUNT`; kept with the Player-owned `TradeData` projection so
 /// the entity crate does not depend on packet serialization.
