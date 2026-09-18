@@ -266,8 +266,9 @@ impl WorldSession {
     /// pipeline, which the represented chain applies to player victims only;
     /// and a creature power change is not published to observers yet (no
     /// represented creature power update field writer).
-    pub(in crate::session) fn apply_power_drain_effect_like_cpp(
+    pub(in crate::session) async fn apply_power_drain_effect_like_cpp(
         &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         spell_id: i32,
         effect: u32,
         damage: i32,
@@ -275,6 +276,8 @@ impl WorldSession {
         target_guid: ObjectGuid,
         burn_damage: bool,
         value_multiplier: f32,
+        cast_id: ObjectGuid,
+        spell_visual_id: u32,
     ) -> bool {
         let Some(player_guid) = self.player_guid() else {
             return false;
@@ -299,9 +302,6 @@ impl WorldSession {
         // its damage into the spell's damage pipeline, which the represented
         // chain applies only to player victims.
         if target_guid.is_creature() {
-            if burn_damage {
-                return false;
-            }
             let drained = self
                 .mutate_canonical_creature_by_guid_like_cpp(target_guid, |creature| {
                     if !creature.is_alive()
@@ -327,6 +327,27 @@ impl WorldSession {
                 u32::try_from(misc_value).unwrap_or(0),
                 value_multiplier,
             );
+            if burn_damage {
+                // C++ `newDamage = int32(newDamage * dmgMultiplier)` and
+                // `m_damage += newDamage` (`SpellEffects.cpp:1157-1164`); the
+                // represented creature damage path applies that amount with the
+                // cast identity the combat log needs.
+                let burned = (drained as f32 * value_multiplier) as i32;
+                if burned > 0 {
+                    let _ = self
+                        .apply_damage_from_caster_like_cpp(
+                            item_guid_generator,
+                            Some(spell_id),
+                            player_guid,
+                            target_guid,
+                            u32::try_from(burned).unwrap_or(u32::MAX),
+                            cast_id,
+                            spell_visual_id,
+                        )
+                        .await;
+                }
+                return true;
+            }
             // C++ `unitCaster->EnergizeBySpell(unitCaster, m_spellInfo, gain,
             // powerType)` restores the caster's share
             // (`SpellEffects.cpp:1094-1100`); the represented energize path

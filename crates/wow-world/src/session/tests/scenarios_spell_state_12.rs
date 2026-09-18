@@ -1574,3 +1574,101 @@ async fn spell_power_drain_on_a_creature_restores_the_caster_share_like_cpp() {
     );
     assert_eq!(log.read_float().expect("amplitude"), 0.5);
 }
+
+/// C++ `Spell::EffectPowerBurn` (`SpellEffects.cpp:1142-1165`) drains the
+/// target's power and adds `int32(drained * CalcValueMultiplier)` to the
+/// spell's damage; for a creature target the represented damage path applies it.
+#[tokio::test]
+async fn spell_power_burn_on_a_creature_applies_the_scaled_damage_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let spell_id = 90_301_i32;
+    let player_guid = ObjectGuid::create_player(1, 904);
+    let creature_guid = test_creature_guid(19_301);
+    let position = Position::new(10.0, 20.0, 30.0, 0.0);
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "Burner".to_string(),
+        position,
+        0,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session.set_player_health_like_cpp(100, 100);
+    session.client_visible_guids_like_cpp.insert(creature_guid);
+    register_test_creature(&mut session, manager.clone(), creature_guid, 100);
+    add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 7);
+    add_canonical_test_creature_indexed_on_map_with_level(
+        &canonical,
+        creature_guid,
+        9_001,
+        position,
+        0,
+        7,
+        80,
+    );
+    {
+        let mut legacy = manager.write().unwrap();
+        let creature = legacy
+            .remove_creature_any(0, 0, creature_guid)
+            .expect("move the represented creature into the test instance");
+        let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
+        legacy.add_creature(0, 7, grid_x, grid_y, creature);
+    }
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_power_index(PowerType::Mana, Some(0));
+            player.unit_mut().set_max_power(PowerType::Mana, 200);
+            player.unit_mut().set_power(PowerType::Mana, 25);
+            player.clear_data_changes();
+        })
+        .unwrap();
+    session
+        .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
+            let unit = creature.unit_mut();
+            unit.set_health(100);
+            unit.set_power_index(PowerType::Mana, Some(0));
+            unit.set_max_power(PowerType::Mana, 100);
+            unit.set_power(PowerType::Mana, 40);
+            unit.set_display_power(PowerType::Mana);
+            creature.clear_data_changes();
+        })
+        .unwrap();
+
+    let mut spell = power_spell_info_like_cpp(
+        spell_id,
+        wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_BURN,
+        15,
+        PowerType::Mana,
+    );
+    spell.effects[0].effect_amplitude = 1.0;
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(spell_id, spell);
+    session.set_spell_store(Arc::new(spell_store));
+
+    session
+        .execute_spell(spell_id, creature_guid)
+        .await
+        .expect("represented creature EffectPowerBurn should execute");
+
+    let mana = session
+        .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
+            creature.unit().get_power(PowerType::Mana)
+        })
+        .unwrap();
+    assert_eq!(mana, 25, "C++ drains the burned power from the target pool");
+    let health = manager
+        .read()
+        .unwrap()
+        .find_creature(0, 7, creature_guid)
+        .expect("creature in the test instance")
+        .current_hp();
+    assert_eq!(
+        health, 85,
+        "C++ adds int32(15 * 1.0) to the spell damage, applied by the represented creature damage path"
+    );
+}

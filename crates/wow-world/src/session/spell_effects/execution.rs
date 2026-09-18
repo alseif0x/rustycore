@@ -456,6 +456,7 @@ impl WorldSession {
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_DRAIN => {
                     self.apply_power_drain_effect_like_cpp(
+                        item_guid_generator,
                         spell_id,
                         x,
                         direct_effect_base_points,
@@ -463,7 +464,10 @@ impl WorldSession {
                         target_guid,
                         false,
                         direct_effect_amplitude,
-                    );
+                        cast_id,
+                        spell_visual_id,
+                    )
+                    .await;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE => {
                     self.apply_energize_effect_like_cpp(
@@ -487,6 +491,7 @@ impl WorldSession {
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_POWER_BURN => {
                     self.apply_power_drain_effect_like_cpp(
+                        item_guid_generator,
                         spell_id,
                         x,
                         direct_effect_base_points,
@@ -494,7 +499,10 @@ impl WorldSession {
                         target_guid,
                         true,
                         direct_effect_amplitude,
-                    );
+                        cast_id,
+                        spell_visual_id,
+                    )
+                    .await;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEALTH_LEECH => {
                     self.apply_health_leech_like_cpp(
