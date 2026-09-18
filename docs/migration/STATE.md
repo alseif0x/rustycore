@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`2b7d2449` (PR #1181, the #31 durability rows in the spell execute log, following
+`c2405506` (PR #1183, the #31 creature-target power drain, following
+PR #1181, the #31 durability rows in the spell execute log, following
 PR #1179, the #31 spell execute log with take-power entries, following
 PR #1177, the #31 flagged-power regen interrupt on energize, following
 PR #1175, the #31 `EnergizeBySpell` casing and assisting threat, following
@@ -57,6 +58,41 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 creature-target power drain — 2026-09-18, implementation `5cce3a15`,
+integrated as `c2405506` by PR #1183:** C++ `Spell::EffectPowerDrain`
+(`SpellEffects.cpp:1069-1102`) accepts any living target whose `GetPowerType()`
+matches the effect (`:1078`), drains its pool and, when `unitCaster != unitTarget`,
+restores `drained * SpellEffectInfo::CalcValueMultiplier` through
+`Unit::EnergizeBySpell` (`:1094-1100`); the represented path only accepted the
+canonical player, so a player draining a creature did nothing. The drain effect
+now takes a creature target, gating on the creature being alive with a matching
+`DisplayPower`, drains the canonical creature pool through
+`mutate_canonical_creature_by_guid_like_cpp`, records the
+`ExecuteLogEffectTakeTargetPower` row and grants the caster's share through the
+represented `EnergizeBySpell` path, which owns the energize log, assisting threat
+and regen interrupt landed in the previous rounds; the player path keeps C++'s
+no-gain-on-self-drain rule. Coverage:
+`spell_power_drain_on_a_creature_restores_the_caster_share_like_cpp` drains 15 of
+a creature's 40-point pool with amplitude 0.5, asserts the caster gains
+`int32(15 * 0.5) = 7` and decodes the
+`[SpellGo, SpellEnergizeLog, SpellExecuteLog, CooldownEvent]` sequence with the
+take-power row (victim = creature, points 15, power type 0, amplitude 0.5); the
+self-drain, mismatched-power, negative-amount and burn scenarios still pass
+unchanged. Evidence at `5cce3a15`: `wow-world --lib` 4013/0/1, `cargo fmt --all
+--check` and `git diff --check` clean, physical ratchet PASS with no ceiling
+moved, `session-ownership-check --syntax-only` PASS with no baseline delta (no
+`WorldSession` surface changed); `validation-v2 quick` PASS 41.0 s (manifest
+`20260918T043131.994643Z-3769494-quick.json`) and `final --architecture` 83.4 s,
+exit 1, 2 of 9 steps with `session-syntax-acceptance` PASS and the pre-existing
+hotspot ratchet as the only red; the runner campaign is 124.4 s, inside the 600 s
+ordinary budget. Boundaries: `EffectPowerBurn` on a creature stays a no-op
+because C++ accumulates that damage into the spell damage pipeline, which the
+represented chain applies to player victims only; the creature's power change is
+not published to observers yet (no represented creature power update-field
+writer), so the server-side pool, the caster share and the logs are what this
+slice delivers; the creature target still skips C++'s
+`SpellDamageBonusDone/Taken` pre-scaling (`SpellEffects.cpp:1082-1088`).
 
 **#31 durability rows in the spell execute log — 2026-09-18, implementation
 `d8688e97`, integrated as `2b7d2449` by PR #1181:** C++
