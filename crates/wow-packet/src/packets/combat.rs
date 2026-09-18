@@ -404,6 +404,56 @@ impl ServerPacket for SpellNonMeleeDamageLog {
     }
 }
 
+// ── SpellHealLog (SMSG_SPELL_HEAL_LOG) ────────────────────────────
+
+/// Combat-log packet C++ `Unit::HealBySpell` sends for every spell heal
+/// (`Unit.cpp:6538-6563`).
+///
+/// C++ anchor: `WorldPackets::CombatLog::SpellHealLog::Write`
+/// (`CombatLogPackets.cpp:180-212`) writes target and caster packed GUIDs,
+/// `int32(SpellID)`, `int32(Health)`, `int32(OriginalHeal)`,
+/// `int32(OverHeal)`, `int32(Absorbed)`, the empty supporter count, then the bit
+/// tail: `Crit`, the crit-roll-made and crit-roll-needed presence bits, the
+/// basic packet's log-data bit and the content-tuning presence bit. The
+/// represented path has no supporters, heal absorb, critical roll floats or
+/// generated content-tuning parameters, so those stay empty and absent.
+#[derive(Debug, Clone)]
+pub struct SpellHealLog {
+    pub target: ObjectGuid,
+    pub caster: ObjectGuid,
+    pub spell_id: i32,
+    /// C++ `HealInfo::GetHeal()`: the heal before the target's health cap.
+    pub health: i32,
+    /// C++ `HealInfo::GetOriginalHeal()`.
+    pub original_heal: i32,
+    /// `health - effective heal`.
+    pub over_heal: i32,
+    pub absorbed: i32,
+    pub crit: bool,
+}
+
+impl ServerPacket for SpellHealLog {
+    const OPCODE: ServerOpcodes = ServerOpcodes::SpellHealLog;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.target);
+        pkt.write_packed_guid(&self.caster);
+        pkt.write_int32(self.spell_id);
+        pkt.write_int32(self.health);
+        pkt.write_int32(self.original_heal);
+        pkt.write_int32(self.over_heal);
+        pkt.write_int32(self.absorbed);
+        // `uint32(Supporters.size())`.
+        pkt.write_uint32(0u32);
+        pkt.write_bit(self.crit);
+        pkt.write_bit(false); // `CritRollMade.has_value()`
+        pkt.write_bit(false); // `CritRollNeeded.has_value()`
+        pkt.write_bit(false); // `CombatLogServerPacket::WriteLogDataBit`
+        pkt.write_bit(false); // `ContentTuning.has_value()`
+        pkt.flush_bits();
+    }
+}
+
 // ── HealthUpdate (SMSG_HEALTH_UPDATE) ─────────────────────────────
 
 /// Direct owner health update sent by C++ `Unit::ModifyHealth` when damage
@@ -965,6 +1015,43 @@ mod tests {
         assert!(!pkt.has_bit().expect("periodic"));
         assert_eq!(pkt.read_bits(7).expect("flags"), 0);
         assert!(!pkt.has_bit().expect("debug info"));
+        assert!(!pkt.has_bit().expect("has log data"));
+        assert!(!pkt.has_bit().expect("content tuning"));
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn spell_heal_log_writes_cpp_field_order_like_cpp() {
+        let caster = ObjectGuid::create_player(1, 0x0102_0304_0506_0708);
+        let target = ObjectGuid::create_player(1, 0x1112_1314_1516_1718);
+        let bytes = SpellHealLog {
+            target,
+            caster,
+            spell_id: 2_066_001,
+            health: 300,
+            original_heal: 300,
+            over_heal: 40,
+            absorbed: 0,
+            crit: false,
+        }
+        .to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::SpellHealLog as u16
+        );
+        assert_eq!(pkt.read_packed_guid().expect("target"), target);
+        assert_eq!(pkt.read_packed_guid().expect("caster"), caster);
+        assert_eq!(pkt.read_int32().expect("spell id"), 2_066_001);
+        assert_eq!(pkt.read_int32().expect("health"), 300);
+        assert_eq!(pkt.read_int32().expect("original heal"), 300);
+        assert_eq!(pkt.read_int32().expect("over heal"), 40);
+        assert_eq!(pkt.read_int32().expect("absorbed"), 0);
+        assert_eq!(pkt.read_uint32().expect("supporters"), 0);
+        assert!(!pkt.has_bit().expect("crit"));
+        assert!(!pkt.has_bit().expect("crit roll made"));
+        assert!(!pkt.has_bit().expect("crit roll needed"));
         assert!(!pkt.has_bit().expect("has log data"));
         assert!(!pkt.has_bit().expect("content tuning"));
         assert!(pkt.is_empty());

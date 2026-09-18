@@ -794,14 +794,50 @@ async fn spell_heal_mechanical_effect_row_heals_player_like_cpp_without_type_gat
         .expect("represented mechanical heal effect row should execute");
 
     assert_eq!(session.player_health_like_cpp(), 75);
+    let packets = drain_server_packet_bytes(&send_rx);
+    let opcodes: Vec<_> = packets
+        .iter()
+        .map(|bytes| {
+            wow_packet::WorldPacket::from_bytes(bytes)
+                .server_opcode()
+                .expect("server opcode")
+        })
+        .collect();
     assert_eq!(
-        drain_server_opcodes(&send_rx),
+        opcodes,
         vec![
             ServerOpcodes::SpellGo,
+            ServerOpcodes::SpellHealLog,
             ServerOpcodes::UpdateObject,
             ServerOpcodes::CooldownEvent,
         ]
     );
+    // C++ `Unit::SendHealSpellLog` (`Unit.cpp:6538-6555`): the target and caster
+    // GUIDs, the spell, the requested heal, its original, the over-heal the
+    // health cap discarded and the absent supporters/heal-absorb/crit.
+    let log_bytes = packets
+        .iter()
+        .find(|bytes| {
+            wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                == Some(ServerOpcodes::SpellHealLog)
+        })
+        .expect("heal log packet");
+    let mut log = wow_packet::WorldPacket::from_bytes(log_bytes);
+    log.read_uint16().expect("opcode");
+    assert_eq!(log.read_packed_guid().expect("target"), player_guid);
+    assert_eq!(log.read_packed_guid().expect("caster"), player_guid);
+    assert_eq!(log.read_int32().expect("spell id"), spell_id);
+    assert_eq!(log.read_int32().expect("health"), 35);
+    assert_eq!(log.read_int32().expect("original heal"), 35);
+    assert_eq!(log.read_int32().expect("over heal"), 0);
+    assert_eq!(log.read_int32().expect("absorbed"), 0);
+    assert_eq!(log.read_uint32().expect("supporters"), 0);
+    assert!(!log.has_bit().expect("crit"));
+    assert!(!log.has_bit().expect("crit roll made"));
+    assert!(!log.has_bit().expect("crit roll needed"));
+    assert!(!log.has_bit().expect("has log data"));
+    assert!(!log.has_bit().expect("content tuning"));
+    assert!(log.is_empty());
 }
 #[tokio::test]
 async fn spell_heal_mechanical_negative_amount_is_noop_like_cpp() {

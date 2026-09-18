@@ -84,6 +84,15 @@ impl WorldSession {
                 );
                 return Ok(());
             }
+            // C++ `Unit::HealBySpell` publishes `SMSG_SPELL_HEAL_LOG` after
+            // `DealHeal` (`Unit.cpp:6557-6564`).
+            self.publish_heal_spell_log_like_cpp(
+                spell_id,
+                healer_guid,
+                target_guid,
+                heal_amount,
+                effective_heal,
+            );
             info!(account = self.account_id, heal = heal_amount, "Healed self");
             if healed != current {
                 self.sync_player_registry_state_like_cpp();
@@ -129,6 +138,13 @@ impl WorldSession {
             return Ok(());
         };
         self.forward_heal_threat_like_cpp(spell_id, healer_guid, target_guid, effective_heal);
+        self.publish_heal_spell_log_like_cpp(
+            spell_id,
+            healer_guid,
+            target_guid,
+            heal_amount,
+            effective_heal,
+        );
 
         if self.client_visible_guids_like_cpp.contains(&target_guid)
             && let Some(update) = self.represented_unit_values_update_to_update_object_like_cpp(
@@ -141,6 +157,34 @@ impl WorldSession {
         }
 
         Ok(())
+    }
+    /// C++ `Unit::SendHealSpellLog` (`Unit.cpp:6538-6555`): the heal combat log
+    /// the client shows for a spell heal. A heal without a represented spell has
+    /// no `HealInfo` spell to log, so it stays silent; heal absorb and critical
+    /// heals are not represented, so `Absorbed` is zero and `Crit` false.
+    pub(in crate::session) fn publish_heal_spell_log_like_cpp(
+        &self,
+        spell_id: Option<i32>,
+        healer_guid: ObjectGuid,
+        target_guid: ObjectGuid,
+        heal_amount: u32,
+        effective_heal: u32,
+    ) {
+        let Some(spell_id) = spell_id else {
+            return;
+        };
+        let health = i32::try_from(heal_amount).unwrap_or(i32::MAX);
+        self.send_packet(&wow_packet::packets::combat::SpellHealLog {
+            target: target_guid,
+            caster: healer_guid,
+            spell_id,
+            health,
+            original_heal: health,
+            over_heal: i32::try_from(heal_amount.saturating_sub(effective_heal))
+                .unwrap_or(i32::MAX),
+            absorbed: 0,
+            crit: false,
+        });
     }
     pub(in crate::session) async fn apply_heal_max_health_like_cpp(
         &mut self,
