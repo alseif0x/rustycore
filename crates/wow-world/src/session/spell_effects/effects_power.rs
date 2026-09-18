@@ -9,10 +9,11 @@ impl WorldSession {
     ///
     /// Represented boundary: current canonical player target only. C++ spell-id
     /// special cases in `EffectEnergize` (Blood Fury, Burst of Energy, Runic
-    /// Mana Injector engineering bonus) and `SMSG_SPELL_ENERGIZE_LOG` remain
-    /// outside this bounded slice.
+    /// Mana Injector engineering bonus) remain outside this bounded slice.
     pub(in crate::session) fn apply_energize_effect_like_cpp(
         &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
         damage: i32,
         misc_value: i32,
         target_guid: ObjectGuid,
@@ -32,24 +33,39 @@ impl WorldSession {
         };
         let power = party_member_power_kind_from_u8_like_cpp(power_id);
 
-        self.mutate_canonical_player_like_cpp(|player| {
-            let max_power = player.get_max_power(power);
-            if max_power <= 0 {
-                return false;
-            }
-            let gain = if percent {
-                ((i64::from(max_power) * i64::from(damage)) / 100)
-                    .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
-            } else {
-                damage
-            };
-            let current = player.get_power(power);
-            player
-                .unit_mut()
-                .set_power(power, current.saturating_add(gain).max(0));
-            true
-        })
-        .unwrap_or(false)
+        let outcome = self
+            .mutate_canonical_player_like_cpp(|player| {
+                let max_power = player.get_max_power(power);
+                if max_power <= 0 {
+                    return None;
+                }
+                let requested = if percent {
+                    ((i64::from(max_power) * i64::from(damage)) / 100)
+                        .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
+                } else {
+                    damage
+                };
+                let current = player.get_power(power);
+                let after = current.saturating_add(requested).clamp(0, max_power);
+                player.unit_mut().set_power(power, after);
+                Some((requested, after - current))
+            })
+            .flatten();
+        let Some((requested, applied)) = outcome else {
+            return false;
+        };
+        // C++ `Unit::EnergizeBySpell` (`Unit.cpp:6578-6590`): `gain` is the
+        // delta `ModifyPower` actually applied and `OverEnergize` is what the
+        // pool could not take.
+        self.send_packet(&wow_packet::packets::combat::SpellEnergizeLog {
+            target: target_guid,
+            caster: caster_guid,
+            spell_id,
+            power_type: misc_value,
+            amount: applied,
+            over_energize: requested.saturating_sub(applied),
+        });
+        true
     }
     /// C++ `Spell::EffectPowerDrain` / `Spell::EffectPowerBurn`.
     ///

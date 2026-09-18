@@ -496,6 +496,46 @@ impl ServerPacket for SpellHealAbsorbLog {
     }
 }
 
+// ── SpellEnergizeLog (SMSG_SPELL_ENERGIZE_LOG) ────────────────────
+
+/// Combat-log packet C++ `Unit::EnergizeBySpell` sends for a power gain or loss
+/// (`Unit.cpp:6566-6590`).
+///
+/// C++ anchor: `WorldPackets::CombatLog::SpellEnergizeLog::Write`
+/// (`CombatLogPackets.cpp:214-234`) writes the target and caster packed GUIDs,
+/// `int32(SpellID)`, `int32(Type)` (the `Powers` value),
+/// `int32(Amount)` (the power actually changed) and `int32(OverEnergize)` (the
+/// requested amount the pool could not take), then the basic packet's log-data
+/// bit. The represented path has no log data, so no data follows the flushed
+/// bit.
+#[derive(Debug, Clone)]
+pub struct SpellEnergizeLog {
+    pub target: ObjectGuid,
+    pub caster: ObjectGuid,
+    pub spell_id: i32,
+    /// C++ `Powers` value of the changed power.
+    pub power_type: i32,
+    /// C++ `Amount`: the power delta `ModifyPower` actually applied.
+    pub amount: i32,
+    /// C++ `OverEnergize`: `requested - applied`.
+    pub over_energize: i32,
+}
+
+impl ServerPacket for SpellEnergizeLog {
+    const OPCODE: ServerOpcodes = ServerOpcodes::SpellEnergizeLog;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.target);
+        pkt.write_packed_guid(&self.caster);
+        pkt.write_int32(self.spell_id);
+        pkt.write_int32(self.power_type);
+        pkt.write_int32(self.amount);
+        pkt.write_int32(self.over_energize);
+        pkt.write_bit(false); // `CombatLogServerPacket::WriteLogDataBit`
+        pkt.flush_bits();
+    }
+}
+
 // ── HealthUpdate (SMSG_HEALTH_UPDATE) ─────────────────────────────
 
 /// Direct owner health update sent by C++ `Unit::ModifyHealth` when damage
@@ -1131,6 +1171,35 @@ mod tests {
         assert_eq!(pkt.read_int32().expect("absorbed"), 120);
         assert_eq!(pkt.read_int32().expect("original heal"), 300);
         assert!(!pkt.has_bit().expect("content tuning"));
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn spell_energize_log_writes_cpp_field_order_like_cpp() {
+        let caster = ObjectGuid::create_player(1, 0x0102_0304_0506_0708);
+        let target = ObjectGuid::create_player(1, 0x1112_1314_1516_1718);
+        let bytes = SpellEnergizeLog {
+            target,
+            caster,
+            spell_id: 793,
+            power_type: 0,
+            amount: 50,
+            over_energize: 10,
+        }
+        .to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::SpellEnergizeLog as u16
+        );
+        assert_eq!(pkt.read_packed_guid().expect("target"), target);
+        assert_eq!(pkt.read_packed_guid().expect("caster"), caster);
+        assert_eq!(pkt.read_int32().expect("spell id"), 793);
+        assert_eq!(pkt.read_int32().expect("power type"), 0);
+        assert_eq!(pkt.read_int32().expect("amount"), 50);
+        assert_eq!(pkt.read_int32().expect("over energize"), 10);
+        assert!(!pkt.has_bit().expect("has log data"));
         assert!(pkt.is_empty());
     }
 

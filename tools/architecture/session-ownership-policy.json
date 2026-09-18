@@ -21689,7 +21689,7 @@
           "kind": "method",
           "name": "apply_energize_effect_like_cpp",
           "visibility": "pub (in crate :: session)",
-          "signature": "fn apply_energize_effect_like_cpp (& mut self , damage : i32 , misc_value : i32 , target_guid : ObjectGuid , percent : bool ,) -> bool",
+          "signature": "fn apply_energize_effect_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid , damage : i32 , misc_value : i32 , target_guid : ObjectGuid , percent : bool ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [

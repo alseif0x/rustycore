@@ -453,6 +453,8 @@ impl WorldSession {
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE => {
                     self.apply_energize_effect_like_cpp(
+                        spell_id,
+                        caster_guid,
                         direct_effect_base_points,
                         direct_effect_misc_value_1,
                         target_guid,
@@ -461,6 +463,8 @@ impl WorldSession {
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE_PCT => {
                     self.apply_energize_effect_like_cpp(
+                        spell_id,
+                        caster_guid,
                         direct_effect_base_points,
                         direct_effect_misc_value_1,
                         target_guid,

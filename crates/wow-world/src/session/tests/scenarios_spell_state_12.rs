@@ -60,10 +60,100 @@ async fn spell_energize_effect_restores_current_player_power_like_cpp() {
         .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
         .unwrap();
     assert_eq!(mana, 75);
+    let packets = drain_server_packet_bytes(&send_rx);
+    let opcodes: Vec<_> = packets
+        .iter()
+        .map(|bytes| {
+            wow_packet::WorldPacket::from_bytes(bytes)
+                .server_opcode()
+                .expect("server opcode")
+        })
+        .collect();
     assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        opcodes,
+        vec![
+            ServerOpcodes::SpellGo,
+            ServerOpcodes::SpellEnergizeLog,
+            ServerOpcodes::CooldownEvent
+        ]
     );
+    // C++ `Unit::SendEnergizeSpellLog` (`Unit.cpp:6566-6576`): the target and
+    // caster GUIDs, the spell, the `Powers` value, the applied delta and the
+    // amount the pool could not take.
+    let log_bytes = packets
+        .iter()
+        .find(|bytes| {
+            wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                == Some(ServerOpcodes::SpellEnergizeLog)
+        })
+        .expect("energize log packet");
+    let mut log = wow_packet::WorldPacket::from_bytes(log_bytes);
+    log.read_uint16().expect("opcode");
+    assert_eq!(log.read_packed_guid().expect("target"), player_guid);
+    assert_eq!(log.read_packed_guid().expect("caster"), player_guid);
+    assert_eq!(log.read_int32().expect("spell id"), spell_id);
+    assert_eq!(
+        log.read_int32().expect("power type"),
+        PowerType::Mana as i32
+    );
+    assert_eq!(log.read_int32().expect("amount"), 50);
+    assert_eq!(log.read_int32().expect("over energize"), 0);
+    assert!(!log.has_bit().expect("has log data"));
+    assert!(log.is_empty());
+}
+
+/// C++ `Unit::EnergizeBySpell` (`Unit.cpp:6578-6590`): `gain` is what
+/// `ModifyPower` actually applied, so a pool with less room than the requested
+/// amount reports the applied delta and the `OverEnergize` remainder.
+#[tokio::test]
+async fn spell_energize_reports_the_applied_delta_and_over_energize_like_cpp() {
+    let (mut session, _, send_rx) = make_session();
+    let spell_id = 796_i32;
+    let player_guid = ObjectGuid::create_player(1, 796);
+    configure_self_resurrect_canonical_player_like_cpp(&mut session, player_guid, 100, 100);
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            let max = player.get_max_power(PowerType::Mana);
+            player.unit_mut().set_power(PowerType::Mana, max - 10);
+        })
+        .unwrap();
+
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        spell_id,
+        power_spell_info_like_cpp(
+            spell_id,
+            wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE,
+            50,
+            PowerType::Mana,
+        ),
+    );
+    session.set_spell_store(Arc::new(spell_store));
+
+    session
+        .execute_spell(spell_id, player_guid)
+        .await
+        .expect("represented EffectEnergize should execute");
+
+    let packets = drain_server_packet_bytes(&send_rx);
+    let log_bytes = packets
+        .iter()
+        .find(|bytes| {
+            wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                == Some(ServerOpcodes::SpellEnergizeLog)
+        })
+        .expect("energize log packet");
+    let mut log = wow_packet::WorldPacket::from_bytes(log_bytes);
+    log.read_uint16().expect("opcode");
+    log.read_packed_guid().expect("target");
+    log.read_packed_guid().expect("caster");
+    assert_eq!(log.read_int32().expect("spell id"), spell_id);
+    assert_eq!(
+        log.read_int32().expect("power type"),
+        PowerType::Mana as i32
+    );
+    assert_eq!(log.read_int32().expect("amount"), 10);
+    assert_eq!(log.read_int32().expect("over energize"), 40);
 }
 #[tokio::test]
 async fn spell_energize_pct_effect_uses_target_max_power_like_cpp() {
@@ -95,7 +185,11 @@ async fn spell_energize_pct_effect_uses_target_max_power_like_cpp() {
     assert_eq!(energy, 55);
     assert_eq!(
         drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        vec![
+            ServerOpcodes::SpellGo,
+            ServerOpcodes::SpellEnergizeLog,
+            ServerOpcodes::CooldownEvent
+        ]
     );
 }
 #[tokio::test]
