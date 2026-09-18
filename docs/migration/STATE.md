@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`e2af51e0` (PR #1193, the #31 zero-pool drain log repair, following
+`6e821bad` (PR #1195, the #31 remaining execute-log list layouts, following
+PR #1193, the #31 zero-pool drain log repair, following
 PR #1191, the #31 zero-amplitude creature burn regression, following
 PR #1189, the #31 creature power-type drain regression, following
 PR #1187, the #31 drained-creature power publication, following
@@ -63,6 +64,26 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 remaining execute-log list layouts — 2026-09-18, implementation
+`6dda6e3c`, integrated as `6e821bad` by PR #1195:** test-only byte-level coverage
+for the execute-log row families that still have no producer.
+`WorldPackets::CombatLog::SpellExecuteLog::Write` (`CombatLogPackets.cpp:90-155`)
+serialises six families per effect; the existing writer test covered the
+take-power and extra-attacks rows (plus the durability row indirectly through a
+world scenario). The new
+`spell_execute_log_writes_the_durability_generic_trade_and_feed_lists` puts all
+four remaining families on one effect and decodes them field by field after the
+six counts — `(Victim, int32 ItemID, int32 Amount)`, `(Victim)`, `int32 ItemID`,
+`int32 ItemID` — plus the trailing log-data bit and no leftover bytes. Evidence:
+`wow-packet --lib` 754/0, `cargo fmt --all --check` and `git diff --check` clean,
+physical ratchet PASS with no ceiling moved, ownership syntax PASS with no
+baseline delta (test-only); `validation-v2 quick` PASS 17.1 s (manifest
+`20260918T054504.280356Z-3822240-quick.json`) and `final --architecture` 83.8 s,
+exit 1, 2 of 9 steps with `session-syntax-acceptance` PASS and the pre-existing
+hotspot ratchet as the only red; the runner campaign is 100.9 s, inside the 600 s
+ordinary budget. No production behavior, packet layout or ownership surface
+changed.
 
 **#31 zero-pool drain log repair — 2026-09-18, implementation `54263163`,
 integrated as `e2af51e0` by PR #1193:** C++ `Spell::EffectPowerDrain`

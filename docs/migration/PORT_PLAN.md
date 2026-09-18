@@ -33,6 +33,12 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 remaining execute-log list layouts — 2026-09-18, implementation
+`6dda6e3c`:** test-only byte-level coverage for the durability, generic-victim,
+trade-skill and feed-pet execute-log rows (no producer yet), locking the
+`CombatLogPackets.cpp:90-155` layout for all six families. No production surface
+changed.
+
 **#31 zero-pool drain log repair — 2026-09-18, implementation `54263163`:** a
 drain against a valid but empty target now logs `points 0` and a zeroed energize
 log for a non-self caster, exactly as C++ does, while gate refusals stay silent.
