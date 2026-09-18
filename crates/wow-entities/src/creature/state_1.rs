@@ -470,6 +470,21 @@ pub struct CreatureAddonAuraApplicationLikeCpp {
     pub spell_id: u32,
     pub effect_mask: u32,
     pub flags: u32,
+    /// One entry per effect slot `Aura::BuildEffectMaskForOwner` keeps for a
+    /// unit owner, resolved from `SpellInfo` at the data seam because
+    /// `wow-entities` has no `SpellStore`. C++ `Unit::AddAura` creates one
+    /// `AuraEffect` per surviving slot with exactly this type/amount/misc.
+    pub effects: Vec<CreatureAddonAuraEffectLikeCpp>,
+}
+
+/// One resolved `AuraEffect` of a spawn-addon aura
+/// (`Unit::AddAura`, `Unit.cpp:11473-11517`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CreatureAddonAuraEffectLikeCpp {
+    pub aura_type: i32,
+    pub amount: i32,
+    pub misc_value: i32,
+    pub effect_index: u8,
 }
 
 /// Resolved, testable input for TrinityCore `Creature::Create`.

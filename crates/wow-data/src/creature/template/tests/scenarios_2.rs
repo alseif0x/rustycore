@@ -38,7 +38,7 @@ fn creature_addon_store_uses_spawn_addon_before_template_like_cpp() {
         |_| false,
         |_| false,
         |_| 0,
-        |_| 0,
+        |_| Vec::new(),
         |_| 0,
     );
 
@@ -111,7 +111,7 @@ fn creature_addon_store_normalizes_supported_fields_like_cpp() {
         |_| false,
         |_| false,
         |_| 0,
-        |_| 0,
+        |_| Vec::new(),
         |_| 0,
     );
 
@@ -156,11 +156,15 @@ fn creature_addon_store_normalizes_auras_like_cpp() {
         |spell_id| spell_id == 400,
         |spell_id| if spell_id == 300 { 5_000 } else { 0 },
         |spell_id| {
-            if matches!(spell_id, 100 | 200 | 400) {
-                1
-            } else {
-                0
-            }
+            matches!(spell_id, 100 | 200 | 400)
+                .then(|| wow_entities::CreatureAddonAuraEffectLikeCpp {
+                    aura_type: 91,
+                    amount: 7,
+                    misc_value: 0,
+                    effect_index: 0,
+                })
+                .into_iter()
+                .collect()
         },
         |_| AFLAG_NOCASTER_LIKE_CPP | AFLAG_POSITIVE_LIKE_CPP | AFLAG_CANCELABLE_LIKE_CPP,
     );
@@ -171,6 +175,53 @@ fn creature_addon_store_normalizes_auras_like_cpp() {
             .map(|addon| addon.auras),
         Some(vec![100, 200, 400]),
         "C++ addon loading skips malformed, missing, duplicate, and temporary auras; control-vehicle auras log but remain stored"
+    );
+    assert_eq!(
+        store
+            .get_for_creature_like_cpp(44, 1001)
+            .map(|addon| addon.aura_applications),
+        Some(vec![
+            wow_entities::CreatureAddonAuraApplicationLikeCpp {
+                spell_id: 100,
+                effect_mask: 0x1,
+                flags: AFLAG_NOCASTER_LIKE_CPP
+                    | AFLAG_POSITIVE_LIKE_CPP
+                    | AFLAG_CANCELABLE_LIKE_CPP,
+                effects: vec![wow_entities::CreatureAddonAuraEffectLikeCpp {
+                    aura_type: 91,
+                    amount: 7,
+                    misc_value: 0,
+                    effect_index: 0,
+                }],
+            },
+            wow_entities::CreatureAddonAuraApplicationLikeCpp {
+                spell_id: 200,
+                effect_mask: 0x1,
+                flags: AFLAG_NOCASTER_LIKE_CPP
+                    | AFLAG_POSITIVE_LIKE_CPP
+                    | AFLAG_CANCELABLE_LIKE_CPP,
+                effects: vec![wow_entities::CreatureAddonAuraEffectLikeCpp {
+                    aura_type: 91,
+                    amount: 7,
+                    misc_value: 0,
+                    effect_index: 0,
+                }],
+            },
+            wow_entities::CreatureAddonAuraApplicationLikeCpp {
+                spell_id: 400,
+                effect_mask: 0x1,
+                flags: AFLAG_NOCASTER_LIKE_CPP
+                    | AFLAG_POSITIVE_LIKE_CPP
+                    | AFLAG_CANCELABLE_LIKE_CPP,
+                effects: vec![wow_entities::CreatureAddonAuraEffectLikeCpp {
+                    aura_type: 91,
+                    amount: 7,
+                    misc_value: 0,
+                    effect_index: 0,
+                }],
+            },
+        ]),
+        "C++ Unit::AddAura creates one AuraEffect per BuildEffectMaskForOwner slot; the data seam resolves type/amount/misc once"
     );
 }
 
@@ -200,7 +251,7 @@ fn creature_addon_store_mutates_waypoint_spawn_without_path_to_idle_like_cpp() {
         |_| false,
         |_| false,
         |_| 0,
-        |_| 0,
+        |_| Vec::new(),
         |_| 0,
     );
 

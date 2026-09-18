@@ -243,7 +243,7 @@ impl CreatureAddonStoreLikeCpp {
         spell_exists: impl Fn(u32) -> bool,
         spell_has_control_vehicle_aura: impl Fn(u32) -> bool,
         spell_duration_ms: impl Fn(u32) -> i32,
-        spell_unit_owned_aura_effect_mask: impl Fn(u32) -> u32,
+        spell_unit_owned_aura_effects: impl Fn(u32) -> Vec<CreatureAddonAuraEffectLikeCpp>,
         spell_addon_aura_flags: impl Fn(u32) -> u32,
     ) -> Self {
         let spawn_addons = spawn_rows
@@ -260,7 +260,7 @@ impl CreatureAddonStoreLikeCpp {
                         &spell_exists,
                         &spell_has_control_vehicle_aura,
                         &spell_duration_ms,
-                        &spell_unit_owned_aura_effect_mask,
+                        &spell_unit_owned_aura_effects,
                         &spell_addon_aura_flags,
                     ),
                 )
@@ -280,7 +280,7 @@ impl CreatureAddonStoreLikeCpp {
                         &spell_exists,
                         &spell_has_control_vehicle_aura,
                         &spell_duration_ms,
-                        &spell_unit_owned_aura_effect_mask,
+                        &spell_unit_owned_aura_effects,
                         &spell_addon_aura_flags,
                     ),
                 )
@@ -339,7 +339,7 @@ impl CreatureAddonStoreLikeCpp {
                     .unwrap_or(0);
                 spell_duration_ms_like_cpp(duration_index, Some(spell_duration_store))
             },
-            |spell_id| creature_addon_aura_effect_mask_like_cpp(spell_store, spell_id),
+            |spell_id| creature_addon_aura_effects_like_cpp(spell_store, spell_id),
             |spell_id| creature_addon_aura_flags_like_cpp(spell_store, spell_id),
         )
     }
@@ -397,7 +397,7 @@ pub(super) fn addon_record_from_row_like_cpp(
     spell_exists: &impl Fn(u32) -> bool,
     spell_has_control_vehicle_aura: &impl Fn(u32) -> bool,
     spell_duration_ms: &impl Fn(u32) -> i32,
-    spell_unit_owned_aura_effect_mask: &impl Fn(u32) -> u32,
+    spell_unit_owned_aura_effects: &impl Fn(u32) -> Vec<CreatureAddonAuraEffectLikeCpp>,
     spell_addon_aura_flags: &impl Fn(u32) -> u32,
 ) -> CreatureAddonLifecycleRecordLikeCpp {
     let mount_display_id = if row.mount != 0 && !mount_display_exists(row.mount) {
@@ -428,11 +428,18 @@ pub(super) fn addon_record_from_row_like_cpp(
         .iter()
         .copied()
         .filter_map(|spell_id| {
-            let effect_mask = spell_unit_owned_aura_effect_mask(spell_id);
+            let effects = spell_unit_owned_aura_effects(spell_id);
+            // C++ `Aura::TryRefreshStackOrCreate` returns nullptr when the
+            // owner build mask is empty (`SpellAuras.cpp:352-354`), so a spell
+            // without a surviving effect slot contributes no application.
+            let effect_mask = effects.iter().fold(0_u32, |mask, effect| {
+                mask | (1_u32 << u32::from(effect.effect_index))
+            });
             (effect_mask != 0).then(|| CreatureAddonAuraApplicationLikeCpp {
                 spell_id,
                 effect_mask,
                 flags: spell_addon_aura_flags(spell_id),
+                effects,
             })
         })
         .collect();
@@ -481,10 +488,44 @@ pub(super) fn normalize_creature_addon_auras_like_cpp(
     normalized
 }
 
-pub(super) fn creature_addon_aura_effect_mask_like_cpp(
+/// C++ `Unit::AddAura(spellInfo, MAX_EFFECT_MASK, target)` (`Unit.cpp:11473-11483`)
+/// filters the spell's effects with `Aura::BuildEffectMaskForOwner`
+/// (`SpellAuras.cpp:344-357`) and then creates one `AuraEffect` per surviving
+/// slot, each with its own type, amount and misc value. The data seam resolves
+/// that list once at load time so every represented spawn path — the session
+/// registry, the pending-respawn queue and the loaded-grid tests — applies the
+/// same effects without needing a `SpellStore` at entity level.
+pub(super) fn creature_addon_aura_effects_like_cpp(
     spell_store: &SpellStore,
     spell_id: u32,
-) -> u32 {
+) -> Vec<CreatureAddonAuraEffectLikeCpp> {
+    let Some(spell) = i32::try_from(spell_id)
+        .ok()
+        .and_then(|spell_id| spell_store.get(spell_id))
+    else {
+        return Vec::new();
+    };
+
+    spell
+        .effects()
+        .iter()
+        .filter(|effect| creature_addon_aura_effect_is_unit_owned_like_cpp(effect.effect))
+        .filter(|effect| effect.effect_index < u32::BITS)
+        .filter_map(|effect| {
+            let effect_index = u8::try_from(effect.effect_index).ok()?;
+            Some(CreatureAddonAuraEffectLikeCpp {
+                aura_type: effect.effect_aura,
+                amount: effect.calc_value_no_caster_like_cpp(),
+                misc_value: effect.effect_misc_value_1,
+                effect_index,
+            })
+        })
+        .collect()
+}
+
+/// The `SpellEffectInfo` branches `Aura::BuildEffectMaskForOwner` keeps for a
+/// unit owner: the direct apply-aura effects plus the area-aura family.
+pub(super) fn creature_addon_aura_effect_is_unit_owned_like_cpp(effect: u32) -> bool {
     use crate::spell::spell_effect_types::{
         SPELL_EFFECT_APPLY_AREA_AURA_ENEMY, SPELL_EFFECT_APPLY_AREA_AURA_FRIEND,
         SPELL_EFFECT_APPLY_AREA_AURA_OWNER, SPELL_EFFECT_APPLY_AREA_AURA_PARTY,
@@ -495,33 +536,19 @@ pub(super) fn creature_addon_aura_effect_mask_like_cpp(
     const SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS: u32 = 202;
     const SPELL_EFFECT_APPLY_AREA_AURA_PARTY_NONRANDOM: u32 = 271;
 
-    let Some(spell) = i32::try_from(spell_id)
-        .ok()
-        .and_then(|spell_id| spell_store.get(spell_id))
-    else {
-        return 0;
-    };
-
-    spell.effects().iter().fold(0, |mask, effect| {
-        let unit_owned = matches!(
-            effect.effect,
-            SPELL_EFFECT_APPLY_AURA
-                | SPELL_EFFECT_APPLY_AURA_ON_PET
-                | SPELL_EFFECT_APPLY_AREA_AURA_PARTY
-                | SPELL_EFFECT_APPLY_AREA_AURA_RAID
-                | SPELL_EFFECT_APPLY_AREA_AURA_FRIEND
-                | SPELL_EFFECT_APPLY_AREA_AURA_ENEMY
-                | SPELL_EFFECT_APPLY_AREA_AURA_PET
-                | SPELL_EFFECT_APPLY_AREA_AURA_OWNER
-                | SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS
-                | SPELL_EFFECT_APPLY_AREA_AURA_PARTY_NONRANDOM
-        );
-        if unit_owned && effect.effect_index < u32::BITS {
-            mask | (1u32 << effect.effect_index)
-        } else {
-            mask
-        }
-    })
+    matches!(
+        effect,
+        SPELL_EFFECT_APPLY_AURA
+            | SPELL_EFFECT_APPLY_AURA_ON_PET
+            | SPELL_EFFECT_APPLY_AREA_AURA_PARTY
+            | SPELL_EFFECT_APPLY_AREA_AURA_RAID
+            | SPELL_EFFECT_APPLY_AREA_AURA_FRIEND
+            | SPELL_EFFECT_APPLY_AREA_AURA_ENEMY
+            | SPELL_EFFECT_APPLY_AREA_AURA_PET
+            | SPELL_EFFECT_APPLY_AREA_AURA_OWNER
+            | SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS
+            | SPELL_EFFECT_APPLY_AREA_AURA_PARTY_NONRANDOM
+    )
 }
 
 pub(super) fn creature_addon_aura_flags_like_cpp(spell_store: &SpellStore, spell_id: u32) -> u32 {

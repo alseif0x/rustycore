@@ -598,6 +598,77 @@ impl AuraSubsystem {
         true
     }
 
+    /// C++ `Unit::AddAura(spellInfo, MAX_EFFECT_MASK, target)` for the spawn
+    /// addon path (`Creature::LoadCreaturesAddon`, `Creature.cpp:2777-2798` →
+    /// `Unit::AddAura`, `Unit.cpp:11473-11517`): create the application and
+    /// register one represented effect per `AuraEffect` the data seam resolved
+    /// for the owner build mask (`Aura::BuildEffectMaskForOwner`,
+    /// `SpellAuras.cpp:344-357`).
+    ///
+    /// The effect data uses the per-effect-slot `AppliedAuraRef` convention the
+    /// pet-load and threat-snapshot paths already establish, so an aura with
+    /// several effect slots keeps each slot's own amount and misc value for
+    /// `has_aura_type_like_cpp`, `total_aura_modifier_like_cpp` and
+    /// `aura_school_mask_like_cpp`. A record with no resolved effects keeps the
+    /// bare mask-only application, as fixture records do.
+    pub fn add_self_cast_addon_aura_application_with_effects_like_cpp(
+        &mut self,
+        spell_id: u32,
+        caster_guid: ObjectGuid,
+        effect_mask: u32,
+        flags: u32,
+        effects: &[CreatureAddonAuraEffectLikeCpp],
+    ) -> bool {
+        if effects.is_empty() {
+            return self.add_self_cast_addon_aura_application_like_cpp(
+                spell_id,
+                caster_guid,
+                effect_mask,
+                flags,
+            );
+        }
+        if self
+            .applied_auras
+            .iter()
+            .any(|aura| aura.spell_id == spell_id && aura.caster_guid == caster_guid)
+        {
+            return false;
+        }
+        let Some(slot) = (0..u8::MAX).find(|slot| !self.visible_auras.contains_key(slot)) else {
+            return false;
+        };
+        self.add_owned(OwnedAuraRef::new(spell_id, caster_guid, None));
+        for effect in effects {
+            let effect_ref = AppliedAuraRef::new(
+                spell_id,
+                caster_guid,
+                slot,
+                1_u32 << u32::from(effect.effect_index),
+            );
+            self.register_applied_aura_effect_like_cpp(
+                effect_ref,
+                effect.aura_type,
+                effect.amount,
+                effect.misc_value,
+            );
+        }
+        self.set_visible_with_application_like_cpp(
+            slot,
+            AuraRef::new(spell_id, caster_guid),
+            VisibleAuraApplicationLikeCpp::new(
+                flags,
+                effects
+                    .iter()
+                    .map(|effect| VisibleAuraEffectAmountLikeCpp {
+                        effect_index: effect.effect_index,
+                        amount: effect.amount,
+                    })
+                    .collect(),
+            ),
+        );
+        true
+    }
+
     pub fn has_aura_type_like_cpp(&self, aura_type: i32) -> bool {
         self.applied_aura_types
             .get(&aura_type)

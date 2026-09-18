@@ -32,8 +32,8 @@ use wow_constants::{SpellState, TypeId, UnitState};
 use wow_core::{ObjectGuid, Position};
 
 use crate::{
-    CreatureAddToWorldVehicleResetContextLikeCpp, Vehicle, VehicleResetPlan, VehicleSeatAddon,
-    VehicleSeatInfo,
+    CreatureAddToWorldVehicleResetContextLikeCpp, CreatureAddonAuraEffectLikeCpp, Vehicle,
+    VehicleResetPlan, VehicleSeatAddon, VehicleSeatInfo,
 };
 
 /// C++ `AuraRemoveMode::AURA_REMOVE_BY_INTERRUPT`.

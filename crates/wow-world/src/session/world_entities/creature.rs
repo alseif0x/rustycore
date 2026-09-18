@@ -562,24 +562,32 @@ impl WorldSession {
                     return None;
                 }
                 let slot = (0..u8::MAX).find(|slot| !auras.visible_auras.contains_key(slot))?;
-                let aura =
-                    wow_entities::AppliedAuraRef::new(spell_key, caster_guid, slot, effect_mask);
                 auras.add_owned(wow_entities::OwnedAuraRef::new(
                     spell_key,
                     caster_guid,
                     None,
                 ));
-                auras.add_applied(aura);
-                for (aura_type, amount, misc_value, _) in &effects {
+                // C++ `Aura::Create` builds one `AuraEffect` per applied slot
+                // and `GetAuraEffectsByType` reads those effects individually.
+                // The per-slot `AppliedAuraRef` keeps each slot's own amount
+                // and misc value, the convention the pet-load and
+                // threat-snapshot paths already use.
+                for (aura_type, amount, misc_value, effect_index) in &effects {
+                    let effect_ref = wow_entities::AppliedAuraRef::new(
+                        spell_key,
+                        caster_guid,
+                        slot,
+                        1_u32 << u32::from(*effect_index),
+                    );
                     auras.register_applied_aura_effect_like_cpp(
-                        aura,
+                        effect_ref,
                         *aura_type,
                         *amount,
                         *misc_value,
                     );
                 }
                 auras.set_loaded_aura_state_like_cpp(
-                    aura.aura_ref(),
+                    wow_entities::AuraRef::new(spell_key, caster_guid),
                     wow_entities::LoadedAuraStateLikeCpp::new(
                         i32::try_from(duration_ms).unwrap_or(i32::MAX),
                         i32::try_from(duration_ms).unwrap_or(i32::MAX),
@@ -590,16 +598,16 @@ impl WorldSession {
                 );
                 auras.set_visible_with_application_like_cpp(
                     slot,
-                    aura.aura_ref(),
+                    wow_entities::AuraRef::new(spell_key, caster_guid),
                     wow_entities::VisibleAuraApplicationLikeCpp::new(
                         0,
                         effects
                             .iter()
-                            .filter_map(|(_, amount, _, effect_index)| {
-                                Some(wow_entities::VisibleAuraEffectAmountLikeCpp {
+                            .map(|(_, amount, _, effect_index)| {
+                                wow_entities::VisibleAuraEffectAmountLikeCpp {
                                     effect_index: *effect_index,
                                     amount: *amount,
-                                })
+                                }
                             })
                             .collect(),
                     ),
@@ -676,48 +684,19 @@ impl WorldSession {
             managed
                 .map()
                 .with_creature_like_cpp(target_guid, |creature| {
-                    let level = creature.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8;
-                    let auras = &creature.unit().subsystems().auras;
                     if !applied {
                         return wow_packet::packets::misc::AuraInfoLikeCpp {
                             slot,
                             aura_data: None,
                         };
                     }
-                    let Some(aura_ref) = auras.visible_auras.get(&slot).copied() else {
-                        return wow_packet::packets::misc::AuraInfoLikeCpp {
-                            slot,
-                            aura_data: None,
-                        };
-                    };
-                    let active_flags = auras
-                        .applied_auras
-                        .iter()
-                        .filter(|aura| aura.aura_ref() == aura_ref)
-                        .fold(0u32, |mask, aura| mask | aura.effect_mask);
-                    wow_packet::packets::misc::AuraInfoLikeCpp {
+                    let level = creature.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8;
+                    super::creature_publication::represented_creature_aura_info_like_cpp(
+                        &creature.unit().subsystems().auras,
                         slot,
-                        aura_data: Some(wow_packet::packets::misc::AuraDataInfoLikeCpp {
-                            cast_id: ObjectGuid::create_world_object(
-                                HighGuid::Cast,
-                                3,
-                                1,
-                                self.player_map_id_like_cpp(),
-                                0,
-                                aura_ref.spell_id,
-                                i64::from(slot) + 1,
-                            ),
-                            spell_id: i32::try_from(aura_ref.spell_id).unwrap_or(i32::MAX),
-                            flags: 0,
-                            active_flags,
-                            caster_guid: aura_ref.caster_guid,
-                            cast_level: level.into(),
-                            applications: 0,
-                            duration_ms: None,
-                            remaining_ms: None,
-                            points: Vec::new(),
-                        }),
-                    }
+                        level,
+                        self.player_map_id_like_cpp(),
+                    )
                 })
         }) else {
             return;
@@ -751,15 +730,25 @@ impl WorldSession {
             let removed = self
                 .mutate_canonical_creature_by_guid_like_cpp(aura.target_guid, |creature| {
                     let auras = &mut creature.unit_mut().subsystems_mut().auras;
-                    let applied = wow_entities::AppliedAuraRef::new(
-                        u32::try_from(aura.spell_id).unwrap_or(0),
-                        aura.caster_guid,
-                        aura.slot,
-                        aura.effect_mask,
-                    );
-                    // `unapply_aura` removes the application and its loaded
-                    // state; `clear_visible` drops the published slot.
-                    let removed = auras.unapply_aura(applied, 0);
+                    let spell_id = u32::try_from(aura.spell_id).unwrap_or(0);
+                    // One per-slot `AppliedAuraRef` per applied effect slot;
+                    // removing every covered slot is the C++
+                    // `AuraApplication` removal. `unapply_aura` also removes
+                    // the loaded state and `clear_visible` the published slot.
+                    let mut removed = false;
+                    for effect_index in 0..u32::BITS {
+                        let bit = 1_u32 << effect_index;
+                        if aura.effect_mask & bit == 0 {
+                            continue;
+                        }
+                        let applied = wow_entities::AppliedAuraRef::new(
+                            spell_id,
+                            aura.caster_guid,
+                            aura.slot,
+                            bit,
+                        );
+                        removed |= auras.unapply_aura(applied, 0);
+                    }
                     let _ = auras.clear_visible(aura.slot);
                     removed
                 })

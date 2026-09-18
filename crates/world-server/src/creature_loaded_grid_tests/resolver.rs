@@ -101,11 +101,13 @@ fn loaded_grid_creature_lifecycle_resolver_applies_resolved_addon_like_cpp() {
                 spell_id: 70_043,
                 effect_mask: 0x1,
                 flags: 0x0103,
+                effects: Vec::new(),
             },
             wow_entities::CreatureAddonAuraApplicationLikeCpp {
                 spell_id: 70_044,
                 effect_mask: 0x1,
                 flags: 0x0103,
+                effects: Vec::new(),
             },
         ],
     });
@@ -143,11 +145,13 @@ fn loaded_grid_creature_lifecycle_resolver_applies_resolved_addon_like_cpp() {
                     spell_id: 70_043,
                     effect_mask: 0x1,
                     flags: 0x0103,
+                    effects: Vec::new(),
                 },
                 wow_entities::CreatureAddonAuraApplicationLikeCpp {
                     spell_id: 70_044,
                     effect_mask: 0x1,
                     flags: 0x0103,
+                    effects: Vec::new(),
                 },
             ],
         }),
