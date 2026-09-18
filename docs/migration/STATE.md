@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-18:** `3.4.3` is at
-`f407cda6` (PR #1187, the #31 drained-creature power publication, following
+`8afca1dd` (PR #1189, the #31 creature power-type drain regression, following
+PR #1187, the #31 drained-creature power publication, following
 PR #1185, the #31 creature power burn through the damage path,
 following PR #1183, the #31 creature-target power drain, following
 PR #1181, the #31 durability rows in the spell execute log, following
@@ -60,6 +61,24 @@ The active architecture sequence is the remaining measured work in #584, followe
 by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
+
+**#31 creature power-type drain regression — 2026-09-18, implementation
+`bae3875a`, integrated as `8afca1dd` by PR #1189:** test-only regression for the
+gate PR #1183 landed: C++ `Spell::EffectPowerDrain` returns before touching the
+pool when the target's `GetPowerType()` differs from the effect's power
+(`SpellEffects.cpp:1078`). The new
+`spell_power_drain_on_a_creature_requires_the_matching_power_type_like_cpp` drains
+Mana from a creature whose `DisplayPower` is Energy, asserting the pool stays 40,
+the caster restores nothing and the cast publishes only
+`[SpellGo, CooldownEvent]` — no energize log and no execute log. Evidence at
+`bae3875a`: `wow-world --lib` 4015/0/1, `cargo fmt --all --check` and `git diff
+--check` clean, physical ratchet PASS with no ceiling moved, ownership syntax PASS
+with no baseline delta (test-only); `validation-v2 quick` PASS 29.2 s (manifest
+`20260918T051420.466809Z-3799184-quick.json`) and `final --architecture` 85.6 s,
+exit 1, 2 of 9 steps with `session-syntax-acceptance` PASS and the pre-existing
+hotspot ratchet as the only red; the runner campaign is 114.8 s, inside the 600 s
+ordinary budget. No production behavior, packet layout or ownership surface
+changed.
 
 **#31 drained-creature power publication — 2026-09-18, implementation
 `e7943b27`, integrated as `f407cda6` by PR #1187:** C++ drains a creature's power
