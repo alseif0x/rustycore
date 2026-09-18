@@ -41,9 +41,11 @@ only *threat-relevant* effect data into the canonical aura subsystem
 (`sync_canonical_threat_relevant_aura_like_cpp`), so
 `total_aura_modifier_like_cpp(SPELL_AURA_MOD_IGNORE_TARGET_RESIST)` reads 0 for an
 applied caster aura and every canonical-subsystem consumer misses ordinary player
-auras. Next route: add type 269 to that sync (its amount and misc value) as the
-minimal enabler, or give `RepresentedAuraEffectLikeCpp` a
-`ModIgnoreTargetResist` variant and read the Player-visible list.
+auras. Adding type 269 to that sync was inspected and rejected: it is built on the
+threat-snapshot machinery and is not the right carrier for an unrelated effect
+type. The routes are a general player-aura effect registration in the canonical
+subsystem (faithful, with a consumer-by-consumer review) or a Player-visible
+reader with a `ModIgnoreTargetResist` variant.
 
 **#31 caster label damage-taken term — 2026-09-18, implementation `c11833e6`:**
 the drain/burn pre-scaling now folds the caster's
