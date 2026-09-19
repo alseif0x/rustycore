@@ -1,5 +1,5 @@
 name = "luna_worker"
-description = "Bounded RustyCore implementation, focused exploration or exclusive final validation under Astra."
+description = "Bounded RustyCore implementation, focused exploration or exclusive final validation under Sol."
 model = "gpt-5.6-luna"
 model_reasoning_effort = "max"
 developer_instructions = """

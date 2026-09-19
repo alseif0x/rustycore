@@ -94,6 +94,7 @@ impl WorldSession {
         original_damage: i32,
         mana_spent: u32,
         consumptions: &[crate::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp],
+        split_combat_log_packets: &[Vec<u8>],
     ) {
         for consumption in consumptions {
             let shield = self
@@ -146,6 +147,10 @@ impl WorldSession {
                     mana,
                 );
             }
+        }
+        for packet in split_combat_log_packets {
+            self.send_raw_packet(packet);
+            self.broadcast_player_packet_to_visible_set_realm_like_cpp(packet.clone());
         }
     }
     pub(in crate::session) fn send_environmental_damage_log_like_cpp(
