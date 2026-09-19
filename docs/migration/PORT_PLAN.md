@@ -33,6 +33,19 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#31 direct-damage fidelity correction — 2026-09-19, current candidate:**
+`Spell::EffectPowerDrain` calls `Unit::SpellDamageBonusTaken` with
+`SPELL_DIRECT_DAMAGE` (`SpellEffects.cpp:1082-1088`), while
+`SpellDamageBonusTaken` returns immediately for direct damage
+(`Unit.cpp:6775-6777`). The Rust drain/burn helper had incorrectly applied the
+victim, mechanic, cheat-death and caster damage-taken terms; the candidate
+removes that fold and keeps only `SpellDamageBonusDone` pre-scaling. Its
+regressions now assert that these auras do not change direct power effects.
+DOT and Sanctified Wrath remain non-direct damage-pipeline boundaries, and the
+player-aura canonical-sync alternatives below must be evaluated only for their
+actual periodic/melee consumers. The historical taken-term entries that follow
+are retained as audit evidence but are superseded by this correction.
+
 **#31 negative damage-taken aura regression — 2026-09-18, implementation
 `6f1a5c02`:** test-only pin proving the creature-aura amount path folds a `-50`
 damage-taken aura to a `0.5` multiplier, which isolates the failed Sanctified

@@ -4,161 +4,6 @@
 
 use super::*;
 
-/// C++ cheat-death term of `Unit::SpellDamageBonusTaken` (`Unit.cpp:6793-6795`):
-/// `GetAuraEffect(45182, EFFECT_0)` adds its amount as a percentage when its
-/// misc value intersects `SPELL_SCHOOL_MASK_NORMAL`.
-fn drain_taken_cheat_death_multiplier_like_cpp(auras: &wow_entities::AuraSubsystem) -> f32 {
-    const CHEAT_DEATH_SPELL_LIKE_CPP: u32 = 45_182;
-    const SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP: i32 = 0x1;
-    let Some(aura) = auras
-        .applied_auras
-        .iter()
-        .find(|aura| aura.spell_id == CHEAT_DEATH_SPELL_LIKE_CPP)
-    else {
-        return 1.0;
-    };
-    if !auras
-        .applied_aura_misc_values
-        .get(aura)
-        .is_some_and(|misc| misc & SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP != 0)
-    {
-        return 1.0;
-    }
-    let amount = auras.applied_aura_amounts.get(aura).copied().unwrap_or(0);
-    1.0 + amount as f32 / 100.0
-}
-
-/// C++ `Unit::SpellDamageBonusTaken` (`Unit.cpp:6815-6822`), caster term:
-/// `GetTotalAuraMultiplier(SPELL_AURA_MOD_SCHOOL_MASK_DAMAGE_FROM_CASTER)` over
-/// the auras the damaging caster applied whose misc value intersects the
-/// spell's school mask. The `MOD_SPELL_DAMAGE_FROM_CASTER` and
-/// `MOD_DAMAGE_TAKEN_FROM_CASTER_BY_LABEL` terms need the C++
-/// `AuraEffect::IsAffectingSpell`/label relation and remain unrepresented.
-fn drain_taken_school_from_caster_multiplier_like_cpp(
-    auras: &wow_entities::AuraSubsystem,
-    caster_guid: ObjectGuid,
-    school_mask: u32,
-) -> f32 {
-    let aura_type = wow_data::spell::aura_types::SPELL_AURA_MOD_SCHOOL_MASK_DAMAGE_FROM_CASTER;
-    let Some(typed) = auras.applied_aura_types.get(&aura_type) else {
-        return 1.0;
-    };
-    let mut multiplier = 1.0;
-    for aura in typed.iter().filter(|aura| aura.caster_guid == caster_guid) {
-        let misc = auras
-            .applied_aura_misc_values
-            .get(aura)
-            .copied()
-            .unwrap_or(0) as u32;
-        if misc & school_mask == 0 {
-            continue;
-        }
-        let amount = auras.applied_aura_amounts.get(aura).copied().unwrap_or(0);
-        multiplier *= 1.0 + amount as f32 / 100.0;
-    }
-    multiplier
-}
-
-/// C++ `Unit::SpellDamageBonusTaken` (`Unit.cpp:6783-6791`), mechanic term:
-/// `GetTotalAuraMultiplier(SPELL_AURA_MOD_MECHANIC_DAMAGE_TAKEN_PERCENT)` over
-/// the auras whose misc value intersects `SpellInfo::GetAllEffectsMechanicMask`.
-/// Represented with a `u32` mask, so a mechanic index of 32 or above cannot be
-/// represented.
-fn drain_taken_mechanic_multiplier_like_cpp(
-    auras: &wow_entities::AuraSubsystem,
-    mechanic_mask: u32,
-) -> f32 {
-    if mechanic_mask == 0 {
-        return 1.0;
-    }
-    auras.total_aura_multiplier_by_misc_mask_like_cpp(
-        wow_data::spell::aura_types::SPELL_AURA_MOD_MECHANIC_DAMAGE_TAKEN_PERCENT,
-        mechanic_mask,
-    )
-}
-
-/// C++ `Unit::SpellDamageBonusTaken` (`Unit.cpp:6823-6828`), specific-spell
-/// caster term:
-/// `GetTotalAuraMultiplier(SPELL_AURA_MOD_SPELL_DAMAGE_FROM_CASTER)` over the
-/// auras the damaging caster applied whose spell affects the damaging spell
-/// through `AuraEffect::IsAffectingSpell` — the same `SpellFamilyName` and an
-/// intersecting `SpellFamilyFlags`, read here from `SpellClassOptions`. The
-/// `SPELL_AURA_MOD_DAMAGE_TAKEN_FROM_CASTER_BY_LABEL` term needs spell labels
-/// and remains unrepresented.
-fn drain_taken_spell_from_caster_multiplier_like_cpp(
-    auras: &wow_entities::AuraSubsystem,
-    class_options: Option<&wow_data::SpellClassOptionsStore>,
-    caster_guid: ObjectGuid,
-    damaging_class: Option<(u8, [u32; 4])>,
-) -> f32 {
-    let (Some(class_options), Some((damaging_set, damaging_mask))) =
-        (class_options, damaging_class)
-    else {
-        return 1.0;
-    };
-    if damaging_set == 0 {
-        return 1.0;
-    }
-    let aura_type = wow_data::spell::aura_types::SPELL_AURA_MOD_SPELL_DAMAGE_FROM_CASTER;
-    let Some(typed) = auras.applied_aura_types.get(&aura_type) else {
-        return 1.0;
-    };
-    let mut multiplier = 1.0;
-    for aura in typed.iter().filter(|aura| aura.caster_guid == caster_guid) {
-        let Some(entry) = class_options.entry_for_spell_like_cpp(aura.spell_id) else {
-            continue;
-        };
-        if entry.spell_class_set != damaging_set
-            || !entry
-                .spell_class_mask
-                .iter()
-                .zip(damaging_mask.iter())
-                .any(|(aura_mask, spell_mask)| aura_mask & spell_mask != 0)
-        {
-            continue;
-        }
-        let amount = auras.applied_aura_amounts.get(aura).copied().unwrap_or(0);
-        multiplier *= 1.0 + amount as f32 / 100.0;
-    }
-    multiplier
-}
-
-/// C++ `Unit::SpellDamageBonusTaken` (`Unit.cpp:6830-6835`), label caster term:
-/// `GetTotalAuraMultiplier(SPELL_AURA_MOD_DAMAGE_TAKEN_FROM_CASTER_BY_LABEL)` over
-/// the auras the damaging caster applied whose `MiscValue` is a label the
-/// damaging spell carries (`SpellInfo::HasLabel`).
-fn drain_taken_label_from_caster_multiplier_like_cpp(
-    auras: &wow_entities::AuraSubsystem,
-    labels: Option<&wow_data::SpellLabelStore>,
-    caster_guid: ObjectGuid,
-    damaging_spell_id: u32,
-) -> f32 {
-    let Some(labels) = labels else {
-        return 1.0;
-    };
-    let aura_type = wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_TAKEN_FROM_CASTER_BY_LABEL;
-    let Some(typed) = auras.applied_aura_types.get(&aura_type) else {
-        return 1.0;
-    };
-    let mut multiplier = 1.0;
-    for aura in typed.iter().filter(|aura| aura.caster_guid == caster_guid) {
-        let label = auras
-            .applied_aura_misc_values
-            .get(aura)
-            .copied()
-            .unwrap_or(0);
-        let Ok(label) = u32::try_from(label) else {
-            continue;
-        };
-        if !labels.has_label_like_cpp(damaging_spell_id, label) {
-            continue;
-        }
-        let amount = auras.applied_aura_amounts.get(aura).copied().unwrap_or(0);
-        multiplier *= 1.0 + amount as f32 / 100.0;
-    }
-    multiplier
-}
-
 impl WorldSession {
     /// C++ `Spell::EffectEnergize` (`SpellEffects.cpp:1488-1530`) /
     /// `Spell::EffectEnergizePct` (`SpellEffects.cpp:1532-1554`).
@@ -411,8 +256,10 @@ impl WorldSession {
     /// `damage < 0` gate runs before that call, so a negative base keeps its
     /// value for the effect's own refusal.
     ///
-    /// `SpellDamageBonusTaken` has no represented producer yet, so the taken
-    /// half of the C++ pre-scaling remains a recorded boundary.
+    /// C++ passes `SPELL_DIRECT_DAMAGE` to `SpellDamageBonusTaken`, whose first
+    /// guard returns the amount unchanged for direct damage
+    /// (`Unit.cpp:6775-6777`). The taken-side aura terms used by periodic spell
+    /// damage therefore do not apply to power drain or power burn.
     pub(in crate::session) fn power_drain_pre_scaled_damage_like_cpp(
         &mut self,
         spell_id: i32,
@@ -426,7 +273,7 @@ impl WorldSession {
         if base_damage < 0 {
             return base_damage;
         }
-        let scaled = i32::try_from(self.represented_spell_damage_bonus_done_like_cpp(
+        i32::try_from(self.represented_spell_damage_bonus_done_like_cpp(
             spell_id,
             effect_index,
             caster_guid,
@@ -435,110 +282,7 @@ impl WorldSession {
             coefficient_from_ap,
             u32::try_from(base_damage).unwrap_or(0),
         ))
-        .unwrap_or(i32::MAX);
-
-        // C++ `Unit::SpellDamageBonusTaken` (`Unit.cpp:6775-6820`), school
-        // term: `GetTotalAuraMultiplierByMiscMask(SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN,
-        // spellProto->GetSchoolMask())` unless the spell carries
-        // `SPELL_ATTR4_IGNORE_DAMAGE_TAKEN_MODIFIERS`. The creator- and
-        // mechanic-specific terms of that function remain unrepresented.
-        let difficulty = self.current_map_difficulty_id_like_cpp();
-        if self.spell_store().is_some_and(|store| {
-            store.has_attribute_for_difficulty_like_cpp(
-                spell_id,
-                difficulty,
-                self.difficulty_store().map(AsRef::as_ref),
-                4,
-                wow_data::spell::attributes::SPELL_ATTR4_IGNORE_DAMAGE_TAKEN_MODIFIERS,
-            )
-        }) {
-            return scaled;
-        }
-        let Ok(spell_id_u32) = u32::try_from(spell_id) else {
-            return scaled;
-        };
-        let school_mask = self.spell_school_mask_for_difficulty_like_cpp(spell_id_u32, difficulty);
-        // C++ `SpellInfo::GetAllEffectsMechanicMask` (`SpellInfo.cpp:4770-4785`):
-        // the OR of `1 << EffectInfo.Mechanic` over the spell's effects.
-        let mechanic_mask = self
-            .spell_store()
-            .and_then(|store| {
-                store.effects_for_difficulty_like_cpp(
-                    spell_id,
-                    difficulty,
-                    self.difficulty_store().map(AsRef::as_ref),
-                )
-            })
-            .map(|effects| {
-                effects.iter().fold(0u32, |mask, effect| {
-                    if effect.effect_mechanic > 0 && effect.effect_mechanic < 32 {
-                        mask | (1u32 << effect.effect_mechanic)
-                    } else {
-                        mask
-                    }
-                })
-            })
-            .unwrap_or(0);
-        let spell_labels = self.spell_label_store().cloned();
-        let class_options = self.spell_class_options_store().cloned();
-        let damaging_class = class_options.as_ref().and_then(|store| {
-            store
-                .entry_for_spell_like_cpp(spell_id_u32)
-                .map(|entry| (entry.spell_class_set, entry.spell_class_mask))
-        });
-        let aura_type = wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN;
-        let multiplier = if target_guid == self.player_guid().unwrap_or(ObjectGuid::EMPTY) {
-            self.mutate_canonical_player_like_cpp(|player| {
-                let auras = &player.unit().subsystems().auras;
-                auras.total_aura_multiplier_by_misc_mask_like_cpp(aura_type, school_mask)
-                    * drain_taken_cheat_death_multiplier_like_cpp(auras)
-                    * drain_taken_school_from_caster_multiplier_like_cpp(
-                        auras,
-                        caster_guid,
-                        school_mask,
-                    )
-                    * drain_taken_mechanic_multiplier_like_cpp(auras, mechanic_mask)
-                    * drain_taken_spell_from_caster_multiplier_like_cpp(
-                        auras,
-                        class_options.as_deref(),
-                        caster_guid,
-                        damaging_class,
-                    )
-                    * drain_taken_label_from_caster_multiplier_like_cpp(
-                        auras,
-                        spell_labels.as_deref(),
-                        caster_guid,
-                        spell_id_u32,
-                    )
-            })
-            .unwrap_or(1.0)
-        } else {
-            self.mutate_canonical_creature_by_guid_like_cpp(target_guid, |creature| {
-                let auras = &creature.unit().subsystems().auras;
-                auras.total_aura_multiplier_by_misc_mask_like_cpp(aura_type, school_mask)
-                    * drain_taken_cheat_death_multiplier_like_cpp(auras)
-                    * drain_taken_school_from_caster_multiplier_like_cpp(
-                        auras,
-                        caster_guid,
-                        school_mask,
-                    )
-                    * drain_taken_mechanic_multiplier_like_cpp(auras, mechanic_mask)
-                    * drain_taken_spell_from_caster_multiplier_like_cpp(
-                        auras,
-                        class_options.as_deref(),
-                        caster_guid,
-                        damaging_class,
-                    )
-                    * drain_taken_label_from_caster_multiplier_like_cpp(
-                        auras,
-                        spell_labels.as_deref(),
-                        caster_guid,
-                        spell_id_u32,
-                    )
-            })
-            .unwrap_or(1.0)
-        };
-        (scaled as f32 * multiplier) as i32
+        .unwrap_or(i32::MAX)
     }
 
     /// C++ `Spell::EffectPowerDrain` / `Spell::EffectPowerBurn`.
