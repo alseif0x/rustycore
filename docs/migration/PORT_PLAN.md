@@ -34,8 +34,9 @@ speculative AI or crate split.
 ## 1. Direction from here
 
 **#29 creature white-swing split/share damage — 2026-09-19, split implementation
-`5ec01cb4`, share implementation `b18fd23a` and unkillable implementation
-`11f66869`, candidate in PR #1228:** the
+`5ec01cb4`, share implementation `b18fd23a`, unkillable implementation
+`11f66869` and damage-threat implementation `3cba7f7f`, candidate in PR
+#1228:** the
 canonical creature-melee owner consumes represented
 `SPELL_AURA_SPLIT_DAMAGE_PCT` effects in C++ `CalcAbsorbResist` order
 (`Unit.cpp:1958-2015`), after school/mana absorption and before the primary
@@ -81,12 +82,27 @@ defaults with no override in the pinned 3.4.3 source (`Unit.cpp:746-758`,
 `767-800`; `Unit.h:776-777`), so this delivery does not invent a Rust
 multiplier extension point.
 
+The direct, split and share Creature nonlethal paths now settle damage threat
+after health at target C++'s `Unit::DealDamage` point (`Unit.cpp:868-869`,
+`1015-1034`; `ThreatManager.cpp:353-465`, `662-690`). The represented contract
+creates reciprocal combat/threat references and enters Creature AI combat;
+honors `NO_THREAT`, `NO_HARMFUL_THREAT` and `NO_INITIAL_THREAT`; applies
+`SpellThreat.pctMod` with chain fallback and the attacker's school-specific
+`MOD_THREAT`; and reuses the existing `CanHaveThreatList` capability. Lethal
+damage skips this nonlethal step. Sparring `damageDone == 0` returns before
+threat, whereas a positive hit clamped by `UNKILLABLE` to zero `damageTaken`
+still performs `AddThreat(0)`. The compatibility replay preflights the complete
+victim chain and validates every threat attacker's spawn/shared authority
+before mutation. Direct, split and share regressions cover modifiers,
+suppression/admission, lethal exclusion, zero-value references, AI state and
+canonical/legacy reciprocal references. Implementation: `3cba7f7f`.
+
 This slice does not close #29. Script split handlers and the rest of generic
-`DealDamage`/proc/fear/threat/kill behavior (including AI/script hooks,
-criteria and threat in the recursive
-`NODAMAGE` call), pet/guardian secondary targets, aura cast-id/visual
-provenance and live capture/runtime/DB acceptance remain explicit follow-on
-boundaries.
+`DealDamage`/proc/fear/kill behavior (including remaining AI/script hooks and
+criteria in the recursive `NODAMAGE` call), threat redirection,
+vehicle/private-object routing and Player `SpellMod::Hate`, pet/guardian
+secondary targets, aura cast-id/visual provenance and live
+capture/runtime/DB acceptance remain explicit follow-on boundaries.
 
 Candidate evidence: the focused split scenarios pass 2/2, the byte-level
 `SpellMissLog` regression passes 1/1, and the complete locked library command
@@ -118,6 +134,11 @@ ignored, with the warm rerun completing in 3.04s. This is
 functional local evidence for committed candidate `11f66869`, not a green
 global architecture gate, live acceptance or satisfaction of the ordinary
 600-second performance target.
+The damage-threat repair's exact sparring-zero and zero-value `UNKILLABLE`
+regressions each pass 1/1, and the complete focused
+`scenarios_world_entities_34` module passes 7/7 on `3cba7f7f`. Complete
+affected suites and the publication profile remain to be recorded for that
+candidate.
 
 **#31 direct-damage fidelity correction — 2026-09-19, current candidate:**
 `Spell::EffectPowerDrain` calls `Unit::SpellDamageBonusTaken` with

@@ -78,8 +78,9 @@ by the stateful module product #583 and the independent audit #153. #582 and
 the residual acceptance explicitly stated below.
 
 **#29 creature white-swing split/share damage — 2026-09-19, split implementation
-`5ec01cb4`, share implementation `b18fd23a` and unkillable implementation
-`11f66869`, candidate in PR #1228:** the
+`5ec01cb4`, share implementation `b18fd23a`, unkillable implementation
+`11f66869` and damage-threat implementation `3cba7f7f`, candidate in PR
+#1228:** the
 map-owned creature melee path now executes the represented
 `SPELL_AURA_SPLIT_DAMAGE_PCT` tail of `Unit::CalcAbsorbResist`
 (`Unit.cpp:1958-2015`) after school and mana shields. It snapshots the primary
@@ -126,12 +127,30 @@ target/health multipliers remain 1.0 defaults and have no overrides anywhere in
 the pinned target source (`Unit.cpp:746-758`, `767-800`; `Unit.h:776-777`), so
 they require no speculative Rust seam.
 
+The direct, split and share Creature nonlethal paths now settle damage threat
+after the health transition at target C++'s `Unit::DealDamage` point
+(`Unit.cpp:868-869`, `1015-1034`; `ThreatManager.cpp:353-465`, `662-690`).
+The transition creates reciprocal combat/threat references and enters Creature
+AI combat, applies `NO_THREAT`, `NO_HARMFUL_THREAT`, `NO_INITIAL_THREAT`,
+`SpellThreat.pctMod` with chain fallback and the attacker's school-specific
+`MOD_THREAT`, and reuses the represented `CanHaveThreatList` capability. Lethal
+damage does not execute this nonlethal settlement. Sparring `damageDone == 0`
+returns before threat, while an `UNKILLABLE` clamp from positive `damageDone`
+to zero `damageTaken` still performs `AddThreat(0)` and establishes combat, as
+in C++. Canonical-to-legacy replay preflights the whole contiguous victim chain
+and verifies each threat attacker's spawn and shared authority before mutation,
+so a same-GUID replacement cannot receive reciprocal state. Production-shaped
+regressions cover direct/split/share accumulation, both modifier classes,
+suppression and initial-admission attributes, lethal exclusion, zero-value
+`UNKILLABLE` references, AI state and both canonical and legacy reciprocal
+references.
+
 This is a bounded represented white-swing delivery, not closure of #29 or of
 generic `Unit::DealDamage`: aura script split hooks, the remaining AI/script
-hooks and criteria,
-damage/proc/fear/threat/kill side effects of the recursive `NODAMAGE` call,
-pet/guardian secondary targets, and aura cast-id/visual provenance remain
-explicit boundaries.
+hooks and criteria, damage/proc/fear/kill side effects of the recursive
+`NODAMAGE` call, threat redirection, vehicle/private-object routing and Player
+`SpellMod::Hate`, pet/guardian secondary targets, and aura cast-id/visual
+provenance remain explicit boundaries.
 No fresh 3.4.3 client capture or authorized live runtime/DB-relogin acceptance
 was performed for this candidate.
 
@@ -173,6 +192,11 @@ took 3.04s. This is functional local evidence for committed candidate
 `11f66869`, not a green
 global architecture gate, live acceptance or satisfaction of the ordinary
 600-second performance target.
+The damage-threat repair's exact sparring-zero and zero-value `UNKILLABLE`
+regressions each pass 1/1, and the complete focused
+`scenarios_world_entities_34` module passes 7/7 on `3cba7f7f`. Complete
+affected suites and the publication profile remain to be recorded for that
+candidate.
 
 **#31 direct-damage fidelity correction — 2026-09-19, integrated as
 `a22e9390` by PR #1220:** the
