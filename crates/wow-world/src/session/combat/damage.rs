@@ -4,6 +4,7 @@
 //! canonical owner of this state is unchanged.
 
 use super::*;
+use wow_packet::ServerPacket;
 
 /// Commit one spent absorb shield's `AuraEffect` remainder on a canonical
 /// Player (`AuraEffect::ChangeAmount`).
@@ -110,7 +111,7 @@ impl WorldSession {
             {
                 // A white melee swing carries no spell of its own, so C++
                 // publishes `AbsorbedSpellID == 0` (`Unit.cpp:1876-1882`).
-                self.send_packet(&wow_packet::packets::combat::SpellAbsorbLog {
+                let packet = wow_packet::packets::combat::SpellAbsorbLog {
                     attacker: attacker_guid,
                     victim: victim_guid,
                     absorbed_spell_id: 0,
@@ -118,7 +119,12 @@ impl WorldSession {
                     caster,
                     absorbed: consumption.consumed,
                     original_damage,
-                });
+                };
+                // C++ `WorldObject::SendCombatLogMessage` sends the victim's
+                // direct copy and then distributes the same combat-log frame
+                // to nearby visible players (`Object.cpp:1785-1794`).
+                self.send_packet(&packet);
+                self.broadcast_player_packet_to_visible_set_realm_like_cpp(packet.to_bytes());
             }
             if consumption.removed {
                 // C++ `Remove(AURA_REMOVE_BY_ENEMY_SPELL)`; the session's aura
