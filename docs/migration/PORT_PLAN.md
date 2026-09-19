@@ -84,6 +84,15 @@ power ownership, creature-victim mutable shields, split damage, `IMMUNITY_DAMAGE
 negative crushing policy and live DB/relogin acceptance remain separate #29
 boundaries.
 
+**#29 physical melee resistance proof — 2026-09-19, implementation on the
+current branch:** C++ `Unit::CalcSpellResistedDamage` exits with zero resisted
+damage for any non-magic school (`Unit.cpp:1688-1693`). The production-shaped
+creature-to-player melee scenario now applies a +100,000 generic resistance
+aura and still requires the physical white swing to deal its full 10 damage.
+This records the non-magic early-out at the real melee consumer without adding a
+second resistance stage; split damage, `IMMUNITY_DAMAGE`, negative crushing
+policy and live DB/relogin acceptance remain separate #29 boundaries.
+
 **#31 negative damage-taken aura regression — 2026-09-18, implementation
 `6f1a5c02`:** test-only pin proving the creature-aura amount path folds a `-50`
 damage-taken aura to a `0.5` multiplier, which isolates the failed Sanctified
