@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-19:** the current integration head on `3.4.3` is
-`4d9e9dbe` (PR #1224, the #29 creature-victim school absorb slice). The older #31
+`77606f35` (PR #1225, following the #29 creature-victim school absorb slice in
+PR #1224). The older #31
 diagnosis chain is retained below as historical evidence; its next entry is
 `8448bdb4`, the #31 player-aura canonical-sync diagnosis and its route
 correction, following PR #1211, the #31 caster label damage-taken term and its label authority,
@@ -176,6 +177,29 @@ Validation on this candidate: `scenarios_world_entities_34` passed 1/1;
 check remains red only on the known hotspot ratchet; this slice adds bounded
 scenario coverage under the existing Session aggregate but changes no
 production hotspot authority or runtime-ownership ledger.
+
+**#29 negative crushing-band fidelity — 2026-09-19, implementation on the
+current branch:** the melee outcome inputs now carry the creature-control and
+`CREATURE_FLAG_EXTRA_NO_CRUSHING_BLOWS` gates from C++
+`Unit::RollMeleeOutcomeAgainst` (`Unit.cpp:2364-2378`). The target 3.4.3 source
+computes the crushing band with the literal expression
+`attackerLevel - victimLevel * 1000 - 1500` (`Unit.cpp:2371`), which is negative
+for ordinary eligible levels; Rust preserves that result and therefore does not
+invent crushing blows or silently fix the target bug. The outcome switch and
+wire presentation still carry the exact 150%/`HITINFO_CRUSHING` branch if a
+future target-data case produces a positive raw band. Rules coverage proves the
+negative eligible case, both gates, the 150% arithmetic and packet flag. The
+split-damage block remains open because it needs a second canonical damage
+target plus `DealDamage` ordering, immunity, combat-log and proc ownership;
+live DB/relogin acceptance also remains open.
+Validation on this candidate: the complete `scenarios_combat_4` suite (16/16),
+the complete `scenarios_combat_5` suite (6/6, including the crushing gates),
+the `wow-packet` library suite (754/754), `cargo check -p world-server`,
+format/diff checks, the physical-file ratchet and the syntax-only
+session-ownership check pass. `validation-v2 final --base origin/3.4.3
+--timings` reached the unchanged hotspot ratchet and stopped at manifest
+`20260919T111216.939112Z-95761-final.json`; none of the changed files is one of
+the reported hotspot owners. No runtime/DB completion claim is made.
 
 **#31 negative damage-taken aura regression — 2026-09-18, implementation
 `6f1a5c02`, integrated by PR #1213:** test-only pin of the amount path the

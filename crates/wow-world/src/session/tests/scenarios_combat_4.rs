@@ -408,6 +408,7 @@ fn melee_attack_table_matches_roll_melee_outcome_against_like_cpp() {
         is_evading_attacks: false,
         always_crits: false,
         is_immune_to_damage: false,
+        crushing_chance_units: 0,
     };
     for (roll, expected) in [
         (0, Outcome::Miss),
@@ -469,9 +470,10 @@ fn melee_attack_table_outcome_effects_match_calculate_melee_damage_like_cpp() {
         melee_outcome_presentation_like_cpp,
     };
     use wow_packet::packets::combat::{
-        HIT_INFO_AFFECTS_VICTIM, HIT_INFO_BLOCK, HIT_INFO_CRITICAL_HIT, HIT_INFO_GLANCING,
-        HIT_INFO_MISS, HIT_INFO_OFFHAND, HIT_INFO_SWING_NO_HIT_SOUND, VICTIM_STATE_DODGE,
-        VICTIM_STATE_EVADES, VICTIM_STATE_HIT, VICTIM_STATE_INTACT, VICTIM_STATE_PARRY,
+        HIT_INFO_AFFECTS_VICTIM, HIT_INFO_BLOCK, HIT_INFO_CRITICAL_HIT, HIT_INFO_CRUSHING,
+        HIT_INFO_GLANCING, HIT_INFO_MISS, HIT_INFO_OFFHAND, HIT_INFO_SWING_NO_HIT_SOUND,
+        VICTIM_STATE_DODGE, VICTIM_STATE_EVADES, VICTIM_STATE_HIT, VICTIM_STATE_INTACT,
+        VICTIM_STATE_PARRY,
     };
 
     assert_eq!(
@@ -503,6 +505,10 @@ fn melee_attack_table_outcome_effects_match_calculate_melee_damage_like_cpp() {
     assert_eq!(
         melee_outcome_damage_like_cpp(Outcome::Crit, 100, 80, 80, 2.0, 30.0),
         (400, 0, 400)
+    );
+    assert_eq!(
+        melee_outcome_damage_like_cpp(Outcome::Crushing, 101, 80, 80, 1.0, 30.0),
+        (151, 0, 151)
     );
     // C++ `CalculatePct(damage, GetBlockPercent)` with the flat 30% creature
     // base (`Unit.h:947`).
@@ -578,6 +584,13 @@ fn melee_attack_table_outcome_effects_match_calculate_melee_damage_like_cpp() {
         )
     );
     assert_eq!(
+        melee_outcome_presentation_like_cpp(Outcome::Crushing, false),
+        (
+            HIT_INFO_AFFECTS_VICTIM | HIT_INFO_CRUSHING,
+            VICTIM_STATE_HIT
+        )
+    );
+    assert_eq!(
         melee_outcome_presentation_like_cpp(Outcome::Hit, false),
         (HIT_INFO_AFFECTS_VICTIM, VICTIM_STATE_HIT)
     );
@@ -607,6 +620,8 @@ fn melee_attack_table_inputs_resolve_cpp_chances_like_cpp() {
         autoattack_crit_aura_pct: 2.0,
         expertise_reduction_pct: [0.5, 0.25],
         dodge_reduction_pct: 0.0,
+        is_controlled_by_player: true,
+        no_crushing_blows: true,
     };
     let creature = Victim {
         level: 80,

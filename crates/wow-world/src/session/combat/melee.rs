@@ -256,6 +256,8 @@ impl WorldSession {
         };
         let attacker = AttackerFacts {
             level,
+            is_controlled_by_player: true,
+            no_crushing_blows: true,
             dual_wielding,
             crit_damage_multiplier: self
                 .resolved_aura_effects_by_spell_aura_type_like_cpp(

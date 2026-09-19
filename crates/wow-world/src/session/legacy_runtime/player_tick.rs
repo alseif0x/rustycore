@@ -465,6 +465,10 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                 let attacker_outcome_facts =
                     crate::session_rules::RepresentedMeleeAttackerFactsLikeCpp {
                         level: attacker_player.level_like_cpp(),
+                        // C++ excludes player-controlled attackers from the
+                        // crushing band (`Unit.cpp:2364-2369`).
+                        is_controlled_by_player: true,
+                        no_crushing_blows: true,
                         dual_wielding: attacker_player.has_offhand_weapon_for_attack_like_cpp()
                             && !attacker_player.is_in_feral_form_like_cpp(),
                         crit_damage_multiplier:
