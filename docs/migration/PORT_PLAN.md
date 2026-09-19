@@ -33,8 +33,9 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
-**#29 creature white-swing split damage — 2026-09-19, implementation on the
-current branch:** the canonical creature-melee owner now consumes represented
+**#29 creature white-swing split damage — 2026-09-19, implementation
+`5ec01cb4`, candidate in PR #1228:** the canonical creature-melee owner now
+consumes represented
 `SPELL_AURA_SPLIT_DAMAGE_PCT` effects in C++ `CalcAbsorbResist` order
 (`Unit.cpp:1958-2015`), after school/mana absorption and before the primary
 health commit. Sequential percentages use the current remaining damage. Valid

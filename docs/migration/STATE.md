@@ -77,8 +77,9 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
-**#29 creature white-swing split damage — 2026-09-19, implementation on the
-current branch:** the map-owned creature melee path now executes the represented
+**#29 creature white-swing split damage — 2026-09-19, implementation
+`5ec01cb4`, candidate in PR #1228:** the map-owned creature melee path now
+executes the represented
 `SPELL_AURA_SPLIT_DAMAGE_PCT` tail of `Unit::CalcAbsorbResist`
 (`Unit.cpp:1958-2015`) after school and mana shields. It snapshots the primary
 Player/Creature victim's active split effects, applies each percentage to the
