@@ -286,7 +286,7 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
     for spell in [
         damage_aura_spell_like_cpp(
             91_394,
-            wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_HIT_CHANCE,
             5,
             0,
         ),
@@ -500,4 +500,145 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
         );
     }
     assert_eq!(sparring.legacy_creature_victim_syncs, 0);
+
+    // A recursive `NODAMAGE` share still traverses the Creature unkillable
+    // branch in `DealDamage`. It does not reduce the primary hit or add a
+    // combat-log frame, but its own health transition stops at one.
+    session
+        .mutate_world_creature(secondary_guid, |creature| {
+            creature.creature.unit_mut().set_health(4);
+        })
+        .unwrap();
+    {
+        let mut canonical = canonical.lock().unwrap();
+        let map = canonical.find_map_mut(0, 0).unwrap().map_mut();
+        map.get_typed_creature_mut(victim_guid)
+            .unwrap()
+            .set_sparring_health_pct_like_cpp(0.0);
+        let secondary = map.get_typed_creature_mut(secondary_guid).unwrap();
+        secondary.set_in_evade_mode_like_cpp(false);
+        secondary.unit_mut().set_health(4);
+        let mut static_flags = [0; 8];
+        static_flags[0] = wow_constants::creature::CreatureStaticFlags::UNKILLABLE.bits();
+        secondary.set_static_flags_runtime_like_cpp(static_flags);
+    }
+    session
+        .mutate_world_creature(attacker_guid, |creature| {
+            creature.creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+        })
+        .unwrap();
+    let unkillable =
+        run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    {
+        let canonical = canonical.lock().unwrap();
+        let map = canonical.find_map(0, 0).unwrap().map();
+        let (health, alive, ai_state) = map
+            .with_creature_like_cpp(secondary_guid, |secondary| {
+                (
+                    secondary.unit().data().health,
+                    secondary.is_alive(),
+                    secondary.ai_ownership().state,
+                )
+            })
+            .unwrap();
+        assert_eq!(health, 1);
+        assert!(alive);
+        assert_ne!(ai_state, wow_entities::CreatureAiState::Dead);
+    }
+    assert_eq!(unkillable.legacy_creature_victim_syncs, 3);
+}
+
+/// `Unit::DealDamage` applies the Creature static-flag clamp after the melee
+/// result has already been serialized. The client therefore sees the raw hit,
+/// while canonical health, death and the compatibility mirror retain 1 HP.
+#[test]
+fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
+    use crate::map_manager::RuntimeTickOwner;
+    use wow_constants::ServerOpcodes;
+
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    canonical.lock().unwrap().create_world_map(0, 0);
+    let attacker_guid = test_creature_guid(91_398);
+    let victim_guid = test_creature_guid(91_399);
+    let (mut session, _, _) = make_session();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    register_test_creature(&mut session, manager.clone(), attacker_guid, 100);
+    register_test_creature(&mut session, manager.clone(), victim_guid, 4);
+    session
+        .mutate_world_creature(attacker_guid, |creature| {
+            creature.creature.ai_ownership_mut().min_damage = 10;
+            creature.creature.ai_ownership_mut().max_damage = 10;
+            creature.enter_combat(victim_guid);
+            creature.creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+        })
+        .unwrap();
+    {
+        let mut static_flags = [0; 8];
+        static_flags[0] = wow_constants::creature::CreatureStaticFlags::UNKILLABLE.bits();
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_creature_mut(victim_guid)
+            .unwrap()
+            .set_static_flags_runtime_like_cpp(static_flags);
+    }
+    manager
+        .write()
+        .unwrap()
+        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
+    let canonical_guard = canonical.lock().unwrap();
+    let (health, alive, ai_state) = canonical_guard
+        .find_map(0, 0)
+        .unwrap()
+        .map()
+        .with_creature_like_cpp(victim_guid, |victim| {
+            (
+                victim.unit().data().health,
+                victim.is_alive(),
+                victim.ai_ownership().state,
+            )
+        })
+        .unwrap();
+    assert_eq!(health, 1);
+    assert!(alive);
+    assert_ne!(ai_state, wow_entities::CreatureAiState::Dead);
+    drop(canonical_guard);
+    assert_eq!(outcome.canonical_creature_hits, 1);
+    assert_eq!(outcome.legacy_creature_victim_syncs, 1);
+
+    let attacker_state = outcome
+        .plan
+        .events
+        .iter()
+        .find(|event| {
+            wow_packet::WorldPacket::from_bytes(&event.packet_bytes).server_opcode()
+                == Some(ServerOpcodes::AttackerStateUpdate)
+        })
+        .expect("primary attacker state");
+    let mut packet = wow_packet::WorldPacket::from_bytes(&attacker_state.packet_bytes);
+    packet.read_uint16().expect("opcode");
+    assert!(!packet.read_bit().expect("has log data"));
+    let info_len = packet.read_uint32().expect("attack round size") as usize;
+    let info_bytes = packet.read_bytes(info_len).expect("attack round bytes");
+    let mut info = wow_packet::WorldPacket::from_bytes(&info_bytes);
+    info.read_uint32().expect("hit info");
+    info.read_packed_guid().expect("attacker");
+    info.read_packed_guid().expect("victim");
+    assert_eq!(
+        info.read_int32().expect("wire damage"),
+        10,
+        "the pre-DealDamage attacker-state packet retains raw damage"
+    );
 }

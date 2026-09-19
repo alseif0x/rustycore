@@ -753,6 +753,14 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
                     damage,
                 )
             });
+            // `AttackerStateUpdate` already carries the raw damage. C++ applies
+            // the unkillable Creature clamp later inside `DealDamage`, after
+            // sparring and the share loop, so only the health transition uses
+            // this reduced amount.
+            let applied_damage = victim.damage_after_unkillable_gate_like_cpp(
+                attacker_guid == victim_guid,
+                applied_damage,
+            );
             let mut hit_info =
                 outcome_presentation.map_or(HIT_INFO_AFFECTS_VICTIM, |(info, _, _)| info);
             if victim.should_fake_damage_from_like_cpp(true, attacker_is_player_controlled) {

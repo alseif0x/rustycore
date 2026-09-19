@@ -312,6 +312,8 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
             attacker_is_player_controlled,
             secondary_damage,
         );
+        let applied_damage = caster
+            .damage_after_unkillable_gate_like_cpp(attacker_guid == caster_guid, applied_damage);
         if secondary_damage > 0 {
             let killed = caster.apply_ai_damage_before_death_state_at_game_time_like_cpp(
                 applied_damage,

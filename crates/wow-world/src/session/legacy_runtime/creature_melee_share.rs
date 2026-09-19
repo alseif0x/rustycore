@@ -269,7 +269,7 @@ fn apply_secondary_share_damage_like_cpp(
     canonical_manager: &mut wow_map::MapManager,
     map_id: u16,
     instance_id: u32,
-    _attacker_guid: ObjectGuid,
+    attacker_guid: ObjectGuid,
     caster_guid: ObjectGuid,
     share_damage: u32,
     attacker_is_player_controlled: bool,
@@ -344,6 +344,8 @@ fn apply_secondary_share_damage_like_cpp(
             attacker_is_player_controlled,
             share_damage,
         );
+        let applied_damage = caster
+            .damage_after_unkillable_gate_like_cpp(attacker_guid == caster_guid, applied_damage);
         let killed = caster.apply_ai_damage_before_death_state_at_game_time_like_cpp(
             applied_damage,
             u64::from(crate::session_rules::game_time_ms_like_cpp()),

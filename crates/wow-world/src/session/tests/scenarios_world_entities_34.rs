@@ -680,4 +680,61 @@ fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
     info.read_packed_guid().expect("attacker");
     info.read_packed_guid().expect("victim");
     assert_eq!(info.read_int32().expect("primary wire damage"), 0);
+
+    // The secondary `DealDamage` still applies Creature unkillable semantics.
+    // Its non-melee log retains the five-point split calculated before the
+    // health clamp, while the canonical target remains alive at one HP.
+    session
+        .mutate_world_creature(split_target_guid, |creature| {
+            creature.creature.unit_mut().set_health(4);
+        })
+        .unwrap();
+    {
+        let mut manager = canonical.lock().unwrap();
+        let map = manager.find_map_mut(0, 0).unwrap().map_mut();
+        map.get_typed_creature_mut(victim_guid)
+            .unwrap()
+            .set_sparring_health_pct_like_cpp(0.0);
+        let split_target = map.get_typed_creature_mut(split_target_guid).unwrap();
+        split_target.set_sparring_health_pct_like_cpp(0.0);
+        split_target.unit_mut().set_health(4);
+        let mut static_flags = [0; 8];
+        static_flags[0] = wow_constants::creature::CreatureStaticFlags::UNKILLABLE.bits();
+        split_target.set_static_flags_runtime_like_cpp(static_flags);
+    }
+    session
+        .mutate_world_creature(attacker_guid, |creature| {
+            creature.creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+        })
+        .unwrap();
+    let unkillable =
+        run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    {
+        let manager = canonical.lock().unwrap();
+        let map = manager.find_map(0, 0).unwrap().map();
+        assert_eq!(
+            map.creature_transform_vitals_snapshot_like_cpp(victim_guid)
+                .unwrap()
+                .health,
+            85
+        );
+        let (health, alive, ai_state) = map
+            .with_creature_like_cpp(split_target_guid, |split_target| {
+                (
+                    split_target.unit().data().health,
+                    split_target.is_alive(),
+                    split_target.ai_ownership().state,
+                )
+            })
+            .unwrap();
+        assert_eq!(health, 1);
+        assert!(alive);
+        assert_ne!(ai_state, wow_entities::CreatureAiState::Dead);
+    }
+    assert_eq!(unkillable.legacy_creature_victim_syncs, 2);
+    assert!(unkillable.plan.events.iter().any(|event| {
+        wow_packet::WorldPacket::from_bytes(&event.packet_bytes).server_opcode()
+            == Some(ServerOpcodes::SpellNonMeleeDamageLog)
+    }));
 }

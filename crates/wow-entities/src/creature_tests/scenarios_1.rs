@@ -204,6 +204,35 @@ fn creature_sparring_damage_preserves_fractional_health_pct_like_cpp() {
 }
 
 #[test]
+fn creature_unkillable_gate_preserves_one_health_for_other_attackers_like_cpp() {
+    let mut creature = Creature::new(false);
+    creature.unit_mut().set_max_health(100);
+    creature.unit_mut().set_health(7);
+    let mut static_flags = [0; 8];
+    static_flags[0] = CreatureStaticFlags::UNKILLABLE.bits();
+    creature.set_static_flags_runtime_like_cpp(static_flags);
+
+    assert_eq!(
+        creature.damage_after_unkillable_gate_like_cpp(false, 7),
+        6,
+        "C++ clamps lethal damage so an unkillable Creature remains at one health"
+    );
+    assert_eq!(
+        creature.damage_after_unkillable_gate_like_cpp(false, 3),
+        3,
+        "nonlethal damage is unchanged"
+    );
+    assert_eq!(
+        creature.damage_after_unkillable_gate_like_cpp(true, 7),
+        7,
+        "Unit::DealDamage excludes self damage from the unkillable clamp"
+    );
+
+    creature.set_static_flags_runtime_like_cpp([0; 8]);
+    assert_eq!(creature.damage_after_unkillable_gate_like_cpp(false, 7), 7);
+}
+
+#[test]
 fn creature_ai_ownership_derives_identity_health_and_position() {
     let mut creature = Creature::new(false);
     let guid =
