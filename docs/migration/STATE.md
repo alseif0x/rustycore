@@ -154,7 +154,10 @@ on the unchanged global hotspot ratchet in `session/mod.rs`,
 `handlers/character/mod.rs`, `world-server/src/lib.rs`,
 `handlers/quest/mod.rs` and `wow-entities/src/player/mod.rs` (manifest
 `20260919T201800.039244Z-2-final.json`); the standard final likewise stops at
-that unchanged ratchet (`20260919T201950.128060Z-2-final.json`). The ordinary
+that unchanged ratchet (`20260919T201950.128060Z-2-final.json`). The standard
+publication-candidate final on `26a11f9a` passes diff, physical-file,
+whitespace, JSON and format checks before stopping only on the same global
+hotspot ratchet (manifest `20260919T210735.650972Z-2-final.json`). The ordinary
 campaign performance
 target is not met: architecture acceptance (84.42s) plus the production check
 (555s in the initial timed campaign) already totals at least 639.42s before the

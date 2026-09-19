@@ -101,7 +101,10 @@ JSON, physical-file and syntax-only Session ownership checks pass without a new
 physical ceiling. The architecture final stops only on the unchanged global
 hotspot baseline (manifest
 `20260919T201800.039244Z-2-final.json`), as does the standard final
-(`20260919T201950.128060Z-2-final.json`). Its earlier 84.42s plus the 555s production
+(`20260919T201950.128060Z-2-final.json`). The publication-candidate standard
+final on `26a11f9a` again passes diff, physical-file, whitespace, JSON and
+format checks, then stops only on that same global hotspot ratchet (manifest
+`20260919T210735.650972Z-2-final.json`). Its earlier 84.42s plus the 555s production
 check from the initial timed campaign already exceed the 600s ordinary target
 at a minimum 639.42s before the library suites and command overhead; the faster
 repaired rerun does not relabel that performance target as met.
