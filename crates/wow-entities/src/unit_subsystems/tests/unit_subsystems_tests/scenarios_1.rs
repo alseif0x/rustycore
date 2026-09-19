@@ -13,6 +13,76 @@ fn aura_authorities_default_fail_closed() {
 }
 
 #[test]
+fn aura_cast_provenance_is_slot_scoped_and_cleared_on_replacement_like_cpp() {
+    let mut auras = AuraSubsystem::default();
+    let first = AuraRef::new(100, guid(1));
+    let replacement = AuraRef::new(101, guid(2));
+    let provenance = AuraCastProvenanceLikeCpp {
+        cast_id: ObjectGuid::new(6, 77),
+        spell_visual_id: 9_001,
+    };
+
+    auras.set_visible(7, first);
+    auras.set_aura_cast_provenance_like_cpp(7, provenance);
+    assert_eq!(auras.aura_cast_provenance_like_cpp(7), provenance);
+
+    auras.set_visible(7, replacement);
+    assert_eq!(
+        auras.aura_cast_provenance_like_cpp(7),
+        AuraCastProvenanceLikeCpp::default(),
+        "a reused aura slot cannot inherit the previous Aura base's cast identity"
+    );
+
+    auras.set_aura_cast_provenance_like_cpp(7, provenance);
+    assert_eq!(auras.clear_visible(7), Some(replacement));
+    assert_eq!(
+        auras.aura_cast_provenance_like_cpp(7),
+        AuraCastProvenanceLikeCpp::default()
+    );
+
+    let first_effect = AppliedAuraRef::new(200, guid(3), 8, 0x1);
+    let second_effect = AppliedAuraRef::new(200, guid(3), 8, 0x2);
+    auras.add_applied(first_effect);
+    auras.add_applied(second_effect);
+    auras.set_aura_cast_provenance_like_cpp(8, provenance);
+    assert!(auras.remove_applied(first_effect));
+    assert_eq!(auras.aura_cast_provenance_like_cpp(8), provenance);
+    assert!(auras.remove_applied(second_effect));
+    assert_eq!(
+        auras.aura_cast_provenance_like_cpp(8),
+        AuraCastProvenanceLikeCpp::default(),
+        "the Aura base provenance expires with its final applied effect"
+    );
+
+    let runtime = AuraApplicationLikeCpp {
+        spell_id: 300,
+        difficulty_id: 0,
+        caster_guid: guid(4),
+        slot: 9,
+        duration_total: 30_000,
+        duration_remaining: 30_000,
+        stack_count: 1,
+        aura_flags: 1,
+        effect_mask: 1,
+        aura_interrupt_flags: 0,
+        aura_interrupt_flags2: 0,
+        represented_effect: None,
+        represented_amount: 0,
+        represented_effect_amounts: Vec::new(),
+        represented_misc_value: None,
+        represented_multiplier: 1.0,
+        applied_at: std::time::Instant::now(),
+    };
+    auras.insert_runtime_application_like_cpp(runtime.clone());
+    auras.set_aura_cast_provenance_like_cpp(9, provenance);
+    assert_eq!(auras.remove_runtime_application_like_cpp(9), Some(runtime));
+    assert_eq!(
+        auras.aura_cast_provenance_like_cpp(9),
+        AuraCastProvenanceLikeCpp::default()
+    );
+}
+
+#[test]
 fn spell_hit_and_cast_log_aura_authorities_are_independent() {
     let mut hit_authority = AuraSubsystem::default();
     hit_authority.set_spell_hit_aura_authority_inert_like_cpp(true);

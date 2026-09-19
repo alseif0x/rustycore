@@ -809,12 +809,16 @@ impl WorldSession {
                         .fold(0u32, |mask, candidate| {
                             mask | 1u32.checked_shl(candidate.effect_index).unwrap_or(0)
                         });
-                    self.apply_creature_aura_like_cpp(
+                    self.apply_creature_aura_with_provenance_like_cpp(
                         spell_id,
                         caster_guid,
                         target_guid,
                         effect_mask,
                         REPRESENTED_CREATURE_AURA_DURATION_MS_LIKE_CPP,
+                        wow_entities::AuraCastProvenanceLikeCpp {
+                            cast_id,
+                            spell_visual_id: spell_visual_id.min(i32::MAX as u32) as i32,
+                        },
                     )?;
                     continue;
                 }
@@ -1077,12 +1081,16 @@ impl WorldSession {
                     )?;
                     self.recompute_represented_mounted_speed_rates_like_cpp();
                 } else if generic_apply_aura_rows_like_cpp == 1 && apply_aura_rows_like_cpp == 1 {
-                    self.apply_aura_with_effect_mask_like_cpp(
+                    self.apply_aura_with_effect_mask_and_provenance_like_cpp(
                         spell_id,
                         player_guid,
                         30000,
                         0x00000001,
                         1u32 << effect.effect_index,
+                        wow_entities::AuraCastProvenanceLikeCpp {
+                            cast_id,
+                            spell_visual_id: spell_visual_id.min(i32::MAX as u32) as i32,
+                        },
                     )?;
                 } else {
                     debug!(
@@ -1101,7 +1109,17 @@ impl WorldSession {
             x if wow_data::spell::spell_effect_types::is_cpp_null_or_unused_noop(x) => {}
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA => {
                 if spell_info.effects().is_empty() {
-                    self.apply_aura(spell_id, player_guid, 30000, 0x00000001)?;
+                    self.apply_aura_with_effect_mask_and_provenance_like_cpp(
+                        spell_id,
+                        player_guid,
+                        30000,
+                        0x00000001,
+                        0x00000001,
+                        wow_entities::AuraCastProvenanceLikeCpp {
+                            cast_id,
+                            spell_visual_id: spell_visual_id.min(i32::MAX as u32) as i32,
+                        },
+                    )?;
                 }
             }
             x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_INSTAKILL

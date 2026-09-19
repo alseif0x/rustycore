@@ -332,6 +332,7 @@ fn represented_melee_ignore_absorb_matches_calc_absorb_resist_like_cpp() {
     };
 
     let effect = |misc_value: i32, amount: i32| AppliedAuraEffectLikeCpp {
+        slot: 0,
         spell_id: 91_300,
         caster_guid: ObjectGuid::create_null(),
         aura_type: wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL,

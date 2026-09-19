@@ -289,6 +289,7 @@ fn legacy_creature_melee_tick_once_splits_player_victim_damage_like_cpp() {
     session.set_spell_store(Arc::clone(&spell_store));
     session.apply_aura(91_363, player, 30_000, 1).unwrap();
     session.apply_aura(91_364, player, 30_000, 1).unwrap();
+    let split_cast_id = ObjectGuid::new(6, 91_364);
     session
         .mutate_player_aura_subsystem_like_cpp(|auras| {
             let split = auras
@@ -300,6 +301,13 @@ fn legacy_creature_melee_tick_once_splits_player_victim_damage_like_cpp() {
                 .runtime_application_mut_like_cpp(split)
                 .expect("split aura")
                 .caster_guid = split_target_guid;
+            auras.set_aura_cast_provenance_like_cpp(
+                split,
+                wow_entities::AuraCastProvenanceLikeCpp {
+                    cast_id: split_cast_id,
+                    spell_visual_id: 7_364,
+                },
+            );
         })
         .unwrap();
 
@@ -315,6 +323,27 @@ fn legacy_creature_melee_tick_once_splits_player_victim_damage_like_cpp() {
     let command = outcome.commands.last().expect("primary victim command");
     assert_eq!((command.damage, command.absorbed), (5, 5));
     assert_eq!(command.split_combat_log_packets.len(), 1);
+    assert_eq!(
+        command.split_combat_log_packets[0],
+        wow_packet::packets::combat::SpellNonMeleeDamageLog {
+            target: split_target_guid,
+            caster: attacker_guid,
+            cast_id: split_cast_id,
+            spell_id: 91_364,
+            visual_id: 7_364,
+            damage: 5,
+            original_damage: 5,
+            overkill: -1,
+            school_mask: 1,
+            absorbed: 0,
+            resisted: 0,
+            shield_block: 0,
+            periodic: false,
+            flags: 0,
+        }
+        .to_bytes(),
+        "C++ builds the split log from the aura base cast and visual provenance"
+    );
     assert_eq!(
         canonical
             .lock()
@@ -468,7 +497,7 @@ fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
         (
             91_373_i32,
             wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
-            5,
+            100,
             0,
         ),
         (
@@ -520,23 +549,32 @@ fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
                 ));
         })
         .unwrap();
-    canonical
-        .lock()
-        .unwrap()
-        .find_map_mut(0, 0)
-        .unwrap()
-        .map_mut()
-        .get_typed_creature_mut(victim_guid)
-        .unwrap()
-        .unit_mut()
-        .subsystems_mut()
-        .auras
-        .add_applied(wow_entities::AppliedAuraRef::new(
+    let split_cast_id = ObjectGuid::new(6, 91_374);
+    {
+        let mut manager = canonical.lock().unwrap();
+        let auras = &mut manager
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_creature_mut(victim_guid)
+            .unwrap()
+            .unit_mut()
+            .subsystems_mut()
+            .auras;
+        auras.add_applied(wow_entities::AppliedAuraRef::new(
             91_374,
             split_target_guid,
             0,
             1,
         ));
+        auras.set_aura_cast_provenance_like_cpp(
+            0,
+            wow_entities::AuraCastProvenanceLikeCpp {
+                cast_id: split_cast_id,
+                spell_visual_id: 7_374,
+            },
+        );
+    }
 
     let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
         spell_store: Some(spell_store),
@@ -634,6 +672,27 @@ fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
         .iter()
         .position(|opcode| *opcode == ServerOpcodes::SpellNonMeleeDamageLog as u16)
         .expect("secondary split log");
+    let split_log_bytes = &outcome.plan.events[split_log].packet_bytes;
+    assert_eq!(
+        split_log_bytes,
+        &wow_packet::packets::combat::SpellNonMeleeDamageLog {
+            target: split_target_guid,
+            caster: attacker_guid,
+            cast_id: split_cast_id,
+            spell_id: 91_374,
+            visual_id: 7_374,
+            damage: 5,
+            original_damage: 5,
+            overkill: -1,
+            school_mask: 1,
+            absorbed: 0,
+            resisted: 0,
+            shield_block: 0,
+            periodic: false,
+            flags: 0,
+        }
+        .to_bytes()
+    );
     let primary = opcodes
         .iter()
         .position(|opcode| *opcode == ServerOpcodes::AttackerStateUpdate as u16)

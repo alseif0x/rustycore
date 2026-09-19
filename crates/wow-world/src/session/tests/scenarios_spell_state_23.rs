@@ -188,6 +188,7 @@ fn initial_loaded_item_mods_follow_cpp_loaded_equip_enchant_aura_order() {
         571,
         0,
     );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session
         .mutate_canonical_player_like_cpp(|player| player.unit_mut().set_level(80))
         .unwrap();
@@ -367,7 +368,18 @@ fn initial_loaded_item_mods_follow_cpp_loaded_equip_enchant_aura_order() {
             .collect::<Vec<_>>(),
         vec![(30_106, item_guid), (30_108, second_item_guid)]
     );
-    let mut visible_auras = session.visible_auras.values().collect::<Vec<_>>();
+    let mut visible_auras = session
+        .canonical_player_snapshot_like_cpp(|player| {
+            player
+                .unit()
+                .subsystems()
+                .auras
+                .runtime_applications_like_cpp()
+                .values()
+                .cloned()
+                .collect::<Vec<_>>()
+        })
+        .expect("canonical Player aura owner");
     visible_auras.sort_by_key(|aura| aura.slot);
     assert_eq!(
         visible_auras

@@ -418,6 +418,79 @@ fn loaded_total_stat_percentage_uses_persisted_effect_amount_like_cpp() {
     );
 }
 #[test]
+fn loaded_player_aura_recreates_cast_and_unconditional_visual_provenance_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 90_523);
+    let spell_id = 20_601;
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    add_canonical_test_player_on_map(
+        &canonical,
+        player_guid,
+        Position::new(1.0, 2.0, 3.0, 0.0),
+        571,
+        0,
+    );
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    let mut spell_store = SpellStore::new();
+    spell_store.insert(spell_id, test_spell_info_like_cpp(spell_id));
+    session.set_spell_store(Arc::new(spell_store));
+    let visual = |id, caster_player_condition_id| wow_data::SpellXSpellVisualEntry {
+        id,
+        difficulty_id: 0,
+        spell_visual_id: id + 100,
+        probability: 1.0,
+        flags: 0,
+        priority: 0,
+        spell_icon_file_id: 0,
+        active_icon_file_id: 0,
+        viewer_unit_condition_id: 0,
+        viewer_player_condition_id: 0,
+        caster_unit_condition_id: 0,
+        caster_player_condition_id,
+        spell_id: spell_id as u32,
+    };
+    session.set_legacy_creature_aggro_config_like_cpp(LegacyCreatureAggroConfigLikeCpp {
+        spell_x_spell_visual_store: Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries(
+            [visual(20_611, 7), visual(20_612, 0), visual(20_613, 0)],
+        ))),
+        ..Default::default()
+    });
+
+    assert_eq!(
+        session.load_represented_character_auras_like_cpp(
+            [CharacterAuraRowLikeCpp {
+                caster_guid: player_guid,
+                spell_id: spell_id as u32,
+                effect_mask: 1,
+                recalculate_mask: 0,
+                difficulty: 0,
+                stack_count: 1,
+                max_duration_ms: -1,
+                remain_time_ms: -1,
+                remain_charges: 0,
+            }],
+            std::iter::empty::<CharacterAuraEffectRowLikeCpp>(),
+            0,
+        ),
+        1
+    );
+
+    let provenance = session
+        .mutate_canonical_player_like_cpp(|player| {
+            player
+                .unit()
+                .subsystems()
+                .auras
+                .aura_cast_provenance_like_cpp(0)
+        })
+        .expect("canonical player aura provenance");
+    assert!(!provenance.cast_id.is_empty());
+    assert_eq!(provenance.spell_visual_id, 20_613);
+}
+#[test]
 fn loaded_condition_counts_persisted_gems_without_socket_template_like_cpp() {
     let (mut session, _, _) = make_session();
     let canonical = shared_canonical_map_manager();

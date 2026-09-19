@@ -96,12 +96,32 @@ impl WorldSession {
         aura_flags: u32,
         effect_mask: u32,
     ) -> Result<(), &'static str> {
-        self.apply_aura_with_effect_mask_and_update_like_cpp(
+        self.apply_aura_with_effect_mask_provenance_and_update_like_cpp(
             spell_id,
             caster_guid,
             duration_ms,
             aura_flags,
             effect_mask,
+            wow_entities::AuraCastProvenanceLikeCpp::default(),
+            true,
+        )
+    }
+    pub(in crate::session) fn apply_aura_with_effect_mask_and_provenance_like_cpp(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        duration_ms: u32,
+        aura_flags: u32,
+        effect_mask: u32,
+        provenance: wow_entities::AuraCastProvenanceLikeCpp,
+    ) -> Result<(), &'static str> {
+        self.apply_aura_with_effect_mask_provenance_and_update_like_cpp(
+            spell_id,
+            caster_guid,
+            duration_ms,
+            aura_flags,
+            effect_mask,
+            provenance,
             true,
         )
     }
@@ -132,22 +152,24 @@ impl WorldSession {
         aura_flags: u32,
         effect_mask: u32,
     ) -> Result<(), &'static str> {
-        self.apply_aura_with_effect_mask_and_update_like_cpp(
+        self.apply_aura_with_effect_mask_provenance_and_update_like_cpp(
             spell_id,
             caster_guid,
             duration_ms,
             aura_flags,
             effect_mask,
+            wow_entities::AuraCastProvenanceLikeCpp::default(),
             false,
         )
     }
-    fn apply_aura_with_effect_mask_and_update_like_cpp(
+    fn apply_aura_with_effect_mask_provenance_and_update_like_cpp(
         &mut self,
         spell_id: i32,
         caster_guid: ObjectGuid,
         duration_ms: u32,
         aura_flags: u32,
         effect_mask: u32,
+        provenance: wow_entities::AuraCastProvenanceLikeCpp,
         send_update: bool,
     ) -> Result<(), &'static str> {
         // Find a free slot (0-254) on the canonical Unit owner.
@@ -248,7 +270,7 @@ impl WorldSession {
             applied_at: Instant::now(),
         };
 
-        if !self.insert_player_visible_aura_like_cpp(aura) {
+        if !self.insert_player_visible_aura_with_provenance_like_cpp(aura, provenance) {
             return Err("Missing Player aura owner");
         }
         self.sync_canonical_threat_relevant_aura_like_cpp(

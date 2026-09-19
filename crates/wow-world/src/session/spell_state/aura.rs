@@ -8,6 +8,35 @@ use super::*;
 /// C++ `SPELLFAMILY_MAGE` (`SharedDefines.h:6438`).
 const SPELL_FAMILY_MAGE_LIKE_CPP: i32 = 3;
 
+fn represented_aura_visual_without_caster_like_cpp(
+    spell_id: u32,
+    difficulty_id: u8,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> u32 {
+    let Some(store) = config.spell_x_spell_visual_store.as_ref() else {
+        return 0;
+    };
+    for difficulty_id in creature_ai_spell_difficulty_chain_like_cpp(difficulty_id, config) {
+        let mut rows = store
+            .entries_like_cpp()
+            .filter(|row| row.spell_id == spell_id && row.difficulty_id == difficulty_id)
+            .collect::<Vec<_>>();
+        if rows.is_empty() {
+            continue;
+        }
+        // `SpellMgr` inserts DB2 rows at `lower_bound` ordered by descending
+        // CasterPlayerConditionID. Because the DB2 store is walked in ID
+        // order, equal-condition rows are inserted before earlier rows and
+        // therefore end up in descending DB2-ID order.
+        rows.sort_by_key(|row| std::cmp::Reverse((row.caster_player_condition_id, row.id)));
+        return rows
+            .into_iter()
+            .find(|row| row.caster_player_condition_id == 0 && row.caster_unit_condition_id == 0)
+            .map_or(0, |row| row.id);
+    }
+    0
+}
+
 impl WorldSession {
     pub(in crate::session) fn player_aura_subsystem_snapshot_like_cpp(
         &self,
@@ -675,6 +704,22 @@ impl WorldSession {
             let duration_total = u32::try_from(row.max_duration_ms).unwrap_or(0);
             let duration_remaining = u32::try_from(row.remain_time_ms).unwrap_or(0);
             let spell_id = i32::try_from(row.spell_id).unwrap_or(i32::MAX);
+            // C++ `Player::_LoadAuras` allocates a fresh `HighGuid::Cast` for
+            // every restored Aura base. With no live caster pointer,
+            // `Aura::Aura` resolves `GetSpellXSpellVisualId()` by skipping
+            // caster-conditioned rows and taking the first unconditional row.
+            let Some(cast_id) = self.next_represented_spell_cast_guid_like_cpp(spell_id) else {
+                break;
+            };
+            let spell_visual_id = represented_aura_visual_without_caster_like_cpp(
+                row.spell_id,
+                row.difficulty,
+                &self.legacy_creature_aggro_config_like_cpp,
+            );
+            let provenance = wow_entities::AuraCastProvenanceLikeCpp {
+                cast_id,
+                spell_visual_id: i32::try_from(spell_visual_id).unwrap_or(i32::MAX),
+            };
             let aura_flags = AFLAG_NOCASTER_LIKE_CPP | 0x0000_0100;
             let canonical_snapshot = self.canonical_threat_aura_snapshot_for_difficulty_like_cpp(
                 spell_id,
@@ -706,6 +751,11 @@ impl WorldSession {
             let _canonical = self
                 .with_owned_player_mut_like_cpp(|player| {
                     player.install_player_threat_aura_like_cpp(slot, canonical_snapshot, aura);
+                    player
+                        .unit_mut()
+                        .subsystems_mut()
+                        .auras
+                        .set_aura_cast_provenance_like_cpp(slot, provenance);
                 })
                 .is_some();
             #[cfg(test)]
@@ -715,6 +765,7 @@ impl WorldSession {
                 self.mutate_player_aura_subsystem_like_cpp(|auras| {
                     auras.insert_threat_snapshot_like_cpp(slot, _fallback_snapshot);
                     auras.insert_runtime_application_like_cpp(_fallback_aura);
+                    auras.set_aura_cast_provenance_like_cpp(slot, provenance);
                 })
             } else {
                 None

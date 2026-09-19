@@ -53,22 +53,22 @@ pub(super) fn apply_melee_split_damage_like_cpp(
             .map()
             .get_typed_player(victim_guid)
             .map(|victim| {
+                let auras = &victim.unit().subsystems().auras;
                 crate::session_rules::player_aura_effects_full_by_spell_aura_type_like_cpp(
-                    victim
-                        .unit()
-                        .subsystems()
-                        .auras
-                        .runtime_applications_like_cpp(),
+                    auras.runtime_applications_like_cpp(),
                     spell_store,
                     wow_data::spell::aura_types::SPELL_AURA_SPLIT_DAMAGE_PCT,
                 )
                 .into_iter()
                 .map(|effect| {
+                    let provenance = auras.aura_cast_provenance_like_cpp(effect.slot);
                     (
                         effect.spell_id,
                         effect.caster_guid,
                         effect.misc_value as u32,
                         effect.amount,
+                        provenance.cast_id,
+                        provenance.spell_visual_id,
                     )
                 })
                 .collect::<Vec<_>>()
@@ -78,8 +78,9 @@ pub(super) fn apply_melee_split_damage_like_cpp(
         managed
             .map()
             .with_creature_like_cpp(victim_guid, |victim| {
+                let auras = &victim.unit().subsystems().auras;
                 crate::session_rules::creature_aura_effects_like_cpp(
-                    &victim.unit().subsystems().auras.applied_auras,
+                    &auras.applied_auras,
                     spell_store,
                     difficulty_id,
                     difficulty_store,
@@ -89,11 +90,14 @@ pub(super) fn apply_melee_split_damage_like_cpp(
                     effect.aura_type == wow_data::spell::aura_types::SPELL_AURA_SPLIT_DAMAGE_PCT
                 })
                 .map(|effect| {
+                    let provenance = auras.aura_cast_provenance_like_cpp(effect.slot);
                     (
                         effect.spell_id,
                         effect.caster_guid,
                         effect.misc_value as u32,
                         effect.amount,
+                        provenance.cast_id,
+                        provenance.spell_visual_id,
                     )
                 })
                 .collect::<Vec<_>>()
@@ -108,7 +112,9 @@ pub(super) fn apply_melee_split_damage_like_cpp(
             })
             .unwrap_or(false);
 
-    for (spell_id, caster_guid, aura_school_mask, amount) in split_auras {
+    for (spell_id, caster_guid, aura_school_mask, amount, aura_cast_id, aura_spell_visual_id) in
+        split_auras
+    {
         if result.damage == 0 || aura_school_mask & school_mask == 0 || caster_guid == victim_guid {
             continue;
         }
@@ -129,6 +135,8 @@ pub(super) fn apply_melee_split_damage_like_cpp(
             victim_guid,
             caster_guid,
             spell_id,
+            aura_cast_id,
+            aura_spell_visual_id,
             split_damage,
             school_mask,
             attacker_is_player_controlled,
@@ -180,6 +188,8 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
     primary_victim_guid: ObjectGuid,
     caster_guid: ObjectGuid,
     spell_id: i32,
+    aura_cast_id: ObjectGuid,
+    aura_spell_visual_id: i32,
     split_damage: u32,
     school_mask: u32,
     attacker_is_player_controlled: bool,
@@ -407,9 +417,9 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
         combat_log_packet: wow_packet::packets::combat::SpellNonMeleeDamageLog {
             target: caster_guid,
             caster: attacker_guid,
-            cast_id: ObjectGuid::EMPTY,
+            cast_id: aura_cast_id,
             spell_id,
-            visual_id: 0,
+            visual_id: aura_spell_visual_id,
             damage: secondary_damage.min(i32::MAX as u32) as i32,
             original_damage: secondary_damage.min(i32::MAX as u32) as i32,
             overkill: if u64::from(secondary_damage) > pre_hit_health {
