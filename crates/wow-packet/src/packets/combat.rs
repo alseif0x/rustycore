@@ -204,6 +204,8 @@ pub const HIT_INFO_SWING_NO_HIT_SOUND: u32 = 0x0020_0000;
 /// C++ `HITINFO_BLOCK`: the packet then carries `blocked` and the trailing
 /// `float Unk` C++ writes for `HITINFO_BLOCK | HITINFO_UNK12`.
 pub const HIT_INFO_BLOCK: u32 = 0x0000_2000;
+/// C++ `HITINFO_CRUSHING` (`UnitDefines.h:461`).
+pub const HIT_INFO_CRUSHING: u32 = 0x0002_0000;
 /// C++ `HITINFO_FULL_ABSORB`: `CalcAbsorbResist` consumed the whole hit, so the
 /// packet carries a zero `Damage` and the `SubDmg.Absorbed` amount
 /// (`Unit.cpp:1452-1460`, `CombatLogPackets.cpp:361-362`).
@@ -918,6 +920,7 @@ mod tests {
         assert_eq!(HIT_INFO_OFFHAND, 0x0000_0004);
         assert_eq!(HIT_INFO_MISS, 0x0000_0010);
         assert_eq!(HIT_INFO_CRITICAL_HIT, 0x0000_0200);
+        assert_eq!(HIT_INFO_CRUSHING, 0x0002_0000);
         assert_eq!(HIT_INFO_FULL_ABSORB, 0x0000_0020);
         assert_eq!(HIT_INFO_PARTIAL_ABSORB, 0x0000_0040);
         assert_eq!(HIT_INFO_GLANCING, 0x0001_0000);

@@ -32,6 +32,8 @@ pub(crate) enum RepresentedMeleeOutcomeLikeCpp {
     Block,
     /// C++ `MELEE_HIT_CRIT`.
     Crit,
+    /// C++ `MELEE_HIT_CRUSHING`.
+    Crushing,
     /// C++ `MELEE_HIT_NORMAL`.
     Hit,
 }
@@ -80,6 +82,9 @@ pub(crate) struct RepresentedMeleeOutcomeInputsLikeCpp {
     /// (`Unit.cpp:2312-2314`): a player victim that is not in a stand state is
     /// always crit while the attacker's critical chance is non-zero.
     pub always_crits: bool,
+    /// C++ `Unit.cpp:2371`'s raw crushing band in 1/10000 units. The target
+    /// source uses `attackerLevel - victimLevel * 1000 - 1500` verbatim.
+    pub crushing_chance_units: i32,
 }
 
 impl RepresentedMeleeOutcomeInputsLikeCpp {
@@ -97,6 +102,7 @@ impl RepresentedMeleeOutcomeInputsLikeCpp {
         is_evading_attacks: false,
         always_crits: false,
         is_immune_to_damage: false,
+        crushing_chance_units: 0,
     };
 }
 
@@ -198,7 +204,13 @@ pub(crate) fn melee_outcome_like_cpp(
     ) {
         return outcome;
     }
-    // 7. CRUSHING needs a creature attacker (`IsControlledByPlayer()` is false);
+    // 7. CRUSHING. This value is already in C++'s 1/10000 units. The target
+    // source expression is intentionally preserved verbatim; for ordinary
+    // levels it is negative and therefore cannot win a roll.
+    sum += inputs.crushing_chance_units;
+    if roll < sum {
+        return RepresentedMeleeOutcomeLikeCpp::Crushing;
+    }
     // 8. HIT.
     RepresentedMeleeOutcomeLikeCpp::Hit
 }
@@ -224,9 +236,9 @@ pub(crate) fn rolled_melee_outcome_like_cpp(
 /// `SPELL_AURA_MOD_CRIT_DAMAGE_BONUS` multiplier (`Unit.cpp:1362-1375`), so a
 /// critical swing publishes the doubled value as its original too.
 ///
-/// Boundary: the crushing 150% branch has no represented producer (a represented
-/// attacker is a player, and C++ excludes player-controlled attackers), so no
-/// arm returns it.
+/// The crushing branch is retained with the target's source expression. It is
+/// normally unreachable because `Unit.cpp:2371` produces a negative band for
+/// ordinary levels; this is a fidelity boundary, not a Rust-side correction.
 pub(crate) fn melee_outcome_damage_like_cpp(
     outcome: RepresentedMeleeOutcomeLikeCpp,
     damage: u32,
@@ -268,6 +280,12 @@ pub(crate) fn melee_outcome_damage_like_cpp(
             let doubled = (damage as f32 * 2.0 * crit_damage_multiplier).max(0.0) as u32;
             (doubled, 0, doubled)
         }
+        RepresentedMeleeOutcomeLikeCpp::Crushing => {
+            // C++ `Unit.cpp:1423-1429`: 150% normal damage, with the
+            // post-multiplier value published as `OriginalDamage`.
+            let crushing = damage.saturating_add(damage / 2);
+            (crushing, 0, crushing)
+        }
         RepresentedMeleeOutcomeLikeCpp::Hit => (damage, 0, damage),
     }
 }
@@ -281,10 +299,10 @@ pub(crate) fn melee_outcome_presentation_like_cpp(
     offhand: bool,
 ) -> (u32, u8) {
     use wow_packet::packets::combat::{
-        HIT_INFO_AFFECTS_VICTIM, HIT_INFO_BLOCK, HIT_INFO_CRITICAL_HIT, HIT_INFO_GLANCING,
-        HIT_INFO_MISS, HIT_INFO_NORMALSWING, HIT_INFO_OFFHAND, HIT_INFO_SWING_NO_HIT_SOUND,
-        VICTIM_STATE_DODGE, VICTIM_STATE_EVADES, VICTIM_STATE_HIT, VICTIM_STATE_INTACT,
-        VICTIM_STATE_IS_IMMUNE, VICTIM_STATE_PARRY,
+        HIT_INFO_AFFECTS_VICTIM, HIT_INFO_BLOCK, HIT_INFO_CRITICAL_HIT, HIT_INFO_CRUSHING,
+        HIT_INFO_GLANCING, HIT_INFO_MISS, HIT_INFO_NORMALSWING, HIT_INFO_OFFHAND,
+        HIT_INFO_SWING_NO_HIT_SOUND, VICTIM_STATE_DODGE, VICTIM_STATE_EVADES, VICTIM_STATE_HIT,
+        VICTIM_STATE_INTACT, VICTIM_STATE_IS_IMMUNE, VICTIM_STATE_PARRY,
     };
 
     let mut hit_info = if offhand { HIT_INFO_OFFHAND } else { 0 };
@@ -328,6 +346,10 @@ pub(crate) fn melee_outcome_presentation_like_cpp(
             hit_info |= HIT_INFO_AFFECTS_VICTIM | HIT_INFO_CRITICAL_HIT;
             VICTIM_STATE_HIT
         }
+        RepresentedMeleeOutcomeLikeCpp::Crushing => {
+            hit_info |= HIT_INFO_AFFECTS_VICTIM | HIT_INFO_CRUSHING;
+            VICTIM_STATE_HIT
+        }
         RepresentedMeleeOutcomeLikeCpp::Hit => {
             hit_info |= HIT_INFO_AFFECTS_VICTIM;
             VICTIM_STATE_HIT
@@ -368,6 +390,10 @@ pub(crate) struct RepresentedMeleeAttackerFactsLikeCpp {
     /// `SPELL_AURA_MOD_COMBAT_RESULT_CHANCE` sum for `VICTIMSTATE_DODGE` plus
     /// its `SPELL_AURA_MOD_ENEMY_DODGE` sum. They only affect dodge.
     pub dodge_reduction_pct: f32,
+    /// C++ `Unit::IsControlledByPlayer()` gate for crushing blows.
+    pub is_controlled_by_player: bool,
+    /// C++ `CREATURE_FLAG_EXTRA_NO_CRUSHING_BLOWS` gate.
+    pub no_crushing_blows: bool,
 }
 
 /// Victim-side facts the swing owner resolves once per swing. The session owner
@@ -475,6 +501,19 @@ pub(crate) fn melee_outcome_inputs_like_cpp(
     // C++ `MeleeSpellMissChance` ends with `std::max(missChance, 0.f)`.
     let miss_chance_pct = miss_chance_pct.max(0.0);
 
+    // C++ `Unit.cpp:2364-2378` only offers crushing to a non-player-controlled
+    // creature at least four levels above its victim and without the template
+    // flag. Preserve the target source's raw expression (`Unit.cpp:2371`)
+    // instead of silently repairing its negative result.
+    let crushing_chance_units = if i32::from(attacker.level) >= i32::from(victim.level) + 4
+        && !attacker.is_controlled_by_player
+        && !attacker.no_crushing_blows
+    {
+        i32::from(attacker.level) - i32::from(victim.level) * 1000 - 1500
+    } else {
+        0
+    };
+
     // C++ `RollMeleeOutcomeAgainst`'s player-victim branch
     // (`Unit.cpp:2284-2360`):
     //   * `canParryOrBlock = victim->HasInArc(M_PI, attacker)` and
@@ -517,6 +556,7 @@ pub(crate) fn melee_outcome_inputs_like_cpp(
                 is_evading_attacks: false,
                 always_crits: !victim.is_stand_state && crit_chance_pct > 0.0,
                 is_immune_to_damage: victim.is_immune_to_damage,
+                crushing_chance_units,
             }
         });
     }
@@ -573,6 +613,7 @@ pub(crate) fn melee_outcome_inputs_like_cpp(
             is_immune_to_damage: victim.is_immune_to_damage,
             // The sitting-target rule only applies to a player victim.
             always_crits: false,
+            crushing_chance_units,
         }
     })
 }

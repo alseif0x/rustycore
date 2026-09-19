@@ -755,6 +755,13 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     let attacker_facts =
                         crate::session_rules::RepresentedMeleeAttackerFactsLikeCpp {
                             level: attacker.creature.level(),
+                            is_controlled_by_player: attacker
+                                .creature
+                                .is_charmed_owned_by_player_or_player_like_cpp(),
+                            no_crushing_blows: wow_constants::CreatureFlagsExtra::from_bits_truncate(
+                                attacker.creature.lifecycle_metadata().flags_extra,
+                            )
+                            .contains(wow_constants::CreatureFlagsExtra::NO_CRUSHING_BLOWS),
                             // The represented bridge has no creature offhand
                             // swing, so `haveOffhandWeapon()` never adds the
                             // `19%` dual-wield miss penalty here.
@@ -1157,6 +1164,13 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     let attacker_facts =
                         crate::session_rules::RepresentedMeleeAttackerFactsLikeCpp {
                             level: attacker.creature.level(),
+                            is_controlled_by_player: attacker
+                                .creature
+                                .is_charmed_owned_by_player_or_player_like_cpp(),
+                            no_crushing_blows: wow_constants::CreatureFlagsExtra::from_bits_truncate(
+                                attacker.creature.lifecycle_metadata().flags_extra,
+                            )
+                            .contains(wow_constants::CreatureFlagsExtra::NO_CRUSHING_BLOWS),
                             dual_wielding: false,
                             crit_damage_multiplier: attacker_effects
                                 .iter()

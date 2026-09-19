@@ -79694,8 +79694,8 @@
               "side": "legacy",
               "kind": "value_reference",
               "symbol": "attacker",
-              "fingerprint": "fnv1a64x2:9e662c722df53370c04ab697a89da72b:len=1763",
-              "multiplicity": 36
+              "fingerprint": "fnv1a64x2:111bcabbab1242a800cbe0c4e93c2963:len=1959",
+              "multiplicity": 40
             },
             {
               "side": "legacy",
@@ -79813,15 +79813,15 @@
               "side": "legacy",
               "kind": "field_access",
               "symbol": "creature",
-              "fingerprint": "fnv1a64x2:fb9051b23bbc8684dac8f810e087998f:len=1199",
-              "multiplicity": 24
+              "fingerprint": "fnv1a64x2:1f3bc8fcd0cf0b6ccb6692bb8e561857:len=1399",
+              "multiplicity": 28
             },
             {
               "side": "legacy",
               "kind": "field_access",
               "symbol": "flags_extra",
-              "fingerprint": "fnv1a64x2:6137046ad0e53dd0694328197ca92a1b:len=99",
-              "multiplicity": 2
+              "fingerprint": "fnv1a64x2:ad31594a4bd3d2e8926b3f8111a88b23:len=199",
+              "multiplicity": 4
             },
             {
               "side": "legacy",
@@ -79931,6 +79931,13 @@
             {
               "side": "legacy",
               "kind": "method_call",
+              "symbol": "is_charmed_owned_by_player_or_player_like_cpp",
+              "fingerprint": "fnv1a64x2:acfda32ff1cfa774ac525ab883ccbd6f:len=99",
+              "multiplicity": 2
+            },
+            {
+              "side": "legacy",
+              "kind": "method_call",
               "symbol": "is_player",
               "fingerprint": "fnv1a64x2:a6b6e6fb8a58e3a0391beccfb76a77b3:len=49",
               "multiplicity": 1
@@ -79960,8 +79967,8 @@
               "side": "legacy",
               "kind": "method_call",
               "symbol": "lifecycle_metadata",
-              "fingerprint": "fnv1a64x2:1b1b03307e05e44caad859c1e0a4819f:len=199",
-              "multiplicity": 4
+              "fingerprint": "fnv1a64x2:b21afea87a82696cc6c6a6d1e09dd3ff:len=299",
+              "multiplicity": 6
             },
             {
               "side": "legacy",
@@ -80069,7 +80076,7 @@
               "multiplicity": 3
             }
           ],
-          "fingerprint": "signature=fn run_legacy_creature_melee_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , config : & crate :: session :: LegacyCreatureAggroConfigLikeCpp ,) -> LegacyCreatureMeleeTickOutcomeLikeCpp|body=fnv1a64x2:53136dab2116b822657dd8751f1ceaad:len=37788|evidence=fnv1a64x2:8038a3993e1a2314df4a4256f0d91967:len=29492",
+          "fingerprint": "signature=fn run_legacy_creature_melee_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , config : & crate :: session :: LegacyCreatureAggroConfigLikeCpp ,) -> LegacyCreatureMeleeTickOutcomeLikeCpp|body=fnv1a64x2:283ab5375c16cc4c9dac8c26027df95f:len=38410|evidence=fnv1a64x2:44a8154b8367cad47e822c2f078be7c7:len=30688",
           "cfg": [],
           "multiplicity": 1
         },
@@ -81581,7 +81588,7 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=fn run_legacy_player_melee_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , attackers : & [PlayerMeleeAttackerSnapshotLikeCpp] , diff_ms : u32 , phase_state : & mut PlayerMeleePhaseStateLikeCpp , config : & LegacyCreatureAggroConfigLikeCpp ,) -> LegacyPlayerMeleeTickOutcomeLikeCpp|body=fnv1a64x2:b1d6f834040a917018ebcf0e24efb95b:len=18423|evidence=fnv1a64x2:6962dcca3859daf99263449c4c110406:len=9653",
+          "fingerprint": "signature=fn run_legacy_player_melee_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , attackers : & [PlayerMeleeAttackerSnapshotLikeCpp] , diff_ms : u32 , phase_state : & mut PlayerMeleePhaseStateLikeCpp , config : & LegacyCreatureAggroConfigLikeCpp ,) -> LegacyPlayerMeleeTickOutcomeLikeCpp|body=fnv1a64x2:e0b2e76396bab6aa0563d6d0b613bb81:len=18483|evidence=fnv1a64x2:6962dcca3859daf99263449c4c110406:len=9653",
           "cfg": [],
           "multiplicity": 1
         },
