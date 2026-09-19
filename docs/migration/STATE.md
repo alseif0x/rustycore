@@ -1,7 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Integration head — 2026-09-18:** the last implementation on `3.4.3` is
-`cc8ae12b` (PR #1213, the #31 negative damage-taken aura regression, following
+**Integration head — 2026-09-19:** the current integration head on `3.4.3` is
+`a22e9390` (PR #1220, the #31 direct-damage fidelity correction). The older #31
+diagnosis chain is retained below as historical evidence; its next entry is
 `8448bdb4`, the #31 player-aura canonical-sync diagnosis and its route
 correction, following PR #1211, the #31 caster label damage-taken term and its label authority,
 following PR #1209, the #31 damage-taken term stacking regression, following
@@ -75,20 +76,46 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
-**#31 direct-damage fidelity correction — 2026-09-19, current candidate:** the
+**#31 direct-damage fidelity correction — 2026-09-19, integrated as
+`a22e9390` by PR #1220:** the
 target C++ `Spell::EffectPowerDrain` path calls
 `Unit::SpellDamageBonusTaken(..., SPELL_DIRECT_DAMAGE)`
 (`SpellEffects.cpp:1082-1088`), and `Unit::SpellDamageBonusTaken` returns the
 input unchanged for `DIRECT_DAMAGE` before reading any damage-taken aura
 (`Unit.cpp:6775-6777`). The recent Rust drain/burn path had incorrectly folded
 victim, mechanic, cheat-death and caster damage-taken terms into this direct
-effect. The candidate removes that taken-side fold, keeps only the represented
-`SpellDamageBonusDone` pre-scaling, and changes the regressions to prove aura
-terms are ignored for direct power effects. Periodic-only DOT and Sanctified
-Wrath terms remain boundaries of the non-direct damage pipeline; they are not a
-reason to extend the power-drain path or the threat-aura carrier. The older
-#31 taken-term entries below are historical evidence of the mistaken route and
-are superseded by this correction until its validation is integrated.
+effect. The integrated correction removes that taken-side fold, keeps only the
+represented `SpellDamageBonusDone` pre-scaling, and changes the regressions to
+prove aura terms are ignored for direct power effects. Periodic-only DOT and
+Sanctified Wrath terms remain boundaries of the non-direct damage pipeline; they
+are not a reason to extend the power-drain path or the threat-aura carrier. The
+older #31 taken-term entries below are historical evidence of the mistaken route
+and are superseded by this correction.
+
+**#29 creature-attacker melee done bonus — 2026-09-19, implementation on the
+current branch:** the creature-attacker path now applies the represented C++
+`Unit::MeleeDamageBonusDone` terms before the victim taken/mitigation chain
+(`Unit.cpp:7558-7650`): `MOD_DAMAGE_DONE_CREATURE`, creature-type melee AP
+conversion, victim `MELEE_ATTACK_POWER_ATTACKER_BONUS`, `MOD_DAMAGE_DONE_VERSUS`,
+`MOD_AUTOATTACK_DAMAGE`, and the victim aura-state/mechanic multipliers. The
+player-victim path obtains the creature type from the production `ChrRaces.db2`
+store; the creature-victim path uses the canonical creature template store. The
+new regression proves `(10 + 5) * 2 = 30` damage through the production-shaped
+creature tick and canonical health publication. Scope deliberately leaves the
+C++ immunity registry/interrupt contract, negative crushing-band policy,
+remaining absorb/split/physical-resistance fan-out, shapeshift creature-type
+override, and live DB/relogin acceptance for the next #29 slice; this entry does
+not close the macro issue. Validation on the candidate: `cargo check -p
+world-server` passed in 187s; the exact new regression passed 1/1 in 37s; the
+`scenarios_world_entities_32`, `scenarios_world_entities_28` and
+`scenarios_combat_1` suites passed in the focused run; `cargo fmt --all --
+--check`, `git diff --check`, the physical-file scan and its 20 self-tests pass.
+`validation-v2 final --base origin/3.4.3 --timings` reached the hotspot ratchet
+and stopped on the pre-existing baseline drift in `session/mod.rs`,
+`handlers/character/mod.rs`, `world-server/src/lib.rs`, `handlers/quest/mod.rs`
+and `wow-entities/src/player/mod.rs` (manifest
+`20260919T093737.215152Z-55267-final.json`); no changed-file failure was hidden
+or relabeled.
 
 **#31 negative damage-taken aura regression — 2026-09-18, implementation
 `6f1a5c02`, integrated by PR #1213:** test-only pin of the amount path the

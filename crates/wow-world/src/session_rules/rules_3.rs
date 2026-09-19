@@ -398,13 +398,6 @@ pub(crate) fn melee_damage_bonus_done_from_effects_like_cpp(
     attack_power_multiplier: f32,
 ) -> (i32, f32) {
     let matches = |misc_value: i32| misc_value & creature_type_mask as i32 != 0;
-    let flat_sum = |aura_type: i32| -> i32 {
-        attacker_effects
-            .iter()
-            .filter(|effect| effect.aura_type == aura_type)
-            .map(|effect| effect.amount)
-            .sum()
-    };
     let flat_sum_by_mask = |aura_type: i32| -> i32 {
         attacker_effects
             .iter()
@@ -420,7 +413,10 @@ pub(crate) fn melee_damage_bonus_done_from_effects_like_cpp(
                 total * (1.0 + effect.amount as f32 / 100.0)
             })
     };
-    let mut flat = victim_attack_power_bonus;
+    // C++ accumulates the victim's attacker-bonus aura into `APbonus` and
+    // converts the complete value through `GetAPMultiplier` below. It does
+    // not add the raw aura amount as a second flat term.
+    let mut flat: i32 = 0;
     if creature_type_mask != 0 {
         flat = flat.saturating_add(flat_sum_by_mask(
             wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_CREATURE,
@@ -491,6 +487,16 @@ pub(crate) fn melee_damage_bonus_done_from_effects_like_cpp(
             });
     }
     (flat, done_total_mod)
+}
+
+/// Apply the `(DoneFlatBenefit, DoneTotalMod)` pair produced by
+/// `Unit::MeleeDamageBonusDone` to one already rolled white swing.
+///
+/// C++ performs the float multiplication and clamps the bonus result at zero
+/// before returning it to `CalculateMeleeDamage` (`Unit.cpp:7649-7650`).
+pub(crate) fn melee_damage_bonus_done_apply_like_cpp(damage: u32, bonus: (i32, f32)) -> u32 {
+    let damage = (damage as f32 + bonus.0 as f32) * bonus.1;
+    damage.max(0.0) as u32
 }
 
 /// C++ `Unit::MeleeDamageBonusDone`'s white-swing terms for a canonical

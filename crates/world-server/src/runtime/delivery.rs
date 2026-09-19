@@ -879,6 +879,7 @@ pub(crate) fn legacy_creature_aggro_config_like_cpp(
         spell_custom_attribute_store: None,
         difficulty_store: None,
         creature_template_lifecycle_store: None,
+        chr_races_store: None,
     }
 }
 
