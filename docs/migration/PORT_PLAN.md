@@ -2,7 +2,7 @@
 
 **Reconciled 2026-09-19 under #584 / #787 / #748 / #63 / [master index #49](https://github.com/alseif0x/rustycore/issues/49), with PR #1220 and the earlier PR #955, docs-only PR #954, #953, #950, #901, #902, #904, #906, #907, #909, #911, #913, #915, #916, #917, #919, #921, #922, #923, #924, #925, #926, #927, #929, #931, #933, #935, #936, #938, #940, #942, #944, #946, #947 and #948 integrated.**
 Source baseline for this reconciliation: `3.4.3` at
-`d2f58c20` (PR #1223, following PR #1222/#1221/#1220, PR #955, docs-only PR #954 and PR #953/#948/#935/#933/#931/#929/#927/#926/#925/#924, PR #922/#921, PR #919, PR #917, PR #916, PR #915, #913, #909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
+`4d9e9dbe` (PR #1224, following PR #1223/#1222/#1221/#1220, PR #955, docs-only PR #954 and PR #953/#948/#935/#933/#931/#929/#927/#926/#925/#924, PR #922/#921, PR #919, PR #917, PR #916, PR #915, #913, #909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#876/#873/#871/#869/#866/#864/#862/#860/#859/#855/#854/#853 and #851; the earlier `179fd5d4`, `93fa95a9`, `6f42782f`, `995cd77f`, `cc055998`, `4e3ad8f0`, `1143ed41`, `a9623787`, `276e3981`, `d934451a`, `7bb9a911`, `16303cc7`, `62c1369f`, `db125076`, `a3e97063`, `a96ee548`, `76a05081`,
 `886e13ad`,
 `5d8c079a` and `ebc3b3eb` references remain historical evidence for the issue inventory).
 Initial inventory: **46 open issues**, all given a disposition below; #748 is this
@@ -108,6 +108,20 @@ the production `world-server` check, formatting, diff check, physical ratchet
 and syntax-only session-ownership check pass. The general architecture check
 remains red only on the unchanged hotspot ratchet in the large ownership files;
 this slice does not modify those files or their ledger.
+
+**#29 damage-immunity registry — 2026-09-19, implementation on the current
+branch:** `Unit::IsImmunedToDamage` checks both school and damage-immunity masks;
+the melee owner now applies the same full-normal-school check to player and
+creature victims from their represented aura effects. This slice keeps the
+existing school mask path and adds the missing `SPELL_AURA_DAMAGE_IMMUNITY`
+consumer. Split damage, richer spell-immunity registry data, crushing policy and
+live DB/relogin acceptance remain open.
+Validation on this candidate: the focused player-victim damage-immunity
+regression, the existing melee suites, production `world-server` check,
+formatting, diff check, physical ratchet and syntax-only ownership check pass.
+The general architecture check remains red only on the known hotspot ratchet;
+the added test is isolated in a bounded scenario file and introduces no new
+production authority.
 
 **#31 negative damage-taken aura regression — 2026-09-18, implementation
 `6f1a5c02`:** test-only pin proving the creature-aura amount path folds a `-50`
