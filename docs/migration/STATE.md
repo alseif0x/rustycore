@@ -232,7 +232,10 @@ with 225 production and 429 fixture fields, 69 impl owners / 3935 exact items
 and 630 exact direct-registry rows. This continuation was part of the already
 over-budget campaign and therefore does not satisfy the ordinary 600-second
 performance target; publication-final and its manifest are recorded with the
-documentation candidate below.
+documentation candidate below. The committed-candidate standard final passes
+diff, physical-file, whitespace, JSON and format checks before stopping only
+on the same unchanged five-file global hotspot ratchet (manifest
+`20260919T232529.121135Z-2-final.json`).
 
 **#31 direct-damage fidelity correction — 2026-09-19, integrated as
 `a22e9390` by PR #1220:** the

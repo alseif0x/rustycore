@@ -170,8 +170,10 @@ locked `world-server`/`wow-world` production and test-target check passes in
 the reviewed syntax-only ownership baseline passes with 225 production and 429
 fixture fields, 69 impl owners / 3935 exact items and 630 exact registry rows.
 This work remains part of the over-budget ordinary campaign; publication-final
-evidence is recorded on the documentation candidate rather than relabeling the
-600-second target as met.
+passes diff, physical-file, whitespace, JSON and format checks on the
+documentation candidate before stopping only on the unchanged five-file
+global hotspot ratchet (manifest `20260919T232529.121135Z-2-final.json`). That
+result does not relabel the 600-second target or the global gate as green.
 
 **#31 direct-damage fidelity correction — 2026-09-19, current candidate:**
 `Spell::EffectPowerDrain` calls `Unit::SpellDamageBonusTaken` with
