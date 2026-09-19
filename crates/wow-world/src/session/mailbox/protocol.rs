@@ -451,6 +451,10 @@ pub struct ApplyCreatureMeleeDamageLikeCppCommand {
     /// `CalcAbsorbResist` call; each frame is also fanned out to its visible
     /// set when this command is delivered.
     pub split_combat_log_packets: Vec<Vec<u8>>,
+    /// Intermediate canonical health values when the primary Player is also a
+    /// share target. C++ sends these after AttackerStateUpdate and before the
+    /// primary DealDamage health publication.
+    pub self_share_health_updates: Vec<u64>,
 }
 
 /// One school-absorb shield spent by the map-owned melee absorb stage.

@@ -321,6 +321,7 @@ fn visibility_barrier_preserves_entire_durable_suffix_fifo_like_cpp() {
                 mana_spent: 0,
                 absorb_consumptions: Vec::new(),
                 split_combat_log_packets: Vec::new(),
+                self_share_health_updates: Vec::new(),
             },)
         );
     }

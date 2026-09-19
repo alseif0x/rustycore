@@ -6,6 +6,7 @@
 use super::*;
 mod creature_aggro_tick;
 mod creature_lifecycle_tick;
+mod creature_melee_share;
 mod creature_melee_split;
 mod creature_melee_tick;
 mod creature_movement_tick;

@@ -548,6 +548,7 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_player_on_map
     attacker_can_state_update: bool,
     victim_guid: ObjectGuid,
     damage: Option<u32>,
+    wire_health_before: Option<u64>,
 ) -> CreatureMeleeApplyResultLikeCpp {
     let Some(managed) = canonical_map_manager.find_map_mut(map_id, instance_id) else {
         return CreatureMeleeApplyResultLikeCpp::MissingVictim;
@@ -580,7 +581,9 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_player_on_map
         {
             return CreatureMeleeApplyResultLikeCpp::BadFacing;
         }
-        if !victim.unit().is_alive() || victim.unit().data().health == 0 {
+        if (!victim.unit().is_alive() || victim.unit().data().health == 0)
+            && wire_health_before.is_none()
+        {
             return CreatureMeleeApplyResultLikeCpp::VictimNotAlive;
         }
         if !attacker_can_state_update {
@@ -633,9 +636,10 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_player_on_map
         victim.unit_mut().set_health(0);
     }
     let health_state_revision_after = victim.unit().health_state_revision_like_cpp();
-    let over_damage = if health_after == 0 {
+    let wire_health_before = wire_health_before.unwrap_or(health_before);
+    let over_damage = if u64::from(damage) >= wire_health_before {
         u64::from(damage)
-            .saturating_sub(health_before)
+            .saturating_sub(wire_health_before)
             .min(i32::MAX as u64) as i32
     } else {
         -1
@@ -667,6 +671,8 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
     // presentation.
     outcome_presentation: Option<(u32, u8, i32)>,
     absorbed: u32,
+    wire_health_before: Option<u64>,
+    represented_damage_done: Option<u32>,
 ) -> CreatureMeleeApplyResultLikeCpp {
     use wow_packet::ServerPacket;
     use wow_packet::packets::combat::{
@@ -714,7 +720,7 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
             {
                 return Err(CreatureMeleeApplyResultLikeCpp::BadFacing);
             }
-            if !victim.is_alive() {
+            if !victim.is_alive() && wire_health_before.is_none() {
                 return Err(CreatureMeleeApplyResultLikeCpp::VictimNotAlive);
             }
             if !attacker_can_state_update {
@@ -740,11 +746,13 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
             let Some(damage) = damage else {
                 return Err(CreatureMeleeApplyResultLikeCpp::Ready);
             };
-            let applied_damage = victim.calculate_damage_for_sparring_like_cpp(
-                true,
-                attacker_is_player_controlled,
-                damage,
-            );
+            let applied_damage = represented_damage_done.unwrap_or_else(|| {
+                victim.calculate_damage_for_sparring_like_cpp(
+                    true,
+                    attacker_is_player_controlled,
+                    damage,
+                )
+            });
             let mut hit_info =
                 outcome_presentation.map_or(HIT_INFO_AFFECTS_VICTIM, |(info, _, _)| info);
             if victim.should_fake_damage_from_like_cpp(true, attacker_is_player_controlled) {
@@ -803,9 +811,10 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
     // C++ serializes AttackerStateUpdate before DealMeleeDamage applies the
     // creature sparring clamp. Its overkill field therefore uses the raw wire
     // damage against pre-hit health, not the post-sparring applied damage.
-    let over_damage = if u64::from(damage) >= health_before {
+    let wire_health_before = wire_health_before.unwrap_or(health_before);
+    let over_damage = if u64::from(damage) >= wire_health_before {
         u64::from(damage)
-            .saturating_sub(health_before)
+            .saturating_sub(wire_health_before)
             .min(i32::MAX as u64) as i32
     } else {
         -1

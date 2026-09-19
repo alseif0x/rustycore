@@ -82,6 +82,7 @@ fn creature_melee_damage_delivery_filters_registry_state_like_cpp() {
             mana_spent: 0,
             absorb_consumptions: Vec::new(),
             split_combat_log_packets: Vec::new(),
+            self_share_health_updates: Vec::new(),
         };
     let commands = vec![
         make_command(wrong_map),
@@ -139,6 +140,7 @@ fn creature_melee_damage_delivery_poisoned_durable_rail_counts_send_failed_like_
             mana_spent: 0,
             absorb_consumptions: Vec::new(),
             split_combat_log_packets: Vec::new(),
+            self_share_health_updates: Vec::new(),
         },
     ];
     let summary = deliver_creature_melee_damage_commands_like_cpp(&commands, &registry);
@@ -177,6 +179,7 @@ fn creature_melee_damage_delivery_preserves_every_swing_when_general_queue_is_fu
         mana_spent: 0,
         absorb_consumptions: Vec::new(),
         split_combat_log_packets: Vec::new(),
+        self_share_health_updates: Vec::new(),
     };
     command_tx
         .send(SessionCommand::ApplyCreatureMeleeDamageLikeCpp(

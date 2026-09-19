@@ -376,6 +376,7 @@ async fn apply_creature_melee_damage_command_updates_victim_and_sends_hit_like_c
                 mana_spent: 0,
                 absorb_consumptions: Vec::new(),
                 split_combat_log_packets: Vec::new(),
+                self_share_health_updates: vec![91],
             },
         ))
         .expect("command queued");
@@ -387,7 +388,10 @@ async fn apply_creature_melee_damage_command_updates_victim_and_sends_hit_like_c
     let packet = send_rx.try_recv().expect("attacker state update");
     let opcode = u16::from_le_bytes([packet[0], packet[1]]);
     assert_eq!(opcode, ServerOpcodes::AttackerStateUpdate as u16);
-    let packet = send_rx.try_recv().expect("health update");
+    let packet = send_rx.try_recv().expect("self-share health update");
+    let opcode = u16::from_le_bytes([packet[0], packet[1]]);
+    assert_eq!(opcode, ServerOpcodes::HealthUpdate as u16);
+    let packet = send_rx.try_recv().expect("primary health update");
     let opcode = u16::from_le_bytes([packet[0], packet[1]]);
     assert_eq!(opcode, ServerOpcodes::HealthUpdate as u16);
     assert!(send_rx.try_recv().is_err(), "no extra packets");
@@ -429,6 +433,7 @@ async fn apply_creature_melee_damage_command_syncs_health_without_visible_attack
                 mana_spent: 0,
                 absorb_consumptions: Vec::new(),
                 split_combat_log_packets: Vec::new(),
+                self_share_health_updates: Vec::new(),
             },
         ))
         .expect("command queued");
@@ -479,6 +484,7 @@ async fn apply_creature_melee_damage_command_delayed_after_heal_presents_current
         mana_spent: 0,
         absorb_consumptions: Vec::new(),
         split_combat_log_packets: Vec::new(),
+        self_share_health_updates: Vec::new(),
     };
 
     session
@@ -569,6 +575,7 @@ async fn apply_creature_melee_damage_command_replay_after_resurrection_is_suppre
         mana_spent: 0,
         absorb_consumptions: Vec::new(),
         split_combat_log_packets: Vec::new(),
+        self_share_health_updates: Vec::new(),
     };
     session
         .session_command_tx()
@@ -667,6 +674,7 @@ async fn apply_creature_melee_damage_command_lethal_publishes_durability_loss_li
                 mana_spent: 0,
                 absorb_consumptions: Vec::new(),
                 split_combat_log_packets: Vec::new(),
+                self_share_health_updates: Vec::new(),
             },
         ))
         .expect("lethal command queued");
@@ -725,6 +733,7 @@ async fn apply_creature_melee_damage_command_battleground_skips_durability_like_
                 mana_spent: 0,
                 absorb_consumptions: Vec::new(),
                 split_combat_log_packets: Vec::new(),
+                self_share_health_updates: Vec::new(),
             },
         ))
         .expect("lethal battleground command queued");
@@ -776,6 +785,7 @@ async fn durable_creature_runtime_rail_is_drained_by_session_update_like_cpp() {
                 mana_spent: 0,
                 absorb_consumptions: Vec::new(),
                 split_combat_log_packets: Vec::new(),
+                self_share_health_updates: Vec::new(),
             })
     );
 

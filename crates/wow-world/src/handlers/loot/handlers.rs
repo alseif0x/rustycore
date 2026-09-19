@@ -7,7 +7,6 @@
 
 use super::*;
 use wow_packet::ClientPacket;
-
 inventory::submit! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LootUnit,
@@ -1693,6 +1692,7 @@ impl WorldSession {
                 expansion: 2,
             });
         }
+        self.publish_self_share_health_like_cpp(&command);
         // An avoided swing commits no health transition.
         if command.damage > 0 {
             self.send_packet(&HealthUpdate {

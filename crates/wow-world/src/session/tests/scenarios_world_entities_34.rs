@@ -1,5 +1,8 @@
 //! Damage-immunity melee regression under #29.
 
+#[path = "scenarios_world_entities_35.rs"]
+mod share_damage;
+
 use super::*;
 
 /// C++ `Unit::IsImmunedToDamage` (`Unit.cpp:7318-7336`) checks both the
