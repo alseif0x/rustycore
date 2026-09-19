@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-19:** the current integration head on `3.4.3` is
-`d2f58c20` (PR #1223, the #29 physical melee resistance proof). The older #31
+`4d9e9dbe` (PR #1224, the #29 creature-victim school absorb slice). The older #31
 diagnosis chain is retained below as historical evidence; its next entry is
 `8448bdb4`, the #31 player-aura canonical-sync diagnosis and its route
 correction, following PR #1211, the #31 caster label damage-taken term and its label authority,
@@ -160,6 +160,22 @@ hotspot ratchet in `session/mod.rs`, `handlers/character/mod.rs`,
 `world-server/src/lib.rs`, `handlers/quest/mod.rs` and
 `wow-entities/src/player/mod.rs`; this delivery does not touch those files or
 the runtime-ownership ledger.
+
+**#29 damage-immunity registry — 2026-09-19, implementation on the current
+branch:** C++ `Unit::IsImmunedToDamage` (`Unit.cpp:7318-7336`) accepts both the
+school-immunity and `IMMUNITY_DAMAGE` masks when the complete normal school is
+covered. The production creature melee path now checks both aura types for
+player and creature victims, so a damage-immunity aura blocks the swing before
+the hit table just like school immunity. Existing school-immunity behavior is
+unchanged; richer spell-immunity registry data, split damage, negative crushing
+policy and live DB/relogin acceptance remain separate.
+Validation on this candidate: `scenarios_world_entities_34` passed 1/1;
+`scenarios_world_entities_32`, `_28` and `_33` passed; the production
+`world-server` check, formatting, diff check, physical ratchet and
+`session-ownership-check check --syntax-only` pass. The general architecture
+check remains red only on the known hotspot ratchet; this slice adds bounded
+scenario coverage under the existing Session aggregate but changes no
+production hotspot authority or runtime-ownership ledger.
 
 **#31 negative damage-taken aura regression — 2026-09-18, implementation
 `6f1a5c02`, integrated by PR #1213:** test-only pin of the amount path the
