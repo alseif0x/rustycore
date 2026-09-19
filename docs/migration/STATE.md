@@ -79,8 +79,8 @@ the residual acceptance explicitly stated below.
 
 **#29 creature white-swing split/share damage — 2026-09-19, split implementation
 `5ec01cb4`, share implementation `b18fd23a`, unkillable implementation
-`11f66869` and damage-threat implementation `3cba7f7f`, candidate in PR
-#1228:** the
+`11f66869`, damage-threat implementation `3cba7f7f` and replay extraction
+`027067eb`, candidate in PR #1228:** the
 map-owned creature melee path now executes the represented
 `SPELL_AURA_SPLIT_DAMAGE_PCT` tail of `Unit::CalcAbsorbResist`
 (`Unit.cpp:1958-2015`) after school and mana shields. It snapshots the primary
@@ -143,7 +143,10 @@ so a same-GUID replacement cannot receive reciprocal state. Production-shaped
 regressions cover direct/split/share accumulation, both modifier classes,
 suppression and initial-admission attributes, lethal exclusion, zero-value
 `UNKILLABLE` references, AI state and both canonical and legacy reciprocal
-references.
+references. The behavior-preserving replay extraction leaves its owner, lock
+order and public paths unchanged while reducing `creature_melee_tick.rs` from
+2,135 to 1,863 lines; the new private `creature_melee_sync.rs` is 341 lines,
+and the physical-source ratchet passes without a ceiling increase.
 
 This is a bounded represented white-swing delivery, not closure of #29 or of
 generic `Unit::DealDamage`: aura script split hooks, the remaining AI/script
@@ -194,9 +197,16 @@ global architecture gate, live acceptance or satisfaction of the ordinary
 600-second performance target.
 The damage-threat repair's exact sparring-zero and zero-value `UNKILLABLE`
 regressions each pass 1/1, and the complete focused
-`scenarios_world_entities_34` module passes 7/7 on `3cba7f7f`. Complete
-affected suites and the publication profile remain to be recorded for that
-candidate.
+`scenarios_world_entities_34` module passes 7/7 on `3cba7f7f`. On the exact
+tree committed as `027067eb`, the locked production/test-target check for
+`wow-world` and `world-server` passes in 8m32s, and the complete locked affected
+library command passes (`wow-entities`: 942; `wow-world`: 4036 passed and 1
+ignored; zero failures) after a 2m45s build. The committed-candidate standard
+final passes diff, physical-file, whitespace, JSON and format checks before
+stopping only on the unchanged global hotspot ratchet (manifest
+`20260919T222233.238707Z-2-final.json`). This campaign took at least 12m10s
+across its required checks, so the 600-second ordinary performance target is
+not met; the correctness evidence is green apart from that known global gate.
 
 **#31 direct-damage fidelity correction — 2026-09-19, integrated as
 `a22e9390` by PR #1220:** the
