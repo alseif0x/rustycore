@@ -117,6 +117,19 @@ and `wow-entities/src/player/mod.rs` (manifest
 `20260919T093737.215152Z-55267-final.json`); no changed-file failure was hidden
 or relabeled.
 
+**#29 melee absorb-log visible-set fanout — 2026-09-19, implementation on the
+current branch:** the victim session now keeps the direct `SpellAbsorbLog` copy
+and sends the identical serialized packet through the existing player-visible
+realm rail. This matches C++ `WorldObject::SendCombatLogMessage`
+(`Object.cpp:1785-1794`), which delivers to the victim and then to nearby
+visible players. The production-shaped melee absorb scenario now registers a
+nearby observer and asserts the observer receives `ServerOpcodes::SpellAbsorbLog`
+with the victim as the source, while the victim still logs before the exhausted
+shield's `AuraUpdate`. This closes the absorb-log fan-out residual; mana-shield
+power ownership, creature-victim mutable shields, split damage, `IMMUNITY_DAMAGE`,
+negative crushing policy and live DB/relogin acceptance remain separate #29
+boundaries.
+
 **#31 negative damage-taken aura regression — 2026-09-18, implementation
 `6f1a5c02`, integrated by PR #1213:** test-only pin of the amount path the
 drain/burn pre-scaling reads, added while attempting the Sanctified Wrath bypass

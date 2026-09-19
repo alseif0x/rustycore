@@ -1051,6 +1051,17 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
     let creature_guid = test_creature_guid(91_501);
 
     let (mut session, _, send_rx) = make_session();
+    let registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
+    let observer = ObjectGuid::create_player(1, 91_513);
+    let (observer_send_tx, _observer_send_rx) = flume::bounded(1);
+    let (observer_command_tx, observer_command_rx) = flume::bounded(1);
+    let mut observer_info =
+        broadcast_info_with_command(observer, observer_send_tx, observer_command_tx);
+    observer_info.placement.map_id = 0;
+    observer_info.placement.instance_id = 0;
+    observer_info.placement.position = Position::new(10.0, 10.0, 0.0, 0.0);
+    registry.register_or_replace(observer, observer_info, Default::default());
+    session.set_player_registry(Arc::clone(&registry));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {
@@ -1281,6 +1292,20 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
     assert!(
         absorb_log < removal,
         "C++ logs the absorb before removing the spent shield (`Unit.cpp:1876-1889`)"
+    );
+    let SessionCommand::SendRealmIfVisibleLikeCpp(observer_command) = observer_command_rx
+        .try_recv()
+        .expect("C++ fans the absorb log to nearby visible players")
+    else {
+        panic!("the absorb log must use the realm-visible observer rail");
+    };
+    assert_eq!(observer_command.source_guid, player);
+    assert_eq!(observer_command.map_id, 0);
+    assert_eq!(observer_command.instance_id, 0);
+    assert_eq!(
+        wow_packet::WorldPacket::from_bytes(&observer_command.packet_bytes).server_opcode(),
+        Some(ServerOpcodes::SpellAbsorbLog),
+        "the observer receives the same C++ SpellAbsorbLog frame"
     );
 
     // Fourth swing: with the shield gone the full hit lands.
