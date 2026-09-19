@@ -683,6 +683,8 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
             crate::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp,
         > = Vec::new();
         let mut creature_victim_absorb_events = Vec::new();
+        let mut split_mutation_events = Vec::new();
+        let mut split_combat_log_packets = Vec::new();
         let damage = if swing.victim_guid.is_player() {
             match config.spell_store.as_deref() {
                 Some(spell_store) => {
@@ -1490,6 +1492,64 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                 None => damage,
             }
         };
+        let damage = if damage > 0 {
+            match config.spell_store.as_deref() {
+                Some(spell_store) => {
+                    let map_difficulty_id = canonical_manager
+                        .find_map(u32::from(swing.map_id), swing.instance_id)
+                        .map(|managed| managed.difficulty())
+                        .unwrap_or(0);
+                    let split = super::creature_melee_split::apply_melee_split_damage_like_cpp(
+                        &mut canonical_manager,
+                        swing.map_id,
+                        swing.instance_id,
+                        swing.attacker_guid,
+                        swing.victim_guid,
+                        damage,
+                        0x01,
+                        attacker
+                            .creature
+                            .is_charmed_owned_by_player_or_player_like_cpp(),
+                        spell_store,
+                        map_difficulty_id,
+                        config.difficulty_store.as_deref(),
+                    );
+                    if split.absorbed > 0 {
+                        absorbed_damage = absorbed_damage.saturating_add(split.absorbed);
+                        hit_info &= !(wow_packet::packets::combat::HIT_INFO_FULL_ABSORB
+                            | wow_packet::packets::combat::HIT_INFO_PARTIAL_ABSORB);
+                        hit_info |= if split.damage == 0 {
+                            wow_packet::packets::combat::HIT_INFO_FULL_ABSORB
+                        } else {
+                            wow_packet::packets::combat::HIT_INFO_PARTIAL_ABSORB
+                        };
+                        if let Some((info, _, _)) = creature_victim_presentation.as_mut() {
+                            *info &= !(wow_packet::packets::combat::HIT_INFO_FULL_ABSORB
+                                | wow_packet::packets::combat::HIT_INFO_PARTIAL_ABSORB);
+                            *info |= if split.damage == 0 {
+                                wow_packet::packets::combat::HIT_INFO_FULL_ABSORB
+                            } else {
+                                wow_packet::packets::combat::HIT_INFO_PARTIAL_ABSORB
+                            };
+                        }
+                    }
+                    split_mutation_events = split.mutation_events;
+                    split_combat_log_packets = split.combat_log_packets;
+                    for (split_victim_guid, state) in split.creature_syncs {
+                        let mut split_swing = swing;
+                        split_swing.victim_guid = split_victim_guid;
+                        creature_victim_syncs.push(CreatureVictimCompatibilitySyncLikeCpp {
+                            swing: split_swing,
+                            state,
+                        });
+                    }
+                    split.damage
+                }
+                None => damage,
+            }
+        } else {
+            damage
+        };
         if !outcome_represented {
             outcome.melee_outcomes_unrepresented += 1;
         }
@@ -1540,6 +1600,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     absorbed: 0,
                     mana_spent: 0,
                     absorb_consumptions: Vec::new(),
+                    split_combat_log_packets: Vec::new(),
                 },
             );
             continue;
@@ -1644,13 +1705,31 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     absorbed: absorbed_damage,
                     mana_spent,
                     absorb_consumptions: absorb_consumptions.clone(),
+                    split_combat_log_packets: split_combat_log_packets.clone(),
                 },
             );
+            outcome.plan.events.extend(split_mutation_events);
         } else {
             if !creature_victim_avoided {
                 outcome.canonical_creature_hits += 1;
             }
             outcome.plan.events.extend(creature_victim_absorb_events);
+            outcome.plan.events.extend(split_mutation_events);
+            outcome
+                .plan
+                .events
+                .extend(
+                    split_combat_log_packets
+                        .into_iter()
+                        .map(|packet_bytes| RuntimeEvent {
+                            source_guid: swing.victim_guid,
+                            recipients: RecipientRule::MapBroadcastVisible {
+                                map_id: swing.map_id,
+                                instance_id: swing.instance_id,
+                            },
+                            packet_bytes,
+                        }),
+                );
             outcome.plan.events.extend(events);
             if victim_health_state_revision_after != victim_health_state_revision_before {
                 creature_victim_syncs.push(CreatureVictimCompatibilitySyncLikeCpp {

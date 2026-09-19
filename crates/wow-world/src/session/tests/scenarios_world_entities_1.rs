@@ -375,6 +375,7 @@ async fn apply_creature_melee_damage_command_updates_victim_and_sends_hit_like_c
                 absorbed: 0,
                 mana_spent: 0,
                 absorb_consumptions: Vec::new(),
+                split_combat_log_packets: Vec::new(),
             },
         ))
         .expect("command queued");
@@ -427,6 +428,7 @@ async fn apply_creature_melee_damage_command_syncs_health_without_visible_attack
                 absorbed: 0,
                 mana_spent: 0,
                 absorb_consumptions: Vec::new(),
+                split_combat_log_packets: Vec::new(),
             },
         ))
         .expect("command queued");
@@ -476,6 +478,7 @@ async fn apply_creature_melee_damage_command_delayed_after_heal_presents_current
         absorbed: 0,
         mana_spent: 0,
         absorb_consumptions: Vec::new(),
+        split_combat_log_packets: Vec::new(),
     };
 
     session
@@ -565,6 +568,7 @@ async fn apply_creature_melee_damage_command_replay_after_resurrection_is_suppre
         absorbed: 0,
         mana_spent: 0,
         absorb_consumptions: Vec::new(),
+        split_combat_log_packets: Vec::new(),
     };
     session
         .session_command_tx()
@@ -662,6 +666,7 @@ async fn apply_creature_melee_damage_command_lethal_publishes_durability_loss_li
                 absorbed: 0,
                 mana_spent: 0,
                 absorb_consumptions: Vec::new(),
+                split_combat_log_packets: Vec::new(),
             },
         ))
         .expect("lethal command queued");
@@ -719,6 +724,7 @@ async fn apply_creature_melee_damage_command_battleground_skips_durability_like_
                 absorbed: 0,
                 mana_spent: 0,
                 absorb_consumptions: Vec::new(),
+                split_combat_log_packets: Vec::new(),
             },
         ))
         .expect("lethal battleground command queued");
@@ -769,6 +775,7 @@ async fn durable_creature_runtime_rail_is_drained_by_session_update_like_cpp() {
                 absorbed: 0,
                 mana_spent: 0,
                 absorb_consumptions: Vec::new(),
+                split_combat_log_packets: Vec::new(),
             })
     );
 

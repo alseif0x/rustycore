@@ -77,6 +77,52 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#29 creature white-swing split damage — 2026-09-19, implementation on the
+current branch:** the map-owned creature melee path now executes the represented
+`SPELL_AURA_SPLIT_DAMAGE_PCT` tail of `Unit::CalcAbsorbResist`
+(`Unit.cpp:1958-2015`) after school and mana shields. It snapshots the primary
+Player/Creature victim's active split effects, applies each percentage to the
+current remainder, preserves the primary absorption before the secondary
+immunity/`DealDamageMods` gates, and mutates the live Player/Creature caster
+through canonical map authority. Missing, self, out-of-world and dead casters
+are skipped; immune casters keep the primary split absorbed and emit the exact
+3.4.3 `SpellMissLog` layout; in-flight/evading secondary targets take no health
+damage and report the split as absorbed in `SpellNonMeleeDamageLog`. Secondary
+Creature health/death revisions join the existing canonical-to-legacy CAS chain,
+and a primary Creature already at its sparring threshold zeroes its remaining
+wire damage at C++'s post-`DealDamageMods` point. Split logs precede the primary
+`AttackerStateUpdate` on the owning delivery rail. Production-shaped regressions
+cover Player and Creature primary victims, Player and Creature secondary
+targets, missing caster, immunity, evade, sparring, health publication and
+packet order. The private split module keeps the existing melee tick facade
+below the 2,000-line hard threshold.
+
+This is a bounded represented white-swing delivery, not closure of #29 or of
+generic `Unit::DealDamage`: aura script split hooks, unrepresented attacker
+target multipliers, the remaining damage/proc/fear/threat/kill side effects,
+pet/guardian secondary targets, aura cast-id/visual provenance, and
+`SPELL_AURA_SHARE_DAMAGE_PCT` (`Unit.cpp:833-856`) remain explicit boundaries.
+No fresh 3.4.3 client capture or authorized live runtime/DB-relogin acceptance
+was performed for this candidate.
+
+Candidate validation: both focused split scenarios pass (2/2), the byte-level
+`SpellMissLog` regression passes (1/1), and the complete `world-server`,
+`wow-data`, `wow-packet` and `wow-world` library command passes; `wow-world`
+reports 4032 passed, 0 failed and 1 ignored. The exact locked production check
+for the final affected workspace closure passes in 2m18s on the repaired warm
+candidate; formatting/diff/JSON checks pass, the physical-file ratchet passes
+without raising a ceiling, and the
+syntax-only Session ownership check passes with its reviewed baseline delta.
+`validation-v2 final --base origin/3.4.3 --architecture --timings` stops only
+on the unchanged global hotspot ratchet in `session/mod.rs`,
+`handlers/character/mod.rs`, `world-server/src/lib.rs`,
+`handlers/quest/mod.rs` and `wow-entities/src/player/mod.rs` (manifest
+`20260919T152900.057141Z-2-final.json`). The ordinary campaign performance
+target is not met: architecture acceptance (84.42s) plus the production check
+(555s in the initial timed campaign) already totals at least 639.42s before the
+library suites and command overhead. The faster repaired rerun does not relabel
+that budget overrun or the red global gate as green.
+
 **#31 direct-damage fidelity correction — 2026-09-19, integrated as
 `a22e9390` by PR #1220:** the
 target C++ `Spell::EffectPowerDrain` path calls

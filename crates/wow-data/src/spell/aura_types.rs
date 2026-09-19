@@ -85,6 +85,10 @@ pub const SPELL_AURA_REFLECT_SPELLS_SCHOOL: i32 = 74;
 pub const SPELL_AURA_MECHANIC_IMMUNITY: i32 = 77;
 pub const SPELL_AURA_MOUNTED: i32 = 78;
 pub const SPELL_AURA_MOD_DAMAGE_PERCENT_DONE: i32 = 79;
+/// C++ `AuraType::SPELL_AURA_SPLIT_DAMAGE_PCT` (`SpellAuraDefines.h:176`),
+/// consumed after school and mana absorbs by `Unit::CalcAbsorbResist`
+/// (`Unit.cpp:1958-2015`).
+pub const SPELL_AURA_SPLIT_DAMAGE_PCT: i32 = 81;
 /// C++ `AuraType::SPELL_AURA_MOD_REGEN` (`SpellAuraDefines.h:179`).
 pub const SPELL_AURA_MOD_REGEN: i32 = 84;
 pub const SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN: i32 = 87;

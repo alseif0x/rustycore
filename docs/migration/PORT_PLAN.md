@@ -33,6 +33,44 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 creature white-swing split damage — 2026-09-19, implementation on the
+current branch:** the canonical creature-melee owner now consumes represented
+`SPELL_AURA_SPLIT_DAMAGE_PCT` effects in C++ `CalcAbsorbResist` order
+(`Unit.cpp:1958-2015`), after school/mana absorption and before the primary
+health commit. Sequential percentages use the current remaining damage. Valid
+Player/Creature aura casters receive canonical secondary damage; missing,
+self, out-of-world or dead casters are skipped; immunity emits
+`SpellMissLog` after preserving primary absorption; and the represented
+`DealDamageMods` in-flight/evade rejection emits a fully absorbed
+`SpellNonMeleeDamageLog`. Secondary Creature revisions reuse the existing
+canonical-to-legacy CAS chain; a primary Creature already at its sparring
+threshold zeroes the remaining primary wire damage at C++'s post-
+`DealDamageMods` point; and the victim-session/map rails retain split-log order
+before the primary attacker-state packet. The production-shaped scenarios
+cover both primary target kinds, both secondary target kinds, missing caster,
+immunity, evade, sparring, canonical health and publication order; a byte-level
+packet regression pins the 3.4.3 `SpellMissLog` field order
+(`CombatLogPackets.cpp:289-297`).
+
+This slice does not close #29. Script split handlers, unrepresented attacker
+target multipliers, the rest of generic `DealDamage`/proc/fear/threat/kill
+behavior, pet/guardian split targets, aura cast-id/visual provenance,
+`SPELL_AURA_SHARE_DAMAGE_PCT` (`Unit.cpp:833-856`) and live capture/runtime/DB
+acceptance remain explicit follow-on boundaries.
+
+Candidate evidence: the focused split scenarios pass 2/2, the byte-level
+`SpellMissLog` regression passes 1/1, and the complete locked library command
+for `world-server`, `wow-data`, `wow-packet` and `wow-world` passes
+(`wow-world`: 4032 passed, 0 failed, 1 ignored). The affected locked workspace
+check passes in 2m18s on the final repaired warm candidate; formatting, diff,
+JSON, physical-file and syntax-only Session ownership checks pass without a new
+physical ceiling. The architecture final stops only on the unchanged global
+hotspot baseline (manifest
+`20260919T152900.057141Z-2-final.json`). Its 84.42s plus the 555s production
+check from the initial timed campaign already exceed the 600s ordinary target
+at a minimum 639.42s before the library suites and command overhead; the faster
+repaired rerun does not relabel that performance target as met.
+
 **#31 direct-damage fidelity correction — 2026-09-19, current candidate:**
 `Spell::EffectPowerDrain` calls `Unit::SpellDamageBonusTaken` with
 `SPELL_DIRECT_DAMAGE` (`SpellEffects.cpp:1082-1088`), while
