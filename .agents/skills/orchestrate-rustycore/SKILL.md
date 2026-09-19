@@ -1,6 +1,6 @@
 ---
 name: orchestrate-rustycore
-description: "Route RustyCore development work between Astra and Luna when a bounded independent task benefits from delegation. Use for implementation coordination or adapting this workflow, not ordinary factual answers."
+description: "Route RustyCore development work between Sol and Luna when a bounded independent task benefits from delegation. Use for implementation coordination or adapting this workflow, not ordinary factual answers."
 ---
 
 # RustyCore orchestration
@@ -15,19 +15,18 @@ integrator; no per-worker issues, PRs or mandatory continuation requests.
 MiMo is outside the active workflow: do not call it or use its credentials. Its
 local experimental profile must not replace the main project configuration.
 
-- Parent Astra: `low` default; own architecture, decomposition, coordination,
+- Parent Sol: `medium` default; own architecture, decomposition, coordination,
   integration and final acceptance. Delegate routine bounded implementation to Luna;
-  implement directly for trivial, inseparable or critical work. Use `high` for ambiguous
-  architecture, ownership, concurrency, persistence and protocol work. Reasoning effort is a real
-  runtime setting, not a promise in prose: use an available effort control, or give
-  a bounded hard task to `astra_specialist`. Do not claim the parent switched when
-  it did not. A session can also be launched with
-  `codex -c model_reasoning_effort='"high"'` when high-effort parent work is needed.
+  implement directly for trivial, inseparable or critical work. Keep ambiguous
+  architecture, ownership, concurrency, persistence and protocol decisions in the
+  Sol parent, and record the evidence that supports them. Reasoning effort is a real
+  runtime setting, not a promise in prose: do not claim a higher effort or a model
+  switch unless the effective session configuration confirms it.
 - `luna_worker`: `gpt-5.6-luna`, `max`; implement a complete bounded responsibility
   with decided contracts and assigned files, including its tests and consumers.
   Luna also handles focused read-only exploration or the parent's final-check sequence
-  when explicitly assigned that mode. Keep architectural decisions with Astra.
-  Astra and Luna are the only models in the active orchestration workflow.
+  when explicitly assigned that mode. Keep architectural decisions with Sol.
+  Sol and Luna are the only models in the active orchestration workflow.
 
 Use the actual available model/effort and record it in the handoff. Custom TOML roles
 apply only on clients that load them; otherwise pass explicit supported model/effort
@@ -43,7 +42,7 @@ Start with at most one child at a time. No worker spawns children. The parent mu
 have useful independent work; execute directly if delegation costs more than it saves.
 Once a nontrivial implementation unit has a clear contract, independent file ownership
 and useful concurrent parent work, assign it to Luna with a real spawn call rather than
-merely describing delegation and doing it all in Astra. The parent can settle other
+merely describing delegation and doing it all in Sol. The parent can settle other
 consumers, prepare integration or inspect a separate boundary, but must not duplicate
 the child's implementation. File count alone does not require delegation. Keep tiny,
 tightly coupled or unavailable-model tasks local; briefly identify the reason when a
@@ -91,7 +90,7 @@ profile is not benchmark-proven and does not enforce a hard CPU/RAM/token budget
 
 Configuration shape checked against
 [Codex subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents).
-The Astra-orchestrator/Luna-executor topology is also used by
+The Sol-orchestrator/Luna-executor topology is also used by
 [donvito's template](https://github.com/donvito/codex-astra-luna-orchestrator);
 this project deliberately omits its broad mandatory-delegation triggers and staged
 tester/reviewer pipeline.
