@@ -5555,7 +5555,6 @@ fn decode_atomic_creature_spell_wire_pair_like_cpp(
         decode_creature_spell_wire_header_like_cpp(basic_go_packet_bytes),
     )
 }
-
 fn creature_melee_sync_state_for_test_like_cpp(
     victim: &crate::map_manager::WorldCreature,
     applied_damage: u32,

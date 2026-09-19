@@ -5168,7 +5168,6 @@ async fn run_inner(
 
     info!("Starting realm listener on {realm_addr}");
     info!("Starting instance listener on {instance_addr}");
-
     let mut legacy_creature_aggro_config = legacy_creature_aggro_config_like_cpp(&world_configs);
     legacy_creature_aggro_config.expected_stat_store =
         wow_data::ExpectedStatStore::load(&data_dir, &locale)

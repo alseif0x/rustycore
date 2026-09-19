@@ -17016,51 +17016,6 @@ enum LegacyCreatureCanAttackLeashDecisionLikeCpp {
     HomeRangeRejected,
 }
 
-struct CreatureMeleeVictimSyncIdentityLikeCpp {
-    authority: OwnedLootAuthority,
-    health_state_revision_authority: wow_entities::HealthStateRevisionAuthorityLikeCpp,
-    spawn_id: u64,
-    loot_lifecycle_revision_before: u64,
-    loot_lifecycle_revision_after: u64,
-    death_state_before: wow_constants::DeathState,
-    death_state_after: wow_constants::DeathState,
-    ai_state_before: wow_entities::CreatureAiState,
-    ai_state_after: wow_entities::CreatureAiState,
-}
-
-struct CreatureMeleeVictimSyncStateLikeCpp {
-    applied_damage: u32,
-    threat: Option<legacy_runtime::CreatureDamageThreatOutcomeLikeCpp>,
-    victim_health_before: u64,
-    victim_health_after: u64,
-    victim_health_state_revision_before: u64,
-    victim_health_state_revision_after: u64,
-    identity: CreatureMeleeVictimSyncIdentityLikeCpp,
-}
-
-enum CreatureMeleeApplyResultLikeCpp {
-    Ready,
-    Hit {
-        victim_applied_damage: u32,
-        victim_threat: Option<legacy_runtime::CreatureDamageThreatOutcomeLikeCpp>,
-        victim_health_before: u64,
-        victim_health_after: u64,
-        victim_health_state_revision_before: u64,
-        victim_health_state_revision_after: u64,
-        victim_creature_sync_identity: Option<CreatureMeleeVictimSyncIdentityLikeCpp>,
-        over_damage: i32,
-        target_level: u8,
-        events: Vec<RuntimeEvent>,
-    },
-    OutOfRange,
-    BadFacing,
-    AttackerStateRejected,
-    LosRejected,
-    AttackerUnavailable,
-    VictimNotAlive,
-    MissingVictim,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum CreatureAiSpellTargetLikeCpp {
     SelfTarget,
