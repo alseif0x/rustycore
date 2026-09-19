@@ -666,6 +666,7 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
     // already rolled the attack table; `None` keeps this bridge's normal-hit
     // presentation.
     outcome_presentation: Option<(u32, u8, i32)>,
+    absorbed: u32,
 ) -> CreatureMeleeApplyResultLikeCpp {
     use wow_packet::ServerPacket;
     use wow_packet::packets::combat::{
@@ -826,7 +827,7 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
             original_damage: damage.min(i32::MAX as u32) as i32,
             over_damage,
             blocked: outcome_presentation.map_or(0, |(_, _, blocked)| blocked.max(0)),
-            absorbed: 0,
+            absorbed: absorbed.min(i32::MAX as u32) as i32,
             victim_state: outcome_presentation.map_or(VICTIM_STATE_HIT, |(_, state, _)| state),
             school_mask: 1,
             target_level,

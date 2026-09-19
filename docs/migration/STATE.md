@@ -1,7 +1,7 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-19:** the current integration head on `3.4.3` is
-`a22e9390` (PR #1220, the #31 direct-damage fidelity correction). The older #31
+`d2f58c20` (PR #1223, the #29 physical melee resistance proof). The older #31
 diagnosis chain is retained below as historical evidence; its next entry is
 `8448bdb4`, the #31 player-aura canonical-sync diagnosis and its route
 correction, following PR #1211, the #31 caster label damage-taken term and its label authority,
@@ -138,6 +138,28 @@ aura and still requires the physical white swing to deal its full 10 damage.
 This records the non-magic early-out at the real melee consumer without adding a
 second resistance stage; split damage, `IMMUNITY_DAMAGE`, negative crushing
 policy and live DB/relogin acceptance remain separate #29 boundaries.
+
+**#29 creature-victim school absorb — 2026-09-19, implementation on the
+current branch:** the map-owned creature melee path now projects a creature's
+canonical `AppliedAuraRef` amount table into the same C++
+`CalcAbsorbResist` school-absorb rules used for player victims. Each swing
+spends the mutable amount, publishes `SpellAbsorbLog` and an exhausted-aura
+`AuraUpdate` through the map event rail before `AttackerStateUpdate`, and the
+next swing sees the remainder rather than the spell base value. The production
+shaped regression covers three 10-point spends from a 30-point creature shield,
+ordered log/removal/attack events, and the full hit after removal. Mana shields,
+split damage, `IMMUNITY_DAMAGE`, negative crushing policy and live DB/relogin
+acceptance remain separate boundaries.
+Validation on this candidate: the exact `scenarios_world_entities_33` regression
+passed 1/1; the `scenarios_world_entities_32` and `_28` focused suites passed;
+`PROTOC=/home/ubuntu/.local/protoc/bin/protoc CARGO_BUILD_JOBS=1 cargo check
+-p world-server`, `cargo fmt --all -- --check`, `git diff --check`, the physical
+ratchet, and `session-ownership-check check --syntax-only` all pass. The general
+architecture check and its self-test still stop on the unchanged pre-existing
+hotspot ratchet in `session/mod.rs`, `handlers/character/mod.rs`,
+`world-server/src/lib.rs`, `handlers/quest/mod.rs` and
+`wow-entities/src/player/mod.rs`; this delivery does not touch those files or
+the runtime-ownership ledger.
 
 **#31 negative damage-taken aura regression — 2026-09-18, implementation
 `6f1a5c02`, integrated by PR #1213:** test-only pin of the amount path the

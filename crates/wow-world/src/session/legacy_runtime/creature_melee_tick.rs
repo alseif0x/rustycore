@@ -141,6 +141,132 @@ fn write_absorbed_shield_amount_like_cpp(
     );
 }
 
+/// C++ `Unit::CalcAbsorbResist`'s school-absorb loop for a creature victim.
+///
+/// The creature is map-owned, so this stage spends the canonical aura amount
+/// beside the health write. Its combat-log and exhausted-aura publications are
+/// returned as map events and therefore retain C++'s order before the
+/// `AttackerStateUpdate` event.
+#[allow(clippy::type_complexity)]
+fn apply_melee_absorb_to_canonical_creature_like_cpp(
+    canonical_manager: &mut wow_map::MapManager,
+    map_id: u16,
+    instance_id: u32,
+    attacker_guid: ObjectGuid,
+    victim_guid: ObjectGuid,
+    school_mask: u32,
+    damage: u32,
+    original_damage: i32,
+    spell_store: &wow_data::SpellStore,
+    difficulty_id: u8,
+    difficulty_store: Option<&wow_data::DifficultyStore>,
+    ignore_absorb_pct: f32,
+) -> Option<(u32, u32, Vec<RuntimeEvent>)> {
+    use wow_packet::ServerPacket;
+
+    let managed = canonical_manager.find_map_mut(u32::from(map_id), instance_id)?;
+    let victim = managed.map_mut().get_typed_creature_mut(victim_guid)?;
+    let shields = crate::session_rules::creature_absorb_shields_like_cpp(
+        &victim.unit().subsystems().auras,
+        spell_store,
+        difficulty_id,
+        difficulty_store,
+        school_mask,
+    );
+    let absorb = crate::session_rules::represented_melee_absorb_like_cpp(
+        &shields,
+        damage,
+        ignore_absorb_pct,
+    );
+    if absorb.consumed.is_empty() {
+        return Some((0, damage, Vec::new()));
+    }
+
+    let mut events = Vec::new();
+    for consumption in &absorb.consumed {
+        let Some(applied) = victim
+            .unit()
+            .subsystems()
+            .auras
+            .applied_auras
+            .iter()
+            .find(|aura| {
+                aura.slot == consumption.slot
+                    && 1_u32
+                        .checked_shl(u32::from(consumption.effect_index))
+                        .is_some_and(|bit| aura.effect_mask & bit != 0)
+            })
+            .copied()
+        else {
+            continue;
+        };
+
+        if consumption.consumed > 0 {
+            events.push(RuntimeEvent {
+                source_guid: victim_guid,
+                recipients: RecipientRule::MapBroadcastVisible {
+                    map_id,
+                    instance_id,
+                },
+                packet_bytes: wow_packet::packets::combat::SpellAbsorbLog {
+                    attacker: attacker_guid,
+                    victim: victim_guid,
+                    absorbed_spell_id: 0,
+                    absorb_spell_id: i32::try_from(applied.spell_id).unwrap_or(i32::MAX),
+                    caster: applied.caster_guid,
+                    absorbed: consumption.consumed,
+                    original_damage,
+                }
+                .to_bytes(),
+            });
+        }
+
+        if consumption.removed {
+            let aura_ref = applied.aura_ref();
+            let covered: Vec<_> = victim
+                .unit()
+                .subsystems()
+                .auras
+                .applied_auras
+                .iter()
+                .filter(|candidate| candidate.aura_ref() == aura_ref)
+                .copied()
+                .collect();
+            let auras = &mut victim.unit_mut().subsystems_mut().auras;
+            for covered in covered {
+                auras.unapply_aura(covered, 0);
+            }
+            let _ = auras.clear_visible(applied.slot);
+            events.push(RuntimeEvent {
+                source_guid: victim_guid,
+                recipients: RecipientRule::MapBroadcastVisible {
+                    map_id,
+                    instance_id,
+                },
+                packet_bytes: wow_packet::packets::misc::AuraUpdate {
+                    unit_guid: victim_guid,
+                    update_all: false,
+                    auras: vec![wow_packet::packets::misc::AuraInfoLikeCpp {
+                        slot: applied.slot,
+                        aura_data: None,
+                    }],
+                }
+                .to_bytes(),
+            });
+        } else if let Some(amount) = victim
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .applied_aura_amounts
+            .get_mut(&applied)
+        {
+            *amount = consumption.remaining.max(0);
+        }
+    }
+
+    Some((absorb.absorbed, absorb.damage, events))
+}
+
 /// Apply one player's melee swings to a legacy creature.
 ///
 /// Lifted out of `run_combat_tick` by #28. This is the write path that made
@@ -439,7 +565,8 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         let apply = |canonical_manager: &mut wow_map::MapManager,
                      swing: &PendingCreatureSwingLikeCpp,
                      damage,
-                     presentation: Option<(u32, u8, i32)>| {
+                     presentation: Option<(u32, u8, i32)>,
+                     absorbed: u32| {
             if swing.victim_guid.is_player() {
                 apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
                     canonical_manager,
@@ -464,11 +591,12 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     swing.victim_guid,
                     damage,
                     presentation,
+                    absorbed,
                 )
             }
         };
 
-        match apply(&mut canonical_manager, &swing, None, None) {
+        match apply(&mut canonical_manager, &swing, None, None, 0) {
             CreatureMeleeApplyResultLikeCpp::Ready => {}
             CreatureMeleeApplyResultLikeCpp::Hit { .. } => {
                 unreachable!("melee precondition validation must not mutate canonical health")
@@ -554,6 +682,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         let mut absorb_consumptions: Vec<
             crate::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp,
         > = Vec::new();
+        let mut creature_victim_absorb_events = Vec::new();
         let damage = if swing.victim_guid.is_player() {
             match config.spell_store.as_deref() {
                 Some(spell_store) => {
@@ -1273,7 +1402,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                             );
                             let rolled =
                                 crate::session_rules::rolled_melee_outcome_like_cpp(&inputs[0]);
-                            let (info, state) =
+                            let (mut info, state) =
                                 crate::session_rules::melee_outcome_presentation_like_cpp(
                                     rolled, false,
                                 );
@@ -1286,7 +1415,6 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                     attacker_facts.crit_damage_multiplier,
                                     crate::session_rules::CREATURE_BLOCK_PERCENT_LIKE_CPP,
                                 );
-                            creature_victim_presentation = Some((info, state, blocked as i32));
                             creature_victim_avoided = matches!(
                                 rolled,
                                 crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Immune
@@ -1296,7 +1424,39 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                     | crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Parry
                             );
                             outcome_represented = true;
-                            outcome_damage
+                            let absorb = apply_melee_absorb_to_canonical_creature_like_cpp(
+                                &mut canonical_manager,
+                                swing.map_id,
+                                swing.instance_id,
+                                swing.attacker_guid,
+                                swing.victim_guid,
+                                0x01,
+                                outcome_damage,
+                                outcome_damage.min(i32::MAX as u32) as i32,
+                                spell_store,
+                                map_difficulty_id,
+                                config.difficulty_store.as_deref(),
+                                crate::session_rules::represented_melee_ignore_absorb_like_cpp(
+                                    &attacker_effects,
+                                    0x01,
+                                ),
+                            );
+                            let (absorbed, remaining) = absorb
+                                .map(|(absorbed, remaining, events)| {
+                                    creature_victim_absorb_events = events;
+                                    (absorbed, remaining)
+                                })
+                                .unwrap_or((0, outcome_damage));
+                            if absorbed > 0 {
+                                absorbed_damage = absorbed;
+                                info |= if remaining == 0 {
+                                    wow_packet::packets::combat::HIT_INFO_FULL_ABSORB
+                                } else {
+                                    wow_packet::packets::combat::HIT_INFO_PARTIAL_ABSORB
+                                };
+                            }
+                            creature_victim_presentation = Some((info, state, blocked as i32));
+                            remaining
                         }
                         None => damage,
                     }
@@ -1374,6 +1534,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
             &swing,
             Some(damage),
             creature_victim_presentation,
+            absorbed_damage,
         ) {
             CreatureMeleeApplyResultLikeCpp::Hit {
                 victim_applied_damage,
@@ -1463,6 +1624,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
             if !creature_victim_avoided {
                 outcome.canonical_creature_hits += 1;
             }
+            outcome.plan.events.extend(creature_victim_absorb_events);
             outcome.plan.events.extend(events);
             if victim_health_state_revision_after != victim_health_state_revision_before {
                 creature_victim_syncs.push(CreatureVictimCompatibilitySyncLikeCpp {

@@ -213,6 +213,67 @@ pub(crate) fn player_absorb_shields_like_cpp(
     shields
 }
 
+/// C++ `Unit::CalcAbsorbResist`'s school-absorb selection for a creature
+/// victim. Creature aura applications use the canonical `AppliedAuraRef`
+/// tables rather than the player's runtime-application map, but the mutable
+/// amount still belongs to the same canonical aura subsystem. Reading that
+/// amount here keeps a later hit from recreating an already-spent creature
+/// shield from the spell's base points.
+pub(crate) fn creature_absorb_shields_like_cpp(
+    auras: &wow_entities::AuraSubsystem,
+    spell_store: &SpellStore,
+    difficulty_id: u8,
+    difficulty_store: Option<&wow_data::DifficultyStore>,
+    school_mask: u32,
+) -> Vec<RepresentedAbsorbShieldLikeCpp> {
+    let mut applied = auras.applied_auras.clone();
+    applied.sort_by_key(|aura| (aura.slot, aura.effect_mask));
+    let mut shields = Vec::new();
+    for aura in applied {
+        let spell_id = i32::try_from(aura.spell_id).unwrap_or(0);
+        let Some(spell) = spell_store.get(spell_id) else {
+            continue;
+        };
+        let category_id = spell_store
+            .hit_metadata_for_difficulty_like_cpp(spell_id, difficulty_id, difficulty_store)
+            .map_or(0, |metadata| metadata.category_id);
+        for effect in spell.effects().iter().filter(|effect| {
+            effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_SCHOOL_ABSORB
+                && 1u32
+                    .checked_shl(effect.effect_index)
+                    .is_some_and(|bit| aura.effect_mask & bit != 0)
+                && (effect.effect_misc_value_1 as u32) & school_mask != 0
+        }) {
+            let applied_effect = wow_entities::AppliedAuraRef::new(
+                aura.spell_id,
+                aura.caster_guid,
+                aura.slot,
+                1_u32 << effect.effect_index,
+            );
+            let amount = auras
+                .applied_aura_amounts
+                .get(&applied_effect)
+                .copied()
+                .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
+            shields.push(RepresentedAbsorbShieldLikeCpp {
+                slot: aura.slot,
+                effect_index: u8::try_from(effect.effect_index).unwrap_or(0),
+                spell_id,
+                category_id,
+                amount,
+                cannot_be_ignored: spell_store.has_attribute_for_difficulty_like_cpp(
+                    spell_id,
+                    difficulty_id,
+                    difficulty_store,
+                    6,
+                    wow_data::spell::attributes::SPELL_ATTR6_ABSORB_CANNOT_BE_IGNORE,
+                ),
+            });
+        }
+    }
+    shields
+}
+
 /// One represented `SPELL_AURA_MANA_SHIELD` of a player victim.
 ///
 /// C++ `Unit::CalcAbsorbResist`'s mana-shield loop (`Unit.cpp:1886-1930`) reads
