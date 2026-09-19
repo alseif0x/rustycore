@@ -1,8 +1,8 @@
 # RustyCore — Honest Current State (single source of truth)
 
 **Integration head — 2026-09-19:** the current integration head on `3.4.3` is
-`77606f35` (PR #1225, following the #29 creature-victim school absorb slice in
-PR #1224). The older #31
+`a82f4b2f` (PR #1226, following PR #1225's #29 creature-victim damage-immunity
+slice and PR #1224's school-absorb slice). The older #31
 diagnosis chain is retained below as historical evidence; its next entry is
 `8448bdb4`, the #31 player-aura canonical-sync diagnosis and its route
 correction, following PR #1211, the #31 caster label damage-taken term and its label authority,
@@ -178,8 +178,8 @@ check remains red only on the known hotspot ratchet; this slice adds bounded
 scenario coverage under the existing Session aggregate but changes no
 production hotspot authority or runtime-ownership ledger.
 
-**#29 negative crushing-band fidelity — 2026-09-19, implementation on the
-current branch:** the melee outcome inputs now carry the creature-control and
+**#29 negative crushing-band fidelity — 2026-09-19, integrated as PR #1226:**
+the melee outcome inputs now carry the creature-control and
 `CREATURE_FLAG_EXTRA_NO_CRUSHING_BLOWS` gates from C++
 `Unit::RollMeleeOutcomeAgainst` (`Unit.cpp:2364-2378`). The target 3.4.3 source
 computes the crushing band with the literal expression
@@ -192,7 +192,7 @@ negative eligible case, both gates, the 150% arithmetic and packet flag. The
 split-damage block remains open because it needs a second canonical damage
 target plus `DealDamage` ordering, immunity, combat-log and proc ownership;
 live DB/relogin acceptance also remains open.
-Validation on this candidate: the complete `scenarios_combat_4` suite (16/16),
+Validation on the merged candidate: the complete `scenarios_combat_4` suite (16/16),
 the complete `scenarios_combat_5` suite (6/6, including the crushing gates),
 the `wow-packet` library suite (754/754), `cargo check -p world-server`,
 format/diff checks, the physical-file ratchet and the syntax-only
