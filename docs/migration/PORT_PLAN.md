@@ -36,7 +36,7 @@ speculative AI or crate split.
 **#29 creature white-swing split/share damage — 2026-09-19, split implementation
 `5ec01cb4`, share implementation `b18fd23a`, unkillable implementation
 `11f66869`, damage-threat implementation `3cba7f7f` and replay extraction
-`027067eb`, candidate in PR #1228:** the
+`027067eb`, aura-provenance implementation `39fdab43`, candidate in PR #1228:** the
 canonical creature-melee owner consumes represented
 `SPELL_AURA_SPLIT_DAMAGE_PCT` effects in C++ `CalcAbsorbResist` order
 (`Unit.cpp:1958-2015`), after school/mana absorption and before the primary
@@ -101,11 +101,22 @@ and public paths while reducing `creature_melee_tick.rs` from 2,135 to 1,863
 lines; its private `creature_melee_sync.rs` is 341 lines and the physical
 ratchet passes without raising a ceiling.
 
+The next represented split-log slice retains each active cast's C++ Aura-base
+`CastGUID` and resolved `SpellXSpellVisualID` on the canonical Player/Creature
+slot, clears it on slot replacement/removal, and emits it in
+`SpellNonMeleeDamageLog`. Restored Player auras allocate a fresh map-owned Cast
+GUID and use the first unconditional no-caster visual. This is anchored in
+`SpellAuras.cpp:462-465`, `SpellInfo.cpp:4446-4463`,
+`Player.cpp:18036-18122` and `Unit.cpp:2003-2012`; regressions cover slot
+lifetime, active Player/Creature application, restored-Player selection and
+exact split packet bytes.
+
 This slice does not close #29. Script split handlers and the rest of generic
 `DealDamage`/proc/fear/kill behavior (including remaining AI/script hooks and
 criteria in the recursive `NODAMAGE` call), threat redirection,
 vehicle/private-object routing and Player `SpellMod::Hate`, pet/guardian
-secondary targets, aura cast-id/visual provenance and live
+secondary targets, generated cast/visual provenance for Creature spawn-addon
+and other non-cast aura producers, and live
 capture/runtime/DB acceptance remain explicit follow-on boundaries.
 
 Candidate evidence: the focused split scenarios pass 2/2, the byte-level
@@ -150,6 +161,17 @@ stopping only on the unchanged global hotspot ratchet (manifest
 `20260919T222233.238707Z-2-final.json`). The required campaign took at least
 12m10s, so the 600-second ordinary performance target remains unmet; this does
 not convert the known global gate into a green result.
+The six aura-provenance regressions pass for slot lifetime, active
+Player/Creature casts, restored Player selection and exact Player/Creature
+split-log bytes. On implementation `39fdab43`, the locked affected library
+command has zero failures (`wow-world`: 4039 passed and 1 ignored), and the
+locked `world-server`/`wow-world` production and test-target check passes in
+8m51s. Formatting/diff checks pass after the comment-only candidate delta, and
+the reviewed syntax-only ownership baseline passes with 225 production and 429
+fixture fields, 69 impl owners / 3935 exact items and 630 exact registry rows.
+This work remains part of the over-budget ordinary campaign; publication-final
+evidence is recorded on the documentation candidate rather than relabeling the
+600-second target as met.
 
 **#31 direct-damage fidelity correction — 2026-09-19, current candidate:**
 `Spell::EffectPowerDrain` calls `Unit::SpellDamageBonusTaken` with

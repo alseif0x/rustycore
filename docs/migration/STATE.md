@@ -80,7 +80,7 @@ the residual acceptance explicitly stated below.
 **#29 creature white-swing split/share damage — 2026-09-19, split implementation
 `5ec01cb4`, share implementation `b18fd23a`, unkillable implementation
 `11f66869`, damage-threat implementation `3cba7f7f` and replay extraction
-`027067eb`, candidate in PR #1228:** the
+`027067eb`, aura-provenance implementation `39fdab43`, candidate in PR #1228:** the
 map-owned creature melee path now executes the represented
 `SPELL_AURA_SPLIT_DAMAGE_PCT` tail of `Unit::CalcAbsorbResist`
 (`Unit.cpp:1958-2015`) after school and mana shields. It snapshots the primary
@@ -148,12 +148,26 @@ order and public paths unchanged while reducing `creature_melee_tick.rs` from
 2,135 to 1,863 lines; the new private `creature_melee_sync.rs` is 341 lines,
 and the physical-source ratchet passes without a ceiling increase.
 
+Cast-created Player and Creature auras now retain the C++ Aura base's
+`CastGUID` and resolved `SpellXSpellVisualID` on the canonical Unit slot, and
+slot replacement/removal clears that provenance before reuse. Restored Player
+auras allocate a fresh map-owned Cast GUID and select the first unconditional
+visual exactly as the no-caster `GetSpellXSpellVisualId()` path does. The split
+consumer reads those fields into `SpellNonMeleeDamageLog` instead of emitting
+empty/zero placeholders. This follows `Aura::Aura` (`SpellAuras.cpp:462-465`),
+`SpellInfo::GetSpellXSpellVisualId` (`SpellInfo.cpp:4446-4463`), Player aura
+load (`Player.cpp:18036-18122`) and the split log construction
+(`Unit.cpp:2003-2012`). Regressions cover slot lifetime, active Player and
+Creature cast application, restored Player selection that skips a
+caster-conditioned visual, and exact Player/Creature split packet bytes.
+
 This is a bounded represented white-swing delivery, not closure of #29 or of
 generic `Unit::DealDamage`: aura script split hooks, the remaining AI/script
 hooks and criteria, damage/proc/fear/kill side effects of the recursive
 `NODAMAGE` call, threat redirection, vehicle/private-object routing and Player
-`SpellMod::Hate`, pet/guardian secondary targets, and aura cast-id/visual
-provenance remain explicit boundaries.
+`SpellMod::Hate`, pet/guardian secondary targets, and generated cast/visual
+provenance for Creature spawn-addon and other non-cast aura producers remain
+explicit boundaries.
 No fresh 3.4.3 client capture or authorized live runtime/DB-relogin acceptance
 was performed for this candidate.
 
@@ -207,6 +221,18 @@ stopping only on the unchanged global hotspot ratchet (manifest
 `20260919T222233.238707Z-2-final.json`). This campaign took at least 12m10s
 across its required checks, so the 600-second ordinary performance target is
 not met; the correctness evidence is green apart from that known global gate.
+The aura-provenance implementation's six focused regressions pass for slot
+lifetime, active Player/Creature casts, restored Player selection and exact
+Player/Creature split-log bytes. On the tree committed as `39fdab43`, the
+locked affected library command passes with zero failures (`wow-world`: 4039
+passed and 1 ignored), and the locked `world-server`/`wow-world` production and
+test-target check passes in 8m51s. Formatting and diff checks pass after the
+comment-only candidate delta. The reviewed syntax-ownership baseline passes
+with 225 production and 429 fixture fields, 69 impl owners / 3935 exact items
+and 630 exact direct-registry rows. This continuation was part of the already
+over-budget campaign and therefore does not satisfy the ordinary 600-second
+performance target; publication-final and its manifest are recorded with the
+documentation candidate below.
 
 **#31 direct-damage fidelity correction — 2026-09-19, integrated as
 `a22e9390` by PR #1220:** the
