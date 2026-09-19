@@ -4425,6 +4425,9 @@ pub struct LegacyCreatureAggroConfigLikeCpp {
     /// to resolve a victim's `GetCreatureTypeMask` for `MeleeDamageBonusDone`.
     pub creature_template_lifecycle_store:
         Option<Arc<wow_data::CreatureTemplateLifecycleStoreLikeCpp>>,
+    /// C++ `sChrRacesStore` source for a player victim's `GetCreatureTypeMask`
+    /// in the creature-attacker melee path.
+    pub chr_races_store: Option<Arc<ChrRacesStore>>,
     pub visibility_distance_continents: f32,
     pub visibility_distance_instances: f32,
     pub visibility_distance_battlegrounds: f32,
@@ -4465,6 +4468,7 @@ impl Default for LegacyCreatureAggroConfigLikeCpp {
             difficulty_store: None,
             expected_stat_store: None,
             creature_template_lifecycle_store: None,
+            chr_races_store: None,
             visibility_distance_continents: wow_entities::DEFAULT_VISIBILITY_DISTANCE,
             visibility_distance_instances: wow_entities::DEFAULT_VISIBILITY_INSTANCE,
             visibility_distance_battlegrounds: DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP,

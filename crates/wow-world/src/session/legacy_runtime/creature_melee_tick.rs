@@ -684,6 +684,63 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                     / player.unit().data().max_health as f32
                             };
                             let stats = player.effective_combat_stats_like_cpp();
+                            // C++ `Unit::GetCreatureTypeMask` uses the
+                            // player's race entry (or a shapeshift override).
+                            // The runtime currently represents the race row;
+                            // an absent row fails closed to the same zero mask
+                            // used by the other data-backed projections.
+                            let victim_creature_type_mask = config
+                                .chr_races_store
+                                .as_ref()
+                                .and_then(|store| store.get(u32::from(player.race_like_cpp())))
+                                .and_then(|race| u32::try_from(race.creature_type).ok())
+                                .filter(|creature_type| *creature_type >= 1)
+                                .and_then(|creature_type| 1_u32.checked_shl(creature_type - 1))
+                                .unwrap_or(0);
+                            let victim_aura_state_mask = player
+                                .unit()
+                                .subsystems()
+                                .auras
+                                .aura_state_mask
+                                | crate::map_manager::WorldCreature::health_aura_state_like_cpp(
+                                    player.unit().data().health,
+                                    player.unit().data().max_health,
+                                    player.unit().is_alive(),
+                                );
+                            let victim_mechanic_mask =
+                                crate::session_rules::aura_application_mechanic_mask_like_cpp(
+                                    auras,
+                                    spell_store,
+                                    config.difficulty_store.as_deref(),
+                                );
+                            let victim_effects =
+                                crate::session_rules::player_aura_effects_all_like_cpp(
+                                    auras, spell_store,
+                                )
+                                .into_iter()
+                                .map(|effect| effect.as_applied_like_cpp())
+                                .collect::<Vec<_>>();
+                            let victim_attack_power_bonus = victim_effects
+                                .iter()
+                                .filter(|effect| {
+                                    effect.aura_type
+                                        == wow_data::spell::aura_types::
+                                            SPELL_AURA_MELEE_ATTACK_POWER_ATTACKER_BONUS
+                                })
+                                .map(|effect| effect.amount)
+                                .sum::<i32>();
+                            let creature_attacker_damage_bonus =
+                                crate::session_rules::melee_damage_bonus_done_from_effects_like_cpp(
+                                    &attacker_effects,
+                                    victim_attack_power_bonus,
+                                    victim_creature_type_mask,
+                                    victim_aura_state_mask,
+                                    victim_mechanic_mask,
+                                    false,
+                                    crate::session::legacy_attack_power_multiplier_like_cpp(
+                                        attacker.creature.unit().base_attack_speed()[0],
+                                    ),
+                                );
                         let player_block_percent =
                             crate::session_rules::player_block_percent_like_cpp(
                                 stats.shield_block,
@@ -790,6 +847,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                 bypass_armor_pct_by_caster,
                                 taken_effects,
                                 player_block_percent,
+                                creature_attacker_damage_bonus,
                             )
                         });
                     match victim {
@@ -799,6 +857,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                             bypass_armor_pct_by_caster,
                             victim_taken_effects,
                             player_block_percent,
+                            creature_attacker_damage_bonus,
                         )) => {
                             // C++ `CalculateMeleeDamage` runs
                             // `MeleeDamageBonusTaken` and
@@ -811,9 +870,14 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                 // C++ `SPELL_SCHOOL_MASK_NORMAL` (0x01).
                                 0x01,
                             );
+                            let after_done =
+                                crate::session_rules::melee_damage_bonus_done_apply_like_cpp(
+                                    damage,
+                                    creature_attacker_damage_bonus,
+                                );
                             let after_taken =
                                 crate::session_rules::melee_damage_taken_apply_like_cpp(
-                                    taken, damage,
+                                    taken, after_done,
                                 );
                             let mitigated = crate::session_rules::armor_reduced_damage_like_cpp(
                                 after_taken,
@@ -1018,6 +1082,34 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                             map_difficulty_id,
                                             config.difficulty_store.as_deref(),
                                         );
+                                    let victim_creature_type_mask = config
+                                        .creature_template_lifecycle_store
+                                        .as_ref()
+                                        .and_then(|store| store.get(victim.entry()))
+                                        .and_then(|template| {
+                                            (template.creature_type >= 1).then(|| {
+                                                1_u32.checked_shl(template.creature_type - 1)
+                                            })
+                                        })
+                                        .flatten()
+                                        .unwrap_or(0);
+                                    let victim_aura_state_mask = victim
+                                        .unit()
+                                        .subsystems()
+                                        .auras
+                                        .aura_state_mask
+                                        | crate::map_manager::WorldCreature::health_aura_state_like_cpp(
+                                            victim.unit().data().health,
+                                            victim.unit().data().max_health,
+                                            victim.is_alive(),
+                                        );
+                                    let victim_mechanic_mask =
+                                        crate::session_rules::applied_aura_mechanic_mask_like_cpp(
+                                            &victim.unit().subsystems().auras.applied_auras,
+                                            spell_store,
+                                            map_difficulty_id,
+                                            config.difficulty_store.as_deref(),
+                                        );
                                     let victim_aura_sum = |aura_type: i32| -> f32 {
                                         effects
                                             .iter()
@@ -1099,11 +1191,46 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                                                 && effect.misc_value & 0x01 != 0
                                         }),
                                     };
-                                    (facts, victim.combat_log_stats_like_cpp().armor, effects)
+                                    (
+                                        facts,
+                                        victim.combat_log_stats_like_cpp().armor,
+                                        effects,
+                                        victim_creature_type_mask,
+                                        victim_aura_state_mask,
+                                        victim_mechanic_mask,
+                                    )
                                 })
                         });
                     match victim {
-                        Some((victim_facts, victim_armor, victim_effects)) => {
+                        Some((
+                            victim_facts,
+                            victim_armor,
+                            victim_effects,
+                            victim_creature_type_mask,
+                            victim_aura_state_mask,
+                            victim_mechanic_mask,
+                        )) => {
+                            let victim_attack_power_bonus = victim_effects
+                                .iter()
+                                .filter(|effect| {
+                                    effect.aura_type
+                                        == wow_data::spell::aura_types::
+                                            SPELL_AURA_MELEE_ATTACK_POWER_ATTACKER_BONUS
+                                })
+                                .map(|effect| effect.amount)
+                                .sum::<i32>();
+                            let creature_attacker_damage_bonus =
+                                crate::session_rules::melee_damage_bonus_done_from_effects_like_cpp(
+                                    &attacker_effects,
+                                    victim_attack_power_bonus,
+                                    victim_creature_type_mask,
+                                    victim_aura_state_mask,
+                                    victim_mechanic_mask,
+                                    false,
+                                    crate::session::legacy_attack_power_multiplier_like_cpp(
+                                        attacker.creature.unit().base_attack_speed()[0],
+                                    ),
+                                );
                             let taken = crate::session_rules::melee_damage_taken_flat_pct_like_cpp(
                                 &victim_effects,
                                 &attacker_ignore_resist,
@@ -1113,7 +1240,11 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                             );
                             let after_taken =
                                 crate::session_rules::melee_damage_taken_apply_like_cpp(
-                                    taken, damage,
+                                    taken,
+                                    crate::session_rules::melee_damage_bonus_done_apply_like_cpp(
+                                        damage,
+                                        creature_attacker_damage_bonus,
+                                    ),
                                 );
                             let mitigated =
                                 crate::session_rules::armor_reduced_damage_like_cpp(
