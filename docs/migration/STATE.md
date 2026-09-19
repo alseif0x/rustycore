@@ -196,7 +196,10 @@ Validation on this candidate: the complete `scenarios_combat_4` suite (16/16),
 the complete `scenarios_combat_5` suite (6/6, including the crushing gates),
 the `wow-packet` library suite (754/754), `cargo check -p world-server`,
 format/diff checks, the physical-file ratchet and the syntax-only
-session-ownership check pass. No runtime/DB completion claim is made.
+session-ownership check pass. `validation-v2 final --base origin/3.4.3
+--timings` reached the unchanged hotspot ratchet and stopped at manifest
+`20260919T111216.939112Z-95761-final.json`; none of the changed files is one of
+the reported hotspot owners. No runtime/DB completion claim is made.
 
 **#31 negative damage-taken aura regression — 2026-09-18, implementation
 `6f1a5c02`, integrated by PR #1213:** test-only pin of the amount path the
