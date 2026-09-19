@@ -34,7 +34,8 @@ speculative AI or crate split.
 ## 1. Direction from here
 
 **#29 creature white-swing split/share damage — 2026-09-19, split implementation
-`5ec01cb4` plus share implementation `b18fd23a`, candidate in PR #1228:** the
+`5ec01cb4`, share implementation `b18fd23a` and unkillable implementation
+`11f66869`, candidate in PR #1228:** the
 canonical creature-melee owner consumes represented
 `SPELL_AURA_SPLIT_DAMAGE_PCT` effects in C++ `CalcAbsorbResist` order
 (`Unit.cpp:1958-2015`), after school/mana absorption and before the primary
@@ -66,9 +67,23 @@ event rail. Production regressions cover both target kinds, multiple and self
 shares, split/share arithmetic, evade, sparring-before-share, non-recursion and
 publication order.
 
-This slice does not close #29. Script split handlers, unrepresented attacker
-target multipliers, the rest of generic `DealDamage`/proc/fear/threat/kill
-behavior (including AI/script hooks, criteria and threat in the recursive
+All three represented Creature `DealDamage` consumers now apply the target
+3.4.3 `CREATURE_STATIC_FLAG_UNKILLABLE` gate after raw damage/log calculation
+and before the health transition (`Unit.cpp:887-898`): the primary victim and
+the split/share secondary Creature remain alive at one HP on a lethal hit from
+a different attacker, while self damage is unchanged. The primary
+`AttackerStateUpdate` and split `SpellNonMeleeDamageLog` retain the pre-clamp
+damage, matching the C++ placement. Entity and production regressions cover
+lethal/non-lethal, self/no-flag, direct primary, split and share paths, canonical
+death state and the compatibility CAS. The adjacent virtual
+`GetDamageMultiplierForTarget`/`GetHealthMultiplierForTarget` calls are 1.0
+defaults with no override in the pinned 3.4.3 source (`Unit.cpp:746-758`,
+`767-800`; `Unit.h:776-777`), so this delivery does not invent a Rust
+multiplier extension point.
+
+This slice does not close #29. Script split handlers and the rest of generic
+`DealDamage`/proc/fear/threat/kill behavior (including AI/script hooks,
+criteria and threat in the recursive
 `NODAMAGE` call), pet/guardian secondary targets, aura cast-id/visual
 provenance and live capture/runtime/DB acceptance remain explicit follow-on
 boundaries.
@@ -91,8 +106,13 @@ check from the initial timed campaign already exceed the 600s ordinary target
 at a minimum 639.42s before the library suites and command overhead; the faster
 repaired rerun does not relabel that performance target as met.
 The focused share scenarios pass 2/2 (with one unrelated name-filter match),
-and the self-share victim-session ordering regression passes 1/1. This is
-functional local evidence for committed candidate `b18fd23a`, not a green
+the self-share victim-session ordering regression passes 1/1, and the direct,
+split and share unkillable regressions pass after repairing their mirrored
+legacy/canonical setup. The exact locked affected command `cargo test --locked
+--lib --jobs 1 -p wow-entities -p wow-world` passes on `11f66869`;
+`wow-entities` reports 942 passed and `wow-world` reports 4035 passed and 1
+ignored, with the warm rerun completing in 3.04s. This is
+functional local evidence for committed candidate `11f66869`, not a green
 global architecture gate, live acceptance or satisfaction of the ordinary
 600-second performance target.
 

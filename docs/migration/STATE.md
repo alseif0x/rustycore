@@ -78,7 +78,8 @@ by the stateful module product #583 and the independent audit #153. #582 and
 the residual acceptance explicitly stated below.
 
 **#29 creature white-swing split/share damage — 2026-09-19, split implementation
-`5ec01cb4` plus share implementation `b18fd23a`, candidate in PR #1228:** the
+`5ec01cb4`, share implementation `b18fd23a` and unkillable implementation
+`11f66869`, candidate in PR #1228:** the
 map-owned creature melee path now executes the represented
 `SPELL_AURA_SPLIT_DAMAGE_PCT` tail of `Unit::CalcAbsorbResist`
 (`Unit.cpp:1958-2015`) after school and mana shields. It snapshots the primary
@@ -112,9 +113,22 @@ the same order in the map plan. Regressions cover Player/Creature targets,
 split-then-share arithmetic, multiple same-base shares, self share, evade,
 sparring-before-share, non-recursion, canonical health and packet order.
 
+The primary and both secondary Creature damage paths now preserve
+`CREATURE_STATIC_FLAG_UNKILLABLE` at the common health-commit boundary exactly
+where target 3.4.3 `Unit::DealDamage` clamps `damageTaken` to `health - 1`
+(`Unit.cpp:887-898`). A lethal hit from another Unit leaves one HP and no death
+state, while self damage, non-lethal damage and creatures without the flag are
+unchanged. Because the C++ clamp follows damage/log calculation, the primary
+attacker-state and split non-melee log continue to expose the raw amount.
+Regressions exercise the entity rule and the direct, split and share production
+consumers, including canonical-to-legacy CAS publication. The nearby virtual
+target/health multipliers remain 1.0 defaults and have no overrides anywhere in
+the pinned target source (`Unit.cpp:746-758`, `767-800`; `Unit.h:776-777`), so
+they require no speculative Rust seam.
+
 This is a bounded represented white-swing delivery, not closure of #29 or of
-generic `Unit::DealDamage`: aura script split hooks, unrepresented attacker
-target/health multipliers, the remaining AI/script, criteria,
+generic `Unit::DealDamage`: aura script split hooks, the remaining AI/script
+hooks and criteria,
 damage/proc/fear/threat/kill side effects of the recursive `NODAMAGE` call,
 pet/guardian secondary targets, and aura cast-id/visual provenance remain
 explicit boundaries.
@@ -147,8 +161,13 @@ target is not met: architecture acceptance (84.42s) plus the production check
 library suites and command overhead. The faster repaired rerun does not relabel
 that budget overrun or the red global gate as green.
 The focused share scenarios pass (2/2, plus one unrelated name-filter match),
-and the victim-session self-share ordering regression passes (1/1). This is
-functional local evidence for committed candidate `b18fd23a`, not a green
+the victim-session self-share ordering regression passes (1/1), and the direct,
+split and share unkillable regressions pass with mirrored legacy/canonical
+fixtures. The exact locked affected command `cargo test --locked --lib --jobs 1
+-p wow-entities -p wow-world` passes on `11f66869`; `wow-entities` reports 942
+passed and `wow-world` reports 4035 passed and 1 ignored. Its warm execution
+took 3.04s. This is functional local evidence for committed candidate
+`11f66869`, not a green
 global architecture gate, live acceptance or satisfaction of the ordinary
 600-second performance target.
 
