@@ -1139,6 +1139,12 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
             4,
             0x01,
         ),
+        (
+            91_514,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_RESISTANCE,
+            100_000,
+            0,
+        ),
     ] {
         spell_store.insert(
             spell_id,
@@ -1309,11 +1315,17 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
     );
 
     // Fourth swing: with the shield gone the full hit lands.
+    session
+        .apply_aura(91_514, player, 30_000, 1)
+        .expect("apply a large elemental resistance aura");
     reset_swing(&mut session);
     let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
     let command = outcome.commands.last().expect("command").clone();
     assert_eq!(command.absorbed, 0);
     assert_eq!(command.damage, 10);
+    // C++ `CalcSpellResistedDamage` returns zero before reading resistances for
+    // a non-magic school (`Unit.cpp:1688-1693`); a physical white swing must
+    // remain a ten-point hit despite the enormous aura above.
     assert_eq!(command.hit_info, HIT_INFO_AFFECTS_VICTIM);
     assert_eq!(victim_health(), 90);
 
