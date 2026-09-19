@@ -79358,8 +79358,8 @@
               "side": "canonical",
               "kind": "value_reference",
               "symbol": "canonical_manager",
-              "fingerprint": "fnv1a64x2:6cb1b4e6197d9221f4ff7888da837172:len=649",
-              "multiplicity": 13
+              "fingerprint": "fnv1a64x2:056f5ddc24bff4a8f520722047bf7bf3:len=699",
+              "multiplicity": 14
             },
             {
               "side": "canonical",
@@ -79372,8 +79372,8 @@
               "side": "canonical",
               "kind": "value_reference",
               "symbol": "map_difficulty_id",
-              "fingerprint": "fnv1a64x2:5eda7c34322c8b3809e59f7ae7583a13:len=199",
-              "multiplicity": 4
+              "fingerprint": "fnv1a64x2:7a38a95d109904282adb43a3c162efd3:len=299",
+              "multiplicity": 6
             },
             {
               "side": "canonical",
@@ -79393,8 +79393,8 @@
               "side": "canonical",
               "kind": "value_reference",
               "symbol": "victim",
-              "fingerprint": "fnv1a64x2:c2181eae7f6735f852831655cd5d14b3:len=1175",
-              "multiplicity": 24
+              "fingerprint": "fnv1a64x2:d7cb5b4b566be4202d41bf9ecaa6060b:len=1469",
+              "multiplicity": 30
             },
             {
               "side": "canonical",
@@ -79414,8 +79414,8 @@
               "side": "canonical",
               "kind": "field_access",
               "symbol": "applied_auras",
-              "fingerprint": "fnv1a64x2:a20c5ada75a0c875d4bd40434b4d6d9e:len=49",
-              "multiplicity": 1
+              "fingerprint": "fnv1a64x2:9823b0c1900aff0071d910b65ad8949b:len=99",
+              "multiplicity": 2
             },
             {
               "side": "canonical",
@@ -79427,9 +79427,16 @@
             {
               "side": "canonical",
               "kind": "field_access",
-              "symbol": "auras",
-              "fingerprint": "fnv1a64x2:70828f95c859d0df444956845097dfa0:len=49",
+              "symbol": "aura_state_mask",
+              "fingerprint": "fnv1a64x2:0cf0baff2b20905a2eedd5c9908a295d:len=49",
               "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "field_access",
+              "symbol": "auras",
+              "fingerprint": "fnv1a64x2:13d5ace4a01007f3279287834e8684a4:len=149",
+              "multiplicity": 3
             },
             {
               "side": "canonical",
@@ -79449,8 +79456,8 @@
               "side": "canonical",
               "kind": "field_access",
               "symbol": "health",
-              "fingerprint": "fnv1a64x2:048c848797e8df4066b48036525cc96b:len=149",
-              "multiplicity": 3
+              "fingerprint": "fnv1a64x2:d9239f0d9c56e0da1716e0d8f145a8c5:len=199",
+              "multiplicity": 4
             },
             {
               "side": "canonical",
@@ -79463,8 +79470,8 @@
               "side": "canonical",
               "kind": "field_access",
               "symbol": "max_health",
-              "fingerprint": "fnv1a64x2:9cbd14f838f75ebc33dc32bc1e43b447:len=99",
-              "multiplicity": 2
+              "fingerprint": "fnv1a64x2:00dc8fdb8177a19d697848904563012a:len=149",
+              "multiplicity": 3
             },
             {
               "side": "canonical",
@@ -79491,7 +79498,7 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "and_then",
-              "fingerprint": "fnv1a64x2:49a4feff6e4822ba934b5c81b5cbba99:len=256",
+              "fingerprint": "fnv1a64x2:3ba5b3d168fe9d6485961e46f2383277:len=256",
               "multiplicity": 5
             },
             {
@@ -79519,14 +79526,21 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "data",
-              "fingerprint": "fnv1a64x2:087b6cb45070baa077d280dd942037fb:len=349",
-              "multiplicity": 7
+              "fingerprint": "fnv1a64x2:1711f42cfe52aa2066c629606b7eaf7b:len=449",
+              "multiplicity": 9
             },
             {
               "side": "canonical",
               "kind": "method_call",
               "symbol": "death_state",
               "fingerprint": "fnv1a64x2:d037790c783d199c19c40459e84dde57:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "entry",
+              "fingerprint": "fnv1a64x2:7567e4f30bb44bc4b4315aee492ed4e7:len=49",
               "multiplicity": 1
             },
             {
@@ -79556,6 +79570,13 @@
               "symbol": "health_state_revision_like_cpp",
               "fingerprint": "fnv1a64x2:654dbd30de57f45db68cecff7f2037aa:len=99",
               "multiplicity": 2
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "is_alive",
+              "fingerprint": "fnv1a64x2:745f728f3c6e7c70b9af04a9eb799fbb:len=49",
+              "multiplicity": 1
             },
             {
               "side": "canonical",
@@ -79603,7 +79624,7 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "map",
-              "fingerprint": "fnv1a64x2:a561ad32f3b7001844c9555afb5c7fdb:len=204",
+              "fingerprint": "fnv1a64x2:0d0f4d1ca19439ea568f762085dee195:len=204",
               "multiplicity": 4
             },
             {
@@ -79638,15 +79659,15 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "subsystems",
-              "fingerprint": "fnv1a64x2:87c45c8f7e1ac6cb0da5fd53bdc2afac:len=49",
-              "multiplicity": 1
+              "fingerprint": "fnv1a64x2:3bd96be250e84b67eb75876bca108b68:len=149",
+              "multiplicity": 3
             },
             {
               "side": "canonical",
               "kind": "method_call",
               "symbol": "unit",
-              "fingerprint": "fnv1a64x2:cd75646ae10edf188701df4ea395c653:len=599",
-              "multiplicity": 12
+              "fingerprint": "fnv1a64x2:44df202e58127ed8916ce2efbe35c493:len=799",
+              "multiplicity": 16
             },
             {
               "side": "canonical",
@@ -79673,8 +79694,8 @@
               "side": "legacy",
               "kind": "value_reference",
               "symbol": "attacker",
-              "fingerprint": "fnv1a64x2:62cdd6dfa5ece754abfe08a9fb7eb39f:len=1665",
-              "multiplicity": 34
+              "fingerprint": "fnv1a64x2:9e662c722df53370c04ab697a89da72b:len=1763",
+              "multiplicity": 36
             },
             {
               "side": "legacy",
@@ -79696,6 +79717,13 @@
               "symbol": "guids",
               "fingerprint": "fnv1a64x2:16e8f08b74e758fc26783a2230101a2f:len=48",
               "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "health_aura_state_like_cpp",
+              "fingerprint": "fnv1a64x2:cff558a2f868b458943c5927880c3d83:len=99",
+              "multiplicity": 2
             },
             {
               "side": "legacy",
@@ -79785,14 +79813,21 @@
               "side": "legacy",
               "kind": "field_access",
               "symbol": "creature",
-              "fingerprint": "fnv1a64x2:13f6869bbce42760b14f99fda39ce86b:len=1099",
-              "multiplicity": 22
+              "fingerprint": "fnv1a64x2:fb9051b23bbc8684dac8f810e087998f:len=1199",
+              "multiplicity": 24
             },
             {
               "side": "legacy",
               "kind": "field_access",
               "symbol": "flags_extra",
               "fingerprint": "fnv1a64x2:6137046ad0e53dd0694328197ca92a1b:len=99",
+              "multiplicity": 2
+            },
+            {
+              "side": "legacy",
+              "kind": "function_call",
+              "symbol": "health_aura_state_like_cpp",
+              "fingerprint": "fnv1a64x2:f7f4f09687ece3ffe546907524e704b4:len=101",
               "multiplicity": 2
             },
             {
@@ -79807,6 +79842,13 @@
               "kind": "method_call",
               "symbol": "ai_ownership",
               "fingerprint": "fnv1a64x2:04b4c5e96d6afb59b831d50acbbf8616:len=99",
+              "multiplicity": 2
+            },
+            {
+              "side": "legacy",
+              "kind": "method_call",
+              "symbol": "base_attack_speed",
+              "fingerprint": "fnv1a64x2:c5615ec76be2f84036ec3312955c8a3b:len=99",
               "multiplicity": 2
             },
             {
@@ -79995,8 +80037,8 @@
               "side": "legacy",
               "kind": "method_call",
               "symbol": "unit",
-              "fingerprint": "fnv1a64x2:fc0672c3700ff9712ea7b210bcf5a0f6:len=349",
-              "multiplicity": 7
+              "fingerprint": "fnv1a64x2:4136bbf7d6bad031b1b21e10b38a2ff6:len=449",
+              "multiplicity": 9
             },
             {
               "side": "legacy",
@@ -80027,7 +80069,7 @@
               "multiplicity": 3
             }
           ],
-          "fingerprint": "signature=fn run_legacy_creature_melee_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , config : & crate :: session :: LegacyCreatureAggroConfigLikeCpp ,) -> LegacyCreatureMeleeTickOutcomeLikeCpp|body=fnv1a64x2:f12a444856c821b2673bd48eb073f2a9:len=33135|evidence=fnv1a64x2:bf22f91e7a02041bb923fb5d36d6289a:len=26430",
+          "fingerprint": "signature=fn run_legacy_creature_melee_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , config : & crate :: session :: LegacyCreatureAggroConfigLikeCpp ,) -> LegacyCreatureMeleeTickOutcomeLikeCpp|body=fnv1a64x2:a0b771b1395a3cde5ea3aa30d1ebd25d:len=37592|evidence=fnv1a64x2:e20b3bfd740c786418ab79d958d272cf:len=29492",
           "cfg": [],
           "multiplicity": 1
         },
