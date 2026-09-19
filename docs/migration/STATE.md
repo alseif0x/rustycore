@@ -77,9 +77,9 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
-**#29 creature white-swing split damage — 2026-09-19, implementation
-`5ec01cb4`, candidate in PR #1228:** the map-owned creature melee path now
-executes the represented
+**#29 creature white-swing split/share damage — 2026-09-19, split implementation
+`5ec01cb4` plus share implementation `b18fd23a`, candidate in PR #1228:** the
+map-owned creature melee path now executes the represented
 `SPELL_AURA_SPLIT_DAMAGE_PCT` tail of `Unit::CalcAbsorbResist`
 (`Unit.cpp:1958-2015`) after school and mana shields. It snapshots the primary
 Player/Creature victim's active split effects, applies each percentage to the
@@ -98,18 +98,39 @@ targets, missing caster, immunity, evade, sparring, health publication and
 packet order. The private split module keeps the existing melee tick facade
 below the 2,000-line hard threshold.
 
+The same owner now also executes `SPELL_AURA_SHARE_DAMAGE_PCT` at
+`Unit::DealDamage`'s post-hook point (`Unit.cpp:767-856`). Each live,
+school-matching aura is revalidated by application identity, copies a percentage
+of the same post-split and post-sparring `damageDone`, leaves the primary hit
+unchanged, and applies the secondary call as `NODAMAGE`, so another share aura
+on that target does not recurse. Player and Creature health/death remain
+canonical-map writes; Creature transitions join the revision/incarnation CAS
+chain. The primary attacker-state frame remains ahead of share mutations;
+self-share Player health publications remain on the victim-session FIFO between
+that frame and the final primary health, while Creature values updates retain
+the same order in the map plan. Regressions cover Player/Creature targets,
+split-then-share arithmetic, multiple same-base shares, self share, evade,
+sparring-before-share, non-recursion, canonical health and packet order.
+
 This is a bounded represented white-swing delivery, not closure of #29 or of
 generic `Unit::DealDamage`: aura script split hooks, unrepresented attacker
-target multipliers, the remaining damage/proc/fear/threat/kill side effects,
-pet/guardian secondary targets, aura cast-id/visual provenance, and
-`SPELL_AURA_SHARE_DAMAGE_PCT` (`Unit.cpp:833-856`) remain explicit boundaries.
+target/health multipliers, the remaining AI/script, criteria,
+damage/proc/fear/threat/kill side effects of the recursive `NODAMAGE` call,
+pet/guardian secondary targets, and aura cast-id/visual provenance remain
+explicit boundaries.
 No fresh 3.4.3 client capture or authorized live runtime/DB-relogin acceptance
 was performed for this candidate.
 
 Candidate validation: both focused split scenarios pass (2/2), the byte-level
 `SpellMissLog` regression passes (1/1), and the complete `world-server`,
 `wow-data`, `wow-packet` and `wow-world` library command passes; `wow-world`
-reports 4032 passed, 0 failed and 1 ignored. The exact locked production check
+reports 4034 passed, 0 failed and 1 ignored after the share continuation. The
+other complete suite counts are `world-server` 594, `wow-data` 754 and
+`wow-packet` 755, all with zero failures. The exact locked affected-workspace
+check (`cargo check --locked --tests --jobs 1 -p world-server -p wow-data -p
+wow-packet -p wow-world`) passes on `b18fd23a` with Cargo reporting 8m49s. The
+complete locked library command reports a 9m47s build before the suites. The
+earlier exact locked production check
 for the final affected workspace closure passes in 2m18s on the repaired warm
 candidate; formatting/diff/JSON checks pass, the physical-file ratchet passes
 without raising a ceiling, and the
@@ -118,11 +139,18 @@ syntax-only Session ownership check passes with its reviewed baseline delta.
 on the unchanged global hotspot ratchet in `session/mod.rs`,
 `handlers/character/mod.rs`, `world-server/src/lib.rs`,
 `handlers/quest/mod.rs` and `wow-entities/src/player/mod.rs` (manifest
-`20260919T152900.057141Z-2-final.json`). The ordinary campaign performance
+`20260919T201800.039244Z-2-final.json`); the standard final likewise stops at
+that unchanged ratchet (`20260919T201950.128060Z-2-final.json`). The ordinary
+campaign performance
 target is not met: architecture acceptance (84.42s) plus the production check
 (555s in the initial timed campaign) already totals at least 639.42s before the
 library suites and command overhead. The faster repaired rerun does not relabel
 that budget overrun or the red global gate as green.
+The focused share scenarios pass (2/2, plus one unrelated name-filter match),
+and the victim-session self-share ordering regression passes (1/1). This is
+functional local evidence for committed candidate `b18fd23a`, not a green
+global architecture gate, live acceptance or satisfaction of the ordinary
+600-second performance target.
 
 **#31 direct-damage fidelity correction — 2026-09-19, integrated as
 `a22e9390` by PR #1220:** the

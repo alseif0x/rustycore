@@ -33,9 +33,9 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
-**#29 creature white-swing split damage — 2026-09-19, implementation
-`5ec01cb4`, candidate in PR #1228:** the canonical creature-melee owner now
-consumes represented
+**#29 creature white-swing split/share damage — 2026-09-19, split implementation
+`5ec01cb4` plus share implementation `b18fd23a`, candidate in PR #1228:** the
+canonical creature-melee owner consumes represented
 `SPELL_AURA_SPLIT_DAMAGE_PCT` effects in C++ `CalcAbsorbResist` order
 (`Unit.cpp:1958-2015`), after school/mana absorption and before the primary
 health commit. Sequential percentages use the current remaining damage. Valid
@@ -53,24 +53,48 @@ immunity, evade, sparring, canonical health and publication order; a byte-level
 packet regression pins the 3.4.3 `SpellMissLog` field order
 (`CombatLogPackets.cpp:289-297`).
 
+The continuation also consumes `SPELL_AURA_SHARE_DAMAGE_PCT` at the represented
+`Unit::DealDamage` boundary (`Unit.cpp:767-856`). It revalidates copied aura
+applications, uses the same post-split/post-sparring `damageDone` for every
+matching aura without subtracting from the primary hit, and applies secondary
+Player/Creature health through canonical map authority. The recursive call's
+`NODAMAGE` type prevents share recursion and adds no independent combat-log or
+proc frame. Creature revisions retain the canonical-to-legacy CAS chain;
+primary attacker-state, self-share Player health and final primary health retain
+C++ order on the session FIFO, with the corresponding Creature order on the map
+event rail. Production regressions cover both target kinds, multiple and self
+shares, split/share arithmetic, evade, sparring-before-share, non-recursion and
+publication order.
+
 This slice does not close #29. Script split handlers, unrepresented attacker
 target multipliers, the rest of generic `DealDamage`/proc/fear/threat/kill
-behavior, pet/guardian split targets, aura cast-id/visual provenance,
-`SPELL_AURA_SHARE_DAMAGE_PCT` (`Unit.cpp:833-856`) and live capture/runtime/DB
-acceptance remain explicit follow-on boundaries.
+behavior (including AI/script hooks, criteria and threat in the recursive
+`NODAMAGE` call), pet/guardian secondary targets, aura cast-id/visual
+provenance and live capture/runtime/DB acceptance remain explicit follow-on
+boundaries.
 
 Candidate evidence: the focused split scenarios pass 2/2, the byte-level
 `SpellMissLog` regression passes 1/1, and the complete locked library command
 for `world-server`, `wow-data`, `wow-packet` and `wow-world` passes
-(`wow-world`: 4032 passed, 0 failed, 1 ignored). The affected locked workspace
-check passes in 2m18s on the final repaired warm candidate; formatting, diff,
+(`world-server`: 594; `wow-data`: 754; `wow-packet`: 755; `wow-world`: 4034
+passed and 1 ignored; zero failures). The locked affected-workspace check with
+tests passes on `b18fd23a` with Cargo reporting 8m49s; the complete locked
+library command reports a 9m47s build before the suites. The earlier affected
+locked workspace check passes in 2m18s on the repaired warm split candidate;
+formatting, diff,
 JSON, physical-file and syntax-only Session ownership checks pass without a new
 physical ceiling. The architecture final stops only on the unchanged global
 hotspot baseline (manifest
-`20260919T152900.057141Z-2-final.json`). Its 84.42s plus the 555s production
+`20260919T201800.039244Z-2-final.json`), as does the standard final
+(`20260919T201950.128060Z-2-final.json`). Its earlier 84.42s plus the 555s production
 check from the initial timed campaign already exceed the 600s ordinary target
 at a minimum 639.42s before the library suites and command overhead; the faster
 repaired rerun does not relabel that performance target as met.
+The focused share scenarios pass 2/2 (with one unrelated name-filter match),
+and the self-share victim-session ordering regression passes 1/1. This is
+functional local evidence for committed candidate `b18fd23a`, not a green
+global architecture gate, live acceptance or satisfaction of the ordinary
+600-second performance target.
 
 **#31 direct-damage fidelity correction — 2026-09-19, current candidate:**
 `Spell::EffectPowerDrain` calls `Unit::SpellDamageBonusTaken` with
