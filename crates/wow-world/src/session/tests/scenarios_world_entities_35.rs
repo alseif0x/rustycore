@@ -308,9 +308,18 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
             50,
             0x01,
         ),
+        damage_aura_spell_like_cpp(
+            91_398,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_THREAT,
+            50,
+            0x01,
+        ),
     ] {
         spells.insert(spell.spell_id, spell);
     }
+    let mut no_threat_attributes = [0; 15];
+    no_threat_attributes[1] = wow_data::spell::attributes::SPELL_ATTR1_NO_THREAT;
+    spells.insert_spell_misc_attributes_like_cpp(91_396, no_threat_attributes);
     let spells = Arc::new(spells);
     session.set_spell_store(Arc::clone(&spells));
     session
@@ -324,6 +333,17 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
                     91_394,
                     attacker_guid,
                     0,
+                    1,
+                ));
+            creature
+                .creature
+                .unit_mut()
+                .subsystems_mut()
+                .auras
+                .add_applied(wow_entities::AppliedAuraRef::new(
+                    91_398,
+                    attacker_guid,
+                    1,
                     1,
                 ));
         })
@@ -358,10 +378,31 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
                 0,
                 1,
             ));
+        map.get_typed_creature_mut(attacker_guid)
+            .unwrap()
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .add_applied(wow_entities::AppliedAuraRef::new(
+                91_398,
+                attacker_guid,
+                1,
+                1,
+            ));
     }
 
     let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
         spell_store: Some(spells),
+        spell_threat_store: Some(Arc::new(wow_data::SpellThreatStoreLikeCpp {
+            entries_by_spell_id: std::collections::HashMap::from([(
+                91_395,
+                wow_data::SpellThreatEntryLikeCpp {
+                    flat_mod: 0,
+                    pct_mod: 2.0,
+                    ap_pct_mod: 0.0,
+                },
+            )]),
+        })),
         ..Default::default()
     };
     manager
@@ -391,6 +432,72 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
                 .health,
             100
         );
+        assert_eq!(
+            map.with_creature_like_cpp(victim_guid, |victim| victim
+                .unit()
+                .subsystems()
+                .combat
+                .threat_value(attacker_guid))
+                .flatten(),
+            Some(15.0),
+            "NO_THREAT suppresses self-share while physical threat uses MOD_THREAT"
+        );
+        assert_eq!(
+            map.with_creature_like_cpp(secondary_guid, |victim| victim
+                .unit()
+                .subsystems()
+                .combat
+                .threat_value(attacker_guid))
+                .flatten(),
+            Some(15.0),
+            "spell pctMod and the attacker's school modifier both apply"
+        );
+        let threatened_by = map
+            .with_creature_like_cpp(attacker_guid, |attacker| {
+                attacker
+                    .unit()
+                    .subsystems()
+                    .combat
+                    .threatened_by_me_owner_guids()
+            })
+            .unwrap();
+        assert!(threatened_by.contains(&victim_guid));
+        assert!(threatened_by.contains(&secondary_guid));
+    }
+    {
+        let manager = manager.read().unwrap();
+        assert_eq!(
+            manager
+                .find_creature(0, 0, victim_guid)
+                .unwrap()
+                .creature
+                .unit()
+                .subsystems()
+                .combat
+                .threat_value(attacker_guid),
+            Some(15.0)
+        );
+        assert_eq!(
+            manager
+                .find_creature(0, 0, secondary_guid)
+                .unwrap()
+                .creature
+                .unit()
+                .subsystems()
+                .combat
+                .threat_value(attacker_guid),
+            Some(15.0)
+        );
+        let threatened_by = manager
+            .find_creature(0, 0, attacker_guid)
+            .unwrap()
+            .creature
+            .unit()
+            .subsystems()
+            .combat
+            .threatened_by_me_owner_guids();
+        assert!(threatened_by.contains(&victim_guid));
+        assert!(threatened_by.contains(&secondary_guid));
     }
     assert_eq!(outcome.legacy_creature_victim_syncs, 3);
     assert!(!outcome.plan.events.iter().any(|event| {
@@ -549,6 +656,187 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
     assert_eq!(unkillable.legacy_creature_victim_syncs, 3);
 }
 
+/// `SPELL_ATTR2_NO_INITIAL_THREAT` does not prevent the recursive share
+/// damage, but `ThreatManager::AddThreat` skips a target that is not engaged.
+/// Once that same target already has combat, a later share creates threat.
+#[test]
+fn legacy_creature_melee_share_honors_no_initial_threat_like_cpp() {
+    use crate::map_manager::RuntimeTickOwner;
+
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    canonical.lock().unwrap().create_world_map(0, 0);
+    let attacker_guid = test_creature_guid(91_401);
+    let victim_guid = test_creature_guid(91_402);
+    let secondary_guid = test_creature_guid(91_403);
+    let (mut session, _, _) = make_session();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    for guid in [attacker_guid, victim_guid, secondary_guid] {
+        register_test_creature(&mut session, manager.clone(), guid, 100);
+    }
+    session
+        .mutate_world_creature(attacker_guid, |creature| {
+            creature.creature.ai_ownership_mut().min_damage = 10;
+            creature.creature.ai_ownership_mut().max_damage = 10;
+            creature.creature.set_flags_extra_runtime_like_cpp(
+                wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
+            );
+            creature.enter_combat(victim_guid);
+            creature.creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+        })
+        .unwrap();
+
+    let hit_spell_id = 91_404;
+    let share_spell_id = 91_405;
+    let mut spells = wow_data::SpellStore::new();
+    spells.insert(
+        hit_spell_id,
+        damage_aura_spell_like_cpp(
+            hit_spell_id,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_HIT_CHANCE,
+            5,
+            0,
+        ),
+    );
+    spells.insert(
+        share_spell_id,
+        damage_aura_spell_like_cpp(
+            share_spell_id,
+            wow_data::spell::aura_types::SPELL_AURA_SHARE_DAMAGE_PCT,
+            50,
+            0x01,
+        ),
+    );
+    let mut attributes = [0; 15];
+    attributes[2] = wow_data::spell::attributes::SPELL_ATTR2_NO_INITIAL_THREAT;
+    spells.insert_spell_misc_attributes_like_cpp(share_spell_id, attributes);
+    let spells = Arc::new(spells);
+    session
+        .mutate_world_creature(attacker_guid, |creature| {
+            creature
+                .creature
+                .unit_mut()
+                .subsystems_mut()
+                .auras
+                .add_applied(wow_entities::AppliedAuraRef::new(
+                    hit_spell_id as u32,
+                    attacker_guid,
+                    0,
+                    1,
+                ));
+        })
+        .unwrap();
+    canonical
+        .lock()
+        .unwrap()
+        .find_map_mut(0, 0)
+        .unwrap()
+        .map_mut()
+        .get_typed_creature_mut(victim_guid)
+        .unwrap()
+        .unit_mut()
+        .subsystems_mut()
+        .auras
+        .add_applied(wow_entities::AppliedAuraRef::new(
+            share_spell_id as u32,
+            secondary_guid,
+            0,
+            1,
+        ));
+    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+        spell_store: Some(spells),
+        ..Default::default()
+    };
+    manager
+        .write()
+        .unwrap()
+        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+    let first = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    assert_eq!(first.legacy_creature_victim_syncs, 2);
+    {
+        let canonical = canonical.lock().unwrap();
+        let map = canonical.find_map(0, 0).unwrap().map();
+        let (health, threat, ai_state) = map
+            .with_creature_like_cpp(secondary_guid, |secondary| {
+                (
+                    secondary.unit().data().health,
+                    secondary
+                        .unit()
+                        .subsystems()
+                        .combat
+                        .threat_value(attacker_guid),
+                    secondary.ai_ownership().state,
+                )
+            })
+            .unwrap();
+        assert_eq!(health, 95);
+        assert_eq!(threat, None);
+        assert_ne!(ai_state, wow_entities::CreatureAiState::InCombat);
+    }
+
+    {
+        let mut canonical = canonical.lock().unwrap();
+        canonical
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_creature_mut(secondary_guid)
+            .unwrap()
+            .unit_mut()
+            .subsystems_mut()
+            .combat
+            .set_in_combat_with(attacker_guid, false, false);
+    }
+    session
+        .mutate_world_creature(secondary_guid, |creature| {
+            creature
+                .creature
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .set_in_combat_with(attacker_guid, false, false);
+        })
+        .unwrap();
+    session
+        .mutate_world_creature(attacker_guid, |creature| {
+            creature.creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+        })
+        .unwrap();
+    let second = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    assert_eq!(second.legacy_creature_victim_syncs, 2);
+    for threat in [
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .with_creature_like_cpp(secondary_guid, |secondary| {
+                secondary
+                    .unit()
+                    .subsystems()
+                    .combat
+                    .threat_value(attacker_guid)
+            })
+            .flatten(),
+        manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, secondary_guid)
+            .unwrap()
+            .creature
+            .unit()
+            .subsystems()
+            .combat
+            .threat_value(attacker_guid),
+    ] {
+        assert_eq!(threat, Some(5.0));
+    }
+}
+
 /// `Unit::DealDamage` applies the Creature static-flag clamp after the melee
 /// result has already been serialized. The client therefore sees the raw hit,
 /// while canonical health, death and the compatibility mirror retain 1 HP.
@@ -562,10 +850,14 @@ fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
     canonical.lock().unwrap().create_world_map(0, 0);
     let attacker_guid = test_creature_guid(91_398);
     let victim_guid = test_creature_guid(91_399);
+    let zero_damage_victim_guid = test_creature_guid(91_400);
+    let lethal_victim_guid = test_creature_guid(91_406);
     let (mut session, _, _) = make_session();
     session.set_canonical_map_manager(Arc::clone(&canonical));
     register_test_creature(&mut session, manager.clone(), attacker_guid, 100);
     register_test_creature(&mut session, manager.clone(), victim_guid, 4);
+    register_test_creature(&mut session, manager.clone(), zero_damage_victim_guid, 1);
+    register_test_creature(&mut session, manager.clone(), lethal_victim_guid, 4);
     session
         .mutate_world_creature(attacker_guid, |creature| {
             creature.creature.ai_ownership_mut().min_damage = 10;
@@ -578,15 +870,13 @@ fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
     {
         let mut static_flags = [0; 8];
         static_flags[0] = wow_constants::creature::CreatureStaticFlags::UNKILLABLE.bits();
-        canonical
-            .lock()
-            .unwrap()
-            .find_map_mut(0, 0)
-            .unwrap()
-            .map_mut()
-            .get_typed_creature_mut(victim_guid)
-            .unwrap()
-            .set_static_flags_runtime_like_cpp(static_flags);
+        let mut canonical = canonical.lock().unwrap();
+        let map = canonical.find_map_mut(0, 0).unwrap().map_mut();
+        for guid in [victim_guid, zero_damage_victim_guid] {
+            map.get_typed_creature_mut(guid)
+                .unwrap()
+                .set_static_flags_runtime_like_cpp(static_flags);
+        }
     }
     manager
         .write()
@@ -599,7 +889,7 @@ fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
         &Default::default(),
     );
     let canonical_guard = canonical.lock().unwrap();
-    let (health, alive, ai_state) = canonical_guard
+    let (health, alive, ai_state, threat, reciprocal) = canonical_guard
         .find_map(0, 0)
         .unwrap()
         .map()
@@ -608,15 +898,60 @@ fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
                 victim.unit().data().health,
                 victim.is_alive(),
                 victim.ai_ownership().state,
+                victim
+                    .unit()
+                    .subsystems()
+                    .combat
+                    .threat_value(attacker_guid),
+                canonical_guard
+                    .find_map(0, 0)
+                    .unwrap()
+                    .map()
+                    .with_creature_like_cpp(attacker_guid, |attacker| {
+                        attacker
+                            .unit()
+                            .subsystems()
+                            .combat
+                            .threatened_by_me_owner_guids()
+                            .contains(&victim_guid)
+                    })
+                    .unwrap(),
             )
         })
         .unwrap();
     assert_eq!(health, 1);
     assert!(alive);
     assert_ne!(ai_state, wow_entities::CreatureAiState::Dead);
+    assert_eq!(threat, Some(3.0), "threat uses post-UNKILLABLE damage");
+    assert!(reciprocal);
     drop(canonical_guard);
     assert_eq!(outcome.canonical_creature_hits, 1);
     assert_eq!(outcome.legacy_creature_victim_syncs, 1);
+    {
+        let manager = manager.read().unwrap();
+        assert_eq!(
+            manager
+                .find_creature(0, 0, victim_guid)
+                .unwrap()
+                .creature
+                .unit()
+                .subsystems()
+                .combat
+                .threat_value(attacker_guid),
+            Some(3.0)
+        );
+        assert!(
+            manager
+                .find_creature(0, 0, attacker_guid)
+                .unwrap()
+                .creature
+                .unit()
+                .subsystems()
+                .combat
+                .threatened_by_me_owner_guids()
+                .contains(&victim_guid)
+        );
+    }
 
     let attacker_state = outcome
         .plan
@@ -641,4 +976,131 @@ fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
         10,
         "the pre-DealDamage attacker-state packet retains raw damage"
     );
+
+    // `damageDone` is still ten, but UNKILLABLE clamps `damageTaken` to zero
+    // at one HP. C++ still calls AddThreat(0), entering combat and creating
+    // reciprocal references without increasing the numeric value.
+    session
+        .mutate_world_creature(attacker_guid, |creature| {
+            creature.enter_combat(zero_damage_victim_guid);
+            creature.creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+        })
+        .unwrap();
+    let zero_damage = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
+    assert_eq!(zero_damage.legacy_creature_victim_syncs, 1);
+    {
+        let canonical = canonical.lock().unwrap();
+        let map = canonical.find_map(0, 0).unwrap().map();
+        let (health, ai_state, threat) = map
+            .with_creature_like_cpp(zero_damage_victim_guid, |victim| {
+                (
+                    victim.unit().data().health,
+                    victim.ai_ownership().state,
+                    victim
+                        .unit()
+                        .subsystems()
+                        .combat
+                        .threat_value(attacker_guid),
+                )
+            })
+            .unwrap();
+        assert_eq!(health, 1);
+        assert_eq!(ai_state, wow_entities::CreatureAiState::InCombat);
+        assert_eq!(threat, Some(0.0));
+        assert!(
+            map.with_creature_like_cpp(attacker_guid, |attacker| {
+                attacker
+                    .unit()
+                    .subsystems()
+                    .combat
+                    .threatened_by_me_owner_guids()
+                    .contains(&zero_damage_victim_guid)
+            })
+            .unwrap()
+        );
+    }
+    {
+        let manager = manager.read().unwrap();
+        let victim = manager
+            .find_creature(0, 0, zero_damage_victim_guid)
+            .unwrap();
+        assert_eq!(victim.creature.unit().data().health, 1);
+        assert_eq!(victim.state(), wow_entities::CreatureAiState::InCombat);
+        assert_eq!(
+            victim
+                .creature
+                .unit()
+                .subsystems()
+                .combat
+                .threat_value(attacker_guid),
+            Some(0.0)
+        );
+        assert!(
+            manager
+                .find_creature(0, 0, attacker_guid)
+                .unwrap()
+                .creature
+                .unit()
+                .subsystems()
+                .combat
+                .threatened_by_me_owner_guids()
+                .contains(&zero_damage_victim_guid)
+        );
+    }
+
+    session
+        .mutate_world_creature(attacker_guid, |creature| {
+            creature.enter_combat(lethal_victim_guid);
+            creature.creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+        })
+        .unwrap();
+    let lethal = run_legacy_creature_melee_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &Default::default(),
+    );
+    assert_eq!(lethal.legacy_creature_victim_syncs, 1);
+    {
+        let canonical = canonical.lock().unwrap();
+        let (health, threat) = canonical
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .with_creature_like_cpp(lethal_victim_guid, |victim| {
+                (
+                    victim.unit().data().health,
+                    victim
+                        .unit()
+                        .subsystems()
+                        .combat
+                        .threat_value(attacker_guid),
+                )
+            })
+            .unwrap();
+        assert_eq!(health, 0);
+        assert_eq!(
+            threat, None,
+            "the lethal branch does not execute nonlethal threat settlement"
+        );
+    }
+    {
+        let manager = manager.read().unwrap();
+        let victim = manager.find_creature(0, 0, lethal_victim_guid).unwrap();
+        assert_eq!(victim.creature.unit().data().health, 0);
+        assert_eq!(
+            victim
+                .creature
+                .unit()
+                .subsystems()
+                .combat
+                .threat_value(attacker_guid),
+            None
+        );
+    }
 }

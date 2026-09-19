@@ -869,6 +869,7 @@ pub(crate) fn legacy_creature_aggro_config_like_cpp(
         spell_casting_requirements_store: None,
         spell_aura_restrictions_store: None,
         spell_store: None,
+        spell_threat_store: None,
         spell_chain_store: None,
         spell_linked_store: None,
         spell_condition_store: None,

@@ -31,6 +31,9 @@ pub(super) fn apply_melee_split_damage_like_cpp(
     school_mask: u32,
     attacker_is_player_controlled: bool,
     spell_store: &wow_data::SpellStore,
+    spell_misc_store: Option<&wow_data::SpellMiscStore>,
+    spell_threat_store: Option<&wow_data::SpellThreatStoreLikeCpp>,
+    spell_chain_store: Option<&wow_data::SpellChainStoreLikeCpp>,
     difficulty_id: u8,
     difficulty_store: Option<&wow_data::DifficultyStore>,
 ) -> MeleeSplitDamageOutcomeLikeCpp {
@@ -130,6 +133,9 @@ pub(super) fn apply_melee_split_damage_like_cpp(
             school_mask,
             attacker_is_player_controlled,
             spell_store,
+            spell_misc_store,
+            spell_threat_store,
+            spell_chain_store,
             difficulty_id,
             difficulty_store,
         ) else {
@@ -178,6 +184,9 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
     school_mask: u32,
     attacker_is_player_controlled: bool,
     spell_store: &wow_data::SpellStore,
+    spell_misc_store: Option<&wow_data::SpellMiscStore>,
+    spell_threat_store: Option<&wow_data::SpellThreatStoreLikeCpp>,
+    spell_chain_store: Option<&wow_data::SpellChainStoreLikeCpp>,
     difficulty_id: u8,
     difficulty_store: Option<&wow_data::DifficultyStore>,
 ) -> Option<SecondarySplitDamageOutcomeLikeCpp> {
@@ -266,6 +275,17 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
         split_damage
     };
     let secondary_absorbed = split_damage - secondary_damage;
+    let threat_plan = super::creature_melee_threat::plan_creature_damage_threat_like_cpp(
+        managed.map(),
+        attacker_guid,
+        Some(spell_id),
+        Some(spell_store),
+        spell_misc_store,
+        spell_threat_store,
+        spell_chain_store,
+        difficulty_id,
+        difficulty_store,
+    );
     let mut mutation_events = Vec::new();
     let pre_hit_health;
     let mut creature_sync = None;
@@ -327,10 +347,28 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
                 );
                 caster.unit_mut().set_health(0);
             }
+            let threat = if killed {
+                None
+            } else {
+                super::creature_melee_threat::apply_creature_damage_threat_on_map_like_cpp(
+                    canonical_manager
+                        .find_map_mut(u32::from(map_id), instance_id)?
+                        .map_mut(),
+                    caster_guid,
+                    attacker_guid,
+                    applied_damage,
+                    threat_plan,
+                )
+            };
+            let caster = canonical_manager
+                .find_map_mut(u32::from(map_id), instance_id)?
+                .map_mut()
+                .get_typed_creature_mut(caster_guid)?;
             let health_after = caster.unit().data().health;
             let revision_after = caster.unit().health_state_revision_like_cpp();
             creature_sync = Some(CreatureMeleeVictimSyncStateLikeCpp {
                 applied_damage,
+                threat,
                 victim_health_before: pre_hit_health,
                 victim_health_after: health_after,
                 victim_health_state_revision_before: revision_before,

@@ -4410,6 +4410,7 @@ pub struct LegacyCreatureAggroConfigLikeCpp {
     pub spell_casting_requirements_store: Option<Arc<wow_data::SpellCastingRequirementsStore>>,
     pub spell_aura_restrictions_store: Option<Arc<SpellAuraRestrictionsStore>>,
     pub spell_store: Option<Arc<SpellStore>>,
+    pub spell_threat_store: Option<Arc<wow_data::SpellThreatStoreLikeCpp>>,
     pub spell_chain_store: Option<Arc<SpellChainStoreLikeCpp>>,
     pub spell_linked_store: Option<Arc<SpellLinkedStoreLikeCpp>>,
     pub spell_condition_store: Option<Arc<ConditionEntriesByTypeStore>>,
@@ -4457,6 +4458,7 @@ impl Default for LegacyCreatureAggroConfigLikeCpp {
             spell_casting_requirements_store: None,
             spell_aura_restrictions_store: None,
             spell_store: None,
+            spell_threat_store: None,
             spell_chain_store: None,
             spell_linked_store: None,
             spell_condition_store: None,
@@ -17028,6 +17030,7 @@ struct CreatureMeleeVictimSyncIdentityLikeCpp {
 
 struct CreatureMeleeVictimSyncStateLikeCpp {
     applied_damage: u32,
+    threat: Option<legacy_runtime::CreatureDamageThreatOutcomeLikeCpp>,
     victim_health_before: u64,
     victim_health_after: u64,
     victim_health_state_revision_before: u64,
@@ -17039,6 +17042,7 @@ enum CreatureMeleeApplyResultLikeCpp {
     Ready,
     Hit {
         victim_applied_damage: u32,
+        victim_threat: Option<legacy_runtime::CreatureDamageThreatOutcomeLikeCpp>,
         victim_health_before: u64,
         victim_health_after: u64,
         victim_health_state_revision_before: u64,

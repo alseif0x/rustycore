@@ -646,6 +646,7 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_player_on_map
     };
     CreatureMeleeApplyResultLikeCpp::Hit {
         victim_applied_damage: damage,
+        victim_threat: None,
         victim_health_before: health_before,
         victim_health_after: health_after,
         victim_health_state_revision_before: health_state_revision_before,
@@ -673,6 +674,7 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
     absorbed: u32,
     wire_health_before: Option<u64>,
     represented_damage_done: Option<u32>,
+    threat_plan: super::creature_melee_threat::CreatureDamageThreatPlanLikeCpp,
 ) -> CreatureMeleeApplyResultLikeCpp {
     use wow_packet::ServerPacket;
     use wow_packet::packets::combat::{
@@ -694,6 +696,7 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
         victim_ai_state_before,
         target_level,
         damage,
+        damage_done,
         applied_damage,
         hit_info,
     ) = match {
@@ -746,7 +749,7 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
             let Some(damage) = damage else {
                 return Err(CreatureMeleeApplyResultLikeCpp::Ready);
             };
-            let applied_damage = represented_damage_done.unwrap_or_else(|| {
+            let damage_done = represented_damage_done.unwrap_or_else(|| {
                 victim.calculate_damage_for_sparring_like_cpp(
                     true,
                     attacker_is_player_controlled,
@@ -757,10 +760,8 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
             // the unkillable Creature clamp later inside `DealDamage`, after
             // sparring and the share loop, so only the health transition uses
             // this reduced amount.
-            let applied_damage = victim.damage_after_unkillable_gate_like_cpp(
-                attacker_guid == victim_guid,
-                applied_damage,
-            );
+            let applied_damage = victim
+                .damage_after_unkillable_gate_like_cpp(attacker_guid == victim_guid, damage_done);
             let mut hit_info =
                 outcome_presentation.map_or(HIT_INFO_AFFECTS_VICTIM, |(info, _, _)| info);
             if victim.should_fake_damage_from_like_cpp(true, attacker_is_player_controlled) {
@@ -778,6 +779,7 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
                 victim.ai_ownership().state,
                 victim.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
                 damage,
+                damage_done,
                 applied_damage,
                 hit_info,
             ))
@@ -805,17 +807,36 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
     }
     let health_after = victim.unit().data().health;
     let health_state_revision_after = victim.unit().health_state_revision_like_cpp();
-    let victim_creature_sync_identity = CreatureMeleeVictimSyncIdentityLikeCpp {
-        authority: victim_incarnation_authority,
-        health_state_revision_authority: victim_health_state_revision_authority,
-        spawn_id: victim_spawn_id,
-        loot_lifecycle_revision_before: victim_loot_lifecycle_revision_before,
-        loot_lifecycle_revision_after: victim.loot_lifecycle_revision_like_cpp(),
-        death_state_before: victim_death_state_before,
-        death_state_after: victim.unit().death_state(),
-        ai_state_before: victim_ai_state_before,
-        ai_state_after: victim.ai_ownership().state,
+    // C++ returns before `AddThreat` when sparring reduced `damageDone` to
+    // zero. `UNKILLABLE` clamps only the later `damageTaken`, so that path
+    // still reaches `AddThreat(0)` and establishes combat references.
+    let victim_threat = if killed || damage_done == 0 {
+        None
+    } else {
+        super::creature_melee_threat::apply_creature_damage_threat_on_map_like_cpp(
+            managed.map_mut(),
+            victim_guid,
+            attacker_guid,
+            applied_damage,
+            threat_plan,
+        )
     };
+    let victim_creature_sync_identity = managed
+        .map()
+        .with_creature_like_cpp(victim_guid, |victim| {
+            CreatureMeleeVictimSyncIdentityLikeCpp {
+                authority: victim_incarnation_authority,
+                health_state_revision_authority: victim_health_state_revision_authority,
+                spawn_id: victim_spawn_id,
+                loot_lifecycle_revision_before: victim_loot_lifecycle_revision_before,
+                loot_lifecycle_revision_after: victim.loot_lifecycle_revision_like_cpp(),
+                death_state_before: victim_death_state_before,
+                death_state_after: victim.unit().death_state(),
+                ai_state_before: victim_ai_state_before,
+                ai_state_after: victim.ai_ownership().state,
+            }
+        })
+        .expect("the just-mutated creature remains in the canonical map");
     // C++ serializes AttackerStateUpdate before DealMeleeDamage applies the
     // creature sparring clamp. Its overkill field therefore uses the raw wire
     // damage against pre-hit health, not the post-sparring applied damage.
@@ -827,7 +848,10 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
     } else {
         -1
     };
-    let values_update = victim.unit().values_update();
+    let values_update = managed
+        .map()
+        .with_creature_like_cpp(victim_guid, |victim| victim.unit().values_update())
+        .expect("the just-mutated creature remains in the canonical map");
 
     let mut events = Vec::new();
     events.push(RuntimeEvent {
@@ -867,6 +891,7 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
 
     CreatureMeleeApplyResultLikeCpp::Hit {
         victim_applied_damage: applied_damage,
+        victim_threat,
         victim_health_before: health_before,
         victim_health_after: health_after,
         victim_health_state_revision_before: health_state_revision_before,
@@ -919,6 +944,12 @@ pub(in crate::session) fn apply_creature_melee_victim_sync_to_legacy_like_cpp(
 
     let killed = victim
         .take_damage_before_death_state_at_game_time_like_cpp(sync.applied_damage, game_time_secs);
+    if !killed && let Some(threat) = &sync.threat {
+        victim.enter_combat(threat.attacker_guid);
+        let combat = &mut victim.creature.unit_mut().subsystems_mut().combat;
+        combat.set_in_combat_with(threat.attacker_guid, false, false);
+        combat.add_threat(threat.attacker_guid, threat.delta);
+    }
     if killed {
         victim.complete_death_state_after_kill_hooks_at_game_time_like_cpp(game_time_secs);
         victim.creature.unit_mut().set_health(0);

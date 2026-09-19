@@ -5580,6 +5580,7 @@ fn creature_melee_sync_state_for_test_like_cpp(
     }
     CreatureMeleeVictimSyncStateLikeCpp {
         applied_damage,
+        threat: None,
         victim_health_before: health_before,
         victim_health_after: canonical.creature.unit().data().health,
         victim_health_state_revision_before: revision_before,

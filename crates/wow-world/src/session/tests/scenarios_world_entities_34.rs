@@ -562,6 +562,64 @@ fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
                 .health,
             95
         );
+        assert_eq!(
+            map.with_creature_like_cpp(victim_guid, |victim| victim
+                .unit()
+                .subsystems()
+                .combat
+                .threat_value(attacker_guid))
+                .flatten(),
+            Some(5.0),
+            "the primary call settles threat from its post-split damage"
+        );
+        assert_eq!(
+            map.with_creature_like_cpp(split_target_guid, |victim| victim
+                .unit()
+                .subsystems()
+                .combat
+                .threat_value(attacker_guid))
+                .flatten(),
+            Some(5.0),
+            "the recursive split call settles its own threat"
+        );
+        let threatened_by = map
+            .with_creature_like_cpp(attacker_guid, |attacker| {
+                attacker
+                    .unit()
+                    .subsystems()
+                    .combat
+                    .threatened_by_me_owner_guids()
+            })
+            .unwrap();
+        assert!(threatened_by.contains(&victim_guid));
+        assert!(threatened_by.contains(&split_target_guid));
+    }
+    {
+        let manager = manager.read().unwrap();
+        for target_guid in [victim_guid, split_target_guid] {
+            assert_eq!(
+                manager
+                    .find_creature(0, 0, target_guid)
+                    .unwrap()
+                    .creature
+                    .unit()
+                    .subsystems()
+                    .combat
+                    .threat_value(attacker_guid),
+                Some(5.0),
+                "the compatibility mirror replays each damage call's threat"
+            );
+        }
+        let threatened_by = manager
+            .find_creature(0, 0, attacker_guid)
+            .unwrap()
+            .creature
+            .unit()
+            .subsystems()
+            .combat
+            .threatened_by_me_owner_guids();
+        assert!(threatened_by.contains(&victim_guid));
+        assert!(threatened_by.contains(&split_target_guid));
     }
     let opcodes = outcome
         .plan

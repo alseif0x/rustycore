@@ -5192,6 +5192,7 @@ async fn run_inner(
     legacy_creature_aggro_config.spell_aura_restrictions_store =
         Some(Arc::clone(&spell_aura_restrictions_store));
     legacy_creature_aggro_config.spell_store = Some(Arc::clone(&spell_store));
+    legacy_creature_aggro_config.spell_threat_store = Some(Arc::clone(&spell_threat_store));
     legacy_creature_aggro_config.spell_chain_store = Some(Arc::clone(&spell_chain_store));
     legacy_creature_aggro_config.spell_linked_store = Some(Arc::clone(&spell_linked_store));
     legacy_creature_aggro_config.spell_condition_store = Some(Arc::clone(&condition_store));

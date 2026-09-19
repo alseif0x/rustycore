@@ -561,6 +561,22 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                 .map_mut()
                 .relocate_map_object_like_cpp(swing.attacker_guid, swing.attacker_position);
         }
+        let primary_threat_plan = canonical_manager
+            .find_map(u32::from(swing.map_id), swing.instance_id)
+            .map(|managed| {
+                super::creature_melee_threat::plan_creature_damage_threat_like_cpp(
+                    managed.map(),
+                    swing.attacker_guid,
+                    None,
+                    config.spell_store.as_deref(),
+                    config.spell_misc_store.as_deref(),
+                    config.spell_threat_store.as_deref(),
+                    config.spell_chain_store.as_deref(),
+                    managed.difficulty(),
+                    config.difficulty_store.as_deref(),
+                )
+            })
+            .unwrap_or_default();
 
         let apply = |canonical_manager: &mut wow_map::MapManager,
                      swing: &PendingCreatureSwingLikeCpp,
@@ -597,6 +613,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     absorbed,
                     wire_health_before,
                     represented_damage_done,
+                    primary_threat_plan,
                 )
             }
         };
@@ -1519,6 +1536,9 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                             .creature
                             .is_charmed_owned_by_player_or_player_like_cpp(),
                         spell_store,
+                        config.spell_misc_store.as_deref(),
+                        config.spell_threat_store.as_deref(),
+                        config.spell_chain_store.as_deref(),
                         map_difficulty_id,
                         config.difficulty_store.as_deref(),
                     );
@@ -1617,6 +1637,9 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     .creature
                     .is_charmed_owned_by_player_or_player_like_cpp(),
                 spell_store,
+                config.spell_misc_store.as_deref(),
+                config.spell_threat_store.as_deref(),
+                config.spell_chain_store.as_deref(),
                 map_difficulty_id,
                 config.difficulty_store.as_deref(),
             );
@@ -1691,6 +1714,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
 
         let (
             victim_applied_damage,
+            victim_threat,
             victim_health_before,
             victim_health_after,
             victim_health_state_revision_before,
@@ -1712,6 +1736,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         ) {
             CreatureMeleeApplyResultLikeCpp::Hit {
                 victim_applied_damage,
+                victim_threat,
                 victim_health_before,
                 victim_health_after,
                 victim_health_state_revision_before,
@@ -1722,6 +1747,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                 events,
             } => (
                 victim_applied_damage,
+                victim_threat,
                 victim_health_before,
                 victim_health_after,
                 victim_health_state_revision_before,
@@ -1825,11 +1851,14 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
             }
             outcome.plan.events.extend(share_mutation_events);
             outcome.plan.events.extend(primary_events);
-            if victim_health_state_revision_after != victim_health_state_revision_before {
+            if victim_health_state_revision_after != victim_health_state_revision_before
+                || victim_threat.is_some()
+            {
                 creature_victim_syncs.push(CreatureVictimCompatibilitySyncLikeCpp {
                     swing,
                     state: CreatureMeleeVictimSyncStateLikeCpp {
                         applied_damage: victim_applied_damage,
+                        threat: victim_threat,
                         victim_health_before,
                         victim_health_after,
                         victim_health_state_revision_before,
@@ -1900,8 +1929,8 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         let canonical_is_desired = canonical_manager
             .find_map_mut(u32::from(chain.swing.map_id), chain.swing.instance_id)
             .and_then(|managed| {
-                managed
-                    .map()
+                let map = managed.map();
+                let victim_is_desired = map
                     .with_creature_like_cpp(chain.swing.victim_guid, |victim| {
                         let unit = victim.unit();
                         let identity = &desired.identity;
@@ -1924,6 +1953,21 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                             && victim.loot_authority_like_cpp().lifecycle_like_cpp()
                                 != OwnedLootAuthorityLifecycle::Detached
                     })
+                    .unwrap_or(false);
+                let attackers_are_desired = chain.states.iter().all(|state| {
+                    state.threat.as_ref().is_none_or(|threat| {
+                        map.with_creature_like_cpp(threat.attacker_guid, |attacker| {
+                            attacker.spawn_id() == threat.attacker_spawn_id
+                                && attacker
+                                    .loot_authority_like_cpp()
+                                    .shares_storage_like_cpp(&threat.attacker_authority)
+                                && attacker.loot_authority_like_cpp().lifecycle_like_cpp()
+                                    != OwnedLootAuthorityLifecycle::Detached
+                        })
+                        .unwrap_or(false)
+                    })
+                });
+                Some(victim_is_desired && attackers_are_desired)
             })
             .unwrap_or(false);
         if !canonical_is_desired {
@@ -1934,21 +1978,155 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         let mut legacy_manager = legacy_map_manager
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let Some(victim) = legacy_manager.find_creature_mut(
-            chain.swing.map_id,
-            chain.swing.instance_id,
-            chain.swing.victim_guid,
-        ) else {
+        let mut threat_attackers: Vec<
+            &super::creature_melee_threat::CreatureDamageThreatOutcomeLikeCpp,
+        > = Vec::new();
+        for state in &chain.states {
+            if let Some(threat) = &state.threat
+                && !threat_attackers
+                    .iter()
+                    .any(|existing| existing.attacker_guid == threat.attacker_guid)
+            {
+                threat_attackers.push(threat);
+            }
+        }
+        let attackers_match = threat_attackers.iter().all(|threat| {
+            legacy_manager
+                .find_creature(
+                    chain.swing.map_id,
+                    chain.swing.instance_id,
+                    threat.attacker_guid,
+                )
+                .is_some_and(|attacker| {
+                    attacker.creature.spawn_id() == threat.attacker_spawn_id
+                        && attacker
+                            .creature
+                            .loot_authority_like_cpp()
+                            .shares_storage_like_cpp(&threat.attacker_authority)
+                        && attacker
+                            .creature
+                            .loot_authority_like_cpp()
+                            .lifecycle_like_cpp()
+                            != OwnedLootAuthorityLifecycle::Detached
+                })
+        });
+        let chain_matches = legacy_manager
+            .find_creature(
+                chain.swing.map_id,
+                chain.swing.instance_id,
+                chain.swing.victim_guid,
+            )
+            .is_some_and(|victim| {
+                let mut health = victim.creature.unit().data().health;
+                let mut health_revision = victim.creature.unit().health_state_revision_like_cpp();
+                let mut death_state = victim.creature.unit().death_state();
+                let mut loot_revision = victim.creature.loot_lifecycle_revision_like_cpp();
+                let mut ai_state = victim.creature.ai_ownership().state;
+                chain.states.iter().all(|state| {
+                    let identity = &state.identity;
+                    let before_matches = health == state.victim_health_before
+                        && health_revision == state.victim_health_state_revision_before
+                        && death_state == identity.death_state_before
+                        && loot_revision == identity.loot_lifecycle_revision_before
+                        && ai_state == identity.ai_state_before
+                        && victim.creature.spawn_id() == identity.spawn_id
+                        && victim
+                            .creature
+                            .loot_authority_like_cpp()
+                            .shares_storage_like_cpp(&identity.authority)
+                        && victim
+                            .creature
+                            .unit()
+                            .shares_health_state_revision_authority_like_cpp(
+                                &identity.health_state_revision_authority,
+                            )
+                        && victim
+                            .creature
+                            .loot_authority_like_cpp()
+                            .lifecycle_like_cpp()
+                            != OwnedLootAuthorityLifecycle::Detached;
+                    health = state.victim_health_after;
+                    health_revision = state.victim_health_state_revision_after;
+                    death_state = identity.death_state_after;
+                    loot_revision = identity.loot_lifecycle_revision_after;
+                    ai_state = identity.ai_state_after;
+                    before_matches
+                })
+            });
+        if !attackers_match || !chain_matches {
             outcome.legacy_creature_victim_sync_cas_rejections += 1;
             continue;
-        };
+        }
         let game_time_secs = wow_entities::game_time_secs_like_cpp();
-        for state in &chain.states {
-            if apply_creature_melee_victim_sync_to_legacy_like_cpp(victim, state, game_time_secs) {
-                outcome.legacy_creature_victim_syncs += 1;
-            } else {
+        let (all_synced, threat_refs) = {
+            let Some(victim) = legacy_manager.find_creature_mut(
+                chain.swing.map_id,
+                chain.swing.instance_id,
+                chain.swing.victim_guid,
+            ) else {
                 outcome.legacy_creature_victim_sync_cas_rejections += 1;
-                break;
+                continue;
+            };
+            let mut all_synced = true;
+            for state in &chain.states {
+                if apply_creature_melee_victim_sync_to_legacy_like_cpp(
+                    victim,
+                    state,
+                    game_time_secs,
+                ) {
+                    outcome.legacy_creature_victim_syncs += 1;
+                } else {
+                    outcome.legacy_creature_victim_sync_cas_rejections += 1;
+                    all_synced = false;
+                    break;
+                }
+            }
+            let threat_refs = if all_synced {
+                threat_attackers
+                    .iter()
+                    .filter_map(|threat| {
+                        victim
+                            .creature
+                            .unit()
+                            .subsystems()
+                            .combat
+                            .threat_ref(threat.attacker_guid)
+                            .copied()
+                            .map(|threat_ref| (threat.attacker_guid, threat_ref))
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            (all_synced, threat_refs)
+        };
+        if all_synced {
+            for threat in threat_attackers {
+                let attacker_guid = threat.attacker_guid;
+                let Some(attacker) = legacy_manager.find_creature_mut(
+                    chain.swing.map_id,
+                    chain.swing.instance_id,
+                    attacker_guid,
+                ) else {
+                    outcome.legacy_creature_victim_sync_cas_rejections += 1;
+                    continue;
+                };
+                attacker
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .set_in_combat_with(chain.swing.victim_guid, false, false);
+                if let Some((_, threat_ref)) =
+                    threat_refs.iter().find(|(guid, _)| *guid == attacker_guid)
+                {
+                    attacker
+                        .creature
+                        .unit_mut()
+                        .subsystems_mut()
+                        .combat
+                        .put_threatened_by_me_ref(chain.swing.victim_guid, *threat_ref);
+                }
             }
         }
     }

@@ -57,6 +57,9 @@ pub(super) fn apply_melee_share_damage_like_cpp(
     damage_school_mask: u32,
     attacker_is_player_controlled: bool,
     spell_store: &wow_data::SpellStore,
+    spell_misc_store: Option<&wow_data::SpellMiscStore>,
+    spell_threat_store: Option<&wow_data::SpellThreatStoreLikeCpp>,
+    spell_chain_store: Option<&wow_data::SpellChainStoreLikeCpp>,
     difficulty_id: u8,
     difficulty_store: Option<&wow_data::DifficultyStore>,
 ) -> MeleeShareDamageOutcomeLikeCpp {
@@ -181,6 +184,18 @@ pub(super) fn apply_melee_share_damage_like_cpp(
             aura.caster_guid,
             share_damage,
             attacker_is_player_controlled,
+            match aura.identity {
+                ShareAuraIdentityLikeCpp::Player { spell_id, .. } => spell_id,
+                ShareAuraIdentityLikeCpp::Creature { applied, .. } => {
+                    i32::try_from(applied.spell_id).unwrap_or(0)
+                }
+            },
+            spell_store,
+            spell_misc_store,
+            spell_threat_store,
+            spell_chain_store,
+            difficulty_id,
+            difficulty_store,
         ) else {
             continue;
         };
@@ -273,6 +288,13 @@ fn apply_secondary_share_damage_like_cpp(
     caster_guid: ObjectGuid,
     share_damage: u32,
     attacker_is_player_controlled: bool,
+    spell_id: i32,
+    spell_store: &wow_data::SpellStore,
+    spell_misc_store: Option<&wow_data::SpellMiscStore>,
+    spell_threat_store: Option<&wow_data::SpellThreatStoreLikeCpp>,
+    spell_chain_store: Option<&wow_data::SpellChainStoreLikeCpp>,
+    difficulty_id: u8,
+    difficulty_store: Option<&wow_data::DifficultyStore>,
 ) -> Option<SecondaryShareDamageOutcomeLikeCpp> {
     let managed = canonical_manager.find_map(u32::from(map_id), instance_id)?;
     let rejected_by_damage_mods = if caster_guid.is_player() {
@@ -299,6 +321,17 @@ fn apply_secondary_share_damage_like_cpp(
         });
     }
 
+    let threat_plan = super::creature_melee_threat::plan_creature_damage_threat_like_cpp(
+        managed.map(),
+        attacker_guid,
+        Some(spell_id),
+        Some(spell_store),
+        spell_misc_store,
+        spell_threat_store,
+        spell_chain_store,
+        difficulty_id,
+        difficulty_store,
+    );
     let mut mutation_events = Vec::new();
     let mut creature_sync = None;
     let mut player_health_after = None;
@@ -358,9 +391,27 @@ fn apply_secondary_share_damage_like_cpp(
             );
             caster.unit_mut().set_health(0);
         }
+        let threat = if killed {
+            None
+        } else {
+            super::creature_melee_threat::apply_creature_damage_threat_on_map_like_cpp(
+                canonical_manager
+                    .find_map_mut(u32::from(map_id), instance_id)?
+                    .map_mut(),
+                caster_guid,
+                attacker_guid,
+                applied_damage,
+                threat_plan,
+            )
+        };
+        let caster = canonical_manager
+            .find_map_mut(u32::from(map_id), instance_id)?
+            .map_mut()
+            .get_typed_creature_mut(caster_guid)?;
         let health_after = caster.unit().data().health;
         creature_sync = Some(CreatureMeleeVictimSyncStateLikeCpp {
             applied_damage,
+            threat,
             victim_health_before: health_before,
             victim_health_after: health_after,
             victim_health_state_revision_before: revision_before,
