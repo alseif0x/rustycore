@@ -75,6 +75,21 @@ by the stateful module product #583 and the independent audit #153. #582 and
 #587–#589 are closed in their bounded scopes; #486 and #524 remain open only for
 the residual acceptance explicitly stated below.
 
+**#31 direct-damage fidelity correction — 2026-09-19, current candidate:** the
+target C++ `Spell::EffectPowerDrain` path calls
+`Unit::SpellDamageBonusTaken(..., SPELL_DIRECT_DAMAGE)`
+(`SpellEffects.cpp:1082-1088`), and `Unit::SpellDamageBonusTaken` returns the
+input unchanged for `DIRECT_DAMAGE` before reading any damage-taken aura
+(`Unit.cpp:6775-6777`). The recent Rust drain/burn path had incorrectly folded
+victim, mechanic, cheat-death and caster damage-taken terms into this direct
+effect. The candidate removes that taken-side fold, keeps only the represented
+`SpellDamageBonusDone` pre-scaling, and changes the regressions to prove aura
+terms are ignored for direct power effects. Periodic-only DOT and Sanctified
+Wrath terms remain boundaries of the non-direct damage pipeline; they are not a
+reason to extend the power-drain path or the threat-aura carrier. The older
+#31 taken-term entries below are historical evidence of the mistaken route and
+are superseded by this correction until its validation is integrated.
+
 **#31 negative damage-taken aura regression — 2026-09-18, implementation
 `6f1a5c02`, integrated by PR #1213:** test-only pin of the amount path the
 drain/burn pre-scaling reads, added while attempting the Sanctified Wrath bypass

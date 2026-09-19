@@ -1,7 +1,8 @@
 //! Spell-state regressions, part 26.
 //!
 //! Split out of `scenarios_spell_state_12.rs` when that module reached the
-//! terminal file limit; the tests are unchanged.
+//! terminal file limit; the power-drain cases also pin the target-version
+//! direct-damage guard in `Unit::SpellDamageBonusTaken`.
 
 use super::*;
 
@@ -229,12 +230,11 @@ async fn spell_power_drain_pre_scales_with_spell_damage_bonus_done_like_cpp() {
     );
 }
 
-/// C++ `Unit::SpellDamageBonusTaken` (`Unit.cpp:6775-6820`) multiplies the
-/// pre-scaled amount by the victim's
-/// `SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN` for the spell's school, unless the
-/// spell carries `SPELL_ATTR4_IGNORE_DAMAGE_TAKEN_MODIFIERS`.
+/// `EffectPowerDrain` passes `SPELL_DIRECT_DAMAGE` to
+/// `Unit::SpellDamageBonusTaken`, whose direct-damage guard returns before any
+/// damage-taken aura is read (`Unit.cpp:6775-6777`).
 #[tokio::test]
-async fn spell_power_drain_applies_the_victim_school_damage_taken_aura_like_cpp() {
+async fn spell_power_drain_ignores_victim_school_damage_taken_aura_for_direct_damage_like_cpp() {
     let (mut session, _, _) = make_session();
     let spell_id = 90_306_i32;
     let aura_spell_id = 90_307_i32;
@@ -323,24 +323,22 @@ async fn spell_power_drain_applies_the_victim_school_damage_taken_aura_like_cpp(
                 .unit()
                 .get_power(PowerType::Mana))
             .unwrap(),
-        50,
-        "C++ drains `int32(100 * 1.5) = 150` with a +50% damage-taken aura"
+        100,
+        "direct power drain ignores the victim damage-taken aura"
     );
     assert_eq!(
         session
             .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
             .unwrap(),
-        100,
-        "the caster share is `int32(150 * 0.5) = 75`"
+        75,
+        "the caster share is `int32(100 * 0.5) = 50` added to the initial 25"
     );
 }
 
-/// C++ `Unit::SpellDamageBonusTaken` (`Unit.cpp:6775-6840`) accumulates the
-/// school, mechanic and caster terms multiplicatively into one `TakenTotalMod`
-/// that scales the amount once, so two +50% terms yield `225` from a base of
-/// `100`, not `200`.
+/// The direct-damage guard applies before the school, mechanic and caster terms
+/// of `Unit::SpellDamageBonusTaken` (`Unit.cpp:6775-6777`).
 #[tokio::test]
-async fn spell_power_drain_stacks_damage_taken_terms_multiplicatively_like_cpp() {
+async fn spell_power_drain_ignores_stacked_damage_taken_terms_for_direct_damage_like_cpp() {
     let (mut session, _, _) = make_session();
     let spell_id = 90_315_i32;
     let school_aura_id = 90_316_i32;
@@ -442,23 +440,22 @@ async fn spell_power_drain_stacks_damage_taken_terms_multiplicatively_like_cpp()
                 .unit()
                 .get_power(PowerType::Mana))
             .unwrap(),
-        175,
-        "C++ multiplies the terms: `int32(100 * 1.5 * 1.5) = 225`"
+        300,
+        "direct power drain consumes only its base 100 from the 400 pool"
     );
     assert_eq!(
         session
             .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
             .unwrap(),
-        137,
-        "the caster share is `int32(225 * 0.5) = 112`"
+        75,
+        "the caster share is `int32(100 * 0.5) = 50` added to the initial 25"
     );
 }
 
-/// C++ cheat-death term of `Unit::SpellDamageBonusTaken` (`Unit.cpp:6793-6795`):
-/// aura spell `45182` adds its amount as a percentage when its misc value
-/// intersects `SPELL_SCHOOL_MASK_NORMAL`.
+/// The direct-damage guard in `Unit::SpellDamageBonusTaken` runs before the
+/// C++ cheat-death term (`Unit.cpp:6775-6777` and `6793-6795`).
 #[tokio::test]
-async fn spell_power_drain_applies_the_cheat_death_taken_term_like_cpp() {
+async fn spell_power_drain_ignores_cheat_death_taken_term_for_direct_damage_like_cpp() {
     let (mut session, _, _) = make_session();
     let spell_id = 90_308_i32;
     let cheat_death_spell_id = 45_182_i32;
@@ -545,24 +542,22 @@ async fn spell_power_drain_applies_the_cheat_death_taken_term_like_cpp() {
                 .unit()
                 .get_power(PowerType::Mana))
             .unwrap(),
-        80,
-        "C++ drains `int32(100 * 1.2) = 120` with the cheat-death term"
+        100,
+        "direct power drain ignores the cheat-death taken term"
     );
     assert_eq!(
         session
             .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
             .unwrap(),
-        85,
-        "the caster share is `int32(120 * 0.5) = 60`"
+        75,
+        "the caster share is `int32(100 * 0.5) = 50` added to the initial 25"
     );
 }
 
-/// C++ `Unit::SpellDamageBonusTaken` (`Unit.cpp:6815-6822`): the damage taken is
-/// also multiplied by the caster's
-/// `SPELL_AURA_MOD_SCHOOL_MASK_DAMAGE_FROM_CASTER` auras whose misc value
-/// intersects the spell's school.
+/// The direct-damage guard in `Unit::SpellDamageBonusTaken` runs before the
+/// caster school-mask term (`Unit.cpp:6775-6777` and `6815-6822`).
 #[tokio::test]
-async fn spell_power_drain_applies_the_caster_school_damage_taken_aura_like_cpp() {
+async fn spell_power_drain_ignores_caster_school_damage_taken_aura_for_direct_damage_like_cpp() {
     let (mut session, _, _) = make_session();
     let spell_id = 90_309_i32;
     let aura_spell_id = 90_310_i32;
@@ -650,24 +645,22 @@ async fn spell_power_drain_applies_the_caster_school_damage_taken_aura_like_cpp(
                 .unit()
                 .get_power(PowerType::Mana))
             .unwrap(),
-        50,
-        "C++ drains `int32(100 * 1.5) = 150` with the caster school-mask aura"
+        100,
+        "direct power drain ignores the caster school-mask taken aura"
     );
     assert_eq!(
         session
             .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
             .unwrap(),
-        100,
-        "the caster share is `int32(150 * 0.5) = 75`"
+        75,
+        "the caster share is `int32(100 * 0.5) = 50` added to the initial 25"
     );
 }
 
-/// C++ `Unit::SpellDamageBonusTaken` (`Unit.cpp:6783-6791`): the damage taken is
-/// multiplied by the victim's
-/// `SPELL_AURA_MOD_MECHANIC_DAMAGE_TAKEN_PERCENT` auras whose misc value
-/// intersects `SpellInfo::GetAllEffectsMechanicMask`.
+/// The direct-damage guard in `Unit::SpellDamageBonusTaken` runs before the
+/// mechanic term (`Unit.cpp:6775-6777` and `6783-6791`).
 #[tokio::test]
-async fn spell_power_drain_applies_the_mechanic_damage_taken_aura_like_cpp() {
+async fn spell_power_drain_ignores_mechanic_damage_taken_aura_for_direct_damage_like_cpp() {
     let (mut session, _, _) = make_session();
     let spell_id = 90_311_i32;
     let aura_spell_id = 90_312_i32;
@@ -756,24 +749,22 @@ async fn spell_power_drain_applies_the_mechanic_damage_taken_aura_like_cpp() {
                 .unit()
                 .get_power(PowerType::Mana))
             .unwrap(),
-        50,
-        "C++ drains `int32(100 * 1.5) = 150` with the mechanic damage-taken aura"
+        100,
+        "direct power drain ignores the mechanic damage-taken aura"
     );
     assert_eq!(
         session
             .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
             .unwrap(),
-        100,
-        "the caster share is `int32(150 * 0.5) = 75`"
+        75,
+        "the caster share is `int32(100 * 0.5) = 50` added to the initial 25"
     );
 }
 
-/// C++ `Unit::SpellDamageBonusTaken` (`Unit.cpp:6823-6828`): the damage taken is
-/// also multiplied by the caster's
-/// `SPELL_AURA_MOD_SPELL_DAMAGE_FROM_CASTER` auras whose spell affects the
-/// damaging spell (`SpellFamilyName` equal, `SpellFamilyFlags` intersecting).
+/// The direct-damage guard in `Unit::SpellDamageBonusTaken` runs before the
+/// caster spell-family term (`Unit.cpp:6775-6777` and `6823-6828`).
 #[tokio::test]
-async fn spell_power_drain_applies_the_caster_spell_damage_taken_aura_like_cpp() {
+async fn spell_power_drain_ignores_caster_spell_damage_taken_aura_for_direct_damage_like_cpp() {
     let (mut session, _, _) = make_session();
     let spell_id = 90_313_i32;
     let aura_spell_id = 90_314_i32;
@@ -880,24 +871,22 @@ async fn spell_power_drain_applies_the_caster_spell_damage_taken_aura_like_cpp()
                 .unit()
                 .get_power(PowerType::Mana))
             .unwrap(),
-        50,
-        "C++ drains `int32(100 * 1.5) = 150` with the caster spell-mask aura"
+        100,
+        "direct power drain ignores the caster spell-family taken aura"
     );
     assert_eq!(
         session
             .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
             .unwrap(),
-        100,
-        "the caster share is `int32(150 * 0.5) = 75`"
+        75,
+        "the caster share is `int32(100 * 0.5) = 50` added to the initial 25"
     );
 }
 
-/// C++ `Unit::SpellDamageBonusTaken` (`Unit.cpp:6830-6835`): the damage taken is
-/// also multiplied by the caster's
-/// `SPELL_AURA_MOD_DAMAGE_TAKEN_FROM_CASTER_BY_LABEL` auras whose misc value is a
-/// label the damaging spell carries (`SpellInfo::HasLabel`).
+/// The direct-damage guard in `Unit::SpellDamageBonusTaken` runs before the
+/// caster label term (`Unit.cpp:6775-6777` and `6830-6835`).
 #[tokio::test]
-async fn spell_power_drain_applies_the_caster_label_damage_taken_aura_like_cpp() {
+async fn spell_power_drain_ignores_caster_label_damage_taken_aura_for_direct_damage_like_cpp() {
     let (mut session, _, _) = make_session();
     let spell_id = 90_318_i32;
     let aura_spell_id = 90_319_i32;
@@ -992,15 +981,15 @@ async fn spell_power_drain_applies_the_caster_label_damage_taken_aura_like_cpp()
                 .unit()
                 .get_power(PowerType::Mana))
             .unwrap(),
-        50,
-        "C++ drains `int32(100 * 1.5) = 150` with the caster label aura"
+        100,
+        "direct power drain ignores the caster label taken aura"
     );
     assert_eq!(
         session
             .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
             .unwrap(),
-        100,
-        "the caster share is `int32(150 * 0.5) = 75`"
+        75,
+        "the caster share is `int32(100 * 0.5) = 50` added to the initial 25"
     );
 }
 
