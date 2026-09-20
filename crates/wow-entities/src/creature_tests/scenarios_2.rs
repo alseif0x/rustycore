@@ -891,6 +891,7 @@ fn creature_addon_aura_applications_register_effect_data_like_cpp() {
     addon.aura_applications = vec![
         CreatureAddonAuraApplicationLikeCpp {
             spell_id: 70_010,
+            spell_visual_id: 0,
             effect_mask: 0x3,
             flags: 0x0103,
             effects: vec![
@@ -910,6 +911,7 @@ fn creature_addon_aura_applications_register_effect_data_like_cpp() {
         },
         CreatureAddonAuraApplicationLikeCpp {
             spell_id: 70_011,
+            spell_visual_id: 0,
             effect_mask: 0x1,
             flags: 0x0103,
             effects: vec![CreatureAddonAuraEffectLikeCpp {

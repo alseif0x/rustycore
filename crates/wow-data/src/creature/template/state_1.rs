@@ -437,6 +437,9 @@ pub(super) fn addon_record_from_row_like_cpp(
             });
             (effect_mask != 0).then(|| CreatureAddonAuraApplicationLikeCpp {
                 spell_id,
+                // Runtime composition resolves the C++ SpellXSpellVisual row
+                // against the effective store and map difficulty.
+                spell_visual_id: 0,
                 effect_mask,
                 flags: spell_addon_aura_flags(spell_id),
                 effects,

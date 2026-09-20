@@ -468,6 +468,10 @@ impl Default for CreatureAddonLifecycleRecordLikeCpp {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreatureAddonAuraApplicationLikeCpp {
     pub spell_id: u32,
+    /// `Aura::m_spellVisual.SpellXSpellVisualID` resolved by the data seam for
+    /// the self-Creature caster. Runtime CastGUID allocation remains Map-owned
+    /// and is deliberately not stored in this lifecycle record.
+    pub spell_visual_id: i32,
     pub effect_mask: u32,
     pub flags: u32,
     /// One entry per effect slot `Aura::BuildEffectMaskForOwner` keeps for a
@@ -486,6 +490,12 @@ pub struct CreatureAddonAuraEffectLikeCpp {
     pub misc_value: i32,
     pub effect_index: u8,
 }
+
+/// Transient tuple carried by a Creature between Unit-owned addon admission
+/// and Map-owned CastGUID settlement. The fields are `(visible_slot, spell_id,
+/// spell_visual_id)`; no CastGUID is retained here so the canonical Map
+/// sequence remains the sole allocator.
+pub type PendingCreatureAddonAuraProvenanceLikeCpp = (u8, u32, i32);
 
 /// Resolved, testable input for TrinityCore `Creature::Create`.
 #[derive(Debug, Clone, PartialEq)]
@@ -848,6 +858,10 @@ pub struct CreatureRuntimeState {
     pub pickpocket_reset_count: u32,
     pub has_loot_recipient: bool,
     pub movement_flags: MovementFlag,
+    /// Newly admitted addon applications awaiting Map-owned CastGUID
+    /// settlement. This is runtime-only state and must not be cloned into
+    /// lifecycle metadata as an identity sequence.
+    pub pending_addon_aura_provenance_like_cpp: Vec<PendingCreatureAddonAuraProvenanceLikeCpp>,
 }
 
 impl Default for CreatureRuntimeState {
@@ -870,6 +884,7 @@ impl Default for CreatureRuntimeState {
             pickpocket_reset_count: 0,
             has_loot_recipient: false,
             movement_flags: MovementFlag::NONE,
+            pending_addon_aura_provenance_like_cpp: Vec::new(),
         }
     }
 }

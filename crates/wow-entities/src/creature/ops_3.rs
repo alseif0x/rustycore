@@ -33,6 +33,74 @@ impl Creature {
     pub fn runtime_state_mut(&mut self) -> &mut CreatureRuntimeState {
         &mut self.runtime_state
     }
+
+    /// Take the addon applications admitted by the canonical Unit aura owner
+    /// since the last Map settlement. CastGUID allocation intentionally does
+    /// not happen here: the owning Map must consume its shared
+    /// `HighGuid::Cast` sequence.
+    pub fn take_pending_addon_aura_provenance_like_cpp(
+        &mut self,
+    ) -> Vec<PendingCreatureAddonAuraProvenanceLikeCpp> {
+        std::mem::take(&mut self.runtime_state.pending_addon_aura_provenance_like_cpp)
+    }
+
+    /// Install one Map-composed CastGUID only when the exact application that
+    /// produced the pending record still owns the visible slot. A populated
+    /// slot provenance is never overwritten, which keeps duplicate or stale
+    /// pending records from replacing a live Aura base identity.
+    pub fn install_pending_addon_aura_provenance_like_cpp(
+        &mut self,
+        pending: PendingCreatureAddonAuraProvenanceLikeCpp,
+        cast_id: ObjectGuid,
+    ) -> bool {
+        let (slot, spell_id, spell_visual_id) = pending;
+        let self_guid = self.guid();
+        if cast_id.is_empty()
+            || cast_id.high_type() != HighGuid::Cast
+            || cast_id.realm_id() != self_guid.realm_id()
+            || cast_id.map_id() != self_guid.map_id()
+            || cast_id.entry() != spell_id
+            || !self.can_install_pending_addon_aura_provenance_like_cpp(pending)
+        {
+            return false;
+        }
+        let auras = &mut self.unit.subsystems_mut().auras;
+        auras.set_aura_cast_provenance_like_cpp(
+            slot,
+            crate::AuraCastProvenanceLikeCpp {
+                cast_id,
+                spell_visual_id,
+            },
+        );
+        true
+    }
+
+    /// Validate the exact pending application before the Map consumes a Cast
+    /// sequence value. The Map holds exclusive ownership while settling, so a
+    /// successful check remains stable until the immediately following
+    /// installation.
+    pub fn can_install_pending_addon_aura_provenance_like_cpp(
+        &self,
+        pending: PendingCreatureAddonAuraProvenanceLikeCpp,
+    ) -> bool {
+        let (slot, spell_id, _) = pending;
+        let auras = &self.unit.subsystems().auras;
+        auras.visible_auras.get(&slot).is_some_and(|aura| {
+            aura.spell_id == spell_id
+                && aura.caster_guid == self.guid()
+                && auras.aura_cast_provenance_like_cpp(slot)
+                    == crate::AuraCastProvenanceLikeCpp::default()
+        })
+    }
+
+    /// Drop any not-yet-settled addon records when a death transition starts;
+    /// the corresponding live applications are removed by the AuraSubsystem,
+    /// so a later respawn must enqueue and settle fresh records.
+    pub fn clear_pending_addon_aura_provenance_like_cpp(&mut self) {
+        self.runtime_state
+            .pending_addon_aura_provenance_like_cpp
+            .clear();
+    }
     pub fn tap_list(&self) -> &[ObjectGuid] {
         &self.tap_list
     }
@@ -280,6 +348,7 @@ impl Creature {
 
         match state {
             DeathState::JustDied => {
+                self.clear_pending_addon_aura_provenance_like_cpp();
                 if self.ai_ownership.state != CreatureAiState::Dead {
                     self.advance_loot_lifecycle_revision_like_cpp();
                 }
@@ -505,23 +574,35 @@ impl Creature {
             // `Aura::BuildEffectMaskForOwner` is empty; production rows always
             // carry the resolved `aura_applications` instead.
             for spell_id in &addon.auras {
-                self.unit
+                let slot = self
+                    .unit
                     .subsystems_mut()
                     .auras
-                    .add_self_cast_addon_aura_like_cpp(*spell_id, self_guid);
+                    .add_self_cast_addon_aura_application_slot_like_cpp(*spell_id, self_guid, 0, 0);
+                if let Some(slot) = slot {
+                    self.runtime_state
+                        .pending_addon_aura_provenance_like_cpp
+                        .push((slot, *spell_id, 0));
+                }
             }
         } else {
             for aura in &addon.aura_applications {
-                self.unit
+                let slot = self
+                    .unit
                     .subsystems_mut()
                     .auras
-                    .add_self_cast_addon_aura_application_with_effects_like_cpp(
+                    .add_self_cast_addon_aura_application_with_effects_slot_like_cpp(
                         aura.spell_id,
                         self_guid,
                         aura.effect_mask,
                         aura.flags,
                         &aura.effects,
                     );
+                if let Some(slot) = slot {
+                    self.runtime_state
+                        .pending_addon_aura_provenance_like_cpp
+                        .push((slot, aura.spell_id, aura.spell_visual_id));
+                }
             }
         }
         true

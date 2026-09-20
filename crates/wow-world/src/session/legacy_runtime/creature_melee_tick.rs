@@ -3,6 +3,9 @@
 //! Moved out of the Session root under #619. Behaviour is preserved; the
 //! canonical owner of this state is unchanged.
 
+use super::creature_melee_sync::{
+    CreatureVictimCompatibilitySyncLikeCpp, PendingCreatureSwingLikeCpp,
+};
 use super::*;
 
 /// C++ `Unit::CalcAbsorbResist`'s represented stages for a player victim
@@ -385,27 +388,6 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
     use crate::map_manager::RuntimeTickOwner;
     use wow_entities::CurrentSpellSlot;
 
-    #[derive(Clone, Copy)]
-    struct PendingCreatureSwingLikeCpp {
-        map_id: u16,
-        instance_id: u32,
-        attacker_guid: ObjectGuid,
-        attacker_position: Position,
-        attacker_combat_reach: f32,
-        attacker_can_state_update: bool,
-        victim_guid: ObjectGuid,
-    }
-
-    struct CreatureVictimCompatibilitySyncLikeCpp {
-        swing: PendingCreatureSwingLikeCpp,
-        state: CreatureMeleeVictimSyncStateLikeCpp,
-    }
-
-    struct CreatureVictimCompatibilitySyncChainLikeCpp {
-        swing: PendingCreatureSwingLikeCpp,
-        states: Vec<CreatureMeleeVictimSyncStateLikeCpp>,
-    }
-
     let mut outcome = LegacyCreatureMeleeTickOutcomeLikeCpp::default();
     let mut pending_swings = Vec::new();
 
@@ -561,12 +543,30 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                 .map_mut()
                 .relocate_map_object_like_cpp(swing.attacker_guid, swing.attacker_position);
         }
+        let primary_threat_plan = canonical_manager
+            .find_map(u32::from(swing.map_id), swing.instance_id)
+            .map(|managed| {
+                super::creature_melee_threat::plan_creature_damage_threat_like_cpp(
+                    managed.map(),
+                    swing.attacker_guid,
+                    None,
+                    config.spell_store.as_deref(),
+                    config.spell_misc_store.as_deref(),
+                    config.spell_threat_store.as_deref(),
+                    config.spell_chain_store.as_deref(),
+                    managed.difficulty(),
+                    config.difficulty_store.as_deref(),
+                )
+            })
+            .unwrap_or_default();
 
         let apply = |canonical_manager: &mut wow_map::MapManager,
                      swing: &PendingCreatureSwingLikeCpp,
                      damage,
                      presentation: Option<(u32, u8, i32)>,
-                     absorbed: u32| {
+                     absorbed: u32,
+                     wire_health_before: Option<u64>,
+                     represented_damage_done: Option<u32>| {
             if swing.victim_guid.is_player() {
                 apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
                     canonical_manager,
@@ -578,6 +578,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     swing.attacker_can_state_update,
                     swing.victim_guid,
                     damage,
+                    wire_health_before,
                 )
             } else {
                 apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
@@ -592,11 +593,14 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     damage,
                     presentation,
                     absorbed,
+                    wire_health_before,
+                    represented_damage_done,
+                    primary_threat_plan,
                 )
             }
         };
 
-        match apply(&mut canonical_manager, &swing, None, None, 0) {
+        match apply(&mut canonical_manager, &swing, None, None, 0, None, None) {
             CreatureMeleeApplyResultLikeCpp::Ready => {}
             CreatureMeleeApplyResultLikeCpp::Hit { .. } => {
                 unreachable!("melee precondition validation must not mutate canonical health")
@@ -683,6 +687,11 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
             crate::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp,
         > = Vec::new();
         let mut creature_victim_absorb_events = Vec::new();
+        let mut split_mutation_events = Vec::new();
+        let mut split_combat_log_packets = Vec::new();
+        let mut share_mutation_events = Vec::new();
+        let mut primary_was_share_target = false;
+        let mut primary_player_share_health_updates = Vec::new();
         let damage = if swing.victim_guid.is_player() {
             match config.spell_store.as_deref() {
                 Some(spell_store) => {
@@ -1490,6 +1499,144 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                 None => damage,
             }
         };
+        let damage = if damage > 0 {
+            match config.spell_store.as_deref() {
+                Some(spell_store) => {
+                    let map_difficulty_id = canonical_manager
+                        .find_map(u32::from(swing.map_id), swing.instance_id)
+                        .map(|managed| managed.difficulty())
+                        .unwrap_or(0);
+                    let split = super::creature_melee_split::apply_melee_split_damage_like_cpp(
+                        &mut canonical_manager,
+                        swing.map_id,
+                        swing.instance_id,
+                        swing.attacker_guid,
+                        swing.victim_guid,
+                        damage,
+                        0x01,
+                        attacker
+                            .creature
+                            .is_charmed_owned_by_player_or_player_like_cpp(),
+                        spell_store,
+                        config.spell_misc_store.as_deref(),
+                        config.spell_threat_store.as_deref(),
+                        config.spell_chain_store.as_deref(),
+                        map_difficulty_id,
+                        config.difficulty_store.as_deref(),
+                    );
+                    if split.absorbed > 0 {
+                        absorbed_damage = absorbed_damage.saturating_add(split.absorbed);
+                        hit_info &= !(wow_packet::packets::combat::HIT_INFO_FULL_ABSORB
+                            | wow_packet::packets::combat::HIT_INFO_PARTIAL_ABSORB);
+                        hit_info |= if split.damage == 0 {
+                            wow_packet::packets::combat::HIT_INFO_FULL_ABSORB
+                        } else {
+                            wow_packet::packets::combat::HIT_INFO_PARTIAL_ABSORB
+                        };
+                        if let Some((info, _, _)) = creature_victim_presentation.as_mut() {
+                            *info &= !(wow_packet::packets::combat::HIT_INFO_FULL_ABSORB
+                                | wow_packet::packets::combat::HIT_INFO_PARTIAL_ABSORB);
+                            *info |= if split.damage == 0 {
+                                wow_packet::packets::combat::HIT_INFO_FULL_ABSORB
+                            } else {
+                                wow_packet::packets::combat::HIT_INFO_PARTIAL_ABSORB
+                            };
+                        }
+                    }
+                    split_mutation_events = split.mutation_events;
+                    split_combat_log_packets = split.combat_log_packets;
+                    for (split_victim_guid, state) in split.creature_syncs {
+                        let mut split_swing = swing;
+                        split_swing.victim_guid = split_victim_guid;
+                        creature_victim_syncs.push(CreatureVictimCompatibilitySyncLikeCpp {
+                            swing: split_swing,
+                            state,
+                        });
+                    }
+                    split.damage
+                }
+                None => damage,
+            }
+        } else {
+            damage
+        };
+        // C++ sends `AttackerStateUpdate` before entering `DealDamage`, whose
+        // share loop mutates secondary targets before the primary health write.
+        // Preserve the pre-share health for wire overkill if the aura caster
+        // is the primary victim itself.
+        let primary_wire_health_before = canonical_manager
+            .find_map(u32::from(swing.map_id), swing.instance_id)
+            .and_then(|managed| {
+                if swing.victim_guid.is_player() {
+                    managed
+                        .map()
+                        .get_typed_player(swing.victim_guid)
+                        .map(|victim| victim.unit().data().health)
+                } else {
+                    managed
+                        .map()
+                        .with_creature_like_cpp(swing.victim_guid, |victim| {
+                            victim.unit().data().health
+                        })
+                }
+            });
+        let represented_damage_done = if damage > 0 && !swing.victim_guid.is_player() {
+            canonical_manager
+                .find_map(u32::from(swing.map_id), swing.instance_id)
+                .and_then(|managed| {
+                    managed
+                        .map()
+                        .with_creature_like_cpp(swing.victim_guid, |victim| {
+                            victim.calculate_damage_for_sparring_like_cpp(
+                                true,
+                                attacker
+                                    .creature
+                                    .is_charmed_owned_by_player_or_player_like_cpp(),
+                                damage,
+                            )
+                        })
+                })
+                .unwrap_or(damage)
+        } else {
+            damage
+        };
+        if represented_damage_done > 0
+            && let Some(spell_store) = config.spell_store.as_deref()
+        {
+            let map_difficulty_id = canonical_manager
+                .find_map(u32::from(swing.map_id), swing.instance_id)
+                .map(|managed| managed.difficulty())
+                .unwrap_or(0);
+            let share = super::creature_melee_share::apply_melee_share_damage_like_cpp(
+                &mut canonical_manager,
+                swing.map_id,
+                swing.instance_id,
+                swing.attacker_guid,
+                swing.victim_guid,
+                represented_damage_done,
+                0x01,
+                attacker
+                    .creature
+                    .is_charmed_owned_by_player_or_player_like_cpp(),
+                spell_store,
+                config.spell_misc_store.as_deref(),
+                config.spell_threat_store.as_deref(),
+                config.spell_chain_store.as_deref(),
+                map_difficulty_id,
+                config.difficulty_store.as_deref(),
+            );
+            share_mutation_events = share.mutation_events;
+            primary_was_share_target = share.primary_was_share_target;
+            primary_player_share_health_updates = share.primary_player_share_health_updates;
+            for (share_victim_guid, state) in share.creature_syncs {
+                let mut share_swing = swing;
+                share_swing.victim_guid = share_victim_guid;
+                creature_victim_syncs.push(CreatureVictimCompatibilitySyncLikeCpp {
+                    swing: share_swing,
+                    state,
+                });
+            }
+        }
         if !outcome_represented {
             outcome.melee_outcomes_unrepresented += 1;
         }
@@ -1540,6 +1687,8 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     absorbed: 0,
                     mana_spent: 0,
                     absorb_consumptions: Vec::new(),
+                    split_combat_log_packets: Vec::new(),
+                    self_share_health_updates: Vec::new(),
                 },
             );
             continue;
@@ -1547,6 +1696,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
 
         let (
             victim_applied_damage,
+            victim_threat,
             victim_health_before,
             victim_health_after,
             victim_health_state_revision_before,
@@ -1561,9 +1711,14 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
             Some(damage),
             creature_victim_presentation,
             absorbed_damage,
+            primary_was_share_target
+                .then_some(primary_wire_health_before)
+                .flatten(),
+            (!swing.victim_guid.is_player()).then_some(represented_damage_done),
         ) {
             CreatureMeleeApplyResultLikeCpp::Hit {
                 victim_applied_damage,
+                victim_threat,
                 victim_health_before,
                 victim_health_after,
                 victim_health_state_revision_before,
@@ -1574,6 +1729,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                 events,
             } => (
                 victim_applied_damage,
+                victim_threat,
                 victim_health_before,
                 victim_health_after,
                 victim_health_state_revision_before,
@@ -1644,19 +1800,47 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     absorbed: absorbed_damage,
                     mana_spent,
                     absorb_consumptions: absorb_consumptions.clone(),
+                    split_combat_log_packets: split_combat_log_packets.clone(),
+                    self_share_health_updates: primary_player_share_health_updates,
                 },
             );
+            outcome.plan.events.extend(split_mutation_events);
+            outcome.plan.events.extend(share_mutation_events);
         } else {
             if !creature_victim_avoided {
                 outcome.canonical_creature_hits += 1;
             }
             outcome.plan.events.extend(creature_victim_absorb_events);
-            outcome.plan.events.extend(events);
-            if victim_health_state_revision_after != victim_health_state_revision_before {
+            outcome.plan.events.extend(split_mutation_events);
+            outcome
+                .plan
+                .events
+                .extend(
+                    split_combat_log_packets
+                        .into_iter()
+                        .map(|packet_bytes| RuntimeEvent {
+                            source_guid: swing.victim_guid,
+                            recipients: RecipientRule::MapBroadcastVisible {
+                                map_id: swing.map_id,
+                                instance_id: swing.instance_id,
+                            },
+                            packet_bytes,
+                        }),
+                );
+            let mut primary_events = events.into_iter();
+            if let Some(attacker_state) = primary_events.next() {
+                outcome.plan.events.push(attacker_state);
+            }
+            outcome.plan.events.extend(share_mutation_events);
+            outcome.plan.events.extend(primary_events);
+            if victim_health_state_revision_after != victim_health_state_revision_before
+                || victim_threat.is_some()
+            {
                 creature_victim_syncs.push(CreatureVictimCompatibilitySyncLikeCpp {
                     swing,
                     state: CreatureMeleeVictimSyncStateLikeCpp {
                         applied_damage: victim_applied_damage,
+                        threat: victim_threat,
                         victim_health_before,
                         victim_health_after,
                         victim_health_state_revision_before,
@@ -1669,116 +1853,11 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         }
     }
 
-    // Multiple attackers can commit against one creature during a single
-    // batch. Chain their contiguous health revisions so canonical authority is
-    // checked once against the final desired tuple, then replay each committed
-    // transition into the legacy mirror in FIFO order.
-    let mut creature_victim_sync_chains: Vec<CreatureVictimCompatibilitySyncChainLikeCpp> =
-        Vec::new();
-    for sync in creature_victim_syncs {
-        let contiguous = creature_victim_sync_chains.iter_mut().find(|chain| {
-            let existing = chain
-                .states
-                .last()
-                .expect("creature victim sync chains are never empty");
-            chain.swing.map_id == sync.swing.map_id
-                && chain.swing.instance_id == sync.swing.instance_id
-                && chain.swing.victim_guid == sync.swing.victim_guid
-                && existing.victim_health_after == sync.state.victim_health_before
-                && existing.victim_health_state_revision_after
-                    == sync.state.victim_health_state_revision_before
-                && existing.identity.death_state_after == sync.state.identity.death_state_before
-                && existing.identity.ai_state_after == sync.state.identity.ai_state_before
-                && existing.identity.loot_lifecycle_revision_after
-                    == sync.state.identity.loot_lifecycle_revision_before
-                && existing.identity.spawn_id == sync.state.identity.spawn_id
-                && existing
-                    .identity
-                    .authority
-                    .shares_storage_like_cpp(&sync.state.identity.authority)
-                && existing
-                    .identity
-                    .health_state_revision_authority
-                    .shares_storage_like_cpp(&sync.state.identity.health_state_revision_authority)
-        });
-        if let Some(chain) = contiguous {
-            chain.states.push(sync.state);
-        } else {
-            creature_victim_sync_chains.push(CreatureVictimCompatibilitySyncChainLikeCpp {
-                swing: sync.swing,
-                states: vec![sync.state],
-            });
-        }
-    }
-
-    // Lock order is canonical -> legacy, matching the existing spell-cast
-    // validation bridge. Holding canonical authority through the legacy CAS
-    // closes the final window where a heal/death/respawn could otherwise make
-    // this mirror write stale.
-    for chain in creature_victim_sync_chains {
-        let desired = chain
-            .states
-            .last()
-            .expect("creature victim sync chains are never empty");
-        let Ok(mut canonical_manager) = canonical_map_manager.lock() else {
-            outcome.legacy_creature_victim_sync_cas_rejections += 1;
-            continue;
-        };
-        let canonical_is_desired = canonical_manager
-            .find_map_mut(u32::from(chain.swing.map_id), chain.swing.instance_id)
-            .and_then(|managed| {
-                managed
-                    .map()
-                    .with_creature_like_cpp(chain.swing.victim_guid, |victim| {
-                        let unit = victim.unit();
-                        let identity = &desired.identity;
-                        unit.data().health == desired.victim_health_after
-                            && unit.death_state() == identity.death_state_after
-                            && unit.health_state_revision_like_cpp()
-                                == desired.victim_health_state_revision_after
-                            && victim.spawn_id() == identity.spawn_id
-                            && victim.loot_lifecycle_revision_like_cpp()
-                                == identity.loot_lifecycle_revision_after
-                            && victim.ai_ownership().state == identity.ai_state_after
-                            && victim
-                                .loot_authority_like_cpp()
-                                .shares_storage_like_cpp(&identity.authority)
-                            && victim
-                                .unit()
-                                .shares_health_state_revision_authority_like_cpp(
-                                    &identity.health_state_revision_authority,
-                                )
-                            && victim.loot_authority_like_cpp().lifecycle_like_cpp()
-                                != OwnedLootAuthorityLifecycle::Detached
-                    })
-            })
-            .unwrap_or(false);
-        if !canonical_is_desired {
-            outcome.legacy_creature_victim_sync_cas_rejections += 1;
-            continue;
-        }
-
-        let mut legacy_manager = legacy_map_manager
-            .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let Some(victim) = legacy_manager.find_creature_mut(
-            chain.swing.map_id,
-            chain.swing.instance_id,
-            chain.swing.victim_guid,
-        ) else {
-            outcome.legacy_creature_victim_sync_cas_rejections += 1;
-            continue;
-        };
-        let game_time_secs = wow_entities::game_time_secs_like_cpp();
-        for state in &chain.states {
-            if apply_creature_melee_victim_sync_to_legacy_like_cpp(victim, state, game_time_secs) {
-                outcome.legacy_creature_victim_syncs += 1;
-            } else {
-                outcome.legacy_creature_victim_sync_cas_rejections += 1;
-                break;
-            }
-        }
-    }
-
+    super::creature_melee_sync::replay_creature_victim_syncs_like_cpp(
+        legacy_map_manager,
+        canonical_map_manager,
+        creature_victim_syncs,
+        &mut outcome,
+    );
     outcome
 }

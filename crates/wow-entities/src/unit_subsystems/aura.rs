@@ -39,6 +39,10 @@ pub struct AuraSubsystem {
     /// projection remains in the session adapter; lifetime and mutation live
     /// with the canonical Unit.
     runtime_applications_like_cpp: HashMap<u8, AuraApplicationLikeCpp>,
+    /// Provenance of the C++ `Aura` base associated with each active aura
+    /// slot. The split-damage combat-log projection needs this identity, but
+    /// it must not outlive the slot's application or leak into a replacement.
+    aura_cast_provenance_by_slot_like_cpp: HashMap<u8, AuraCastProvenanceLikeCpp>,
     pub owned_auras: Vec<OwnedAuraRef>,
     pub applied_auras: Vec<AppliedAuraRef>,
     pub applied_aura_types: HashMap<i32, Vec<AppliedAuraRef>>,
@@ -139,6 +143,25 @@ pub struct AuraApplicationLikeCpp {
     pub represented_misc_value: Option<i32>,
     pub represented_multiplier: f32,
     pub applied_at: Instant,
+}
+
+/// Cast identity retained by a C++ `Aura` base for split-damage log entries.
+///
+/// This is deliberately separate from `AuraApplicationLikeCpp`: the
+/// application owns the visible slot while the base owns cast provenance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AuraCastProvenanceLikeCpp {
+    pub cast_id: ObjectGuid,
+    pub spell_visual_id: i32,
+}
+
+impl Default for AuraCastProvenanceLikeCpp {
+    fn default() -> Self {
+        Self {
+            cast_id: ObjectGuid::EMPTY,
+            spell_visual_id: 0,
+        }
+    }
 }
 
 /// Immutable, difficulty-selected C++ `AuraEffect` metadata retained beside
@@ -336,6 +359,10 @@ impl AuraSubsystem {
     }
 
     pub fn insert_runtime_application_like_cpp(&mut self, aura: AuraApplicationLikeCpp) {
+        // A runtime slot is an identity boundary. The next application must
+        // receive its provenance explicitly instead of inheriting the prior
+        // Aura base's cast metadata.
+        self.remove_aura_cast_provenance_like_cpp(aura.slot);
         self.runtime_applications_like_cpp.insert(aura.slot, aura);
         self.invalidate_spell_hit_aura_authority_like_cpp();
     }
@@ -347,19 +374,64 @@ impl AuraSubsystem {
         let removed = self.runtime_applications_like_cpp.remove(&slot);
         if removed.is_some() {
             self.invalidate_spell_hit_aura_authority_like_cpp();
+            self.remove_aura_cast_provenance_like_cpp(slot);
         }
         removed
     }
 
     pub fn clear_runtime_applications_like_cpp(&mut self) {
+        let removed_slots = self
+            .runtime_applications_like_cpp
+            .keys()
+            .copied()
+            .collect::<Vec<_>>();
         if !self.runtime_applications_like_cpp.is_empty() {
             self.runtime_applications_like_cpp.clear();
             self.invalidate_spell_hit_aura_authority_like_cpp();
+        }
+        for slot in removed_slots {
+            self.remove_aura_cast_provenance_like_cpp(slot);
         }
         // C++ drops `m_transformSpell` with each removed transform aura; a bulk
         // clear is the character-identity boundary, where the reused canonical
         // Unit must not inherit the previous character's active transform.
         self.transform_spell_like_cpp = 0;
+    }
+
+    /// Install the cast identity retained by the C++ `Aura` base for `slot`.
+    ///
+    /// Callers install this after admitting the corresponding application;
+    /// replacement/removal paths clear the old value before a slot can be
+    /// reused.
+    pub fn set_aura_cast_provenance_like_cpp(
+        &mut self,
+        slot: u8,
+        provenance: AuraCastProvenanceLikeCpp,
+    ) {
+        self.invalidate_spell_hit_aura_authority_like_cpp();
+        self.aura_cast_provenance_by_slot_like_cpp
+            .insert(slot, provenance);
+    }
+
+    /// Return the cast identity for `slot`, or the C++-equivalent empty
+    /// provenance when no live Aura base owns that slot.
+    pub fn aura_cast_provenance_like_cpp(&self, slot: u8) -> AuraCastProvenanceLikeCpp {
+        self.aura_cast_provenance_by_slot_like_cpp
+            .get(&slot)
+            .copied()
+            .unwrap_or_default()
+    }
+
+    /// Remove and return the cast identity for `slot`.
+    pub fn remove_aura_cast_provenance_like_cpp(
+        &mut self,
+        slot: u8,
+    ) -> Option<AuraCastProvenanceLikeCpp> {
+        let removed = self.aura_cast_provenance_by_slot_like_cpp.remove(&slot);
+        if removed.is_some() {
+            self.invalidate_spell_hit_aura_authority_like_cpp();
+        }
+        removed
     }
 
     pub const fn persisted_player_aura_authority_complete_like_cpp(&self) -> bool {
@@ -448,6 +520,7 @@ impl AuraSubsystem {
             && self.loaded_aura_states_like_cpp.is_empty()
             && self.visible_auras.is_empty()
             && self.visible_aura_applications_like_cpp.is_empty()
+            && self.aura_cast_provenance_by_slot_like_cpp.is_empty()
             && self.visible_auras_to_update.is_empty()
             && self.removed_auras.is_empty()
             && self.removed_auras_count == 0
@@ -545,8 +618,17 @@ impl AuraSubsystem {
         self.applied_aura_amounts.remove(&aura);
         self.applied_aura_misc_values.remove(&aura);
         self.loaded_aura_states_like_cpp.remove(&aura.aura_ref());
+        let removed = before != self.applied_auras.len();
+        if removed
+            && !self
+                .applied_auras
+                .iter()
+                .any(|known| known.slot == aura.slot)
+        {
+            self.remove_aura_cast_provenance_like_cpp(aura.slot);
+        }
         self.update_interrupt_masks();
-        before != self.applied_auras.len()
+        removed
     }
 
     pub fn has_applied(&self, aura: AppliedAuraRef) -> bool {
@@ -564,7 +646,8 @@ impl AuraSubsystem {
         spell_id: u32,
         caster_guid: ObjectGuid,
     ) -> bool {
-        self.add_self_cast_addon_aura_application_like_cpp(spell_id, caster_guid, 0, 0)
+        self.add_self_cast_addon_aura_application_slot_like_cpp(spell_id, caster_guid, 0, 0)
+            .is_some()
     }
 
     pub fn add_self_cast_addon_aura_application_like_cpp(
@@ -574,16 +657,36 @@ impl AuraSubsystem {
         effect_mask: u32,
         flags: u32,
     ) -> bool {
+        self.add_self_cast_addon_aura_application_slot_like_cpp(
+            spell_id,
+            caster_guid,
+            effect_mask,
+            flags,
+        )
+        .is_some()
+    }
+
+    /// Add one represented self-cast addon aura and return the newly admitted
+    /// visible slot. The slot is the transient identity needed by the map
+    /// owner to settle the C++ `Aura` cast provenance after this Unit-owned
+    /// application is admitted.
+    pub fn add_self_cast_addon_aura_application_slot_like_cpp(
+        &mut self,
+        spell_id: u32,
+        caster_guid: ObjectGuid,
+        effect_mask: u32,
+        flags: u32,
+    ) -> Option<u8> {
         if self
             .applied_auras
             .iter()
             .any(|aura| aura.spell_id == spell_id && aura.caster_guid == caster_guid)
         {
-            return false;
+            return None;
         }
 
         let Some(slot) = (0..u8::MAX).find(|slot| !self.visible_auras.contains_key(slot)) else {
-            return false;
+            return None;
         };
         let owned = OwnedAuraRef::new(spell_id, caster_guid, None);
         let applied = AppliedAuraRef::new(spell_id, caster_guid, slot, effect_mask);
@@ -595,7 +698,7 @@ impl AuraSubsystem {
             aura_ref,
             VisibleAuraApplicationLikeCpp::new(flags, Vec::new()),
         );
-        true
+        Some(slot)
     }
 
     /// C++ `Unit::AddAura(spellInfo, MAX_EFFECT_MASK, target)` for the spawn
@@ -619,8 +722,28 @@ impl AuraSubsystem {
         flags: u32,
         effects: &[CreatureAddonAuraEffectLikeCpp],
     ) -> bool {
+        self.add_self_cast_addon_aura_application_with_effects_slot_like_cpp(
+            spell_id,
+            caster_guid,
+            effect_mask,
+            flags,
+            effects,
+        )
+        .is_some()
+    }
+
+    /// Effects-aware form of
+    /// [`Self::add_self_cast_addon_aura_application_slot_like_cpp`].
+    pub fn add_self_cast_addon_aura_application_with_effects_slot_like_cpp(
+        &mut self,
+        spell_id: u32,
+        caster_guid: ObjectGuid,
+        effect_mask: u32,
+        flags: u32,
+        effects: &[CreatureAddonAuraEffectLikeCpp],
+    ) -> Option<u8> {
         if effects.is_empty() {
-            return self.add_self_cast_addon_aura_application_like_cpp(
+            return self.add_self_cast_addon_aura_application_slot_like_cpp(
                 spell_id,
                 caster_guid,
                 effect_mask,
@@ -632,10 +755,10 @@ impl AuraSubsystem {
             .iter()
             .any(|aura| aura.spell_id == spell_id && aura.caster_guid == caster_guid)
         {
-            return false;
+            return None;
         }
         let Some(slot) = (0..u8::MAX).find(|slot| !self.visible_auras.contains_key(slot)) else {
-            return false;
+            return None;
         };
         self.add_owned(OwnedAuraRef::new(spell_id, caster_guid, None));
         for effect in effects {
@@ -666,7 +789,7 @@ impl AuraSubsystem {
                     .collect(),
             ),
         );
-        true
+        Some(slot)
     }
 
     pub fn has_aura_type_like_cpp(&self, aura_type: i32) -> bool {
@@ -788,6 +911,7 @@ impl AuraSubsystem {
 
     pub fn set_visible(&mut self, slot: u8, aura: AuraRef) {
         self.invalidate_spell_hit_aura_authority_like_cpp();
+        self.remove_aura_cast_provenance_like_cpp(slot);
         self.visible_auras.insert(slot, aura);
         self.visible_aura_applications_like_cpp.remove(&slot);
         self.visible_auras_to_update.insert(slot);
@@ -800,6 +924,7 @@ impl AuraSubsystem {
         application: VisibleAuraApplicationLikeCpp,
     ) {
         self.invalidate_spell_hit_aura_authority_like_cpp();
+        self.remove_aura_cast_provenance_like_cpp(slot);
         self.visible_auras.insert(slot, aura);
         self.visible_aura_applications_like_cpp
             .insert(slot, application);
@@ -808,6 +933,7 @@ impl AuraSubsystem {
 
     pub fn clear_visible(&mut self, slot: u8) -> Option<AuraRef> {
         self.invalidate_spell_hit_aura_authority_like_cpp();
+        self.remove_aura_cast_provenance_like_cpp(slot);
         self.visible_auras_to_update.remove(&slot);
         self.visible_aura_applications_like_cpp.remove(&slot);
         self.visible_auras.remove(&slot)

@@ -185,6 +185,8 @@ fn apply_creature_melee_damage_like_cpp_command_carries_final_health() {
         absorbed: 0,
         mana_spent: 0,
         absorb_consumptions: Vec::new(),
+        split_combat_log_packets: Vec::new(),
+        self_share_health_updates: Vec::new(),
     };
 
     assert_eq!(cmd.attacker_guid, attacker);
@@ -271,6 +273,8 @@ fn durable_creature_runtime_commands_preserve_committed_fifo_like_cpp() {
                 absorbed: 0,
                 mana_spent: 0,
                 absorb_consumptions: Vec::new(),
+                split_combat_log_packets: Vec::new(),
+                self_share_health_updates: Vec::new(),
             })
         );
     }

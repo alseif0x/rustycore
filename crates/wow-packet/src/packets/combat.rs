@@ -406,6 +406,42 @@ impl ServerPacket for SpellNonMeleeDamageLog {
     }
 }
 
+// ── SpellMissLog (SMSG_SPELL_MISS_LOG) ──────────────────────────
+
+/// One target row in C++ `WorldPackets::CombatLog::SpellMissLog`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellMissLogEntry {
+    pub victim: ObjectGuid,
+    pub miss_reason: u8,
+}
+
+/// Standalone spell-miss combat log used by split-damage immunity.
+///
+/// C++ anchor: `CombatLogPackets.cpp:289-297`; every represented entry omits
+/// the optional debug roll pair.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellMissLog {
+    pub spell_id: i32,
+    pub caster: ObjectGuid,
+    pub entries: Vec<SpellMissLogEntry>,
+}
+
+impl ServerPacket for SpellMissLog {
+    const OPCODE: ServerOpcodes = ServerOpcodes::SpellMissLog;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32(self.spell_id);
+        pkt.write_guid(&self.caster);
+        pkt.write_uint32(self.entries.len() as u32);
+        for entry in &self.entries {
+            pkt.write_guid(&entry.victim);
+            pkt.write_uint8(entry.miss_reason);
+            pkt.write_bit(false);
+            pkt.flush_bits();
+        }
+    }
+}
+
 // ── SpellHealLog (SMSG_SPELL_HEAL_LOG) ────────────────────────────
 
 /// Combat-log packet C++ `Unit::HealBySpell` sends for every spell heal
@@ -1605,6 +1641,42 @@ mod tests {
         assert_eq!(pkt.read_packed_guid().expect("target"), target);
         assert_eq!(pkt.read_packed_guid().expect("caster"), caster);
         assert_eq!(pkt.read_int32().expect("spell id"), 5_333);
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn spell_miss_log_writes_cpp_field_order_like_cpp() {
+        let caster = ObjectGuid::create_player(1, 0x0102_0304_0506_0708);
+        let victim = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            0,
+            0,
+            0,
+            123,
+            0x1234,
+        );
+        let bytes = SpellMissLog {
+            spell_id: 91_364,
+            caster,
+            entries: vec![SpellMissLogEntry {
+                victim,
+                miss_reason: 7,
+            }],
+        }
+        .to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::SpellMissLog as u16
+        );
+        assert_eq!(pkt.read_int32().expect("spell id"), 91_364);
+        assert_eq!(pkt.read_guid().expect("caster"), caster);
+        assert_eq!(pkt.read_uint32().expect("entry count"), 1);
+        assert_eq!(pkt.read_guid().expect("victim"), victim);
+        assert_eq!(pkt.read_uint8().expect("miss reason"), 7);
+        assert!(!pkt.has_bit().expect("debug absent"));
         assert!(pkt.is_empty());
     }
 }

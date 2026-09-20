@@ -115,6 +115,26 @@ impl WorldCreature {
         effect_mask: u32,
         duration_ms: i32,
     ) -> Option<u8> {
+        self.apply_taunt_aura_with_provenance_like_cpp(
+            caster,
+            spell_id,
+            effect_mask,
+            duration_ms,
+            wow_entities::AuraCastProvenanceLikeCpp::default(),
+        )
+    }
+
+    /// Apply C++'s taunt Aura using the parent `Spell` object's retained cast
+    /// identity. `EffectTaunt` must not allocate a second Cast GUID for the
+    /// Aura base created by the same cast.
+    pub fn apply_taunt_aura_with_provenance_like_cpp(
+        &mut self,
+        caster: ObjectGuid,
+        spell_id: u32,
+        effect_mask: u32,
+        duration_ms: i32,
+        provenance: wow_entities::AuraCastProvenanceLikeCpp,
+    ) -> Option<u8> {
         let due_at_ms = (duration_ms >= 0).then(|| {
             self.runtime_elapsed_ms_like_cpp()
                 .saturating_add(duration_ms as u64)
@@ -138,6 +158,7 @@ impl WorldCreature {
         let slot = auras.visible_auras.iter().find_map(|(slot, aura)| {
             (aura.spell_id == spell_id && aura.caster_guid == caster).then_some(*slot)
         })?;
+        auras.set_aura_cast_provenance_like_cpp(slot, provenance);
         auras.register_applied_aura_type_like_cpp(
             wow_entities::AppliedAuraRef::new(spell_id, caster, slot, effect_mask),
             wow_data::spell::aura_types::SPELL_AURA_MOD_TAUNT,

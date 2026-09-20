@@ -522,6 +522,24 @@ impl WorldSession {
         effect_mask: u32,
         duration_ms: u32,
     ) -> Result<(), &'static str> {
+        self.apply_creature_aura_with_provenance_like_cpp(
+            spell_id,
+            caster_guid,
+            target_guid,
+            effect_mask,
+            duration_ms,
+            wow_entities::AuraCastProvenanceLikeCpp::default(),
+        )
+    }
+    pub(crate) fn apply_creature_aura_with_provenance_like_cpp(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        target_guid: ObjectGuid,
+        effect_mask: u32,
+        duration_ms: u32,
+        provenance: wow_entities::AuraCastProvenanceLikeCpp,
+    ) -> Result<(), &'static str> {
         let Ok(spell_key) = u32::try_from(spell_id) else {
             return Err("invalid spell id");
         };
@@ -612,6 +630,7 @@ impl WorldSession {
                             .collect(),
                     ),
                 );
+                auras.set_aura_cast_provenance_like_cpp(slot, provenance);
                 Some(())
             })
             .flatten()
@@ -695,7 +714,6 @@ impl WorldSession {
                         &creature.unit().subsystems().auras,
                         slot,
                         level,
-                        self.player_map_id_like_cpp(),
                     )
                 })
         }) else {

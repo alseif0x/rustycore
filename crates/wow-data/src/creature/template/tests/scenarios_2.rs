@@ -183,6 +183,7 @@ fn creature_addon_store_normalizes_auras_like_cpp() {
         Some(vec![
             wow_entities::CreatureAddonAuraApplicationLikeCpp {
                 spell_id: 100,
+                spell_visual_id: 0,
                 effect_mask: 0x1,
                 flags: AFLAG_NOCASTER_LIKE_CPP
                     | AFLAG_POSITIVE_LIKE_CPP
@@ -196,6 +197,7 @@ fn creature_addon_store_normalizes_auras_like_cpp() {
             },
             wow_entities::CreatureAddonAuraApplicationLikeCpp {
                 spell_id: 200,
+                spell_visual_id: 0,
                 effect_mask: 0x1,
                 flags: AFLAG_NOCASTER_LIKE_CPP
                     | AFLAG_POSITIVE_LIKE_CPP
@@ -209,6 +211,7 @@ fn creature_addon_store_normalizes_auras_like_cpp() {
             },
             wow_entities::CreatureAddonAuraApplicationLikeCpp {
                 spell_id: 400,
+                spell_visual_id: 0,
                 effect_mask: 0x1,
                 flags: AFLAG_NOCASTER_LIKE_CPP
                     | AFLAG_POSITIVE_LIKE_CPP

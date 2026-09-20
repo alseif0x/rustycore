@@ -737,10 +737,53 @@ async fn spell_taunt_effect_matches_caster_threat_to_highest_like_cpp() {
         },
     ])));
 
+    let cast_id = {
+        let counter = canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .generate_low_guid_like_cpp(HighGuid::Cast)
+            .expect("the represented player cast must allocate its Map-owned CastID");
+        represented_spell_cast_guid_for_map_like_cpp(session.realm_id(), 0, spell_id, counter)
+    };
     session
-        .execute_spell(spell_id, creature_guid)
+        .execute_spell_with_visual(
+            spell_id,
+            creature_guid,
+            cast_id,
+            wow_packet::packets::spell::SpellCastVisual::default(),
+        )
         .await
         .expect("represented EffectTaunt should execute");
+
+    let (taunt_provenance, next_cast_counter) = {
+        let mut manager = canonical.lock().unwrap();
+        let map = manager.find_map_mut(0, 0).unwrap().map_mut();
+        let provenance = map
+            .with_creature_like_cpp(creature_guid, |creature| {
+                let auras = &creature.unit().subsystems().auras;
+                let slot = auras
+                    .visible_auras
+                    .iter()
+                    .find_map(|(slot, aura)| (aura.spell_id == spell_id as u32).then_some(*slot))
+                    .expect("taunt aura slot");
+                auras.aura_cast_provenance_like_cpp(slot)
+            })
+            .expect("canonical creature");
+        let next = map
+            .get_max_low_guid_like_cpp(HighGuid::Cast)
+            .expect("Cast sequence");
+        (provenance, next)
+    };
+    assert_eq!(taunt_provenance.cast_id.high_type(), HighGuid::Cast);
+    assert_eq!(taunt_provenance.cast_id.entry(), spell_id as u32);
+    assert_eq!(taunt_provenance.spell_visual_id, 0);
+    assert_eq!(
+        next_cast_counter, 2,
+        "the taunt Aura retains its parent Spell Cast ID without allocating a second ID"
+    );
 
     let manager_guard = manager.read().unwrap();
     let combat = &manager_guard

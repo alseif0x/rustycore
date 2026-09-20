@@ -44,6 +44,19 @@ pub(crate) fn write_absorbed_shield_amount_like_cpp(
 }
 
 impl WorldSession {
+    /// Preserve `AttackerStateUpdate -> self share -> primary health` on the
+    /// victim session's FIFO for C++ `SPELL_AURA_SHARE_DAMAGE_PCT`.
+    pub(crate) fn publish_self_share_health_like_cpp(
+        &self,
+        command: &crate::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand,
+    ) {
+        for health in &command.self_share_health_updates {
+            self.send_packet(&wow_packet::packets::combat::HealthUpdate {
+                guid: command.victim_guid,
+                health: (*health).min(i64::MAX as u64) as i64,
+            });
+        }
+    }
     pub(in crate::session) fn represented_weapon_damage_bounds_like_cpp(
         &self,
         item_entry: u32,
@@ -94,6 +107,7 @@ impl WorldSession {
         original_damage: i32,
         mana_spent: u32,
         consumptions: &[crate::session::mailbox::CreatureMeleeAbsorbConsumptionLikeCpp],
+        split_combat_log_packets: &[Vec<u8>],
     ) {
         for consumption in consumptions {
             let shield = self
@@ -146,6 +160,10 @@ impl WorldSession {
                     mana,
                 );
             }
+        }
+        for packet in split_combat_log_packets {
+            self.send_raw_packet(packet);
+            self.broadcast_player_packet_to_visible_set_realm_like_cpp(packet.clone());
         }
     }
     pub(in crate::session) fn send_environmental_damage_log_like_cpp(

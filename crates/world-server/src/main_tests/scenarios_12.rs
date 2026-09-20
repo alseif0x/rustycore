@@ -834,6 +834,8 @@ fn creature_melee_damage_delivery_routes_only_to_victim_like_cpp() {
             absorbed: 0,
             mana_spent: 0,
             absorb_consumptions: Vec::new(),
+            split_combat_log_packets: Vec::new(),
+            self_share_health_updates: Vec::new(),
         },
     ];
     let summary = deliver_creature_melee_damage_commands_like_cpp(&commands, &registry);

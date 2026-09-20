@@ -336,6 +336,156 @@ async fn generic_apply_aura_single_effect_row_applies_like_cpp() {
         ]
     );
 }
+
+#[tokio::test]
+async fn generic_apply_aura_retains_cast_provenance_on_the_canonical_unit_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let spell_id = 727_i32;
+    let player_guid = ObjectGuid::create_player(1, 7032);
+    session.player_guid = Some(player_guid);
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        spell_id,
+        wow_data::SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_DUMMY),
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_aura: wow_data::spell::aura_types::SPELL_AURA_DUMMY,
+                ..Default::default()
+            }],
+        },
+    );
+    session.set_spell_store(Arc::new(spell_store));
+    let cast_id = ObjectGuid::new(6, 70_327);
+
+    session
+        .execute_spell_with_visual_and_target_data(
+            spell_id,
+            player_guid,
+            cast_id,
+            wow_packet::packets::spell::SpellCastVisual {
+                spell_visual_id: 7_270,
+                script_visual_id: 0,
+            },
+            SpellTargetData::default(),
+        )
+        .await
+        .expect("represented apply-aura cast");
+
+    let provenance = session
+        .canonical_player_snapshot_like_cpp(|player| {
+            let auras = &player.unit().subsystems().auras;
+            let slot = auras
+                .runtime_applications_like_cpp()
+                .iter()
+                .find_map(|(slot, aura)| (aura.spell_id == spell_id).then_some(*slot))
+                .expect("canonical aura slot");
+            auras.aura_cast_provenance_like_cpp(slot)
+        })
+        .expect("canonical player");
+    assert_eq!(
+        provenance,
+        wow_entities::AuraCastProvenanceLikeCpp {
+            cast_id,
+            spell_visual_id: 7_270,
+        }
+    );
+}
+
+#[tokio::test]
+async fn creature_apply_aura_retains_cast_provenance_on_the_canonical_unit_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let spell_id = 729_i32;
+    let player_guid = ObjectGuid::create_player(1, 7034);
+    let creature_guid = test_creature_guid(7_035);
+    let position = Position::new(5.0, 5.0, 0.0, 0.0);
+    let canonical = shared_canonical_map_manager();
+    session.player_guid = Some(player_guid);
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 0);
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    add_canonical_test_creature_indexed_on_map_with_level(
+        &canonical,
+        creature_guid,
+        7_036,
+        position,
+        0,
+        0,
+        80,
+    );
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        spell_id,
+        wow_data::SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_base_points: 50,
+            effect_bonus_coefficient: 0.0,
+            aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_SPLIT_DAMAGE_PCT),
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_aura: wow_data::spell::aura_types::SPELL_AURA_SPLIT_DAMAGE_PCT,
+                effect_misc_value_1: 1,
+                effect_base_points: 50,
+                ..Default::default()
+            }],
+        },
+    );
+    session.set_spell_store(Arc::new(spell_store));
+    let cast_id = ObjectGuid::new(6, 70_329);
+
+    session
+        .execute_spell_with_visual(
+            spell_id,
+            creature_guid,
+            cast_id,
+            wow_packet::packets::spell::SpellCastVisual {
+                spell_visual_id: 7_290,
+                script_visual_id: 0,
+            },
+        )
+        .await
+        .expect("represented creature apply-aura cast");
+
+    let provenance = session
+        .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
+            let auras = &creature.unit().subsystems().auras;
+            let slot = auras
+                .applied_auras
+                .iter()
+                .find_map(|aura| (aura.spell_id == spell_id as u32).then_some(aura.slot))
+                .expect("canonical creature aura slot");
+            auras.aura_cast_provenance_like_cpp(slot)
+        })
+        .expect("canonical creature");
+    assert_eq!(
+        provenance,
+        wow_entities::AuraCastProvenanceLikeCpp {
+            cast_id,
+            spell_visual_id: 7_290,
+        }
+    );
+}
+
 #[tokio::test]
 async fn generic_owned_aura_cancel_removes_single_effect_row_like_cpp() {
     let (mut session, _, send_rx) = make_session();

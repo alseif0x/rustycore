@@ -357,6 +357,26 @@ impl Creature {
         !CreatureStaticFlags::from_bits_truncate(self.lifecycle_metadata.static_flags[0])
             .contains(CreatureStaticFlags::NO_MELEE_FLEE)
     }
+    /// C++ `Unit::DealDamage` keeps a different Creature victim at one health
+    /// when `CREATURE_STATIC_FLAG_UNKILLABLE` is set (`Unit.cpp:887-898`).
+    /// The caller supplies whether attacker and victim are the same Unit
+    /// because the Creature value itself does not own its map GUID.
+    pub fn damage_after_unkillable_gate_like_cpp(
+        &self,
+        attacker_is_self: bool,
+        damage: u32,
+    ) -> u32 {
+        let health = self.unit.data().health;
+        if attacker_is_self
+            || !CreatureStaticFlags::from_bits_truncate(self.lifecycle_metadata.static_flags[0])
+                .contains(CreatureStaticFlags::UNKILLABLE)
+            || u64::from(damage) < health
+        {
+            return damage;
+        }
+
+        health.saturating_sub(1).min(u64::from(u32::MAX)) as u32
+    }
     pub fn set_ai_identity_names_runtime_like_cpp(
         &mut self,
         ai_name: impl Into<String>,

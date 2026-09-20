@@ -97,6 +97,174 @@ fn creature_runtime_respawn_reloads_represented_addon_local_fields_like_cpp() {
 }
 
 #[test]
+fn creature_addon_aura_provenance_is_pending_until_map_settlement_like_cpp() {
+    let mut record = creature_lifecycle_create_record();
+    record.guid = ObjectGuid::create_creature_like_cpp(1, 571, record.entry, 1_001);
+    let addon = CreatureAddonLifecycleRecordLikeCpp {
+        aura_applications: vec![CreatureAddonAuraApplicationLikeCpp {
+            spell_id: 80_001,
+            spell_visual_id: 901,
+            effect_mask: 1,
+            flags: 0,
+            effects: Vec::new(),
+        }],
+        ..CreatureAddonLifecycleRecordLikeCpp::default()
+    };
+    record.addon = Some(addon.clone());
+
+    let mut creature = Creature::create_from_lifecycle(record);
+    let slot = *creature
+        .unit()
+        .subsystems()
+        .auras
+        .visible_auras
+        .keys()
+        .next()
+        .expect("the addon application must admit one visible slot");
+    assert_eq!(
+        creature
+            .unit()
+            .subsystems()
+            .auras
+            .aura_cast_provenance_like_cpp(slot),
+        AuraCastProvenanceLikeCpp::default(),
+        "the entity admits the Unit-owned aura before Map allocates its CastGUID"
+    );
+    assert_eq!(
+        creature.take_pending_addon_aura_provenance_like_cpp(),
+        vec![(slot, 80_001, 901)]
+    );
+
+    let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 3, 1, 571, 0, 80_001, 17);
+    assert!(creature.install_pending_addon_aura_provenance_like_cpp((slot, 80_001, 901), cast_id,));
+    assert_eq!(
+        creature
+            .unit()
+            .subsystems()
+            .auras
+            .aura_cast_provenance_like_cpp(slot),
+        AuraCastProvenanceLikeCpp {
+            cast_id,
+            spell_visual_id: 901,
+        }
+    );
+
+    // A duplicate admission is rejected by the Unit aura owner and therefore
+    // cannot enqueue or overwrite the settled Aura base identity.
+    creature.apply_creatures_addon_lifecycle_like_cpp(Some(&addon));
+    assert!(
+        creature
+            .take_pending_addon_aura_provenance_like_cpp()
+            .is_empty()
+    );
+    assert_eq!(
+        creature
+            .unit()
+            .subsystems()
+            .auras
+            .aura_cast_provenance_like_cpp(slot)
+            .cast_id,
+        cast_id
+    );
+}
+
+#[test]
+fn creature_addon_provenance_drops_stale_pending_slot_and_respawn_queues_fresh_one_like_cpp() {
+    let mut record = creature_lifecycle_create_record();
+    record.addon = Some(CreatureAddonLifecycleRecordLikeCpp {
+        aura_applications: vec![CreatureAddonAuraApplicationLikeCpp {
+            spell_id: 80_002,
+            spell_visual_id: 902,
+            effect_mask: 1,
+            flags: 0,
+            effects: Vec::new(),
+        }],
+        ..CreatureAddonLifecycleRecordLikeCpp::default()
+    });
+    let mut creature = Creature::create_from_lifecycle(record);
+    let slot = *creature
+        .unit()
+        .subsystems()
+        .auras
+        .visible_auras
+        .keys()
+        .next()
+        .expect("the addon application must admit one visible slot");
+
+    let pending = creature.take_pending_addon_aura_provenance_like_cpp();
+    assert_eq!(pending, vec![(slot, 80_002, 902)]);
+    creature
+        .unit_mut()
+        .subsystems_mut()
+        .auras
+        .clear_visible(slot);
+    let stale = pending[0];
+    assert!(!creature.install_pending_addon_aura_provenance_like_cpp(
+        stale,
+        ObjectGuid::create_world_object(HighGuid::Cast, 3, 1, 571, 0, 80_002, 18),
+    ));
+    assert_eq!(
+        creature
+            .unit()
+            .subsystems()
+            .auras
+            .aura_cast_provenance_like_cpp(slot),
+        AuraCastProvenanceLikeCpp::default()
+    );
+
+    creature.set_death_state_runtime(DeathState::JustDied, 1_000);
+    assert!(
+        creature
+            .take_pending_addon_aura_provenance_like_cpp()
+            .is_empty()
+    );
+    creature.set_death_state_runtime(DeathState::JustRespawned, 2_000);
+    assert_eq!(
+        creature.take_pending_addon_aura_provenance_like_cpp(),
+        vec![(slot, 80_002, 902)],
+        "JustRespawned must enqueue a new addon application instead of retaining the dead lifetime"
+    );
+}
+
+#[test]
+fn creature_addon_aura_provenance_does_not_queue_when_visible_slots_are_full_like_cpp() {
+    let mut creature = Creature::new(false);
+    let caster_guid = creature.guid();
+    for slot in 0..u8::MAX {
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .set_visible(slot, AuraRef::new(81_000 + u32::from(slot), caster_guid));
+    }
+
+    let addon = CreatureAddonLifecycleRecordLikeCpp {
+        aura_applications: vec![CreatureAddonAuraApplicationLikeCpp {
+            spell_id: 80_003,
+            spell_visual_id: 903,
+            effect_mask: 1,
+            flags: 0,
+            effects: Vec::new(),
+        }],
+        ..CreatureAddonLifecycleRecordLikeCpp::default()
+    };
+    creature.apply_creatures_addon_lifecycle_like_cpp(Some(&addon));
+
+    assert!(
+        creature
+            .take_pending_addon_aura_provenance_like_cpp()
+            .is_empty()
+    );
+    assert!(
+        !creature
+            .unit()
+            .subsystems()
+            .auras
+            .has_aura_spell_like_cpp(80_003)
+    );
+}
+
+#[test]
 fn creature_lifecycle_health_is_clamped_to_max_health() {
     let mut record = creature_lifecycle_create_record();
     record.stats.max_health = 100;

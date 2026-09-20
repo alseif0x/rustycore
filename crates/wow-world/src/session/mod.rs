@@ -60,6 +60,7 @@ mod trainer_acquisition;
 mod trait_configs;
 mod visibility;
 mod world_entities;
+pub(crate) use world_entities::insert_canonical_creature_map_object_on_map_like_cpp;
 mod world_state;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
@@ -4139,59 +4140,6 @@ pub(crate) fn reconcile_creature_loot_authority_mirrors_like_cpp(
     }
 }
 
-pub(crate) fn insert_canonical_creature_map_object_on_map_like_cpp(
-    manager: &SharedCanonicalMapManager,
-    map_id: u32,
-    instance_id: u32,
-    mut creature: wow_entities::Creature,
-) -> Option<OwnedLootAuthority> {
-    let guid = creature.unit().world().object().guid();
-    let Ok(mut manager) = manager.lock() else {
-        return None;
-    };
-    let Some(map) = manager.find_map_mut(map_id, instance_id) else {
-        return None;
-    };
-    if map.map().get_creature(guid).is_some() {
-        let current = map.map_mut().get_typed_creature_mut(guid)?;
-        let current_authority = current.loot_authority_like_cpp().clone();
-        let incoming_authority = creature.loot_authority_like_cpp().clone();
-        let current_stamp = current_authority.stamp_like_cpp();
-        let incoming_stamp = incoming_authority.stamp_like_cpp();
-        let authority = reconcile_creature_loot_authority_mirrors_like_cpp(
-            &current_authority,
-            current_stamp,
-            &incoming_authority,
-            incoming_stamp,
-        );
-        current.rebind_loot_authority_if_current_like_cpp(
-            &current_authority,
-            current_stamp,
-            authority.clone(),
-        )?;
-        creature.adopt_loot_authority_for_snapshot_like_cpp(authority.clone());
-        return Some(authority);
-    }
-
-    if creature.loot_authority_like_cpp().lifecycle_like_cpp()
-        == OwnedLootAuthorityLifecycle::Detached
-    {
-        return None;
-    }
-
-    let object = creature.unit().world().clone();
-    let _ = map
-        .map_mut()
-        .add_to_map_like_cpp(AccessorObjectKind::Creature, object);
-    creature.unit_mut().world_mut().object_mut().add_to_world();
-    let authority = creature.loot_authority_like_cpp().clone();
-    let Ok(record) = wow_entities::MapObjectRecord::new_creature(creature) else {
-        return None;
-    };
-    map.map_mut().insert_map_object_record(record).ok()?;
-    Some(authority)
-}
-
 pub(crate) fn remove_canonical_creature_map_object_on_map_like_cpp(
     manager: &SharedCanonicalMapManager,
     map_id: u32,
@@ -4410,6 +4358,7 @@ pub struct LegacyCreatureAggroConfigLikeCpp {
     pub spell_casting_requirements_store: Option<Arc<wow_data::SpellCastingRequirementsStore>>,
     pub spell_aura_restrictions_store: Option<Arc<SpellAuraRestrictionsStore>>,
     pub spell_store: Option<Arc<SpellStore>>,
+    pub spell_threat_store: Option<Arc<wow_data::SpellThreatStoreLikeCpp>>,
     pub spell_chain_store: Option<Arc<SpellChainStoreLikeCpp>>,
     pub spell_linked_store: Option<Arc<SpellLinkedStoreLikeCpp>>,
     pub spell_condition_store: Option<Arc<ConditionEntriesByTypeStore>>,
@@ -4457,6 +4406,7 @@ impl Default for LegacyCreatureAggroConfigLikeCpp {
             spell_casting_requirements_store: None,
             spell_aura_restrictions_store: None,
             spell_store: None,
+            spell_threat_store: None,
             spell_chain_store: None,
             spell_linked_store: None,
             spell_condition_store: None,
@@ -17012,49 +16962,6 @@ enum LegacyCreatureCanAttackLeashDecisionLikeCpp {
     Allowed,
     OwnerPositionUnrepresented,
     HomeRangeRejected,
-}
-
-struct CreatureMeleeVictimSyncIdentityLikeCpp {
-    authority: OwnedLootAuthority,
-    health_state_revision_authority: wow_entities::HealthStateRevisionAuthorityLikeCpp,
-    spawn_id: u64,
-    loot_lifecycle_revision_before: u64,
-    loot_lifecycle_revision_after: u64,
-    death_state_before: wow_constants::DeathState,
-    death_state_after: wow_constants::DeathState,
-    ai_state_before: wow_entities::CreatureAiState,
-    ai_state_after: wow_entities::CreatureAiState,
-}
-
-struct CreatureMeleeVictimSyncStateLikeCpp {
-    applied_damage: u32,
-    victim_health_before: u64,
-    victim_health_after: u64,
-    victim_health_state_revision_before: u64,
-    victim_health_state_revision_after: u64,
-    identity: CreatureMeleeVictimSyncIdentityLikeCpp,
-}
-
-enum CreatureMeleeApplyResultLikeCpp {
-    Ready,
-    Hit {
-        victim_applied_damage: u32,
-        victim_health_before: u64,
-        victim_health_after: u64,
-        victim_health_state_revision_before: u64,
-        victim_health_state_revision_after: u64,
-        victim_creature_sync_identity: Option<CreatureMeleeVictimSyncIdentityLikeCpp>,
-        over_damage: i32,
-        target_level: u8,
-        events: Vec<RuntimeEvent>,
-    },
-    OutOfRange,
-    BadFacing,
-    AttackerStateRejected,
-    LosRejected,
-    AttackerUnavailable,
-    VictimNotAlive,
-    MissingVictim,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

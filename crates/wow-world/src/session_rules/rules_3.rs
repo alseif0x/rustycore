@@ -19,6 +19,9 @@ use wow_entities::{AppliedAuraRef, AuraApplicationLikeCpp};
 /// `MiscValueB`, the effect's caster or its spell.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct PlayerAuraEffectLikeCpp {
+    /// C++ `AuraApplication::GetSlot()`: identifies the owning application
+    /// when callers also need base-aura metadata such as cast provenance.
+    pub slot: u8,
     /// C++ `AuraEffect::GetId()`: the owning spell.
     pub spell_id: i32,
     /// C++ `AuraEffect::GetAuraType()`.
@@ -38,6 +41,7 @@ impl PlayerAuraEffectLikeCpp {
     /// `MeleeDamageBonusTaken` chain consumes.
     pub(crate) fn as_applied_like_cpp(&self) -> AppliedAuraEffectLikeCpp {
         AppliedAuraEffectLikeCpp {
+            slot: self.slot,
             spell_id: self.spell_id,
             caster_guid: self.caster_guid,
             aura_type: self.aura_type,
@@ -100,6 +104,7 @@ fn player_aura_effects_filtered_like_cpp(
                 .map(|represented| represented.amount)
                 .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
             effects.push(PlayerAuraEffectLikeCpp {
+                slot,
                 spell_id: aura.spell_id,
                 aura_type: effect.effect_aura,
                 misc_value: effect.effect_misc_value_1,
@@ -765,6 +770,8 @@ pub(crate) fn armor_reduced_damage_like_cpp(
 /// victim-side C++ `GetTotalAuraModifier*` query reads.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct AppliedAuraEffectLikeCpp {
+    /// C++ `AuraApplication::GetSlot()` for the effect's owning application.
+    pub slot: u8,
     pub spell_id: i32,
     pub caster_guid: wow_core::ObjectGuid,
     /// The effect's `AuraType`.
@@ -808,6 +815,7 @@ pub(crate) fn creature_aura_effects_like_cpp(
                     .is_some_and(|bit| aura.effect_mask & bit != 0)
         }) {
             effects.push(AppliedAuraEffectLikeCpp {
+                slot: aura.slot,
                 spell_id,
                 caster_guid: aura.caster_guid,
                 aura_type: effect.effect_aura,

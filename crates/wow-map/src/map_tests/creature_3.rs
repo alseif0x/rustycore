@@ -616,6 +616,53 @@ fn creature_update_in_world_consumes_runtime_plan_once_like_cpp() {
             .contains(wow_entities::CreatureRuntimeAction::NotifyJustAppeared)
     );
 }
+
+#[test]
+fn creature_update_settles_addon_provenance_after_runtime_mutation_like_cpp() {
+    let mut map = test_map();
+    let mut creature = test_creature_for_spawn(43505, 4350501, true);
+    let creature_guid = creature.guid();
+    let addon = wow_entities::CreatureAddonLifecycleRecordLikeCpp {
+        aura_applications: vec![wow_entities::CreatureAddonAuraApplicationLikeCpp {
+            spell_id: 81_003,
+            spell_visual_id: 1_236,
+            effect_mask: 1,
+            flags: 0,
+            effects: Vec::new(),
+        }],
+        ..wow_entities::CreatureAddonLifecycleRecordLikeCpp::default()
+    };
+    creature.apply_creatures_addon_lifecycle_like_cpp(Some(&addon));
+    map.insert_map_object_record(MapObjectRecord::new_creature(creature).unwrap())
+        .unwrap();
+
+    let outcome = map.update_creature_like_cpp(
+        creature_guid,
+        1,
+        1_000,
+        wow_entities::CreatureRuntimeUpdateContext::default(),
+    );
+    assert_eq!(outcome.status, CreatureUpdateStatusLikeCpp::Updated);
+    let canonical = map
+        .map_object_record(creature_guid)
+        .and_then(MapObjectRecord::creature)
+        .expect("canonical Creature must remain present after update");
+    let slot = *canonical
+        .unit()
+        .subsystems()
+        .auras
+        .visible_auras
+        .keys()
+        .next()
+        .expect("the pending addon aura must remain live");
+    let provenance = canonical
+        .unit()
+        .subsystems()
+        .auras
+        .aura_cast_provenance_like_cpp(slot);
+    assert_eq!(provenance.spell_visual_id, 1_236);
+    assert_eq!(provenance.cast_id.counter(), 1);
+}
 #[test]
 fn creature_update_not_in_world_skips_without_mutation_like_cpp() {
     let mut map = test_map();

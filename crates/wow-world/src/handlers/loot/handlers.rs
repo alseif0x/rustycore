@@ -7,7 +7,6 @@
 
 use super::*;
 use wow_packet::ClientPacket;
-
 inventory::submit! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LootUnit,
@@ -1669,8 +1668,8 @@ impl WorldSession {
             command.original_damage.min(i32::MAX as u32) as i32,
             command.mana_spent,
             &command.absorb_consumptions,
+            &command.split_combat_log_packets,
         );
-
         use wow_packet::packets::combat::{AttackerStateUpdate, HealthUpdate};
         // Visibility gates only the attacker-facing combat packet, never the
         // authoritative victim health/death reconciliation.
@@ -1693,6 +1692,7 @@ impl WorldSession {
                 expansion: 2,
             });
         }
+        self.publish_self_share_health_like_cpp(&command);
         // An avoided swing commits no health transition.
         if command.damage > 0 {
             self.send_packet(&HealthUpdate {

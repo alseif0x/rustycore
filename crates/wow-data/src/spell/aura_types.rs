@@ -85,6 +85,10 @@ pub const SPELL_AURA_REFLECT_SPELLS_SCHOOL: i32 = 74;
 pub const SPELL_AURA_MECHANIC_IMMUNITY: i32 = 77;
 pub const SPELL_AURA_MOUNTED: i32 = 78;
 pub const SPELL_AURA_MOD_DAMAGE_PERCENT_DONE: i32 = 79;
+/// C++ `AuraType::SPELL_AURA_SPLIT_DAMAGE_PCT` (`SpellAuraDefines.h:176`),
+/// consumed after school and mana absorbs by `Unit::CalcAbsorbResist`
+/// (`Unit.cpp:1958-2015`).
+pub const SPELL_AURA_SPLIT_DAMAGE_PCT: i32 = 81;
 /// C++ `AuraType::SPELL_AURA_MOD_REGEN` (`SpellAuraDefines.h:179`).
 pub const SPELL_AURA_MOD_REGEN: i32 = 84;
 pub const SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN: i32 = 87;
@@ -165,6 +169,9 @@ pub const SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE: i32 = 184;
 pub const SPELL_AURA_MOD_CRIT_CHANCE_VERSUS_TARGET_HEALTH: i32 = 183;
 /// C++ `AuraType::SPELL_AURA_MOD_CRIT_DAMAGE_BONUS` (`SpellAuraDefines.h:258`).
 pub const SPELL_AURA_MOD_CRIT_DAMAGE_BONUS: i32 = 163;
+/// C++ `AuraType::SPELL_AURA_SHARE_DAMAGE_PCT` (`SpellAuraDefines.h:395`),
+/// consumed by `Unit::DealDamage` (`Unit.cpp:833-856`).
+pub const SPELL_AURA_SHARE_DAMAGE_PCT: i32 = 300;
 pub const SPELL_AURA_MOD_CRIT_CHANCE_FOR_CASTER: i32 = 306;
 pub const SPELL_AURA_MOD_ATTACKER_MELEE_CRIT_CHANCE: i32 = 187;
 pub const SPELL_AURA_MOD_ATTACKER_SPELL_AND_WEAPON_CRIT_CHANCE: i32 = 197;

@@ -404,6 +404,7 @@ fn empty_loaded_grid_creature_respawn_caches_like_cpp() -> LoadedGridCreatureRes
         model_info_store: Arc::new(wow_data::CreatureModelInfoStoreLikeCpp::from_entries([])),
         creature_equipment_store: Arc::new(wow_data::CreatureEquipmentStoreLikeCpp::default()),
         creature_addon_store: Arc::new(wow_data::CreatureAddonStoreLikeCpp::default()),
+        spell_x_spell_visual_store: Arc::new(wow_data::SpellXSpellVisualStore::from_entries([])),
         vehicle_store: Arc::new(wow_data::VehicleStore::from_entries([])),
         vehicle_seat_store: Arc::new(wow_data::VehicleSeatStore::from_entries([])),
         vehicle_accessory_store: Arc::new(wow_data::VehicleAccessoryStoreLikeCpp::from_parts(
@@ -418,7 +419,6 @@ fn empty_loaded_grid_creature_respawn_caches_like_cpp() -> LoadedGridCreatureRes
         ),
     }
 }
-
 fn loaded_grid_map_store_like_cpp(map_id: u32, instance_type: i8) -> wow_data::MapStore {
     wow_data::MapStore::from_entries([wow_data::MapEntry {
         id: map_id,
@@ -1101,6 +1101,7 @@ fn variable_loaded_grid_creature_respawn_caches_with_vehicle_id_and_difficulty_l
         ])),
         creature_equipment_store: Arc::new(wow_data::CreatureEquipmentStoreLikeCpp::default()),
         creature_addon_store: Arc::new(wow_data::CreatureAddonStoreLikeCpp::default()),
+        spell_x_spell_visual_store: Arc::new(wow_data::SpellXSpellVisualStore::from_entries([])),
         vehicle_store: Arc::new(vehicle_store_for_loaded_grid_test(vehicle_id)),
         vehicle_seat_store: Arc::new(vehicle_seat_store_for_loaded_grid_test()),
         vehicle_accessory_store: Arc::new(wow_data::VehicleAccessoryStoreLikeCpp::from_parts(
@@ -1115,7 +1116,6 @@ fn variable_loaded_grid_creature_respawn_caches_with_vehicle_id_and_difficulty_l
         ),
     }
 }
-
 fn vehicle_store_for_loaded_grid_test(vehicle_id: u32) -> wow_data::VehicleStore {
     if vehicle_id == 0 {
         return wow_data::VehicleStore::from_entries([]);

@@ -4200,13 +4200,13 @@ async fn run_inner(
         model_info_store: Arc::clone(&creature_model_info_store),
         creature_equipment_store: Arc::clone(&creature_equipment_store),
         creature_addon_store: Arc::clone(&creature_addon_store),
+        spell_x_spell_visual_store: Arc::clone(&spell_x_spell_visual_store),
         vehicle_store: Arc::clone(&vehicle_store),
         vehicle_seat_store: Arc::clone(&vehicle_seat_store),
         vehicle_accessory_store: Arc::clone(&vehicle_accessory_store),
         gameobject_template_store: Arc::clone(&gameobject_template_lifecycle_store),
         gameobject_override_store: Arc::clone(&gameobject_override_lifecycle_store),
     };
-
     let game_event_scheduler = {
         let current_time_secs = current_unix_time_secs_like_cpp();
         let (game_event_outcome, active_event_ids, mut db_bridge_summary) = {
@@ -5168,7 +5168,6 @@ async fn run_inner(
 
     info!("Starting realm listener on {realm_addr}");
     info!("Starting instance listener on {instance_addr}");
-
     let mut legacy_creature_aggro_config = legacy_creature_aggro_config_like_cpp(&world_configs);
     legacy_creature_aggro_config.expected_stat_store =
         wow_data::ExpectedStatStore::load(&data_dir, &locale)
@@ -5192,6 +5191,7 @@ async fn run_inner(
     legacy_creature_aggro_config.spell_aura_restrictions_store =
         Some(Arc::clone(&spell_aura_restrictions_store));
     legacy_creature_aggro_config.spell_store = Some(Arc::clone(&spell_store));
+    legacy_creature_aggro_config.spell_threat_store = Some(Arc::clone(&spell_threat_store));
     legacy_creature_aggro_config.spell_chain_store = Some(Arc::clone(&spell_chain_store));
     legacy_creature_aggro_config.spell_linked_store = Some(Arc::clone(&spell_linked_store));
     legacy_creature_aggro_config.spell_condition_store = Some(Arc::clone(&condition_store));

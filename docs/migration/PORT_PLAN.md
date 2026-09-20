@@ -33,6 +33,189 @@ speculative AI or crate split.
 
 ## 1. Direction from here
 
+**#29 creature white-swing split/share damage — 2026-09-19, split implementation
+`5ec01cb4`, share implementation `b18fd23a`, unkillable implementation
+`11f66869`, damage-threat implementation `3cba7f7f` and replay extraction
+`027067eb`, aura-provenance implementation `39fdab43`, candidate in PR #1228:** the
+canonical creature-melee owner consumes represented
+`SPELL_AURA_SPLIT_DAMAGE_PCT` effects in C++ `CalcAbsorbResist` order
+(`Unit.cpp:1958-2015`), after school/mana absorption and before the primary
+health commit. Sequential percentages use the current remaining damage. Valid
+Player/Creature aura casters receive canonical secondary damage; missing,
+self, out-of-world or dead casters are skipped; immunity emits
+`SpellMissLog` after preserving primary absorption; and the represented
+`DealDamageMods` in-flight/evade rejection emits a fully absorbed
+`SpellNonMeleeDamageLog`. Secondary Creature revisions reuse the existing
+canonical-to-legacy CAS chain; a primary Creature already at its sparring
+threshold zeroes the remaining primary wire damage at C++'s post-
+`DealDamageMods` point; and the victim-session/map rails retain split-log order
+before the primary attacker-state packet. The production-shaped scenarios
+cover both primary target kinds, both secondary target kinds, missing caster,
+immunity, evade, sparring, canonical health and publication order; a byte-level
+packet regression pins the 3.4.3 `SpellMissLog` field order
+(`CombatLogPackets.cpp:289-297`).
+
+The continuation also consumes `SPELL_AURA_SHARE_DAMAGE_PCT` at the represented
+`Unit::DealDamage` boundary (`Unit.cpp:767-856`). It revalidates copied aura
+applications, uses the same post-split/post-sparring `damageDone` for every
+matching aura without subtracting from the primary hit, and applies secondary
+Player/Creature health through canonical map authority. The recursive call's
+`NODAMAGE` type prevents share recursion and adds no independent combat-log or
+proc frame. Creature revisions retain the canonical-to-legacy CAS chain;
+primary attacker-state, self-share Player health and final primary health retain
+C++ order on the session FIFO, with the corresponding Creature order on the map
+event rail. Production regressions cover both target kinds, multiple and self
+shares, split/share arithmetic, evade, sparring-before-share, non-recursion and
+publication order.
+
+All three represented Creature `DealDamage` consumers now apply the target
+3.4.3 `CREATURE_STATIC_FLAG_UNKILLABLE` gate after raw damage/log calculation
+and before the health transition (`Unit.cpp:887-898`): the primary victim and
+the split/share secondary Creature remain alive at one HP on a lethal hit from
+a different attacker, while self damage is unchanged. The primary
+`AttackerStateUpdate` and split `SpellNonMeleeDamageLog` retain the pre-clamp
+damage, matching the C++ placement. Entity and production regressions cover
+lethal/non-lethal, self/no-flag, direct primary, split and share paths, canonical
+death state and the compatibility CAS. The adjacent virtual
+`GetDamageMultiplierForTarget`/`GetHealthMultiplierForTarget` calls are 1.0
+defaults with no override in the pinned 3.4.3 source (`Unit.cpp:746-758`,
+`767-800`; `Unit.h:776-777`), so this delivery does not invent a Rust
+multiplier extension point.
+
+The direct, split and share Creature nonlethal paths now settle damage threat
+after health at target C++'s `Unit::DealDamage` point (`Unit.cpp:868-869`,
+`1015-1034`; `ThreatManager.cpp:353-465`, `662-690`). The represented contract
+creates reciprocal combat/threat references and enters Creature AI combat;
+honors `NO_THREAT`, `NO_HARMFUL_THREAT` and `NO_INITIAL_THREAT`; applies
+`SpellThreat.pctMod` with chain fallback and the attacker's school-specific
+`MOD_THREAT`; and reuses the existing `CanHaveThreatList` capability. Lethal
+damage skips this nonlethal step. Sparring `damageDone == 0` returns before
+threat, whereas a positive hit clamped by `UNKILLABLE` to zero `damageTaken`
+still performs `AddThreat(0)`. The compatibility replay preflights the complete
+victim chain and validates every threat attacker's spawn/shared authority
+before mutation. Direct, split and share regressions cover modifiers,
+suppression/admission, lethal exclusion, zero-value references, AI state and
+canonical/legacy reciprocal references. Implementation: `3cba7f7f`. The
+behavior-preserving replay extraction `027067eb` retains the owner, lock order
+and public paths while reducing `creature_melee_tick.rs` from 2,135 to 1,863
+lines; its private `creature_melee_sync.rs` is 341 lines and the physical
+ratchet passes without raising a ceiling.
+
+The next represented split-log slice retains each active cast's C++ Aura-base
+`CastGUID` and resolved `SpellXSpellVisualID` on the canonical Player/Creature
+slot, clears it on slot replacement/removal, and emits it in
+`SpellNonMeleeDamageLog`. Restored Player auras allocate a fresh map-owned Cast
+GUID and use the first unconditional no-caster visual. This is anchored in
+`SpellAuras.cpp:462-465`, `SpellInfo.cpp:4446-4463`,
+`Player.cpp:18036-18122` and `Unit.cpp:2003-2012`; regressions cover slot
+lifetime, active Player/Creature application, restored-Player selection and
+exact split packet bytes.
+
+The current continuation extends that identity contract to Creature spawn
+addons and taunt. Target 3.4.3 `Creature::LoadCreaturesAddon` reaches
+`Unit::AddAura`, which allocates a normal-source Cast GUID from its Map and
+stores the selected visual on the Aura base (`Creature.cpp:2734-2798`,
+`Unit.cpp:11473-11517`, `SpellAuras.cpp:344-389,462-465`,
+`SpellInfo.cpp:4446-4462`, `Map.h:514-519`, `Map.cpp:2505-2512`). The Rust
+operation now admits the Unit-owned addon slot and then settles it through the
+same Map-owned `HighGuid::Cast` sequence for loaded-grid creation,
+`JustRespawned`, and pending compatibility respawn. Duplicate, rejected and
+stale records allocate nothing; the compatibility mirror copies the canonical
+identity. Taunt inherits its parent Spell provenance, and Creature
+`AuraUpdate` emits the retained fields instead of a slot-derived Cast GUID.
+
+This resolver is bounded by exact target data. At target source SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`, 910 effective addon spell IDs
+intersect 450 visual rows, all unique, difficulty-zero and without caster
+conditions. `SpellXSpellVisual.db2` hashes to
+`893b2141d6250684968cccd76fb365b548177327f2fad508131fe46050276e86` and
+`UnitCondition.db2` to
+`95e3a382588a6934ca33c1346eec31bb777046f273ac7b855c844da2dda15b7e2`;
+the four effective SQL overrides do not target addon spells. The operation uses
+the relation row ID with difficulty-zero fallback and fails closed for missing,
+duplicate or caster-conditioned rows rather than inventing the still-unported
+conditional/override evaluator.
+
+This slice does not close #29. Script split handlers and the rest of generic
+`DealDamage`/proc/fear/kill behavior (including remaining AI/script hooks and
+criteria in the recursive `NODAMAGE` call), threat redirection,
+vehicle/private-object routing and Player `SpellMod::Hate`, pet/guardian
+secondary targets, generated cast/visual provenance for pet/guardian and other
+non-cast aura producers, conditional/override visuals outside the audited
+addon domain, server-triggered Creature cast visual resolution, and live
+capture/runtime/DB acceptance remain explicit follow-on boundaries.
+
+Candidate evidence: the focused split scenarios pass 2/2, the byte-level
+`SpellMissLog` regression passes 1/1, and the complete locked library command
+for `world-server`, `wow-data`, `wow-packet` and `wow-world` passes
+(`world-server`: 594; `wow-data`: 754; `wow-packet`: 755; `wow-world`: 4034
+passed and 1 ignored; zero failures). The locked affected-workspace check with
+tests passes on `b18fd23a` with Cargo reporting 8m49s; the complete locked
+library command reports a 9m47s build before the suites. The earlier affected
+locked workspace check passes in 2m18s on the repaired warm split candidate;
+formatting, diff,
+JSON, physical-file and syntax-only Session ownership checks pass without a new
+physical ceiling. The architecture final stops only on the unchanged global
+hotspot baseline (manifest
+`20260919T201800.039244Z-2-final.json`), as does the standard final
+(`20260919T201950.128060Z-2-final.json`). The publication-candidate standard
+final on `26a11f9a` again passes diff, physical-file, whitespace, JSON and
+format checks, then stops only on that same global hotspot ratchet (manifest
+`20260919T210735.650972Z-2-final.json`). Its earlier 84.42s plus the 555s production
+check from the initial timed campaign already exceed the 600s ordinary target
+at a minimum 639.42s before the library suites and command overhead; the faster
+repaired rerun does not relabel that performance target as met.
+The focused share scenarios pass 2/2 (with one unrelated name-filter match),
+the self-share victim-session ordering regression passes 1/1, and the direct,
+split and share unkillable regressions pass after repairing their mirrored
+legacy/canonical setup. The exact locked affected command `cargo test --locked
+--lib --jobs 1 -p wow-entities -p wow-world` passes on `11f66869`;
+`wow-entities` reports 942 passed and `wow-world` reports 4035 passed and 1
+ignored, with the warm rerun completing in 3.04s. This is
+functional local evidence for committed candidate `11f66869`, not a green
+global architecture gate, live acceptance or satisfaction of the ordinary
+600-second performance target.
+The damage-threat repair's exact sparring-zero and zero-value `UNKILLABLE`
+regressions each pass 1/1, and the complete focused
+`scenarios_world_entities_34` module passes 7/7 on `3cba7f7f`. On the exact
+tree committed as `027067eb`, the locked production/test-target check for
+`wow-world` and `world-server` passes in 8m32s, and the complete locked affected
+library command passes (`wow-entities`: 942; `wow-world`: 4036 passed and 1
+ignored; zero failures) after a 2m45s build. The committed-candidate standard
+final passes diff, physical-file, whitespace, JSON and format checks before
+stopping only on the unchanged global hotspot ratchet (manifest
+`20260919T222233.238707Z-2-final.json`). The required campaign took at least
+12m10s, so the 600-second ordinary performance target remains unmet; this does
+not convert the known global gate into a green result.
+The six aura-provenance regressions pass for slot lifetime, active
+Player/Creature casts, restored Player selection and exact Player/Creature
+split-log bytes. On implementation `39fdab43`, the locked affected library
+command has zero failures (`wow-world`: 4039 passed and 1 ignored), and the
+locked `world-server`/`wow-world` production and test-target check passes in
+8m51s. Formatting/diff checks pass after the comment-only candidate delta, and
+the reviewed syntax-only ownership baseline passes with 225 production and 429
+fixture fields, 69 impl owners / 3935 exact items and 630 exact registry rows.
+This work remains part of the over-budget ordinary campaign; publication-final
+passes diff, physical-file, whitespace, JSON and format checks on the
+documentation candidate before stopping only on the unchanged five-file
+global hotspot ratchet (manifest `20260919T232529.121135Z-2-final.json`). That
+result does not relabel the 600-second target or the global gate as green.
+
+The Creature-addon continuation has zero failures across its final complete
+local suites: `world-server` 597, `wow-data` 754, `wow-entities` 946, `wow-map`
+752, `wow-packet` 755, and `wow-world` 4041 passed with 1 ignored. The two
+strengthened provenance fixtures now use a realm/map-bearing Creature GUID and
+an actual Cast ID from the owning Map sequence; focused and complete affected
+reruns pass. The exact locked thirteen-package reverse-closure check passes in
+6m12s, and formatting/diff/physical-file checks pass without a ceiling raise.
+The standard final reaches only the unchanged global hotspot ratchet after
+passing its preceding static gates (manifest
+`20260920T095833.199932Z-2-final.json`). The ordinary performance target remains
+red: 42.6s of final, 372s of closure checking and the initial 12m50s library
+build already total at least 1,184.6s, excluding repair reruns and command
+overhead. Live client/capture and runtime/DB acceptance remain outside this
+local evidence.
+
 **#31 direct-damage fidelity correction — 2026-09-19, current candidate:**
 `Spell::EffectPowerDrain` calls `Unit::SpellDamageBonusTaken` with
 `SPELL_DIRECT_DAMAGE` (`SpellEffects.cpp:1082-1088`), while

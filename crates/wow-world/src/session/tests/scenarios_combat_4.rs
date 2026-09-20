@@ -1200,6 +1200,7 @@ fn melee_damage_taken_matches_cpp_like_cpp() {
 
     let attacker = ObjectGuid::create_player(1, 92);
     let effect = |aura_type, misc_value, amount, caster_guid| Effect {
+        slot: 0,
         spell_id: 1,
         caster_guid,
         aura_type,

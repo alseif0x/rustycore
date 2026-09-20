@@ -445,6 +445,16 @@ pub struct ApplyCreatureMeleeDamageLikeCppCommand {
     /// and the aura transition, so it performs them when it delivers this
     /// command.
     pub absorb_consumptions: Vec<CreatureMeleeAbsorbConsumptionLikeCpp>,
+    /// Ordered split-damage miss/non-melee combat-log frames produced after
+    /// school and mana absorbs and before the primary attacker-state packet.
+    /// The victim session is the ordering rail used by C++'s single
+    /// `CalcAbsorbResist` call; each frame is also fanned out to its visible
+    /// set when this command is delivered.
+    pub split_combat_log_packets: Vec<Vec<u8>>,
+    /// Intermediate canonical health values when the primary Player is also a
+    /// share target. C++ sends these after AttackerStateUpdate and before the
+    /// primary DealDamage health publication.
+    pub self_share_health_updates: Vec<u64>,
 }
 
 /// One school-absorb shield spent by the map-owned melee absorb stage.

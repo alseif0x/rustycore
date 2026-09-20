@@ -138,6 +138,7 @@ pub(crate) fn player_aura_info_like_cpp(
                 i64::from(aura.slot) + 1,
             ),
             spell_id: aura.spell_id,
+            spell_visual_id: 0,
             flags: aura.aura_flags.min(u32::from(u16::MAX)) as u16,
             active_flags: aura.effect_mask,
             caster_guid: aura.caster_guid,
