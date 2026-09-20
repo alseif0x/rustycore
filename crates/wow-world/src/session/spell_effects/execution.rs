@@ -585,7 +585,15 @@ impl WorldSession {
                     )?;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_ATTACK_ME => {
-                    self.apply_taunt_effect_like_cpp(spell_id, target_guid, true)?;
+                    self.apply_taunt_effect_like_cpp(
+                        spell_id,
+                        target_guid,
+                        true,
+                        wow_entities::AuraCastProvenanceLikeCpp {
+                            cast_id,
+                            spell_visual_id: spell_visual_id.min(i32::MAX as u32) as i32,
+                        },
+                    )?;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_MODIFY_COOLDOWN => {
                     self.apply_modify_cooldown_effect_like_cpp(
@@ -873,7 +881,15 @@ impl WorldSession {
                         if !target_guid.is_any_type_creature() {
                             return Err("Taunt aura requires a creature target");
                         }
-                        self.apply_taunt_effect_like_cpp(spell_id, target_guid, false)?;
+                        self.apply_taunt_effect_like_cpp(
+                            spell_id,
+                            target_guid,
+                            false,
+                            wow_entities::AuraCastProvenanceLikeCpp {
+                                cast_id,
+                                spell_visual_id: spell_visual_id.min(i32::MAX as u32) as i32,
+                            },
+                        )?;
                     }
                 } else if effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_MOD_SCALE {
                     self.apply_represented_aura_modifier_like_cpp(

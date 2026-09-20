@@ -426,6 +426,7 @@ impl WorldSession {
         spell_id: i32,
         target_guid: ObjectGuid,
         enforce_effect_taunt_current_victim_gate: bool,
+        provenance: wow_entities::AuraCastProvenanceLikeCpp,
     ) -> Result<(), &'static str> {
         let player_guid = self.player_guid().ok_or("No player GUID")?;
         let difficulty = self.current_map_difficulty_id_like_cpp();
@@ -489,11 +490,12 @@ impl WorldSession {
                     taunt_effect_mask
                         .filter(|_| duration_ms != 0)
                         .and_then(|effect_mask| {
-                            creature.apply_taunt_aura_like_cpp(
+                            creature.apply_taunt_aura_with_provenance_like_cpp(
                                 player_guid,
                                 u32::try_from(spell_id).ok()?,
                                 effect_mask,
                                 duration_ms,
+                                provenance,
                             )
                         });
                 Some((threat, taunt_slot))

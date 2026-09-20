@@ -34,6 +34,7 @@ fn caches() -> LoadedGridCreatureRespawnCachesLikeCpp {
         model_info_store: Arc::new(wow_data::CreatureModelInfoStoreLikeCpp::from_entries([])),
         creature_equipment_store: Default::default(),
         creature_addon_store: Default::default(),
+        spell_x_spell_visual_store: Arc::new(wow_data::SpellXSpellVisualStore::from_entries([])),
         vehicle_store: Arc::new(wow_data::VehicleStore::from_entries([])),
         vehicle_seat_store: Arc::new(wow_data::VehicleSeatStore::from_entries([])),
         vehicle_accessory_store: Arc::new(wow_data::VehicleAccessoryStoreLikeCpp::from_parts(

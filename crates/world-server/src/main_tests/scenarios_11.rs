@@ -4,6 +4,67 @@
 //! unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use crate::creature_addon_spell_x_spell_visual_id_like_cpp;
+
+fn spell_x_spell_visual_row_like_cpp(
+    id: u32,
+    spell_id: u32,
+    difficulty_id: u8,
+    caster_unit_condition_id: u16,
+) -> wow_data::SpellXSpellVisualEntry {
+    wow_data::SpellXSpellVisualEntry {
+        id,
+        difficulty_id,
+        spell_visual_id: id + 100_000,
+        probability: 1.0,
+        flags: 0,
+        priority: 0,
+        spell_icon_file_id: 0,
+        active_icon_file_id: 0,
+        viewer_unit_condition_id: 91,
+        viewer_player_condition_id: 92,
+        caster_unit_condition_id,
+        caster_player_condition_id: 0,
+        spell_id,
+    }
+}
+
+#[test]
+fn addon_visual_uses_relation_row_id_and_base_difficulty_fallback_like_cpp() {
+    let store = wow_data::SpellXSpellVisualStore::from_entries([
+        spell_x_spell_visual_row_like_cpp(7_043, 70_043, 0, 0),
+        spell_x_spell_visual_row_like_cpp(7_044, 70_044, 2, 0),
+    ]);
+    assert_eq!(
+        creature_addon_spell_x_spell_visual_id_like_cpp(&store, 70_043, 2),
+        7_043
+    );
+    assert_eq!(
+        creature_addon_spell_x_spell_visual_id_like_cpp(&store, 70_044, 2),
+        7_044
+    );
+    assert_eq!(
+        creature_addon_spell_x_spell_visual_id_like_cpp(&store, 99_999, 2),
+        0
+    );
+}
+
+#[test]
+fn addon_visual_does_not_guess_outside_audited_caster_condition_domain() {
+    let store = wow_data::SpellXSpellVisualStore::from_entries([
+        spell_x_spell_visual_row_like_cpp(7_043, 70_043, 0, 1),
+        spell_x_spell_visual_row_like_cpp(7_044, 70_044, 0, 0),
+        spell_x_spell_visual_row_like_cpp(7_045, 70_044, 0, 0),
+    ]);
+    assert_eq!(
+        creature_addon_spell_x_spell_visual_id_like_cpp(&store, 70_043, 0),
+        0
+    );
+    assert_eq!(
+        creature_addon_spell_x_spell_visual_id_like_cpp(&store, 70_044, 0),
+        0
+    );
+}
 
 #[test]
 fn canonical_map_object_values_delivery_uses_committed_visibility_and_phase_like_cpp() {
@@ -159,6 +220,115 @@ fn loaded_grid_creature_spawn_group_spawn_record_does_not_require_respawn_timer_
     assert_eq!(creature.guid().counter(), 1);
     assert_ne!(creature.guid().counter(), spawn_id as i64);
 }
+
+#[test]
+fn loaded_grid_creature_addon_uses_map_cast_sequence_and_resolved_visual_like_cpp() {
+    let spawn_id = 54_995;
+    let entry = 42;
+    let addon_spell_id = 70_043;
+    let mut metadata =
+        test_spawn_metadata_with_explicit_spawn_ids([(70, 571, SpawnGroupFlags::NONE, spawn_id)]);
+    metadata = metadata.with_creature_runtime_rows_like_cpp(BTreeMap::from([(
+        spawn_id,
+        super::super::spawn_store_loader::CreatureSpawnRuntimeRowLikeCpp {
+            spawn_id,
+            model_id: 999,
+            equipment_id: 0,
+            wander_distance: 0.0,
+            curhealth: 0,
+            curmana: 0,
+            movement_type: 0,
+            npc_flags: None,
+            unit_flags: None,
+            unit_flags2: None,
+            unit_flags3: None,
+            ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+            swim_allowed: true,
+            flight_movement_type: 0,
+            rooted: false,
+            chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
+            random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+            interaction_pause_timer_ms:
+                wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
+            string_id: "addon-provenance".to_string(),
+            spawn_time_secs: 120,
+        },
+    )]));
+    let mut caches =
+        variable_loaded_grid_creature_respawn_caches_with_vehicle_id_and_difficulty_like_cpp(
+            entry, 0, 0,
+        );
+    caches.creature_addon_store =
+        Arc::new(wow_data::CreatureAddonStoreLikeCpp::from_rows_like_cpp(
+            [wow_data::CreatureAddonRowLikeCpp {
+                owner_id: spawn_id,
+                path_id: 0,
+                mount: 0,
+                stand_state: 0,
+                anim_tier: 0,
+                vis_flags: 0,
+                sheath_state: 0,
+                pvp_flags: 0,
+                emote: 0,
+                ai_anim_kit: 0,
+                movement_anim_kit: 0,
+                melee_anim_kit: 0,
+                visibility_distance_type: 0,
+                auras: addon_spell_id.to_string(),
+            }],
+            [],
+            |id| id == spawn_id,
+            |_| false,
+            |_| true,
+            |_| true,
+            |_| true,
+            |id| id == addon_spell_id,
+            |_| false,
+            |_| -1,
+            |id| {
+                (id == addon_spell_id)
+                    .then_some(vec![wow_entities::CreatureAddonAuraEffectLikeCpp {
+                        aura_type: wow_data::spell::aura_types::SPELL_AURA_MOD_DETECT_RANGE,
+                        amount: 5,
+                        misc_value: 0,
+                        effect_index: 0,
+                    }])
+                    .unwrap_or_default()
+            },
+            |_| 0,
+        ));
+    caches.spell_x_spell_visual_store = Arc::new(wow_data::SpellXSpellVisualStore::from_entries([
+        spell_x_spell_visual_row_like_cpp(7_043, addon_spell_id, 0, 0),
+    ]));
+    let mut map = wow_map::Map::new(571, 0, 0, 60_000);
+
+    let record = build_loaded_grid_creature_spawn_group_spawn_record_like_cpp(
+        &mut map,
+        SpawnObjectType::Creature,
+        spawn_id,
+        &metadata,
+        &caches,
+    )
+    .expect("loaded-grid addon creature");
+    let creature = record.primary_record.creature().expect("typed Creature");
+    let auras = &creature.unit().subsystems().auras;
+    let slot = auras
+        .visible_auras
+        .iter()
+        .find_map(|(slot, aura)| (aura.spell_id == addon_spell_id).then_some(*slot))
+        .expect("addon aura slot");
+    let provenance = auras.aura_cast_provenance_like_cpp(slot);
+    assert_eq!(provenance.cast_id.high_type(), HighGuid::Cast);
+    assert_eq!(provenance.cast_id.entry(), addon_spell_id);
+    assert_eq!(provenance.cast_id.counter(), 1);
+    assert_eq!(provenance.spell_visual_id, 7_043);
+    assert_eq!(
+        map.generate_low_guid_like_cpp(HighGuid::Cast)
+            .expect("shared Cast sequence"),
+        2
+    );
+}
+
 #[test]
 fn spawn_group_condition_update_spawn_loads_loaded_grid_creature_without_respawn_timer_like_cpp() {
     let spawn_id = 54_986;

@@ -714,7 +714,6 @@ impl WorldSession {
                         &creature.unit().subsystems().auras,
                         slot,
                         level,
-                        self.player_map_id_like_cpp(),
                     )
                 })
         }) else {

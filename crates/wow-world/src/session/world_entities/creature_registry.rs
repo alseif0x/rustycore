@@ -5,6 +5,100 @@
 
 use super::*;
 
+#[derive(Debug, Clone)]
+pub(crate) struct CanonicalCreatureInsertOutcomeLikeCpp {
+    pub(crate) loot_authority: OwnedLootAuthority,
+    pub(crate) aura_provenance: Vec<(u8, u32, wow_entities::AuraCastProvenanceLikeCpp)>,
+}
+
+pub(crate) fn insert_canonical_creature_map_object_on_map_like_cpp(
+    manager: &SharedCanonicalMapManager,
+    map_id: u32,
+    instance_id: u32,
+    mut creature: wow_entities::Creature,
+) -> Option<CanonicalCreatureInsertOutcomeLikeCpp> {
+    let guid = creature.unit().world().object().guid();
+    let Ok(mut manager) = manager.lock() else {
+        return None;
+    };
+    let map = manager.find_map_mut(map_id, instance_id)?;
+    if map.map().get_creature(guid).is_some() {
+        let current = map.map_mut().get_typed_creature_mut(guid)?;
+        let current_authority = current.loot_authority_like_cpp().clone();
+        let incoming_authority = creature.loot_authority_like_cpp().clone();
+        let current_stamp = current_authority.stamp_like_cpp();
+        let incoming_stamp = incoming_authority.stamp_like_cpp();
+        let authority = reconcile_creature_loot_authority_mirrors_like_cpp(
+            &current_authority,
+            current_stamp,
+            &incoming_authority,
+            incoming_stamp,
+        );
+        current.rebind_loot_authority_if_current_like_cpp(
+            &current_authority,
+            current_stamp,
+            authority.clone(),
+        )?;
+        creature.adopt_loot_authority_for_snapshot_like_cpp(authority.clone());
+        let aura_provenance = current
+            .unit()
+            .subsystems()
+            .auras
+            .visible_auras
+            .iter()
+            .filter_map(|(slot, aura)| {
+                let provenance = current
+                    .unit()
+                    .subsystems()
+                    .auras
+                    .aura_cast_provenance_like_cpp(*slot);
+                (!provenance.cast_id.is_empty()).then_some((*slot, aura.spell_id, provenance))
+            })
+            .collect();
+        return Some(CanonicalCreatureInsertOutcomeLikeCpp {
+            loot_authority: authority,
+            aura_provenance,
+        });
+    }
+    if creature.loot_authority_like_cpp().lifecycle_like_cpp()
+        == OwnedLootAuthorityLifecycle::Detached
+    {
+        return None;
+    }
+
+    map.map_mut()
+        .settle_creature_addon_aura_provenance_like_cpp(&mut creature)
+        .ok()?;
+    let aura_provenance = creature
+        .unit()
+        .subsystems()
+        .auras
+        .visible_auras
+        .keys()
+        .filter_map(|slot| {
+            let aura = creature.unit().subsystems().auras.visible_auras.get(slot)?;
+            let provenance = creature
+                .unit()
+                .subsystems()
+                .auras
+                .aura_cast_provenance_like_cpp(*slot);
+            (!provenance.cast_id.is_empty()).then_some((*slot, aura.spell_id, provenance))
+        })
+        .collect();
+    let object = creature.unit().world().clone();
+    let _ = map
+        .map_mut()
+        .add_to_map_like_cpp(AccessorObjectKind::Creature, object);
+    creature.unit_mut().world_mut().object_mut().add_to_world();
+    let authority = creature.loot_authority_like_cpp().clone();
+    let record = wow_entities::MapObjectRecord::new_creature(creature).ok()?;
+    map.map_mut().insert_map_object_record(record).ok()?;
+    Some(CanonicalCreatureInsertOutcomeLikeCpp {
+        loot_authority: authority,
+        aura_provenance,
+    })
+}
+
 impl WorldSession {
     /// Set the realm ID for GUID creation.
     /// Register a creature through canonical map state when available, keeping
@@ -344,10 +438,21 @@ impl WorldSession {
             creature
         };
         canonical_creature.clear_data_changes();
-        if let Some(authority) =
+        if let Some(outcome) =
             self.insert_canonical_creature_map_object_like_cpp(map_id, canonical_creature.clone())
         {
-            canonical_creature.rebind_loot_authority_like_cpp(authority);
+            canonical_creature.rebind_loot_authority_like_cpp(outcome.loot_authority);
+            let _ = canonical_creature.take_pending_addon_aura_provenance_like_cpp();
+            for (slot, spell_id, provenance) in outcome.aura_provenance {
+                let auras = &mut canonical_creature.unit_mut().subsystems_mut().auras;
+                if auras
+                    .visible_auras
+                    .get(&slot)
+                    .is_some_and(|aura| aura.spell_id == spell_id)
+                {
+                    auras.set_aura_cast_provenance_like_cpp(slot, provenance);
+                }
+            }
         }
         let canonical_health_owner = self.canonical_map_manager.as_ref().and_then(|manager| {
             let manager = manager.lock().ok()?;
@@ -396,7 +501,7 @@ impl WorldSession {
         &mut self,
         map_id: u16,
         creature: wow_entities::Creature,
-    ) -> Option<OwnedLootAuthority> {
+    ) -> Option<CanonicalCreatureInsertOutcomeLikeCpp> {
         let Some(manager) = self.canonical_map_manager.as_ref() else {
             return None;
         };

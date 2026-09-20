@@ -7,6 +7,8 @@ use wow_persistence::{
 
 use super::map_tick::{canonical_map_tick_begin_like_cpp, canonical_map_tick_resume_like_cpp};
 use super::*;
+mod creature_addon_provenance;
+pub(crate) use creature_addon_provenance::creature_addon_spell_x_spell_visual_id_like_cpp;
 
 /// Supply the Group owner's loaded-difficulty port from the DB2 store.
 ///
@@ -544,6 +546,7 @@ pub(crate) struct LoadedGridCreatureRespawnCachesLikeCpp {
     pub(crate) model_info_store: Arc<wow_data::CreatureModelInfoStoreLikeCpp>,
     pub(crate) creature_equipment_store: Arc<wow_data::CreatureEquipmentStoreLikeCpp>,
     pub(crate) creature_addon_store: Arc<wow_data::CreatureAddonStoreLikeCpp>,
+    pub(crate) spell_x_spell_visual_store: Arc<wow_data::SpellXSpellVisualStore>,
     pub(crate) vehicle_store: Arc<wow_data::VehicleStore>,
     pub(crate) vehicle_seat_store: Arc<wow_data::VehicleSeatStore>,
     pub(crate) vehicle_accessory_store: Arc<wow_data::VehicleAccessoryStoreLikeCpp>,
@@ -724,6 +727,11 @@ pub(crate) fn build_loaded_grid_creature_record_with_respawn_time_like_cpp(
         }
     };
     let mut template = template;
+    creature_addon_provenance::resolve_addon_visuals_like_cpp(
+        template.addon.as_mut(),
+        caches.spell_x_spell_visual_store.as_ref(),
+        difficulty_id,
+    );
     template.sparring_health_pct = caches
         .sparring_store
         .values_for_entry_like_cpp(template.entry)
@@ -779,21 +787,13 @@ pub(crate) fn build_loaded_grid_creature_record_with_respawn_time_like_cpp(
         [resolved_spawn],
         [(spawn.id, runtime_selection)],
     );
-    match resolver.resolve_loaded_grid_creature_like_cpp(spawn_id, map_object_guid) {
-        Ok(resolved) => resolved.map_object_record.map(|primary_record| {
-            wow_map::map::LoadedGridRespawnRecordsLikeCpp::primary_only(primary_record)
-        }),
-        Err(error) => {
-            debug!(
-                ?error,
-                spawn_id,
-                entry = spawn.id,
-                guid = ?map_object_guid,
-                "C++ loaded-grid Creature DoRespawn blocked: resolver rejected loaded Creature record"
-            );
-            None
-        }
-    }
+    creature_addon_provenance::settle_resolved_loaded_grid_creature_like_cpp(
+        map,
+        resolver.resolve_loaded_grid_creature_like_cpp(spawn_id, map_object_guid),
+        spawn_id,
+        spawn.id,
+        map_object_guid,
+    )
 }
 
 pub(crate) fn build_loaded_grid_gameobject_respawn_record_like_cpp(

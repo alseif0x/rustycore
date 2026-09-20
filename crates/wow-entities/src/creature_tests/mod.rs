@@ -15,8 +15,8 @@
 use super::*;
 use crate::MovementGeneratorKind;
 use crate::{
-    AURA_STATE_DEFENSIVE, AURA_STATE_DEFENSIVE_2, AppliedAuraRef, AuraRef, CurrentSpellRef,
-    CurrentSpellSlot, DIMINISHING_STUN, DiminishingLevel, OwnedAuraRef,
+    AURA_STATE_DEFENSIVE, AURA_STATE_DEFENSIVE_2, AppliedAuraRef, AuraCastProvenanceLikeCpp,
+    AuraRef, CurrentSpellRef, CurrentSpellSlot, DIMINISHING_STUN, DiminishingLevel, OwnedAuraRef,
 };
 use wow_constants::SpellState;
 use wow_core::guid::HighGuid;

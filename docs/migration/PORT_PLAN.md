@@ -111,12 +111,38 @@ GUID and use the first unconditional no-caster visual. This is anchored in
 lifetime, active Player/Creature application, restored-Player selection and
 exact split packet bytes.
 
+The current continuation extends that identity contract to Creature spawn
+addons and taunt. Target 3.4.3 `Creature::LoadCreaturesAddon` reaches
+`Unit::AddAura`, which allocates a normal-source Cast GUID from its Map and
+stores the selected visual on the Aura base (`Creature.cpp:2734-2798`,
+`Unit.cpp:11473-11517`, `SpellAuras.cpp:344-389,462-465`,
+`SpellInfo.cpp:4446-4462`, `Map.h:514-519`, `Map.cpp:2505-2512`). The Rust
+operation now admits the Unit-owned addon slot and then settles it through the
+same Map-owned `HighGuid::Cast` sequence for loaded-grid creation,
+`JustRespawned`, and pending compatibility respawn. Duplicate, rejected and
+stale records allocate nothing; the compatibility mirror copies the canonical
+identity. Taunt inherits its parent Spell provenance, and Creature
+`AuraUpdate` emits the retained fields instead of a slot-derived Cast GUID.
+
+This resolver is bounded by exact target data. At target source SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`, 910 effective addon spell IDs
+intersect 450 visual rows, all unique, difficulty-zero and without caster
+conditions. `SpellXSpellVisual.db2` hashes to
+`893b2141d6250684968cccd76fb365b548177327f2fad508131fe46050276e86` and
+`UnitCondition.db2` to
+`95e3a382588a6934ca33c1346eec31bb777046f273ac7b855c844da2dda15b7e2`;
+the four effective SQL overrides do not target addon spells. The operation uses
+the relation row ID with difficulty-zero fallback and fails closed for missing,
+duplicate or caster-conditioned rows rather than inventing the still-unported
+conditional/override evaluator.
+
 This slice does not close #29. Script split handlers and the rest of generic
 `DealDamage`/proc/fear/kill behavior (including remaining AI/script hooks and
 criteria in the recursive `NODAMAGE` call), threat redirection,
 vehicle/private-object routing and Player `SpellMod::Hate`, pet/guardian
-secondary targets, generated cast/visual provenance for Creature spawn-addon
-and other non-cast aura producers, and live
+secondary targets, generated cast/visual provenance for pet/guardian and other
+non-cast aura producers, conditional/override visuals outside the audited
+addon domain, server-triggered Creature cast visual resolution, and live
 capture/runtime/DB acceptance remain explicit follow-on boundaries.
 
 Candidate evidence: the focused split scenarios pass 2/2, the byte-level
@@ -174,6 +200,21 @@ passes diff, physical-file, whitespace, JSON and format checks on the
 documentation candidate before stopping only on the unchanged five-file
 global hotspot ratchet (manifest `20260919T232529.121135Z-2-final.json`). That
 result does not relabel the 600-second target or the global gate as green.
+
+The Creature-addon continuation has zero failures across its final complete
+local suites: `world-server` 597, `wow-data` 754, `wow-entities` 946, `wow-map`
+752, `wow-packet` 755, and `wow-world` 4041 passed with 1 ignored. The two
+strengthened provenance fixtures now use a realm/map-bearing Creature GUID and
+an actual Cast ID from the owning Map sequence; focused and complete affected
+reruns pass. The exact locked thirteen-package reverse-closure check passes in
+6m12s, and formatting/diff/physical-file checks pass without a ceiling raise.
+The standard final reaches only the unchanged global hotspot ratchet after
+passing its preceding static gates (manifest
+`20260920T095833.199932Z-2-final.json`). The ordinary performance target remains
+red: 42.6s of final, 372s of closure checking and the initial 12m50s library
+build already total at least 1,184.6s, excluding repair reruns and command
+overhead. Live client/capture and runtime/DB acceptance remain outside this
+local evidence.
 
 **#31 direct-damage fidelity correction — 2026-09-19, current candidate:**
 `Spell::EffectPowerDrain` calls `Unit::SpellDamageBonusTaken` with

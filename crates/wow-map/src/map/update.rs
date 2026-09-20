@@ -434,6 +434,12 @@ where
             };
         };
 
+        // `Creature::JustRespawned` admits addon applications while the
+        // canonical Unit owns their visible slots. Settle the exact pending
+        // batch only after that mutable entity borrow ends so CastGUIDs come
+        // from this Map's shared sequence and no legacy mirror is involved.
+        let _ = self.settle_creature_addon_aura_provenance_by_guid_like_cpp(creature_guid);
+
         let actions_recorded = plan.actions().len();
         CreatureUpdateOutcomeLikeCpp {
             creature_guid,

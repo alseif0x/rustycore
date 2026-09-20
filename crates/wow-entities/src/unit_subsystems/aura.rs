@@ -646,7 +646,8 @@ impl AuraSubsystem {
         spell_id: u32,
         caster_guid: ObjectGuid,
     ) -> bool {
-        self.add_self_cast_addon_aura_application_like_cpp(spell_id, caster_guid, 0, 0)
+        self.add_self_cast_addon_aura_application_slot_like_cpp(spell_id, caster_guid, 0, 0)
+            .is_some()
     }
 
     pub fn add_self_cast_addon_aura_application_like_cpp(
@@ -656,16 +657,36 @@ impl AuraSubsystem {
         effect_mask: u32,
         flags: u32,
     ) -> bool {
+        self.add_self_cast_addon_aura_application_slot_like_cpp(
+            spell_id,
+            caster_guid,
+            effect_mask,
+            flags,
+        )
+        .is_some()
+    }
+
+    /// Add one represented self-cast addon aura and return the newly admitted
+    /// visible slot. The slot is the transient identity needed by the map
+    /// owner to settle the C++ `Aura` cast provenance after this Unit-owned
+    /// application is admitted.
+    pub fn add_self_cast_addon_aura_application_slot_like_cpp(
+        &mut self,
+        spell_id: u32,
+        caster_guid: ObjectGuid,
+        effect_mask: u32,
+        flags: u32,
+    ) -> Option<u8> {
         if self
             .applied_auras
             .iter()
             .any(|aura| aura.spell_id == spell_id && aura.caster_guid == caster_guid)
         {
-            return false;
+            return None;
         }
 
         let Some(slot) = (0..u8::MAX).find(|slot| !self.visible_auras.contains_key(slot)) else {
-            return false;
+            return None;
         };
         let owned = OwnedAuraRef::new(spell_id, caster_guid, None);
         let applied = AppliedAuraRef::new(spell_id, caster_guid, slot, effect_mask);
@@ -677,7 +698,7 @@ impl AuraSubsystem {
             aura_ref,
             VisibleAuraApplicationLikeCpp::new(flags, Vec::new()),
         );
-        true
+        Some(slot)
     }
 
     /// C++ `Unit::AddAura(spellInfo, MAX_EFFECT_MASK, target)` for the spawn
@@ -701,8 +722,28 @@ impl AuraSubsystem {
         flags: u32,
         effects: &[CreatureAddonAuraEffectLikeCpp],
     ) -> bool {
+        self.add_self_cast_addon_aura_application_with_effects_slot_like_cpp(
+            spell_id,
+            caster_guid,
+            effect_mask,
+            flags,
+            effects,
+        )
+        .is_some()
+    }
+
+    /// Effects-aware form of
+    /// [`Self::add_self_cast_addon_aura_application_slot_like_cpp`].
+    pub fn add_self_cast_addon_aura_application_with_effects_slot_like_cpp(
+        &mut self,
+        spell_id: u32,
+        caster_guid: ObjectGuid,
+        effect_mask: u32,
+        flags: u32,
+        effects: &[CreatureAddonAuraEffectLikeCpp],
+    ) -> Option<u8> {
         if effects.is_empty() {
-            return self.add_self_cast_addon_aura_application_like_cpp(
+            return self.add_self_cast_addon_aura_application_slot_like_cpp(
                 spell_id,
                 caster_guid,
                 effect_mask,
@@ -714,10 +755,10 @@ impl AuraSubsystem {
             .iter()
             .any(|aura| aura.spell_id == spell_id && aura.caster_guid == caster_guid)
         {
-            return false;
+            return None;
         }
         let Some(slot) = (0..u8::MAX).find(|slot| !self.visible_auras.contains_key(slot)) else {
-            return false;
+            return None;
         };
         self.add_owned(OwnedAuraRef::new(spell_id, caster_guid, None));
         for effect in effects {
@@ -748,7 +789,7 @@ impl AuraSubsystem {
                     .collect(),
             ),
         );
-        true
+        Some(slot)
     }
 
     pub fn has_aura_type_like_cpp(&self, aura_type: i32) -> bool {

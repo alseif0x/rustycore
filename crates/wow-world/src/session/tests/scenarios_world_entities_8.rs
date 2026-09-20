@@ -571,6 +571,7 @@ fn registered_creature_addon_aura_effects_feed_canonical_consumers_like_cpp() {
             aura_applications: vec![
                 wow_entities::CreatureAddonAuraApplicationLikeCpp {
                     spell_id: 70_020,
+                    spell_visual_id: 0,
                     effect_mask: 0x1,
                     flags: 0x0103,
                     effects: vec![wow_entities::CreatureAddonAuraEffectLikeCpp {
@@ -582,6 +583,7 @@ fn registered_creature_addon_aura_effects_feed_canonical_consumers_like_cpp() {
                 },
                 wow_entities::CreatureAddonAuraApplicationLikeCpp {
                     spell_id: 70_021,
+                    spell_visual_id: 0,
                     effect_mask: 0x1,
                     flags: 0x0103,
                     effects: vec![wow_entities::CreatureAddonAuraEffectLikeCpp {

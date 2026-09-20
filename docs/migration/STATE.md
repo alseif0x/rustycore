@@ -161,13 +161,45 @@ load (`Player.cpp:18036-18122`) and the split log construction
 Creature cast application, restored Player selection that skips a
 caster-conditioned visual, and exact Player/Creature split packet bytes.
 
+The current continuation carries the same Aura-base identity through Creature
+spawn addons instead of fabricating a Cast GUID from the visible slot at
+publication time. Target 3.4.3 `Creature::LoadCreaturesAddon` calls
+`Unit::AddAura`, whose normal-source Cast GUID comes from the owning Map and
+whose Aura retains the selected `SpellXSpellVisualID`
+(`Creature.cpp:2734-2798`, `Unit.cpp:11473-11517`,
+`SpellAuras.cpp:344-389,462-465`, `SpellInfo.cpp:4446-4462`,
+`Map.h:514-519`, `Map.cpp:2505-2512`). Rust now admits the exact Unit-owned
+slot first and settles its provenance from the Map's shared `HighGuid::Cast`
+sequence on initial loaded-grid creation, canonical `JustRespawned`, and the
+pending-respawn compatibility path. Rejected, duplicate or stale applications
+neither overwrite a live Aura nor consume a sequence value; the legacy mirror
+receives the already-settled canonical identity without allocating another.
+Taunt Aura creation likewise inherits its parent Spell Cast GUID/visual rather
+than allocating a second identity, and `AuraUpdate` publishes the retained
+canonical Cast GUID and visual.
+
+The bounded addon visual resolver is data-proven rather than a guessed
+`UnitCondition` port. Against target source SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`, the 910 effective addon spell IDs
+intersect 450 `SpellXSpellVisual` rows; every matching row is difficulty 0,
+unconditional for the caster, and unique per spell. The audited DB2 hashes are
+`893b2141d6250684968cccd76fb365b548177327f2fad508131fe46050276e86`
+(`SpellXSpellVisual.db2`) and
+`95e3a382588a6934ca33c1346eec31bb777046f273ac7b855c844da2dda15b7e2`
+(`UnitCondition.db2`). The four effective SQL visual overrides do not target an
+addon spell. Difficulty-zero fallback therefore returns the relation row ID,
+while missing, duplicate or caster-conditioned rows fail closed to zero;
+viewer conditions are intentionally irrelevant because target
+`GetSpellXSpellVisualId` evaluates only caster conditions in this path.
+
 This is a bounded represented white-swing delivery, not closure of #29 or of
 generic `Unit::DealDamage`: aura script split hooks, the remaining AI/script
 hooks and criteria, damage/proc/fear/kill side effects of the recursive
 `NODAMAGE` call, threat redirection, vehicle/private-object routing and Player
 `SpellMod::Hate`, pet/guardian secondary targets, and generated cast/visual
-provenance for Creature spawn-addon and other non-cast aura producers remain
-explicit boundaries.
+provenance for pet/guardian and other non-cast aura producers, conditional or
+override visual evaluation outside the audited addon domain, and
+server-triggered Creature cast visual resolution remain explicit boundaries.
 No fresh 3.4.3 client capture or authorized live runtime/DB-relogin acceptance
 was performed for this candidate.
 
@@ -236,6 +268,24 @@ documentation candidate below. The committed-candidate standard final passes
 diff, physical-file, whitespace, JSON and format checks before stopping only
 on the same unchanged five-file global hotspot ratchet (manifest
 `20260919T232529.121135Z-2-final.json`).
+
+The Creature-addon continuation's final local suite results are zero failures:
+`world-server` 597, `wow-data` 754, `wow-entities` 946, `wow-map` 752,
+`wow-packet` 755, and `wow-world` 4041 passed with 1 ignored. Two strengthened
+provenance fixtures initially exposed invalid synthetic inputs: an addon
+Creature used a generic GUID without the Cast GUID's realm/map, and the taunt
+test invoked the low-level executor with an empty parent Cast GUID. The repaired
+fixtures now use a real Creature GUID and consume the owning Map's shared Cast
+sequence; their focused reruns and complete affected suites pass. The exact
+locked reverse-closure check for the thirteen affected packages and test targets
+passes in 6m12s. Formatting/diff/physical-file checks pass without raising a
+ceiling. The standard final passes those static gates before stopping on the
+already-recorded global hotspot ratchet (manifest
+`20260920T095833.199932Z-2-final.json`). The ordinary performance target is not
+met: that 42.6s final prefix, the 372s closure check and the initial 12m50s
+library build total at least 1,184.6s before repair reruns and command overhead.
+This is green local correctness evidence apart from the known global ratchet;
+it is not a fresh client capture or authorized live runtime/DB acceptance.
 
 **#31 direct-damage fidelity correction — 2026-09-19, integrated as
 `a22e9390` by PR #1220:** the

@@ -10,7 +10,7 @@ use wow_constants::{
     SheathState, TypeId, TypeMask, UnitDynFlags, UnitFlags, UnitFlags2, UnitFlags3, UnitMoveType,
     UnitPvpFlags, UnitStandStateType, UnitState, WeaponAttackType, movement::MovementFlag,
 };
-use wow_core::{ObjectGuid, Position};
+use wow_core::{ObjectGuid, Position, guid::HighGuid};
 use wow_loot::{
     CreatureLoot, LootInstallOutcome, OwnedLootAuthority, OwnedLootAuthorityStamp,
     OwnedLootSnapshot,

@@ -13,7 +13,6 @@ pub(super) fn represented_creature_aura_info_like_cpp(
     aura_subsystem: &wow_entities::AuraSubsystem,
     slot: u8,
     level: u8,
-    map_id: u16,
 ) -> wow_packet::packets::misc::AuraInfoLikeCpp {
     let Some(aura_ref) = aura_subsystem.visible_auras.get(&slot).copied() else {
         return wow_packet::packets::misc::AuraInfoLikeCpp {
@@ -45,20 +44,14 @@ pub(super) fn represented_creature_aura_info_like_cpp(
     } else {
         Vec::new()
     };
+    let provenance = aura_subsystem.aura_cast_provenance_like_cpp(slot);
 
     wow_packet::packets::misc::AuraInfoLikeCpp {
         slot,
         aura_data: Some(wow_packet::packets::misc::AuraDataInfoLikeCpp {
-            cast_id: ObjectGuid::create_world_object(
-                HighGuid::Cast,
-                3,
-                1,
-                map_id,
-                0,
-                aura_ref.spell_id,
-                i64::from(slot) + 1,
-            ),
+            cast_id: provenance.cast_id,
             spell_id: i32::try_from(aura_ref.spell_id).unwrap_or(i32::MAX),
+            spell_visual_id: provenance.spell_visual_id,
             flags: flags.min(u32::from(u16::MAX)) as u16,
             active_flags,
             caster_guid: aura_ref.caster_guid,
@@ -68,6 +61,45 @@ pub(super) fn represented_creature_aura_info_like_cpp(
             remaining_ms: None,
             points,
         }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn creature_aura_publication_uses_retained_base_provenance_like_cpp() {
+        let creature_guid = ObjectGuid::create_creature_like_cpp(1, 571, 9_001, 7);
+        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 3, 1, 571, 0, 822, 41);
+        let mut auras = wow_entities::AuraSubsystem::default();
+        assert!(auras.add_self_cast_addon_aura_application_like_cpp(822, creature_guid, 1, 0x301,));
+        let slot = *auras.visible_auras.keys().next().expect("visible slot");
+        auras.set_aura_cast_provenance_like_cpp(
+            slot,
+            wow_entities::AuraCastProvenanceLikeCpp {
+                cast_id,
+                spell_visual_id: 7_822,
+            },
+        );
+
+        let info = represented_creature_aura_info_like_cpp(&auras, slot, 80);
+        let data = info.aura_data.expect("published aura data");
+        assert_eq!(data.cast_id, cast_id);
+        assert_eq!(data.spell_visual_id, 7_822);
+    }
+
+    #[test]
+    fn creature_aura_publication_has_no_slot_derived_identity_fallback() {
+        let creature_guid = ObjectGuid::create_creature_like_cpp(1, 571, 9_001, 7);
+        let mut auras = wow_entities::AuraSubsystem::default();
+        assert!(auras.add_self_cast_addon_aura_application_like_cpp(822, creature_guid, 1, 0,));
+        let slot = *auras.visible_auras.keys().next().expect("visible slot");
+
+        let info = represented_creature_aura_info_like_cpp(&auras, slot, 80);
+        let data = info.aura_data.expect("published aura data");
+        assert_eq!(data.cast_id, ObjectGuid::EMPTY);
+        assert_eq!(data.spell_visual_id, 0);
     }
 }
 
@@ -84,12 +116,9 @@ impl WorldSession {
         let mut visible: Vec<_> = aura_subsystem.visible_auras.keys().copied().collect();
         visible.sort_unstable();
         let level = creature.level();
-        let map_id = self.player_map_id_like_cpp();
         let auras = visible
             .into_iter()
-            .map(|slot| {
-                represented_creature_aura_info_like_cpp(aura_subsystem, slot, level, map_id)
-            })
+            .map(|slot| represented_creature_aura_info_like_cpp(aura_subsystem, slot, level))
             .collect();
 
         self.send_packet(&wow_packet::packets::misc::AuraUpdate::full_for(

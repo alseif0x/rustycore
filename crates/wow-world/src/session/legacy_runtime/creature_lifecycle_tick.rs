@@ -312,13 +312,13 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
             let guid = creature.guid();
             let expected_legacy_authority = creature.loot_authority_like_cpp().clone();
             let expected_legacy_stamp = expected_legacy_authority.stamp_like_cpp();
-            let authority = insert_canonical_creature_map_object_on_map_like_cpp(
+            let insert_outcome = insert_canonical_creature_map_object_on_map_like_cpp(
                 canonical_map_manager,
                 map_id,
                 instance_id,
                 creature,
             );
-            if let Some(authority) = authority {
+            if let Some(insert_outcome) = insert_outcome {
                 let mut legacy = legacy_map_manager
                     .write()
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -327,10 +327,23 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                 {
                     let _ = world_creature
                         .creature
+                        .take_pending_addon_aura_provenance_like_cpp();
+                    for (slot, spell_id, provenance) in insert_outcome.aura_provenance {
+                        let auras = &mut world_creature.creature.unit_mut().subsystems_mut().auras;
+                        if auras
+                            .visible_auras
+                            .get(&slot)
+                            .is_some_and(|aura| aura.spell_id == spell_id)
+                        {
+                            auras.set_aura_cast_provenance_like_cpp(slot, provenance);
+                        }
+                    }
+                    let _ = world_creature
+                        .creature
                         .rebind_loot_authority_if_current_like_cpp(
                             &expected_legacy_authority,
                             expected_legacy_stamp,
-                            authority,
+                            insert_outcome.loot_authority,
                         );
                 }
             }

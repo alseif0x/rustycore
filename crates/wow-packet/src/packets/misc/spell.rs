@@ -274,6 +274,8 @@ impl ServerPacket for ActiveGlyphs {
 pub struct AuraDataInfoLikeCpp {
     pub cast_id: ObjectGuid,
     pub spell_id: i32,
+    /// C++ `SpellCastVisual::SpellXSpellVisualID` retained by the Aura base.
+    pub spell_visual_id: i32,
     pub flags: u16,
     pub active_flags: u32,
     pub caster_guid: ObjectGuid,
@@ -288,7 +290,7 @@ impl AuraDataInfoLikeCpp {
     fn write(&self, pkt: &mut WorldPacket) {
         pkt.write_packed_guid(&self.cast_id);
         pkt.write_int32(self.spell_id);
-        pkt.write_int32(0); // SpellCastVisual::SpellXSpellVisualID
+        pkt.write_int32(self.spell_visual_id);
         pkt.write_uint16(self.flags);
         pkt.write_uint32(self.active_flags);
         pkt.write_uint16(self.cast_level);

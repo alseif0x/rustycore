@@ -60,6 +60,7 @@ mod trainer_acquisition;
 mod trait_configs;
 mod visibility;
 mod world_entities;
+pub(crate) use world_entities::insert_canonical_creature_map_object_on_map_like_cpp;
 mod world_state;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
@@ -4137,59 +4138,6 @@ pub(crate) fn reconcile_creature_loot_authority_mirrors_like_cpp(
         (Detached, _) => incoming.clone(),
         (_, Detached) => canonical.clone(),
     }
-}
-
-pub(crate) fn insert_canonical_creature_map_object_on_map_like_cpp(
-    manager: &SharedCanonicalMapManager,
-    map_id: u32,
-    instance_id: u32,
-    mut creature: wow_entities::Creature,
-) -> Option<OwnedLootAuthority> {
-    let guid = creature.unit().world().object().guid();
-    let Ok(mut manager) = manager.lock() else {
-        return None;
-    };
-    let Some(map) = manager.find_map_mut(map_id, instance_id) else {
-        return None;
-    };
-    if map.map().get_creature(guid).is_some() {
-        let current = map.map_mut().get_typed_creature_mut(guid)?;
-        let current_authority = current.loot_authority_like_cpp().clone();
-        let incoming_authority = creature.loot_authority_like_cpp().clone();
-        let current_stamp = current_authority.stamp_like_cpp();
-        let incoming_stamp = incoming_authority.stamp_like_cpp();
-        let authority = reconcile_creature_loot_authority_mirrors_like_cpp(
-            &current_authority,
-            current_stamp,
-            &incoming_authority,
-            incoming_stamp,
-        );
-        current.rebind_loot_authority_if_current_like_cpp(
-            &current_authority,
-            current_stamp,
-            authority.clone(),
-        )?;
-        creature.adopt_loot_authority_for_snapshot_like_cpp(authority.clone());
-        return Some(authority);
-    }
-
-    if creature.loot_authority_like_cpp().lifecycle_like_cpp()
-        == OwnedLootAuthorityLifecycle::Detached
-    {
-        return None;
-    }
-
-    let object = creature.unit().world().clone();
-    let _ = map
-        .map_mut()
-        .add_to_map_like_cpp(AccessorObjectKind::Creature, object);
-    creature.unit_mut().world_mut().object_mut().add_to_world();
-    let authority = creature.loot_authority_like_cpp().clone();
-    let Ok(record) = wow_entities::MapObjectRecord::new_creature(creature) else {
-        return None;
-    };
-    map.map_mut().insert_map_object_record(record).ok()?;
-    Some(authority)
 }
 
 pub(crate) fn remove_canonical_creature_map_object_on_map_like_cpp(
