@@ -1,0 +1,12 @@
+# Link with LLD instead of GNU ld.
+#
+# GNU ld is single-threaded and its 32-bit debug relocations overflow on this
+# workspace's combined DWARF, which is why `[profile.dev]` caps `debug` at line
+# tables. LLD has neither limit and links this workspace several times faster;
+# linking is serial, so it is wall-clock time no amount of cores buys back.
+#
+# Requires the `lld` package (Debian/Ubuntu: `apt install lld`). If a machine
+# lacks it, delete this file or override with `RUSTFLAGS=""` — nothing else in
+# the build depends on it.
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]

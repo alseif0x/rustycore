@@ -200,11 +200,37 @@ missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 
 [profile.dev]
-# This workspace's combined type DWARF exceeds GNU ld's 32-bit debug
-# relocations. Line tables keep useful backtraces without that linker input.
+# Full type DWARF exceeds GNU ld's 32-bit debug relocations. `.cargo/config.toml`
+# links with lld, which has no such limit, so keep line tables here as the
+# portable floor and let anyone without lld still link this workspace.
 debug = 1
+# Emit debuginfo beside the binary instead of inside it: the linker no longer
+# copies it into every artifact, which is the bulk of dev link time.
+split-debuginfo = "unpacked"
 
+# Dependencies change rarely and are cached across builds, so optimising them is
+# paid once and refunded on every run. At opt-level 0 the crypto, protobuf and
+# sqlx stacks are slow enough to distort debugging.
+[profile.dev.package."*"]
+opt-level = 2
+
+# Build scripts and proc macros (prost-build) execute during the build itself,
+# so optimising them shortens the very build that compiles them.
+[profile.dev.build-override]
+opt-level = 1
+
+# Day-to-day release builds. codegen-units is left at Cargo's default of 16:
+# forcing 1 serialises codegen and multiplies peak RSS per rustc, which is what
+# makes this workspace unbuildable on smaller machines. Thin LTO already does the
+# cross-crate optimisation that codegen-units = 1 is usually reached for.
 [profile.release]
 lto = "thin"
+strip = "debuginfo"
+
+# Shipping builds. Maximum optimisation, and correspondingly the slowest and most
+# memory-hungry: build with `cargo build --profile dist` on a machine with RAM to
+# spare, not on a laptop.
+[profile.dist]
+inherits = "release"
+lto = "fat"
 codegen-units = 1
-strip = "symbols"
