@@ -112,7 +112,7 @@ Use implemented, production-integrated and parity-proven as distinct evidence le
 
 Use [orchestrate-rustycore](.agents/skills/orchestrate-rustycore/SKILL.md) for development
 coordination. Only two models take part: Claude Opus 5.5 as the parent (started with
-`claude-router`), which decides, reviews and integrates but does not implement, and
+`ocx claude`, opencodex), which decides, reviews and integrates but does not implement, and
 DeepSeek v4.1 flash on the native DeepSeek API as the worker that implements
 (`.claude/agents/deepseek-worker.md`). Opus implements only through
 `.claude/agents/rustycore-worker.md` when the DeepSeek API fails. Agent definitions do

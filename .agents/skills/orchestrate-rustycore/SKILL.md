@@ -1,6 +1,6 @@
 ---
 name: orchestrate-rustycore
-description: "Route RustyCore development work between the Opus parent and its DeepSeek worker (native DeepSeek API through claude-router). Use for implementation coordination or adapting this workflow, not ordinary factual answers."
+description: "Route RustyCore development work between the Opus parent and its DeepSeek worker (native DeepSeek API through opencodex). Use for implementation coordination or adapting this workflow, not ordinary factual answers."
 ---
 
 # RustyCore orchestration
@@ -13,22 +13,23 @@ integrator; no per-worker issues, PRs or mandatory continuation requests.
 
 Only two models take part. Do not call or substitute any other model or provider.
 
-- **Parent: Claude Opus 5.5**, started with `claude-router` in this checkout (parent id
-  `codex_router/anthropic/claude-subscription/claude-opus-5.5`, effort `low` from
+- **Parent: Claude Opus 5.5**, started with `ocx claude` (opencodex) in this checkout. Opus
+  runs on the operator's own Claude login through opencodex's native passthrough (model
+  `claude-opus-5-5`), effort `low` from
   `.claude/settings.json`; raise it with `/effort medium` only for a hard architecture,
   lock-order or concurrency decision, then return to `low`). The parent owns
   architecture, decomposition, contracts, coordination, review, Git, integration and
   final acceptance. It does not implement: every code change goes to a worker.
 - **Worker: DeepSeek v4.1 flash** on the native DeepSeek API, the
-  `.claude/agents/deepseek-worker.md` subagent (`codex_router/anthropic/deepseek/deepseek-v4.1-flash`,
+  `.claude/agents/deepseek-worker.md` subagent (`deepseek/deepseek-flash` in opencodex,
   effort `high`). Never route it through OpenRouter or another reseller.
 - **Fallback: `rustycore-worker`** (`.claude/agents/rustycore-worker.md`, Opus inherited,
   `low`) only when a DeepSeek spawn or turn fails at the API level (model error,
   provider outage, quota/balance, rate limit, timeout). State it once and hand over the
   base, current diff and partial work. A slow or poor result is not an API failure.
 
-Plain Anthropic ids such as `claude-opus-5-5` are not served inside `claude-router`;
-keep agents on `inherit` or a `codex_router/...` id. Reasoning effort is a real runtime
+Start sessions with `ocx claude`, not plain `claude` (which cannot reach DeepSeek) and not
+`claude-router`. Keep agents on `inherit` or a `deepseek/...` id. Reasoning effort is a real runtime
 setting: do not claim a model or effort the session configuration does not confirm.
 Record the model that actually ran.
 

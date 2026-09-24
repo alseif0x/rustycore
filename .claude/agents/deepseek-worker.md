@@ -1,7 +1,7 @@
 ---
 name: deepseek-worker
-description: The RustyCore worker (DeepSeek v4.1 flash on the native DeepSeek API through claude-router) for the Opus parent. Implementation of one small unit, read-only exploration or exclusive final validation, as assigned by the parent.
-model: codex_router/anthropic/deepseek/deepseek-v4.1-flash
+description: The RustyCore worker (DeepSeek v4.1 flash on the native DeepSeek API through opencodex) for the Opus parent. Implementation of one small unit, read-only exploration or exclusive final validation, as assigned by the parent.
+model: deepseek/deepseek-flash
 effort: high
 tools: Bash, Read, Edit, Write, Grep, Glob
 ---
