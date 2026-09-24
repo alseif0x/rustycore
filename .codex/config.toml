@@ -1,9 +1,0 @@
-# Project defaults; do not override operator permissions, credentials or providers.
-model = "gpt-6-sol"
-model_reasoning_effort = "medium"
-
-[agents]
-enabled = true
-max_concurrent_threads_per_session = 1
-default_subagent_model = "openrouter/deepseek-v4.1-flash"
-default_subagent_reasoning_effort = "max"

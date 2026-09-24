@@ -111,10 +111,12 @@ Use implemented, production-integrated and parity-proven as distinct evidence le
 ## Architecture and skills
 
 Use [orchestrate-rustycore](.agents/skills/orchestrate-rustycore/SKILL.md) for development
-coordination when useful bounded independent work can be delegated. This explicitly
-requests selective subagent work, with DeepSeek (Luna as API fallback) as the usual bounded implementation
-collaborator, not delegation for every task. Project Codex defaults
-live in `.codex/config.toml` and `.codex/agents/`; they do not override runtime permissions.
+coordination. Only two models take part: Claude Opus 5.5 as the parent (started with
+`claude-router`), which decides, reviews and integrates but does not implement, and
+DeepSeek v4.1 flash on the native DeepSeek API as the worker that implements
+(`.claude/agents/deepseek-worker.md`). Opus implements only through
+`.claude/agents/rustycore-worker.md` when the DeepSeek API fails. Agent definitions do
+not override runtime permissions.
 
 Use the existing architecture skill for boundary/design questions and the safe-refactor skill
 for approved behavior-preserving restructuring. They apply the maintained project documents;
@@ -159,6 +161,9 @@ then run affected acceptance tests, applicable QA and publication validation whe
 explicit acceptance campaign begins. During implementation use the default level-1
 working mode: continue writing tests and coherent local checkpoints, but do not run
 automatic validation at internal boundaries or at the end of local implementation.
+The one exception is the implementing worker's own feedback loop: crate-scoped
+`cargo check -p <crate>` and focused `cargo test -p <crate> <filter>` on the unit it
+owns, sequentially with `CARGO_BUILD_JOBS=1`. That is coding, not acceptance evidence.
 Report implementation/unvalidated work separately from accepted evidence. At final
 acceptance, fix findings and rerun affected evidence as needed. An explicit user
 request for an earlier diagnostic run remains authoritative. Do not claim unexecuted
