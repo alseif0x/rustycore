@@ -14,7 +14,9 @@ integrator; no per-worker issues, PRs or mandatory continuation requests.
 Only two models take part. Do not call or substitute any other model or provider.
 
 - **Parent: Claude Opus 5.5**, started with `claude-router` in this checkout (parent id
-  `codex_router/anthropic/claude-subscription/claude-opus-5.5`). The parent owns
+  `codex_router/anthropic/claude-subscription/claude-opus-5.5`, effort `low` from
+  `.claude/settings.json`; raise it with `/effort medium` only for a hard architecture,
+  lock-order or concurrency decision, then return to `low`). The parent owns
   architecture, decomposition, contracts, coordination, review, Git, integration and
   final acceptance. It does not implement: every code change goes to a worker.
 - **Worker: DeepSeek v4.1 flash** on the native DeepSeek API, the
