@@ -397,3 +397,50 @@ convenciones de nomenclatura, conservando su clasificacion de dependencia.
 Leccion registrada: **la auditoria en Python y `xtask check-layers` deben coincidir**; cuando
 discrepen, manda la politica (`dependency-policy.json`) y se corrige la herramienta que se
 desvie.
+
+### B2: segundo slice verificado-negativo y preparacion de B4 (2026-09-25)
+
+**`entity_update_bridge` se queda en la aplicacion.** El plan lo enviaba a `wow-entities`, pero
+importa `wow_packet` (3 usos): moverlo alli crearia la arista `domain-runtime -> adapter-platform`
+que la politica prohibe. Es una **frontera entidad -> wire**, asi que su sitio es la app (o, mas
+adelante, un crate de categoria `adapter-platform` con contrato propio). Igual criterio para
+`profession` y `trainer_offer`, que ademas tocan `session`: van despues de B4.
+
+**B4 (partir el tipo Dios): analisis previo, con datos.** `WorldSession` tiene **221 campos de
+produccion** repartidos en las familias del ledger. Tamanos (produccion):
+
+| campos | familia |
+|---:|---|
+| 1 | `player_identity_login_bootstrap` |
+| 1 | `session_selected_player_binding` |
+| 1 | `test_only_fixtures` |
+| 3 | `player_social_chat_calendar_and_group_views` |
+| 3 | `session_driver_timers_and_transitional_misc` |
+| 4 | `directory_group_and_social_coordination` |
+| 4 | `transport_and_physical_connections` |
+| 6 | `player_movement_combat_and_visibility` |
+| 9 | `mailbox_and_cross_session_delivery` |
+| 11 | `packet_admission_dispatch` |
+| 15 | `player_spells_quests_and_progression` |
+| 16 | `player_inventory_loot_and_economy` |
+| 22 | `session_identity_account_and_realm_policy` |
+| 23 | `persistence_and_session_lifecycle` |
+| 25 | `map_runtime_creature_gameobject_and_visibility` |
+| 77 | `immutable_catalogs_configuration_and_services` |
+
+**Primer corte recomendado**: la familia mas pequena con cohesión real y sin ser el nucleo de
+identidad/conexion, es decir **`directory_group_and_social_coordination`** (4 campos:
+`group_registry`, `pending_invites`, `game_event_quest_complete_tx`), seguida de
+`session_driver_timers_and_transitional_misc` (3) y `player_social_chat_calendar_and_group_views`
+(3). No se empieza por `transport_and_physical_connections` ni
+`session_identity_account_and_realm_policy`: son centrales y su radio de llamadas es enorme.
+
+**Metodo para cada sub-estado** (sin romper nada):
+1. Declarar el sub-estructo en `session/state.rs` y mover alli SOLO los campos de la familia.
+2. Exponer dos accesores estrechos: `pub(in crate::session) fn <nombre>(&mut self) -> &mut SubEstado`
+   y su version de lectura. Un dueño, ningun espejo.
+3. Mover a `impl SubEstado` los metodos que solo tocan esa familia; el resto de llamadores se
+   repunta con `cargo check -p wow-world` como guia.
+4. Cuando el sub-estado tenga contrato completo y ningun `&mut WorldSession` haga falta, se puede
+   convertir en crate de dominio; hasta entonces es un modulo privado de la app.
+5. Cualquier cambio de comportamiento va en su propio commit, con ancla C++.
