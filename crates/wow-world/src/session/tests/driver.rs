@@ -28,7 +28,8 @@ mod queued_packets {
                 Box::pin(async move {
                     let marker = packet.read_uint32().unwrap();
                     session
-                        .time_sync_clock_delta_queue
+                        .time_synchronization
+                        .clock_delta_queue
                         .push_back((i64::from(marker), 0));
                     if marker == 1 {
                         std::future::pending::<()>().await;
@@ -64,7 +65,8 @@ mod queued_packets {
         drop(pass);
         assert_eq!(
             session
-                .time_sync_clock_delta_queue
+                .time_synchronization
+                .clock_delta_queue
                 .iter()
                 .copied()
                 .collect::<Vec<_>>(),
@@ -84,7 +86,8 @@ mod queued_packets {
         assert!(session.pending_packets.is_empty());
         assert_eq!(
             session
-                .time_sync_clock_delta_queue
+                .time_synchronization
+                .clock_delta_queue
                 .iter()
                 .copied()
                 .collect::<Vec<_>>(),

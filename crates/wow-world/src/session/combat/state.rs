@@ -541,7 +541,9 @@ impl WorldSession {
     pub(crate) fn represented_combat_stat_recalculations_like_cpp(
         &self,
     ) -> &[RepresentedCombatStatRecalculationLikeCpp] {
-        &self.represented_combat_stat_recalculations_like_cpp
+        &self
+            .player_item_test_fixture_like_cpp
+            .represented_combat_stat_recalculations_like_cpp
     }
     pub(crate) fn represented_set_advanced_combat_logging_like_cpp(&mut self, enable: bool) {
         self.advanced_combat_logging_enabled_like_cpp

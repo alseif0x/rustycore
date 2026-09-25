@@ -8,14 +8,18 @@
 //! This crate contains all the World of Warcraft protocol enums,
 //! opcodes, and flag types translated from the C# RustyCore source.
 
+pub mod character;
 pub mod conditions;
 pub mod creature;
+pub mod currency;
 pub mod item;
 pub mod movement;
 pub mod object;
 pub mod opcodes;
 pub mod phasing;
+pub mod quest;
 pub mod reputation;
+pub mod rest;
 pub mod shared;
 pub mod spell;
 pub mod unit;

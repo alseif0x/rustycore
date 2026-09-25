@@ -149,7 +149,8 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(
-                self.represented_player_recent_instances_like_cpp
+                self.instance_test_fixture_like_cpp
+                    .represented_player_recent_instances_like_cpp
                     .get(&map_id)
                     .copied()
                     .unwrap_or(0),
@@ -175,7 +176,8 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            self.represented_player_recent_instances_like_cpp
+            self.instance_test_fixture_like_cpp
+                .represented_player_recent_instances_like_cpp
                 .insert(map_id, instance_id);
             return true;
         }
@@ -191,6 +193,7 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return self
+                .instance_test_fixture_like_cpp
                 .represented_player_recent_instances_like_cpp
                 .remove(&map_id)
                 .is_some();

@@ -45,10 +45,10 @@ use wow_packet::packets::spell::{
 };
 use wow_packet::packets::totem::TotemDestroyed;
 
-use crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
 use crate::session::{
     AreaTriggerCatalogsLikeCpp, RepresentedPendingSpellCastRequestLikeCpp, WorldSession,
 };
+use wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
 
 mod ops_1;
 mod ops_2;

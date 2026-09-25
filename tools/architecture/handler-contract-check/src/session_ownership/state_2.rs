@@ -456,10 +456,16 @@ pub(super) fn collect_items(
         }
 
         match (role, module, item) {
-            (PackageRole::World, WORLD_SESSION_MODULE, Item::Struct(item_struct)) => {
+            (PackageRole::World, module, Item::Struct(item_struct))
+                if module == WORLD_SESSION_MODULE || module == WORLD_SESSION_STATE_MODULE =>
+            {
                 collect_struct(
                     item_struct,
-                    module,
+                    // Keep the syntax baseline keyed to the public Session
+                    // facade even though the definition is physically in its
+                    // private state child. The exact two-module guard above
+                    // still lets `set_once` reject a root/child duplicate.
+                    WORLD_SESSION_MODULE,
                     cfg,
                     availability,
                     WORLD_SESSION_NAME,

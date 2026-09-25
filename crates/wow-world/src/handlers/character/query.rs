@@ -8,6 +8,152 @@
 use super::*;
 
 impl WorldSession {
+    /// CMSG_AREA_SPIRIT_HEALER_QUEUE — select an area spirit healer for resurrection.
+    /// C++ ref: `WorldSession::HandleAreaSpiritHealerQueueOpcode`.
+    pub async fn handle_area_spirit_healer_queue(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let queue = match AreaSpiritHealerQueue::read(&mut pkt) {
+            Ok(queue) => queue,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "AreaSpiritHealerQueue parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if self
+            .represented_area_spirit_healer_access_like_cpp(queue.healer_guid)
+            .is_none()
+        {
+            debug!(
+                account = self.account_id,
+                healer = ?queue.healer_guid,
+                "AreaSpiritHealerQueue ignored without represented area spirit healer"
+            );
+            return;
+        }
+
+        // C++ also casts SPELL_WAITING_FOR_RESURRECT; deferred until the
+        // player spell/aura runtime owns battleground spirit resurrection.
+        self.set_area_spirit_healer_guid_like_cpp(queue.healer_guid);
+    }
+
+    /// CMSG_SPIRIT_HEALER_ACTIVATE — ghost uses spirit healer.
+    /// C++ ref: `WorldSession::HandleSpiritHealerActivate`.
+    pub async fn handle_spirit_healer_activate(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match SpiritHealerActivate::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "SpiritHealerActivate parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        let Some(_healer) = self.represented_npc_can_interact_with_like_cpp(
+            request.healer,
+            NPCFlags1::SPIRIT_HEALER.bits(),
+            0,
+        ) else {
+            debug!(
+                account = self.account_id,
+                healer = ?request.healer,
+                "SpiritHealerActivate ignored without represented spirit healer"
+            );
+            return;
+        };
+
+        // C++ continues into SendSpiritResurrect here: resurrect 50%, durability
+        // loss, corpse-bones spawn, and possible graveyard teleport. That player
+        // corpse/death runtime is not represented in this handler yet.
+        debug!(
+            account = self.account_id,
+            healer = ?request.healer,
+            "SpiritHealerActivate validated; resurrection runtime pending"
+        );
+    }
+
+    /// Shared C++ area-spirit-healer checks: creature exists, has the area
+    /// spirit-healer flag, and is within MAX_AREA_SPIRIT_HEALER_RANGE.
+    pub(super) fn represented_area_spirit_healer_access_like_cpp(
+        &self,
+        healer_guid: ObjectGuid,
+    ) -> Option<crate::session::RepresentedCreatureAccessLikeCpp> {
+        let access = self.canonical_creature_access_like_cpp(healer_guid)?;
+        if (access.npc_flags & NPCFlags1::AREA_SPIRIT_HEALER.bits()) == 0 {
+            return None;
+        }
+
+        let player_position = self.player_position_like_cpp()?;
+        access
+            .position
+            .is_within_dist(&player_position, MAX_AREA_SPIRIT_HEALER_RANGE_LIKE_CPP)
+            .then_some(access)
+    }
+
+    pub(super) fn collect_quest_giver_status_multiple_like_cpp(
+        &self,
+        quest_info: &wow_data::progression_rewards::QuestInfoStore,
+        guids: impl IntoIterator<Item = ObjectGuid>,
+    ) -> Vec<(ObjectGuid, u64)> {
+        let mut statuses = Vec::new();
+
+        for guid in guids {
+            if guid.is_any_type_creature() {
+                let Some(access) = self.canonical_creature_access_like_cpp(guid) else {
+                    continue;
+                };
+                if (access.npc_flags & NPCFlags1::QUEST_GIVER.bits()) == 0 {
+                    continue;
+                }
+
+                let status = self.get_represented_quest_giver_status_with_catalog_like_cpp(
+                    Some(quest_info),
+                    RepresentedQuestGiverStatusSourceLikeCpp::Creature {
+                        entry: access.entry,
+                    },
+                );
+                statuses.push((guid, status));
+                continue;
+            }
+
+            if guid.is_game_object() {
+                let Some(access) = self.canonical_gameobject_access_like_cpp(guid) else {
+                    continue;
+                };
+                let Some(state) = self.represented_gameobject_use_states.get(&guid) else {
+                    continue;
+                };
+                if state.go_type.map(u32::from) != Some(GAMEOBJECT_TYPE_QUESTGIVER) {
+                    continue;
+                }
+
+                let status = self.get_represented_quest_giver_status_with_catalog_like_cpp(
+                    Some(quest_info),
+                    RepresentedQuestGiverStatusSourceLikeCpp::GameObject {
+                        entry: access.entry,
+                    },
+                );
+                statuses.push((guid, status));
+            }
+        }
+
+        statuses
+    }
+
+    /// Send SMSG_QUEST_GIVER_STATUS for a single NPC.
+    #[allow(dead_code)]
+    fn send_quest_giver_status(&self, guid: ObjectGuid, status: u32) {
+        use wow_constants::ServerOpcodes;
+        let mut pkt = wow_packet::WorldPacket::new_server(ServerOpcodes::QuestGiverStatus);
+        pkt.write_packed_guid(&guid);
+        pkt.write_uint32(status);
+        self.send_raw_packet(&pkt.into_data());
+    }
+
     /// Handle CMSG_DB_QUERY_BULK — client requests DB2 records.
     ///
     /// TrinityCore only sends a Valid `DBReply` when `sDB2Manager.GetStorage`

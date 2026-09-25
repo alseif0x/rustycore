@@ -85,7 +85,7 @@ fn represented_player_condition_context_uses_live_session_state_like_cpp() {
             flags: 0,
         },
     );
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         100,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id: 100,
@@ -97,7 +97,7 @@ fn represented_player_condition_context_uses_live_session_state_like_cpp() {
             slot: 0,
         },
     );
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         101,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id: 101,
@@ -109,7 +109,10 @@ fn represented_player_condition_context_uses_live_session_state_like_cpp() {
             slot: 0,
         },
     );
-    session.rewarded_quests.insert(200);
+    session
+        .quest_test_fixture_like_cpp
+        .rewarded_quests
+        .insert(200);
     session.set_player_zone_area_like_cpp(12, 34);
 
     let owned = session
@@ -476,8 +479,18 @@ fn logout_resting_only_selects_offline_rate_and_does_not_restore_online_rest_lik
         "the persisted bit still selects the tavern/city offline rate"
     );
     assert!(!session.represented_is_resting_like_cpp());
-    assert_eq!(session.represented_inn_area_trigger_id_like_cpp, 0);
-    assert_eq!(session.represented_rest_time_secs_like_cpp, 0);
+    assert_eq!(
+        session
+            .rest_mgr_test_fixture_like_cpp
+            .represented_inn_area_trigger_id_like_cpp,
+        0
+    );
+    assert_eq!(
+        session
+            .rest_mgr_test_fixture_like_cpp
+            .represented_rest_time_secs_like_cpp,
+        0
+    );
     assert!(
         !session
             .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_RESTING_LIKE_CPP)
@@ -595,14 +608,25 @@ fn login_update_zone_rebuilds_city_and_faction_rest_when_ids_are_preseeded_like_
 
     assert!(session.represented_is_resting_like_cpp());
     assert_ne!(
-        session.represented_rest_flag_mask_like_cpp & REST_FLAG_IN_CITY_LIKE_CPP,
+        session
+            .rest_mgr_test_fixture_like_cpp
+            .represented_rest_flag_mask_like_cpp
+            & REST_FLAG_IN_CITY_LIKE_CPP,
         0
     );
     assert_ne!(
-        session.represented_rest_flag_mask_like_cpp & REST_FLAG_IN_FACTION_AREA_LIKE_CPP,
+        session
+            .rest_mgr_test_fixture_like_cpp
+            .represented_rest_flag_mask_like_cpp
+            & REST_FLAG_IN_FACTION_AREA_LIKE_CPP,
         0
     );
-    assert_ne!(session.represented_rest_time_secs_like_cpp, 0);
+    assert_ne!(
+        session
+            .rest_mgr_test_fixture_like_cpp
+            .represented_rest_time_secs_like_cpp,
+        0
+    );
     assert!(session.represented_area_zone_criteria_like_cpp().is_empty());
 }
 #[test]

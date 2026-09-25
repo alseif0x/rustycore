@@ -339,13 +339,24 @@ fn load_character_reputation_rows_like_cpp_merges_rows_after_identity_and_store(
 fn load_seasonal_quest_status_clears_stale_state_and_resets_changed_on_empty_like_cpp() {
     let (mut session, _, _) = make_session();
     session.seed_seasonal_quest_status_like_cpp(9, 12_345, 100);
-    session.seasonal_quest_changed_like_cpp = true;
+    session
+        .quest_test_fixture_like_cpp
+        .seasonal_quest_changed_like_cpp = true;
     let quest_store = seasonal_quest_store_like_cpp([12_345]);
 
     let outcome = session.load_seasonal_quest_status_like_cpp([], Some(&quest_store), None);
 
-    assert!(session.seasonal_quests_like_cpp.is_empty());
-    assert!(!session.seasonal_quest_changed_like_cpp);
+    assert!(
+        session
+            .quest_test_fixture_like_cpp
+            .seasonal_quests_like_cpp
+            .is_empty()
+    );
+    assert!(
+        !session
+            .quest_test_fixture_like_cpp
+            .seasonal_quest_changed_like_cpp
+    );
     assert_eq!(outcome.rows_seen, 0);
     assert_eq!(outcome.seasonal_quest_changed, false);
 }
@@ -369,11 +380,14 @@ fn load_seasonal_quest_status_valid_row_populates_and_blocks_can_take_like_cpp()
     assert_eq!(outcome.inserted, 1);
     assert_eq!(outcome.completed_bit_set, 1);
     assert_eq!(
-        session.represented_quest_completed_bits_like_cpp,
+        session
+            .quest_test_fixture_like_cpp
+            .represented_quest_completed_bits_like_cpp,
         BTreeSet::from([65])
     );
     assert_eq!(
         session
+            .quest_test_fixture_like_cpp
             .seasonal_quests_like_cpp
             .get(&9)
             .and_then(|bucket| bucket.get(&12_345)),
@@ -398,7 +412,12 @@ fn load_seasonal_quest_status_missing_quest_v2_store_inserts_but_skips_bit_like_
 
     assert_eq!(outcome.inserted, 1);
     assert_eq!(outcome.completed_bit_skipped_no_quest_v2_store, 1);
-    assert!(session.represented_quest_completed_bits_like_cpp.is_empty());
+    assert!(
+        session
+            .quest_test_fixture_like_cpp
+            .represented_quest_completed_bits_like_cpp
+            .is_empty()
+    );
 }
 #[test]
 fn load_seasonal_quest_status_zero_unique_bit_inserts_but_skips_bit_like_cpp() {
@@ -418,7 +437,12 @@ fn load_seasonal_quest_status_zero_unique_bit_inserts_but_skips_bit_like_cpp() {
 
     assert_eq!(outcome.inserted, 1);
     assert_eq!(outcome.completed_bit_skipped_zero_unique_bit, 1);
-    assert!(session.represented_quest_completed_bits_like_cpp.is_empty());
+    assert!(
+        session
+            .quest_test_fixture_like_cpp
+            .represented_quest_completed_bits_like_cpp
+            .is_empty()
+    );
 }
 #[test]
 fn load_seasonal_quest_status_repeated_bit_counts_no_change_like_cpp() {
@@ -488,8 +512,17 @@ fn load_seasonal_quest_status_skips_missing_quest_like_cpp() {
 
     assert_eq!(outcome.rows_seen, 1);
     assert_eq!(outcome.skipped_missing_quest, 1);
-    assert!(session.seasonal_quests_like_cpp.is_empty());
-    assert!(!session.seasonal_quest_changed_like_cpp);
+    assert!(
+        session
+            .quest_test_fixture_like_cpp
+            .seasonal_quests_like_cpp
+            .is_empty()
+    );
+    assert!(
+        !session
+            .quest_test_fixture_like_cpp
+            .seasonal_quest_changed_like_cpp
+    );
 }
 #[test]
 fn load_seasonal_quest_status_duplicate_event_quest_last_row_wins_like_cpp() {
@@ -517,6 +550,7 @@ fn load_seasonal_quest_status_duplicate_event_quest_last_row_wins_like_cpp() {
     assert_eq!(outcome.replaced, 1);
     assert_eq!(
         session
+            .quest_test_fixture_like_cpp
             .seasonal_quests_like_cpp
             .get(&9)
             .and_then(|bucket| bucket.get(&12_345)),
@@ -539,7 +573,12 @@ fn load_seasonal_quest_status_event_out_of_range_is_skipped_not_truncated_like_c
     );
 
     assert_eq!(outcome.skipped_event_out_of_range, 1);
-    assert!(session.seasonal_quests_like_cpp.is_empty());
+    assert!(
+        session
+            .quest_test_fixture_like_cpp
+            .seasonal_quests_like_cpp
+            .is_empty()
+    );
 }
 #[test]
 fn load_seasonal_quest_status_negative_completed_time_is_skipped_like_cpp() {
@@ -557,7 +596,12 @@ fn load_seasonal_quest_status_negative_completed_time_is_skipped_like_cpp() {
     );
 
     assert_eq!(outcome.skipped_negative_completed_time, 1);
-    assert!(session.seasonal_quests_like_cpp.is_empty());
+    assert!(
+        session
+            .quest_test_fixture_like_cpp
+            .seasonal_quests_like_cpp
+            .is_empty()
+    );
 }
 #[test]
 fn load_seasonal_quest_status_without_quest_store_skips_rows_like_cpp() {
@@ -574,8 +618,17 @@ fn load_seasonal_quest_status_without_quest_store_skips_rows_like_cpp() {
     );
 
     assert_eq!(outcome.skipped_no_quest_store, 1);
-    assert!(session.seasonal_quests_like_cpp.is_empty());
-    assert!(!session.seasonal_quest_changed_like_cpp);
+    assert!(
+        session
+            .quest_test_fixture_like_cpp
+            .seasonal_quests_like_cpp
+            .is_empty()
+    );
+    assert!(
+        !session
+            .quest_test_fixture_like_cpp
+            .seasonal_quest_changed_like_cpp
+    );
 }
 #[test]
 fn account_mount_load_adds_faction_counterpart_like_cpp() {

@@ -79,15 +79,18 @@ async fn repair_inventory_item_durability_spends_money_and_restores_like_cpp() {
             data: 1.25,
         },
     ])));
-    session.inventory_items.insert(
-        EQUIPMENT_SLOT_MAINHAND,
-        InventoryItem {
-            guid: item_guid,
-            entry_id: 100,
-            db_guid: item_guid.counter() as u64,
-            inventory_type: Some(InventoryType::Weapon as u8),
-        },
-    );
+    session
+        .player_item_test_fixture_like_cpp
+        .inventory_items
+        .insert(
+            EQUIPMENT_SLOT_MAINHAND,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 100,
+                db_guid: item_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Weapon as u8),
+            },
+        );
     let item = session.make_inventory_item_object(
         item_guid,
         100,
@@ -170,15 +173,18 @@ fn represented_item_mods_records_weapon_damage_without_stat_entry_like_cpp() {
             damage_damage_type: 0,
         },
     )])));
-    session.inventory_items.insert(
-        EQUIPMENT_SLOT_MAINHAND,
-        InventoryItem {
-            guid: item_guid,
-            entry_id: 100,
-            db_guid: item_guid.counter() as u64,
-            inventory_type: Some(InventoryType::Weapon as u8),
-        },
-    );
+    session
+        .player_item_test_fixture_like_cpp
+        .inventory_items
+        .insert(
+            EQUIPMENT_SLOT_MAINHAND,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 100,
+                db_guid: item_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Weapon as u8),
+            },
+        );
     let item = session.make_inventory_item_object(
         item_guid,
         100,
@@ -299,15 +305,18 @@ fn represented_item_mods_apply_scaling_weapon_dps_like_cpp() {
             plate_chest_armor: 0,
         },
     ])));
-    session.inventory_items.insert(
-        EQUIPMENT_SLOT_MAINHAND,
-        InventoryItem {
-            guid: item_guid,
-            entry_id: 101,
-            db_guid: item_guid.counter() as u64,
-            inventory_type: Some(InventoryType::Weapon as u8),
-        },
-    );
+    session
+        .player_item_test_fixture_like_cpp
+        .inventory_items
+        .insert(
+            EQUIPMENT_SLOT_MAINHAND,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 101,
+                db_guid: item_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Weapon as u8),
+            },
+        );
     let item = session.make_inventory_item_object(
         item_guid,
         101,
@@ -416,15 +425,18 @@ fn destroyed_inventory_item_mod_remove_matches_cpp_destroy_item_equipment_branch
         )],
         [],
     )));
-    session.inventory_items.insert(
-        EQUIPMENT_SLOT_CHEST,
-        InventoryItem {
-            guid: item_guid,
-            entry_id: 103,
-            db_guid: item_guid.counter() as u64,
-            inventory_type: Some(InventoryType::Chest as u8),
-        },
-    );
+    session
+        .player_item_test_fixture_like_cpp
+        .inventory_items
+        .insert(
+            EQUIPMENT_SLOT_CHEST,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 103,
+                db_guid: item_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Chest as u8),
+            },
+        );
     let item = session.make_inventory_item_object(
         item_guid,
         103,

@@ -113,11 +113,11 @@ impl WorldSession {
     /// that pass's diff, then the query callbacks. Neither depends on a packet
     /// having been dispatched, so both run for an empty pass too.
     pub(crate) fn run_map_phase_tail_like_cpp(&mut self, diff_ms: u32) {
-        if self.state == SessionState::LoggedIn && self.time_sync_timer_ms > 0 {
-            if diff_ms >= self.time_sync_timer_ms {
+        if self.state == SessionState::LoggedIn && self.time_synchronization.timer_ms > 0 {
+            if diff_ms >= self.time_synchronization.timer_ms {
                 self.send_time_sync();
             } else {
-                self.time_sync_timer_ms -= diff_ms;
+                self.time_synchronization.timer_ms -= diff_ms;
             }
         }
         self.process_ready_character_rename_callbacks_like_cpp();

@@ -258,8 +258,7 @@ fn rest_load_resets_transient_location_but_preserves_loaded_flags_and_unrelated_
                     })
                     .unwrap();
                 session.load_represented_xp_rest_bonus_like_cpp(state_id, 42.5);
-                let normalized = if crate::session_rules::valid_player_rest_state_like_cpp(state_id)
-                {
+                let normalized = if wow_entities::valid_player_rest_state_like_cpp(state_id) {
                     state_id
                 } else {
                     REST_STATE_NORMAL_LIKE_CPP
@@ -426,9 +425,15 @@ fn rest_queries_reject_stale_and_missing_owner_even_with_populated_fixtures() {
         .unwrap()
         .install_detached_player_like_cpp(replacement)
         .unwrap();
-    session.represented_loaded_player_flags_like_cpp = Some(PLAYER_FLAGS_RESTING_LIKE_CPP);
-    session.represented_rest_location_initialized_like_cpp = true;
-    session.represented_rest_flag_mask_like_cpp = REST_FLAG_IN_CITY_LIKE_CPP;
+    session
+        .player_flags_test_fixture_like_cpp
+        .represented_loaded_player_flags_like_cpp = Some(PLAYER_FLAGS_RESTING_LIKE_CPP);
+    session
+        .rest_mgr_test_fixture_like_cpp
+        .represented_rest_location_initialized_like_cpp = true;
+    session
+        .rest_mgr_test_fixture_like_cpp
+        .represented_rest_flag_mask_like_cpp = REST_FLAG_IN_CITY_LIKE_CPP;
     assert_eq!(session.resolved_visible_resting_like_cpp(), None);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 99.0);
     assert_eq!(session.player_rest_state_snapshot_like_cpp(), None);

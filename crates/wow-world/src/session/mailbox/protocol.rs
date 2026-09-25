@@ -956,3 +956,12 @@ pub struct LootRollVoteCommand {
     /// no cross-session surrogate; its player retains the exact `LootRoll*`.
     pub roll_identity: LootRollCommandIdentityLikeCpp,
 }
+
+impl LootRollVoteCommand {
+    /// Accept only a vote enqueued for this exact roll lifetime and key.
+    #[must_use]
+    pub fn targets_identity_like_cpp(&self, current: &LootRollCommandIdentityLikeCpp) -> bool {
+        current.matches_key_like_cpp(self.loot_obj, self.loot_list_id)
+            && current.is_exact_roll_like_cpp(&self.roll_identity)
+    }
+}

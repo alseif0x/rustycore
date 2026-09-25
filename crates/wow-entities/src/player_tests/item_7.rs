@@ -4,6 +4,9 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use crate::player_rules::{
+    is_use_equipped_weapon, is_using_two_handed_weapon_in_one_hand_template,
+};
 
 #[test]
 fn remove_arena_enchantments_scans_inventory_and_bags_like_cpp() {

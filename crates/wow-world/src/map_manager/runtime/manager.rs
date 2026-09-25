@@ -504,8 +504,6 @@ impl MapManager {
                     if grid.should_unload(map.grid_unload_timeout) {
                         info!("Unloading distant grid {:?} from map {}", coord, map_id);
                         map.grids.remove(&coord);
-                        map.personal_phases
-                            .unload_grid_like_cpp(coord.personal_phase_grid_id_like_cpp());
                     }
                 }
             }

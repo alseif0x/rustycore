@@ -288,7 +288,9 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(resolve(
-                self.represented_loaded_player_flags_like_cpp.unwrap_or(0),
+                self.player_flags_test_fixture_like_cpp
+                    .represented_loaded_player_flags_like_cpp
+                    .unwrap_or(0),
                 &self.player_rest_state_snapshot_like_cpp()?,
             ));
         }
@@ -297,7 +299,11 @@ impl WorldSession {
     #[cfg(test)]
     pub(in crate::session) fn represented_player_flags_for_rest_state_save_like_cpp(&self) -> u32 {
         self.resolved_player_flags_for_rest_state_save_like_cpp()
-            .unwrap_or_else(|| self.represented_loaded_player_flags_like_cpp.unwrap_or(0))
+            .unwrap_or_else(|| {
+                self.player_flags_test_fixture_like_cpp
+                    .represented_loaded_player_flags_like_cpp
+                    .unwrap_or(0)
+            })
     }
     pub(in crate::session) async fn process_pending_periodic_player_save_with_generator_like_cpp(
         &mut self,

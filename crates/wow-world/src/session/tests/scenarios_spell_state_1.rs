@@ -471,6 +471,7 @@ fn remove_known_spell_removes_first_rank_learned_skill_like_cpp() {
 
     assert!(
         session
+            .player_skill_test_fixture_like_cpp
             .player_skill_non_durable_tombstones_like_cpp
             .contains(&755)
     );
@@ -748,6 +749,7 @@ fn remove_known_spell_removes_trait_definition_override_like_cpp() {
     );
     assert!(
         !session
+            .player_spell_test_fixture_like_cpp
             .represented_spell_trait_definition_ids_like_cpp
             .contains_key(&20),
         "removed PlayerSpell no longer owns a represented TraitDefinitionId"

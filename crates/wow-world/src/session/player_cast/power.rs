@@ -117,10 +117,7 @@ impl WorldSession {
             return true;
         }
 
-        if !crate::session_rules::represented_spell_power_has_power_like_cpp(
-            &power_costs,
-            &before_power,
-        ) {
+        if !wow_data::represented_spell_power_has_power_like_cpp(&power_costs, &before_power) {
             if trace_spell_power {
                 info!(
                     "RUST_SPELL_POWER_COST phase=check spell_id={} cast_id={:?} result=no_power costs={:?} before_power={:?}",
@@ -162,10 +159,7 @@ impl WorldSession {
             return true;
         }
 
-        if !crate::session_rules::represented_spell_power_has_power_like_cpp(
-            &power_costs,
-            &before_power,
-        ) {
+        if !wow_data::represented_spell_power_has_power_like_cpp(&power_costs, &before_power) {
             if trace_spell_power {
                 info!(
                     "RUST_SPELL_POWER_COST phase=take spell_id={} cast_id={:?} result=no_power costs={:?} before_power={:?}",
@@ -194,7 +188,7 @@ impl WorldSession {
                         ))
                     })
                     .collect();
-                if !crate::session_rules::represented_spell_power_has_power_like_cpp(
+                if !wow_data::represented_spell_power_has_power_like_cpp(
                     &power_costs,
                     &current_power,
                 ) {
@@ -225,7 +219,7 @@ impl WorldSession {
                     player
                         .unit_mut()
                         .set_mp5_regeneration_interrupt_start_like_cpp(
-                            crate::session_rules::game_time_ms_like_cpp(),
+                            crate::session::game_time_ms_like_cpp(),
                         );
                 }
                 let after_power = power_costs

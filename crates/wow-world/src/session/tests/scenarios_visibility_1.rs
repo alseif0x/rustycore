@@ -627,7 +627,9 @@ async fn dynamic_object_values_snapshot_dynamic_object_seer_near_same_phase_send
         7,
     );
     prepare_dynamic_object_values_snapshot_like_cpp(&canonical, 571, 7, dynamic_guid, 39.5);
-    session.represented_seer_guid_like_cpp = Some(seer_guid);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(seer_guid);
     session.client_visible_guids_like_cpp.insert(dynamic_guid);
 
     assert_eq!(
@@ -797,7 +799,7 @@ fn add_farsight_set_viewpoint_target_visibility_sends_far_dynamic_object_like_cp
             .map()
             .get_typed_dynamic_object(dynamic_object_guid)
             .expect("canonical typed DynamicObject should exist");
-        crate::session_rules::dynamic_object_create_data_from_canonical_like_cpp(
+        crate::session::dynamic_object_create_data_from_canonical_like_cpp(
             dynamic_object_guid,
             dynamic_object,
         )

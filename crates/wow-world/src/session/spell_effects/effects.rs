@@ -348,11 +348,11 @@ impl WorldSession {
     pub(in crate::session) fn represented_nearby_candidate_meets_implicit_conditions_like_cpp(
         &self,
         candidate: &WorldObject,
-        candidate_unit_snapshot: Option<crate::conditions::ConditionUnitSnapshot>,
+        candidate_unit_snapshot: Option<wow_conditions::ConditionUnitSnapshot>,
         implicit_conditions: Option<&[wow_data::Condition]>,
         caster_object: Option<&WorldObject>,
-        player_unit_snapshot: crate::conditions::ConditionUnitSnapshot,
-        player_snapshot: crate::conditions::ConditionPlayerSnapshot,
+        player_unit_snapshot: wow_conditions::ConditionUnitSnapshot,
+        player_snapshot: wow_conditions::ConditionPlayerSnapshot,
         player_condition_store: Option<&wow_data::PlayerConditionStore>,
         player_condition_context: Option<&RepresentedPlayerConditionContextLikeCpp>,
         area_table_store: Option<&wow_data::AreaTableStore>,
@@ -367,11 +367,8 @@ impl WorldSession {
 
         // C++ `WorldObjectSpellTargetCheck` builds `ConditionSourceInfo(nullptr, caster)`
         // and then assigns the tested target to condition slot 0.
-        let mut source_info = crate::conditions::ConditionSourceInfo::from_targets(
-            Some(candidate),
-            caster_object,
-            None,
-        );
+        let mut source_info =
+            wow_conditions::ConditionSourceInfo::from_targets(Some(candidate), caster_object, None);
         if let Some(snapshot) = candidate_unit_snapshot {
             source_info.set_unit_target_snapshot(0, snapshot);
         }
@@ -384,12 +381,12 @@ impl WorldSession {
             }
         }
 
-        crate::conditions::is_object_meet_to_conditions_like_cpp(
+        wow_conditions::is_object_meet_to_conditions_like_cpp(
             &mut source_info,
             conditions,
             condition_store.as_ref(),
             |condition, source_info| {
-                crate::conditions::condition_meets_basic_like_cpp(
+                wow_conditions::condition_meets_basic_like_cpp(
                     condition,
                     source_info,
                     |area_id, required_area_id| {
@@ -465,7 +462,7 @@ impl WorldSession {
             return false;
         }
 
-        let create_data = crate::session_rules::dynamic_object_create_data_from_canonical_like_cpp(
+        let create_data = crate::session::dynamic_object_create_data_from_canonical_like_cpp(
             dynamic_object_guid,
             dynamic_object,
         );
@@ -525,7 +522,8 @@ impl WorldSession {
         self.last_observed_farsight_object_like_cpp = dynamic_object_guid;
         #[cfg(test)]
         {
-            self.represented_seer_guid_like_cpp = Some(dynamic_object_guid);
+            self.visibility_test_fixture_like_cpp
+                .represented_seer_guid_like_cpp = Some(dynamic_object_guid);
         }
         player_set_viewpoint.update_visibility_requested
     }
@@ -643,7 +641,8 @@ impl WorldSession {
             let clear_target_packet_bytes =
                 wow_packet::packets::spell::ClearTarget { guid: caster_guid }.to_bytes();
 
-            self.represented_force_deselects_like_cpp
+            self.duel_test_fixture_like_cpp
+                .represented_force_deselects_like_cpp
                 .push(RepresentedForceDeselectLikeCpp {
                     caster_guid,
                     visibility_range_yards: DEFAULT_VISIBILITY_DISTANCE_YARDS_LIKE_CPP,
@@ -759,7 +758,7 @@ impl WorldSession {
             return false;
         }
 
-        let now_ms = u64::from(crate::session_rules::game_time_ms_like_cpp());
+        let now_ms = u64::from(crate::session::game_time_ms_like_cpp());
         self.mutate_canonical_player_like_cpp(|player| {
             player
                 .unit_mut()

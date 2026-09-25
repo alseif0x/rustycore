@@ -26,7 +26,7 @@ fn complete_quest_session_like_cpp(
     quest.flags = QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP;
     quest.special_flags |= special_flags;
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -64,7 +64,10 @@ async fn quest_reward_reaches_the_database_once_with_its_status_row_like_cpp() {
     choose_reward_like_cpp(&mut session, quest_id).await;
 
     assert!(
-        !session.player_quests.contains_key(&quest_id),
+        !session
+            .quest_test_fixture_like_cpp
+            .player_quests
+            .contains_key(&quest_id),
         "the operation must have run to completion before it commits"
     );
     let requests = requests.lock().unwrap();

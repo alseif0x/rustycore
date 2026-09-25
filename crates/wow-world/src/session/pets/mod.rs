@@ -10,3 +10,5 @@ mod battle_pet_slots;
 mod persistence;
 mod pet;
 mod summoning;
+#[cfg(test)]
+pub(super) mod test_fixtures;

@@ -689,3 +689,155 @@ pub(super) struct SpellHitEffectMechanicRowLikeCpp {
     pub(super) record_id: u32,
     pub(super) mechanic: i32,
 }
+
+/// Represented C++ `SpellInfo::IsPositive` (`NegativeEffects.none()`).
+/// The current spell model does not persist C++'s calculated bitset, so this
+/// keeps the target/aura/sign fallback next to the canonical spell metadata.
+pub fn represented_spell_is_positive_like_cpp(spell_info: &SpellInfo) -> bool {
+    let effects: Vec<(u32, i32, i32, u32, u32)> = if spell_info.effects().is_empty() {
+        vec![(
+            spell_info.effect_type,
+            spell_info.aura_type.unwrap_or(0),
+            spell_info.effect_base_points,
+            0,
+            0,
+        )]
+    } else {
+        spell_info
+            .effects()
+            .iter()
+            .map(|effect| {
+                (
+                    effect.effect,
+                    effect.effect_aura,
+                    effect.effect_base_points,
+                    effect.implicit_target_1,
+                    effect.implicit_target_2,
+                )
+            })
+            .collect()
+    };
+
+    const fn target_checks_enemy_like_cpp(target: u32) -> bool {
+        matches!(
+            target,
+            2 | 6 | 15 | 16 | 24 | 28 | 53 | 54 | 93 | 104 | 108 | 115 | 116 | 129 | 134 | 151
+        )
+    }
+
+    !effects
+        .into_iter()
+        .any(|(effect, aura, amount, target_a, target_b)| {
+            let targets_enemy =
+                target_checks_enemy_like_cpp(target_a) || target_checks_enemy_like_cpp(target_b);
+            effect == spell_effect_types::SPELL_EFFECT_INSTAKILL
+                || effect == spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE
+                || effect == spell_effect_types::SPELL_EFFECT_ENVIRONMENTAL_DAMAGE
+                || effect == spell_effect_types::SPELL_EFFECT_POWER_DRAIN
+                || effect == spell_effect_types::SPELL_EFFECT_POWER_BURN
+                || effect == spell_effect_types::SPELL_EFFECT_HEALTH_LEECH
+                || effect == spell_effect_types::SPELL_EFFECT_THREAT
+                || effect == spell_effect_types::SPELL_EFFECT_MODIFY_THREAT_PERCENT
+                || effect == spell_effect_types::SPELL_EFFECT_ATTACK_ME
+                || effect == spell_effect_types::SPELL_EFFECT_DISTRACT
+                || (effect == spell_effect_types::SPELL_EFFECT_APPLY_AURA
+                    && (targets_enemy
+                        || matches!(
+                            aura,
+                            aura_types::SPELL_AURA_PERIODIC_DAMAGE
+                                | aura_types::SPELL_AURA_PERIODIC_DAMAGE_PERCENT
+                                | aura_types::SPELL_AURA_MOD_CONFUSE
+                                | aura_types::SPELL_AURA_MOD_FEAR
+                                | aura_types::SPELL_AURA_MOD_TAUNT
+                                | aura_types::SPELL_AURA_MOD_STUN
+                                | aura_types::SPELL_AURA_MOD_ROOT
+                                | aura_types::SPELL_AURA_MOD_SILENCE
+                                | aura_types::SPELL_AURA_MOD_DECREASE_SPEED
+                                | aura_types::SPELL_AURA_SCHOOL_HEAL_ABSORB
+                        )
+                        || (matches!(
+                            aura,
+                            aura_types::SPELL_AURA_MOD_STAT
+                                | aura_types::SPELL_AURA_MOD_INCREASE_HEALTH
+                                | aura_types::SPELL_AURA_MOD_INCREASE_HEALTH_PERCENT
+                                | aura_types::SPELL_AURA_MOD_SCALE
+                        ) && amount < 0)))
+        })
+}
+
+pub fn represented_spell_power_has_power_like_cpp(
+    power_costs: &[SpellPowerCostLikeCpp],
+    before_power: &[(i8, i32, i32)],
+) -> bool {
+    power_costs.iter().all(|cost| {
+        if cost.amount <= 0 {
+            return true;
+        }
+        let Some(power_type) = <PowerType as num_traits::FromPrimitive>::from_i8(cost.power_type)
+        else {
+            return true;
+        };
+        if matches!(
+            power_type,
+            PowerType::Health | PowerType::None | PowerType::Max
+        ) {
+            return true;
+        }
+        before_power
+            .iter()
+            .find(|(snapshot_power_type, _, _)| *snapshot_power_type == cost.power_type)
+            .map(|(_, current, _)| *current >= cost.amount)
+            .unwrap_or(false)
+    })
+}
+
+pub fn represented_spell_valid_with_seen_like_cpp(
+    spell_store: &SpellStore,
+    spell_id: i32,
+    seen: &mut HashSet<i32>,
+) -> bool {
+    if !seen.insert(spell_id) {
+        return true;
+    }
+
+    let Some(spell_info) = spell_store.get(spell_id) else {
+        return false;
+    };
+
+    spell_info.effects().iter().all(|effect| {
+        if effect.effect != spell_effect_types::SPELL_EFFECT_LEARN_SPELL {
+            return true;
+        }
+        if effect.effect_trigger_spell <= 0 {
+            return false;
+        }
+        represented_spell_valid_with_seen_like_cpp(spell_store, effect.effect_trigger_spell, seen)
+    })
+}
+
+pub fn player_target_spell_effect_is_hit_inert_like_cpp(effect: &SpellEffectInfo) -> bool {
+    if effect.effect == spell_effect_types::SPELL_EFFECT_NONE
+        || spell_effect_types::is_cpp_null_or_unused_noop(effect.effect)
+    {
+        return true;
+    }
+    if effect.effect_trigger_spell != 0 {
+        return false;
+    }
+    match effect.effect {
+        spell_effect_types::SPELL_EFFECT_APPLY_AURA => matches!(
+            effect.effect_aura,
+            aura_types::SPELL_AURA_MOD_STEALTH_DETECT
+                | aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE
+                | aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE
+                | aura_types::SPELL_AURA_MOD_REPUTATION_GAIN
+                | aura_types::SPELL_AURA_MOD_XP_PCT
+                | aura_types::SPELL_AURA_MOD_EXPERTISE
+        ),
+        spell_effect_types::SPELL_EFFECT_PARRY
+        | spell_effect_types::SPELL_EFFECT_BLOCK
+        | spell_effect_types::SPELL_EFFECT_DUAL_WIELD
+        | spell_effect_types::SPELL_EFFECT_PROFICIENCY => true,
+        _ => false,
+    }
+}

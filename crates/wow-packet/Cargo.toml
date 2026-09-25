@@ -15,3 +15,6 @@ wow-constants = { workspace = true }
 wow-movement = { workspace = true }
 wow-loot = { workspace = true }
 thiserror = { workspace = true }
+
+[lints]
+workspace = true

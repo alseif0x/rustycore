@@ -25,6 +25,8 @@ wow-constants = { workspace = true }
 wow-anticheat = { workspace = true }
 wow-ai = { workspace = true }
 wow-chat = { workspace = true }
+wow-combat = { workspace = true }
+wow-conditions = { workspace = true }
 wow-data = { workspace = true }
 wow-entities = { workspace = true }
 wow-network = { workspace = true }
@@ -41,10 +43,15 @@ wow-session = { workspace = true }
 wow-instances = { workspace = true }
 wow-script = { workspace = true }
 wow-social = { workspace = true }
+wow-spell-acquisition = { workspace = true }
 
 [dev-dependencies]
+wow-spell-acquisition = { workspace = true, features = ["test-fixtures"] }
 wow-session = { workspace = true, features = ["test-support"] }
 # Real Detour navmesh fixtures for the live creature-pathfinding regressions.
 wow-recastdetour = { workspace = true, features = ["test-fixtures"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+[lints]
+workspace = true

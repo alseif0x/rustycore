@@ -4,6 +4,7 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use wow_loot::{LOOT_METHOD_GROUP_LIKE_CPP, LOOT_METHOD_MASTER_LIKE_CPP};
 
 #[tokio::test]
 async fn loot_roll_all_voted_finishes_need_winner_like_cpp() {
@@ -666,12 +667,7 @@ fn loot_roll_vote_command_accepts_exact_enqueued_roll_identity_like_cpp() {
         roll_identity: roll_identity.clone(),
     };
 
-    assert!(
-        crate::handlers::loot_rules::represented_loot_roll_vote_command_targets_identity_like_cpp(
-            &command,
-            &roll_identity,
-        )
-    );
+    assert!(command.targets_identity_like_cpp(&roll_identity));
 }
 #[test]
 fn queued_loot_roll_vote_rejects_replacement_with_same_key_and_generation_like_cpp() {
@@ -691,10 +687,7 @@ fn queued_loot_roll_vote_rejects_replacement_with_same_key_and_generation_like_c
     };
 
     assert!(
-        !crate::handlers::loot_rules::represented_loot_roll_vote_command_targets_identity_like_cpp(
-            &stale_command,
-            &replacement_identity,
-        ),
+        !stale_command.targets_identity_like_cpp(&replacement_identity),
         "a command queued for the destroyed C++ LootRoll* must not vote on its replacement"
     );
 }

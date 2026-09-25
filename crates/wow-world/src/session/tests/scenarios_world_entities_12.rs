@@ -516,7 +516,9 @@ fn far_sight_enable_gameobject_viewpoint_keeps_previous_seer_like_cpp() {
     session.player_name = Some("FarSightGameObject".into());
     session.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
     session.current_map_id = 571;
-    session.represented_seer_guid_like_cpp = Some(previous_seer);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(previous_seer);
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
     add_canonical_test_gameobject(
         &canonical,

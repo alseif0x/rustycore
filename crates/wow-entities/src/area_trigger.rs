@@ -8,6 +8,26 @@ use crate::{
     update_fields::{AREA_TRIGGER_DATA_BITS, TYPEID_AREA_TRIGGER},
 };
 
+/// C++ box-shape containment used by area-trigger admission.
+pub fn position_is_within_area_trigger_box_like_cpp(
+    pos: &Position,
+    center: &Position,
+    half_length: f32,
+    half_width: f32,
+    half_height: f32,
+) -> bool {
+    let dx = pos.x - center.x;
+    let dy = pos.y - center.y;
+    let cos_yaw = center.orientation.cos();
+    let sin_yaw = center.orientation.sin();
+    let rel_x = dx * cos_yaw + dy * sin_yaw;
+    let rel_y = -dx * sin_yaw + dy * cos_yaw;
+
+    rel_x.abs() <= half_length
+        && rel_y.abs() <= half_width
+        && (pos.z - center.z).abs() <= half_height
+}
+
 pub const AREA_TRIGGER_DATA_PARENT_BIT: usize = 0;
 pub const AREA_TRIGGER_DATA_OVERRIDE_SCALE_CURVE_BIT: usize = 1;
 pub const AREA_TRIGGER_DATA_EXTRA_SCALE_CURVE_BIT: usize = 2;
@@ -843,6 +863,25 @@ mod tests {
 
     fn spell_guid() -> ObjectGuid {
         ObjectGuid::create_world_object(HighGuid::DynamicObject, 0, 1, 530, 123, 0, 99)
+    }
+
+    #[test]
+    fn box_containment_rotates_into_trigger_local_axes() {
+        let center = Position::new(10.0, 20.0, 3.0, std::f32::consts::FRAC_PI_2);
+        assert!(position_is_within_area_trigger_box_like_cpp(
+            &Position::new(10.0, 20.5, 3.0, 0.0),
+            &center,
+            1.0,
+            0.5,
+            1.0,
+        ));
+        assert!(!position_is_within_area_trigger_box_like_cpp(
+            &Position::new(11.0, 20.0, 3.0, 0.0),
+            &center,
+            1.0,
+            0.5,
+            1.0,
+        ));
     }
 
     #[test]

@@ -148,6 +148,35 @@ impl fmt::Display for Position {
     }
 }
 
+/// Strict C++ distance gate: equality at the boundary is outside the range.
+pub fn position_is_in_dist_strict_3d_like_cpp(
+    position: &Position,
+    other: &Position,
+    dist: f32,
+) -> bool {
+    position.distance_sq(other) < dist * dist
+}
+
+pub fn position_is_in_dist_strict_2d_like_cpp(
+    position: &Position,
+    other: &Position,
+    dist: f32,
+) -> bool {
+    position.distance_2d_sq(other) < dist * dist
+}
+
+/// C++ visibility gate including both combat reaches; equality is outside.
+pub fn visibility_distance_allows_like_cpp(
+    source_position: &Position,
+    source_combat_reach: f32,
+    target_position: &Position,
+    target_combat_reach: f32,
+    sight_range: f32,
+) -> bool {
+    let max_distance = sight_range + source_combat_reach.max(0.0) + target_combat_reach.max(0.0);
+    source_position.distance_2d_sq(target_position) < max_distance * max_distance
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -212,5 +241,14 @@ mod tests {
         assert!(!Position::new(limit + 0.01, 0.0, 0.0, 0.0).is_valid_map_coord_like_cpp());
         assert!(!Position::new(0.0, 0.0, 0.0, f32::NAN).is_valid_map_coord_like_cpp());
         assert!(!Position::new(0.0, f32::INFINITY, 0.0, 0.0).is_valid_map_coord_like_cpp());
+    }
+
+    #[test]
+    fn strict_distance_helpers_exclude_boundary() {
+        let origin = Position::ZERO;
+        let edge = Position::new(3.0, 4.0, 0.0, 0.0);
+        assert!(!position_is_in_dist_strict_2d_like_cpp(&origin, &edge, 5.0));
+        assert!(!position_is_in_dist_strict_3d_like_cpp(&origin, &edge, 5.0));
+        assert!(position_is_in_dist_strict_2d_like_cpp(&origin, &edge, 5.1));
     }
 }

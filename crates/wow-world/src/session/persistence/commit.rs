@@ -58,9 +58,11 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            self.represented_loaded_player_flags_like_cpp =
+            self.player_flags_test_fixture_like_cpp
+                .represented_loaded_player_flags_like_cpp =
                 Some(_current_flags | PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP);
-            self.represented_loaded_player_flags_applied_like_cpp = _canonical;
+            self.player_flags_test_fixture_like_cpp
+                .represented_loaded_player_flags_applied_like_cpp = _canonical;
         }
 
         if let Some(update) = values_update {
@@ -244,7 +246,11 @@ impl WorldSession {
         });
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.player_skill_non_durable_tombstones_like_cpp.clone());
+            return Some(
+                self.player_skill_test_fixture_like_cpp
+                    .player_skill_non_durable_tombstones_like_cpp
+                    .clone(),
+            );
         }
         canonical
     }

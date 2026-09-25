@@ -44,7 +44,9 @@ fn canonical_player_existing_instance_map_full_sends_transfer_abort_like_cpp() {
         80,
         0,
     ));
-    session.represented_raid_difficulty_id_like_cpp = 3;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_with_max_players_like_cpp(&mut session, 631, 3, 77, 0, 1);
 
     let group_registry = Arc::new(GroupRegistry::default());
@@ -107,7 +109,9 @@ fn canonical_existing_instance_full_gate_does_not_count_game_masters_like_cpp() 
         80,
         0,
     ));
-    session.represented_raid_difficulty_id_like_cpp = 3;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_with_max_players_like_cpp(&mut session, 631, 3, 77, 0, 1);
 
     let group_registry = Arc::new(GroupRegistry::default());
@@ -163,7 +167,9 @@ fn canonical_game_master_bypasses_existing_instance_full_gate_like_cpp() {
         0,
     ));
     session.set_player_game_master_like_cpp(true);
-    session.represented_raid_difficulty_id_like_cpp = 3;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_with_max_players_like_cpp(&mut session, 631, 3, 77, 0, 1);
 
     let group_registry = Arc::new(GroupRegistry::default());

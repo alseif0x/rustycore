@@ -643,7 +643,7 @@ impl WorldSession {
         let mut represented_bag_slots_by_guid = HashMap::new();
         let mut bag_templates = Vec::new();
         for (&slot, item) in &inventory_items {
-            if crate::session_rules::is_buyback_slot(slot) {
+            if wow_entities::is_buyback_slot(slot) {
                 continue;
             }
             if vacated_positions.contains(&(INVENTORY_SLOT_BAG_0, slot)) {
@@ -686,7 +686,7 @@ impl WorldSession {
         let mut slot_items = Vec::new();
         let mut stored_items = Vec::new();
         for (&slot, inventory_item) in &inventory_items {
-            if crate::session_rules::is_buyback_slot(slot) {
+            if wow_entities::is_buyback_slot(slot) {
                 continue;
             }
             if overlays
@@ -792,7 +792,7 @@ impl WorldSession {
         self.loot_item_store_test_commit_gate_like_cpp = Some(gate);
     }
     pub fn send_new_item_plan(&self, plan: &SendNewItemPlan) {
-        let packet = crate::session_rules::item_push_result_from_send_new_item_plan(plan);
+        let packet = crate::session::item_push_result_from_send_new_item_plan(plan);
         if plan.delivery == SendNewItemDelivery::GroupBroadcast {
             use wow_packet::ServerPacket;
 

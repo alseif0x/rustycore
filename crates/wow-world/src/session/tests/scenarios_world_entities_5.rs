@@ -62,7 +62,9 @@ async fn gameobject_visual_despawn_creature_shared_vision_out_of_world_target_no
     session
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_seer_guid_like_cpp = Some(target_guid);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(target_guid);
 
     assert_eq!(
         session.send_represented_gameobject_visual_despawn_from_last_update_like_cpp(),
@@ -152,7 +154,9 @@ async fn gameobject_visual_despawn_creature_shared_vision_requires_session_seer_
     session
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_seer_guid_like_cpp = Some(other_seer_guid);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(other_seer_guid);
 
     assert_eq!(
         session.send_represented_gameobject_visual_despawn_from_last_update_like_cpp(),
@@ -202,7 +206,9 @@ async fn gameobject_visual_despawn_creature_shared_vision_requires_target_list_v
     session
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_seer_guid_like_cpp = Some(target_guid);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(target_guid);
 
     assert_eq!(
         session.send_represented_gameobject_visual_despawn_from_last_update_like_cpp(),
@@ -318,7 +324,9 @@ async fn gameobject_visual_despawn_creature_shared_vision_phase_range_and_have_a
         .client_visible_guids_like_cpp
         .insert(out_of_range_guid);
     session.client_visible_guids_like_cpp.insert(sendable_guid);
-    session.represented_seer_guid_like_cpp = Some(target_guid);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(target_guid);
 
     assert_eq!(
         session.send_represented_gameobject_visual_despawn_from_last_update_like_cpp(),
@@ -401,7 +409,9 @@ async fn gameobject_visual_despawn_dynamic_object_caster_viewer_receives_once_li
     session
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_seer_guid_like_cpp = Some(dynamic_object_guid);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(dynamic_object_guid);
 
     assert_eq!(
         session.send_represented_gameobject_visual_despawn_from_last_update_like_cpp(),
@@ -476,7 +486,9 @@ async fn gameobject_visual_despawn_dynamic_object_requires_session_seer_target_l
     session
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_seer_guid_like_cpp = Some(other_seer_guid);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(other_seer_guid);
 
     assert_eq!(
         session.send_represented_gameobject_visual_despawn_from_last_update_like_cpp(),
@@ -536,7 +548,9 @@ async fn gameobject_visual_despawn_dynamic_object_requires_player_caster_like_cp
     session
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_seer_guid_like_cpp = Some(dynamic_object_guid);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(dynamic_object_guid);
 
     assert_eq!(
         session.send_represented_gameobject_visual_despawn_from_last_update_like_cpp(),
@@ -662,7 +676,9 @@ async fn gameobject_visual_despawn_dynamic_object_phase_range_and_have_at_client
         .client_visible_guids_like_cpp
         .insert(out_of_range_guid);
     session.client_visible_guids_like_cpp.insert(sendable_guid);
-    session.represented_seer_guid_like_cpp = Some(dynamic_object_guid);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(dynamic_object_guid);
 
     assert_eq!(
         session.send_represented_gameobject_visual_despawn_from_last_update_like_cpp(),
@@ -742,7 +758,9 @@ async fn gameobject_visual_despawn_shared_vision_requires_session_seer_target_li
     session
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_seer_guid_like_cpp = Some(other_seer_guid);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(other_seer_guid);
 
     assert_eq!(
         session.send_represented_gameobject_visual_despawn_from_last_update_like_cpp(),
@@ -791,7 +809,9 @@ async fn gameobject_visual_despawn_shared_vision_requires_target_list_viewer_lik
     session
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_seer_guid_like_cpp = Some(target_guid);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(target_guid);
 
     assert_eq!(
         session.send_represented_gameobject_visual_despawn_from_last_update_like_cpp(),

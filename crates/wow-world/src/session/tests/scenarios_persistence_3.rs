@@ -140,7 +140,7 @@ fn player_save_transaction_plan_orders_represented_statements_like_cpp() {
         )]),
         1,
     ));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         8_888,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id: 8_888,
@@ -728,8 +728,18 @@ fn load_rest_state_clears_stale_rest_flags_between_characters_like_cpp() {
 
     assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP, 42));
     assert!(session.represented_is_resting_like_cpp());
-    assert_eq!(session.represented_inn_area_trigger_id_like_cpp, 42);
-    assert_ne!(session.represented_rest_time_secs_like_cpp, 0);
+    assert_eq!(
+        session
+            .rest_mgr_test_fixture_like_cpp
+            .represented_inn_area_trigger_id_like_cpp,
+        42
+    );
+    assert_ne!(
+        session
+            .rest_mgr_test_fixture_like_cpp
+            .represented_rest_time_secs_like_cpp,
+        0
+    );
 
     // C++ applies the new character row's PlayerFlags to the new Player before
     // RestMgr::LoadRestBonus. Keep that provenance explicit: the runtime rest
@@ -739,8 +749,18 @@ fn load_rest_state_clears_stale_rest_flags_between_characters_like_cpp() {
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
 
     assert!(!session.represented_is_resting_like_cpp());
-    assert_eq!(session.represented_inn_area_trigger_id_like_cpp, 0);
-    assert_eq!(session.represented_rest_time_secs_like_cpp, 0);
+    assert_eq!(
+        session
+            .rest_mgr_test_fixture_like_cpp
+            .represented_inn_area_trigger_id_like_cpp,
+        0
+    );
+    assert_eq!(
+        session
+            .rest_mgr_test_fixture_like_cpp
+            .represented_rest_time_secs_like_cpp,
+        0
+    );
     assert!(
         !session
             .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_RESTING_LIKE_CPP)

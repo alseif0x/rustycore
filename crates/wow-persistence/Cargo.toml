@@ -7,3 +7,6 @@ license.workspace = true
 # Intentionally dependency-free. This crate owns SQLx-free persistence
 # capabilities; their MariaDB/SQLx adapters live in `wow-database`.
 [dependencies]
+
+[lints]
+workspace = true

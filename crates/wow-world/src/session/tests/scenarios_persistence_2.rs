@@ -609,7 +609,9 @@ fn canonical_loading_player_bypasses_existing_raid_in_progress_gate_like_cpp() {
         0,
     ));
     session.set_player_loading(Some(member));
-    session.represented_raid_difficulty_id_like_cpp = 3;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 0);
 
     let group_registry = Arc::new(GroupRegistry::default());

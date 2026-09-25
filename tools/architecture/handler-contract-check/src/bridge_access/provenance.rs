@@ -269,6 +269,13 @@ impl<'a> Resolver<'a> {
                             if self.active.iter().any(|(active_node, active_name, _)| {
                                 *active_node == target && active_name == name
                             }) {
+                                if extracted_application_name(name) {
+                                    glob_result.append(Resolution::one(
+                                        Provenance::NonAuthority,
+                                        &branch_cfg,
+                                    ));
+                                    continue;
+                                }
                                 // Glob re-export loops are ordinary Rust module
                                 // wiring. An explicit import/alias edge still
                                 // enters resolve_name and diagnoses its cycle.
@@ -473,6 +480,10 @@ impl<'a> Resolver<'a> {
                     && resolved.issues.is_empty()
                     && resolved.cycles.is_empty()
                 {
+                    if extracted_application_name(name) {
+                        result.append(Resolution::one(Provenance::NonAuthority, &branch_cfg));
+                        continue;
+                    }
                     let child = format!("{module}::{name}");
                     if !self.module_ids(node, &child).is_empty() {
                         result.append(self.resolve_from_module(
@@ -780,8 +791,26 @@ fn known_authority_name(name: &str) -> bool {
     )
 }
 
+fn extracted_application_name(name: &str) -> bool {
+    name.starts_with("QUEST_STATUS_")
+        || name.starts_with("SpellAcquisition")
+        || name.starts_with("PlayerAcquisition")
+        || name.starts_with("PlayerSpellAcquisition")
+        || name.starts_with("PlayerFuture")
+        || name.starts_with("PlayerSkillPersistence")
+        || name.starts_with("PlayerSpellPersistence")
+}
+
 fn recognized_absolute_provenance(segments: &[String]) -> Option<Provenance> {
     let first = segments.first()?.as_str();
+    // Extracted application crates provide rule/value vocabulary, not a
+    // canonical or legacy runtime owner. Treat their absolute imports as
+    // non-authority so relative test globs do not manufacture bridge debt.
+    if matches!(first, "wow_conditions" | "wow_spell_acquisition")
+        || (first == "crate" && segments.get(1).is_some_and(|s| s == "spell_acquisition"))
+    {
+        return Some(Provenance::NonAuthority);
+    }
     let canonical_map = segments
         .get(1)
         .is_some_and(|s| matches!(s.as_str(), "MapManager" | "ManagedMap" | "Map"))

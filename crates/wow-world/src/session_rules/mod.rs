@@ -2,12 +2,9 @@
 
 //! Receiver-free rules moved out of the Session under #676.
 
-mod rules_1;
-mod rules_2;
 mod rules_3;
 mod rules_4;
 
-pub(crate) use rules_1::*;
-pub(crate) use rules_2::*;
-pub(crate) use rules_3::*;
+pub(crate) use rules_3::aura_effects::*;
+pub(crate) use rules_3::melee_damage::*;
 pub(crate) use rules_4::*;

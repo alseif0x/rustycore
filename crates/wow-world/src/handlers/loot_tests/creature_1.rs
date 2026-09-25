@@ -4,6 +4,7 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use wow_loot::{LOOT_METHOD_GROUP_LIKE_CPP, LOOT_METHOD_MASTER_LIKE_CPP};
 
 #[tokio::test]
 async fn creature_spell_cast_command_sends_start_then_basic_go_after_one_gate_like_cpp() {
@@ -356,8 +357,12 @@ async fn quest_required_creature_loot_is_not_generated_after_completion_like_cpp
     session.set_player_guid(Some(player_guid));
     install_limited_test_item_template(&mut session, item_id, 0);
     install_quest_bound_loot_objective_like_cpp(&mut session, quest_id, item_id, 6, 6);
-    session.player_quests.get_mut(&quest_id).unwrap().status =
-        crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP;
+    session
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .get_mut(&quest_id)
+        .unwrap()
+        .status = crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP;
 
     let mut creature_store = LootStore::for_kind_like_cpp(LootStoreKind::Creature);
     creature_store
@@ -391,7 +396,11 @@ async fn quest_required_creature_loot_is_not_generated_after_completion_like_cpp
         "C++ LootItem::AllowedForPlayer rejects QuestRequired items after HasQuestForItem becomes false"
     );
 
-    let status = session.player_quests.get_mut(&quest_id).unwrap();
+    let status = session
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .get_mut(&quest_id)
+        .unwrap();
     status.status = crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
     status.objective_counts[0] = 5;
     let incomplete_loot = session

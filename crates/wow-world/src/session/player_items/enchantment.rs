@@ -720,20 +720,19 @@ impl WorldSession {
                 continue;
             }
             changed_stats |=
-                crate::session_rules::represented_item_bonus_action_updates_stats_like_cpp(action);
+                wow_entities::represented_item_bonus_action_updates_stats_like_cpp(action);
             let represented_action = RepresentedItemBonusActionLikeCpp {
                 item_guid,
                 slot: slot as u8,
                 action,
             };
             #[cfg(test)]
-            self.represented_item_bonus_actions_like_cpp
+            self.player_item_test_fixture_like_cpp
+                .represented_item_bonus_actions_like_cpp
                 .push(represented_action.clone());
             let spell_action_applied = self.apply_loaded_enchantment_spell_action_like_cpp(action);
             if !spell_action_applied
-                && crate::session_rules::loaded_enchantment_effect_action_is_unrepresented_like_cpp(
-                    action,
-                )
+                && wow_entities::loaded_enchantment_effect_action_is_unrepresented_like_cpp(action)
             {
                 unrepresented_actions.push(represented_action.clone());
             }

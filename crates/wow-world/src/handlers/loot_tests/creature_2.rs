@@ -389,42 +389,6 @@ fn creature_loot_release_dynamic_flags_are_viewer_dependent_like_cpp() {
     );
     assert_eq!(dynamic_flags_for(unrelated_player), 0);
 }
-#[test]
-fn creature_loot_visibility_applies_full_cpp_allowed_to_loot_gate() {
-    let round_robin_owner = ObjectGuid::create_player(1, 64);
-    let other_player = ObjectGuid::create_player(1, 65);
-    let mut loot = authoritative_test_loot_like_cpp(0, true);
-    loot.loot_method = LOOT_METHOD_ROUND_ROBIN_LIKE_CPP;
-    loot.round_robin_player = round_robin_owner;
-    loot.allowed_looters = vec![round_robin_owner, other_player];
-    loot.items[0].allowed_looters = vec![round_robin_owner, other_player];
-    loot.items[0].flags.follow_loot_rules = true;
-
-    assert!(creature_loot_is_allowed_to_player_like_cpp(
-        true,
-        false,
-        &loot,
-        round_robin_owner,
-    ));
-    assert!(
-        !creature_loot_is_allowed_to_player_like_cpp(true, false, &loot, other_player),
-        "ordinary shared round-robin loot belongs only to the selected player"
-    );
-    assert!(
-        !creature_loot_is_allowed_to_player_like_cpp(false, false, &loot, round_robin_owner,),
-        "C++ rejects loot visibility for a living creature"
-    );
-    assert!(
-        !creature_loot_is_allowed_to_player_like_cpp(true, true, &loot, round_robin_owner,),
-        "C++ HasPendingBind suppresses loot visibility"
-    );
-
-    loot.items[0].flags.follow_loot_rules = false;
-    assert!(
-        creature_loot_is_allowed_to_player_like_cpp(true, false, &loot, other_player),
-        "quest/conditional/free-for-player loot remains visible outside round robin"
-    );
-}
 #[tokio::test]
 async fn creature_loot_release_command_retries_without_blocking_source_like_cpp() {
     let (command_tx, command_rx) = flume::bounded(1);

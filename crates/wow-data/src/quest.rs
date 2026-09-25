@@ -10,6 +10,12 @@
 
 use std::collections::{HashMap, HashSet};
 use tracing::{info, warn};
+pub use wow_constants::quest::QUEST_FLAGS_COMPLETION_AREA_TRIGGER_LIKE_CPP;
+use wow_constants::quest::{
+    QUEST_FLAGS_EX_IS_WORLD_QUEST_LIKE_CPP, QUEST_FLAGS_EX_REWARDS_IGNORE_CAPS_LIKE_CPP,
+};
+pub use wow_entities::QuestObjective;
+use wow_entities::QuestObjectiveRulesLikeCpp;
 
 // ── Constants (matching C# SharedConst) ──────────────────────────────────────
 pub const QUEST_REWARD_ITEM_COUNT: usize = 4;
@@ -20,7 +26,6 @@ pub const QUEST_REWARD_DISPLAY_SPELL_COUNT: usize = 3;
 pub const QUEST_ITEM_DROP_COUNT: usize = 4;
 
 pub const QUEST_FLAGS_DAILY_LIKE_CPP: u32 = 0x0000_1000;
-pub const QUEST_FLAGS_COMPLETION_AREA_TRIGGER_LIKE_CPP: u32 = 0x0000_0004;
 pub const QUEST_FLAGS_HIDE_REWARD_POI_LIKE_CPP: u32 = 0x0000_0020;
 pub const QUEST_OBJECTIVE_AREATRIGGER_LIKE_CPP: u8 = 10;
 pub const QUEST_FLAGS_WEEKLY_LIKE_CPP: u32 = 0x0000_8000;
@@ -52,28 +57,6 @@ const QUEST_SORT_BREWFEST_NEGATIVE_LIKE_CPP: i32 = -QUEST_SORT_BREWFEST_LIKE_CPP
 const QUEST_SORT_NOBLEGARDEN_NEGATIVE_LIKE_CPP: i32 = -QUEST_SORT_NOBLEGARDEN_LIKE_CPP;
 const QUEST_SORT_LOVE_IS_IN_THE_AIR_NEGATIVE_LIKE_CPP: i32 =
     -QUEST_SORT_LOVE_IS_IN_THE_AIR_LIKE_CPP;
-
-// ── QuestObjective ────────────────────────────────────────────────────────────
-
-/// A single objective for a quest (kill X, loot Y, explore Z, etc.)
-/// C# ref: QuestObjective struct / quest_objectives table
-#[derive(Debug, Clone)]
-pub struct QuestObjective {
-    pub id: u32,
-    pub quest_id: u32,
-    /// 0=Monster, 1=Item, 2=GameObject, 3=TalkTo, 4=Currency,
-    /// 5=LearnSpell, 6=MinReputation, 7=MaxReputation, 8=Money,
-    /// 9=PlayerKills, 10=AreaTrigger, ...
-    pub obj_type: u8,
-    pub order: u8,
-    pub storage_index: i8,
-    pub object_id: i32,
-    pub amount: i32,
-    pub flags: u32,
-    pub flags2: u32,
-    pub progress_bar_weight: f32,
-    pub description: String,
-}
 
 // ── QuestTemplate ─────────────────────────────────────────────────────────────
 
@@ -194,6 +177,53 @@ pub struct QuestTemplate {
 }
 
 impl QuestTemplate {
+    /// Borrow the metadata used by Player objective rules without cloning the
+    /// catalog or exposing a data-store dependency to the entity layer.
+    pub fn objective_rules_like_cpp(&self) -> QuestObjectiveRulesLikeCpp<'_> {
+        QuestObjectiveRulesLikeCpp::new(
+            self.id,
+            self.flags,
+            self.limit_time_secs,
+            self.is_repeatable(),
+            &self.objectives,
+        )
+    }
+
+    /// Calculate the accepted quest window from the caller's authoritative
+    /// clock sample. Session owns the sample; the quest model owns `TimeAllowed`.
+    pub fn accepted_and_end_time_like_cpp(&self, accept_time: i64) -> (i64, i64) {
+        let end_time = if self.limit_time_secs > 0 {
+            accept_time.saturating_add(self.limit_time_secs)
+        } else {
+            0
+        };
+        (accept_time, end_time)
+    }
+
+    /// Classify the C++ currency source emitted for this quest reward.
+    pub fn currency_gain_source_like_cpp(
+        &self,
+    ) -> wow_constants::currency::CurrencyGainSourceLikeCpp {
+        use wow_constants::currency::CurrencyGainSourceLikeCpp;
+
+        if (self.flags_ex & QUEST_FLAGS_EX_REWARDS_IGNORE_CAPS_LIKE_CPP) != 0 {
+            if (self.flags_ex & QUEST_FLAGS_EX_IS_WORLD_QUEST_LIKE_CPP) != 0 {
+                return CurrencyGainSourceLikeCpp::WorldQuestRewardIgnoreCaps;
+            }
+            return CurrencyGainSourceLikeCpp::QuestRewardIgnoreCaps;
+        }
+
+        if self.is_daily_like_cpp() {
+            CurrencyGainSourceLikeCpp::DailyQuestReward
+        } else if self.is_weekly_like_cpp() {
+            CurrencyGainSourceLikeCpp::WeeklyQuestReward
+        } else if (self.flags_ex & QUEST_FLAGS_EX_IS_WORLD_QUEST_LIKE_CPP) != 0 {
+            CurrencyGainSourceLikeCpp::WorldQuestReward
+        } else {
+            CurrencyGainSourceLikeCpp::QuestReward
+        }
+    }
+
     /// C++ `Quest::IsRepeatable()` exact helper: only `QUEST_SPECIAL_FLAGS_REPEATABLE`.
     pub fn is_repeatable(&self) -> bool {
         self.special_flags & QUEST_SPECIAL_FLAGS_REPEATABLE_LIKE_CPP != 0
@@ -334,22 +364,6 @@ fn normalize_quest_flags_like_cpp(flags: u32, special_flags: u32) -> (u32, u32) 
     }
 
     (flags, special_flags)
-}
-
-impl QuestObjective {
-    /// C++ `QuestObjective::IsStoringFlag`.
-    pub fn is_storing_flag_like_cpp(&self) -> bool {
-        matches!(self.obj_type, 10 | 11 | 12 | 14 | 19 | 20)
-    }
-
-    /// C++ condition validation limit for `CONDITION_QUEST_OBJECTIVE_PROGRESS`.
-    pub fn condition_progress_limit_like_cpp(&self) -> i32 {
-        if self.is_storing_flag_like_cpp() {
-            1
-        } else {
-            self.amount
-        }
-    }
 }
 
 // ── QuestStore ────────────────────────────────────────────────────────────────

@@ -333,6 +333,28 @@ pub struct PlayerCurrency {
     pub flags: u8,
 }
 
+pub fn plan_remove_currency_like_cpp(
+    currencies: &mut HashMap<u32, PlayerCurrency>,
+    currency_id: u32,
+    amount: u32,
+) -> bool {
+    if amount == 0 {
+        return true;
+    }
+    let Some(currency) = currencies.get_mut(&currency_id) else {
+        return false;
+    };
+    if currency.quantity == 0 {
+        return false;
+    }
+    let removed = amount.min(currency.quantity);
+    currency.quantity -= removed;
+    if currency.state != PlayerCurrencyState::New {
+        currency.state = PlayerCurrencyState::Changed;
+    }
+    true
+}
+
 impl PlayerGameplayState {
     /// Build a gameplay state carrying only the active-player update fields,
     /// for the handle-less represented mirror that has no Player to borrow.

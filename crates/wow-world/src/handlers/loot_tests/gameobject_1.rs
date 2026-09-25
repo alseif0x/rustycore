@@ -4,6 +4,7 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use wow_loot::{LOOT_METHOD_GROUP_LIKE_CPP, LOOT_METHOD_MASTER_LIKE_CPP};
 
 #[test]
 fn shared_gameobject_normal_item_with_two_looters_counts_once_like_cpp() {

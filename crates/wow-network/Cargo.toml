@@ -23,3 +23,6 @@ wow-constants = { workspace = true }
 
 [dev-dependencies]
 flate2 = { workspace = true }
+
+[lints]
+workspace = true

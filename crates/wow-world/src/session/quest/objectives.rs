@@ -6,45 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::session) fn represented_current_player_has_incomplete_quest_objective_for_object_id_like_cpp(
-        &self,
-        object_id: i32,
-    ) -> bool {
-        let Some(quest_store) = self.quests.store.as_ref() else {
-            return false;
-        };
-        let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
-            return false;
-        };
-        quests.statuses_like_cpp().values().any(|status| {
-            if status.status != crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP {
-                return false;
-            }
-            let Some(quest) = quest_store.get(status.quest_id) else {
-                return false;
-            };
-            quest
-                .objectives
-                .iter()
-                .enumerate()
-                .any(|(fallback_index, objective)| {
-                    if objective.obj_type != QUEST_OBJECTIVE_ITEM_LIKE_CPP
-                        || objective.object_id != object_id
-                    {
-                        return false;
-                    }
-                    let storage_index = usize::try_from(objective.storage_index)
-                        .ok()
-                        .unwrap_or(fallback_index);
-                    let current = status
-                        .objective_counts
-                        .get(storage_index)
-                        .copied()
-                        .unwrap_or(0);
-                    current < objective.amount.max(1)
-                })
-        })
-    }
     pub(crate) fn represented_quest_can_increase_rewarded_counters_like_cpp(
         &self,
         quest_id: u32,
@@ -91,7 +52,7 @@ impl WorldSession {
         let matching: Vec<(u32, usize, i32, u32)> = quests
             .statuses_like_cpp()
             .values()
-            .filter(|qs| qs.status == crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
+            .filter(|qs| qs.status == wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
             .flat_map(|qs| {
                 let quest = store.get(qs.quest_id)?;
                 Some(quest.objectives.iter().filter_map(move |obj| {
@@ -173,14 +134,18 @@ impl WorldSession {
                 ) {
                     let quest_already_rewarded =
                         quests.rewarded_quest_ids_like_cpp().contains(&quest_id);
-                    if quests.statuses_like_cpp().get(&quest_id).is_some_and(|status| {
-                        crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
-                            status,
-                            quest,
-                            objective_id,
-                            quest_already_rewarded,
-                        )
-                    }) {
+                    if quests
+                        .statuses_like_cpp()
+                        .get(&quest_id)
+                        .is_some_and(|status| {
+                            wow_entities::represented_can_complete_quest_after_objective_like_cpp(
+                                status,
+                                &quest.objective_rules_like_cpp(),
+                                objective_id,
+                                quest_already_rewarded,
+                            )
+                        })
+                    {
                         quests_to_complete.push(quest_id);
                     }
                 }
@@ -199,7 +164,7 @@ impl WorldSession {
                 .await;
             if completed {
                 if self.represented_player_quest_status_like_cpp(quest_id)
-                    == Some(Some(crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP))
+                    == Some(Some(wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP))
                 {
                     self.send_packet(&QuestUpdateComplete { quest_id });
                 }
@@ -233,7 +198,7 @@ impl WorldSession {
         let matching: Vec<(u32, usize, u32)> = quests
             .statuses_like_cpp()
             .values()
-            .filter(|qs| qs.status == crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
+            .filter(|qs| qs.status == wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
             .flat_map(|qs| {
                 let quest = store.get(qs.quest_id)?;
                 Some(quest.objectives.iter().filter_map(move |obj| {
@@ -288,14 +253,18 @@ impl WorldSession {
                 ) {
                     let quest_already_rewarded =
                         quests.rewarded_quest_ids_like_cpp().contains(&quest_id);
-                    if quests.statuses_like_cpp().get(&quest_id).is_some_and(|status| {
-                        crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
-                            status,
-                            quest,
-                            objective_id,
-                            quest_already_rewarded,
-                        )
-                    }) {
+                    if quests
+                        .statuses_like_cpp()
+                        .get(&quest_id)
+                        .is_some_and(|status| {
+                            wow_entities::represented_can_complete_quest_after_objective_like_cpp(
+                                status,
+                                &quest.objective_rules_like_cpp(),
+                                objective_id,
+                                quest_already_rewarded,
+                            )
+                        })
+                    {
                         quests_to_complete.push((quest_id, objective_id));
                     }
                 }
@@ -315,7 +284,7 @@ impl WorldSession {
                 .await;
             if completed {
                 if self.represented_player_quest_status_like_cpp(quest_id)
-                    == Some(Some(crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP))
+                    == Some(Some(wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP))
                 {
                     self.send_packet(&QuestUpdateComplete { quest_id });
                 }
@@ -344,46 +313,27 @@ impl WorldSession {
 
         let old_money = old_money.min(i64::MAX as u64) as i64;
         let new_money_i64 = new_money.min(i64::MAX as u64) as i64;
-        let add_count = new_money_i64.saturating_sub(old_money);
         let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
             return;
         };
-        let matching: Vec<(u32, u32, i32, bool, bool)> = quests
-            .statuses_like_cpp()
-            .values()
-            .filter(|qs| {
-                qs.status == crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
-                    || qs.status == crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
-            })
-            .flat_map(|qs| {
-                let quest = store.get(qs.quest_id)?;
-                Some(quest.objectives.iter().filter_map(move |obj| {
-                    if obj.obj_type != QUEST_OBJECTIVE_MONEY_LIKE_CPP || obj.object_id != 0 {
-                        return None;
-                    }
-                    let objective_was_complete = old_money >= i64::from(obj.amount);
-                    if objective_was_complete && add_count >= 0 {
-                        return None;
-                    }
-                    let objective_is_now_complete =
-                        old_money.saturating_add(add_count) >= i64::from(obj.amount);
-                    Some((
-                        qs.quest_id,
-                        obj.id,
-                        obj.amount,
-                        objective_was_complete,
-                        objective_is_now_complete,
-                    ))
-                }))
-            })
-            .flatten()
-            .collect();
+        let matching = wow_entities::plan_threshold_quest_objective_changes_like_cpp(
+            quests.statuses_like_cpp(),
+            |id| store.get(id).map(|quest| quest.objective_rules_like_cpp()),
+            QUEST_OBJECTIVE_MONEY_LIKE_CPP,
+            0,
+            old_money,
+            new_money_i64,
+            false,
+        );
 
         let mut quests_to_complete = Vec::new();
         let mut quests_to_save = Vec::new();
-        for (quest_id, objective_id, required, objective_was_complete, objective_is_now_complete) in
-            matching
-        {
+        for change in matching {
+            let quest_id = change.quest_id;
+            let objective_id = change.objective_id;
+            let required = change.required;
+            let objective_was_complete = change.objective_was_complete;
+            let objective_is_now_complete = change.objective_is_now_complete;
             debug!(
                 account = self.account_id,
                 quest_id,
@@ -402,14 +352,18 @@ impl WorldSession {
                 ) {
                     let quest_already_rewarded =
                         quests.rewarded_quest_ids_like_cpp().contains(&quest_id);
-                    if quests.statuses_like_cpp().get(&quest_id).is_some_and(|status| {
-                        crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
-                            status,
-                            quest,
-                            objective_id,
-                            quest_already_rewarded,
-                        )
-                    }) {
+                    if quests
+                        .statuses_like_cpp()
+                        .get(&quest_id)
+                        .is_some_and(|status| {
+                            wow_entities::represented_can_complete_quest_after_objective_like_cpp(
+                                status,
+                                &quest.objective_rules_like_cpp(),
+                                objective_id,
+                                quest_already_rewarded,
+                            )
+                        })
+                    {
                         quests_to_complete.push((quest_id, objective_id));
                     }
                 }
@@ -419,10 +373,10 @@ impl WorldSession {
                         let Some(status) = quests.status_mut_like_cpp(quest_id) else {
                             return false;
                         };
-                        if status.status != crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP {
+                        if status.status != wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP {
                             return false;
                         }
-                        status.status = crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
+                        status.status = wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
                         true
                     })
                     .unwrap_or(false)
@@ -446,7 +400,7 @@ impl WorldSession {
             if completed {
                 quests_to_save.push(quest_id);
                 if self.represented_player_quest_status_like_cpp(quest_id)
-                    == Some(Some(crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP))
+                    == Some(Some(wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP))
                 {
                     self.send_packet(&QuestUpdateComplete { quest_id });
                 }
@@ -477,55 +431,34 @@ impl WorldSession {
         else {
             return;
         };
-        let add_count = i64::from(change);
         let object_id = i32::try_from(currency_id).unwrap_or(i32::MAX);
         let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
             return;
         };
-        let matching: Vec<(u32, u32, i32, bool, bool)> = quests
-            .statuses_like_cpp()
-            .values()
-            .filter(|qs| {
-                qs.status == crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
-                    || qs.status == crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
-            })
-            .flat_map(|qs| {
-                let quest = store.get(qs.quest_id)?;
-                Some(quest.objectives.iter().filter_map(move |obj| {
-                    if obj.obj_type != QUEST_OBJECTIVE_CURRENCY_LIKE_CPP
-                        || obj.object_id != object_id
-                    {
-                        return None;
-                    }
-                    let objective_was_complete = current_quantity >= i64::from(obj.amount);
-                    if objective_was_complete && change >= 0 {
-                        return None;
-                    }
-                    let objective_is_now_complete =
-                        current_quantity.saturating_add(add_count) >= i64::from(obj.amount);
-                    Some((
-                        qs.quest_id,
-                        obj.id,
-                        obj.amount,
-                        objective_was_complete,
-                        objective_is_now_complete,
-                    ))
-                }))
-            })
-            .flatten()
-            .collect();
+        let matching = wow_entities::plan_threshold_quest_objective_changes_like_cpp(
+            quests.statuses_like_cpp(),
+            |id| store.get(id).map(|quest| quest.objective_rules_like_cpp()),
+            QUEST_OBJECTIVE_CURRENCY_LIKE_CPP,
+            object_id,
+            current_quantity,
+            current_quantity.saturating_add(i64::from(change)),
+            false,
+        );
 
         let mut quests_to_complete = Vec::new();
         let mut quests_to_save = Vec::new();
-        for (quest_id, objective_id, required, objective_was_complete, objective_is_now_complete) in
-            matching
-        {
+        for change in matching {
+            let quest_id = change.quest_id;
+            let objective_id = change.objective_id;
+            let required = change.required;
+            let objective_was_complete = change.objective_was_complete;
+            let objective_is_now_complete = change.objective_is_now_complete;
             debug!(
                 account = self.account_id,
                 quest_id,
                 currency_id,
                 current_quantity,
-                change,
+                change = ?change,
                 required,
                 objective_was_complete,
                 objective_is_now_complete,
@@ -539,14 +472,18 @@ impl WorldSession {
                 ) {
                     let quest_already_rewarded =
                         quests.rewarded_quest_ids_like_cpp().contains(&quest_id);
-                    if quests.statuses_like_cpp().get(&quest_id).is_some_and(|status| {
-                        crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
-                            status,
-                            quest,
-                            objective_id,
-                            quest_already_rewarded,
-                        )
-                    }) {
+                    if quests
+                        .statuses_like_cpp()
+                        .get(&quest_id)
+                        .is_some_and(|status| {
+                            wow_entities::represented_can_complete_quest_after_objective_like_cpp(
+                                status,
+                                &quest.objective_rules_like_cpp(),
+                                objective_id,
+                                quest_already_rewarded,
+                            )
+                        })
+                    {
                         quests_to_complete.push((quest_id, objective_id));
                     }
                 }
@@ -556,10 +493,10 @@ impl WorldSession {
                         let Some(status) = quests.status_mut_like_cpp(quest_id) else {
                             return false;
                         };
-                        if status.status != crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP {
+                        if status.status != wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP {
                             return false;
                         }
-                        status.status = crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
+                        status.status = wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
                         true
                     })
                     .unwrap_or(false)
@@ -583,7 +520,7 @@ impl WorldSession {
             if completed {
                 quests_to_save.push(quest_id);
                 if self.represented_player_quest_status_like_cpp(quest_id)
-                    == Some(Some(crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP))
+                    == Some(Some(wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP))
                 {
                     self.send_packet(&QuestUpdateComplete { quest_id });
                 }
@@ -631,48 +568,24 @@ impl WorldSession {
         let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
             return;
         };
-        let matching: Vec<(u32, u32, i32, bool, bool)> = quests
-            .statuses_like_cpp()
-            .values()
-            .filter(|qs| {
-                qs.status == crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
-                    || qs.status == crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
-            })
-            .flat_map(|qs| {
-                let quest = store.get(qs.quest_id)?;
-                Some(quest.objectives.iter().filter_map(move |obj| {
-                    if obj.obj_type != objective_type || obj.object_id != object_id {
-                        return None;
-                    }
-                    let (objective_was_complete, objective_is_now_complete) = match objective_type {
-                        QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP => {
-                            (old_reputation >= obj.amount, new_reputation >= obj.amount)
-                        }
-                        QUEST_OBJECTIVE_MAX_REPUTATION_LIKE_CPP => {
-                            (old_reputation <= obj.amount, new_reputation <= obj.amount)
-                        }
-                        _ => return None,
-                    };
-                    if objective_was_complete && change >= 0 {
-                        return None;
-                    }
-                    Some((
-                        qs.quest_id,
-                        obj.id,
-                        obj.amount,
-                        objective_was_complete,
-                        objective_is_now_complete,
-                    ))
-                }))
-            })
-            .flatten()
-            .collect();
+        let matching = wow_entities::plan_threshold_quest_objective_changes_like_cpp(
+            quests.statuses_like_cpp(),
+            |id| store.get(id).map(|quest| quest.objective_rules_like_cpp()),
+            objective_type,
+            object_id,
+            i64::from(old_reputation),
+            i64::from(new_reputation),
+            objective_type == QUEST_OBJECTIVE_MAX_REPUTATION_LIKE_CPP,
+        );
 
         let mut quests_to_complete = Vec::new();
         let mut quests_to_save = Vec::new();
-        for (quest_id, objective_id, required, objective_was_complete, objective_is_now_complete) in
-            matching
-        {
+        for change in matching {
+            let quest_id = change.quest_id;
+            let objective_id = change.objective_id;
+            let required = change.required;
+            let objective_was_complete = change.objective_was_complete;
+            let objective_is_now_complete = change.objective_is_now_complete;
             debug!(
                 account = self.account_id,
                 quest_id,
@@ -693,14 +606,18 @@ impl WorldSession {
                 ) {
                     let quest_already_rewarded =
                         quests.rewarded_quest_ids_like_cpp().contains(&quest_id);
-                    if quests.statuses_like_cpp().get(&quest_id).is_some_and(|status| {
-                        crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
-                            status,
-                            quest,
-                            objective_id,
-                            quest_already_rewarded,
-                        )
-                    }) {
+                    if quests
+                        .statuses_like_cpp()
+                        .get(&quest_id)
+                        .is_some_and(|status| {
+                            wow_entities::represented_can_complete_quest_after_objective_like_cpp(
+                                status,
+                                &quest.objective_rules_like_cpp(),
+                                objective_id,
+                                quest_already_rewarded,
+                            )
+                        })
+                    {
                         quests_to_complete.push((quest_id, objective_id));
                     }
                 }
@@ -710,10 +627,10 @@ impl WorldSession {
                         let Some(status) = quests.status_mut_like_cpp(quest_id) else {
                             return false;
                         };
-                        if status.status != crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP {
+                        if status.status != wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP {
                             return false;
                         }
-                        status.status = crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
+                        status.status = wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
                         true
                     })
                     .unwrap_or(false)
@@ -737,7 +654,7 @@ impl WorldSession {
             if completed {
                 quests_to_save.push(quest_id);
                 if self.represented_player_quest_status_like_cpp(quest_id)
-                    == Some(Some(crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP))
+                    == Some(Some(wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP))
                 {
                     self.send_packet(&QuestUpdateComplete { quest_id });
                 }
@@ -853,6 +770,7 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn represented_quest_push_result_sender_mismatch_count_like_cpp(&self) -> u32 {
-        self.represented_quest_push_result_sender_mismatch_count_like_cpp
+        self.quest_test_fixture_like_cpp
+            .represented_quest_push_result_sender_mismatch_count_like_cpp
     }
 }

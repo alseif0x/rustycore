@@ -36,6 +36,10 @@ pub(super) const SOCIAL_CRATE_ROOT: &str = "crates/wow-social/src/lib.rs";
 
 pub(super) const WORLD_SESSION_MODULE: &str = "crate::session";
 
+/// The WorldSession definition lives in this private child module while the
+/// public facade remains `crate::session::WorldSession`.
+pub(super) const WORLD_SESSION_STATE_MODULE: &str = "crate::session::state";
+
 pub(super) const WORLD_SESSION_NAME: &str = "WorldSession";
 
 pub(super) const SESSION_RESOURCES_MODULE: &str = "crate::session_resources";

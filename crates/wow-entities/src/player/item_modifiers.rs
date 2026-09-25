@@ -28,6 +28,42 @@ use crate::Player;
 use wow_constants::{Stats, WeaponAttackType};
 use wow_core::ObjectGuid;
 
+pub fn loaded_enchantment_effect_action_is_unrepresented_like_cpp(
+    action: ApplyEnchantmentEffectAction,
+) -> bool {
+    matches!(
+        action,
+        ApplyEnchantmentEffectAction::DeferredCombatSpell
+            | ApplyEnchantmentEffectAction::DeferredUseSpell
+            | ApplyEnchantmentEffectAction::UpdateDamageDoneMods { .. }
+            | ApplyEnchantmentEffectAction::CastEquipSpell { .. }
+            | ApplyEnchantmentEffectAction::RemoveEquipSpellAura { .. }
+            | ApplyEnchantmentEffectAction::UnhandledStatModifier { .. }
+            | ApplyEnchantmentEffectAction::MissingItemTemplateForAttack { .. }
+            | ApplyEnchantmentEffectAction::Unknown { .. }
+    )
+}
+
+pub fn represented_item_bonus_action_updates_stats_like_cpp(
+    action: ApplyEnchantmentEffectAction,
+) -> bool {
+    matches!(
+        action,
+        ApplyEnchantmentEffectAction::UnitModifier { .. }
+            | ApplyEnchantmentEffectAction::UpdateStatBuffMod(_)
+            | ApplyEnchantmentEffectAction::RatingModifier { .. }
+            | ApplyEnchantmentEffectAction::ManaRegenBonus { .. }
+            | ApplyEnchantmentEffectAction::SpellPowerBonus { .. }
+            | ApplyEnchantmentEffectAction::HealthRegenBonus { .. }
+            | ApplyEnchantmentEffectAction::SpellPenetrationBonus { .. }
+            | ApplyEnchantmentEffectAction::BaseModFlatValue { .. }
+            | ApplyEnchantmentEffectAction::SetShieldBlockValue { .. }
+            | ApplyEnchantmentEffectAction::SetBaseWeaponDamage { .. }
+            | ApplyEnchantmentEffectAction::SetBaseAttackTime { .. }
+            | ApplyEnchantmentEffectAction::UpdateDamagePhysical { .. }
+    )
+}
+
 /// Canonical runtime accumulated by C++ `Player::_ApplyItemBonuses`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlayerItemBonusStateLikeCpp {

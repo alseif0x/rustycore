@@ -60,13 +60,13 @@ impl WorldSession {
                 SPELL_DUEL_LIKE_CPP
             };
             #[cfg(test)]
-            self.represented_can_duel_spell_casts_like_cpp.push(
-                RepresentedCanDuelSpellCastLikeCpp {
+            self.duel_test_fixture_like_cpp
+                .represented_can_duel_spell_casts_like_cpp
+                .push(RepresentedCanDuelSpellCastLikeCpp {
                     target_guid,
                     spell_id,
                     to_the_death,
-                },
-            );
+                });
             #[cfg(not(test))]
             let _ = (spell_id, to_the_death);
         }
@@ -77,7 +77,8 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if !canonical && self.player_handle_like_cpp.is_none() {
-            self.represented_duel_arbiter_guid_like_cpp = guid;
+            self.duel_test_fixture_like_cpp
+                .represented_duel_arbiter_guid_like_cpp = guid;
         }
         #[cfg(not(test))]
         let _ = canonical;
@@ -91,7 +92,10 @@ impl WorldSession {
         }
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            return Some(self.represented_duel_arbiter_guid_like_cpp);
+            return Some(
+                self.duel_test_fixture_like_cpp
+                    .represented_duel_arbiter_guid_like_cpp,
+            );
         }
         None
     }
@@ -225,7 +229,8 @@ impl WorldSession {
 
         #[cfg(test)]
         {
-            self.represented_duel_requests_like_cpp
+            self.duel_test_fixture_like_cpp
+                .represented_duel_requests_like_cpp
                 .push(RepresentedDuelRequestedLikeCpp {
                     target_guid,
                     arbiter_guid,
@@ -278,7 +283,8 @@ impl WorldSession {
         self.send_raw_packet(&packet_bytes);
         self.send_represented_duel_countdown_to_opponent_like_cpp(opponent_guid, packet_bytes);
         #[cfg(test)]
-        self.represented_duel_accepts_like_cpp
+        self.duel_test_fixture_like_cpp
+            .represented_duel_accepts_like_cpp
             .push(RepresentedDuelAcceptedLikeCpp {
                 opponent_guid,
                 arbiter_guid,
@@ -311,7 +317,8 @@ impl WorldSession {
         self.clear_represented_duel_like_cpp(player_guid);
         self.clear_represented_duel_like_cpp(opponent_guid);
         #[cfg(test)]
-        self.represented_duel_cancels_like_cpp
+        self.duel_test_fixture_like_cpp
+            .represented_duel_cancels_like_cpp
             .push(RepresentedDuelCancelledLikeCpp {
                 opponent_guid,
                 outcome,
@@ -333,10 +340,14 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn represented_duel_accepts_like_cpp(&self) -> &[RepresentedDuelAcceptedLikeCpp] {
-        &self.represented_duel_accepts_like_cpp
+        &self
+            .duel_test_fixture_like_cpp
+            .represented_duel_accepts_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn represented_duel_cancels_like_cpp(&self) -> &[RepresentedDuelCancelledLikeCpp] {
-        &self.represented_duel_cancels_like_cpp
+        &self
+            .duel_test_fixture_like_cpp
+            .represented_duel_cancels_like_cpp
     }
 }

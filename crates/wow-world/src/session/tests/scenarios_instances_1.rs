@@ -136,7 +136,9 @@ fn create_map_player_context_uses_solo_recent_instance_like_cpp() {
     let map_entry =
         represented_map_entry_for_create_map_context_like_cpp(631, wow_data::map::MAP_INSTANCE);
 
-    session.represented_dungeon_difficulty_id_like_cpp = 2;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_dungeon_difficulty_id_like_cpp = 2;
     session.set_represented_player_recent_instance_like_cpp(631, 9001);
 
     let context = session
@@ -187,8 +189,12 @@ fn create_map_player_context_uses_legacy_raid_difficulty_like_cpp() {
     let map_entry =
         represented_map_entry_for_create_map_context_like_cpp(249, wow_data::map::MAP_RAID);
 
-    session.represented_raid_difficulty_id_like_cpp = 15;
-    session.represented_legacy_raid_difficulty_id_like_cpp = 4;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_raid_difficulty_id_like_cpp = 15;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_legacy_raid_difficulty_id_like_cpp = 4;
     install_create_map_difficulty_stores_like_cpp(
         &mut session,
         249,

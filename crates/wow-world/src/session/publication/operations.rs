@@ -376,23 +376,22 @@ impl WorldSession {
     /// Send a TimeSyncRequest and schedule the next one.
     pub(crate) fn send_time_sync(&mut self) {
         use wow_packet::packets::misc::TimeSyncRequest;
-        let sequence_index = self.time_sync_next_counter;
+        let sequence_index = self.time_synchronization.next_counter;
         self.send_packet(&TimeSyncRequest { sequence_index });
         trace!(
             "Sent TimeSyncRequest(seq={}) for account {}",
             sequence_index, self.account_id
         );
-        self.time_sync_pending_requests.insert(
-            sequence_index,
-            crate::session_rules::game_time_ms_like_cpp(),
-        );
+        self.time_synchronization
+            .pending_requests
+            .insert(sequence_index, crate::session::game_time_ms_like_cpp());
         // C++ uses 5s for the first request, then 10s.
-        self.time_sync_timer_ms = if self.time_sync_next_counter == 0 {
+        self.time_synchronization.timer_ms = if self.time_synchronization.next_counter == 0 {
             5000
         } else {
             10000
         };
-        self.time_sync_next_counter += 1;
+        self.time_synchronization.next_counter += 1;
     }
     /// Send a server packet back to the client via the instance (default) channel.
     /// Enqueue one packet, reporting whether it was accepted.

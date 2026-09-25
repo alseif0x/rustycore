@@ -5,6 +5,10 @@
 
 use super::*;
 
+fn ignored_equipment_set_item_guid_like_cpp() -> ObjectGuid {
+    ObjectGuid::new(0x0C00_0400_0000_0000_i64, -1_i64)
+}
+
 impl WorldSession {
     pub(in crate::session) fn with_owned_equipment_sets_like_cpp<R>(
         &self,
@@ -271,7 +275,7 @@ impl WorldSession {
         &mut self,
         request: &wow_packet::packets::misc::UseEquipmentSet,
     ) -> bool {
-        let ignored_guid = crate::session_rules::ignored_equipment_set_item_guid_like_cpp();
+        let ignored_guid = ignored_equipment_set_item_guid_like_cpp();
         let mut changed_equipment = false;
         let mut represented_item_mods_changed = false;
 

@@ -128,7 +128,7 @@ async fn vehicle_passenger_turning_updates_facing_without_relocating_or_broadcas
     session.set_player_guid(Some(guid));
     session.set_player_moved_unit_guid_like_cpp(guid);
     session.set_player_position_like_cpp(initial);
-    session.time_sync_clock_delta = 1;
+    session.set_time_sync_clock_delta_for_test_like_cpp(1);
     session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_ALLOW_TURNING);
     drain_server_opcodes(&send_rx);
 
@@ -522,7 +522,7 @@ fn movement_under_map_applies_cpp_void_damage_and_flag() {
 #[test]
 fn move_init_active_mover_complete_sets_cpp_transport_state() {
     let mut session = make_session();
-    let before = crate::session_rules::game_time_ms_like_cpp();
+    let before = crate::session::game_time_ms_like_cpp();
 
     session.apply_move_init_active_mover_complete_like_cpp(25);
 
@@ -534,7 +534,7 @@ fn move_init_active_mover_complete_sets_cpp_transport_state() {
     assert!(session.active_player_transport_server_time_like_cpp() >= 0);
     assert!(
         session.active_player_transport_server_time_like_cpp()
-            <= crate::session_rules::game_time_ms_like_cpp() as i32
+            <= crate::session::game_time_ms_like_cpp() as i32
     );
     assert!(
         session.active_player_transport_server_time_like_cpp() >= before.saturating_sub(25) as i32

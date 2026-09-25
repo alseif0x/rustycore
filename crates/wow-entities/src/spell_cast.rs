@@ -4,6 +4,15 @@
 use std::time::Instant;
 use wow_core::{ObjectGuid, Position};
 
+/// Resolve C++ `SpellEffectInfo::MiscValue` into the target area id.
+pub fn bind_area_id_like_cpp(effect_misc_value: i32, current_area_id: u32) -> u32 {
+    if effect_misc_value != 0 {
+        effect_misc_value as u32
+    } else {
+        current_area_id
+    }
+}
+
 /// Item identity retained by the represented battle-pet acquisition effect.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpellCastBattlePetItemModifiersLikeCpp {
@@ -221,6 +230,13 @@ pub struct PendingSpellCastRequestLikeCpp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bind_area_id_preserves_signed_misc_bits() {
+        assert_eq!(bind_area_id_like_cpp(777, 34), 777);
+        assert_eq!(bind_area_id_like_cpp(0, 34), 34);
+        assert_eq!(bind_area_id_like_cpp(-1, 34), u32::MAX);
+    }
     use std::time::Duration;
 
     #[test]

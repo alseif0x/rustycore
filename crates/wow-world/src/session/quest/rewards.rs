@@ -271,7 +271,8 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(
-                self.represented_quest_reward_talent_points_like_cpp
+                self.quest_test_fixture_like_cpp
+                    .represented_quest_reward_talent_points_like_cpp
                     .iter()
                     .map(|reward| reward.points)
                     .sum(),
@@ -294,13 +295,13 @@ impl WorldSession {
         }
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            self.represented_quest_reward_talent_points_like_cpp.push(
-                RepresentedQuestRewardTalentPointsLikeCpp {
+            self.quest_test_fixture_like_cpp
+                .represented_quest_reward_talent_points_like_cpp
+                .push(RepresentedQuestRewardTalentPointsLikeCpp {
                     quest_id,
                     points,
                     init_talent_for_level_unrepresented: true,
-                },
-            );
+                });
             return true;
         }
         let _ = quest_id;
@@ -331,6 +332,7 @@ impl WorldSession {
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
             return self
+                .quest_test_fixture_like_cpp
                 .represented_quest_completed_bits_like_cpp
                 .insert(quest_bit);
         }
@@ -357,6 +359,7 @@ impl WorldSession {
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
             return self
+                .quest_test_fixture_like_cpp
                 .represented_quest_completed_bits_like_cpp
                 .remove(&quest_bit);
         }
@@ -405,8 +408,8 @@ impl WorldSession {
                 matches!(
                     status,
                     Some(
-                        crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
-                            | crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
+                        wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
+                            | wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
                     )
                 )
             })
@@ -475,7 +478,7 @@ impl WorldSession {
                 .statuses_like_cpp()
                 .get(&quest.id)
                 .is_some_and(|status| {
-                    status.status == crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
+                    status.status == wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
                 })
         {
             return false;
@@ -527,37 +530,49 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn represented_quest_reward_skill_updates_like_cpp(&self) -> &[(u32, u32)] {
-        &self.represented_quest_reward_skill_updates_like_cpp
+        &self
+            .quest_test_fixture_like_cpp
+            .represented_quest_reward_skill_updates_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn represented_quest_reward_spell_casts_like_cpp(
         &self,
     ) -> &[RepresentedQuestRewardSpellCastLikeCpp] {
-        &self.represented_quest_reward_spell_casts_like_cpp
+        &self
+            .quest_test_fixture_like_cpp
+            .represented_quest_reward_spell_casts_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn represented_quest_reward_titles_like_cpp(
         &self,
     ) -> &[RepresentedQuestRewardTitleLikeCpp] {
-        &self.represented_quest_reward_titles_like_cpp
+        &self
+            .quest_test_fixture_like_cpp
+            .represented_quest_reward_titles_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn represented_quest_reward_talent_points_like_cpp(
         &self,
     ) -> &[RepresentedQuestRewardTalentPointsLikeCpp] {
-        &self.represented_quest_reward_talent_points_like_cpp
+        &self
+            .quest_test_fixture_like_cpp
+            .represented_quest_reward_talent_points_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn represented_quest_reward_mails_like_cpp(
         &self,
     ) -> &[RepresentedQuestRewardMailLikeCpp] {
-        &self.represented_quest_reward_mails_like_cpp
+        &self
+            .quest_test_fixture_like_cpp
+            .represented_quest_reward_mails_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn represented_quest_reward_reputations_like_cpp(
         &self,
     ) -> &[RepresentedQuestRewardReputationLikeCpp] {
-        &self.represented_quest_reward_reputations_like_cpp
+        &self
+            .quest_test_fixture_like_cpp
+            .represented_quest_reward_reputations_like_cpp
     }
     pub(crate) fn represented_quest_complete_status_updates_like_cpp(
         &self,

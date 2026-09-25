@@ -725,7 +725,9 @@ fn canonical_access_requirement_map_difficulty_message_sends_difficulty_abort_li
         79,
         0,
     ));
-    session.represented_raid_difficulty_id_like_cpp = 3;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_with_expansion_and_max_players_like_cpp(
         &mut session,
         631,
@@ -786,7 +788,9 @@ fn canonical_access_requirement_map_difficulty_condition_sends_condition_abort_l
         80,
         0,
     ));
-    session.represented_raid_difficulty_id_like_cpp = 3;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     session.set_map_difficulty_x_condition_store(Arc::new(
         wow_data::MapDifficultyXConditionStore::from_entries([

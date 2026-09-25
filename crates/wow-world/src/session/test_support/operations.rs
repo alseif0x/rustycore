@@ -64,26 +64,47 @@ impl WorldSession {
         &self,
     ) -> PlayerBootstrapCatalogsLikeCpp {
         let mut catalogs = PlayerBootstrapCatalogsLikeCpp::default();
-        if let Some(store) = &self.player_create_info_store_like_cpp {
+        if let Some(store) = &self
+            .player_bootstrap_catalog_test_fixture_like_cpp
+            .player_create_info_store_like_cpp
+        {
             catalogs.create_info = Arc::clone(store);
         }
-        if let Some(store) = &self.player_create_cast_spell_store_like_cpp {
+        if let Some(store) = &self
+            .player_bootstrap_catalog_test_fixture_like_cpp
+            .player_create_cast_spell_store_like_cpp
+        {
             catalogs.cast_spells = Arc::clone(store);
         }
-        if let Some(store) = &self.player_create_custom_spell_store_like_cpp {
+        if let Some(store) = &self
+            .player_bootstrap_catalog_test_fixture_like_cpp
+            .player_create_custom_spell_store_like_cpp
+        {
             catalogs.custom_spells = Arc::clone(store);
         }
-        catalogs.start_all_spells = self.start_all_spells_like_cpp;
-        catalogs.start_all_explored = self.start_all_explored_like_cpp;
-        catalogs.start_all_reputation = self.start_all_reputation_like_cpp;
+        catalogs.start_all_spells = self
+            .player_bootstrap_catalog_test_fixture_like_cpp
+            .start_all_spells_like_cpp;
+        catalogs.start_all_explored = self
+            .player_bootstrap_catalog_test_fixture_like_cpp
+            .start_all_explored_like_cpp;
+        catalogs.start_all_reputation = self
+            .player_bootstrap_catalog_test_fixture_like_cpp
+            .start_all_reputation_like_cpp;
         catalogs
     }
     #[cfg(test)]
     pub(crate) fn player_rest_rate_policy_for_test_like_cpp(&self) -> PlayerRestRatePolicyLikeCpp {
         PlayerRestRatePolicyLikeCpp {
-            offline_wilderness: self.rest_offline_wilderness_rate_like_cpp,
-            offline_tavern_or_city: self.rest_offline_tavern_or_city_rate_like_cpp,
-            ingame: self.rest_ingame_rate_like_cpp,
+            offline_wilderness: self
+                .rest_mgr_test_fixture_like_cpp
+                .rest_offline_wilderness_rate_like_cpp,
+            offline_tavern_or_city: self
+                .rest_mgr_test_fixture_like_cpp
+                .rest_offline_tavern_or_city_rate_like_cpp,
+            ingame: self
+                .rest_mgr_test_fixture_like_cpp
+                .rest_ingame_rate_like_cpp,
         }
     }
     #[cfg(test)]
@@ -150,11 +171,21 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn support_feature_policy_for_test_like_cpp(&self) -> SupportFeaturePolicyLikeCpp {
         SupportFeaturePolicyLikeCpp {
-            support_enabled: self.represented_support_enabled_like_cpp,
-            tickets_enabled: self.represented_support_tickets_enabled_like_cpp,
-            bugs_enabled: self.represented_support_bugs_enabled_like_cpp,
-            complaints_enabled: self.represented_support_complaints_enabled_like_cpp,
-            suggestions_enabled: self.represented_support_suggestions_enabled_like_cpp,
+            support_enabled: self
+                .support_feature_test_fixture_like_cpp
+                .represented_support_enabled_like_cpp,
+            tickets_enabled: self
+                .support_feature_test_fixture_like_cpp
+                .represented_support_tickets_enabled_like_cpp,
+            bugs_enabled: self
+                .support_feature_test_fixture_like_cpp
+                .represented_support_bugs_enabled_like_cpp,
+            complaints_enabled: self
+                .support_feature_test_fixture_like_cpp
+                .represented_support_complaints_enabled_like_cpp,
+            suggestions_enabled: self
+                .support_feature_test_fixture_like_cpp
+                .represented_support_suggestions_enabled_like_cpp,
             character_undelete_enabled: self.feature_system_character_undelete_enabled_like_cpp,
             bpay_store_enabled: self.feature_system_bpay_store_enabled_like_cpp,
             max_characters_per_realm: self.characters_per_realm_like_cpp,
@@ -187,7 +218,7 @@ impl WorldSession {
         let Some(old_state) = self.resolved_xp_rest_state_like_cpp() else {
             return 0;
         };
-        let mut rest_bonus = crate::session_rules::sanitize_rest_bonus_like_cpp(rest_bonus);
+        let mut rest_bonus = wow_entities::sanitize_rest_bonus_like_cpp(rest_bonus);
         let Some(can_gain) = self.can_gain_represented_xp_rest_bonus_like_cpp() else {
             return 0;
         };
@@ -325,7 +356,7 @@ impl WorldSession {
         else {
             return (0, 0);
         };
-        let rested_loss = crate::session_rules::apply_represented_pct_modifier_to_u32_like_cpp(
+        let rested_loss = wow_entities::apply_pct_modifier_to_u32_like_cpp(
             rested_bonus,
             rested_consumption_modifier,
         );

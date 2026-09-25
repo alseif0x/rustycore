@@ -1,0 +1,20 @@
+[package]
+name = "wow-conditions"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+num-traits = { workspace = true }
+parking_lot = { workspace = true }
+wow-constants = { workspace = true }
+wow-data = { workspace = true }
+wow-entities = { workspace = true }
+wow-loot = { workspace = true }
+
+[dev-dependencies]
+wow-core = { workspace = true }
+
+[lints]
+workspace = true

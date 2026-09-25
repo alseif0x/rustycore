@@ -539,15 +539,18 @@ fn represented_item_mods_apply_scaling_stat_loop_spell_bonus_and_armor_like_cpp(
             plate_chest_armor: 0,
         },
     ])));
-    session.inventory_items.insert(
-        EQUIPMENT_SLOT_CHEST,
-        InventoryItem {
-            guid: item_guid,
-            entry_id: 102,
-            db_guid: item_guid.counter() as u64,
-            inventory_type: Some(InventoryType::Chest as u8),
-        },
-    );
+    session
+        .player_item_test_fixture_like_cpp
+        .inventory_items
+        .insert(
+            EQUIPMENT_SLOT_CHEST,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 102,
+                db_guid: item_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Chest as u8),
+            },
+        );
     let item = session.make_inventory_item_object(
         item_guid,
         102,

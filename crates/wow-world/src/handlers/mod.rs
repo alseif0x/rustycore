@@ -5,22 +5,34 @@
 
 //! Packet handlers for the world session.
 
+pub mod account_data;
+pub mod battlegrounds;
 pub mod battlenet;
+pub mod calendar;
 pub mod character;
-pub(crate) mod character_rules;
 pub mod chat;
+pub mod collections;
 pub mod combat;
+pub mod dungeon_finding;
+pub mod economy;
+pub mod entities;
 pub mod group;
+pub mod guild;
 pub mod inspect;
+pub mod instances;
 pub mod loot;
-pub(crate) mod loot_rules;
-pub mod misc;
 pub mod movement;
+pub mod pets;
+pub mod progression;
 pub mod quest;
-pub(crate) mod quest_rules;
 pub mod social;
 pub mod spell;
+pub mod support;
 pub mod talent;
 pub mod trainer;
+pub mod travel;
 pub mod vehicle;
 pub mod void_storage;
+
+#[cfg(test)]
+mod test_support;

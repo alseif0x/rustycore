@@ -11,12 +11,26 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(wow_entities::PlayerGuildState {
-                guild_id: (self.represented_guild_id_like_cpp != 0)
-                    .then_some(self.represented_guild_id_like_cpp),
-                invited_guild_id: (self.represented_guild_id_invited_like_cpp != 0)
-                    .then_some(self.represented_guild_id_invited_like_cpp),
+                guild_id: (self
+                    .guild_test_fixture_like_cpp
+                    .represented_guild_id_like_cpp
+                    != 0)
+                    .then_some(
+                        self.guild_test_fixture_like_cpp
+                            .represented_guild_id_like_cpp,
+                    ),
+                invited_guild_id: (self
+                    .guild_test_fixture_like_cpp
+                    .represented_guild_id_invited_like_cpp
+                    != 0)
+                    .then_some(
+                        self.guild_test_fixture_like_cpp
+                            .represented_guild_id_invited_like_cpp,
+                    ),
                 rank_id: None,
-                authority_complete: self.represented_guild_id_authority_complete_like_cpp,
+                authority_complete: self
+                    .guild_test_fixture_like_cpp
+                    .represented_guild_id_authority_complete_like_cpp,
             });
         }
         canonical
@@ -28,9 +42,12 @@ impl WorldSession {
     ) -> Option<R> {
         let mut state = self.player_guild_state_snapshot_like_cpp()?;
         let result = f(&mut state);
-        self.represented_guild_id_like_cpp = state.guild_id.unwrap_or(0);
-        self.represented_guild_id_invited_like_cpp = state.invited_guild_id.unwrap_or(0);
-        self.represented_guild_id_authority_complete_like_cpp = state.authority_complete;
+        self.guild_test_fixture_like_cpp
+            .represented_guild_id_like_cpp = state.guild_id.unwrap_or(0);
+        self.guild_test_fixture_like_cpp
+            .represented_guild_id_invited_like_cpp = state.invited_guild_id.unwrap_or(0);
+        self.guild_test_fixture_like_cpp
+            .represented_guild_id_authority_complete_like_cpp = state.authority_complete;
         Some(result)
     }
     pub(crate) fn set_represented_guild_id_like_cpp(&mut self, guild_id: u64) -> bool {
@@ -95,13 +112,16 @@ impl WorldSession {
         let _ = guild_id;
 
         #[cfg(test)]
-        self.represented_guild_accept_invites_like_cpp
+        self.guild_test_fixture_like_cpp
+            .represented_guild_accept_invites_like_cpp
             .push(guild_id);
         true
     }
     #[cfg(test)]
     pub(crate) fn represented_guild_accept_invites_like_cpp(&self) -> &[u64] {
-        &self.represented_guild_accept_invites_like_cpp
+        &self
+            .guild_test_fixture_like_cpp
+            .represented_guild_accept_invites_like_cpp
     }
     pub(crate) fn decline_guild_invitation_like_cpp(&mut self) -> bool {
         let Some(state) = self.player_guild_state_snapshot_like_cpp() else {

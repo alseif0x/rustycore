@@ -43,16 +43,69 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
     // publication-order scan must still see the whole family's source.
     let character = concat!(
         include_str!("../character/mod.rs"),
+        include_str!("../character/creation_support.rs"),
+        include_str!("../character/enumeration_support.rs"),
+        include_str!("../character/login_support.rs"),
+        include_str!("../character/login_transport_support.rs"),
         include_str!("../character/account.rs"),
+        include_str!("../character/account/registrations.rs"),
+        include_str!("../character/account/registrations/character_setup.rs"),
+        include_str!("../character/account/registrations/session_services.rs"),
+        include_str!("../character/account/registrations/world_queries.rs"),
+        include_str!("../character/account/registrations/world_services.rs"),
+        include_str!("../character/account/registrations/inventory_actions.rs"),
+        include_str!("../character/account/collections.rs"),
+        include_str!("../character/account/enumeration.rs"),
         include_str!("../character/bank.rs"),
+        include_str!("../character/condition_objects.rs"),
+        include_str!("../character/entry_zone.rs"),
         include_str!("../character/gossip.rs"),
+        include_str!("../character/item_load_support.rs"),
         include_str!("../character/items.rs"),
+        include_str!("../character/items/handlers.rs"),
+        include_str!("../character/items/destruction.rs"),
+        include_str!("../character/items/equipment_sets.rs"),
+        include_str!("../character/items/inventory_moves.rs"),
+        include_str!("../character/items/inventory_moves/item_mutations.rs"),
+        include_str!("../character/items/inventory_moves/real_swap.rs"),
+        include_str!("../character/items/login_load.rs"),
         include_str!("../character/lifecycle.rs"),
+        include_str!("../character/pets.rs"),
         include_str!("../character/query.rs"),
         include_str!("../character/session_state.rs"),
+        include_str!("../character/spell_rules.rs"),
+        include_str!("../character/stats.rs"),
+        include_str!("../character/stats_queries.rs"),
+        include_str!("../character/stats_update.rs"),
         include_str!("../character/vendor.rs"),
+        include_str!("../character/vendor/list_inventory.rs"),
+        include_str!("../character/vendor/buy.rs"),
+        include_str!("../character/vendor/buyback.rs"),
+        include_str!("../character/vendor/rules.rs"),
+        include_str!("../character/vendor/rules_tests.rs"),
+        include_str!("../character/vendor/sell.rs"),
+        include_str!("../character/vendor_admission.rs"),
         include_str!("../character/visibility.rs"),
         include_str!("../character/world_entry.rs"),
+        include_str!("../character/world_entry/initial_packets.rs"),
+        include_str!("../character/world_entry/login.rs"),
+        include_str!("../character/world_entry/login/admission.rs"),
+        include_str!("../character/world_entry/login/action_buttons.rs"),
+        include_str!("../character/world_entry/login/aura_loading.rs"),
+        include_str!("../character/world_entry/login/cuf_profiles.rs"),
+        include_str!("../character/world_entry/login/currency_loading.rs"),
+        include_str!("../character/world_entry/login/default_skills.rs"),
+        include_str!("../character/world_entry/login/glyph_loading.rs"),
+        include_str!("../character/world_entry/login/group_loading.rs"),
+        include_str!("../character/world_entry/login/mail_loading.rs"),
+        include_str!("../character/world_entry/login/pet_loading.rs"),
+        include_str!("../character/world_entry/login/reputation_loading.rs"),
+        include_str!("../character/world_entry/login/skill_loading.rs"),
+        include_str!("../character/world_entry/login/spell_loading.rs"),
+        include_str!("../character/world_entry/login/spell_map_finalization.rs"),
+        include_str!("../character/world_entry/login/talent_loading.rs"),
+        include_str!("../character/world_entry/login/transport_restore.rs"),
+        include_str!("../character/world_entry/login_recovery.rs"),
     );
     // #236 split the former `session.rs`; the committed-money callers stayed
     // in `mod.rs`. If they move again this scan must follow them - the
@@ -145,15 +198,6 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         "all-items durability repair",
         "self.stage_player_money_change_like_cpp",
         &["self.apply_inventory_item_durability_repair_runtime_like_cpp(item_guid)"],
-    );
-}
-#[test]
-fn vendor_buy_price_clamps_count_to_cpp_max_money_amount() {
-    let unit_price = (MAX_MONEY_AMOUNT / 2) + 1;
-
-    assert_eq!(
-        vendor_buy_quantity_and_price(unit_price, 1, 3),
-        (1, unit_price)
     );
 }
 #[test]

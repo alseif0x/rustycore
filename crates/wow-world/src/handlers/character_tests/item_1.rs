@@ -7,13 +7,9 @@ use super::*;
 
 #[test]
 fn continue_login_inventory_reads_cross_the_typed_lifecycle_port() {
-    let source = include_str!("../character/world_entry.rs");
-    let (_, tail) = source
-        .split_once("pub async fn handle_continue_player_login")
-        .expect("continue-login handler starts");
-    let (handler, _) = tail
-        .split_once("pub(super) fn player_login_combat_stats_like_cpp")
-        .expect("continue-login handler ends before packet helper");
+    let handler = // The #1233 decomposition moved the login inventory/repair orchestration into
+    // handlers/character/items/login_load.rs; the assertions below are unchanged.
+    include_str!("../character/items/login_load.rs");
 
     assert!(handler.contains("PlayerLoginAuxiliaryLoadRequestLikeCpp::EquipmentInventory"));
     assert!(handler.contains("PlayerLoginAuxiliaryLoadRequestLikeCpp::BagInventory"));
@@ -31,13 +27,9 @@ fn continue_login_inventory_reads_cross_the_typed_lifecycle_port() {
 }
 #[test]
 fn continue_login_item_repairs_cross_the_typed_lifecycle_port() {
-    let source = include_str!("../character/world_entry.rs");
-    let (_, tail) = source
-        .split_once("pub async fn handle_continue_player_login")
-        .expect("continue-login handler starts");
-    let (handler, _) = tail
-        .split_once("pub(super) fn player_login_combat_stats_like_cpp")
-        .expect("continue-login handler ends before packet helper");
+    let handler = // The #1233 decomposition moved the login inventory/repair orchestration into
+    // handlers/character/items/login_load.rs; the assertions below are unchanged.
+    include_str!("../character/items/login_load.rs");
 
     assert_eq!(
         handler

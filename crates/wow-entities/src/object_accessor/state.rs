@@ -18,6 +18,15 @@ pub enum AccessorObjectKind {
     Conversation,
 }
 
+pub fn represented_seer_kinds_like_cpp() -> &'static [AccessorObjectKind] {
+    &[
+        AccessorObjectKind::Player,
+        AccessorObjectKind::Creature,
+        AccessorObjectKind::Pet,
+        AccessorObjectKind::DynamicObject,
+    ]
+}
+
 impl AccessorObjectKind {
     pub fn from_guid(guid: ObjectGuid) -> Option<Self> {
         match guid.high_type() {

@@ -19,7 +19,7 @@ fn runtime_state_is_complete_before_ordered_publication() {
         },
     };
     let actions = direct_learn_actions(100, true, false);
-    let plan = SpellAcquisitionPlanLikeCpp {
+    let plan = SpellAcquisitionPlanFixtureLikeCpp {
         root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         source_snapshot: source.clone(),
         mutations: vec![PlannedAcquisitionMutationLikeCpp::Spell(transition.clone())],
@@ -32,7 +32,8 @@ fn runtime_state_is_complete_before_ordered_publication() {
         post_commit_actions: actions.clone(),
         diagnostics: Vec::new(),
         resulting_snapshot: snapshot(vec![learned]),
-    };
+    }
+    .build();
     let PreparedPlayerSpellAcquisitionOutcomeLikeCpp::Ready(prepared) =
         prepare_player_spell_acquisition_like_cpp(&plan, &no_profession_changes(), &source)
             .expect("valid plan")
@@ -138,7 +139,7 @@ fn dual_wield_missing_owner_stops_before_any_publication() {
             root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         },
     };
-    let plan = SpellAcquisitionPlanLikeCpp {
+    let plan = SpellAcquisitionPlanFixtureLikeCpp {
         root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         source_snapshot: source.clone(),
         mutations: vec![PlannedAcquisitionMutationLikeCpp::Spell(transition.clone())],
@@ -177,7 +178,8 @@ fn dual_wield_missing_owner_stops_before_any_publication() {
             spells: vec![learned],
             ..source.clone()
         },
-    };
+    }
+    .build();
     let PreparedPlayerSpellAcquisitionOutcomeLikeCpp::Ready(prepared) =
         prepare_player_spell_acquisition_like_cpp(&plan, &no_profession_changes(), &source)
             .expect("valid dual-wield plan")

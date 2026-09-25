@@ -15,7 +15,7 @@ async fn quest_giver_reward_daily_flag_is_not_auto_complete_like_cpp() {
     session.quests.store = Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         9_219,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id: 9_219,
@@ -37,7 +37,11 @@ async fn quest_giver_reward_daily_flag_is_not_auto_complete_like_cpp() {
 
     assert!(send_rx.try_recv().is_err());
     assert_eq!(
-        session.player_quests.get(&9_219).map(|quest| quest.status),
+        session
+            .quest_test_fixture_like_cpp
+            .player_quests
+            .get(&9_219)
+            .map(|quest| quest.status),
         Some(crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP)
     );
 }
@@ -51,7 +55,7 @@ async fn quest_giver_complete_daily_flag_requires_involved_source_like_cpp() {
     session.quests.store = Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         9_220,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id: 9_220,
@@ -74,7 +78,11 @@ async fn quest_giver_complete_daily_flag_requires_involved_source_like_cpp() {
 
     assert!(send_rx.try_recv().is_err());
     assert_eq!(
-        session.player_quests.get(&9_220).map(|quest| quest.status),
+        session
+            .quest_test_fixture_like_cpp
+            .player_quests
+            .get(&9_220)
+            .map(|quest| quest.status),
         Some(crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP)
     );
 }
@@ -89,7 +97,7 @@ async fn quest_giver_complete_auto_complete_requires_player_guid_like_cpp() {
     session.quests.store = Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         9_218,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id: 9_218,
@@ -209,7 +217,7 @@ fn chest_quest_id_incomplete_activates_to_quest_like_cpp() {
 
     // Positive: player has quest in INCOMPLETE — chest with matching chest_quest_id activates.
     let (mut session, _, _send_rx) = make_session();
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id,
@@ -253,7 +261,7 @@ fn chest_quest_id_incomplete_activates_to_quest_like_cpp() {
 
     // Negative B: player has the quest but in COMPLETE status — no activation.
     let (mut session_b, _, _) = make_session();
-    session_b.player_quests.insert(
+    session_b.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id,

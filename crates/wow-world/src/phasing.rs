@@ -16,9 +16,6 @@ use wow_entities::{PhaseShift, Unit, WorldObject};
 use wow_packet::packets::misc::{PhaseShiftChange, PhaseShiftDataPhase};
 use wow_packet::packets::party::{PartyMemberPhase, PartyMemberPhaseStates};
 
-#[path = "phasing/personal.rs"]
-pub mod personal;
-
 pub const PHASE_USE_FLAGS_ALWAYS_VISIBLE: u8 = 0x01;
 pub const PHASE_USE_FLAGS_INVERSE: u8 = 0x02;
 const DEFAULT_PHASE: u32 = 169;

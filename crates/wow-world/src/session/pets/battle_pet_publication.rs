@@ -14,7 +14,8 @@ impl WorldSession {
         pet_guid: ObjectGuid,
         packet_info: RepresentedBattlePetDataLikeCpp,
     ) {
-        self.represented_battle_pets_like_cpp
+        self.battle_pet_test_fixture_like_cpp
+            .represented_battle_pets_like_cpp
             .insert(pet_guid, packet_info);
     }
     /// C++ `BattlePetMgr::SendUpdates`.
@@ -27,7 +28,10 @@ impl WorldSession {
         let pets: Vec<_> = pet_guids
             .iter()
             .filter_map(|pet_guid| {
-                let pet = self.represented_battle_pets_like_cpp.get(pet_guid)?;
+                let pet = self
+                    .battle_pet_test_fixture_like_cpp
+                    .represented_battle_pets_like_cpp
+                    .get(pet_guid)?;
                 if pet.save_info == RepresentedBattlePetSaveInfoLikeCpp::Removed {
                     return None;
                 }
@@ -86,12 +90,15 @@ impl WorldSession {
             player.set_battle_pet_data_like_cpp(pet_guid, pet.quality, pet.level);
         });
         #[cfg(test)]
-        self.represented_battle_pet_data_updates_like_cpp
+        self.battle_pet_test_fixture_like_cpp
+            .represented_battle_pet_data_updates_like_cpp
             .push(pet_guid);
         true
     }
     #[cfg(test)]
     pub(crate) fn represented_battle_pet_data_updates_like_cpp(&self) -> &[ObjectGuid] {
-        &self.represented_battle_pet_data_updates_like_cpp
+        &self
+            .battle_pet_test_fixture_like_cpp
+            .represented_battle_pet_data_updates_like_cpp
     }
 }

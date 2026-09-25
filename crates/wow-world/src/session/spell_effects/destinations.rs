@@ -477,7 +477,7 @@ impl WorldSession {
                         && best.is_none_or(|(best_distance, _)| distance < best_distance)
                         && self.represented_nearby_candidate_meets_implicit_conditions_like_cpp(
                             creature.unit().world(),
-                            Some(crate::conditions::ConditionUnitSnapshot {
+                            Some(wow_conditions::ConditionUnitSnapshot {
                                 level: u32::from(creature.level()),
                                 health: creature.current_health(),
                                 max_health: creature.max_health(),

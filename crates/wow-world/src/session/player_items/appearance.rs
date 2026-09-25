@@ -5,6 +5,11 @@
 
 use super::*;
 
+fn account_transmog_update_opcode_resolved_like_cpp() -> bool {
+    <wow_packet::packets::collection::AccountTransmogUpdate as wow_packet::ServerPacket>::OPCODE
+        != ServerOpcodes::UpdateCapturePoint
+}
+
 impl WorldSession {
     pub(crate) fn load_represented_transmog_outfit_row_like_cpp(
         &mut self,
@@ -670,7 +675,7 @@ impl WorldSession {
             .unwrap_or(false);
 
         if changed {
-            if !crate::session_rules::account_transmog_update_opcode_resolved_like_cpp() {
+            if !account_transmog_update_opcode_resolved_like_cpp() {
                 warn!(
                     "Skipping AccountTransmogUpdate favorite delta: legacy C++ opcode is unresolved 0xBADD for 54261"
                 );
@@ -689,7 +694,7 @@ impl WorldSession {
     }
     /// C++ `CollectionMgr::SendFavoriteAppearances`.
     pub fn send_favorite_appearances_like_cpp(&self) {
-        if !crate::session_rules::account_transmog_update_opcode_resolved_like_cpp() {
+        if !account_transmog_update_opcode_resolved_like_cpp() {
             warn!(
                 "Skipping AccountTransmogUpdate full update: legacy C++ opcode is unresolved 0xBADD for 54261"
             );
@@ -839,7 +844,7 @@ impl WorldSession {
                     .as_ref()
                     .and_then(|store| store.inventory_type(item_id))
             })
-            .and_then(crate::session_rules::item_transmogrification_slot_like_cpp)
+            .and_then(wow_entities::item_transmogrification_slot_like_cpp)
         {
             #[cfg(test)]
             self.represented_transmog_criteria_events.push(
@@ -898,7 +903,7 @@ impl WorldSession {
                 continue;
             };
             let Some(transmog_slot) =
-                crate::session_rules::item_transmogrification_slot_like_cpp(inventory_type)
+                wow_entities::item_transmogrification_slot_like_cpp(inventory_type)
             else {
                 continue;
             };

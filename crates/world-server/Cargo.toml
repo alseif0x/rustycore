@@ -38,3 +38,6 @@ wow-social = { workspace = true }
 
 [dev-dependencies]
 wow-world = { workspace = true, features = ["test-fixtures"] }
+
+[lints]
+workspace = true

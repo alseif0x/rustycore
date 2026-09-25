@@ -5,3 +5,5 @@
 use super::*;
 
 mod operations;
+#[cfg(test)]
+pub(crate) mod test_fixtures;

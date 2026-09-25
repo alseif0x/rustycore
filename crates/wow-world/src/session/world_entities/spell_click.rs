@@ -84,7 +84,7 @@ impl WorldSession {
             return RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented;
         };
         let player_snapshot = self.condition_player_snapshot_like_cpp();
-        let creature_unit_snapshot = crate::conditions::ConditionUnitSnapshot {
+        let creature_unit_snapshot = wow_conditions::ConditionUnitSnapshot {
             level: creature.level,
             health: creature.health,
             max_health: creature.max_health,
@@ -148,7 +148,7 @@ impl WorldSession {
                 _ => {}
             }
 
-            if crate::conditions::is_object_meeting_spell_click_conditions_like_cpp(
+            if wow_conditions::is_object_meeting_spell_click_conditions_like_cpp(
                 condition_store,
                 creature.entry,
                 click_info.spell_id,
@@ -164,7 +164,7 @@ impl WorldSession {
                             source_info.set_player_condition_context(0, context);
                         }
                     }
-                    crate::conditions::condition_meets_basic_like_cpp(
+                    wow_conditions::condition_meets_basic_like_cpp(
                         condition,
                         source_info,
                         |area_id, required_area_id| {

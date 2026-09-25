@@ -17,3 +17,6 @@ rand = { workspace = true }
 [dev-dependencies]
 wow-constants = { workspace = true }
 wow-loot = { workspace = true }
+
+[lints]
+workspace = true

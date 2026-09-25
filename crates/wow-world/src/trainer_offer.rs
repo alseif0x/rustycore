@@ -15,7 +15,7 @@ use wow_data::reputation::ReputationRankLikeCpp;
 use crate::profession::{
     PrimaryProfessionCapacityPlanErrorLikeCpp, PrimaryProfessionCapacityPlanLikeCpp,
 };
-use crate::spell_acquisition::{
+pub(crate) use crate::spell_acquisition::{
     SpellAcquisitionIndeterminateLikeCpp, SpellAcquisitionOutcomeLikeCpp,
     SpellAcquisitionPlanLikeCpp, SpellAcquisitionRootLikeCpp,
 };

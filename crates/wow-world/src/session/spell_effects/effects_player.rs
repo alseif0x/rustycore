@@ -54,7 +54,7 @@ impl WorldSession {
             {
                 continue;
             }
-            if !crate::session_rules::visibility_distance_allows_like_cpp(
+            if !wow_core::visibility_distance_allows_like_cpp(
                 &recipient.position,
                 recipient.combat_reach,
                 &pos,
@@ -101,7 +101,7 @@ impl WorldSession {
         };
         let guid_counter = player_guid.counter() as u64;
         let request =
-            crate::session_rules::player_homebind_update_request_like_cpp(homebind, guid_counter);
+            crate::session::player_homebind_update_request_like_cpp(homebind, guid_counter);
         // C++ Player::SetHomebind queues CharacterDatabase.Execute(stmt) on
         // the ordered database worker and immediately sends the bind packets.
         // Send it to one FIFO worker so SQL latency stays off the packet path

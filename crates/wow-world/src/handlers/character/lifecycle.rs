@@ -8,6 +8,34 @@
 use super::*;
 
 impl WorldSession {
+    /// Update the realmcharacters count in the login database.
+    ///
+    /// Counts how many characters this account has on the character DB, then
+    /// upserts the count into `realmcharacters` in the login DB.
+    pub(crate) async fn update_realm_characters(&self) {
+        let port = match self.player_lifecycle_port_like_cpp().map(Arc::clone) {
+            Some(port) => port,
+            None => return,
+        };
+        let request = wow_persistence::PlayerRealmCharacterCountRefreshRequestLikeCpp {
+            account_id: self.account_id,
+            realm_id: self.realm_id() as u32,
+        };
+        match port.refresh_realm_character_count_like_cpp(request).await {
+            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {
+                debug!(
+                    "Updated realmcharacters: account={} realm={}",
+                    self.account_id,
+                    self.realm_id()
+                );
+            }
+            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                warn!("Failed to update realmcharacters: {reason}");
+            }
+        }
+    }
+
     /// Handle CMSG_CREATE_CHARACTER — create a new character.
     pub async fn handle_create_character_with_generator_like_cpp(
         &mut self,
@@ -246,9 +274,7 @@ impl WorldSession {
         }
 
         let name_result =
-            crate::handlers::character_rules::represented_character_rename_name_result_like_cpp(
-                &pkt.new_name,
-            );
+            wow_entities::represented_character_rename_name_result_like_cpp(&pkt.new_name);
         if name_result != RESPONSE_SUCCESS_LIKE_CPP {
             self.send_character_rename_like_cpp(name_result, pkt.guid, pkt.new_name);
             return;
@@ -370,9 +396,7 @@ impl WorldSession {
         }
 
         let name_result =
-            crate::handlers::character_rules::represented_character_rename_name_result_like_cpp(
-                &request.name,
-            );
+            wow_entities::represented_character_rename_name_result_like_cpp(&request.name);
         if name_result != RESPONSE_SUCCESS_LIKE_CPP {
             self.send_char_customize_failure_like_cpp(name_result, request.guid);
             return;

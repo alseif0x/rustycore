@@ -617,7 +617,7 @@ impl WorldSession {
             };
             let bytes = update.to_bytes();
             let fingerprint =
-                crate::session_rules::represented_dynamic_object_values_update_delivery_fingerprint_like_cpp(
+                crate::session::represented_dynamic_object_values_update_delivery_fingerprint_like_cpp(
                     guid, &bytes,
                 );
             if !self

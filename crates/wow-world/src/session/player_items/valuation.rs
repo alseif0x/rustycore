@@ -5,6 +5,16 @@
 
 use super::*;
 
+pub(crate) fn item_price_base_with_catalogs_like_cpp(
+    catalogs: &ItemValuationCatalogsLikeCpp,
+    item_level: u32,
+) -> Option<(f32, f32)> {
+    catalogs
+        .price_base
+        .get(item_level)
+        .map(|entry| (entry.armor, entry.weapon))
+}
+
 impl WorldSession {
     /// C++ `Item::GetBuyPrice(proto, quality, itemLevel, standardPrice)`.
     ///
@@ -32,8 +42,7 @@ impl WorldSession {
             None => return Some((0, standard_price)),
         };
         let (base_armor, base_weapon) =
-            match crate::session_rules::item_price_base_with_catalogs_like_cpp(catalogs, item_level)
-            {
+            match item_price_base_with_catalogs_like_cpp(catalogs, item_level) {
                 Some(base) => base,
                 None => return Some((0, standard_price)),
             };
@@ -386,7 +395,7 @@ impl WorldSession {
         let inventory_type = storage_template.inventory_type;
 
         if let Some(slot) = direct_slot.filter(|slot| *slot < EQUIPMENT_SLOT_END) {
-            crate::session_rules::represented_avg_total_item_level_maybe_replace_slot_like_cpp(
+            wow_entities::represented_avg_total_item_level_maybe_replace_slot_like_cpp(
                 best_item_levels,
                 sum,
                 slot,
@@ -432,13 +441,13 @@ impl WorldSession {
         }
 
         for (candidate_slot, check_duplicate_guid) in
-            crate::session_rules::represented_total_avg_equipment_slot_candidates_like_cpp(
+            wow_entities::represented_total_avg_equipment_slot_candidates_like_cpp(
                 inventory_type,
                 can_dual_wield,
                 can_titan_grip,
             )
         {
-            crate::session_rules::represented_avg_total_item_level_maybe_replace_slot_like_cpp(
+            wow_entities::represented_avg_total_item_level_maybe_replace_slot_like_cpp(
                 best_item_levels,
                 sum,
                 candidate_slot,

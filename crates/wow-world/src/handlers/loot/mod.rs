@@ -10,16 +10,44 @@
 //! dispatcher arm are unchanged; this module keeps the shared constants,
 //! helper types and free functions the features build on.
 
+use wow_loot::{
+    LOOT_METHOD_FREE_FOR_ALL_LIKE_CPP, LOOT_METHOD_GROUP_LIKE_CPP, LOOT_METHOD_MASTER_LIKE_CPP,
+    LOOT_METHOD_NEED_BEFORE_GREED_LIKE_CPP, LOOT_METHOD_PERSONAL_LIKE_CPP,
+    LOOT_METHOD_ROUND_ROBIN_LIKE_CPP, creature_loot_is_allowed_to_player_like_cpp,
+    loot_can_be_opened_by_player_like_cpp, loot_has_over_threshold_item_like_cpp,
+    loot_is_looted_like_cpp, loot_item_is_looted_for_player_like_cpp,
+    loot_player_has_unlooted_ffa_item_like_cpp, mark_loot_allowed_for_player_like_cpp,
+    mark_loot_item_looted_for_player_like_cpp,
+    prepare_represented_shared_creature_loot_generation_like_cpp,
+    prepare_represented_shared_loot_generation_like_cpp,
+    rebuild_represented_personal_loot_counts_like_cpp,
+    rebuild_represented_personal_loot_counts_preserving_consumed_like_cpp,
+};
+
+use wow_loot::{
+    ROLL_VOTE_DISENCHANT_LIKE_CPP, ROLL_VOTE_GREED_LIKE_CPP, ROLL_VOTE_NEED_LIKE_CPP,
+    ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP, ROLL_VOTE_NOT_VALID_LIKE_CPP, ROLL_VOTE_PASS_LIKE_CPP,
+    represented_loot_roll_current_winner_like_cpp, represented_loot_roll_finish_winner_like_cpp,
+};
+
+#[cfg(test)]
+use wow_loot::ROLL_FLAG_TYPE_NEED_LIKE_CPP;
+
 mod authority;
 mod claims;
+mod combat_commands;
 mod fanout;
 mod generation;
 mod handlers;
 mod money;
 mod persistence;
+mod random_properties;
+mod request_cache;
 mod requests;
 mod rolls;
 mod sources;
+mod storage_plans;
+mod visibility_commands;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{
@@ -28,10 +56,7 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
-use rand::{
-    Rng,
-    distributions::{Distribution, WeightedIndex},
-};
+use rand::Rng;
 use tokio::time::timeout;
 use tracing::{debug, info, warn};
 
@@ -39,26 +64,22 @@ use crate::session::directory::{PlayerRegistry, PrepareLootMoneyApplicationLikeC
 use crate::session::mailbox::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyGroupJoinLikeCppCommand,
     ApplyGroupRemovalLikeCppCommand, ApplyLootMoneyLikeCppCommand, ApplyLootMoneyResultLikeCpp,
-    CancelRepresentedTradeLikeCppCommand, CreatureAttackStartLikeCppCommand,
-    CreatureAttackStopLikeCppCommand, KickLikeCppCommand, LootRollCommandIdentityLikeCpp,
-    LootRollStoreWinnerCommand, LootRollVoteCommand, MasterLootGiveCommand, MasterLootGiveResult,
-    NotifyLootMoneyRemovedLikeCppCommand, ReconcilePvpCombatExpiryLikeCppCommand,
-    RefreshVisibleWorldCreaturesLikeCppCommand, SendAddonIfRegisteredLikeCppCommand,
-    SendCreatureLootReleaseValuesUpdateLikeCppCommand,
+    CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand, KickLikeCppCommand,
+    LootRollCommandIdentityLikeCpp, LootRollStoreWinnerCommand, LootRollVoteCommand,
+    MasterLootGiveCommand, MasterLootGiveResult, NotifyLootMoneyRemovedLikeCppCommand,
+    ReconcilePvpCombatExpiryLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
+    SendAddonIfRegisteredLikeCppCommand, SendCreatureLootReleaseValuesUpdateLikeCppCommand,
     SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand,
-    SendPartyUpdateLikeCppCommand, SendRepeatableTurnInRequestItemsLikeCppCommand,
-    SendRepresentedDuelCountdownLikeCppCommand, SendRepresentedDuelRequestedLikeCppCommand,
-    SendRepresentedTradeStatusLikeCppCommand, SessionCommand,
-    SetQuestSharingInfoAndSendDetailsCommand, SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    SendPartyUpdateLikeCppCommand, SessionCommand,
+    SyncChestGameobjectStateAndRefreshLikeCppCommand,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
-    SyncGooberGameobjectStateAndRefreshLikeCppCommand, UnacceptRepresentedTradeLikeCppCommand,
+    SyncGooberGameobjectStateAndRefreshLikeCppCommand,
 };
 use wow_constants::{
-    ClientOpcodes, InventoryResult, InventoryType, ItemContext, ItemFieldFlags, ItemFlags,
-    ItemFlags2, ItemQuality, UnitDynFlags,
+    ClientOpcodes, InventoryResult, ItemContext, ItemFieldFlags, ItemFlags, ItemFlags2,
+    UnitDynFlags,
 };
 use wow_core::{ObjectGuid, guid::HighGuid};
-use wow_data::{ItemRandomEnchantmentTemplateEntry, ItemRandomPropertyTemplateEntry};
 use wow_entities::{
     AccessorObjectKind, CORPSE_DYNFLAG_LOOTABLE, GAMEOBJECT_TYPE_AREADAMAGE,
     GAMEOBJECT_TYPE_BARBER_CHAIR, GAMEOBJECT_TYPE_BINDER, GAMEOBJECT_TYPE_CAMERA,
@@ -69,7 +90,7 @@ use wow_entities::{
     GAMEOBJECT_TYPE_MAILBOX, GAMEOBJECT_TYPE_MAP_OBJECT, GAMEOBJECT_TYPE_MINI_GAME,
     GAMEOBJECT_TYPE_QUESTGIVER, GAMEOBJECT_TYPE_TEXT, GO_DYNFLAG_LO_NO_INTERACT,
     GameObjectLootSource, GatheringNodeUseSource, GoState, INVENTORY_DEFAULT_SIZE,
-    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, Item, ItemPosCount,
+    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, ItemPosCount,
     LootState, MAX_MONEY_AMOUNT, is_bag_pos, make_item_pos,
 };
 use wow_handler::{PacketProcessing, SessionStatus};
@@ -102,7 +123,7 @@ use wow_packet::packets::loot::{
     LOOT_TYPE_SKINNING_LIKE_CPP, LootAllPassed, LootEntry, LootEntryFlags, LootItemData,
     LootItemPkt, LootList, LootMoney, LootMoneyNotify, LootRelease, LootReleaseAll, LootRemoved,
     LootResponse, LootRoll, LootRollBroadcast, LootRollWon, LootUnit, MasterLootCandidateList,
-    MasterLootItem, NotNormalLootItem, SLootRelease, SetLootSpecialization, StartLootRoll,
+    MasterLootItem, SLootRelease, SetLootSpecialization, StartLootRoll,
 };
 use wow_packet::packets::update::{ItemCreateData, ItemEnchantmentValuesUpdate, UpdateObject};
 use wow_persistence::{
@@ -117,10 +138,6 @@ use wow_persistence::{
     stored_item_money_zero_without_source_outcome_like_cpp,
 };
 
-use crate::conditions::{
-    QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-    QUEST_STATUS_NONE_LIKE_CPP, QUEST_STATUS_REWARDED_LIKE_CPP,
-};
 use crate::session::{
     DurableItemLootCompletionLikeCpp, DurableItemLootPersistenceGuardLikeCpp,
     DurableLootItemFanoutLikeCpp, InventoryItem, ItemValuationCatalogsLikeCpp,
@@ -130,20 +147,23 @@ use crate::session::{
     RepresentedQuestObjectiveProgressEventLikeCpp, SessionState, WorldSession,
     loot_money_durable_outcome_like_cpp,
 };
-
-const LOOT_METHOD_FREE_FOR_ALL_LIKE_CPP: u8 = 0;
-const LOOT_METHOD_ROUND_ROBIN_LIKE_CPP: u8 = 1;
-const LOOT_METHOD_MASTER_LIKE_CPP: u8 = 2;
-const LOOT_METHOD_GROUP_LIKE_CPP: u8 = 3;
-const LOOT_METHOD_NEED_BEFORE_GREED_LIKE_CPP: u8 = 4;
-const LOOT_METHOD_PERSONAL_LIKE_CPP: u8 = 5;
+use random_properties::{
+    LootStoreRandomProperties, loot_store_data_can_stack_with_item,
+    select_weighted_random_enchantment_like_cpp,
+};
+use storage_plans::{
+    LootItemClaimCommitContextLikeCpp, PlannedDirectLootExistingStack,
+    PlannedDisenchantExistingPush, PlannedDisenchantExistingStack, PlannedDisenchantGrant,
+    PlannedDisenchantNewPush, PlannedLootNewStack,
+};
+use wow_conditions::{
+    QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+    QUEST_STATUS_NONE_LIKE_CPP, QUEST_STATUS_REWARDED_LIKE_CPP,
+};
 const MAX_NR_LOOT_ITEMS_LIKE_CPP: usize = 18;
 const LOOT_ROLL_TIMEOUT_MS_LIKE_CPP: u32 = 60_000;
 #[cfg(test)]
 const ROLL_ALL_TYPE_NO_DISENCHANT_LIKE_CPP: u8 = 0x07;
-pub(crate) const ROLL_ALL_TYPE_MASK_LIKE_CPP: u8 = 0x0F;
-pub(crate) const ROLL_FLAG_TYPE_NEED_LIKE_CPP: u8 = 0x02;
-pub(crate) const ROLL_FLAG_TYPE_DISENCHANT_LIKE_CPP: u8 = 0x08;
 const LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP: u8 = 0;
 const LOOT_SLOT_TYPE_ROLL_ONGOING_LIKE_CPP: u8 = 1;
 const LOOT_SLOT_TYPE_LOCKED_LIKE_CPP: u8 = 2;
@@ -153,12 +173,6 @@ const LOOT_MODE_JUNK_FISH_LIKE_CPP: u16 = 0x8000;
 const ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP: u32 = 0x0004;
 const ITEM_FLAGS_CU_IGNORE_QUEST_STATUS_LIKE_CPP: u32 = 0x0002;
 const MAX_LOOT_REFERENCE_FRAMES_LIKE_CPP: u32 = 64;
-const ROLL_VOTE_PASS_LIKE_CPP: u8 = 0;
-const ROLL_VOTE_NEED_LIKE_CPP: u8 = 1;
-const ROLL_VOTE_GREED_LIKE_CPP: u8 = 2;
-const ROLL_VOTE_DISENCHANT_LIKE_CPP: u8 = 3;
-const ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP: u8 = 4;
-const ROLL_VOTE_NOT_VALID_LIKE_CPP: u8 = 5;
 const CONDITION_OBJECT_ENTRY_GUID_LIKE_CPP: i32 = 51;
 const CONDITION_TYPE_MASK_LIKE_CPP: i32 = 52;
 const TYPEID_PLAYER_LIKE_CPP: u32 = 6;
@@ -496,10 +510,6 @@ fn loot_type_for_client_like_cpp(loot_type: u8) -> u8 {
     }
 }
 
-fn loot_is_looted_like_cpp(loot: &CreatureLoot) -> bool {
-    loot.coins == 0 && loot.unlooted_count == 0
-}
-
 fn direct_item_count_after_loot_release_like_cpp(
     current_count: u32,
     maximum_destroy_count: Option<u32>,
@@ -508,81 +518,6 @@ fn direct_item_count_after_loot_release_like_cpp(
         .unwrap_or(current_count)
         .min(current_count);
     current_count.saturating_sub(destroy_count)
-}
-
-fn mark_loot_allowed_for_player_like_cpp(loot: &mut CreatureLoot, player_guid: ObjectGuid) {
-    if !player_guid.is_empty() && !loot.allowed_looters.contains(&player_guid) {
-        loot.allowed_looters.push(player_guid);
-    }
-
-    for entry in &mut loot.items {
-        if entry.allowed_looters.is_empty() || entry.flags.freeforall {
-            entry.add_allowed_looter_like_cpp(player_guid);
-        }
-    }
-
-    let existing_ffa_item_ids: Vec<u8> = loot
-        .player_ffa_items
-        .iter()
-        .find(|(player, _)| *player == player_guid)
-        .map(|(_, items)| items.iter().map(|item| item.loot_list_id).collect())
-        .unwrap_or_default();
-    let mut ffa_items = Vec::new();
-    for entry in &mut loot.items {
-        if entry.flags.freeforall
-            && entry.has_allowed_looter_like_cpp(player_guid)
-            && !existing_ffa_item_ids.contains(&entry.loot_list_id)
-        {
-            ffa_items.push(NotNormalLootItem {
-                loot_list_id: entry.loot_list_id,
-                is_looted: false,
-            });
-            loot.unlooted_count = loot.unlooted_count.saturating_add(1);
-        } else if !entry.flags.freeforall
-            && entry.has_allowed_looter_like_cpp(player_guid)
-            && !entry.flags.counted
-        {
-            entry.flags.counted = true;
-            loot.unlooted_count = loot.unlooted_count.saturating_add(1);
-        }
-    }
-
-    if !ffa_items.is_empty() {
-        match loot
-            .player_ffa_items
-            .iter_mut()
-            .find(|(player, _)| *player == player_guid)
-        {
-            Some((_, existing)) => existing.extend(ffa_items),
-            None => loot.player_ffa_items.push((player_guid, ffa_items)),
-        }
-    }
-}
-
-/// Completes the shared C++ `Loot::FillLoot` visibility/count state before the
-/// generation is published through the object-owned authority. Applying this
-/// only to the session cache after publication is unsafe: reconciliation would
-/// immediately restore the older authoritative snapshot and lose the tap list.
-fn prepare_represented_shared_loot_generation_like_cpp(
-    loot: &mut CreatureLoot,
-    allowed_looters: &[ObjectGuid],
-) {
-    for looter in allowed_looters {
-        if !looter.is_empty() && !loot.allowed_looters.contains(looter) {
-            loot.allowed_looters.push(*looter);
-        }
-    }
-    rebuild_represented_personal_loot_counts_preserving_consumed_like_cpp(loot);
-}
-
-fn prepare_represented_shared_creature_loot_generation_like_cpp(
-    loot: &mut CreatureLoot,
-    allowed_looters: &[ObjectGuid],
-) {
-    for looter in allowed_looters {
-        mark_loot_allowed_for_player_like_cpp(loot, *looter);
-    }
-    rebuild_represented_personal_loot_counts_preserving_consumed_like_cpp(loot);
 }
 
 #[cfg(test)]
@@ -607,142 +542,6 @@ fn assign_represented_personal_loot_items_like_cpp<R: Rng + ?Sized>(
     }
 
     rebuild_represented_personal_loot_counts_like_cpp(loot);
-}
-
-fn rebuild_represented_personal_loot_counts_like_cpp(loot: &mut CreatureLoot) {
-    loot.unlooted_count = 0;
-    loot.player_ffa_items.clear();
-
-    for entry in &mut loot.items {
-        entry.ffa_looted_by.clear();
-        entry.flags.counted = false;
-
-        if entry.flags.freeforall {
-            for looter in &entry.allowed_looters {
-                match loot
-                    .player_ffa_items
-                    .iter_mut()
-                    .find(|(player, _)| player == looter)
-                {
-                    Some((_, existing)) => existing.push(NotNormalLootItem {
-                        loot_list_id: entry.loot_list_id,
-                        is_looted: false,
-                    }),
-                    None => loot.player_ffa_items.push((
-                        *looter,
-                        vec![NotNormalLootItem {
-                            loot_list_id: entry.loot_list_id,
-                            is_looted: false,
-                        }],
-                    )),
-                }
-                loot.unlooted_count = loot.unlooted_count.saturating_add(1);
-            }
-        } else if !entry.allowed_looters.is_empty() {
-            entry.flags.counted = true;
-            loot.unlooted_count = loot.unlooted_count.saturating_add(1);
-        }
-    }
-}
-
-/// Rebuild a player-scoped authority pool without resurrecting entries already
-/// consumed in the session view. The generation helper above intentionally
-/// starts fresh; authority synchronization can also run during release, after
-/// `taken`/`ffa_looted_by` have already changed.
-fn rebuild_represented_personal_loot_counts_preserving_consumed_like_cpp(loot: &mut CreatureLoot) {
-    loot.unlooted_count = 0;
-    loot.player_ffa_items.clear();
-
-    for entry in &mut loot.items {
-        if entry.flags.freeforall {
-            entry.flags.counted = false;
-            for looter in &entry.allowed_looters {
-                let is_looted = entry.ffa_looted_by.contains(looter);
-                let item = NotNormalLootItem {
-                    loot_list_id: entry.loot_list_id,
-                    is_looted,
-                };
-                match loot
-                    .player_ffa_items
-                    .iter_mut()
-                    .find(|(player, _)| player == looter)
-                {
-                    Some((_, items)) => items.push(item),
-                    None => loot.player_ffa_items.push((*looter, vec![item])),
-                }
-                if !is_looted {
-                    loot.unlooted_count = loot.unlooted_count.saturating_add(1);
-                }
-            }
-        } else {
-            entry.flags.counted = !entry.allowed_looters.is_empty();
-            if entry.flags.counted && !entry.taken {
-                loot.unlooted_count = loot.unlooted_count.saturating_add(1);
-            }
-        }
-    }
-}
-
-fn loot_player_has_unlooted_ffa_item_like_cpp(
-    loot: &CreatureLoot,
-    player_guid: ObjectGuid,
-    loot_list_id: u8,
-) -> bool {
-    loot.player_ffa_items
-        .iter()
-        .find(|(player, _)| *player == player_guid)
-        .is_some_and(|(_, items)| {
-            items
-                .iter()
-                .any(|item| item.loot_list_id == loot_list_id && !item.is_looted)
-        })
-}
-
-fn loot_item_is_looted_for_player_like_cpp(
-    loot: &CreatureLoot,
-    entry: &LootEntry,
-    player_guid: ObjectGuid,
-) -> bool {
-    if entry.flags.freeforall {
-        !loot_player_has_unlooted_ffa_item_like_cpp(loot, player_guid, entry.loot_list_id)
-    } else {
-        entry.taken
-    }
-}
-
-fn mark_loot_item_looted_for_player_like_cpp(
-    loot: &mut CreatureLoot,
-    loot_list_id: u8,
-    player_guid: ObjectGuid,
-) {
-    let should_decrement = loot
-        .items
-        .iter()
-        .find(|entry| entry.loot_list_id == loot_list_id)
-        .is_some_and(|entry| !loot_item_is_looted_for_player_like_cpp(loot, entry, player_guid));
-
-    if let Some(entry) = loot
-        .items
-        .iter_mut()
-        .find(|entry| entry.loot_list_id == loot_list_id)
-    {
-        entry.mark_looted_for_player_like_cpp(player_guid);
-        if entry.flags.freeforall {
-            if let Some((_, items)) = loot
-                .player_ffa_items
-                .iter_mut()
-                .find(|(player, _)| *player == player_guid)
-                && let Some(item) = items
-                    .iter_mut()
-                    .find(|item| item.loot_list_id == loot_list_id)
-            {
-                item.is_looted = true;
-            }
-        }
-        if should_decrement {
-            loot.unlooted_count = loot.unlooted_count.saturating_sub(1);
-        }
-    }
 }
 
 fn represented_loot_response_items_like_cpp(
@@ -802,52 +601,6 @@ fn looted_corpse_decay_secs_like_cpp(
     ((corpse_delay_secs as f32) * rate) as u32
 }
 
-fn loot_can_be_opened_by_player_like_cpp(loot: &CreatureLoot, player_guid: ObjectGuid) -> bool {
-    if loot_is_looted_like_cpp(loot) {
-        return false;
-    }
-
-    loot_has_item_for_all_like_cpp(loot, player_guid)
-        || loot_has_item_for_player_like_cpp(loot, player_guid)
-}
-
-/// Exact represented branch order of C++ `Player::isAllowedToLoot` for a
-/// creature and the pool selected by `Creature::GetLootForPlayer`.
-fn creature_loot_is_allowed_to_player_like_cpp(
-    creature_is_dead: bool,
-    player_has_pending_bind: bool,
-    loot: &CreatureLoot,
-    player_guid: ObjectGuid,
-) -> bool {
-    if !creature_is_dead || player_has_pending_bind || loot_is_looted_like_cpp(loot) {
-        return false;
-    }
-    if !loot.allowed_looters.contains(&player_guid)
-        || (!loot_has_item_for_all_like_cpp(loot, player_guid)
-            && !loot_has_item_for_player_like_cpp(loot, player_guid))
-    {
-        return false;
-    }
-
-    match loot.loot_method {
-        LOOT_METHOD_FREE_FOR_ALL_LIKE_CPP | LOOT_METHOD_PERSONAL_LIKE_CPP => true,
-        LOOT_METHOD_ROUND_ROBIN_LIKE_CPP => {
-            loot.round_robin_player.is_empty()
-                || loot.round_robin_player == player_guid
-                || loot_has_item_for_player_like_cpp(loot, player_guid)
-        }
-        LOOT_METHOD_MASTER_LIKE_CPP
-        | LOOT_METHOD_GROUP_LIKE_CPP
-        | LOOT_METHOD_NEED_BEFORE_GREED_LIKE_CPP => {
-            loot.round_robin_player.is_empty()
-                || loot.round_robin_player == player_guid
-                || loot_has_over_threshold_item_like_cpp(loot)
-                || loot_has_item_for_player_like_cpp(loot, player_guid)
-        }
-        _ => false,
-    }
-}
-
 #[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CreatureLootReleaseCommandQueueOutcomeLikeCpp {
@@ -883,12 +636,6 @@ fn queue_creature_loot_release_command_reliably_like_cpp(
             CreatureLootReleaseCommandQueueOutcomeLikeCpp::Retrying
         }
     }
-}
-
-fn loot_has_over_threshold_item_like_cpp(loot: &CreatureLoot) -> bool {
-    loot.items
-        .iter()
-        .any(|entry| !entry.taken && entry.is_over_threshold_like_cpp())
 }
 
 fn connected_roll_looters_like_cpp(
@@ -1079,327 +826,8 @@ impl DisenchantLootTemplateTable {
     }
 }
 
-fn represented_loot_roll_finish_winner_like_cpp(
-    state: &RepresentedLootRollState,
-) -> Option<Option<(ObjectGuid, RepresentedLootRollVote)>> {
-    let mut winner = None;
-    let mut has_need = false;
-
-    for (player_guid, vote) in &state.voters {
-        match vote.vote {
-            ROLL_VOTE_NEED_LIKE_CPP => {
-                if !has_need
-                    || winner.is_none_or(|(_, current): (ObjectGuid, RepresentedLootRollVote)| {
-                        vote.roll_number > current.roll_number
-                    })
-                {
-                    has_need = true;
-                    winner = Some((*player_guid, *vote));
-                }
-            }
-            ROLL_VOTE_GREED_LIKE_CPP | ROLL_VOTE_DISENCHANT_LIKE_CPP => {
-                if !has_need
-                    && winner.is_none_or(|(_, current): (ObjectGuid, RepresentedLootRollVote)| {
-                        vote.roll_number > current.roll_number
-                    })
-                {
-                    winner = Some((*player_guid, *vote));
-                }
-            }
-            ROLL_VOTE_PASS_LIKE_CPP | ROLL_VOTE_NOT_VALID_LIKE_CPP => {}
-            ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP => return None,
-            _ => {}
-        }
-    }
-
-    Some(winner)
-}
-
-fn represented_loot_roll_current_winner_like_cpp(
-    state: &RepresentedLootRollState,
-) -> Option<(ObjectGuid, RepresentedLootRollVote)> {
-    let mut winner = None;
-    let mut has_need = false;
-
-    for (player_guid, vote) in &state.voters {
-        match vote.vote {
-            ROLL_VOTE_NEED_LIKE_CPP => {
-                if !has_need
-                    || winner.is_none_or(|(_, current): (ObjectGuid, RepresentedLootRollVote)| {
-                        vote.roll_number > current.roll_number
-                    })
-                {
-                    has_need = true;
-                    winner = Some((*player_guid, *vote));
-                }
-            }
-            ROLL_VOTE_GREED_LIKE_CPP | ROLL_VOTE_DISENCHANT_LIKE_CPP => {
-                if !has_need
-                    && winner.is_none_or(|(_, current): (ObjectGuid, RepresentedLootRollVote)| {
-                        vote.roll_number > current.roll_number
-                    })
-                {
-                    winner = Some((*player_guid, *vote));
-                }
-            }
-            ROLL_VOTE_PASS_LIKE_CPP
-            | ROLL_VOTE_NOT_VALID_LIKE_CPP
-            | ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP => {}
-            _ => {}
-        }
-    }
-
-    winner
-}
-
-fn loot_has_item_for_all_like_cpp(loot: &CreatureLoot, player_guid: ObjectGuid) -> bool {
-    if loot.coins > 0 {
-        return true;
-    }
-
-    loot.items.iter().any(|entry| {
-        !entry.taken
-            && entry.flags.follow_loot_rules
-            && !entry.flags.freeforall
-            && entry.has_allowed_looter_like_cpp(player_guid)
-    })
-}
-
-fn loot_has_item_for_player_like_cpp(loot: &CreatureLoot, player_guid: ObjectGuid) -> bool {
-    loot.items.iter().any(|entry| {
-        !loot_item_is_looted_for_player_like_cpp(loot, entry, player_guid)
-            && entry.has_allowed_looter_like_cpp(player_guid)
-            && (!entry.flags.follow_loot_rules || entry.flags.freeforall)
-    })
-}
-
 fn loot_item_context(context: u8) -> ItemContext {
     <ItemContext as num_traits::FromPrimitive>::from_u8(context).unwrap_or(ItemContext::None)
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct LootStoreRandomProperties {
-    id: i32,
-    seed: i32,
-}
-
-fn loot_store_data_can_stack_with_item(
-    loot_entry: &LootEntry,
-    random_properties: LootStoreRandomProperties,
-    item: &Item,
-) -> bool {
-    let data = item.data();
-    data.random_properties_id == random_properties.id
-        && data.property_seed == random_properties.seed
-        && u8::try_from(data.context).unwrap_or(0) == loot_entry.item_context
-}
-
-impl WorldSession {
-    fn generate_loot_store_random_properties_with_rng_like_cpp<R: Rng + ?Sized>(
-        &self,
-        item_id: u32,
-        rng: &mut R,
-    ) -> LootStoreRandomProperties {
-        // C++ Player::StoreLootItem calls ItemEnchantmentMgr::GenerateRandomProperties(itemid).
-        let random_select = self.item_template_random_select(item_id);
-        let random_suffix = self.item_template_random_suffix_group_id(item_id);
-        if random_select == 0 && random_suffix == 0 {
-            return LootStoreRandomProperties { id: 0, seed: 0 };
-        }
-
-        if random_select != 0 {
-            let Some(random_properties_id) =
-                self.select_random_enchantment_from_group_like_cpp(u32::from(random_select), rng)
-            else {
-                return LootStoreRandomProperties { id: 0, seed: 0 };
-            };
-
-            if self
-                .item_random_properties_store()
-                .and_then(|store| store.get(random_properties_id))
-                .is_none()
-            {
-                return LootStoreRandomProperties { id: 0, seed: 0 };
-            }
-
-            return LootStoreRandomProperties {
-                id: i32::try_from(random_properties_id).unwrap_or(0),
-                seed: 0,
-            };
-        }
-
-        let Some(random_suffix_id) =
-            self.select_random_enchantment_from_group_like_cpp(u32::from(random_suffix), rng)
-        else {
-            return LootStoreRandomProperties { id: 0, seed: 0 };
-        };
-
-        if self
-            .item_random_suffix_store()
-            .and_then(|store| store.get(random_suffix_id))
-            .is_none()
-        {
-            return LootStoreRandomProperties { id: 0, seed: 0 };
-        }
-
-        let seed = self
-            .item_random_property_template(item_id)
-            .map(|template| self.random_property_points_like_cpp(template))
-            .unwrap_or(0);
-
-        LootStoreRandomProperties {
-            id: -i32::try_from(random_suffix_id).unwrap_or(0),
-            seed,
-        }
-    }
-
-    fn select_random_enchantment_from_group_like_cpp<R: Rng + ?Sized>(
-        &self,
-        group_id: u32,
-        rng: &mut R,
-    ) -> Option<u32> {
-        let group = self
-            .item_random_enchantment_template_store()
-            .and_then(|store| store.group(group_id))?;
-        select_weighted_random_enchantment_like_cpp(group, rng)
-    }
-
-    fn random_property_points_like_cpp(&self, template: ItemRandomPropertyTemplateEntry) -> i32 {
-        let prop_index =
-            match <InventoryType as num_traits::FromPrimitive>::from_i8(template.inventory_type) {
-                Some(InventoryType::NonEquip)
-                | Some(InventoryType::Bag)
-                | Some(InventoryType::Tabard)
-                | Some(InventoryType::Ammo)
-                | Some(InventoryType::Quiver)
-                | Some(InventoryType::Relic)
-                | None => return 0,
-                Some(InventoryType::Head)
-                | Some(InventoryType::Body)
-                | Some(InventoryType::Chest)
-                | Some(InventoryType::Legs)
-                | Some(InventoryType::Weapon2Hand)
-                | Some(InventoryType::Robe) => 0,
-                Some(InventoryType::Shoulders)
-                | Some(InventoryType::Waist)
-                | Some(InventoryType::Feet)
-                | Some(InventoryType::Hands)
-                | Some(InventoryType::Trinket) => 1,
-                Some(InventoryType::Neck)
-                | Some(InventoryType::Wrists)
-                | Some(InventoryType::Finger)
-                | Some(InventoryType::Shield)
-                | Some(InventoryType::Cloak)
-                | Some(InventoryType::Holdable) => 2,
-                Some(InventoryType::Weapon)
-                | Some(InventoryType::WeaponMainhand)
-                | Some(InventoryType::WeaponOffhand) => 3,
-                Some(InventoryType::Ranged)
-                | Some(InventoryType::Thrown)
-                | Some(InventoryType::RangedRight) => 4,
-                _ => return 0,
-            };
-
-        let Some(points) = self
-            .rand_prop_points_store()
-            .and_then(|store| store.get(u32::from(template.item_level)))
-        else {
-            return 0;
-        };
-
-        match <ItemQuality as num_traits::FromPrimitive>::from_i8(template.quality) {
-            Some(ItemQuality::Uncommon) => points.good[prop_index] as i32,
-            Some(ItemQuality::Rare) | Some(ItemQuality::Heirloom) => {
-                points.superior[prop_index] as i32
-            }
-            Some(ItemQuality::Epic)
-            | Some(ItemQuality::Legendary)
-            | Some(ItemQuality::Artifact) => points.epic[prop_index] as i32,
-            _ => 0,
-        }
-    }
-}
-
-fn select_weighted_random_enchantment_like_cpp<R: Rng + ?Sized>(
-    group: &[ItemRandomEnchantmentTemplateEntry],
-    rng: &mut R,
-) -> Option<u32> {
-    let valid_rows = group
-        .iter()
-        .filter(|row| (0.000001..=100.0).contains(&row.chance))
-        .collect::<Vec<_>>();
-    let weights = valid_rows.iter().map(|row| row.chance).collect::<Vec<_>>();
-    let distribution = WeightedIndex::new(weights).ok()?;
-    Some(valid_rows[distribution.sample(rng)].enchantment_id)
-}
-
-#[derive(Debug, Clone)]
-struct PlannedLootNewStack {
-    slot: u8,
-    entry_id: u32,
-    count: u32,
-    max_durability: u32,
-    dynamic_flags: u32,
-    random_properties_id: i32,
-    random_properties_seed: i32,
-    item_context: u8,
-}
-
-/// Everything needed to mirror C++ `Player::StoreLootItem`'s post-store wire
-/// boundary. SQL and the object-owned claim are settled by the detached
-/// worker; the session publishes the stored-item update before choosing the
-/// direct-loot or disenchant-specific removal/`ItemPushResult` order.
-#[derive(Debug, Clone, Copy)]
-struct LootItemClaimCommitContextLikeCpp {
-    owner_guid: ObjectGuid,
-    loot_obj: ObjectGuid,
-    loot_list_id: u8,
-    player_guid: ObjectGuid,
-    free_for_all: bool,
-}
-
-#[derive(Debug, Clone)]
-struct PlannedDisenchantExistingStack {
-    slot: u8,
-    item_guid: ObjectGuid,
-    db_guid: u64,
-    new_count: u32,
-    dynamic_flags: u32,
-    flags_changed: bool,
-}
-
-#[derive(Debug, Clone)]
-struct PlannedDirectLootExistingStack {
-    slot: u8,
-    item_guid: ObjectGuid,
-    db_guid: u64,
-    new_count: u32,
-    added_count: u32,
-    dynamic_flags: u32,
-    flags_changed: bool,
-}
-
-#[derive(Debug, Clone)]
-struct PlannedDisenchantExistingPush {
-    slot: u8,
-    item_guid: ObjectGuid,
-    added_count: u32,
-    new_count: u32,
-}
-
-#[derive(Debug, Clone)]
-struct PlannedDisenchantNewPush {
-    stack_index: usize,
-    added_count: u32,
-    new_count: u32,
-}
-
-#[derive(Debug, Clone)]
-struct PlannedDisenchantGrant {
-    entry: LootEntry,
-    random_properties: LootStoreRandomProperties,
-    existing_pushes: Vec<PlannedDisenchantExistingPush>,
-    new_pushes: Vec<PlannedDisenchantNewPush>,
 }
 
 /// Own a loot lease in the same detached task that crosses the durable

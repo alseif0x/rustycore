@@ -496,7 +496,7 @@ impl WorldSession {
                 .and_then(|managed| {
                     managed.map().with_world_object_by_kinds_like_cpp(
                         seer_guid,
-                        crate::session_rules::represented_seer_kinds_like_cpp(),
+                        wow_entities::represented_seer_kinds_like_cpp(),
                         |object| object.combat_reach(),
                     )
                 })

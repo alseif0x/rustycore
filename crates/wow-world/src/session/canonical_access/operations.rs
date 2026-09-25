@@ -468,11 +468,9 @@ impl WorldSession {
         trigger_id: u32,
     ) -> bool {
         let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            player.set_rest_flag_like_cpp(
-                rest_flag,
-                trigger_id,
-                crate::session_rules::current_game_time_secs_like_cpp,
-            )
+            player.set_rest_flag_like_cpp(rest_flag, trigger_id, || {
+                wow_core::GameTime::now().as_secs()
+            })
         });
         if let Some(changed) = canonical {
             return changed;
@@ -481,11 +479,9 @@ impl WorldSession {
         if self.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_rest_state_like_cpp(|state| {
-                    state.set_flag_like_cpp(
-                        rest_flag,
-                        trigger_id,
-                        crate::session_rules::current_game_time_secs_like_cpp,
-                    )
+                    state.set_flag_like_cpp(rest_flag, trigger_id, || {
+                        wow_core::GameTime::now().as_secs()
+                    })
                 })
                 .unwrap_or(false);
         }
