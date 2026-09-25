@@ -3135,14 +3135,10 @@ dependencies = [
  "wow-network",
  "wow-packet",
  "wow-persistence",
- "wow-scripts",
+ "wow-script",
  "wow-social",
  "wow-world",
 ]
-
-[[package]]
-name = "wow-achievement"
-version = "0.1.0"
 
 [[package]]
 name = "wow-ai"
@@ -3168,13 +3164,6 @@ version = "0.1.0"
 dependencies = [
  "wow-constants",
  "wow-core",
-]
-
-[[package]]
-name = "wow-collections"
-version = "0.1.0"
-dependencies = [
- "smallvec",
 ]
 
 [[package]]
@@ -3417,10 +3406,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wow-pvp"
-version = "0.1.0"
-
-[[package]]
 name = "wow-recastdetour"
 version = "0.1.0"
 dependencies = [
@@ -3436,16 +3421,6 @@ dependencies = [
  "inventory",
  "wow-constants",
  "wow-core",
-]
-
-[[package]]
-name = "wow-scripts"
-version = "0.1.0"
-dependencies = [
- "tokio",
- "wow-constants",
- "wow-core",
- "wow-script",
 ]
 
 [[package]]
@@ -3479,6 +3454,13 @@ version = "0.1.0"
 dependencies = [
  "wow-core",
  "wow-data",
+]
+
+[[package]]
+name = "wow-util-collections"
+version = "0.1.0"
+dependencies = [
+ "smallvec",
 ]
 
 [[package]]

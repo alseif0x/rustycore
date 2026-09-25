@@ -8,7 +8,6 @@ members = [
     "crates/wow-logging",
     "crates/wow-crypto",
     "crates/wow-math",
-    "crates/wow-collections",
     # Infrastructure
     "crates/wow-database",
     "crates/wow-persistence",
@@ -32,12 +31,9 @@ members = [
     "crates/wow-social",
     "crates/wow-loot",
     "crates/wow-instances",
-    "crates/wow-pvp",
-    "crates/wow-achievement",
     "crates/wow-anticheat",
     "crates/wow-data",
     "crates/wow-script",
-    "crates/wow-scripts",
     # FFI
     "crates/wow-recastdetour",
     # Executables
@@ -48,6 +44,7 @@ members = [
     # Tooling
     "crates/capture-diff",
     "tools/xtask",
+    "crates/wow-util-collections",
 ]
 exclude = [
     "tools/wow-test-bot",
@@ -159,7 +156,7 @@ wow-config = { path = "crates/wow-config" }
 wow-logging = { path = "crates/wow-logging" }
 wow-crypto = { path = "crates/wow-crypto" }
 wow-math = { path = "crates/wow-math" }
-wow-collections = { path = "crates/wow-collections" }
+wow-util-collections = { path = "crates/wow-util-collections" }
 wow-database = { path = "crates/wow-database" }
 wow-persistence = { path = "crates/wow-persistence" }
 wow-network = { path = "crates/wow-network" }
@@ -182,12 +179,9 @@ wow-module-api = { path = "crates/wow-module-api" }
 wow-social = { path = "crates/wow-social" }
 wow-loot = { path = "crates/wow-loot" }
 wow-instances = { path = "crates/wow-instances" }
-wow-pvp = { path = "crates/wow-pvp" }
-wow-achievement = { path = "crates/wow-achievement" }
 wow-anticheat = { path = "crates/wow-anticheat" }
 wow-data = { path = "crates/wow-data" }
 wow-script = { path = "crates/wow-script" }
-wow-scripts = { path = "crates/wow-scripts" }
 wow-recastdetour = { path = "crates/wow-recastdetour" }
 
 [workspace.lints.rust]

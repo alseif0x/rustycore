@@ -23,7 +23,7 @@ fn layer_of(name: &str) -> Option<u8> {
         "wow-logging",
         "wow-math",
         "wow-proto",
-        "wow-collections",
+        "wow-util-collections",
         "wow-module-api",
     ];
     let l1 = [

@@ -185,6 +185,10 @@ regeneran a ciegas ni se suben para que pase una fase.
   base no puede requerirlos.
 - Código vendido (por ejemplo el port de navmesh) se marca como exento de presupuestos y lints.
 
+- Código **vendido** (por ejemplo `wow-recastdetour`): exento de presupuestos de tamaño y de
+  convenciones de nomenclatura; conserva su clasificación de dependencia y se marca como tal
+  en `dependency-policy.json`.
+
 Lo que no esté en esos comandos no es estándar, es costumbre.
 
 ## 11. Cómo se cambia este estándar
