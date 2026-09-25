@@ -113,7 +113,7 @@ curso, `[x]` cerrada con commit.
 
 ```
 A0.1 [x]  A0.2 [x]  A0.3 [x]  A0.4 [~]  A0.5 [x]  A0.6 [x]  A0.7 [x]   <- ola A: PUERTA VERDE
-A1 [ ]  A2 [ ]  A3 [ ]
+A1 [x]  A2 [ ]  A3 [ ]
 B1 [x] e719ac38   B2 [ ]  B3 [ ]  B4 [ ]  B5 [ ]  B6 [ ]  B7 [ ]
 C1 [ ]  C2 [ ]  C3 [ ]  C4 [ ]
 D1 [ ]  D2 [ ]  D3 [ ]  D4 [ ]  D5 [ ]
@@ -359,3 +359,19 @@ Publicacion: PR creada como draft al abrir la ola y fusionada al cerrarla (ADR-0
 `wow-world` por politica de categorias, fixtures compartidos extraidos), el `xtask` con ratchets,
 los lints opt-in en 41 paquetes, el ADR-009 de nomenclatura y las baselines revisadas. A1 empieza
 despues de esta fusion.
+
+### A1 cerrada (2026-09-25)
+
+- `wow-pvp` y `wow-achievement` (1 linea cada uno) retirados del workspace; sus nombres siguen
+  reservados en `dependency-policy.json` (`reserved_packages`) para las entregas de paridad.
+- `wow-scripts` (44 lineas, fachada de `wow-script`) consolidado: `world-server` llama directamente
+  a `wow_script::lifecycle::on_startup_like_cpp()/on_shutdown_like_cpp()` y su asercion se conserva
+  como test de integracion de `wow-script` (`tests/lifecycle_facade.rs`).
+- La utilidad `wow-collections` renombrada a `wow-util-collections` para liberar el nombre del
+  dominio de colecciones (`wow-account-collections`).
+- Decisiones registradas: `rustycore-db` **se queda** (es un binario de administracion de BD, y la
+  bandera "sin consumidor" es lo normal en un binario); `wow-session` **se queda** (kernel de
+  transporte ganado en #297, consumido por `wow-world`); `wow-chat` **se queda** (dominio de reglas
+  de chat: hipervinculos y validacion); `world-modules` **no se toca aqui** (es generado y su
+  inversion es el objeto de A2).
+- Baseline de capas depurada de las entradas que quedaron obsoletas con la retirada.

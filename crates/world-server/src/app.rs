@@ -5389,7 +5389,7 @@ async fn run_inner(
         db_keepalive_interval_minutes_like_cpp(&world_configs),
     );
 
-    let startup_script_summary = wow_scripts::lifecycle::on_startup().await;
+    let startup_script_summary = wow_script::lifecycle::on_startup_like_cpp();
     info!(
         callbacks = startup_script_summary.callbacks,
         "Ran ScriptMgr::OnStartup-style lifecycle hooks"
@@ -5651,7 +5651,7 @@ async fn run_inner(
         tracing::error!("Failed to clear online account state for realm {realm_id}: {e}");
     }
 
-    let shutdown_script_summary = wow_scripts::lifecycle::on_shutdown().await;
+    let shutdown_script_summary = wow_script::lifecycle::on_shutdown_like_cpp();
     info!(
         callbacks = shutdown_script_summary.callbacks,
         "Ran ScriptMgr::OnShutdown-style lifecycle hooks"

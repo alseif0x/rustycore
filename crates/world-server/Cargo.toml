@@ -15,6 +15,7 @@ anyhow = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 flume = { workspace = true }
+wow-script = { workspace = true }
 wow-core = { workspace = true }
 wow-config = { workspace = true }
 wow-logging = { workspace = true }
@@ -33,7 +34,6 @@ wow-constants = { workspace = true }
 wow-crypto = { workspace = true }
 wow-entities = { workspace = true }
 wow-map = { workspace = true }
-wow-scripts = { workspace = true }
 wow-social = { workspace = true }
 
 [dev-dependencies]

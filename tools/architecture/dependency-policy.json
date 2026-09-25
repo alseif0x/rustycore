@@ -2,7 +2,7 @@
   "schema_version": 2,
   "categories": {
     "foundation": [
-      "wow-collections",
+      "wow-util-collections",
       "wow-constants",
       "wow-core",
       "wow-math",
@@ -10,7 +10,6 @@
       "wow-persistence"
     ],
     "domain-runtime": [
-      "wow-achievement",
       "wow-ai",
       "wow-anticheat",
       "wow-chat",
@@ -20,7 +19,6 @@
       "wow-loot",
       "wow-map",
       "wow-movement",
-      "wow-pvp",
       "wow-script",
       "wow-social",
       "wow-spell"
@@ -41,7 +39,6 @@
       "wow-packet",
       "wow-proto",
       "wow-recastdetour",
-      "wow-scripts",
       "wow-session"
     ],
     "composition": [
