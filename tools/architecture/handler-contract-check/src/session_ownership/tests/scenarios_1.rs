@@ -461,7 +461,10 @@ fn private_session_state_reexport_is_canonical_and_duplicates_fail() {
     "#;
     let baseline = synthetic_baseline(world, &server_source("", ""))
         .expect("private state module and facade reexport parse");
-    assert_eq!(baseline.world_session.definition.module, WORLD_SESSION_MODULE);
+    assert_eq!(
+        baseline.world_session.definition.module,
+        WORLD_SESSION_MODULE
+    );
     assert_eq!(baseline.world_session.fields[0].name, "account_id");
 
     let duplicate = r#"
@@ -478,7 +481,10 @@ fn private_session_state_reexport_is_canonical_and_duplicates_fail() {
     "#;
     let error = synthetic_baseline(duplicate, &server_source("", ""))
         .expect_err("a root/child duplicate must remain rejected");
-    assert!(error.contains("WorldSession is mounted more than once"), "{error}");
+    assert!(
+        error.contains("WorldSession is mounted more than once"),
+        "{error}"
+    );
 }
 
 #[test]

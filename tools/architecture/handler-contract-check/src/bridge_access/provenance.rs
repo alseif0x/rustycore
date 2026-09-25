@@ -481,10 +481,7 @@ impl<'a> Resolver<'a> {
                     && resolved.cycles.is_empty()
                 {
                     if extracted_application_name(name) {
-                        result.append(Resolution::one(
-                            Provenance::NonAuthority,
-                            &branch_cfg,
-                        ));
+                        result.append(Resolution::one(Provenance::NonAuthority, &branch_cfg));
                         continue;
                     }
                     let child = format!("{module}::{name}");
