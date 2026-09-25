@@ -113,7 +113,7 @@ curso, `[x]` cerrada con commit.
 
 ```
 A0.1 [x]  A0.2 [x]  A0.3 [x]  A0.4 [~]  A0.5 [x]  A0.6 [x]  A0.7 [x]   <- ola A: PUERTA VERDE
-A1 [ ]  A2 [ ]  A3 [ ]
+A1 [x]  A2 [x]  A3 [x]
 B1 [x] e719ac38   B2 [ ]  B3 [ ]  B4 [ ]  B5 [ ]  B6 [ ]  B7 [ ]
 C1 [ ]  C2 [ ]  C3 [ ]  C4 [ ]
 D1 [ ]  D2 [ ]  D3 [ ]  D4 [ ]  D5 [ ]
@@ -359,3 +359,41 @@ Publicacion: PR creada como draft al abrir la ola y fusionada al cerrarla (ADR-0
 `wow-world` por politica de categorias, fixtures compartidos extraidos), el `xtask` con ratchets,
 los lints opt-in en 41 paquetes, el ADR-009 de nomenclatura y las baselines revisadas. A1 empieza
 despues de esta fusion.
+
+### A1 cerrada (2026-09-25)
+
+- `wow-pvp` y `wow-achievement` (1 linea cada uno) retirados del workspace. Su reserva **sale** de
+  `dependency-policy.json` porque el checker exige que un paquete reservado exista y este
+  clasificado; la intencion se conserva aqui: ambos nombres quedan para las entregas de paridad de
+  Part 2 (#48), que los recreara con su contenido.
+- `wow-scripts` (44 lineas, fachada de `wow-script`) consolidado: `world-server` llama directamente
+  a `wow_script::lifecycle::on_startup_like_cpp()/on_shutdown_like_cpp()` y su asercion se conserva
+  como test de integracion de `wow-script` (`tests/lifecycle_facade.rs`).
+- La utilidad `wow-collections` renombrada a `wow-util-collections` para liberar el nombre del
+  dominio de colecciones (`wow-account-collections`).
+- Decisiones registradas: `rustycore-db` **se queda** (es un binario de administracion de BD, y la
+  bandera "sin consumidor" es lo normal en un binario); `wow-session` **se queda** (kernel de
+  transporte ganado en #297, consumido por `wow-world`); `wow-chat` **se queda** (dominio de reglas
+  de chat: hipervinculos y validacion); `world-modules` **no se toca aqui** (es generado y su
+  inversion es el objeto de A2).
+- Baseline de capas depurada de las entradas que quedaron obsoletas con la retirada.
+
+### A2 y A3 verificadas: no habia inversion real (2026-09-25)
+
+**A2 — `world-modules`.** La "inversion" venia de mi auditoria en Python, que marcaba toda arista
+lateral como violacion. Verificado contra la politica y el codigo: `world-modules` es categoria
+**composition**, `world-server` tambien, y `composition` puede depender de `composition`
+(`allowed_category_dependencies`); ademas `world-modules` usa `world_server::run_with_modules`, la
+API de libreria prevista para componer. `xtask check-layers` ya excluia las fuentes de capa 5, asi
+que nunca la marco. **No hay nada que invertir**; el generador `tools/modules/compose.py` y su
+salida se quedan como estan hasta D6 (contrato Wasm), que es donde cambia el modelo de modulos.
+
+**A3 — tooling y vendor.** `capture-diff` ya esta clasificado como **tooling** en
+`dependency-policy.json` (mis notas anteriores hablaban de "capas de juego" por prosa, no por
+politica), y `xtask` tambien. Lo unico que faltaba era dejar explicito el criterio de **codigo
+vendido**: `wow-recastdetour` es un port de terceros y queda exento de presupuestos de tamano y de
+convenciones de nomenclatura, conservando su clasificacion de dependencia.
+
+Leccion registrada: **la auditoria en Python y `xtask check-layers` deben coincidir**; cuando
+discrepen, manda la politica (`dependency-policy.json`) y se corrige la herramienta que se
+desvie.

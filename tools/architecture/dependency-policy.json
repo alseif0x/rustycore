@@ -2,7 +2,7 @@
   "schema_version": 2,
   "categories": {
     "foundation": [
-      "wow-collections",
+      "wow-util-collections",
       "wow-constants",
       "wow-core",
       "wow-math",
@@ -10,7 +10,6 @@
       "wow-persistence"
     ],
     "domain-runtime": [
-      "wow-achievement",
       "wow-ai",
       "wow-anticheat",
       "wow-chat",
@@ -20,7 +19,6 @@
       "wow-loot",
       "wow-map",
       "wow-movement",
-      "wow-pvp",
       "wow-script",
       "wow-social",
       "wow-spell"
@@ -41,7 +39,6 @@
       "wow-packet",
       "wow-proto",
       "wow-recastdetour",
-      "wow-scripts",
       "wow-session"
     ],
     "composition": [
@@ -225,10 +222,6 @@
       "wow-session"
     ],
     "allowed": {
-      "wow-achievement": {
-        "normal": [],
-        "build": []
-      },
       "wow-ai": {
         "normal": [
           "rand"
@@ -241,12 +234,6 @@
       },
       "wow-chat": {
         "normal": [],
-        "build": []
-      },
-      "wow-collections": {
-        "normal": [
-          "smallvec"
-        ],
         "build": []
       },
       "wow-combat": {
@@ -365,10 +352,6 @@
         "normal": [],
         "build": []
       },
-      "wow-pvp": {
-        "normal": [],
-        "build": []
-      },
       "wow-script": {
         "normal": [
           "inventory"
@@ -408,6 +391,12 @@
           "tracing"
         ],
         "build": []
+      },
+      "wow-util-collections": {
+        "normal": [
+          "smallvec"
+        ],
+        "build": []
       }
     },
     "exceptions": [
@@ -433,18 +422,6 @@
       "issue": 30,
       "state": "open",
       "reason": "Name held for the M3 spell slices #30-#35."
-    },
-    {
-      "package": "wow-achievement",
-      "issue": 48,
-      "state": "open",
-      "reason": "Name held for Part 2 parity; no slice owns achievements yet."
-    },
-    {
-      "package": "wow-pvp",
-      "issue": 48,
-      "state": "open",
-      "reason": "Name held for Part 2 parity; no slice owns PvP yet."
     }
   ]
 }
