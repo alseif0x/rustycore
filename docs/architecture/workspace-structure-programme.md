@@ -444,3 +444,27 @@ identidad/conexion, es decir **`directory_group_and_social_coordination`** (4 ca
 4. Cuando el sub-estado tenga contrato completo y ningun `&mut WorldSession` haga falta, se puede
    convertir en crate de dominio; hasta entonces es un modulo privado de la app.
 5. Cualquier cambio de comportamiento va en su propio commit, con ancla C++.
+
+### B4, primer intento: revertido y pitfall registrado (2026-09-25)
+
+Intente sacar a `SessionDirectory` los tres campos de directorio social de la familia
+`directory_group_and_social_coordination` (dejando `player_registry`, que tiene 58 ficheros de radio,
+para su propio slice). El movimiento de campos y el inicializador anidado funcionan, pero la
+**reescritura de puntos de uso es mas delicada de lo que asumi**:
+
+- **Existen metodos accesores con el mismo nombre que los campos** (`fn pending_invites(&self)`).
+  Una sustitucion global de `.<campo>` convierte tambien las *llamadas* `self.pending_invites()` en
+  `self.directory.pending_invites()`, que el compilador rechaza. La reescritura debe distinguir
+  acceso a campo de llamada a metodo (p. ej. por el parentesis siguiente) o, mejor, mover primero
+  los metodos al `impl` del sub-estructo y dejar que los llamadores usen el accesor.
+- La visibilidad efectiva de los tres campos era `pub(crate)`, no `pub(in crate::session)`: hay
+  consumidores en `crates/wow-world/src/handlers/**`. El sub-estructo y su campo contenedor deben
+  nacer con esa visibilidad, no ensancharla despues.
+- Hay un `use` que debe acompanar al tipo en cada fichero que lo nombre (`construction.rs`), y el
+  chequeo de propiedades de campos de `WorldSession` deja de contar los campos anidados: al mover
+  la familia, la census de `session-ownership-policy.json` baja de 221 campos de produccion y hay
+  que regenerarla con delta revisado.
+
+El intento se revirtio sin dejar el arbol sucio; la rama sigue verde. Se retoma con el metodo
+corregido: mover campos, mover metodos al `impl` del sub-estructo, y repuntar solo accesos (no
+llamadas), con `cargo check` entre pasos.
