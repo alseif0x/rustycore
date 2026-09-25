@@ -3457,6 +3457,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "wow-util-collections"
+version = "0.1.0"
+dependencies = [
+ "smallvec",
+]
+
+[[package]]
 name = "wow-world"
 version = "0.1.0"
 dependencies = [

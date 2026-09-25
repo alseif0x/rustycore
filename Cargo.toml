@@ -44,6 +44,7 @@ members = [
     # Tooling
     "crates/capture-diff",
     "tools/xtask",
+    "crates/wow-util-collections",
 ]
 exclude = [
     "tools/wow-test-bot",
