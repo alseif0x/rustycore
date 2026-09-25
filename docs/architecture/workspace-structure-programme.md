@@ -362,8 +362,10 @@ despues de esta fusion.
 
 ### A1 cerrada (2026-09-25)
 
-- `wow-pvp` y `wow-achievement` (1 linea cada uno) retirados del workspace; sus nombres siguen
-  reservados en `dependency-policy.json` (`reserved_packages`) para las entregas de paridad.
+- `wow-pvp` y `wow-achievement` (1 linea cada uno) retirados del workspace. Su reserva **sale** de
+  `dependency-policy.json` porque el checker exige que un paquete reservado exista y este
+  clasificado; la intencion se conserva aqui: ambos nombres quedan para las entregas de paridad de
+  Part 2 (#48), que los recreara con su contenido.
 - `wow-scripts` (44 lineas, fachada de `wow-script`) consolidado: `world-server` llama directamente
   a `wow_script::lifecycle::on_startup_like_cpp()/on_shutdown_like_cpp()` y su asercion se conserva
   como test de integracion de `wow-script` (`tests/lifecycle_facade.rs`).
