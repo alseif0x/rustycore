@@ -44,7 +44,7 @@
     "families": [
       {
         "id": "test_only_fixtures",
-        "expected_field_count": 306,
+        "expected_field_count": 302,
         "field_names": [
           "account_mounts_like_cpp",
           "active_player_local_flags_like_cpp",
@@ -266,15 +266,12 @@
           "represented_item_appearances_like_cpp",
           "represented_locked_dungeon_encounters",
           "represented_live_applications_like_cpp",
-          "represented_loaded_player_flags_ex_like_cpp",
-          "represented_loaded_player_flags_like_cpp",
           "represented_loot_roll_criteria_events",
           "represented_mover_fixed_position_vehicle_like_cpp",
           "represented_movie_complete_events_like_cpp",
           "represented_old_pet_spell_like_cpp",
           "represented_override_spells_complete_like_cpp",
           "represented_override_spells_like_cpp",
-          "represented_partner_trade_server_state_index_like_cpp",
           "represented_pending_spell_cast_request_like_cpp",
           "represented_pet_command_state_like_cpp",
           "represented_pet_created_by_spell_like_cpp",
@@ -286,7 +283,6 @@
           "represented_player_base_mana_like_cpp",
           "represented_player_max_powers_like_cpp",
           "represented_player_powers_like_cpp",
-          "represented_player_recent_instances_like_cpp",
           "represented_primary_specialization_id_like_cpp",
           "represented_query_petitions_like_cpp",
           "represented_repop_at_graveyard_count",
@@ -897,9 +893,9 @@
         "review": "docs/architecture/session-578-checkpoint.md; current exact membership, not terminal ownership acceptance. C++ WorldSession::_player is the authority boundary."
       }
     ],
-    "expected_field_count": 531,
-    "expected_unique_field_count": 531,
-    "expected_production_field_count": 225,
+    "expected_field_count": 527,
+    "expected_unique_field_count": 527,
+    "expected_production_field_count": 221,
     "expected_test_fixture_field_count": 306
   },
   "inventories": {
