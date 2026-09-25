@@ -76,6 +76,9 @@ fn quest_currency_source_classification_stays_with_catalog_model() {
         quest.currency_gain_source_like_cpp(),
         wow_constants::currency::CurrencyGainSourceLikeCpp::DailyQuestReward
     );
+    // C++ Player.cpp:14696-14705 checks IsDaily() before IsWorldQuest(), so a quest carrying
+    // both flags classifies as a daily reward; clear the daily flag to exercise the world quest arm.
+    quest.flags &= !QUEST_FLAGS_DAILY_LIKE_CPP;
     quest.flags_ex = QUEST_FLAGS_EX_IS_WORLD_QUEST_LIKE_CPP;
     assert_eq!(
         quest.currency_gain_source_like_cpp(),
