@@ -272,7 +272,8 @@ impl WorldSession {
         }
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            return self.player_flags_test_fixture_like_cpp
+            return self
+                .player_flags_test_fixture_like_cpp
                 .represented_loaded_player_flags_like_cpp
                 .is_some_and(|flags| (flags & flag) != 0);
         }
