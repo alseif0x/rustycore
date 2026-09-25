@@ -28,7 +28,6 @@ pub mod player_directory;
 #[allow(dead_code)] // Private prerequisite seam consumed by trainer issue #157.
 pub(crate) mod profession;
 mod quest;
-pub mod reputation;
 pub mod session;
 mod session_commands;
 mod session_persistence_capabilities;

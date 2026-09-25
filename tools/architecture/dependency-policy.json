@@ -21,7 +21,8 @@
       "wow-movement",
       "wow-script",
       "wow-social",
-      "wow-spell"
+      "wow-spell",
+      "wow-progression"
     ],
     "application": [
       "wow-conditions",
@@ -206,6 +207,18 @@
       "to": "wow-session",
       "tracking_issue": 584,
       "reason": "#297 earned a transport-only kernel and #378 kept application/gameplay adapters outside it. wow-world consuming that kernel is an intended application-to-adapter relationship; wow-session retains its exact wow-network/wow-packet allowlist and may not gain gameplay, map, database or catalog dependencies. #584 owns the remaining kernel/application boundary decision after complete consumer migration. Concrete transport types need ports only if a real boundary requires them, not to erase this exception or force an application-layer reclassification. #153 verifies the decision without implementing a new abstraction."
+    },
+    {
+      "from": "wow-progression",
+      "to": "wow-data",
+      "tracking_issue": 584,
+      "reason": "The reputation domain still reads concrete static-data stores (reputation rank tables and progression rewards) instead of receiving them as injected DTOs. The edge exists because the catalogs are the authority for rank thresholds; retiring it belongs to the B-phase rules extraction that injects catalog views, as #584 tracks."
+    },
+    {
+      "from": "wow-progression",
+      "to": "wow-packet",
+      "tracking_issue": 584,
+      "reason": "The reputation domain still builds its reputation-list presentation packets directly. The edge is presentation debt, not state ownership: the rank math and faction state are the domain's, and the retirement condition is moving packet construction behind the application adapter (B-phase rules extraction), as #584 tracks."
     }
   ],
   "external_dependencies": {
@@ -396,6 +409,10 @@
         "normal": [
           "smallvec"
         ],
+        "build": []
+      },
+      "wow-progression": {
+        "normal": [],
         "build": []
       }
     },

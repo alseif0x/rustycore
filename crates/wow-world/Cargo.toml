@@ -27,6 +27,7 @@ wow-ai = { workspace = true }
 wow-chat = { workspace = true }
 wow-combat = { workspace = true }
 wow-conditions = { workspace = true }
+wow-progression = { workspace = true }
 wow-data = { workspace = true }
 wow-entities = { workspace = true }
 wow-network = { workspace = true }
@@ -46,6 +47,7 @@ wow-social = { workspace = true }
 wow-spell-acquisition = { workspace = true }
 
 [dev-dependencies]
+wow-progression = { workspace = true, features = ["test-fixtures"] }
 wow-spell-acquisition = { workspace = true, features = ["test-fixtures"] }
 wow-session = { workspace = true, features = ["test-support"] }
 # Real Detour navmesh fixtures for the live creature-pathfinding regressions.

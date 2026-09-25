@@ -322,10 +322,10 @@ fn player_save_plan_marks_dirty_state_only_after_commit_like_cpp() {
 
     session
         .reputation_mgr_like_cpp_mut()
-        .insert_state_for_test_like_cpp(crate::reputation::mgr::FactionStateLikeCpp {
+        .insert_state_for_test_like_cpp(wow_progression::mgr::FactionStateLikeCpp {
             standing: 123,
             flags: ReputationFlagsLikeCpp::VISIBLE,
-            ..crate::reputation::mgr::FactionStateLikeCpp::new_like_cpp(
+            ..wow_progression::mgr::FactionStateLikeCpp::new_like_cpp(
                 85,
                 14,
                 ReputationFlagsLikeCpp::VISIBLE,

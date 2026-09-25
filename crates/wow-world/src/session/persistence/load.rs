@@ -185,7 +185,7 @@ impl WorldSession {
     }
     pub(crate) fn load_character_reputation_rows_like_cpp(
         &mut self,
-        rows: impl IntoIterator<Item = crate::reputation::mgr::CharacterReputationRowLikeCpp>,
+        rows: impl IntoIterator<Item = wow_progression::mgr::CharacterReputationRowLikeCpp>,
     ) -> bool {
         let Some(faction_store) = self.faction_store().cloned() else {
             return false;

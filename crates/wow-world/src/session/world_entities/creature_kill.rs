@@ -204,7 +204,7 @@ impl WorldSession {
         let db_spillover_template = reputation_spillover_template_store
             .as_deref()
             .and_then(|store| store.get(effective_faction_id));
-        let options = crate::reputation::mgr::SetReputationOptionsLikeCpp {
+        let options = wow_progression::mgr::SetReputationOptionsLikeCpp {
             incremental: true,
             spillover_only,
             no_spillover: false,
