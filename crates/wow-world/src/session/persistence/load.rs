@@ -758,7 +758,7 @@ impl WorldSession {
         else {
             return;
         };
-        let player_flags_ex = self
+        let player_flags_ex = self.player_flags_test_fixture_like_cpp
             .represented_loaded_player_flags_ex_like_cpp
             .unwrap_or(0);
         if self

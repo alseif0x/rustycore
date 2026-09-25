@@ -29,7 +29,7 @@ impl WorldSession {
                         accepted: self
                             .trade_test_fixture_like_cpp
                             .represented_trade_accepted_like_cpp,
-                        partner_server_state_index: self
+                        partner_server_state_index: self.trade_test_fixture_like_cpp
                             .represented_partner_trade_server_state_index_like_cpp,
                         client_state_index: self
                             .trade_test_fixture_like_cpp

@@ -192,7 +192,7 @@ impl WorldSession {
         });
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return self
+            return self.instance_test_fixture_like_cpp
                 .represented_player_recent_instances_like_cpp
                 .remove(&map_id)
                 .is_some();

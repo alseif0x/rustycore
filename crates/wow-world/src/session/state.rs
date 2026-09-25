@@ -225,11 +225,6 @@ pub struct WorldSession {
     /// `urand`/`SelectRandomContainerElement` while the owning Player/Map runtime is
     /// still being split out of `WorldSession`.
     pub(in crate::session) represented_runtime_rng_like_cpp: StdRng,
-    pub(in crate::session) represented_player_recent_instances_like_cpp:
-        std::collections::HashMap<u32, u32>,
-    pub(in crate::session) represented_loaded_player_flags_like_cpp: Option<u32>,
-    pub(in crate::session) represented_loaded_player_flags_ex_like_cpp: Option<u32>,
-    pub(in crate::session) represented_partner_trade_server_state_index_like_cpp: u32,
 
     // Dispatch table (built once, shared ref)
     pub(in crate::session) dispatch_table: HashMap<ClientOpcodes, &'static PacketHandlerEntry>,
