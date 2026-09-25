@@ -113,7 +113,7 @@ curso, `[x]` cerrada con commit.
 
 ```
 A0.1 [x]  A0.2 [x]  A0.3 [x]  A0.4 [~]  A0.5 [x]  A0.6 [x]  A0.7 [x]   <- ola A: PUERTA VERDE
-A1 [x]  A2 [ ]  A3 [ ]
+A1 [x]  A2 [x]  A3 [x]
 B1 [x] e719ac38   B2 [ ]  B3 [ ]  B4 [ ]  B5 [ ]  B6 [ ]  B7 [ ]
 C1 [ ]  C2 [ ]  C3 [ ]  C4 [ ]
 D1 [ ]  D2 [ ]  D3 [ ]  D4 [ ]  D5 [ ]
@@ -375,3 +375,23 @@ despues de esta fusion.
   de chat: hipervinculos y validacion); `world-modules` **no se toca aqui** (es generado y su
   inversion es el objeto de A2).
 - Baseline de capas depurada de las entradas que quedaron obsoletas con la retirada.
+
+### A2 y A3 verificadas: no habia inversion real (2026-09-25)
+
+**A2 — `world-modules`.** La "inversion" venia de mi auditoria en Python, que marcaba toda arista
+lateral como violacion. Verificado contra la politica y el codigo: `world-modules` es categoria
+**composition**, `world-server` tambien, y `composition` puede depender de `composition`
+(`allowed_category_dependencies`); ademas `world-modules` usa `world_server::run_with_modules`, la
+API de libreria prevista para componer. `xtask check-layers` ya excluia las fuentes de capa 5, asi
+que nunca la marco. **No hay nada que invertir**; el generador `tools/modules/compose.py` y su
+salida se quedan como estan hasta D6 (contrato Wasm), que es donde cambia el modelo de modulos.
+
+**A3 — tooling y vendor.** `capture-diff` ya esta clasificado como **tooling** en
+`dependency-policy.json` (mis notas anteriores hablaban de "capas de juego" por prosa, no por
+politica), y `xtask` tambien. Lo unico que faltaba era dejar explicito el criterio de **codigo
+vendido**: `wow-recastdetour` es un port de terceros y queda exento de presupuestos de tamano y de
+convenciones de nomenclatura, conservando su clasificacion de dependencia.
+
+Leccion registrada: **la auditoria en Python y `xtask check-layers` deben coincidir**; cuando
+discrepen, manda la politica (`dependency-policy.json`) y se corrige la herramienta que se
+desvie.
