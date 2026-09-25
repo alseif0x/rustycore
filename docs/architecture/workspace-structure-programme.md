@@ -291,3 +291,58 @@ solo si una medición de build demuestra duplicación de features.
   límites de stats y regeneración de tablas→catálogos, auras de criatura→mapa/runtime, log de
   ejecución de hechizo→hechizos/progresión, sincronización de tiempo→driver/timers). Conteos:
   531 campos (225 producción, 306 fixtures).
+
+## 10. Trabajo no previsto detectado por la puerta de la ola A (2026-09-24)
+
+La puerta `final --architecture` ya no encuentra errores de compilación (el barrido
+`cargo check --workspace --all-targets` sale 0) pero al ejecutar las suites aparecen **19 tests
+fallando en `wow-world --lib`** (3919 pasan) y 1 corregido en `wow-data`. Son fallos que estaban
+**ocultos**: los ficheros no compilaban, así que nunca se ejecutaron en esta rama. Cada uno se
+diagnostica por separado y se arregla con evidencia (ancla C++ o ruta movida), nunca debilitando
+la aserción. Ficheros con el fallo registrado:
+
+- `crates/wow-world/src/handlers/character/../character_tests/item_1.rs:12`
+- `crates/wow-world/src/handlers/character/../character_tests/item_1.rs:30`
+- `crates/wow-world/src/handlers/economy/tests/trade/session.rs:164`
+- `crates/wow-world/src/handlers/economy/tests/trade/session.rs:198`
+- `crates/wow-world/src/handlers/void_storage_tests/scenarios_1.rs:213`
+- `crates/wow-world/src/handlers/void_storage_tests/scenarios_1.rs:240`
+- `crates/wow-world/src/handlers/void_storage_tests/scenarios_2.rs:348`
+- `crates/wow-world/src/handlers/void_storage_tests/scenarios_2.rs:389`
+- `crates/wow-world/src/handlers/void_storage_tests/scenarios_2.rs:460`
+- `crates/wow-world/src/handlers/void_storage_tests/scenarios_2.rs:489`
+- `crates/wow-world/src/handlers/void_storage_tests/scenarios_2.rs:530`
+- `crates/wow-world/src/handlers/void_storage_tests/scenarios_2.rs:559`
+- `crates/wow-world/src/handlers/void_storage_tests/scenarios_2.rs:658`
+- `crates/wow-world/src/handlers/void_storage_tests/scenarios_2.rs:768`
+- `crates/wow-world/src/session/../session/tests/player_spell_hit_source/trait_glyph_and_zone_gates.rs:97`
+- `crates/wow-world/src/session/../session/tests/scenarios_instances_1.rs:617`
+- `crates/wow-world/src/session/../session/tests/scenarios_instances_1.rs:646`
+- `crates/wow-world/src/session/../session/tests/scenarios_misc_8.rs:522`
+- `crates/wow-world/src/session/../session/tests/scenarios_persistence_3.rs:680`
+
+Tests afectados:
+
+- `GroupInstanceResetMethodLikeCpp::Manual)`
+- `GroupInstanceResetMethodLikeCpp::OnChangeDifficulty)`
+- `GroupInstanceResetResultLikeCpp::NotEmpty,`
+- `GroupInstanceResetResultLikeCpp::Success,`
+- `handlers::character::tests::item_1::continue_login_inventory_reads_cross_the_typed_lifecycle_port`
+- `handlers::character::tests::item_1::continue_login_item_repairs_cross_the_typed_lifecycle_port`
+- `handlers::economy::tests::trade::session::accept_trade_records_acceptance_and_notifies_partner_like_cpp`
+- `handlers::economy::tests::trade::session::unaccept_trade_clears_acceptance_and_notifies_partner_like_cpp`
+- `handlers::void_storage::tests::scenarios_1::locked_login_discards_residual_void_rows_and_initializes_empty_storage_like_cpp`
+- `handlers::void_storage::tests::scenarios_1::unlock_submits_one_semantic_write_before_runtime_publication_like_cpp`
+- `handlers::void_storage::tests::scenarios_2::deposit_commits_typed_plan_before_runtime_publication_like_cpp`
+- `handlers::void_storage::tests::scenarios_2::deposit_definite_rollback_keeps_money_inventory_and_void_state_unchanged`
+- `handlers::void_storage::tests::scenarios_2::deposit_definite_rollback_retains_active_item_loot_view_atomically`
+- `handlers::void_storage::tests::scenarios_2::deposit_indeterminate_commit_quarantines_without_runtime_publication_like_cpp`
+- `handlers::void_storage::tests::scenarios_2::deposit_unknown_commit_reconciles_from_durable_money_like_cpp`
+- `handlers::void_storage::tests::scenarios_2::mixed_transfer_validation_failure_publishes_no_partial_deposit`
+- `handlers::void_storage::tests::scenarios_2::swap_definite_rollback_keeps_void_slots_unchanged`
+- `handlers::void_storage::tests::scenarios_2::swap_unknown_commit_with_unchanged_money_quarantines_session`
+- `session::tests::player_spell_hit_source::trait_glyph_and_zone_gates::player_spell_hit_source_authority_gates_update_zone_aura_producers_like_cpp`
+- `session::tests::scenarios_instances_1::represented_player_reset_not_empty_forgets_only_on_change_difficulty_like_cpp`
+- `session::tests::scenarios_instances_1::represented_player_reset_success_forgets_recent_instance_like_cpp`
+- `session::tests::scenarios_misc_8::give_xp_runtime_rejects_no_xp_gain_player_flag_like_cpp`
+- `session::tests::scenarios_persistence_3::player_create_flags_use_loaded_and_canonical_bits_like_cpp`
