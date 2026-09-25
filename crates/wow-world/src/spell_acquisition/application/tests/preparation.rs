@@ -17,7 +17,7 @@ fn prepared_plan_replays_causal_stream_and_normalizes_post_save_state() {
         },
     };
     let resulting = snapshot(vec![learned]);
-    let plan = SpellAcquisitionPlanLikeCpp {
+    let plan = SpellAcquisitionPlanFixtureLikeCpp {
         root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         source_snapshot: source.clone(),
         mutations: vec![PlannedAcquisitionMutationLikeCpp::Spell(transition.clone())],
@@ -30,7 +30,8 @@ fn prepared_plan_replays_causal_stream_and_normalizes_post_save_state() {
         post_commit_actions: direct_learn_actions(100, false, false),
         diagnostics: Vec::new(),
         resulting_snapshot: resulting,
-    };
+    }
+    .build();
 
     let PreparedPlayerSpellAcquisitionOutcomeLikeCpp::Ready(prepared) =
         prepare_player_spell_acquisition_like_cpp(&plan, &no_profession_changes(), &source)
@@ -72,7 +73,7 @@ fn prepared_plan_builds_one_deterministic_full_replacement_transaction() {
             root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         },
     };
-    let plan = SpellAcquisitionPlanLikeCpp {
+    let plan = SpellAcquisitionPlanFixtureLikeCpp {
         root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         source_snapshot: source.clone(),
         mutations: vec![PlannedAcquisitionMutationLikeCpp::Spell(transition.clone())],
@@ -85,7 +86,8 @@ fn prepared_plan_builds_one_deterministic_full_replacement_transaction() {
         post_commit_actions: direct_learn_actions(100, true, true),
         diagnostics: Vec::new(),
         resulting_snapshot: snapshot(vec![learned]),
-    };
+    }
+    .build();
     let PreparedPlayerSpellAcquisitionOutcomeLikeCpp::Ready(prepared) =
         prepare_player_spell_acquisition_like_cpp(&plan, &no_profession_changes(), &source)
             .expect("valid plan")
@@ -127,7 +129,7 @@ fn action_only_plan_publishes_without_preparing_a_durable_rewrite() {
     let source = snapshot(vec![unchanged]);
     let action =
         SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellQuestObjective { spell_id: 100 };
-    let plan = SpellAcquisitionPlanLikeCpp {
+    let plan = SpellAcquisitionPlanFixtureLikeCpp {
         root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         source_snapshot: source.clone(),
         mutations: Vec::new(),
@@ -144,7 +146,8 @@ fn action_only_plan_publishes_without_preparing_a_durable_rewrite() {
         post_commit_actions: vec![action.clone()],
         diagnostics: Vec::new(),
         resulting_snapshot: source.clone(),
-    };
+    }
+    .build();
 
     let PreparedPlayerSpellAcquisitionOutcomeLikeCpp::ActionsOnly(prepared) =
         prepare_player_spell_acquisition_like_cpp(&plan, &no_profession_changes(), &source)
@@ -194,7 +197,7 @@ fn profession_capacity_assignment_is_applied_to_durable_and_runtime_rows() {
     resulting.skills.push(learned_skill);
     resulting.occupied_skill_slots = 1;
     resulting.primary_profession_skill_ids = vec![PROFESSION];
-    let plan = SpellAcquisitionPlanLikeCpp {
+    let plan = SpellAcquisitionPlanFixtureLikeCpp {
         root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         source_snapshot: source.clone(),
         mutations: vec![PlannedAcquisitionMutationLikeCpp::Skill(transition.clone())],
@@ -207,7 +210,8 @@ fn profession_capacity_assignment_is_applied_to_durable_and_runtime_rows() {
         post_commit_actions: Vec::new(),
         diagnostics: Vec::new(),
         resulting_snapshot: resulting,
-    };
+    }
+    .build();
     let profession_plan = PrimaryProfessionCapacityPlanLikeCpp {
         configured_max: 2,
         used_before: 0,
@@ -264,7 +268,7 @@ fn deleted_skill_tombstone_is_retained_only_in_runtime_after_save() {
             root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         },
     };
-    let plan = SpellAcquisitionPlanLikeCpp {
+    let plan = SpellAcquisitionPlanFixtureLikeCpp {
         root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         source_snapshot: source.clone(),
         mutations: vec![PlannedAcquisitionMutationLikeCpp::Skill(transition.clone())],
@@ -277,7 +281,8 @@ fn deleted_skill_tombstone_is_retained_only_in_runtime_after_save() {
         post_commit_actions: Vec::new(),
         diagnostics: Vec::new(),
         resulting_snapshot: resulting,
-    };
+    }
+    .build();
 
     let PreparedPlayerSpellAcquisitionOutcomeLikeCpp::Ready(prepared) =
         prepare_player_spell_acquisition_like_cpp(&plan, &no_profession_changes(), &source)
@@ -316,7 +321,7 @@ fn deleted_skill_tombstone_is_retained_only_in_runtime_after_save() {
     };
     let mut saved_tombstone_resulting = saved_tombstone_source.clone();
     saved_tombstone_resulting.spells.push(learned);
-    let saved_tombstone_plan = SpellAcquisitionPlanLikeCpp {
+    let saved_tombstone_plan = SpellAcquisitionPlanFixtureLikeCpp {
         root: SpellAcquisitionRootLikeCpp::DirectLearn(200),
         source_snapshot: saved_tombstone_source.clone(),
         mutations: vec![PlannedAcquisitionMutationLikeCpp::Spell(
@@ -331,7 +336,8 @@ fn deleted_skill_tombstone_is_retained_only_in_runtime_after_save() {
         post_commit_actions: Vec::new(),
         diagnostics: Vec::new(),
         resulting_snapshot: saved_tombstone_resulting,
-    };
+    }
+    .build();
     let PreparedPlayerSpellAcquisitionOutcomeLikeCpp::Ready(saved_tombstone_prepared) =
         prepare_player_spell_acquisition_like_cpp(
             &saved_tombstone_plan,
@@ -371,7 +377,7 @@ fn deleted_skill_tombstone_is_retained_only_in_runtime_after_save() {
             root: SpellAcquisitionRootLikeCpp::DirectLearn(101),
         },
     };
-    let relearn_plan = SpellAcquisitionPlanLikeCpp {
+    let relearn_plan = SpellAcquisitionPlanFixtureLikeCpp {
         root: SpellAcquisitionRootLikeCpp::DirectLearn(101),
         source_snapshot: relearn_source.clone(),
         mutations: vec![PlannedAcquisitionMutationLikeCpp::Skill(
@@ -386,7 +392,8 @@ fn deleted_skill_tombstone_is_retained_only_in_runtime_after_save() {
         post_commit_actions: Vec::new(),
         diagnostics: Vec::new(),
         resulting_snapshot: relearn_resulting,
-    };
+    }
+    .build();
     let PreparedPlayerSpellAcquisitionOutcomeLikeCpp::Ready(relearn_prepared) =
         prepare_player_spell_acquisition_like_cpp(
             &relearn_plan,
@@ -435,7 +442,7 @@ fn committed_skill_snapshot_refreshes_enchanting_runtime_projection() {
             root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         },
     };
-    let plan = SpellAcquisitionPlanLikeCpp {
+    let plan = SpellAcquisitionPlanFixtureLikeCpp {
         root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         source_snapshot: source.clone(),
         mutations: vec![PlannedAcquisitionMutationLikeCpp::Skill(transition.clone())],
@@ -448,7 +455,8 @@ fn committed_skill_snapshot_refreshes_enchanting_runtime_projection() {
         post_commit_actions: Vec::new(),
         diagnostics: Vec::new(),
         resulting_snapshot: resulting,
-    };
+    }
+    .build();
     let profession_plan = PrimaryProfessionCapacityPlanLikeCpp {
         configured_max: 2,
         used_before: 0,

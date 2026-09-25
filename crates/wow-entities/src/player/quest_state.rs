@@ -26,6 +26,9 @@ use wow_core::ObjectGuid;
 
 use super::PlayerQuestStatusRecord;
 
+mod objectives;
+pub use objectives::{QuestBoundItemObjectiveProgressLikeCpp, QuestItemObjectiveProgressLikeCpp};
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PlayerQuestGameplayState {
     pub(super) statuses: BTreeMap<u32, PlayerQuestStatusRecord>,

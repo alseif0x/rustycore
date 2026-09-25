@@ -31,7 +31,7 @@ async fn talked_to_creature_tracking_event_objective_auto_rewards_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id,

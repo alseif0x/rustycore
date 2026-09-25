@@ -94,7 +94,7 @@ impl WorldSession {
     /// - `bag` in carried/bank/reagent range → search nested runtime items inside the bag.
     pub(crate) fn get_inventory_item_by_pos(&self, bag: u8, slot: u8) -> Option<InventoryItem> {
         if bag == INVENTORY_SLOT_BAG_0 {
-            if (slot as usize) >= PLAYER_SLOT_END || crate::session_rules::is_buyback_slot(slot) {
+            if (slot as usize) >= PLAYER_SLOT_END || wow_entities::is_buyback_slot(slot) {
                 return None;
             }
             self.resolved_inventory_item_like_cpp(slot)
@@ -196,7 +196,8 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if canonical || self.player_handle_like_cpp.is_none() {
-            self.player_inventory_slot_count_like_cpp = count;
+            self.player_item_test_fixture_like_cpp
+                .player_inventory_slot_count_like_cpp = count;
         }
         canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
     }
@@ -204,7 +205,10 @@ impl WorldSession {
         let canonical = self.with_owned_player_like_cpp(Player::inventory_slot_count);
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.player_inventory_slot_count_like_cpp);
+            return Some(
+                self.player_item_test_fixture_like_cpp
+                    .player_inventory_slot_count_like_cpp,
+            );
         }
         canonical
     }

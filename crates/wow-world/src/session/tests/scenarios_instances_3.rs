@@ -153,7 +153,9 @@ fn canonical_instance_count_blocks_new_distinct_instance_like_cpp() {
         80,
         0,
     ));
-    session.represented_raid_difficulty_id_like_cpp = 3;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_raid_difficulty_id_like_cpp = 3;
     session.set_max_instances_per_hour_like_cpp(5);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     for instance_id in 100..105 {
@@ -196,7 +198,9 @@ fn canonical_instance_count_allows_dead_player_like_cpp() {
         80,
         0,
     ));
-    session.represented_raid_difficulty_id_like_cpp = 3;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_raid_difficulty_id_like_cpp = 3;
     session.set_player_alive_like_cpp(false);
     session.set_max_instances_per_hour_like_cpp(1);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
@@ -227,7 +231,9 @@ fn canonical_instance_count_honors_ignore_farm_limit_flag_like_cpp() {
         80,
         0,
     ));
-    session.represented_raid_difficulty_id_like_cpp = 3;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_raid_difficulty_id_like_cpp = 3;
     session.set_max_instances_per_hour_like_cpp(1);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
@@ -268,7 +274,9 @@ fn canonical_instance_entry_records_enter_time_like_cpp() {
         80,
         0,
     ));
-    session.represented_raid_difficulty_id_like_cpp = 3;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
 
     assert!(matches!(
@@ -301,7 +309,9 @@ fn canonical_instance_ignore_raid_config_bypasses_raid_group_requirement_like_cp
         0,
     ));
     session.set_instance_ignore_raid_like_cpp(true);
-    session.represented_raid_difficulty_id_like_cpp = 3;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_with_expansion_and_max_players_like_cpp(
         &mut session,
         631,
@@ -335,7 +345,9 @@ fn canonical_player_dungeon_create_map_creates_temporary_lock_like_cpp() {
         80,
         0,
     ));
-    session.represented_raid_difficulty_id_like_cpp = 3;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     session.set_instance_lock_mgr(Arc::new(std::sync::RwLock::new(
         wow_instances::InstanceLockMgr::default(),
@@ -397,7 +409,9 @@ fn canonical_player_dungeon_create_map_reuses_active_lock_like_cpp() {
         80,
         0,
     ));
-    session.represented_raid_difficulty_id_like_cpp = 3;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     let expected_token =
         install_active_instance_lock_mgr_like_cpp(&mut session, owner, 631, 3, 9001);
@@ -450,7 +464,9 @@ fn canonical_player_existing_instance_map_rejects_incompatible_player_lock_like_
         80,
         0,
     ));
-    session.represented_raid_difficulty_id_like_cpp = 3;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
 
     let group_registry = Arc::new(GroupRegistry::default());
@@ -556,7 +572,9 @@ fn canonical_player_dungeon_create_map_regenerates_conflicting_encounter_lock_in
         80,
         0,
     ));
-    session.represented_raid_difficulty_id_like_cpp = 3;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_encounter_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     let active_token = install_active_instance_lock_mgr_like_cpp(&mut session, owner, 631, 3, 9001);
 

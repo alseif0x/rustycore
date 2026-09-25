@@ -485,7 +485,9 @@ pub use spell::{
     SpellThreatStoreLikeCpp, SpellTotemModelLoadErrorKindLikeCpp, SpellTotemModelLoadErrorLikeCpp,
     SpellTotemModelLoadOutcomeLikeCpp, SpellTotemModelRowLikeCpp, SpellTotemModelStoreLikeCpp,
     TARGET_UNIT_PET_LIKE_CPP, TOTAL_AURAS_LIKE_CPP, TOTAL_SPELL_EFFECTS_LIKE_CPP,
-    TOTAL_SPELL_TARGETS_LIKE_CPP,
+    TOTAL_SPELL_TARGETS_LIKE_CPP, player_target_spell_effect_is_hit_inert_like_cpp,
+    represented_spell_is_positive_like_cpp, represented_spell_power_has_power_like_cpp,
+    represented_spell_valid_with_seen_like_cpp,
 };
 pub use spell_acquisition::{
     AcquisitionValueDomainLikeCpp, BattlePetClassificationLikeCpp,

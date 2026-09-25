@@ -63,7 +63,7 @@ impl WorldSession {
         let Some(spell_store) = self.spell_store() else {
             return false;
         };
-        crate::session_rules::represented_spell_valid_with_seen_like_cpp(
+        wow_data::represented_spell_valid_with_seen_like_cpp(
             spell_store,
             spell_id,
             &mut HashSet::new(),
@@ -684,7 +684,7 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn known_spells_fixture_like_cpp(&self) -> Vec<i32> {
-        self.known_spells.clone()
+        self.player_spell_test_fixture_like_cpp.known_spells.clone()
     }
     pub(crate) fn represented_dependent_known_spells_like_cpp(&self) -> HashSet<i32> {
         self.with_player_spell_runtime_like_cpp(|runtime| {

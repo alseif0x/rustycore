@@ -225,10 +225,8 @@ impl WorldSession {
         let Some((_, current_area_id)) = self.player_zone_area_like_cpp() else {
             return;
         };
-        let area_id = crate::session_rules::bind_area_id_like_cpp(
-            effect.effect_misc_value_1,
-            current_area_id,
-        );
+        let area_id =
+            wow_entities::bind_area_id_like_cpp(effect.effect_misc_value_1, current_area_id);
 
         let Some(current_position) = self.player_position_like_cpp() else {
             return;

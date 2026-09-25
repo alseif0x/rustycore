@@ -46,6 +46,18 @@ fn legacy_creature_melee_tick_once_absorbs_creature_victim_damage_like_cpp() {
             );
         })
         .unwrap();
+    canonical
+        .lock()
+        .unwrap()
+        .find_map_mut(0, 0)
+        .unwrap()
+        .map_mut()
+        .with_creature_mut_like_cpp(victim_guid, |victim| {
+            // Exact absorb assertions must not depend on the process-global
+            // melee roll landing in a victim avoidance band.
+            victim.set_avoidance_like_cpp(wow_entities::CreatureAvoidanceLikeCpp::default());
+        })
+        .unwrap();
 
     let mut spell_store = wow_data::SpellStore::new();
     let spell_info = |spell_id, amount, aura_type, misc_value| wow_data::SpellInfo {
@@ -74,7 +86,7 @@ fn legacy_creature_melee_tick_once_absorbs_creature_victim_damage_like_cpp() {
         spell_info(
             hit_spell_id,
             5,
-            wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_HIT_CHANCE,
             0,
         ),
     );
@@ -111,7 +123,7 @@ fn legacy_creature_melee_tick_once_absorbs_creature_victim_damage_like_cpp() {
                 .auras
                 .register_applied_aura_effect_like_cpp(
                     aura,
-                    wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_HIT_CHANCE,
                     5,
                     0,
                 );

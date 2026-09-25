@@ -29,9 +29,9 @@ impl WorldSession {
                 .is_some_and(|quest_log_item_id| {
                     quest_log_item_id != 0
                         && self
-                            .represented_current_player_has_incomplete_quest_objective_for_object_id_like_cpp(
-                            i32::try_from(quest_log_item_id).unwrap_or(i32::MAX),
-                        )
+                            .represented_current_player_has_incomplete_quest_objective_for_item_like_cpp(
+                                quest_log_item_id,
+                            )
                 })
             || self.represented_current_player_has_incomplete_quest_item_drop_for_item_like_cpp(item_id)
     }
@@ -42,7 +42,15 @@ impl WorldSession {
         let Ok(item_object_id) = i32::try_from(item_id) else {
             return false;
         };
-        self.represented_current_player_has_incomplete_quest_objective_for_object_id_like_cpp(
+        let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return false;
+        };
+        let Some(store) = self.quests.store.as_ref() else {
+            return false;
+        };
+        wow_entities::player_has_incomplete_quest_objective_for_object_id_like_cpp(
+            quests.statuses_like_cpp(),
+            |id| store.get(id).map(|quest| quest.objective_rules_like_cpp()),
             item_object_id,
         )
     }
@@ -57,7 +65,7 @@ impl WorldSession {
             return false;
         };
         quests.statuses_like_cpp().values().any(|status| {
-            if status.status != crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP {
+            if status.status != wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                 return false;
             }
             let Some(quest) = quest_store.get(status.quest_id) else {
@@ -213,7 +221,8 @@ impl WorldSession {
             self.record_represented_remove_items_set_item_like_cpp(item_guid, &item_set)
         };
         #[cfg(test)]
-        self.represented_item_set_spell_events_like_cpp
+        self.player_item_test_fixture_like_cpp
+            .represented_item_set_spell_events_like_cpp
             .extend(events.iter().copied());
         events
     }
@@ -618,13 +627,15 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn buyback_items_like_cpp(&self) -> &HashMap<u8, InventoryItem> {
-        &self.buyback_items
+        &self.player_item_test_fixture_like_cpp.buyback_items
     }
     #[cfg(test)]
     pub(crate) fn represented_item_mod_reapply_events_like_cpp(
         &self,
     ) -> &[RepresentedItemModsReapplyEventLikeCpp] {
-        &self.represented_item_mod_reapply_events_like_cpp
+        &self
+            .player_item_test_fixture_like_cpp
+            .represented_item_mod_reapply_events_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn represented_trade_spell_cast_item_like_cpp(&self) -> Option<ObjectGuid> {

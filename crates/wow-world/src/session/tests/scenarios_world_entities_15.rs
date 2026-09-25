@@ -707,7 +707,7 @@ fn gameobject_use_questgiver_ender_relation_precedes_starter_like_cpp() {
     assert!(quest_store.insert_gameobject_ender_relation_like_cpp(777, 9_001));
     assert!(quest_store.insert_gameobject_starter_relation_like_cpp(777, 9_002));
     session.quests.store = Some(Arc::new(quest_store));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         9_001,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id: 9_001,
@@ -779,7 +779,7 @@ fn gameobject_use_questgiver_single_incomplete_ender_auto_opens_request_items_li
     let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([ender]);
     assert!(quest_store.insert_gameobject_ender_relation_like_cpp(777, 9_003));
     session.quests.store = Some(Arc::new(quest_store));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         9_003,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id: 9_003,

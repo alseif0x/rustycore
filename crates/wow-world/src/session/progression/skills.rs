@@ -191,7 +191,7 @@ impl WorldSession {
         tombstones.retain(|skill_id| {
             skill_records
                 .get(skill_id)
-                .is_some_and(crate::session_rules::is_non_durable_skill_tombstone_like_cpp)
+                .is_some_and(crate::session::is_non_durable_skill_tombstone_like_cpp)
         });
         tombstones.extend(
             skill_records
@@ -218,17 +218,23 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            self.player_skill_values_like_cpp =
+            self.player_skill_test_fixture_like_cpp
+                .player_skill_values_like_cpp =
                 represented_skill_values_from_records_like_cpp(&skill_records);
             self.represented_enchanting_skill = skill_records
                 .get(&SKILL_ENCHANTING_LIKE_CPP)
                 .map(|skill| skill.value)
                 .unwrap_or(0);
-            self.player_skill_records_like_cpp = skill_records;
-            self.player_skill_non_durable_tombstones_like_cpp = tombstones;
-            self.player_skill_records_loaded_like_cpp = loaded;
-            self.player_skill_records_complete_like_cpp = complete;
-            self.player_skill_occupied_slots_like_cpp = None;
+            self.player_skill_test_fixture_like_cpp
+                .player_skill_records_like_cpp = skill_records;
+            self.player_skill_test_fixture_like_cpp
+                .player_skill_non_durable_tombstones_like_cpp = tombstones;
+            self.player_skill_test_fixture_like_cpp
+                .player_skill_records_loaded_like_cpp = loaded;
+            self.player_skill_test_fixture_like_cpp
+                .player_skill_records_complete_like_cpp = complete;
+            self.player_skill_test_fixture_like_cpp
+                .player_skill_occupied_slots_like_cpp = None;
             return true;
         }
         _canonical
@@ -260,17 +266,23 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            self.player_skill_values_like_cpp =
+            self.player_skill_test_fixture_like_cpp
+                .player_skill_values_like_cpp =
                 represented_skill_values_from_records_like_cpp(&skill_records);
             self.represented_enchanting_skill = skill_records
                 .get(&SKILL_ENCHANTING_LIKE_CPP)
                 .map(|skill| skill.value)
                 .unwrap_or(0);
-            self.player_skill_records_like_cpp = skill_records;
-            self.player_skill_non_durable_tombstones_like_cpp = tombstones;
-            self.player_skill_records_loaded_like_cpp = loaded;
-            self.player_skill_records_complete_like_cpp = loaded && complete;
-            self.player_skill_occupied_slots_like_cpp = occupied_slots;
+            self.player_skill_test_fixture_like_cpp
+                .player_skill_records_like_cpp = skill_records;
+            self.player_skill_test_fixture_like_cpp
+                .player_skill_non_durable_tombstones_like_cpp = tombstones;
+            self.player_skill_test_fixture_like_cpp
+                .player_skill_records_loaded_like_cpp = loaded;
+            self.player_skill_test_fixture_like_cpp
+                .player_skill_records_complete_like_cpp = loaded && complete;
+            self.player_skill_test_fixture_like_cpp
+                .player_skill_occupied_slots_like_cpp = occupied_slots;
             return true;
         }
         canonical
@@ -330,9 +342,10 @@ impl WorldSession {
             self.with_owned_player_like_cpp(Player::skill_records_complete_like_cpp);
         #[cfg(test)]
         let canonical_complete = canonical_complete.or_else(|| {
-            self.player_handle_like_cpp
-                .is_none()
-                .then_some(self.player_skill_records_complete_like_cpp)
+            self.player_handle_like_cpp.is_none().then_some(
+                self.player_skill_test_fixture_like_cpp
+                    .player_skill_records_complete_like_cpp,
+            )
         });
         let complete = canonical_complete.unwrap_or(false);
         let exact = skill_records.len();
@@ -346,7 +359,8 @@ impl WorldSession {
             });
             #[cfg(test)]
             if self.player_handle_like_cpp.is_none() {
-                self.player_skill_occupied_slots_like_cpp = None;
+                self.player_skill_test_fixture_like_cpp
+                    .player_skill_occupied_slots_like_cpp = None;
             }
             return false;
         }
@@ -367,7 +381,8 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            self.player_skill_occupied_slots_like_cpp = Some(occupied_slots);
+            self.player_skill_test_fixture_like_cpp
+                .player_skill_occupied_slots_like_cpp = Some(occupied_slots);
             return true;
         }
         canonical
@@ -382,8 +397,12 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return self
+                .player_skill_test_fixture_like_cpp
                 .player_skill_records_complete_like_cpp
-                .then_some(self.player_skill_occupied_slots_like_cpp)
+                .then_some(
+                    self.player_skill_test_fixture_like_cpp
+                        .player_skill_occupied_slots_like_cpp,
+                )
                 .flatten();
         }
         canonical.flatten()
@@ -395,9 +414,10 @@ impl WorldSession {
         let complete = self.with_owned_player_like_cpp(Player::skill_records_complete_like_cpp);
         #[cfg(test)]
         let complete = complete.or_else(|| {
-            self.player_handle_like_cpp
-                .is_none()
-                .then_some(self.player_skill_records_complete_like_cpp)
+            self.player_handle_like_cpp.is_none().then_some(
+                self.player_skill_test_fixture_like_cpp
+                    .player_skill_records_complete_like_cpp,
+            )
         });
         complete.unwrap_or(false).then_some(records)
     }
@@ -507,7 +527,11 @@ impl WorldSession {
         });
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.player_skill_records_like_cpp.clone());
+            return Some(
+                self.player_skill_test_fixture_like_cpp
+                    .player_skill_records_like_cpp
+                    .clone(),
+            );
         }
         canonical
     }

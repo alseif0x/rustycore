@@ -145,13 +145,13 @@ impl WorldSession {
     fn represented_quest_available_conditions_meet_like_cpp(&self, quest_id: u32) -> bool {
         let condition_store = if let Some(store) = self.condition_store() {
             Arc::clone(store)
-        } else if let Some(store) = crate::conditions::condition_mgr_store_like_cpp() {
+        } else if let Some(store) = wow_conditions::condition_mgr_store_like_cpp() {
             store
         } else {
             return true;
         };
 
-        if !crate::conditions::has_conditions_for_not_grouped_entry_like_cpp(
+        if !wow_conditions::has_conditions_for_not_grouped_entry_like_cpp(
             condition_store.as_ref(),
             wow_constants::ConditionSourceType::QuestAvailable,
             quest_id,
@@ -170,7 +170,7 @@ impl WorldSession {
             .statuses_like_cpp()
             .iter()
             .map(
-                |(&quest_id, status)| crate::conditions::ConditionQuestStatusSnapshot {
+                |(&quest_id, status)| wow_conditions::ConditionQuestStatusSnapshot {
                     quest_id,
                     status: status.status,
                 },
@@ -192,7 +192,7 @@ impl WorldSession {
                                     .get(storage_index)
                                     .copied()
                                     .unwrap_or(0);
-                                Some(crate::conditions::ConditionQuestObjectiveProgressSnapshot {
+                                Some(wow_conditions::ConditionQuestObjectiveProgressSnapshot {
                                     quest_id,
                                     objective_id: objective.id,
                                     counter,
@@ -214,7 +214,7 @@ impl WorldSession {
             .iter()
             .copied()
             .collect();
-        let quest_snapshot = crate::conditions::ConditionPlayerQuestSnapshot {
+        let quest_snapshot = wow_conditions::ConditionPlayerQuestSnapshot {
             statuses: &quest_statuses,
             objective_progress: &quest_objective_progress,
             rewarded_quest_ids: &rewarded_quest_ids,
@@ -227,7 +227,7 @@ impl WorldSession {
         let area_table_store = self.area_table_store().cloned();
 
         let mut source_info =
-            crate::conditions::ConditionSourceInfo::from_targets(Some(&player_object), None, None);
+            wow_conditions::ConditionSourceInfo::from_targets(Some(&player_object), None, None);
         let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
             return false;
         };
@@ -241,13 +241,13 @@ impl WorldSession {
             }
         }
 
-        crate::conditions::is_object_meeting_not_grouped_conditions_like_cpp(
+        wow_conditions::is_object_meeting_not_grouped_conditions_like_cpp(
             condition_store.as_ref(),
             wow_constants::ConditionSourceType::QuestAvailable,
             quest_id,
             &mut source_info,
             |condition, source_info| {
-                crate::conditions::condition_meets_basic_like_cpp(
+                wow_conditions::condition_meets_basic_like_cpp(
                     condition,
                     source_info,
                     |area_id, required_area_id| {

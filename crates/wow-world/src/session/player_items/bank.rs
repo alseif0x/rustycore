@@ -187,7 +187,7 @@ impl WorldSession {
         let mut represented_bag_slots_by_guid = HashMap::new();
         let mut bag_templates = Vec::new();
         for (&slot, item) in &inventory_items {
-            if crate::session_rules::is_buyback_slot(slot) {
+            if wow_entities::is_buyback_slot(slot) {
                 continue;
             }
             if is_represented_bag_slot(slot) && item_objects.contains_key(&item.guid) {
@@ -203,7 +203,7 @@ impl WorldSession {
         let mut slot_items = Vec::new();
         let mut stored_items = Vec::new();
         for (&slot, stored) in &inventory_items {
-            if crate::session_rules::is_buyback_slot(slot) {
+            if wow_entities::is_buyback_slot(slot) {
                 continue;
             }
             let Some(item) = item_objects.get(&stored.guid) else {
@@ -273,7 +273,8 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if canonical || self.player_handle_like_cpp.is_none() {
-            self.player_bank_bag_slot_count_like_cpp = count;
+            self.player_item_test_fixture_like_cpp
+                .player_bank_bag_slot_count_like_cpp = count;
         }
         canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
     }
@@ -571,7 +572,10 @@ impl WorldSession {
         let canonical = self.with_owned_player_like_cpp(Player::bank_bag_slot_count);
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.player_bank_bag_slot_count_like_cpp);
+            return Some(
+                self.player_item_test_fixture_like_cpp
+                    .player_bank_bag_slot_count_like_cpp,
+            );
         }
         canonical
     }

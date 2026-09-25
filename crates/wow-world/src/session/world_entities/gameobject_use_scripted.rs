@@ -469,7 +469,7 @@ impl WorldSession {
             && self
                 .represented_player_quest_status_like_cpp(source.quest_id)
                 .map_or(true, |status| {
-                    status != Some(crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
+                    status != Some(wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
                 })
         {
             self.represented_gameobject_use_effects.push(

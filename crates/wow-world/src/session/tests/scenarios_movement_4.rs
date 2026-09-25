@@ -363,7 +363,9 @@ fn canonical_player_dungeon_missing_map_difficulty_sends_transfer_abort_like_cpp
         80,
         0,
     ));
-    session.represented_raid_difficulty_id_like_cpp = 3;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_raid_difficulty_id_like_cpp = 3;
 
     assert_eq!(
         session.ensure_canonical_world_map_for_current_player_like_cpp(),
@@ -404,7 +406,9 @@ fn canonical_player_existing_raid_in_progress_sends_transfer_abort_like_cpp() {
         80,
         0,
     ));
-    session.represented_raid_difficulty_id_like_cpp = 3;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 0);
 
     let group_registry = Arc::new(GroupRegistry::default());
@@ -786,7 +790,9 @@ async fn teleport_to_instance_rejects_access_requirements_before_transfer_like_c
         .unwrap();
     session.player_contested_pvp_timer_like_cpp = 77;
     session.register_in_player_registry();
-    session.represented_raid_difficulty_id_like_cpp = 3;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_raid_difficulty_id_like_cpp = 3;
     session.set_selection_guid_like_cpp(Some(selected_guid));
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     install_access_notification_stores_like_cpp(&mut session);

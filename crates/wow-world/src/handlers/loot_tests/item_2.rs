@@ -607,7 +607,7 @@ async fn loot_item_added_progresses_incomplete_quest_item_objective_like_cpp() {
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id,
@@ -633,6 +633,7 @@ async fn loot_item_added_progresses_incomplete_quest_item_objective_like_cpp() {
     assert_eq!(changed_quest_ids, vec![quest_id]);
     assert_eq!(
         session
+            .quest_test_fixture_like_cpp
             .player_quests
             .get(&quest_id)
             .expect("quest progress should remain active")
@@ -666,7 +667,7 @@ fn banked_quest_item_recomputes_objective_and_reopens_quest_like_cpp() {
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id,
@@ -690,7 +691,11 @@ fn banked_quest_item_recomputes_objective_and_reopens_quest_like_cpp() {
         session.apply_quest_item_removed_like_cpp(item_id),
         Some(vec![quest_id])
     );
-    let status = session.player_quests.get(&quest_id).expect("active quest");
+    let status = session
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .get(&quest_id)
+        .expect("active quest");
     assert_eq!(
         status.status,
         crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
@@ -724,7 +729,7 @@ async fn withdrawn_banked_item_restores_bound_objective_like_cpp() {
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id,
@@ -749,7 +754,11 @@ async fn withdrawn_banked_item_restores_bound_objective_like_cpp() {
         .await;
 
     assert_eq!(changed_quest_ids, vec![quest_id]);
-    let status = session.player_quests.get(&quest_id).expect("active quest");
+    let status = session
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .get(&quest_id)
+        .expect("active quest");
     assert_eq!(status.objective_counts, vec![1]);
     assert_eq!(
         status.status,
@@ -776,7 +785,7 @@ async fn loot_item_eligibility_does_not_treat_complete_quest_as_incomplete_like_
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id,
@@ -803,6 +812,7 @@ async fn loot_item_eligibility_does_not_treat_complete_quest_as_incomplete_like_
     assert!(changed_quest_ids.is_empty());
     assert_eq!(
         session
+            .quest_test_fixture_like_cpp
             .player_quests
             .get(&quest_id)
             .expect("complete quest should not progress as incomplete")

@@ -5,6 +5,51 @@
 
 use super::*;
 
+pub(crate) fn player_aura_info_like_cpp(
+    aura: &AuraApplication,
+    player_level: u8,
+    map_id: u16,
+) -> wow_packet::packets::misc::AuraInfoLikeCpp {
+    let duration_ms = (aura.duration_total > 0).then_some(aura.duration_total);
+    let remaining_ms = (aura.duration_remaining > 0).then_some(aura.duration_remaining);
+    let points = if aura.aura_flags & AFLAG_SCALABLE_LIKE_CPP != 0 {
+        aura.represented_effect_amounts
+            .iter()
+            .filter(|effect| {
+                effect.effect_index < u32::BITS as u8
+                    && aura.effect_mask & (1u32 << effect.effect_index) != 0
+            })
+            .map(|effect| effect.amount as f32)
+            .collect()
+    } else {
+        Vec::new()
+    };
+    wow_packet::packets::misc::AuraInfoLikeCpp {
+        slot: aura.slot,
+        aura_data: Some(wow_packet::packets::misc::AuraDataInfoLikeCpp {
+            cast_id: ObjectGuid::create_world_object(
+                HighGuid::Cast,
+                3,
+                aura.caster_guid.realm_id().max(1),
+                map_id,
+                0,
+                u32::try_from(aura.spell_id).unwrap_or(0),
+                i64::from(aura.slot) + 1,
+            ),
+            spell_id: aura.spell_id,
+            spell_visual_id: 0,
+            flags: aura.aura_flags.min(u32::from(u16::MAX)) as u16,
+            active_flags: aura.effect_mask,
+            caster_guid: aura.caster_guid,
+            cast_level: player_level.into(),
+            applications: aura.stack_count.saturating_sub(1),
+            duration_ms,
+            remaining_ms,
+            points,
+        }),
+    }
+}
+
 impl WorldSession {
     pub(crate) fn send_initial_player_auras_like_cpp(&self) {
         let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
@@ -22,7 +67,7 @@ impl WorldSession {
         let auras = visible
             .into_iter()
             .map(|aura| {
-                crate::session_rules::player_aura_info_like_cpp(
+                player_aura_info_like_cpp(
                     aura,
                     self.player_level_like_cpp(),
                     self.player_map_id_like_cpp(),
@@ -71,7 +116,7 @@ impl WorldSession {
                 continue;
             }
             if effect.effect != spell_effect_types::SPELL_EFFECT_APPLY_AURA
-                || !crate::session_rules::player_target_spell_effect_is_hit_inert_like_cpp(effect)
+                || !wow_data::player_target_spell_effect_is_hit_inert_like_cpp(effect)
             {
                 return false;
             }
@@ -295,7 +340,7 @@ impl WorldSession {
         self.send_packet(&wow_packet::packets::misc::AuraUpdate {
             unit_guid: target_guid,
             update_all: false,
-            auras: vec![crate::session_rules::player_aura_info_like_cpp(
+            auras: vec![player_aura_info_like_cpp(
                 &aura,
                 self.player_level_like_cpp(),
                 self.player_map_id_like_cpp(),

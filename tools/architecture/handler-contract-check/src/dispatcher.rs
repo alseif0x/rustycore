@@ -380,8 +380,18 @@ pub(crate) fn dispatcher_contract_from_mounts(
             )?;
         }
     }
-    let expected_definition_prefix = format!("{} (", owner.module);
-    if definitions.len() != 1 || !definitions[0].starts_with(&expected_definition_prefix) {
+    // The WorldSession definition lives in its private state child while the public facade
+    // stays at the capability owner's module; both are the same canonical definition.
+    let expected_prefixes = [
+        format!("{} (", owner.module),
+        // Mirrors WORLD_SESSION_STATE_MODULE (module-private in session_ownership::state_1).
+        "crate::session::state (".to_string(),
+    ];
+    let canonical_definition = definitions.len() == 1
+        && expected_prefixes
+            .iter()
+            .any(|prefix| definitions[0].starts_with(prefix));
+    if !canonical_definition {
         return Err(format!(
             "expected exactly one canonical {}::WorldSession definition and no production homonyms, found {}: {:?}",
             owner.module,

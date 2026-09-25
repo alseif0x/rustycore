@@ -164,9 +164,9 @@ impl WorldSession {
                     || objective.object_id != entry_object_id
                     || !passes_filter
                     || current >= objective.amount
-                    || !crate::handlers::quest_rules::represented_quest_objective_completable_like_cpp(
+                    || !wow_entities::represented_quest_objective_completable_like_cpp(
                         status,
-                        quest,
+                        &quest.objective_rules_like_cpp(),
                         objective_index,
                     )
                 {
@@ -184,82 +184,22 @@ impl WorldSession {
             objective_ids.push(i32::try_from(quest_log_item_id).unwrap_or(i32::MAX));
         }
 
-        let Some((changed_quest_ids, quests_to_complete, objective_updates)) = self
-            .mutate_player_quest_gameplay_like_cpp(|state| {
-                let rewarded_quest_ids = state.rewarded_quest_ids_like_cpp().clone();
-                let mut changed_quest_ids = Vec::new();
-                let mut quests_to_complete = Vec::new();
-                let mut objective_updates = Vec::new();
-                'quests: for status in state.statuses_mut_like_cpp() {
-                    if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
-                        continue;
-                    }
-
-                    let Some(quest) = quest_store.get(status.quest_id) else {
-                        continue;
-                    };
-
-                    for (objective_index, objective) in quest.objectives.iter().enumerate() {
-                        if objective.obj_type != QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL {
-                            continue;
-                        }
-                        let is_bound = (objective.flags2
-                            & QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL)
-                            != 0;
-                        if bound_item_requirement
-                            .is_some_and(|required_bound| required_bound != is_bound)
-                        {
-                            continue;
-                        }
-                        if !objective_ids.contains(&objective.object_id) {
-                            continue;
-                        }
-                        if !crate::handlers::quest_rules::represented_quest_objective_completable_like_cpp(
-                            status,
-                            quest,
-                            objective_index,
-                        ) {
-                            continue;
-                        }
-
-                        let Ok(storage_index) = usize::try_from(objective.storage_index) else {
-                            continue;
-                        };
-                        if status.objective_counts.len() <= storage_index {
-                            status.objective_counts.resize(storage_index + 1, 0);
-                        }
-                        let current = status.objective_counts[storage_index];
-                        if current >= objective.amount {
-                            continue;
-                        }
-                        status.objective_counts[storage_index] =
-                            current.saturating_add(count).clamp(0, objective.amount);
-                        let new_count = status.objective_counts[storage_index];
-                        if !changed_quest_ids.contains(&status.quest_id) {
-                            changed_quest_ids.push(status.quest_id);
-                        }
-                        if count > 0 {
-                            objective_updates.push((new_count, is_bound));
-                        }
-                        let quest_already_rewarded =
-                            rewarded_quest_ids.contains(&status.quest_id);
-                        if new_count >= objective.amount
-                            && crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
-                                status,
-                                quest,
-                                objective.id,
-                                quest_already_rewarded,
-                            )
-                        {
-                            quests_to_complete.push(status.quest_id);
-                        }
-                        if is_bound {
-                            break 'quests;
-                        }
-                    }
-                }
-                (changed_quest_ids, quests_to_complete, objective_updates)
-            })
+        let Some(wow_entities::QuestItemObjectiveProgressLikeCpp {
+            changed_quest_ids,
+            quests_to_complete,
+            objective_updates,
+        }) = self.mutate_player_quest_gameplay_like_cpp(|state| {
+            state.apply_item_objective_progress_like_cpp(
+                |id| {
+                    quest_store
+                        .get(id)
+                        .map(|quest| quest.objective_rules_like_cpp())
+                },
+                &objective_ids,
+                count,
+                bound_item_requirement,
+            )
+        })
         else {
             return Vec::new();
         };
@@ -364,13 +304,16 @@ impl WorldSession {
                 .iter()
                 .map(|(&id, status)| (id, status.clone()))
                 .collect();
-            let changed =
-                crate::handlers::quest_rules::apply_quest_item_removed_to_statuses_like_cpp(
-                    quest_store.as_ref(),
-                    &mut statuses,
-                    entry_id,
-                    new_non_bank_item_count,
-                );
+            let changed = wow_entities::apply_quest_item_removed_to_statuses_like_cpp(
+                |id| {
+                    quest_store
+                        .get(id)
+                        .map(|quest| quest.objective_rules_like_cpp())
+                },
+                &mut statuses,
+                entry_id,
+                new_non_bank_item_count,
+            );
             state.replace_statuses_like_cpp(
                 statuses.into_iter().collect(),
                 state.status_authority_complete_like_cpp(),
@@ -416,15 +359,18 @@ impl WorldSession {
                 .iter()
                 .map(|(&id, status)| (id, status.clone()))
                 .collect();
-            let changed =
-                crate::handlers::quest_rules::apply_quest_item_added_non_bound_to_statuses_like_cpp(
-                    quest_store.as_ref(),
-                    &rewarded,
-                    &mut statuses,
-                    entry_id,
-                    quest_log_item_id,
-                    count,
-                );
+            let changed = wow_entities::apply_quest_item_added_non_bound_to_statuses_like_cpp(
+                |id| {
+                    quest_store
+                        .get(id)
+                        .map(|quest| quest.objective_rules_like_cpp())
+                },
+                &rewarded,
+                &mut statuses,
+                entry_id,
+                quest_log_item_id,
+                count,
+            );
             state.replace_statuses_like_cpp(
                 statuses.into_iter().collect(),
                 state.status_authority_complete_like_cpp(),
@@ -456,15 +402,18 @@ impl WorldSession {
                     .iter()
                     .map(|(&id, status)| (id, status.clone()))
                     .collect();
-                let result =
-                    crate::handlers::quest_rules::apply_quest_item_added_bound_to_statuses_like_cpp(
-                        quest_store.as_ref(),
-                        &rewarded,
-                        &mut statuses,
-                        entry_id,
-                        quest_log_item_id,
-                        count,
-                    );
+                let result = wow_entities::apply_quest_item_added_bound_to_statuses_like_cpp(
+                    |id| {
+                        quest_store
+                            .get(id)
+                            .map(|quest| quest.objective_rules_like_cpp())
+                    },
+                    &rewarded,
+                    &mut statuses,
+                    entry_id,
+                    quest_log_item_id,
+                    count,
+                );
                 state.replace_statuses_like_cpp(
                     statuses.into_iter().collect(),
                     state.status_authority_complete_like_cpp(),
@@ -519,8 +468,8 @@ impl WorldSession {
     }
 
     /// C++ walks one objective-status index and stops at the first quest-bound
-    /// item objective. Rust stores statuses in a `HashMap`, so two independent
-    /// scans could select different quests. Use the explicit quest-log slot
+    /// item objective. Durable plans use a `HashMap`, while live Player status
+    /// uses a `BTreeMap`. Use the explicit quest-log slot
     /// (then quest id as a deterministic duplicate-slot fallback) for both the
     /// durable plan and its post-commit application.
     pub(super) fn quest_bound_item_objective_quest_order_like_cpp(&self) -> Vec<u32> {
@@ -543,77 +492,21 @@ impl WorldSession {
     ) -> Vec<(u32, i32)> {
         self.invalidate_player_quest_status_authority_like_cpp();
         let ordered_quest_ids = self.quest_bound_item_objective_quest_order_like_cpp();
-        let Some((updated_counts, quests_to_complete)) = self
-            .mutate_player_quest_gameplay_like_cpp(|state| {
-                let rewarded_quest_ids = state.rewarded_quest_ids_like_cpp().clone();
-                let mut updated_counts = Vec::new();
-                let mut quests_to_complete = Vec::new();
-                'quests: for quest_id in ordered_quest_ids {
-                    let Some(status) = state.status_mut_like_cpp(quest_id) else {
-                        continue;
-                    };
-                    if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
-                        continue;
-                    }
-
-                    let Some(quest) = quest_store.get(status.quest_id) else {
-                        continue;
-                    };
-
-                    for (objective_index, objective) in quest.objectives.iter().enumerate() {
-                        if objective.obj_type != QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL {
-                            continue;
-                        }
-                        if (objective.flags2
-                            & QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL)
-                            == 0
-                        {
-                            continue;
-                        }
-                        if objective.object_id != object_id {
-                            continue;
-                        }
-                        if !crate::handlers::quest_rules::represented_quest_objective_completable_like_cpp(
-                            status,
-                            quest,
-                            objective_index,
-                        ) {
-                            continue;
-                        }
-
-                        let Ok(storage_index) = usize::try_from(objective.storage_index) else {
-                            continue;
-                        };
-                        if status.objective_counts.len() <= storage_index {
-                            status.objective_counts.resize(storage_index + 1, 0);
-                        }
-                        let current = status.objective_counts[storage_index];
-                        if current >= objective.amount {
-                            continue;
-                        }
-                        let new_count =
-                            current.saturating_add(count_i32).clamp(0, objective.amount);
-                        status.objective_counts[storage_index] = new_count;
-                        updated_counts.push((status.quest_id, new_count));
-                        let quest_already_rewarded =
-                            rewarded_quest_ids.contains(&status.quest_id);
-                        if new_count >= objective.amount
-                            && crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
-                                status,
-                                quest,
-                                objective.id,
-                                quest_already_rewarded,
-                            )
-                        {
-                            quests_to_complete.push(status.quest_id);
-                        }
-                        // C++ `UpdateQuestObjectiveProgress` stops after the first
-                        // credited quest-bound Item objective.
-                        break 'quests;
-                    }
-                }
-                (updated_counts, quests_to_complete)
-            })
+        let Some(wow_entities::QuestBoundItemObjectiveProgressLikeCpp {
+            updated_counts,
+            quests_to_complete,
+        }) = self.mutate_player_quest_gameplay_like_cpp(|state| {
+            state.apply_bound_item_objective_progress_like_cpp(
+                |id| {
+                    quest_store
+                        .get(id)
+                        .map(|quest| quest.objective_rules_like_cpp())
+                },
+                ordered_quest_ids,
+                object_id,
+                count_i32,
+            )
+        })
         else {
             return Vec::new();
         };

@@ -272,7 +272,7 @@ impl WorldSession {
         let Some((quest_is_in_log, should_send_event_complete)) = self
             .mark_represented_quest_explored_like_cpp(
                 quest_id,
-                crate::conditions::QUEST_STATUS_FAILED_LIKE_CPP,
+                wow_conditions::QUEST_STATUS_FAILED_LIKE_CPP,
             )
         else {
             return Ok(());

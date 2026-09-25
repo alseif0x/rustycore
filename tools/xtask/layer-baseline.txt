@@ -1,0 +1,14 @@
+# Known layer violations (plan wave C). This list may only shrink: check-layers fails on new or stale entries.
+L1 rustycore-db -> L1 wow-database
+L1 wow-data -> L2 wow-entities
+L1 wow-data -> L2 wow-movement
+L1 wow-database -> L1 wow-persistence
+L2 wow-entities -> L3 wow-loot
+L2 wow-map -> L2 wow-entities
+L2 wow-map -> L2 wow-packet
+L2 wow-network -> L2 wow-packet
+L2 wow-packet -> L2 wow-movement
+L2 wow-packet -> L3 wow-loot
+L3 wow-ai -> L3 wow-instances
+L3 wow-conditions -> L3 wow-loot
+L3 wow-scripts -> L3 wow-script

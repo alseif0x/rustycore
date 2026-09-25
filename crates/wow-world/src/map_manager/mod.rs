@@ -65,8 +65,6 @@ use wow_recastdetour::{
     SIZE_OF_GRIDS_LIKE_CPP, ThreadUnsafeMapData, create_path_query_filter_like_cpp,
 };
 
-use crate::phasing::personal::MultiPersonalPhaseTracker;
-
 /// A creature stored in the global map system.
 #[derive(Debug)]
 pub struct WorldCreature {
@@ -186,8 +184,6 @@ pub struct MapInstance {
     pub instance_id: u32,
     pub grids: HashMap<GridCoord, Grid>,
     pub grid_unload_timeout: Duration,
-    pub personal_phases: MultiPersonalPhaseTracker,
-    personal_phase_objects_to_remove: HashSet<ObjectGuid>,
     /// C++ `Map::_creatureRespawnTimesBySpawnId` and
     /// `_gameObjectRespawnTimesBySpawnId`, represented as DB-persistable rows.
     pub persisted_respawn_times: HashMap<(SpawnObjectType, u64), PersistedRespawnRowLikeCpp>,

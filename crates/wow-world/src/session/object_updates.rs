@@ -17,6 +17,67 @@ use wow_entities::{
 };
 use wow_packet::ServerPacket;
 
+pub(crate) fn dynamic_object_create_data_from_canonical_like_cpp(
+    guid: wow_core::ObjectGuid,
+    dynamic_object: &wow_entities::DynamicObject,
+) -> wow_packet::packets::update::DynamicObjectCreateData {
+    let object = dynamic_object.world();
+    let object_data = object.object().object_data_values();
+    let data = dynamic_object.data();
+    wow_packet::packets::update::DynamicObjectCreateData {
+        guid,
+        entry_id: u32::try_from(object_data.entry_id).unwrap_or(0),
+        dynamic_flags: object_data.dynamic_flags,
+        scale: object_data.scale,
+        position: object.position(),
+        caster: data.caster,
+        dynamic_object_type: data.dynamic_object_type,
+        spell_visual_id: data.spell_visual_id,
+        spell_id: data.spell_id,
+        radius: data.radius,
+        cast_time_ms: data.cast_time_ms,
+    }
+}
+
+pub(crate) fn represented_dynamic_object_values_update_delivery_fingerprint_like_cpp(
+    guid: wow_core::ObjectGuid,
+    bytes: &[u8],
+) -> u64 {
+    use std::hash::{Hash, Hasher};
+
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    guid.hash(&mut hasher);
+    bytes.hash(&mut hasher);
+    hasher.finish()
+}
+
+pub(crate) fn represented_gameobject_dynamic_flags_update_like_cpp(
+    guid: wow_core::ObjectGuid,
+    map_id: u16,
+    dynamic_flags: u32,
+) -> Option<wow_packet::packets::update::UpdateObject> {
+    let mut mask = wow_entities::UpdateMask::new(wow_entities::OBJECT_DATA_BITS);
+    mask.set(wow_entities::OBJECT_DATA_PARENT_BIT);
+    mask.set(wow_entities::OBJECT_DATA_DYNAMIC_FLAGS_BIT);
+    let values_update = wow_entities::GameObjectValuesUpdate {
+        changed_object_type_mask: 1 << wow_entities::TYPEID_OBJECT,
+        object_data: Some(wow_entities::ObjectDataUpdate {
+            mask,
+            values: wow_entities::ObjectDataValues {
+                entry_id: 0,
+                dynamic_flags,
+                scale: 0.0,
+            },
+        }),
+        game_object_data: None,
+    };
+    crate::entity_update_bridge::game_object_values_update_to_update_object(
+        guid,
+        map_id,
+        &values_update,
+    )
+}
+
 fn filter_unit_values_update_for_target_like_cpp(update: &mut UnitValuesUpdate, owner: bool) {
     let flags = owner
         .then_some(UpdateFieldVisibilityFlags::OWNER)
@@ -224,7 +285,7 @@ impl WorldSession {
             {
                 continue;
             }
-            let fingerprint = crate::session_rules::
+            let fingerprint = crate::session::
                 represented_dynamic_object_values_update_delivery_fingerprint_like_cpp(
                     source_guid,
                     &bytes,

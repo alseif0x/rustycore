@@ -5,6 +5,17 @@
 
 use super::*;
 
+#[cfg(test)]
+fn relocate_bag_exchange_child_like_cpp(
+    item: &mut wow_entities::Item,
+    destination_bag_guid: ObjectGuid,
+    destination_slot: u8,
+) {
+    item.set_container_guid(destination_bag_guid);
+    item.set_contained_in(destination_bag_guid);
+    item.set_slot(destination_slot);
+}
+
 #[tokio::test]
 async fn use_equipment_set_ignored_guid_preserves_slot_like_cpp() {
     let (mut session, send_rx) = make_session_with_send_capacity(1);

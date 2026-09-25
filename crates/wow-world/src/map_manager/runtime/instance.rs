@@ -11,8 +11,6 @@ impl MapInstance {
             instance_id,
             grids: HashMap::new(),
             grid_unload_timeout: DEFAULT_GRID_UNLOAD_TIME,
-            personal_phases: MultiPersonalPhaseTracker::default(),
-            personal_phase_objects_to_remove: HashSet::new(),
             persisted_respawn_times: HashMap::new(),
             respawn_queue: Vec::new(),
         }
@@ -70,8 +68,6 @@ impl MapInstance {
                 coord, self.map_id
             );
             self.grids.remove(&coord);
-            self.personal_phases
-                .unload_grid_like_cpp(coord.personal_phase_grid_id_like_cpp());
         }
     }
 
@@ -85,71 +81,5 @@ impl MapInstance {
 
     pub fn min_height_like_cpp(&self, _x: f32, _y: f32) -> f32 {
         DEFAULT_MIN_HEIGHT_LIKE_CPP
-    }
-
-    pub fn load_personal_phase_grid_like_cpp(
-        &mut self,
-        phase_shift: &PhaseShift,
-        x: i16,
-        y: i16,
-        has_personal_spawns: impl FnMut(u32) -> bool,
-        load_phase: impl FnMut(ObjectGuid, u32),
-    ) -> bool {
-        self.get_or_create_grid(x, y);
-        self.personal_phases.load_grid_like_cpp(
-            phase_shift,
-            GridCoord::new(x, y).personal_phase_grid_id_like_cpp(),
-            has_personal_spawns,
-            load_phase,
-        )
-    }
-
-    pub fn update_personal_phases_for_owner_like_cpp(
-        &mut self,
-        phase_owner: ObjectGuid,
-        phase_shift: &PhaseShift,
-        grid: Option<GridCoord>,
-        has_personal_spawns: impl FnMut(u32) -> bool,
-        load_phase: impl FnMut(ObjectGuid, u32),
-    ) -> bool {
-        self.personal_phases.on_owner_phase_changed_like_cpp(
-            phase_owner,
-            phase_shift,
-            grid.map(|coord| coord.personal_phase_grid_id_like_cpp()),
-            has_personal_spawns,
-            load_phase,
-        )
-    }
-
-    pub fn register_personal_phase_object_like_cpp(
-        &mut self,
-        phase_id: u32,
-        phase_owner: ObjectGuid,
-        object: ObjectGuid,
-    ) {
-        self.personal_phases
-            .register_tracked_object_like_cpp(phase_id, phase_owner, object);
-    }
-
-    pub fn unregister_personal_phase_object_like_cpp(
-        &mut self,
-        phase_owner: ObjectGuid,
-        object: ObjectGuid,
-    ) {
-        self.personal_phases
-            .unregister_tracked_object_like_cpp(phase_owner, object);
-    }
-
-    pub fn mark_personal_phases_for_deletion_like_cpp(&mut self, phase_owner: ObjectGuid) {
-        self.personal_phases
-            .mark_all_phases_for_deletion_like_cpp(phase_owner);
-    }
-
-    pub fn update_personal_phases_like_cpp(&mut self, diff: Duration) {
-        let mut objects_to_remove = Vec::new();
-        self.personal_phases
-            .update_like_cpp(diff, |guid| objects_to_remove.push(guid));
-        self.personal_phase_objects_to_remove
-            .extend(objects_to_remove);
     }
 }

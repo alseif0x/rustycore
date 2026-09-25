@@ -60,7 +60,9 @@ fn update_zone_coalesces_faction_to_city_zero_crossings_into_one_final_update_li
         "C++ leaves the update-field bit dirty across the faction-off/city-on sequence and flushes one final value"
     );
     assert_eq!(
-        session.represented_rest_flag_mask_like_cpp,
+        session
+            .rest_mgr_test_fixture_like_cpp
+            .represented_rest_flag_mask_like_cpp,
         REST_FLAG_IN_CITY_LIKE_CPP
     );
     assert!(
@@ -119,7 +121,9 @@ fn update_zone_with_overlapping_tavern_flag_does_not_dirty_player_flags_like_cpp
         .count();
     assert_eq!(update_count, 0, "the RestMgr mask never crossed zero");
     assert_eq!(
-        session.represented_rest_flag_mask_like_cpp,
+        session
+            .rest_mgr_test_fixture_like_cpp
+            .represented_rest_flag_mask_like_cpp,
         REST_FLAG_IN_TAVERN_LIKE_CPP | REST_FLAG_IN_CITY_LIKE_CPP
     );
 }

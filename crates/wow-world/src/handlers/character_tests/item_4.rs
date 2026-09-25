@@ -168,26 +168,6 @@ fn parse_equipment_cache_empty() {
         assert_eq!(slot.inv_type, 0);
     }
 }
-#[test]
-fn vendor_stored_new_item_keeps_cpp_new_and_bonding_flags() {
-    assert_eq!(
-        vendor_stored_new_item_flags_like_cpp(None, INVENTORY_SLOT_BAG_0, 23),
-        ItemFieldFlags::NEW_ITEM.bits()
-    );
-
-    let mut template = wow_entities::ItemStorageTemplate::regular_item(700, 1);
-    template.bonding = ItemBondingType::OnAcquire;
-    assert_eq!(
-        vendor_stored_new_item_flags_like_cpp(Some(&template), INVENTORY_SLOT_BAG_0, 23),
-        (ItemFieldFlags::NEW_ITEM | ItemFieldFlags::SOULBOUND).bits()
-    );
-}
-#[test]
-fn vendor_list_item_limit_matches_cpp_cap() {
-    assert!(!vendor_list_reaches_cpp_item_limit(149));
-    assert!(vendor_list_reaches_cpp_item_limit(150));
-    assert!(vendor_list_reaches_cpp_item_limit(151));
-}
 #[tokio::test]
 async fn cancel_temp_enchantment_clears_equipped_temporary_enchant_like_cpp() {
     let (mut session, send_rx) = make_session_with_send_capacity(8);
@@ -324,7 +304,7 @@ fn vendor_item_current_count_updates_like_cpp() {
 
     if let Some(count) = session.vendor_item_counts.get_mut(&(vendor_guid, 700)) {
         count.last_increment_time =
-            crate::handlers::character_rules::vendor_stock_now_secs().saturating_sub(120);
+            (wow_entities::game_time_secs_like_cpp().max(0) as u64).saturating_sub(120);
     }
 
     assert_eq!(
@@ -353,29 +333,6 @@ fn destroy_item_count_action_matches_cpp_direct_item_branch() {
     );
 }
 #[test]
-fn sell_item_amount_action_matches_cpp_amount_branch() {
-    assert_eq!(
-        sell_item_amount_action(5, 0),
-        SellItemAmountAction::FullStack { amount: 5 }
-    );
-    assert_eq!(
-        sell_item_amount_action(5, 5),
-        SellItemAmountAction::FullStack { amount: 5 }
-    );
-    assert_eq!(
-        sell_item_amount_action(5, 2),
-        SellItemAmountAction::PartialStack {
-            amount: 2,
-            remaining: 3,
-        }
-    );
-    assert_eq!(sell_item_amount_action(5, 6), SellItemAmountAction::Invalid);
-    assert_eq!(
-        sell_item_amount_action(5, -1),
-        SellItemAmountAction::Invalid
-    );
-}
-#[test]
 fn item_currently_looted_guard_uses_runtime_loot_generated_state() {
     let mut item = wow_entities::Item::default();
     assert!(!item_is_currently_looted_like_cpp(&item));
@@ -398,24 +355,6 @@ fn sell_non_empty_bag_guard_matches_cpp_is_not_empty_bag() {
         true
     ));
     assert!(!item_is_not_empty_bag_like_cpp(None, true));
-}
-#[test]
-fn vendor_buy_destination_rejects_cpp_slot_over_max_bag_size() {
-    let player_guid = ObjectGuid::create_player(1, 42);
-    let buy = BuyItem {
-        vendor_guid: ObjectGuid::EMPTY,
-        container_guid: player_guid,
-        quantity: 1,
-        muid: 1,
-        slot: (MAX_BAG_SIZE + 1) as i32,
-        item_type: 0,
-        item_id: 700,
-    };
-
-    assert_eq!(
-        vendor_buy_direct_inventory_destination(player_guid, &buy),
-        None
-    );
 }
 #[test]
 fn parse_equipment_cache_real_data() {

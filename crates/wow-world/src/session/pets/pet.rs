@@ -469,7 +469,7 @@ impl WorldSession {
         rate: f32,
     ) {
         let Some(opcode) =
-            crate::session_rules::creature_movement_spline_speed_opcode_like_cpp(move_type)
+            crate::session::creature_movement_spline_speed_opcode_like_cpp(move_type)
         else {
             return;
         };

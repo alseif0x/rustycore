@@ -44,7 +44,8 @@ impl WorldSession {
         &mut self,
         store: Arc<PlayerCreateInfoStoreLikeCpp>,
     ) {
-        self.player_create_info_store_like_cpp = Some(store);
+        self.player_bootstrap_catalog_test_fixture_like_cpp
+            .player_create_info_store_like_cpp = Some(store);
     }
     pub fn set_packet_spoof_config_like_cpp(&mut self, config: PacketSpoofConfigLikeCpp) {
         self.packet_spoof_config_like_cpp = config;
@@ -102,12 +103,10 @@ impl WorldSession {
         let Some(item) = self.resolved_inventory_item_object_like_cpp(item_guid) else {
             return;
         };
-        let Some(update) =
-            crate::session_rules::void_withdrawal_post_store_item_values_update_like_cpp(
-                &item,
-                create_dynamic_flags,
-            )
-        else {
+        let Some(update) = crate::session::void_withdrawal_post_store_item_values_update_like_cpp(
+            &item,
+            create_dynamic_flags,
+        ) else {
             return;
         };
         if let Some(packet) =
@@ -481,9 +480,12 @@ impl WorldSession {
         rest_ingame_rate: f32,
     ) {
         self.max_player_level_config_like_cpp = max_player_level_config;
-        self.rest_offline_wilderness_rate_like_cpp = rest_offline_wilderness_rate;
-        self.rest_offline_tavern_or_city_rate_like_cpp = rest_offline_tavern_or_city_rate;
-        self.rest_ingame_rate_like_cpp = rest_ingame_rate;
+        self.rest_mgr_test_fixture_like_cpp
+            .rest_offline_wilderness_rate_like_cpp = rest_offline_wilderness_rate;
+        self.rest_mgr_test_fixture_like_cpp
+            .rest_offline_tavern_or_city_rate_like_cpp = rest_offline_tavern_or_city_rate;
+        self.rest_mgr_test_fixture_like_cpp
+            .rest_ingame_rate_like_cpp = rest_ingame_rate;
     }
     /// Update player_next_level_xp from the table based on current level.
     pub(crate) fn refresh_next_level_xp_with_catalogs_like_cpp(

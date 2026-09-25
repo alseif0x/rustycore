@@ -68,7 +68,7 @@ async fn money_changed_tracking_event_objective_auto_rewards_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id,
@@ -135,7 +135,7 @@ async fn apply_player_money_change_sets_gold_and_drains_objective_queue_like_cpp
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id,
@@ -186,7 +186,7 @@ async fn money_changed_loss_marks_complete_money_objective_incomplete_like_cpp()
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id,
@@ -245,7 +245,7 @@ async fn tracking_event_reward_money_drains_money_objective_queue_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [reward_quest.clone(), money_objective_quest],
     )));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         reward_quest_id,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id: reward_quest_id,
@@ -257,7 +257,7 @@ async fn tracking_event_reward_money_drains_money_objective_queue_like_cpp() {
             slot: 0,
         },
     );
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         money_objective_quest_id,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id: money_objective_quest_id,
@@ -328,7 +328,7 @@ async fn currency_tracking_event_objective_auto_rewards_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id,
@@ -381,7 +381,7 @@ async fn have_currency_tracking_event_objective_auto_rewards_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id,
@@ -433,7 +433,7 @@ async fn obtain_currency_tracking_event_objective_auto_rewards_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id,

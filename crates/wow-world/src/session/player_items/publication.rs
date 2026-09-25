@@ -5,6 +5,59 @@
 
 use super::*;
 
+pub(crate) fn item_push_result_from_send_new_item_plan(
+    plan: &SendNewItemPlan,
+) -> wow_packet::packets::item::ItemPushResult {
+    wow_packet::packets::item::ItemPushResult {
+        player_guid: plan.player_guid,
+        slot: plan.slot,
+        slot_in_bag: i32::from(plan.slot_in_bag),
+        item: wow_packet::packets::item::ItemInstance {
+            item_id: plan.item_instance.item_id as i32,
+            random_properties_seed: plan.item_instance.random_properties_seed,
+            random_properties_id: plan.item_instance.random_properties_id,
+            item_bonus: None,
+            modifications: wow_packet::packets::item::ItemModList {
+                values: plan
+                    .item_instance
+                    .modifications
+                    .iter()
+                    .map(|modifier| {
+                        wow_packet::packets::item::ItemMod::new(
+                            modifier.value,
+                            modifier.modifier_type,
+                        )
+                    })
+                    .collect(),
+            },
+        },
+        quest_log_item_id: plan.quest_log_item_id as i32,
+        quantity: plan.quantity as i32,
+        quantity_in_inventory: plan.quantity_in_inventory as i32,
+        dungeon_encounter_id: plan.dungeon_encounter_id as i32,
+        battle_pet_species_id: plan.battle_pet_species_id as i32,
+        battle_pet_breed_id: plan.battle_pet_breed_id as i32,
+        battle_pet_breed_quality: u32::from(plan.battle_pet_breed_quality),
+        battle_pet_level: plan.battle_pet_level as i32,
+        item_guid: plan.item_guid,
+        pushed: plan.pushed,
+        display_text: match plan.display_text {
+            SendNewItemDisplayText::Normal => {
+                wow_packet::packets::item::ItemPushResultDisplayType::Normal
+            }
+            SendNewItemDisplayText::EncounterLoot => {
+                wow_packet::packets::item::ItemPushResultDisplayType::EncounterLoot
+            }
+            SendNewItemDisplayText::QuestUpdateAddItem => {
+                wow_packet::packets::item::ItemPushResultDisplayType::QuestUpdateAddItem
+            }
+        },
+        created: plan.created,
+        is_bonus_roll: false,
+        is_encounter_loot: plan.is_encounter_loot,
+    }
+}
+
 impl WorldSession {
     pub(in crate::session) fn broadcast_item_push_result_to_group(&self, bytes: Vec<u8>) -> bool {
         let (Some(group_guid), Some(group_registry), Some(player_registry)) = (
@@ -56,7 +109,7 @@ impl WorldSession {
         let Some(item) = self.resolved_inventory_item_object_like_cpp(item_guid) else {
             return;
         };
-        let update = crate::session_rules::item_storage_fields_values_update_like_cpp(
+        let update = crate::session::item_storage_fields_values_update_like_cpp(
             &item,
             contained_in_changed,
             dynamic_flags2_changed,

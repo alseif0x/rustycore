@@ -306,7 +306,7 @@ async fn the_map_pass_tail_sends_the_periodic_time_sync_with_the_admitted_diff()
     install_canonical_player_owner_for_test(&mut session, 571, 0);
     register_session_for_phases(&mut session);
     session.state = SessionState::LoggedIn;
-    session.time_sync_timer_ms = 200;
+    session.time_synchronization.timer_ms = 200;
 
     let admission = session
         .current_map_phase_admission_for_test_like_cpp(1, 7, 50)
@@ -329,7 +329,7 @@ async fn the_map_pass_tail_sends_the_periodic_time_sync_with_the_admitted_diff()
     // C++ decrements this timer on the `!ProcessUnsafe()` branch, i.e. in the
     // map filter's pass, with that pass's diff (`WorldSession.cpp:488-497`).
     // It runs even though no packet was queued.
-    assert_eq!(session.time_sync_timer_ms, 150);
+    assert_eq!(session.time_synchronization.timer_ms, 150);
 }
 
 #[tokio::test]
@@ -338,7 +338,7 @@ async fn a_coordinated_session_does_not_send_the_time_sync_twice_per_step() {
     install_canonical_player_owner_for_test(&mut session, 571, 0);
     register_session_for_phases(&mut session);
     session.state = SessionState::LoggedIn;
-    session.time_sync_timer_ms = 200;
+    session.time_synchronization.timer_ms = 200;
     session.mark_map_phase_coordinated_like_cpp();
 
     // The world pass of the same step must leave the timer to the map pass:
@@ -347,7 +347,7 @@ async fn a_coordinated_session_does_not_send_the_time_sync_twice_per_step() {
         .update_with_catalogs_like_cpp(50, &SessionHandlerCatalogsLikeCpp::default())
         .await;
 
-    assert_eq!(session.time_sync_timer_ms, 200);
+    assert_eq!(session.time_synchronization.timer_ms, 200);
 }
 
 #[tokio::test]

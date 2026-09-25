@@ -5,6 +5,41 @@
 
 use super::*;
 
+pub(crate) fn creature_message_to_set_target_allows_like_cpp(
+    creature: &crate::map_manager::WorldCreature,
+    source_is_visible_like_cpp: bool,
+    player_map_id: u32,
+    player_instance_id: u32,
+    player_position: &wow_core::Position,
+    player_phase_shift: &wow_entities::PhaseShift,
+    required_3d: bool,
+) -> bool {
+    if !source_is_visible_like_cpp {
+        return false;
+    }
+    if creature.map_id() != player_map_id || creature.instance_id() != player_instance_id {
+        return false;
+    }
+    if !player_phase_shift.can_see(creature.phase_shift()) {
+        return false;
+    }
+
+    let range = creature.visibility_range_like_cpp();
+    if required_3d {
+        wow_core::position_is_in_dist_strict_3d_like_cpp(
+            &creature.position(),
+            player_position,
+            range,
+        )
+    } else {
+        wow_core::position_is_in_dist_strict_2d_like_cpp(
+            &creature.position(),
+            player_position,
+            range,
+        )
+    }
+}
+
 impl WorldSession {
     pub(crate) fn mutate_canonical_creature_by_guid_like_cpp<R>(
         &mut self,
@@ -122,7 +157,7 @@ impl WorldSession {
             return false;
         };
 
-        crate::session_rules::creature_message_to_set_target_allows_like_cpp(
+        crate::session::creature_message_to_set_target_allows_like_cpp(
             creature,
             // The HaveAtClient membership was proven above.
             true,

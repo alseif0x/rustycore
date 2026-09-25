@@ -15,7 +15,7 @@ async fn quest_giver_choose_reward_records_reward_spell_cast_like_cpp() {
     quest.reward_spell = 12_345;
     quest.reward_display_spell = [22_001, 22_002, 0];
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -60,7 +60,7 @@ async fn quest_giver_choose_reward_records_display_spells_only_without_reward_sp
     quest.flags = QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP | QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP;
     quest.reward_display_spell = [22_001, 0, 22_003];
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -130,6 +130,7 @@ async fn quest_confirm_accept_source_spell_records_two_self_casts_like_cpp() {
 
     assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
     let status = session
+        .quest_test_fixture_like_cpp
         .player_quests
         .get(&quest_id)
         .expect("source-spell-only quest should still insert represented local AddQuest state");

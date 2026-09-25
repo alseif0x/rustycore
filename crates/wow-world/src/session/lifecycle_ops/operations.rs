@@ -5,6 +5,11 @@
 
 use super::*;
 
+fn account_heirloom_update_opcode_resolved_like_cpp() -> bool {
+    <wow_packet::packets::misc::AccountHeirloomUpdate as wow_packet::ServerPacket>::OPCODE
+        != ServerOpcodes::UpdateCapturePoint
+}
+
 impl WorldSession {
     pub fn set_session_account_state_port_like_cpp(
         &mut self,
@@ -71,7 +76,7 @@ impl WorldSession {
     }
     /// C++ `WorldPackets::Misc::AccountHeirloomUpdate` full login update.
     pub fn send_account_heirlooms_like_cpp(&self) {
-        if !crate::session_rules::account_heirloom_update_opcode_resolved_like_cpp() {
+        if !account_heirloom_update_opcode_resolved_like_cpp() {
             warn!(
                 "Skipping AccountHeirloomUpdate: legacy C++ opcode is unresolved 0xBADD for 54261"
             );
@@ -285,10 +290,14 @@ impl WorldSession {
             return false;
             #[cfg(test)]
             {
-                if !self.represented_battle_pet_slots_authority_complete_like_cpp {
+                if !self
+                    .battle_pet_test_fixture_like_cpp
+                    .represented_battle_pet_slots_authority_complete_like_cpp
+                {
                     return false;
                 }
-                self.represented_battle_pet_slots_like_cpp
+                self.battle_pet_test_fixture_like_cpp
+                    .represented_battle_pet_slots_like_cpp
                     .iter()
                     .map(RepresentedBattlePetSlotLikeCpp::packet_slot_like_cpp)
                     .collect()

@@ -185,6 +185,7 @@
     737,
     743,
     735,
+    1233,
     583,
     153
   ],
@@ -2435,6 +2436,19 @@
       ],
       "depends_on": [
         578
+      ]
+    },
+    {
+      "number": 1233,
+      "state": "open",
+      "title": "[ARCH.CORE] Complete the wow-world modular refactor",
+      "kind": "slice",
+      "parents": [
+        584
+      ],
+      "depends_on": [
+        716,
+        737
       ]
     }
   ]

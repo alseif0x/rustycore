@@ -103,7 +103,7 @@ impl WorldSession {
     /// canonical Player's regen interrupt timestamp and fractional power, then
     /// publish `SMSG_INTERRUPT_POWER_REGEN` with the `Powers` value.
     fn interrupt_player_power_regen_like_cpp(&mut self, power: PowerType, power_type: i32) {
-        let now_ms = crate::session_rules::game_time_ms_like_cpp();
+        let now_ms = crate::session::game_time_ms_like_cpp();
         let _ = self.mutate_canonical_player_like_cpp(|player| {
             player
                 .unit_mut()

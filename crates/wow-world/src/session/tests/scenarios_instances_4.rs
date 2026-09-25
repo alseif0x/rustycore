@@ -18,7 +18,9 @@ fn far_sight_enable_rejects_cross_instance_target_like_cpp() {
     session.player_name = Some("FarSightCrossInstance".into());
     session.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
     session.current_map_id = 571;
-    session.represented_seer_guid_like_cpp = Some(previous_seer);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(previous_seer);
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 11);
     set_canonical_player_farsight_object_on_map_like_cpp(
         &canonical,

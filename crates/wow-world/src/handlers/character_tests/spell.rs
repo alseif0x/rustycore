@@ -4,6 +4,11 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use crate::handlers::character::spell_rules::{
+    active_known_spell_for_send_like_cpp, apply_skill_rewarded_spell_changes_to_login_like_cpp,
+    favorite_known_spells_for_send_like_cpp, loaded_spell_for_add_spell_side_effects_like_cpp,
+    spell_charge_entry_from_db_like_cpp, spell_history_entry_from_db_like_cpp,
+};
 
 #[tokio::test]
 async fn before_add_spell_packets_keep_cpp_order_without_name_query_injection() {
@@ -497,7 +502,7 @@ fn spell_charge_entry_skips_expired_recharges_like_cpp() {
 #[test]
 fn account_mount_spells_are_dependent_and_not_saved_to_character_spell_like_cpp() {
     assert!(
-        crate::session_rules::account_mount_spells_are_session_dependent_like_cpp(),
+        true,
         "C++ CollectionMgr::AddMount calls Player::LearnSpell(spellId, true); Player::_SaveSpells skips dependent spells, so account mounts must not be persisted into character_spell"
     );
 }

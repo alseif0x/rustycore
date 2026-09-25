@@ -254,7 +254,9 @@ fn rested_xp_uses_configured_rest_rates_like_cpp() {
     online.set_max_player_level_config_like_cpp(80);
     online.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
     assert!(online.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0));
-    online.represented_rest_time_secs_like_cpp = 1_000;
+    online
+        .rest_mgr_test_fixture_like_cpp
+        .represented_rest_time_secs_like_cpp = 1_000;
 
     let (online_extra, _) =
         online.update_represented_online_xp_rest_bonus_with_policy_like_cpp(&policy, 1_010);
@@ -583,7 +585,9 @@ fn zero_integer_rest_award_normalizes_raf_state_without_touching_rest_flags_like
     session.set_player_next_level_xp_like_cpp(1_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RAF_LINKED_LIKE_CPP, 0.0);
     assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP, 42));
-    let rest_time = session.represented_rest_time_secs_like_cpp;
+    let rest_time = session
+        .rest_mgr_test_fixture_like_cpp
+        .represented_rest_time_secs_like_cpp;
 
     let (award, nested_mask) =
         session.take_represented_xp_rest_bonus_for_gain_like_cpp(50, test_creature_guid(0xE1C6));
@@ -596,11 +600,23 @@ fn zero_integer_rest_award_normalizes_raf_state_without_touching_rest_flags_like
         REST_STATE_NORMAL_LIKE_CPP
     );
     assert_eq!(
-        session.represented_rest_flag_mask_like_cpp,
+        session
+            .rest_mgr_test_fixture_like_cpp
+            .represented_rest_flag_mask_like_cpp,
         REST_FLAG_IN_TAVERN_LIKE_CPP
     );
-    assert_eq!(session.represented_rest_time_secs_like_cpp, rest_time);
-    assert_eq!(session.represented_inn_area_trigger_id_like_cpp, 42);
+    assert_eq!(
+        session
+            .rest_mgr_test_fixture_like_cpp
+            .represented_rest_time_secs_like_cpp,
+        rest_time
+    );
+    assert_eq!(
+        session
+            .rest_mgr_test_fixture_like_cpp
+            .represented_inn_area_trigger_id_like_cpp,
+        42
+    );
     assert!(session.represented_is_resting_like_cpp());
     assert!(
         session
@@ -616,7 +632,9 @@ fn online_rest_update_adds_rested_xp_after_ten_seconds_like_cpp() {
     session.set_player_next_level_xp_like_cpp(72_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
     assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0));
-    session.represented_rest_time_secs_like_cpp = 1_000;
+    session
+        .rest_mgr_test_fixture_like_cpp
+        .represented_rest_time_secs_like_cpp = 1_000;
 
     assert_eq!(
         session.update_represented_online_xp_rest_bonus_like_cpp(1_009),
@@ -628,7 +646,12 @@ fn online_rest_update_adds_rested_xp_after_ten_seconds_like_cpp() {
 
     assert!(extra > 0.0);
     assert_eq!(nested_mask, 0x07);
-    assert_eq!(session.represented_rest_time_secs_like_cpp, 1_010);
+    assert_eq!(
+        session
+            .rest_mgr_test_fixture_like_cpp
+            .represented_rest_time_secs_like_cpp,
+        1_010
+    );
     assert_eq!(session.represented_xp_rest_bonus_like_cpp(), extra);
     assert_eq!(
         session.represented_xp_rest_state_like_cpp(),
@@ -642,14 +665,26 @@ fn online_rest_tick_only_accrues_when_cpp_three_percent_gate_passes() {
     session.set_player_next_level_xp_like_cpp(72_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
     assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0));
-    session.represented_rest_time_secs_like_cpp = 1_000;
+    session
+        .rest_mgr_test_fixture_like_cpp
+        .represented_rest_time_secs_like_cpp = 1_000;
 
     session.tick_represented_online_xp_rest_bonus_with_roll_like_cpp(1_010, false);
-    assert_eq!(session.represented_rest_time_secs_like_cpp, 1_000);
+    assert_eq!(
+        session
+            .rest_mgr_test_fixture_like_cpp
+            .represented_rest_time_secs_like_cpp,
+        1_000
+    );
     assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 0.0);
 
     session.tick_represented_online_xp_rest_bonus_with_roll_like_cpp(1_010, true);
-    assert_eq!(session.represented_rest_time_secs_like_cpp, 1_010);
+    assert_eq!(
+        session
+            .rest_mgr_test_fixture_like_cpp
+            .represented_rest_time_secs_like_cpp,
+        1_010
+    );
     assert!(session.represented_xp_rest_bonus_like_cpp() > 0.0);
 }
 #[tokio::test]

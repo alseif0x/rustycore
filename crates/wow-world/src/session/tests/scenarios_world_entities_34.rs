@@ -76,7 +76,7 @@ fn legacy_creature_melee_tick_once_honors_player_damage_immunity_like_cpp() {
     for (spell_id, aura_type, amount, misc_value) in [
         (
             91_350_i32,
-            wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_HIT_CHANCE,
             5,
             0,
         ),
@@ -478,6 +478,15 @@ fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
     for guid in [attacker_guid, victim_guid, split_target_guid] {
         register_test_creature(&mut session, manager.clone(), guid, 100);
     }
+    {
+        let mut guard = canonical.lock().unwrap();
+        let map = guard.find_map_mut(0, 0).unwrap().map_mut();
+        for guid in [victim_guid, split_target_guid] {
+            map.get_typed_creature_mut(guid)
+                .unwrap()
+                .set_avoidance_like_cpp(wow_entities::CreatureAvoidanceLikeCpp::default());
+        }
+    }
     session
         .mutate_world_creature(attacker_guid, |creature| {
             creature.creature.unit_mut().set_level(80);
@@ -496,7 +505,7 @@ fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
     for (spell_id, aura_type, amount, misc_value) in [
         (
             91_373_i32,
-            wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_HIT_CHANCE,
             100,
             0,
         ),

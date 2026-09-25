@@ -7,6 +7,7 @@
 
 mod area_trigger;
 mod bag;
+mod character_rules;
 mod conversation;
 mod corpse;
 mod creature;
@@ -19,6 +20,7 @@ mod pet;
 mod player;
 mod player_gameplay_state;
 pub mod player_rules;
+mod quest_objectives;
 mod scene_object;
 mod spell_cast;
 mod totem;
@@ -29,10 +31,30 @@ mod update_fields;
 mod vehicle;
 mod world_object;
 
+pub use character_rules::represented_character_rename_name_result_like_cpp;
+pub use player::{
+    QuestBoundItemObjectiveProgressLikeCpp, QuestItemObjectiveProgressLikeCpp, is_buyback_slot,
+};
+pub use player_rules::{
+    apply_pct_modifier_to_u32_like_cpp, chair_stand_state_like_cpp,
+    item_transmogrification_slot_like_cpp, sanitize_rest_bonus_like_cpp,
+    valid_player_rest_state_like_cpp, xp_in_group_rate_like_cpp,
+};
+pub use quest_objectives::{
+    QuestObjective, QuestObjectiveRulesLikeCpp, ThresholdQuestObjectiveChangeLikeCpp,
+    apply_quest_item_added_bound_to_statuses_like_cpp,
+    apply_quest_item_added_non_bound_to_statuses_like_cpp,
+    apply_quest_item_removed_to_statuses_like_cpp, plan_threshold_quest_objective_changes_like_cpp,
+    player_has_incomplete_quest_objective_for_object_id_like_cpp,
+    represented_can_complete_quest_after_objective_like_cpp,
+    represented_quest_objective_completable_like_cpp,
+    represented_quest_objective_complete_like_cpp,
+};
+
 pub use spell_cast::{
     CastExecutionStateLikeCpp, PendingSpellCastRequestLikeCpp,
     SpellCastBattlePetItemModifiersLikeCpp, SpellCastLocationLikeCpp, SpellCastMetadata,
-    SpellCastState, SpellCastTargetsLikeCpp, SpellCastVisualLikeCpp,
+    SpellCastState, SpellCastTargetsLikeCpp, SpellCastVisualLikeCpp, bind_area_id_like_cpp,
 };
 
 pub use area_trigger::{
@@ -50,6 +72,7 @@ pub use area_trigger::{
     AreaTriggerDataUpdate, AreaTriggerDataValues, AreaTriggerId, AreaTriggerOrbitInfo,
     AreaTriggerPosition2, AreaTriggerPosition3, AreaTriggerShapeInfo, AreaTriggerShapeType,
     AreaTriggerValuesUpdate, ScaleCurveValues, VisualAnimValues,
+    position_is_within_area_trigger_box_like_cpp,
 };
 pub use bag::{
     Bag, BagCreateError, BagCreateInfo, BagValuesUpdate, CONTAINER_DATA_NUM_SLOTS_BIT,
@@ -135,7 +158,7 @@ pub use game_object::{
     GatheringNodeUseSource, GoState, GooberUseSource, GuardPostUseSource, ItemForgeUseSource,
     LootState, MAX_GAMEOBJECT_DATA, MeetingStoneUseSource, NewFlagDropUseSource, NewFlagUseSource,
     QuestgiverUseSource, RitualUseSource, SpellFocusUseSource, SpellcasterUseSource, TrapUseSource,
-    UiLinkUseSource,
+    UiLinkUseSource, ui_link_player_interaction_type_like_cpp,
 };
 pub use item::{
     APPEARANCE_MODIFIER_SLOT_BY_SPEC, ArtifactPower, BOP_TRADEABLE_DURATION_SECS,
@@ -172,7 +195,7 @@ pub use object::{
 pub use object_accessor::{
     AccessorObjectKind, AccessorObjectRef, AccessorPlayer, MapObjectRecord, ObjectAccessor,
     ObjectAccessorError, ObjectAccessorMapSource, PlayerSaveError, PlayerSaveSink,
-    normalize_player_name,
+    normalize_player_name, represented_seer_kinds_like_cpp,
 };
 pub use pet::{
     ActiveState, GROUP_UPDATE_FLAG_PET_LIKE_CPP, GROUP_UPDATE_FLAG_PET_MODEL_ID_LIKE_CPP,
@@ -217,12 +240,13 @@ pub use player::{
     CanStoreItemOutcome, CanTakeMoreSimilarItemsArgs, CanTakeMoreSimilarItemsOutcome,
     CanUnequipItemArgs, CanUseItemArgs, CanUseItemTemplateArgs, DestroyFilteredItemAction,
     DestroyFilteredItemRef, DestroyItemCountAction, DestroyItemCountItemRef, DestroyItemCountPlan,
-    EquipItemObjectOutcome, EquippedGemRef, FindEquipSlotArgs, ForgottenKnownSpellLikeCpp,
-    INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
-    INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, ITEM_LIMIT_CATEGORY_MODE_EQUIP,
-    ITEM_LIMIT_CATEGORY_MODE_HAVE, ItemDurationRef, ItemLimitCategoryTemplate,
-    ItemObjectUpdateLikeCpp, ItemPosCount, ItemSearchCallbackResult, ItemSearchLocation,
-    ItemSlotRef, ItemStorageRef, KEYRING_SLOT_END, KEYRING_SLOT_START, MAX_MONEY_AMOUNT, NULL_BAG,
+    EquipItemObjectOutcome, EquippedGemRef, ExistingStorageStackUpdateLikeCpp, FindEquipSlotArgs,
+    ForgottenKnownSpellLikeCpp, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_END,
+    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START,
+    ITEM_LIMIT_CATEGORY_MODE_EQUIP, ITEM_LIMIT_CATEGORY_MODE_HAVE, InventoryStorageMovePlanLikeCpp,
+    ItemDurationRef, ItemLimitCategoryTemplate, ItemObjectUpdateLikeCpp, ItemPosCount,
+    ItemSearchCallbackResult, ItemSearchLocation, ItemSlotRef, ItemStorageRef, KEYRING_SLOT_END,
+    KEYRING_SLOT_START, MAX_MONEY_AMOUNT, NULL_BAG,
     PLAYER_DATA_CURRENT_BATTLE_PET_BREED_QUALITY_BIT, PLAYER_DATA_CURRENT_SPEC_ID_BIT,
     PLAYER_DATA_FLAGS_BIT, PLAYER_DATA_FLAGS_EX_BIT, PLAYER_DATA_HONOR_LEVEL_BIT,
     PLAYER_DATA_INEBRIATION_BIT, PLAYER_DATA_LOOT_TARGET_GUID_BIT, PLAYER_DATA_NATIVE_SEX_BIT,
@@ -280,7 +304,12 @@ pub use player::{
     is_equipment_packed_pos, is_equipment_pos, is_inventory_packed_pos, is_inventory_pos,
     item_resistance_bonus_actions_like_cpp, item_scaling_stat_bonus_actions_like_cpp,
     item_shield_block_bonus_action_like_cpp, item_stat_bonus_actions_like_cpp,
-    item_weapon_damage_actions_like_cpp, make_item_pos, parse_explored_zones_db_string_like_cpp,
+    item_weapon_damage_actions_like_cpp,
+    loaded_enchantment_effect_action_is_unrepresented_like_cpp, make_item_pos,
+    parse_explored_zones_db_string_like_cpp, plan_inventory_storage_move_like_cpp,
+    represented_avg_total_item_level_maybe_replace_slot_like_cpp,
+    represented_item_bonus_action_updates_stats_like_cpp,
+    represented_total_avg_equipment_slot_candidates_like_cpp,
 };
 pub use player_gameplay_state::{
     PlayerAccountHeirloomDataLikeCpp, PlayerCollectionStateLikeCpp, PlayerCurrency,
@@ -290,6 +319,7 @@ pub use player_gameplay_state::{
     PlayerPetLifecycleStateLikeCpp, PlayerResurrectionRequestLikeCpp,
     PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp, PlayerTransferRecovery,
     PlayerWorldportPostAddLikeCpp, PlayerWorldportPostAddPhaseLikeCpp,
+    plan_remove_currency_like_cpp,
 };
 pub use scene_object::{
     SCENE_OBJECT_DATA_CREATED_BY_BIT, SCENE_OBJECT_DATA_PARENT_BIT,

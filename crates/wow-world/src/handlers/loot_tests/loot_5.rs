@@ -4,6 +4,7 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
 
 #[tokio::test]
 async fn loot_unit_new_main_target_releases_existing_view_like_cpp() {
@@ -574,7 +575,7 @@ async fn loot_money_gain_completes_money_tracking_event_objective_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id,
@@ -591,8 +592,18 @@ async fn loot_money_gain_completes_money_tracking_event_objective_like_cpp() {
     session.handle_loot_money(loot_money_packet()).await;
 
     assert_eq!(session.player_gold_like_cpp(), 7);
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert!(
+        !session
+            .quest_test_fixture_like_cpp
+            .player_quests
+            .contains_key(&quest_id)
+    );
+    assert!(
+        session
+            .quest_test_fixture_like_cpp
+            .rewarded_quests
+            .contains(&quest_id)
+    );
 
     let sent = send_rx.try_recv().unwrap();
     let mut sent = WorldPacket::from_bytes(&sent);

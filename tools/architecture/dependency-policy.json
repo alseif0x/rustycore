@@ -26,6 +26,8 @@
       "wow-spell"
     ],
     "application": [
+      "wow-conditions",
+      "wow-spell-acquisition",
       "wow-world"
     ],
     "adapter-platform": [
@@ -49,7 +51,8 @@
       "world-server"
     ],
     "tooling": [
-      "capture-diff"
+      "capture-diff",
+      "xtask"
     ]
   },
   "allowed_category_dependencies": {
@@ -87,6 +90,16 @@
     ]
   },
   "restricted_packages": {
+    "wow-conditions": [
+      "wow-constants",
+      "wow-data",
+      "wow-entities",
+      "wow-loot"
+    ],
+    "wow-spell-acquisition": [
+      "wow-core",
+      "wow-data"
+    ],
     "wow-data": [
       "wow-constants",
       "wow-core"
@@ -240,6 +253,13 @@
         "normal": [],
         "build": []
       },
+      "wow-conditions": {
+        "normal": [
+          "num-traits",
+          "parking_lot"
+        ],
+        "build": []
+      },
       "wow-constants": {
         "normal": [
           "bitflags",
@@ -274,7 +294,8 @@
       },
       "wow-entities": {
         "normal": [
-          "bitflags"
+          "bitflags",
+          "num-traits"
         ],
         "build": []
       },
@@ -372,6 +393,10 @@
         "normal": [],
         "build": []
       },
+      "wow-spell-acquisition": {
+        "normal": [],
+        "build": []
+      },
       "wow-world": {
         "normal": [
           "dashmap",
@@ -403,12 +428,6 @@
     ]
   },
   "reserved_packages": [
-    {
-      "package": "wow-combat",
-      "issue": 29,
-      "state": "open",
-      "reason": "Name held for the M3 melee-math slice that will own real combat state."
-    },
     {
       "package": "wow-spell",
       "issue": 30,

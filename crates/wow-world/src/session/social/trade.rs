@@ -8,7 +8,9 @@ use super::*;
 impl WorldSession {
     pub(crate) fn record_represented_trade_cancel_like_cpp(&mut self, status: u8) {
         #[cfg(test)]
-        self.represented_trade_cancel_statuses_like_cpp.push(status);
+        self.trade_test_fixture_like_cpp
+            .represented_trade_cancel_statuses_like_cpp
+            .push(status);
         #[cfg(not(test))]
         let _ = status;
     }
@@ -20,18 +22,34 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(
-                self.represented_active_trade_partner_like_cpp
+                self.trade_test_fixture_like_cpp
+                    .represented_active_trade_partner_like_cpp
                     .map(|partner_guid| wow_entities::PlayerTradeStateLikeCpp {
                         partner_guid,
-                        accepted: self.represented_trade_accepted_like_cpp,
+                        accepted: self
+                            .trade_test_fixture_like_cpp
+                            .represented_trade_accepted_like_cpp,
                         partner_server_state_index: self
+                            .trade_test_fixture_like_cpp
                             .represented_partner_trade_server_state_index_like_cpp,
-                        client_state_index: self.represented_trade_client_state_index_like_cpp,
-                        server_state_index: self.represented_trade_server_state_index_like_cpp,
-                        items: self.represented_trade_items_like_cpp,
-                        money: self.represented_trade_money_like_cpp,
-                        spell_id: self.represented_trade_spell_like_cpp,
-                        spell_cast_item_guid: self.represented_trade_spell_cast_item_like_cpp,
+                        client_state_index: self
+                            .trade_test_fixture_like_cpp
+                            .represented_trade_client_state_index_like_cpp,
+                        server_state_index: self
+                            .trade_test_fixture_like_cpp
+                            .represented_trade_server_state_index_like_cpp,
+                        items: self
+                            .trade_test_fixture_like_cpp
+                            .represented_trade_items_like_cpp,
+                        money: self
+                            .trade_test_fixture_like_cpp
+                            .represented_trade_money_like_cpp,
+                        spell_id: self
+                            .trade_test_fixture_like_cpp
+                            .represented_trade_spell_like_cpp,
+                        spell_cast_item_guid: self
+                            .trade_test_fixture_like_cpp
+                            .represented_trade_spell_cast_item_like_cpp,
                     }),
             );
         }
@@ -52,26 +70,44 @@ impl WorldSession {
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
             if let Some(state) = state {
-                self.represented_active_trade_partner_like_cpp = Some(state.partner_guid);
-                self.represented_trade_accepted_like_cpp = state.accepted;
-                self.represented_partner_trade_server_state_index_like_cpp =
+                self.trade_test_fixture_like_cpp
+                    .represented_active_trade_partner_like_cpp = Some(state.partner_guid);
+                self.trade_test_fixture_like_cpp
+                    .represented_trade_accepted_like_cpp = state.accepted;
+                self.trade_test_fixture_like_cpp
+                    .represented_partner_trade_server_state_index_like_cpp =
                     state.partner_server_state_index;
-                self.represented_trade_client_state_index_like_cpp = state.client_state_index;
-                self.represented_trade_server_state_index_like_cpp = state.server_state_index;
-                self.represented_trade_items_like_cpp = state.items;
-                self.represented_trade_money_like_cpp = state.money;
-                self.represented_trade_spell_like_cpp = state.spell_id;
-                self.represented_trade_spell_cast_item_like_cpp = state.spell_cast_item_guid;
+                self.trade_test_fixture_like_cpp
+                    .represented_trade_client_state_index_like_cpp = state.client_state_index;
+                self.trade_test_fixture_like_cpp
+                    .represented_trade_server_state_index_like_cpp = state.server_state_index;
+                self.trade_test_fixture_like_cpp
+                    .represented_trade_items_like_cpp = state.items;
+                self.trade_test_fixture_like_cpp
+                    .represented_trade_money_like_cpp = state.money;
+                self.trade_test_fixture_like_cpp
+                    .represented_trade_spell_like_cpp = state.spell_id;
+                self.trade_test_fixture_like_cpp
+                    .represented_trade_spell_cast_item_like_cpp = state.spell_cast_item_guid;
             } else {
-                self.represented_active_trade_partner_like_cpp = None;
-                self.represented_trade_accepted_like_cpp = false;
-                self.represented_partner_trade_server_state_index_like_cpp = 0;
-                self.represented_trade_client_state_index_like_cpp = 1;
-                self.represented_trade_server_state_index_like_cpp = 1;
-                self.represented_trade_items_like_cpp = [None; TRADE_SLOT_COUNT_LIKE_CPP as usize];
-                self.represented_trade_money_like_cpp = 0;
-                self.represented_trade_spell_like_cpp = 0;
-                self.represented_trade_spell_cast_item_like_cpp = None;
+                self.trade_test_fixture_like_cpp
+                    .represented_active_trade_partner_like_cpp = None;
+                self.trade_test_fixture_like_cpp
+                    .represented_trade_accepted_like_cpp = false;
+                self.trade_test_fixture_like_cpp
+                    .represented_partner_trade_server_state_index_like_cpp = 0;
+                self.trade_test_fixture_like_cpp
+                    .represented_trade_client_state_index_like_cpp = 1;
+                self.trade_test_fixture_like_cpp
+                    .represented_trade_server_state_index_like_cpp = 1;
+                self.trade_test_fixture_like_cpp
+                    .represented_trade_items_like_cpp = [None; TRADE_SLOT_COUNT_LIKE_CPP as usize];
+                self.trade_test_fixture_like_cpp
+                    .represented_trade_money_like_cpp = 0;
+                self.trade_test_fixture_like_cpp
+                    .represented_trade_spell_like_cpp = 0;
+                self.trade_test_fixture_like_cpp
+                    .represented_trade_spell_cast_item_like_cpp = None;
             }
             return Some(result);
         }
@@ -348,6 +384,8 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn represented_trade_cancel_statuses_like_cpp(&self) -> &[u8] {
-        &self.represented_trade_cancel_statuses_like_cpp
+        &self
+            .trade_test_fixture_like_cpp
+            .represented_trade_cancel_statuses_like_cpp
     }
 }

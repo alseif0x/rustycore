@@ -1,6 +1,8 @@
 //! Map-owned identities and canonical admission for Player-origin casts.
 
 use super::*;
+#[cfg(test)]
+use std::sync::atomic::AtomicI64;
 
 // Only Session-only unit fixtures lack a canonical Map. Production allocation
 // always consumes the admitted Map's existing Cast sequence.

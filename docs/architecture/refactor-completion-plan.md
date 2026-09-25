@@ -6,6 +6,985 @@ y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
 anclas C++, orden de ejecución y criterios de aceptación de la arquitectura.
 
+La forma objetivo de crates/capas, los presupuestos duros y la secuencia de fases de la
+distribución de `wow-world` se detallan en
+[wow-world-distribution-plan.md](wow-world-distribution-plan.md); este documento sigue siendo el
+plan técnico general y aquel no lo sustituye.
+
+## #1233 — descomposición de Session y reglas independientes, 2026-09-22
+
+Estado: **implementación local en curso, no validada ni publicada** sobre
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, en la rama
+`1233-archcore-modularize-wow-world-session-and-isolate-ruletest-boundaries`.
+La petición explícita mantiene nivel 1 para la aceptación: no se han ejecutado
+tests, campañas arquitectónicas ni QA. Se ejecutó sólo un `cargo check -p wow-world`
+diagnóstico en un target dedicado; terminó correctamente con advertencias, por lo
+que el SHA sigue sin ser un candidato de aceptación.
+La macro no cierra #584, #29 ni el experimento de medición #1231.
+
+### Fronteras implementadas
+
+- `session/mod.rs`: de 18.908 a 1.002 líneas físicas. Los tipos y adaptadores
+  anteriormente definidos en la raíz se distribuyen en 65 módulos privados por
+  responsabilidad: conexión, admisión, Player, NPC/GameObject, inventario,
+  progresión, pet, quest, publicación de combate y contratos de persistencia.
+  Sigue existiendo **un solo `WorldSession`**, definido en `session/state.rs`
+  (1.994 líneas); su construcción está en `session/construction.rs` (1.185).
+  Es organización física, no retirada de campos ni migración de autoridad.
+- Los miembros privados trasladados declaran `pub(in crate::session)` para
+  conservar exactamente su antiguo ámbito efectivo. No se hacen públicos a
+  handlers externos, otros crates o composición. La fachada conserva las rutas
+  anteriores; no cambia el thunk ni la fuente única de registro de opcodes.
+- `session_tests.rs`: de 5.806 a 389 líneas. Sus 152 montajes de escenarios
+  permanecen en esa raíz; los builders compartidos pasan a 15 módulos privados
+  bajo `session/tests/fixtures/`, con acceso limitado a `session::tests`.
+- `wow-combat`, antes reservado y vacío, recibe la tabla melee determinista,
+  ensamblado de probabilidades desde hechos del llamador y cálculo del daño
+  por resultado. Sus módulos son `attack_table`, `facts` y `damage`; no tiene
+  dependencias. `wow-world` pasa a consumirlo como dependencia de producción.
+  `session_rules/rules_4.rs` conserva la tirada RNG, la presentación de paquetes
+  y la mitigación dependiente de auras. Sus reexports son un puente de importación,
+  no una segunda implementación: se retirarán al migrar los consumidores de la
+  familia completa de `session_rules`, sin obligar a mezclar esa tarea ahora.
+- Cuatro tests puros de `scenarios_combat_4`, `scenarios_combat_5` y
+  `scenarios_world_entities_32` se trasladan a `wow-combat/tests/melee_contract.rs`.
+  Dos casos adicionales ejercitan el API público de daño en `melee_damage.rs`.
+  La regresión existente de daño/presentación y los escenarios con owners
+  canónicos siguen en `wow-world`; **ninguno se ha ejecutado en este corte**.
+- `wow-spell-acquisition` recibe el planificador completo de adquisición de
+  hechizos/skills, sus modelos y autoridades de evidencia. Es un componente de
+  **aplicación determinista**: toma prestados los catálogos canónicos de
+  `wow-data`, no depende de Session, transporte, paquetes ni base de datos.
+  No se fuerza esa dependencia concreta dentro del crate de dominio reservado
+  `wow-spell`, ni se copian los catálogos ni se introduce un trait por store.
+  La política declara el límite y restringe sus dependencias internas a
+  `wow-core` y `wow-data`; el acoplamiento a datos concretos sigue explícito.
+- Sus 63 escenarios focales existentes se trasladan con el planificador. Tres
+  escenarios que cruzan hacia preparación/profesiones quedan completos en
+  `wow-world/src/spell_acquisition/tests/planner_application.rs`; `operations`
+  y los tests de aplicación/runtime/persistencia también permanecen en world.
+  Los builders de metadatos se comparten mediante `test-fixtures`, sin feature
+  por defecto y habilitada sólo como dependencia de desarrollo de world.
+- La lista causal de publicación de `SpellAcquisitionPlanLikeCpp` sigue privada.
+  La aplicación recibe un accessor de sólo lectura; no puede reemplazar la
+  autoridad para hacer coincidir acciones inventadas. Las pruebas negativas
+  conservan sus valores mediante un builder de desarrollo y un mutador sólo
+  disponible con `test-fixtures`/`cfg(test)`. Se añade una regresión de aislamiento
+  de esa lista y un doctest `compile_fail` para su privacidad; no están ejecutados.
+- `wow-conditions` recibe la familia completa de evaluación `ConditionMgr`,
+  contextos, consultas de spell-click/loot y sus 40 escenarios. Sus módulos
+  privados se separan por responsabilidad; conserva el único
+  `OnceLock<RwLock<Option<Arc<ConditionEntriesByTypeStore>>>>` existente, sin
+  nuevo lock ni segunda copia del store. También es una frontera de aplicación
+  con lectura de los catálogos actuales, no un dominio independiente de datos.
+- Ambas bibliotecas están conectadas en Cargo y en los consumidores. Las
+  fachadas anteriores de world sólo reexportan la implementación única; se
+  conservan para la compatibilidad de los adaptadores y consumidores externos
+  (incluido el bootstrap de world-server). No se incluye el código mediante
+  `#[path]` cruzando crates. Retirar las fachadas requiere migrar esos imports,
+  no volver a extraer ni duplicar la lógica.
+
+El recuento físico local de este corte pasa de **425.675 a
+414.214 líneas Rust en `wow-world`**: **11.461 líneas netas menos**.
+Los dos nuevos crates contienen 8.226 y 3.452 líneas,
+respectivamente, incluidas sus pruebas. Son unidades de compilación separadas,
+pero siguen compartiendo dependencias inferiores; esto no demuestra un ahorro
+de segundos, ni hace barato todo cambio transversal en datos o en Session.
+
+### Contrato y evidencia consultada
+
+Referencia local TrinityCore 3.4.3 en
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+`Server/WorldSession.cpp`, constructor y `LogoutPlayer`/`SetPlayer`;
+`Entities/Unit/Unit.cpp`, `DoMeleeAttackIfReady`, `CalculateMeleeDamage`
+(1300–1443), `RollMeleeOutcomeAgainst` (2272–2383),
+`GetUnitDodgeChance`/`GetUnitParryChance`/`GetUnitBlockChance` (2639–2760),
+`GetUnitCriticalChanceAgainst` (2819) y `MeleeSpellMissChance` (11652–11684);
+`Entities/Player/Player.cpp`, `GetBlockPercent` (25288–25298).
+
+Para adquisición: el mismo `Player.cpp`, `AddSpell` (2741), `LearnSpell` (3192),
+`SetSkill` (5635) y `LearnSkillRewardedSpells` (23930). Se conserva el orden de
+mutaciones/proyecciones, el cierre ante metadatos incompletos, los límites de
+trabajo y la distinción entre aprender directamente y ejecutar un wrapper.
+Para condiciones: `Conditions/ConditionMgr.cpp`, constructores de
+`ConditionSourceInfo` (160/176), `Condition::Meets` (194),
+`IsObjectMeetToConditionList` (997), `IsObjectMeetToConditions` (1040–1052) e
+`IsObjectMeetingSpellClickConditions` (1156). Se trasladan los casos soportados
+y no soportados existentes, sin convertir esta reorganización en nueva prueba
+de paridad. Ningún writer de Player, transacción ni publicación cambia de dueño.
+
+El traslado conserva las fórmulas Rust existentes, incluido el término de
+crushing del target, el truncado y el orden de las bandas. No pretende reparar
+lagunas preexistentes de cobertura de combate ni demostrar paridad completa.
+La inmunidad conserva el resultado representado existente; no se afirma que
+el retorno temprano C++ asigne `OriginalDamage` igual que este helper.
+La RNG sigue en el mismo wrapper; no se añaden reloj, task, lock, estado mutable,
+SQL, paquete ni nueva ruta de publicación. Los comentarios obsoletos sobre
+ausencia de bloqueo de Player/ExpectedStat se corrigen a la frontera real de
+entradas resueltas por el llamador, sin alterar las fórmulas.
+
+### Aceptación pendiente y continuación
+
+#### Continuation: character login ownership and directory delivery, level 1
+
+This implementation slice remains an uncommitted structural refactor on top of
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`. The pinned TrinityCore 3.4.3 source
+is `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`.
+
+- `handlers/character/world_entry/initial_packets.rs` owns the ordered packet
+  bursts on either side of canonical map insertion; `login_recovery.rs` owns
+  homebind and failed-login recovery. `items/login_load.rs` owns the login
+  inventory/item restoration snapshot. The orchestration and phase order remain
+  in `world_entry/login.rs`. Source anchors are
+  `src/server/game/Handlers/CharacterHandler.cpp` and
+  `src/server/game/Entities/Player/Player.cpp`: `Player::SendInitialPacketsBeforeAddToMap`,
+  `Player::SendInitialPacketsAfterAddToMap`, `_LoadInventory`, `_LoadVoidStorage`,
+  `_LoadEquipmentSets`, and `_LoadTransmogOutfits`.
+- Effective-stat snapshot/update helpers now live in `character/stats_update.rs`;
+  the read-only level-up query remains in `stats_queries.rs`. Existing
+  calculations, canonical-owner updates, and packet publication were moved
+  without changing their contracts.
+- Character handler support code was colocated with its consumers across the
+  gossip, query, lifecycle, visibility, pet, and world-entry modules. The
+  character-family source scan in `character_tests/loot.rs` now includes the
+  extracted child modules so its existing publication-order assertions still
+  inspect the whole family. Relevant target anchors include
+  `Handlers/NPCHandler.cpp::HandleGossipSelectOptionOpcode` and
+  `Handlers/CharacterHandler.cpp`'s login sequence.
+- The vendor C++-slot resolver remains private in `character/vendor.rs`; only
+  vendor stock bookkeeping is in `vendor_admission.rs`, avoiding a wider
+  resolver visibility than its callers require. Homebind repair and its
+  persistence helper are owned by `world_entry/login_recovery.rs`, called from
+  the existing login orchestration. This is a structural move only; the
+  represented fallback and persistence order are unchanged. Target anchors are
+  `CharacterHandler.cpp::HandlePlayerLogin` and
+  `Player.cpp::Player::_LoadHomeBind` at the pinned source revision above.
+- `character/items/destruction.rs` now groups `handle_destroy_item`, its quest
+  persistence planner, and the recursive full-stack destruction helpers.
+  Temporary-enchantment cancellation remains in `items.rs`. The child retains
+  existing effective method visibility, and the family publication-order scan
+  in `character_tests/loot.rs` includes the new source. Target anchors are
+  `ItemHandler.cpp::HandleDestroyItemOpcode` and `Player.cpp::DestroyItem`;
+  persistence and runtime mutation order were not changed.
+- Loaded-item row normalization, enchantment/socket construction, and item-field
+  application helpers moved from the character facade to
+  `character/item_load_support.rs`; `items/login_load.rs` remains the hydration
+  operation owner. Existing helper paths are retained by a private facade import.
+  The item-family scan includes this module as well. The source anchors are
+  `Player.cpp::_LoadInventory` and `_LoadVoidStorage`; no hydration order or
+  canonical item authority changed.
+- Account-wide collection loaders and the login spell projection moved to
+  `character/account/collections.rs`. `world_entry/login.rs` still owns the
+  call sites and their execution order; `character_tests/loot.rs` now includes
+  the child in its whole-character-source publication scan. The methods retain
+  their previous effective scope through `pub(in crate::handlers::character)`.
+  C++ anchors are `Player.cpp::LoadFromDB` (17711–17715), which invokes
+  `CollectionMgr::LoadToys`, `LoadHeirlooms`, `LoadMounts`,
+  `LoadItemAppearances`, and `LoadTransmogIllusions`, plus the corresponding
+  `LoadAccount*` routines in `CollectionMgr.cpp` and `Player.cpp::SendKnownSpells`
+  (2536). One existing ordering difference is retained explicitly: Rust currently
+  loads toys, heirlooms, appearances, illusions, then mounts; C++ loads mounts
+  before appearances and illusions. This move does not reorder calls or claim
+  parity for that difference.
+- Character enumeration and its test adapter moved to
+  `character/account/enumeration.rs`; the `EnumCharacters` `PacketHandlerEntry`
+  remains in `account.rs`, and the whole-character-source scan now includes the
+  child. The pinned C++ anchors are `CharacterHandler.cpp::HandleCharEnumOpcode`
+  (407–425) and `HandleCharEnum` (326–405). The Rust persistence-port call,
+  ban-cleanup error handling, row projection, and failure/success responses were
+  moved without changing order; no new parity claim is made for the represented
+  character fields or race-unlock data.
+- Quest-source item storage moved from the reward module to
+  `handlers/quest/source_items.rs`; quest acceptance still calls the same
+  `WorldSession` method. This separates the grant performed during quest
+  acceptance from final reward selection. Target anchors are
+  `QuestHandler.cpp::HandleQuestgiverAcceptQuestOpcode` and the
+  `Player.cpp::Player::AddQuest` → `Player::GiveQuestSourceItem` path. The
+  existing persistence and quest-update sequence was moved without alteration.
+- Final reward inventory storage and currency grant helpers now live in
+  `handlers/quest/rewards/items.rs` and `rewards/currencies.rs`. The reward
+  orchestrator and durable-plan boundary remain in `rewards.rs`; admission
+  remains in `rewards/validation.rs`. Parent-called helpers retain the same
+  effective scope, with `pub(super)` only where delegation now crosses into a
+  child module. Target anchors are `QuestHandler.cpp::HandleQuestgiverChooseRewardOpcode`,
+  `Player.cpp::RewardQuest`, `Player.cpp::RewardQuestPackage`, and the durable
+  contract in [quest-reward-operation-contract.md](quest-reward-operation-contract.md).
+  Commit participants, recovery, and publication order were not changed.
+- `session/directory.rs` remains the sole `PlayerRegistry` storage and snapshot
+  owner. Current-incarnation packet/command delivery and durable runtime
+  publication methods moved to `session/directory/delivery.rs`; feature-gated
+  fixture accessors and directory tests moved to `test_fixtures.rs`. The public
+  method names, registration generations, queue/error behavior, and canonical
+  authority are unchanged. This is an internal Rust organization boundary, not
+  a new gameplay-parity claim.
+
+The loot source family was also separated by canonical source: creature
+generation, corpse-lifetime checks, and creature projections now live in
+`handlers/loot/sources/creature.rs`; the gameobject/gathering/fishing code stays
+in `sources.rs`. Six `cfg(test)` request adapters moved to
+`handlers/loot/requests/test_support.rs`. Loot-window admission and represented
+view/cache operations remain in `requests.rs`; direct item-storage operations
+are grouped in `requests/item_storage.rs`, with disenchant winner/batch
+operations in `requests/item_storage/disenchant.rs`. The existing method scope
+and caller paths are preserved.
+
+The storage split was checked against the pinned TrinityCore source
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+`Handlers/LootHandler.cpp::HandleAutostoreLootItemOpcode` (77–150),
+`Entities/Player/Player.cpp::StoreLootItem` (25643), and
+`Loot/Loot.cpp::LootRoll::Finish` (575–620). It is organization-only: loot
+generation, claim admission, persistence participants/recovery, packet order,
+and publication semantics were not changed; no new parity claim is made.
+
+Quest packet-handler bodies were also split without moving or changing registrations:
+
+- Quest-giver acceptance and shared-quest confirmation methods now live in
+  `handlers/quest/handlers/acceptance.rs`. The pinned C++ anchors are
+  `QuestHandler.cpp::HandleQuestgiverAcceptQuestOpcode` (105–227),
+  `HandleQuestConfirmAccept` (499–531), and `Player.cpp::AddQuestAndCheckCompletion`
+  (14241), `AddQuest` (14398), and `GiveQuestSourceItem` (15448). Existing
+  checks, state transitions, persistence and packet order were moved unchanged.
+- Quest-giver dialog/status and quest query methods now live in
+  `handlers/quest/handlers/queries.rs`. Their source anchors are
+  `QuestHandler.cpp::HandleQuestgiverStatusQueryOpcode` (41–74),
+  `HandleQuestgiverHelloOpcode` (76–103), `HandleQuestgiverQueryQuestOpcode`
+  (228–254), and `HandleQuestQueryOpcode` (255–268), plus
+  `QueryHandler.cpp::HandleQueryQuestCompletionNPCs` (252–278) and
+  `HandleQuestPOIQuery` (280–298). The existing Rust quest-giver query path
+  remains its represented response only; the C++ auto-accept behavior was not
+  added by this structural move.
+- Quest request-reward, complete-quest, and choose-reward handlers now live in
+  `handlers/quest/handlers/reward_flow.rs`. Their C++ anchors are
+  `QuestHandler.cpp::HandleQuestgiverRequestRewardOpcode` (410–438),
+  `HandleQuestgiverCompleteQuest` (533–590), and
+  `HandleQuestgiverChooseRewardOpcode` (269–408). The existing reward
+  transaction, unknown-COMMIT recovery, and publication contracts were moved
+  unchanged; [quest-reward-operation-contract.md](quest-reward-operation-contract.md)
+  remains the operation authority.
+
+All anchors above use the pinned TrinityCore revision
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`. `PacketHandlerEntry` registrations
+remain in `handlers.rs`, including the exact source read by
+`QUEST_HANDLER_REGISTRATIONS`; opcode metadata, thunk calls, and tests were not
+changed.
+
+Static inventory for the quest handler-method split:
+
+```text
+wc -l crates/wow-world/src/handlers/quest/handlers.rs crates/wow-world/src/handlers/quest/handlers/{acceptance.rs,queries.rs,reward_flow.rs,sharing.rs}
+468 crates/wow-world/src/handlers/quest/handlers.rs
+551 crates/wow-world/src/handlers/quest/handlers/acceptance.rs
+285 crates/wow-world/src/handlers/quest/handlers/queries.rs
+483 crates/wow-world/src/handlers/quest/handlers/reward_flow.rs
+984 crates/wow-world/src/handlers/quest/handlers/sharing.rs
+2771 total
+```
+
+Static inventory command and result for the directory/loot ownership split:
+
+```text
+wc -l crates/wow-world/src/session/directory.rs crates/wow-world/src/session/directory/{delivery.rs,test_fixtures.rs} crates/wow-world/src/handlers/loot/requests.rs crates/wow-world/src/handlers/loot/requests/test_support.rs crates/wow-world/src/handlers/loot/requests/item_storage.rs crates/wow-world/src/handlers/loot/requests/item_storage/disenchant.rs crates/wow-world/src/handlers/loot/sources.rs crates/wow-world/src/handlers/loot/sources/creature.rs
+1827 crates/wow-world/src/session/directory.rs
+307 crates/wow-world/src/session/directory/delivery.rs
+323 crates/wow-world/src/session/directory/test_fixtures.rs
+341 crates/wow-world/src/handlers/loot/requests.rs
+141 crates/wow-world/src/handlers/loot/requests/test_support.rs
+884 crates/wow-world/src/handlers/loot/requests/item_storage.rs
+678 crates/wow-world/src/handlers/loot/requests/item_storage/disenchant.rs
+1283 crates/wow-world/src/handlers/loot/sources.rs
+753 crates/wow-world/src/handlers/loot/sources/creature.rs
+6537 total
+```
+
+The item-destruction physical split is independently counted with:
+
+```text
+wc -l crates/wow-world/src/handlers/character/items.rs crates/wow-world/src/handlers/character/items/destruction.rs
+1575 crates/wow-world/src/handlers/character/items.rs
+433 crates/wow-world/src/handlers/character/items/destruction.rs
+2008 total
+```
+
+The character facade/item-restoration support split is counted with:
+
+```text
+wc -l crates/wow-world/src/handlers/character/mod.rs crates/wow-world/src/handlers/character/item_load_support.rs
+1797 crates/wow-world/src/handlers/character/mod.rs
+209 crates/wow-world/src/handlers/character/item_load_support.rs
+2006 total
+```
+
+Character account operation ownership was statically counted with:
+
+```text
+```
+wc -l crates/wow-world/src/handlers/character/account.rs crates/wow-world/src/handlers/character/account/{collections.rs,enumeration.rs}
+1436 crates/wow-world/src/handlers/character/account.rs
+321 crates/wow-world/src/handlers/character/account/collections.rs
+185 crates/wow-world/src/handlers/character/account/enumeration.rs
+1942 total
+
+The quest reward and source-item ownership splits are counted with:
+
+```text
+wc -l crates/wow-world/src/handlers/quest/rewards.rs crates/wow-world/src/handlers/quest/rewards/{items.rs,currencies.rs} crates/wow-world/src/handlers/quest/source_items.rs
+892 crates/wow-world/src/handlers/quest/rewards.rs
+532 crates/wow-world/src/handlers/quest/rewards/items.rs
+126 crates/wow-world/src/handlers/quest/rewards/currencies.rs
+413 crates/wow-world/src/handlers/quest/source_items.rs
+1963 total
+```
+
+No tests, builds, formatters, architecture checks, or QA were run for this
+continuation under level 1. The code remains dirty and has no candidate SHA;
+`HEAD` is still the base SHA above. Implementation status is therefore
+unvalidated. The login orchestration and remaining #1233 ownership work are
+still in scope; this slice does not complete the macro.
+
+#### Continuación: distribución de loot e inventario, nivel 1
+
+Corte de extracción, no reparación de gameplay: las operaciones receiver-free
+de permisos, recuento, reconstrucción y consumo por jugador de
+`handlers/loot/mod.rs` pasan a un módulo privado `wow-loot::distribution`, junto
+al `CreatureLoot` que ya usan. API de funciones con los mismos argumentos y
+resultados; ningún nuevo estado, lock, task, catálogo o dependencia. Los
+adaptadores conservan sus puntos de llamada, autoridad/generación, guardas de
+claims, orden commit/aplicación/publicación y paquetes. No cambia ningún opcode.
+Anclas en el mismo C++ fijado: `Loot/Loot.cpp`, `FillNotNormalLootFor` (1024),
+`hasItemForAll` (950), `hasItemFor` (963), `hasOverThresholdItem` (984),
+`AutoStore` (820–898); `Entities/Player/Player.cpp`,
+`Player::isAllowedToLoot` (17963–18006). Se preservan las representaciones Rust existentes,
+sin afirmar nueva paridad ni unificar helpers de la vista y claims con contratos
+distintos. Los tests de paquetes/Session/DB se quedan en world; los casos de
+estado puros se trasladan y se añaden casos focales de reconstrucción/consumo.
+Los imports en la raíz de handlers son un adaptador privado, no otra implementación.
+Se reutilizan las seis constantes de método de loot que ya pertenecían a
+`wow-loot`, retirando sus duplicados en world. Se trasladan completos los casos
+`represented_unlooted_count_counts_shared_items_once_like_cpp` y
+`creature_loot_visibility_applies_full_cpp_allowed_to_loot_gate`. Los cuatro
+casos nuevos cubren FFA consumido, reconstrucción de loot compartido, slot
+inexistente y la precedencia de pertenencia/threshold; son código de prueba
+escrito, no evidencia ejecutada.
+Aceptación diferida: suite de distribución y suite de autoridad de wow-loot,
+regresiones de loot de world y consumidores de publicación/persistencia.
+No se ejecutan bajo nivel 1; no se declara el runtime listo para QA viva.
+
+El mismo corte traslada la política de tiradas a `wow-loot::rolls`: máscara de
+votos permitidos y resolución parcial/final, con el DTO de voto existente.
+Sólo cambia la entrada de los dos resolutores de `&RepresentedLootRollState`
+a `&HashMap<ObjectGuid, RepresentedLootRollVote>`; reciben el mismo mapa, sin
+copiarlo ni ordenar sus claves. Se conserva el desempate por primer elemento
+encontrado con esa iteración, la precedencia Need y la espera por votos pendientes.
+Timeout, RNG, identidad de la tirada, autoridad/generación, premios y paquetes
+permanecen en Session. Anclas: `Loot.cpp`, `LootRoll::TryToStart` (398–452),
+`PlayerVote` (454), `AllPlayerVoted` (520) y `UpdateRoll` (498);
+el premio/publicación de `Finish` (575) no se mueve. No se afirma que el orden de un HashMap
+sea un nuevo contrato de paridad entre lenguajes; se conserva el comportamiento
+Rust representado y sus pruebas de integración. Se escriben seis casos locales
+de máscara, prioridad, votos pendientes, ausencia de ganador y desempate; no ejecutados.
+
+En inventario, `wow-entities::player::items::storage_move` recibe la validación
+del plan posterior a la asignación de huecos y sus dos registros de decisión.
+Es un módulo privado con reexports explícitos desde la biblioteca existente;
+no se añade crate ni dependencia. La API recibe el `PlayerInventoryItem`
+canónico, cantidades, destinos `ItemPosCount` ordenados y tres consultas
+síncronas concretas: item de destino, cantidad del objeto y tamaño de stack.
+Mantiene la consulta/rechazo temprano, suma comprobada, fallback de stack a 1,
+un único remanente y los errores representados actuales. Los campos públicos
+son valores de la decisión, no exposición del Player ni una nueva autoridad.
+No se añade detección de destinos duplicados ni se repara gameplay implícitamente.
+
+`WorldSession::plan_inventory_storage_move_like_cpp` conserva la búsqueda del
+origen y `CanStoreItem`/`CanBankItem`; ejecución, cercas de persistencia, quest
+y paquetes siguen intactos. Tampoco se mueve ni se multiplica el clone previo
+de `direct_inventory_player_snapshot`: esa deuda permanece fuera de este corte.
+Anclas: `Handlers/ItemHandler.cpp`, `HandleAutoStoreBagItemOpcode` (699–753);
+`Handlers/BankHandler.cpp`, `HandleAutoBankItemOpcode` y
+`HandleAutoStoreBankItemOpcode`; `Entities/Player/Player.cpp`, `CanStoreItem`,
+`CanBankItem`, `StoreItem`/`_StoreItem` y `BankItem`. El no-op del allocator Rust
+conserva `InternalBagError`; no se afirma que sea el error de todas las rutas
+C++ de banco (`HandleAutoBankItemOpcode` distingue `CantSwap`). No se mezcla
+una corrección de esa diferencia con este traslado.
+
+Los escenarios existentes de Session/banco permanecen en world. Se escriben
+once casos de biblioteca para merges, remanente, orden de consultas, fuente,
+GUID/entry, objeto inexistente, límites de stack, sumas y errores de destino.
+Aceptación diferida: esos casos de wow-entities, los escenarios existentes
+`bank_move_plan_*`/`autostore_bank_move_plan_*` y las regresiones de persistencia,
+aplicación y publicación de ambos handlers. Nada de ello se ejecuta en nivel 1.
+
+Recuento físico tras el corte de loot/inventario: **413.684 líneas Rust en 838 archivos de wow-world**,
+incluidos los targets de integración, frente a 425.150 en la base Git
+`9daa13f6`: **11.466 líneas netas menos respecto a esa base**. El recuento
+425.675 → 414.214 de arriba corresponde al corte local anterior, no a dos
+SHAs validados. Comandos de inventario de tamaño (no compilación ni aceptación):
+
+```bash
+rg --files crates/wow-world -g '*.rs' -0 | xargs -0 wc -l | awk '$2 != "total" {lines += $1; files++} END {print files, lines}'
+git grep -c '^' HEAD -- 'crates/wow-world/**/*.rs' | awk -F: '{lines += $NF} END {print lines}'
+```
+
+En esta continuación se reutilizan wow-loot y wow-entities: cero crates nuevos,
+cero dependencias nuevas. Los seis archivos nuevos suman 1.277 líneas incluidas
+las pruebas, con 23 casos (dos trasladados y 21 nuevos), todos sin ejecutar.
+Mover tests reduce la suite alojada en world; el planificador genérico de
+inventario aún puede monomorfizarse en el consumidor. Estos recuentos no son
+mediciones del trabajo del compilador ni prueba de mejora de tiempo.
+
+#### Continuación: reglas y transiciones de objetivos de quest, nivel 1
+
+Se elige una extracción hacia wow-entities ya existente, no otro crate ni una
+dependencia inversa hacia wow-data (que produciría un ciclo). `QuestObjective`
+y sus dos operaciones de valor se trasladan completos a
+`wow-entities/src/quest_objectives/model.rs`; `wow-data::quest::QuestObjective`
+reexporta ese mismo tipo. El catálogo, la carga, normalización, relaciones y
+`QuestTemplate` permanecen en wow-data. Su nuevo `objective_rules_like_cpp`
+construye una vista inmutable con el mismo slice ordenado, sin asignar ni clonar
+objetivos. La dependencia existente data → entities se conserva, no se declara
+resuelta la deuda general de separación de datos.
+
+Las siete reglas anteriores de `handlers/quest_rules.rs` pasan a `completion`
+y `items` bajo ese módulo privado. Los tres planificadores reciben una consulta
+síncrona de definición por ID; se mantienen los puntos de lookup, la iteración,
+los clamps, el orden por slot/ID para bound items y las listas de resultados.
+Los consumidores de handlers, Session y planificación de persistencia llaman
+directamente a wow-entities, sin un segundo cuerpo ni fachada world transitoria.
+Se centralizan sólo las constantes de estado/objetivo implicadas en
+`wow-constants::quest`; las rutas públicas existentes en conditions/data y los
+aliases privados de handlers conservan los mismos valores.
+
+Además se trasladan las dos transiciones de mutación item/bound-item desde las
+closures del handler al `PlayerQuestGameplayState` canónico, en su hijo privado
+`player/quest_state/objectives.rs`. Devuelven registros de cambios y candidatos
+a completar: **no ejecutan ni adelantan la fase de completar la quest**. Se
+conservan el guard de mutación, invalidación de autoridad, selección del orden,
+consultas previas, calls async de completion, snapshots de persistencia y cada
+publicación en world. Los clones previos de snapshots/rewarded IDs no se amplían
+ni se declaran retirados. No hay nuevo estado, lock, tarea, reloj ni opcode.
+
+Anclas en TrinityCore `a5f8da2e`: `Quests/QuestDef.h`, `QuestStatus` (140),
+tipos/flags de objetivos (330/357/371), `QuestObjective`/`IsStoringFlag`
+(442/477); `Conditions/ConditionMgr.cpp`, validación del límite de
+`CONDITION_QUEST_OBJECTIVE_PROGRESS` (2598–2614); `Entities/Player/Player.cpp`,
+`CanCompleteQuest` (14123), `ItemAddedQuestCheck` (16067),
+`ItemRemovedQuestCheck` (16088), `UpdateQuestObjectiveProgress` (16181),
+`IsQuestObjectiveCompletable` (16475), `IsQuestObjectiveComplete` (16533) y
+`IsQuestObjectiveProgressBarComplete` (16608). Se conservan las limitaciones
+del Rust representado: criterios comparados con amount en este helper, fuentes
+vivas no soportadas que devuelven false y timer expresado como end_time no nulo.
+No se usa el traslado para reparar esas diferencias ni probar paridad completa.
+
+Se trasladan tres tests puros conservando nombres/casos, se añaden casos de
+planificación/mutación canónica y uno del adaptador de datos. Los escenarios
+existentes de banco/loot/source-item, estado de quest, commit/aplicación y
+paquetes siguen en world. Aceptación diferida: suites de quest_objectives y
+quest_state de wow-entities, suite quest de wow-data, suite wow-conditions y
+regresiones world de item-objectives/persistencia/consumidores world-server.
+No se ha ejecutado ninguna bajo nivel 1; no hay candidato probado ni publicación.
+
+Estado físico de este corte: **412.561 líneas Rust en 848 archivos de wow-world**,
+4.261 menos que el recuento tras loot/inventario y 15.725 menos que la base Git
+9daa13f6. La fachada `handlers/quest_rules.rs` se elimina; el módulo nuevo de reglas
+se separa en modelo, completion, items, resources y pruebas (los módulos de
+producción quedan por debajo de 500 líneas; el fichero agrupador de pruebas sigue
+siendo una excepción de fixture). Las transiciones canónicas ocupan un hijo de
+194 líneas y sus tests un hijo de 265 líneas. Se retira el montaje/archivo `quest_tests/misc.rs` que quedó
+vacío tras mover sus dos escenarios; ambos siguen declarados en la suite nueva.
+La familia conserva los casos trasladados y añade regresiones de reglas, estado,
+admisión, transición por umbral y adaptación de datos; todos siguen sin ejecutarse.
+Formato aplicado con
+`rustfmt --edition 2024 --config skip_children=true` a las rutas editadas,
+sin `--check`. El recuento usa el mismo comando físico documentado arriba.
+El `cargo check -p wow-world --message-format=short` diagnóstico terminó en
+35,82 s con código 0 y 278 advertencias; no sustituye la campaña final.
+Después de corregir los errores de las rutas `cfg(test)`,
+`cargo test -p wow-world --lib --no-run` terminó en 3m30s y la ejecución
+`cargo test -p wow-world --lib` registró 3.930 tests: 3.929 pasaron, uno quedó
+ignorado y ninguno falló. Esta evidencia cubre la suite de librería de world,
+pero no sustituye las suites de los crates nuevos, integración de producción ni
+los checks arquitectónicos.
+La auditoría `check_architecture.py check` y su self-test (20 pruebas) pasan; el
+checker sintáctico de ownership pasa con 225 campos de producción, 429 de fixture,
+74 owners de implementación y 3.934 asociados exactos. La campaña
+`validation-v2 final --base origin/3.4.3 --timings` alcanzó 949,598 s y agotó su
+límite de 900 s durante el `cargo check --workspace --all-targets`; el manifiesto
+queda como evidencia fallida por timeout, no como aceptación terminal.
+Este estado es un avance dentro del **refactor completo de wow-world**, no su
+aceptación terminal. Quedan los demás eventos de progreso/eligibilidad/recompensa,
+los adaptadores y las demás familias señaladas por #1233; no se reduce el objetivo.
+
+El contador monotónico `game_time_ms_like_cpp` se mueve a
+`session::time_synchronization`, conservando el único `OnceLock<Instant>`, el
+`wrapping` de `u32` y la misma escala de milisegundos usada por regeneración,
+casts, transporte, battleground, visibilidad y sincronización de reloj. Todos los
+consumidores de producción, handlers y fixtures pasan por la fachada de Session;
+no se introducen relojes ni estado duplicados.
+
+La regla de tombstone no durable de skills (`is_non_durable_skill_tombstone_like_cpp`)
+queda junto a sus modelos en `session::player_spell_records`; progresión y adquisición
+mantienen el mismo predicado bajo `cfg(test)` y dejan de depender de `session_rules`.
+
+El generador de GUID de battle pets y su contador de test se agrupan en
+`session::battle_pet_adapter`; el único consumidor de jaula usa esa fachada y
+se mantiene el mismo `AtomicI64`, orden relajado y `HighGuid::BattlePet`.
+
+La validación receiver-free de `creature_message_to_set_target_allows_like_cpp`
+se agrupa en `session::world_entities::creature`, junto a los consumers de
+mensajes de criaturas. Mantiene los filtros de visibilidad, mapa/instancia,
+phase shift y distancia estricta 2D/3D; no cambia la admisión ni el paquete.
+
+El predicado de test que documentaba que los hechizos de monturas de cuenta no se
+guardan en `character_spell` se inlinea en su único escenario; se elimina otro
+helper sin consumidores de `session_rules` y se conserva la misma afirmación
+respaldada por `CollectionMgr::AddMount`/`Player::_SaveSpells`.
+
+Los restos de `session_rules/rules_1.rs` y `rules_2.rs` se eliminan: el primero
+ya sólo contenía dos índices de `CombatRating`, ahora propiedad de
+`session::combat`, y el segundo estaba vacío. Los consumidores conservan la
+fachada de Session y no se altera ningún índice ni cálculo de estadísticas.
+
+`handlers/character/items.rs` deja de contener los cuatro handlers de equipment
+sets: save, assign-spec, delete y use pasan a
+`handlers/character/items/equipment_sets.rs`. La impl sigue siendo de un único
+`WorldSession`, con las mismas validaciones, mutaciones, persistencia diferida y
+paquetes; sólo se reduce el hotspot físico del handler principal.
+
+La familia de movimientos de inventario de ese mismo handler se extrae a
+`handlers/character/items/inventory_moves.rs`: validación de destinos, planificación
+de swaps/equipamiento, ejecución de merges y publicación de posiciones conservan
+el mismo `WorldSession` y sus contratos internos. El archivo principal baja a
+2.192 líneas y el submódulo queda en 1.563; `cargo check -p wow-world` pasa tras el
+corte y no se introduce una nueva autoridad de inventario.
+
+En loot, la interacción y publicación de estado de GameObject se extrae a
+`handlers/loot/sources/gameobject.rs`: apertura de cofres, pesca y nodos de
+recolección, admisión de visibilidad y refrescos de estado siguen siendo métodos
+del mismo `WorldSession`. `sources.rs` baja a 2.312 líneas y el submódulo queda
+en 810; la suite completa de `wow-world` conserva 3.929 tests pasados, uno
+ignorado y cero fallos.
+
+El flujo post-instance de login se extrae de `handlers/character/world_entry.rs`
+a `handlers/character/world_entry/login.rs`. El facade queda en 305 líneas y el
+hijo conserva la única secuencia C++-ordenada de hidratación/publicación (2.489
+líneas), registrada como excepción física transitoria con salida en #584:C4 hasta
+que pueda modelarse un contexto de fases sin alterar orden ni ownership.
+
+La operación de compartir quests se extrae de `handlers/quest/handlers.rs` a
+`handlers/quest/handlers/sharing.rs`. El facade queda en 1.766 líneas y el nuevo
+módulo en 961, manteniendo la misma admisión, evidencia sender-local y contratos
+de publicación; `cargo check -p wow-world` y el checker de ownership siguen pasando.
+
+La proyección de objetos para condiciones se extrae de
+`handlers/character/session_state.rs` a `handlers/character/condition_objects.rs`.
+Los cuatro builders de `WorldObject` y snapshots de `wow-conditions` conservan
+la misma impl de `WorldSession`, visibilidad y política fail-closed; no se añade
+autoridad, espejo, lock ni reloj. El adaptador de estado queda en 2.621 líneas,
+el módulo nuevo en 101, `cargo check -p wow-world`, los 57 tests filtrados de
+condiciones y el checker arquitectónico pasan.
+
+La suite completa de `wow-world` queda verde en la candidata actual: 3.929
+tests pasados, uno ignorado y cero fallos con `--test-threads=1`. La flakiness
+de los escenarios de melee se corrigió en los fixtures: el aura que cancela la
+banda de miss usa `MOD_HIT_CHANCE`, que es el campo que el runtime de criaturas
+resuelve para el atacante; las cinco repeticiones de los escenarios afectados y
+la suite completa pasan. Esto no sustituye la campaña `validation-v2 final`, que
+previamente quedó pendiente por timeout del chequeo workspace.
+
+La reconciliación de la caché de ventanas de loot y la asignación de GUID de
+`LootObject` se extraen de `handlers/loot/requests.rs` a
+`handlers/loot/request_cache.rs`. El módulo principal queda en 2.418 líneas y
+el hijo en 122; la autoridad canónica y el fallback exclusivo de fixtures se
+mantienen intactos. `cargo check -p wow-world`, los 328 tests filtrados de loot
+y el checker arquitectónico pasan.
+
+La admisión de stock/refill y la resolución BFS de slots de vendedor se extraen
+de `handlers/character/vendor.rs` a `handlers/character/vendor_admission.rs`.
+El facade conserva las compras, reparaciones y trainer gossip; la nueva impl
+mantiene los mismos contratos de persistencia y fallback `cfg(test)`. El módulo
+principal sale del hotspot físico de 2.519 líneas; `cargo check -p wow-world`,
+los 30 tests filtrados de vendor y el checker arquitectónico pasan.
+
+Las consultas puras de estadísticas de personaje (`player_stat_changes` y
+`level_up_stat_deltas`) pasan a `handlers/character/stats_queries.rs`; los
+actualizadores que mutan salud/poder y publican paquetes permanecen en
+`session_state.rs`. El corte conserva la misma autoridad Player y el test de
+nivelación pasa junto con `cargo check` y el checker arquitectónico.
+
+Los comandos de combate de criaturas (`AttackStart`, `AttackStop` y la
+reconciliación de expiración PvP) pasan de `handlers/loot/handlers.rs` a
+`handlers/loot/combat_commands.rs`. Siguen siendo entregas acotadas al
+`WorldSession`, sin mutar la autoridad del Map; `cargo check`, seis escenarios
+de combate y el checker arquitectónico pasan.
+
+Los cuatro comandos de publicación sensible a visibilidad (`UpdateObject`/
+`UpdateObjectValues`, `SendIfVisible`, el par `SpellStart`/`SpellGo` de criaturas
+y la entrega condicionada de addons) pasan a
+`handlers/loot/visibility_commands.rs`. El módulo sólo conserva las compuertas
+finales de sesión y la entrega de bytes ya serializados; la selección de
+destinatarios, la autoridad del estado y la identidad map/instancia siguen en
+sus propietarios existentes. Este corte es estructural y queda sin validar bajo
+nivel 1.
+
+La orden de refresco de visibilidad de criaturas queda en el mismo módulo. Sólo
+comprueba la sesión y la identidad map/instancia antes de invocar el recorrido
+canónico existente; no recrea el conjunto visible ni mueve la autoridad del Map.
+
+Las tres órdenes de sincronización de estado de GameObject (nodo de recolección,
+cofre y goober) pasan a `handlers/loot/sources/gameobject.rs`, junto a sus
+operaciones de apertura y refresco. Conservan el mismo filtro de mapa/instancia,
+decodificación de `LootState`/`GoState`, snapshot de estado y llamada al refresco
+visible; no se introduce una segunda autoridad de GameObject.
+
+La carga de filas/referencias de condiciones de loot de criaturas, su evaluación
+representable, la admisión por jugador y la lectura de `item_template_addon`
+quedan en `handlers/loot/sources/creature_conditions.rs`. Es una separación de
+consulta y admisión: no mueve la generación, el claim, el almacenamiento ni la
+autoridad de la tabla de loot.
+
+El contexto de grupo/jugador de las peticiones de loot y sus compuertas de
+objetivos de quest se extrae a `handlers/loot/requests/context.rs`. Mantiene el
+snapshot de Player o del registro remoto, la selección de looter de dungeon, el
+progreso receiver-free y la carga ordenada de metadatos; los handlers siguen
+siendo dueños de la apertura, commit y publicación del loot.
+
+Los dos comandos receptores del flujo de compartir quest (`SetQuestSharingInfo`
+y la solicitud de objetos de turn-in repetible) pasan al módulo de sharing de
+quest, junto al emisor que los produce. Se conserva el mismo estado pendiente,
+GUID receptor y secuencia de detalle; loot deja de ser el propietario físico de
+esa transición.
+
+Los comandos de cancelación/estado de trade y las dos publicaciones de duelo
+representado pasan al handler social, que ya es el dueño físico de las
+interacciones sociales. Se mantienen la compuerta de pareja activa, el reset de
+aceptación, el arbiter GUID y los bytes de paquete sin cambiar su orden.
+
+La carga de cooldowns y cargas de hechizos desde las filas auxiliares de login
+se separa en `handlers/character/session_state/login_data.rs`. Conserva la
+limpieza previa, los filtros contra los catálogos, la autoridad de estado de
+hechizos y el orden de los paquetes; sólo cambia la ubicación física del método.
+El mismo módulo recibe la carga de `TraitConfigs`/`TraitEntries`, incluida la
+normalización, los gates de completitud y la autorización exacta de hechizos de
+traits; no se cambia la frontera de autoridad ni la secuencia de login.
+
+La admisión de elecciones de quest-package y la planificación de espacio de
+inventario para recompensas pasan a `handlers/quest/rewards/validation.rs`.
+El módulo conserva los filtros de plantilla, facción, fallback de paquetes,
+errores de inventario y la preflight `CanRewardQuest`; la aplicación, persistencia
+y publicación de la recompensa permanecen en `rewards.rs`.
+
+La transacción de recompra de vendedor (`CMSG_BUY_BACK_ITEM`) se separa en
+`handlers/character/vendor/buyback.rs`. Mantiene el mismo preflight de slot,
+dinero, plan de merge/move, COMMIT único, espejo canónico y publicación de
+updates; no cambia la autoridad de inventario ni de persistencia.
+
+La construcción de `DynamicObjectCreateData` desde el snapshot canónico se mueve
+a `session::object_updates`, junto a la entrega de actualizaciones de objetos.
+Se conservan GUID, entry, flags, escala, posición, caster, spell visual, spell,
+radio y `cast_time_ms`; los consumidores de efectos, resolución de mapas y
+fixtures usan la misma fachada y se elimina otro helper de `session_rules`.
+
+La admisión receiver-free de objetos de quest también se mueve a
+`wow-entities::player_has_incomplete_quest_objective_for_object_id_like_cpp`.
+Recibe el snapshot ordenado de estados y una consulta de definiciones; mantiene
+el fallback del índice de almacenamiento, el límite mínimo de cantidad y el
+fallo cerrado ante catálogo ausente. Session sólo resuelve el catálogo y combina
+el resultado con `QuestLogItemId`/item-drop; no conserva una segunda regla.
+El ancla C++ es `Player::ItemAddedQuestCheck`/`UpdateQuestObjectiveProgress`
+(`Player.cpp:16067`, `16181`). Se añade una regresión pura de admisión; no se
+ejecuta todavía.
+
+Los tres recorridos de transición por umbral (dinero, moneda y reputación) comparten
+ahora `wow_entities::plan_threshold_quest_objective_changes_like_cpp`. El planificador
+es sólo observador: conserva el filtro por estado incompleto/completo, identidad de
+objetivo, dirección inversa de `QUEST_OBJECTIVE_MAX_REPUTATION`, bloqueo de una
+transición ya completada cuando el valor no retrocede y el orden del catálogo; los
+handlers siguen siendo dueños de la mutación de Player, completion async, persistencia
+y paquetes. La extracción corresponde a `Player::UpdateQuestObjectiveProgress`
+(`Player.cpp:16181`) y a la comparación de objetivos de `Player.cpp:16475–16608`.
+Incluye regresiones puras para cruce de umbral y reputación máxima; permanecen sin
+ejecutar bajo nivel 1.
+
+La validación receiver-free del nombre de personaje también sale de la capa de
+handlers: sus códigos de respuesta se centralizan en
+`wow-constants::character` y la regla ASCII/longitud vive en
+`wow-entities::represented_character_rename_name_result_like_cpp`. Los handlers
+siguen siendo dueños de la autorización, respuesta y persistencia del personaje;
+la función trasladada sólo selecciona el código C++. Se conserva una regresión
+pura con el orden vacío, corto, largo, carácter inválido y nombre válido. No se
+ha ejecutado bajo nivel 1. Las anclas de integración son `CharacterHandler.cpp`
+(rename 1533–1538 y customize 1788–1802) y los valores de
+`SharedDefines.h:6231–6236`; el chequeo completo de `ObjectMgr::CheckPlayerName`
+(`ObjectMgr.cpp:8707`) sigue siendo una diferencia representada preexistente y
+no se amplía dentro de este refactor.
+
+El adaptador de condiciones de vendedor deja de duplicarse en world y pasa a
+`wow-conditions::is_vendor_item_conditions_with_snapshots_like_cpp`, junto a la
+consulta `ConditionMgr` que ya poseía ese crate. Sólo se trasladó la construcción
+de `ConditionSourceInfo` desde snapshots; los handlers siguen resolviendo los
+objetos, inventario, stock y resultado de compra. El reloj de stock reutiliza
+`wow_entities::game_time_secs_like_cpp`; se elimina el último `character_rules.rs`
+del world crate. No se ejecutó validación bajo nivel 1.
+
+La admisión de votos de loot ya no pasa por una fachada de reglas del world crate:
+`LootRollVoteCommand::targets_identity_like_cpp` vive junto al contrato de mailbox
+y compara clave, generación, autoridad y la identidad de la instancia exacta del
+roll. El handler sólo consume esa decisión antes de aplicar el voto; los tests de
+reemplazo de roll siguen usando el contrato del mensaje. La elegibilidad de tipos
+de roll permanece en `wow-loot`; sólo se ha movido la valla de identidad del
+transporte, sin alterar el orden de publicación.
+
+La última reexportación de elegibilidad se eliminó también: `wow-world` llama
+directamente a `wow_loot::represented_loot_roll_valid_rolls_like_cpp`, por lo que
+`handlers/loot_rules.rs` deja de existir. No queda una segunda autoridad para la
+selección de tipos de roll.
+
+La regla de cálculo de la ventana de una quest aceptada se incorporó como
+`QuestTemplate::accepted_and_end_time_like_cpp(accept_time)` en `wow-data`.
+Los handlers muestrean el reloj en su punto de admisión y el modelo aplica
+`TimeAllowed` con el mismo `saturating_add`; `quest_rules.rs` conserva únicamente
+la clasificación de la fuente de recompensa de moneda, que todavía depende del
+enum de publicación de Session. No se alteró la autoridad de persistencia ni se
+ejecutó validación bajo nivel 1. La fuente C++ es `Player::AddQuest`
+(`Player.cpp:14398–14471`), donde se calcula `EndTime` desde `GetLimitTime()` y
+se registra `AcceptTime` con `GameTime::GetGameTime()`.
+
+La clasificación de la fuente de recompensa de moneda sigue la misma frontera:
+`CurrencyGainSourceLikeCpp` pasa a `wow-constants::currency` y
+`QuestTemplate::currency_gain_source_like_cpp` la calcula junto a sus flags
+`Daily`, `Weekly` y `WorldQuest`. Session conserva la aplicación de la moneda,
+los límites, la persistencia y el paquete `SetCurrency`; ya no existe una regla
+de recompensa duplicada en `wow-world`.
+
+La geometría de caja de area-trigger se trasladó de `session_rules/rules_2.rs`
+al owner de datos espaciales `wow-entities::area_trigger`. Session sólo decide
+qué trigger consultar y conserva el radio/phase gate; la función pura transforma
+la posición a los ejes locales del trigger y comprueba las tres semidimensiones.
+Se añade una regresión de rotación de ejes; no se ejecuta bajo nivel 1.
+
+La tasa pura de experiencia de grupo (`xp_in_group_rate_like_cpp`) sale de
+`session_rules/rules_2.rs` y pasa a `wow-entities::player_rules`, junto a las
+reglas receiver-free de Player. El cálculo del reparto por nivel sigue en
+Session porque necesita el snapshot de miembros, mapa y distancia; sólo la
+tabla de multiplicadores queda centralizada y reutilizable.
+
+Las dos reglas receiver-free de descanso también salen de `session_rules`: la
+normalización finita de `rest_bonus` y la admisión de los estados Rested/Normal/RAF
+viven en `wow-entities::player_rules`; sus valores de protocolo se centralizan en
+`wow-constants::rest`. Session conserva la carga, las migraciones de filas y la
+mutación del estado canónico, sin una segunda validación local.
+
+La comprobación de slots de buyback deja de pasar por `session_rules`: el helper
+canónico `wow_entities::is_buyback_slot` se reutiliza desde handlers, persistencia,
+equipamiento y almacenamiento. No se modifica la ventana de slots; sólo se retira
+la copia receiver-free del world crate.
+
+La tabla `ItemTransmogrificationSlots` se mueve igualmente a
+`wow-entities::player_rules::item_transmogrification_slot_like_cpp`. Appearance
+mantiene la consulta a stores y la publicación de criterios; la conversión pura
+de `InventoryType` a slot de equipo ya no depende de `session_rules`. Se conserva
+la regresión de cabeza, arma de dos manos y tipo desconocido.
+
+La conversión de altura de silla a `UnitStandStateType` sigue la misma ruta:
+`chair_stand_state_like_cpp` se ubica en `wow-entities::player_rules`; la
+interacción de GameObject conserva teleport, ocupación de slot, efectos y
+publicación, y sólo delega la tabla pura de estado sentado. Se añade regresión
+para la altura base y el overflow que debe caer en `Stand`.
+
+El ajuste porcentual de bonus de descanso (`apply_pct_modifier_to_u32_like_cpp`)
+sale del bloque de helpers de test de `session_rules/rules_1.rs` y pasa a
+`wow-entities::player_rules`. Mantiene aritmética signed, división entera y
+clamp a `u32`; Session sólo conserva el consumo y la mutación del bonus.
+
+Los gates estrictos de distancia 2D/3D se trasladan a `wow-core::position`, junto
+a `Position` y sus operaciones geométricas. Creature runtime, ticks de hechizo y
+las reglas de visibilidad usan ahora esa autoridad común; la comparación mantiene
+la semántica estricta de C++ (`distance² < límite²`) y su regresión de frontera.
+
+La conversión de `SpellEffectInfo::MiscValue` a `area_id` pasa a
+`wow-entities::bind_area_id_like_cpp`; el efecto de hechizo conserva la resolución
+de zona, posición y publicación. Se mantienen la asignación unsigned de los 32
+bits y la regresión para `-1`, sin una regla paralela en `session_rules`.
+
+La clasificación de acciones de encantamiento cargadas que no tienen una
+representación directa (`loaded_enchantment_effect_action_is_unrepresented_like_cpp`)
+se mueve a `wow-entities::player::item_modifiers`, junto al enum y al runtime que
+las produce. El consumidor de Session sólo registra el resultado; se eliminan
+la función y la importación duplicadas de `session_rules`.
+
+La segunda clasificación de encantamientos, `represented_item_bonus_action_updates_stats_like_cpp`,
+se coloca en el mismo módulo de modificadores. Session conserva únicamente el
+recorrido de acciones, la aplicación de efectos y la publicación de cambios; el
+helper ya no depende de `session_rules`.
+
+La conversión pura de `UiLinkUseSource::ui_link_type` a `PlayerInteractionType`
+(`ui_link_player_interaction_type_like_cpp`) pasa a `wow-entities::game_object`,
+junto al modelo de origen de uso. La interacción conserva el envío del paquete y
+la publicación de efectos, sin mantener la tabla en `session_rules`.
+
+La tabla de ACK de velocidad (`movement_speed_ack_move_type_like_cpp`) pasa de
+`session_rules` a `session::movement_protocol`, junto a `UnitMoveTypeLikeCpp` y
+los eventos que la consumen. El manejo de anticheat conserva la misma resolución
+de opcode y el mismo rechazo para tipos desconocidos. La tabla complementaria de
+publicación (`player_movement_speed_opcodes_like_cpp`) queda en el mismo módulo,
+conservando la pareja `Set/Update` por tipo de movimiento.
+
+La regla geométrica `visibility_distance_allows_like_cpp` pasa a
+`wow-core::position`, junto a los gates estrictos de distancia. Los consumidores
+de efectos, instancias, criaturas, GameObjects y sus escenarios usan la autoridad
+común; se conserva la suma acotada de alcances y la comparación estricta.
+
+La clasificación `SpellInfo::IsPositive` (`represented_spell_is_positive_like_cpp`)
+sale de `session_rules` y pasa a `wow-data::spell::catalog`, junto a `SpellInfo` y
+sus efectos. Los consumidores de aura, amenaza, metadata de criatura y escenarios
+usan ahora esa autoridad de datos, conservando los mismos efectos dañinos,
+targets enemigos y reglas de signo.
+
+La comprobación de disponibilidad de recursos (`represented_spell_power_has_power_like_cpp`)
+también pasa a `wow-data::spell::catalog`. El flujo de casteo conserva sus tres
+fronteras (precheck, debit y revalidación bajo el owner guard), pero la regla pura
+de costes y snapshot ya no vive en `session_rules`.
+
+La validación recursiva de hechizos aprendidos (`represented_spell_valid_with_seen_like_cpp`)
+se mueve al mismo catálogo de datos. Conserva el corte de ciclos mediante `seen`,
+rechaza IDs ausentes o triggers no positivos y deja a Session únicamente la
+decisión de admisión que consume el resultado.
+
+La tabla pura de candidatos de equipo (`represented_total_avg_equipment_slot_candidates_like_cpp`)
+se mueve a `wow-entities::player`, junto a `InventoryType` y los slots canónicos.
+El cálculo de nivel medio conserva las reglas de dual-wield, titan-grip y slots
+alternativos; Session sólo mantiene la consulta de catálogos y la agregación.
+
+La mutación con guardas de moneda (`plan_remove_currency_like_cpp`) pasa a
+`wow-entities::player_gameplay_state`, junto a `PlayerCurrency` y sus estados de
+persistencia. Vendor, movimiento y escenarios llaman la autoridad común; se
+mantienen el underflow guard, el clamp de cantidad y la transición `New → Changed`.
+
+El planificador de máscara de actualización posterior a retirar de void storage
+(`void_withdrawal_post_store_item_values_update_like_cpp`) pasa a
+`session::item_modifiers`, junto a los adaptadores de `ItemValuesUpdate`. El
+publicador conserva la misma frontera: primero calcula la máscara pura y después
+convierte/publica el paquete bajo el estado de Session.
+
+La clasificación de efectos inertes para el perfil de golpe por la espalda
+(`player_target_spell_effect_is_hit_inert_like_cpp`) pasa a
+`wow-data::spell::catalog`. Aura publication y spell state consultan ahora el
+modelo de datos; se conservan el rechazo de triggers y la lista estrecha de
+auras/efectos permitidos.
+
+La mutación de reemplazo de un slot de nivel medio
+(`represented_avg_total_item_level_maybe_replace_slot_like_cpp`) se mueve a
+`wow-entities::player`, junto a la tabla de candidatos. Se conservan el control
+de GUID duplicado, el delta saturante y la sustitución sólo cuando mejora el nivel.
+
+La lista de tipos válidos para el seer (`represented_seer_kinds_like_cpp`) pasa a
+`wow-entities::object_accessor`, junto a `AccessorObjectKind`. Movimiento,
+resolución de instancias y aggro comparten ahora esa tabla canónica sin una regla
+duplicada en `session_rules`.
+
+La proyección de los tres IDs de loot de un GameObject (`loot_ids_like_cpp`) pasa
+a ser un método del modelo `GameObjectLootSource`. Quest interaction conserva la
+resolución y publicación de loot, pero ya no necesita un helper paralelo en
+`session_rules`.
+
+El fingerprint de entrega de valores de DynamicObject se mueve a
+`session::object_updates`, junto al consumidor de snapshots y la publicación de
+updates. `map_key` reutiliza esa única utilidad; `session_rules` deja de contener
+hashing específico de la entrega.
+
+La construcción de `UpdateObject` para flags dinámicos de GameObject se mueve al
+mismo módulo `session::object_updates`. El consumidor de visibilidad y sus
+fixtures usan ahora esa fachada; la conversión de máscara y valores permanece
+idéntica.
+
+La máscara de campos para reubicar objetos (`item_storage_fields_values_update_like_cpp`)
+se mueve a `session::item_modifiers`, junto al adaptador de void storage. La
+publicación y sus fixtures reutilizan el planificador único para contained-in,
+dynamic-flags2 y encantamientos modificados.
+
+La conversión de `AuraApplication` a `AuraInfoLikeCpp` (`player_aura_info_like_cpp`)
+se mueve a `session::spell_state::aura_publication`, junto a las rutas que envían
+actualizaciones de auras. El combate reutiliza la fachada de Session y se
+conservan duración, máscara de efectos, cast GUID y puntos escalables.
+
+La transformación de homebind a petición de persistencia
+(`player_homebind_update_request_like_cpp`) pasa a `session::persistence::plans`.
+Los efectos de jugador y escenarios consumen la fachada de Session; se mantienen
+los campos de mapa, área, posición, orientación y GUID del jugador.
+
+La consulta de precios base por nivel (`item_price_base_with_catalogs_like_cpp`)
+se mueve a `session::player_items::valuation`, junto al cálculo de valoración de
+objetos. La consulta sigue siendo un lookup puro y conserva la pareja armor/weapon.
+
+La conversión de `SendNewItemPlan` a `ItemPushResult`
+(`item_push_result_from_send_new_item_plan`) pasa a
+`session::player_items::publication`. Persistencia y escenarios reutilizan esa
+fachada única; se conservan modificaciones, texto de display, cantidades,
+encounter y battle-pet fields.
+
+El GUID centinela de sets de equipamiento (`ignored_equipment_set_item_guid_like_cpp`)
+se queda junto a `session::player_items::equipment_sets`, su único consumidor.
+Se elimina otra dependencia de `session_rules` sin cambiar la comparación de
+GUID ni el recorrido de slots.
+
+Las comprobaciones de opcode de cuenta se localizan ahora en sus consumidores:
+heirlooms en `session::lifecycle_ops` y transmog en
+`session::player_items::appearance`. Se conserva el rechazo del placeholder
+`UpdateCapturePoint`/`0xBADD`, pero desaparece la pareja genérica de helpers de
+`session_rules`.
+
+La aplicación de stats calculados de battle pet
+(`apply_battle_pet_calculated_stats_like_cpp`) pasa a
+`session::battle_pet_adapter`, junto a los tipos de datos que modifica. Los
+recorridos de battle pet y journal reutilizan la misma operación, conservando la
+actualización de max health, power, speed y health.
+
+La mutación de los flags de visibilidad de Session
+(`apply_player_session_visibility_detection_like_cpp`) se localiza en
+`session::visibility::operations`. El sincronizador de visibilidad conserva el
+mismo owner guard y sólo delega la escritura de los dos flags del `Player`.
+
+La tabla de opcode de spline de criaturas
+(`creature_movement_spline_speed_opcode_like_cpp`) se reúne con las demás tablas
+de movimiento en `session::movement_protocol`. El consumidor de battle-pet/movilidad
+usa la fachada de Session y conserva todos los mappings `Walk`/`Run`/`Swim`/`Flight`.
+
+La lectura de tiempo Unix (`current_game_time_secs_like_cpp`) se elimina de
+`session_rules`: los consumidores usan directamente `wow_core::GameTime::now()`.
+Se conserva el mismo reloj de segundos y los cierres del owner de descanso reciben
+la función de tiempo sin introducir un segundo reloj.
+
+La adaptación local del colector de ownership reconoce la declaración privada
+en `session/state.rs` manteniendo la identidad lógica `crate::session`, la
+detección de duplicados y el inventario de campos/impls; aún no está validada.
+Las rutas y visibilidades
+de los snapshots sólo admiten deltas explicados; no se regenera un baseline para
+ocultar deriva. La reducción física no cuenta como reducción del owner lógico.
+
+Cuando se seleccione validación: incluir los targets de integración
+`wow-combat/tests/melee_contract.rs` y `melee_damage.rs`, las suites afectadas de
+Session y sus consumidores, y el colector/políticas arquitectónicas; la aceptación
+de publicación conserva sus gates. La reorganización de fixtures y el movimiento
+del tracker cambian rutas internas de tests, no su contrato; hay que comprobar
+el conjunto ejecutado, no sólo el número. No hay timing antes/después ni ahorro
+de compilación demostrado. La medición reproducible sigue perteneciendo a #1231.
+
+La futura campaña debe incluir además las suites y doctests de
+`wow-spell-acquisition`, la suite de `wow-conditions`, los escenarios retenidos
+de adquisición/aplicación y los consumidores world/world-server. Debe cubrir
+tanto la API de producción sin fixtures como la feature de desarrollo y el
+store global único a través de la fachada. Cargo/lock/políticas están editados,
+pero aún no aprobados por la campaña final. Durante este corte se ejecutaron el
+`cargo check` diagnóstico y la suite de librería de `wow-world` descritos arriba;
+siguen pendientes las suites de los crates nuevos, integración de producción,
+campaña arquitectónica, QA y check de aceptación.
+
+La continuación de inventario/loot/quest aún debe separar las operaciones
+restantes de datos, planificación y aplicación sin una dependencia inversa;
+los planificadores aquí extraídos no cierran esa familia completa. Runtime/AI
+mantiene su orden y autoridad hasta su análisis propio. No se crean crates vacíos
+adicionales ni se presenta esta extracción como el refactor terminado de todo
+`wow-world`.
+
 Estado exacto tras PR #933 (`ef30bb3e`, código integrado en `ef30bb3e1232c775dcc21ccbc4c91d9196c3e22d`): 649 campos de WorldSession (219 de producción, 430 fixtures). El P4 de navegabilidad separa los tests de loaded-grid en una fachada de producción de 797 líneas y módulos de construcción/resolución. PR #933 separa el runtime de game-events en siete módulos detrás de una fachada de 9 líneas, preservando 181 regresiones. El lock de encuentros, la proyección de visibilidad `Player::m_seer`, la búsqueda de CREATE para Pets canónicas y el DESTROY dirigido genérico de Creature/Pet/Corpse ya usan la autoridad canónica; no queda un residual productivo de WorldSession en este corte auditado. Session conserva un único cerrojo de publicación para el paquete explícito de limpieza FAR_SIGHT.
 
 PR #881 añade el cierre nominal de las mutaciones de aura del Player sobre el `AuraSubsystem`
@@ -97,6 +1076,1070 @@ consumidor de spell solo lee el policy. La prueba de policy desactivada y la
 regresión de configuración cubren la frontera. La clasificación añade el writer
 productivo que faltaba, no crea autoridad duplicada ni cambia el orden de runtime;
 el merge `9ec36295344d3faf96733b77bac4686d0a903ec1` deja el residual productivo exacto en 7 campos. Los checks focales, arquitectónicos y de formato pasan.
+
+#### Continuation: vendor inventory handler organization, level 1
+
+`WorldSession::handle_list_inventory` moved from
+`handlers/character/items.rs` to the private child
+`handlers/character/vendor/list_inventory.rs`. Its signature, public method
+name, async sequence, callers, and operation body are unchanged; the existing
+Spanish inline comments were translated to English. No state, persistence path,
+packet field, or gameplay behavior was added or altered.
+
+`account.rs` retains the `ListInventory` `PacketHandlerEntry` with its
+existing `LoggedIn`/`Inplace` metadata and thunk. Both direct gossip callers
+remain unchanged. The character-family source scan includes the new child, and
+`session-ownership-policy.json` records the method's new source module. No
+packet registration or test body was moved.
+
+The pinned TrinityCore source is
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+`Handlers/ItemHandler.cpp::HandleListInventoryOpcode` (567–573) delegates to
+`WorldSession::SendListInventory` (575–697). These anchors establish the
+semantic owner and source operation; this structural move makes no new parity
+claim and does not repair pre-existing differences in Rust vendor lookup,
+interactability checks, movement/home-position updates, pricing, or row
+selection.
+
+Static source inventory after the move:
+
+```text
+wc -l crates/wow-world/src/handlers/character/items.rs crates/wow-world/src/handlers/character/vendor.rs crates/wow-world/src/handlers/character/vendor/list_inventory.rs
+1299 crates/wow-world/src/handlers/character/items.rs
+1774 crates/wow-world/src/handlers/character/vendor.rs
+285 crates/wow-world/src/handlers/character/vendor/list_inventory.rs
+3358 total
+```
+
+The preceding worktree inventory was 1,575 lines in `items.rs` and 1,773 in
+`vendor.rs`; this move reduces the items file while leaving the vendor root
+above the ordinary 1,000-line review threshold. The character/vendor family
+remains in progress.
+
+No tests, builds, formatters, architecture checks, or QA were run for this
+continuation under level 1. The dirty tree remains unvalidated; `HEAD` remains
+the base SHA above and there is no candidate SHA or commit.
+
+#### Continuation: vendor purchase handler organization, level 1
+
+The `WorldSession::handle_buy_item` test adapter and
+`handle_buy_item_with_generator_like_cpp` moved from
+`handlers/character/vendor.rs` to the private child
+`handlers/character/vendor/buy.rs`. Their signatures, visibility, and
+`cfg(test)` gate are unchanged. The production handler body was moved intact:
+the existing validation, vendor-slot resolution, persistence, canonical
+application, and publication sequence was not reordered or expanded. The
+shared private `resolve_vendor_buy_item_by_cpp_slot` remains in the parent
+vendor module.
+
+`account.rs` retains the `BuyItem` `PacketHandlerEntry` with its existing
+`LoggedIn`/`Inplace` metadata and thunk. The transaction-atomicity test
+source remains in `character_vendor_atomicity_tests.rs`, and the character
+family source scan now includes `vendor/buy.rs`. The item-refund operation
+remains in `vendor.rs` and was not changed.
+
+The pinned TrinityCore source is
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+`Handlers/ItemHandler.cpp::HandleBuyItemOpcode` (530–564) delegates the buy
+request to `Player::BuyItemFromVendorSlot` (`Entities/Player/Player.cpp`,
+22338+). This source comparison identifies the operation boundary; the move
+does not claim new parity or alter the represented Rust behavior. The Rust
+source reference was corrected to the actual C++ method start while moving it.
+
+Static source inventory after the move:
+
+```text
+wc -l crates/wow-world/src/handlers/character/vendor.rs crates/wow-world/src/handlers/character/vendor/buy.rs crates/wow-world/src/handlers/character/vendor/list_inventory.rs
+817 crates/wow-world/src/handlers/character/vendor.rs
+971 crates/wow-world/src/handlers/character/vendor/buy.rs
+286 crates/wow-world/src/handlers/character/vendor/list_inventory.rs
+2074 total
+```
+
+The ownership policy now places both moved methods in
+`crate::handlers::character::vendor::buy`; the method signatures, public
+visibility, fixture classification, and registration metadata remain
+unchanged.
+
+No tests, builds, formatters, architecture checks, or QA were run for this
+continuation under level 1. The dirty tree remains unvalidated; `HEAD` remains
+the base SHA above, with no candidate SHA or commit.
+
+#### Continuation: real inventory swap operation organization, level 1
+
+`plan_inventory_real_swap_children_like_cpp` and
+`execute_inventory_real_swap_like_cpp` moved together from
+`handlers/character/items/inventory_moves.rs` to the private child
+`handlers/character/items/inventory_moves/real_swap.rs`. Both retain their
+`pub(crate)` visibility and signatures. The planner, persistence/application
+coordinator, and its existing recursive child-item behavior were relocated
+without changing operation order or adding state.
+
+The inventory-move dispatcher remains in its existing module and calls the
+same associated method. The `item_2.rs` scenarios that exercise the real-swap
+child planner remain in place; the character-family source scan now includes
+the new child. No opcode registration or packet handler was moved.
+
+The pinned TrinityCore source is
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+`Handlers/ItemHandler.cpp::HandleSwapItem` (130–173) delegates the position
+transition to `Player::SwapItem` (`Entities/Player/Player.cpp`, 12271+).
+These anchors identify the source operation only; this physical split makes
+no new parity claim.
+
+Static source inventory after the move:
+
+```text
+wc -l crates/wow-world/src/handlers/character/items/inventory_moves.rs crates/wow-world/src/handlers/character/items/inventory_moves/real_swap.rs
+1157 crates/wow-world/src/handlers/character/items/inventory_moves.rs
+420 crates/wow-world/src/handlers/character/items/inventory_moves/real_swap.rs
+1577 total
+```
+
+That measurement precedes the following item-mutation continuation. The
+inventory-move family remains in progress.
+
+No tests, builds, formatters, architecture checks, or QA were run for this
+continuation under level 1. The dirty tree remains unvalidated; `HEAD` remains
+the base SHA above, with no candidate SHA or commit.
+
+#### Continuation: inventory item-mutation organization, level 1
+
+`execute_inventory_equip_to_empty_raw_like_cpp`,
+`execute_inventory_auto_unequip_offhand_if_need_like_cpp`, and
+`execute_inventory_stack_merge_like_cpp` moved from
+`handlers/character/items/inventory_moves.rs` to the private child
+`handlers/character/items/inventory_moves/item_mutations.rs`. Each retains its
+`pub(crate)` visibility and signature. The dispatcher, real-swap operation,
+and equipment coordinator still call the same associated methods; persistence,
+canonical mutation, and publication bodies were moved without alteration.
+
+The character-family source scan now includes the child. Existing scenario
+sources remain in place, with no test body or packet registration moved.
+`session-ownership-policy.json` records all three method paths under
+`inventory_moves::item_mutations`.
+
+The pinned TrinityCore source is
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+`Handlers/ItemHandler.cpp::HandleSwapItem` (130–173) delegates to
+`Player::SwapItem` (`Entities/Player/Player.cpp`, 12271+);
+`Player::EquipItem` begins at 11360 and
+`Player::AutoUnequipOffhandIfNeed` at 24600. The pinned 3.4.3 source does not
+contain `CanEquipChildItem` or `AutoUnequipChildItem`; the related Rust
+methods remain in the root module and are not changed or moved here. This
+structural slice makes no parity claim for those retained later-upstream
+representations.
+
+Static source inventory after this move:
+
+```text
+wc -l crates/wow-world/src/handlers/character/items/inventory_moves.rs crates/wow-world/src/handlers/character/items/inventory_moves/real_swap.rs crates/wow-world/src/handlers/character/items/inventory_moves/item_mutations.rs
+803 crates/wow-world/src/handlers/character/items/inventory_moves.rs
+420 crates/wow-world/src/handlers/character/items/inventory_moves/real_swap.rs
+368 crates/wow-world/src/handlers/character/items/inventory_moves/item_mutations.rs
+1591 total
+```
+
+The root is now below the ordinary 1,000-line review threshold. Planning,
+dispatcher, child-item coordination, and position publication remain in the
+inventory-move family; this does not complete the wider inventory/quest macro.
+
+No tests, builds, formatters, architecture checks, or QA were run for this
+continuation under level 1. The dirty tree remains unvalidated; `HEAD` remains
+the base SHA above, with no candidate SHA or commit.
+
+#### Continuation: inventory packet-handler organization, level 1
+
+The item swap, auto-equip, bag-storage, and temporary-enchantment packet
+handlers moved from `handlers/character/items.rs` to the private child
+`handlers/character/items/handlers.rs`. This includes their existing
+`cfg(test)` generator adapters. Method names, signatures, visibility, and
+feature gates remain unchanged; the operation bodies were moved without
+altering their order or behavior.
+
+`account.rs` retains all six `PacketHandlerEntry` registrations, including
+their existing `LoggedIn`/`Inplace` metadata and thunks. No opcode
+registration or scenario test body was moved. The character-family source scan
+now includes the new child, and the ownership policy records all eleven moved
+test/production method definitions under
+`crate::handlers::character::items::handlers`.
+
+The pinned TrinityCore source is
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: the relevant target anchors are
+`Handlers/ItemHandler.cpp::HandleSwapInvItemOpcode` (69–112),
+`HandleAutoEquipItemSlotOpcode` (114–128), `HandleSwapItem` (130–173),
+`HandleAutoEquipItemOpcode` (175+), `HandleAutoStoreBagItemOpcode` (699+),
+and `HandleCancelTempEnchantmentOpcode` (1100+). These identify the adapters
+only; the structural move makes no new parity claim.
+
+Static source inventory after the move:
+
+```text
+wc -l crates/wow-world/src/handlers/character/items.rs crates/wow-world/src/handlers/character/items/handlers.rs
+797 crates/wow-world/src/handlers/character/items.rs
+516 crates/wow-world/src/handlers/character/items/handlers.rs
+1313 total
+```
+
+The items root is below the ordinary 1,000-line review threshold. Destruction,
+equipment-set, inventory-move, and login-load children remain separate.
+
+No tests, builds, formatters, architecture checks, or QA were run for this
+continuation under level 1. The dirty tree remains unvalidated; `HEAD` remains
+the base SHA above, with no candidate SHA or commit.
+
+#### Continuation: directory loot snapshot and delivery operations, level 1
+
+The `PlayerRegistry` loot snapshot, recipient-resolution, loot-roll ownership,
+and loot-money preparation methods moved into the private child
+`session/directory/loot.rs`. The parent `session/directory.rs` remains the sole
+owner of registry storage. Public method names and signatures, generation
+checks, exact map/instance filters, canonical Player reads, command-channel
+identity checks, and durable loot-money tracker selection are unchanged; no
+packet registration, persistence fence, or publication order moved.
+
+Current callers remain in the loot handlers and their claims, fanout, money,
+roll, and request-context adapters, plus the existing Session money/group
+consumers. The pinned TrinityCore revision
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` provides the consumer context at
+`Handlers/LootHandler.cpp::HandleAutostoreLootItemOpcode` (77–150) and
+`HandleLootMoneyOpcode` (142+), `Loot/Loot.cpp::LootRoll::TryToStart`
+(398–452) and `LootRoll::Finish` (575–620), `Entities/Player/Player.h::GetPassOnGroupLoot`
+(2570), and `Entities/Player/Player.cpp::isAllowedToLoot` (17963–18006).
+These anchors do not establish cross-language equivalence for the Rust
+generation-checked directory projections; this organization-only move makes no
+new gameplay-parity claim.
+
+Static source inventory after the move:
+
+```text
+wc -l crates/wow-world/src/session/directory.rs crates/wow-world/src/session/directory/loot.rs
+1574 crates/wow-world/src/session/directory.rs
+268 crates/wow-world/src/session/directory/loot.rs
+1842 total
+```
+
+The moved child stays within the usual cohesive-file range; the logical
+`PlayerRegistry` owner and its storage do not change. No tests, builds,
+formatters, architecture checks, or QA were run for this continuation under
+level 1. The dirty tree remains unvalidated; `HEAD` remains the base SHA above,
+with no candidate SHA or commit.
+
+#### Continuation: directory recipient-query organization, level 1
+
+The remaining read-only `PlayerRegistry` projections and recipient-candidate
+queries moved into the private child `session/directory/recipient_queries.rs`.
+This groups runtime, social, Group/Party, inspect, spatial, quest, vehicle,
+aggro, and player-CREATE snapshots. Existing public method names and
+signatures, registration generations, map/instance filters, canonical-owner
+lookups, guard-drop order, and result ordering remain unchanged. The directory
+struct and registration/lifetime operations remain in the parent. Non-loot
+control-channel writes stay in their existing owner modules; loot-roll
+ownership publication remains grouped with the loot-specific projections and
+application preparation in `loot.rs`.
+
+Consumers continue to call the same `PlayerRegistry` methods from chat, group,
+inspect, quest, movement, spell, pet, collections, taxi, visibility, and
+runtime publication code. The pinned TrinityCore revision
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` provides related consumer anchors:
+`Entities/Object/Object.cpp::WorldObject::SendMessageToSetInRange` (1752),
+`Entities/Player/Player.cpp::Player::SendMessageToSetInRange` (6141),
+`Maps/Map.cpp::Map::SendInitSelf` (1826),
+`Handlers/InspectHandler.cpp::HandleInspectOpcode` (28), and
+`Handlers/QuestHandler.cpp::HandleQuestConfirmAccept` (499). These references
+frame the affected consumers only; the Rust directory snapshots and candidate
+resolution are not asserted to be a complete C++-equivalent implementation.
+No packet metadata, persistence, state transition, or publication behavior was
+changed. `world_entry/login.rs` remains untouched because its physical-file
+policy requires the explicit #584:C4 phase and reader/writer review before any
+further split.
+
+Static source inventory after both directory cuts:
+
+```text
+wc -l crates/wow-world/src/session/directory.rs crates/wow-world/src/session/directory/{loot.rs,recipient_queries.rs}
+794 crates/wow-world/src/session/directory.rs
+268 crates/wow-world/src/session/directory/loot.rs
+788 crates/wow-world/src/session/directory/recipient_queries.rs
+1850 total
+```
+
+The registry root and both children are below the ordinary 1,000-line review
+threshold; this physical split does not reduce the logical `PlayerRegistry`
+owner. No tests, builds, formatters, architecture checks, or QA were run for
+this continuation under level 1. The dirty tree remains unvalidated; `HEAD`
+remains the base SHA above, with no candidate SHA or commit.
+
+#### Continuation: GameObject loot authority organization, level 1
+
+The canonical GameObject loot-authority synchronization, personal-pool
+installation observations and upserts, represented GameObject loot context,
+fully-looted query, and autostore-distance decision moved into the private
+`handlers/loot/sources/gameobject_authority.rs` child. The existing
+`WorldSession` remains the sole owner; method names, signatures, state
+transitions, cache reconciliation, generation/lifecycle checks, and callers are
+preserved. Methods that previously had effective `crate::handlers::loot`
+visibility retain that scope explicitly. Two helpers previously private to
+`sources.rs` are `pub(super)` in the child so the parent and its descendant
+modules can continue to call them. The session syntax-ownership inventory
+records the new module paths and effective visibility. GameObject generation
+and source orchestration remain in `sources.rs`; the two corpse lootable-flag
+mutators also remain there.
+
+The move was reviewed against the pinned TrinityCore revision
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+`Entities/GameObject/GameObject.cpp::GameObject::Use` (2501),
+`SetLootState` (3683), `ClearLoot` (3711), and `GetLootForPlayer` (3898), plus
+`Handlers/LootHandler.cpp::HandleAutostoreLootItemOpcode` (77). These anchors
+establish source and consumer context only. No C++ behavior was ported or
+changed in this slice, and no new gameplay-parity claim is made.
+
+Static source inventory after this cut:
+
+```text
+wc -l crates/wow-world/src/handlers/loot/sources.rs crates/wow-world/src/handlers/loot/sources/gameobject_authority.rs crates/wow-world/src/handlers/loot/sources/gameobject.rs
+966 crates/wow-world/src/handlers/loot/sources.rs
+316 crates/wow-world/src/handlers/loot/sources/gameobject_authority.rs
+996 crates/wow-world/src/handlers/loot/sources/gameobject.rs
+2278 total
+```
+
+The source facade is below the ordinary 1,000-line review threshold, and the
+existing GameObject operation child remains unchanged. This is a physical
+organization change only; canonical loot ownership and lifecycle ordering do
+not move. No tests, builds, formatters, architecture checks, or QA were run
+under level 1. The dirty tree remains unvalidated; `HEAD` remains the base SHA
+above, with no candidate SHA or commit.
+
+#### Continuation: loot handler operation organization, level 1
+
+The item-storage packet operation and its test adapter moved into the private
+`handlers/loot/handlers/item.rs` child. Loot-money packet handling, its test
+adapter, and the receiver-side apply/notification command methods moved into
+`handlers/loot/handlers/money.rs`. The loot-release packet method moved beside
+the existing open/close request operations in `handlers/loot/requests.rs`.
+Method names, signatures, effective visibility, operation order, durable
+boundaries, claim handling, generation checks, and fanout behavior are
+unchanged. `session-ownership-policy.json` records the new implementation
+modules.
+
+Every `PacketHandlerEntry` for these opcodes remains in
+`handlers/loot/handlers.rs`
+with the same opcode, status, processing mode, name, and thunk. The pinned
+TrinityCore revision
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` supplies consumer context at
+`Handlers/LootHandler.cpp::HandleAutostoreLootItemOpcode` (77),
+`HandleLootMoneyOpcode` (142), and `HandleLootReleaseOpcode` (262). These
+anchors are not evidence of a new port or gameplay equivalence; this change
+only relocates the existing Rust operations.
+
+Static source inventory after the cut:
+
+```text
+wc -l crates/wow-world/src/handlers/loot/handlers.rs crates/wow-world/src/handlers/loot/handlers/{item.rs,money.rs} crates/wow-world/src/handlers/loot/requests.rs
+987 crates/wow-world/src/handlers/loot/handlers.rs
+286 crates/wow-world/src/handlers/loot/handlers/item.rs
+534 crates/wow-world/src/handlers/loot/handlers/money.rs
+365 crates/wow-world/src/handlers/loot/requests.rs
+2172 total
+```
+
+The packet-registration facade is below the ordinary 1,000-line review
+threshold, and both operation children remain within the preferred cohesive
+file range. No tests, builds, formatters, architecture checks, or QA were run
+under level 1. The dirty tree remains unvalidated; `HEAD` remains the base SHA
+above, with no candidate SHA or commit.
+
+#### Continuation: loot release transition organization, level 1
+
+The source-specific release transition, active-view close-out, and the
+GameObject/gathering-node release publication helpers moved from
+`handlers/loot/claims.rs` into the private child
+`handlers/loot/claims/release.rs`. Canonical loot authority, object and view
+generation checks, claim rollback/commit ordering, cache reconciliation,
+durable release effects, and packet/fanout order remain unchanged. Existing
+callers in packet requests, loot persistence, Session lifecycle, spell/item
+operations, GameObject handling, and the loot test module retain the same
+`WorldSession` method names and signatures. The methods formerly `pub(super)`
+now explicitly use `pub(in crate::handlers::loot)` to preserve their effective
+scope; the all-views release entry point remains `pub(crate)`. The syntax
+ownership inventory records the child module and visibility.
+
+The move was reviewed against pinned TrinityCore revision
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+`Handlers/LootHandler.cpp::HandleLootReleaseOpcode` (262) and
+`WorldSession::DoLootRelease` (270),
+`Entities/GameObject/GameObject.cpp::OnLootRelease` (3735), and
+`Entities/Creature/Creature.cpp::AllLootRemovedFromCorpse` (2942). These
+anchors establish source and lifecycle context only; this structural cut makes
+no new gameplay-parity claim.
+
+Static source inventory after the cut:
+
+```text
+wc -l crates/wow-world/src/handlers/loot/claims.rs crates/wow-world/src/handlers/loot/claims/release.rs
+559 crates/wow-world/src/handlers/loot/claims.rs
+690 crates/wow-world/src/handlers/loot/claims/release.rs
+1249 total
+```
+
+Both files remain below the preferred 800-line cohesive-file target. No tests,
+builds, formatters, architecture checks, or QA were run under level 1. The
+dirty tree remains unvalidated; `HEAD` remains the base SHA above, with no
+candidate SHA or commit.
+
+#### Continuation: loot-roll criteria and publication organization, level 1
+
+Loot-roll criterion updates and the packet-send/broadcast helpers moved from
+`handlers/loot/rolls.rs` into the private child
+`handlers/loot/rolls/publication.rs`. The roll-state owner, voting and winner
+selection, RNG and timeout processing, claim lifecycle, recipient resolution,
+packet values, and call order remain in their existing implementation. The
+parent calls the extracted helpers with their former effective private scope:
+they are `pub(super)` in the child, visible only within the `rolls` module and
+its descendants. `session-ownership-policy.json` records the source modules
+and visibility.
+
+The move was reviewed against the pinned TrinityCore revision
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` at
+`Loot/Loot.cpp::LootRoll::TryToStart` (398), `PlayerVote` (454),
+`UpdateRoll` (498), `AllPlayerVoted` (520), and `Finish` (575). These anchors
+describe the roll lifecycle context only; the relocation does not port or
+change roll behavior and makes no new parity claim.
+
+Static source inventory after the cut:
+
+```text
+wc -l crates/wow-world/src/handlers/loot/rolls.rs crates/wow-world/src/handlers/loot/rolls/publication.rs
+943 crates/wow-world/src/handlers/loot/rolls.rs
+265 crates/wow-world/src/handlers/loot/rolls/publication.rs
+1208 total
+```
+
+The roll owner is below the ordinary 1,000-line review threshold and the
+publication child remains within the preferred cohesive-file range. No tests,
+builds, formatters, architecture checks, or QA were run under level 1. The
+dirty tree remains unvalidated; `HEAD` remains the base SHA above, with no
+candidate SHA or commit.
+
+#### Continuation: shared character-handler support organization, level 1
+
+Four cohesive helper groups moved out of `handlers/character/mod.rs` into
+private child modules: login location/homebind and initial world-state support
+in `login_support.rs`; persisted map-transport validation, position and
+create-block composition in `login_transport_support.rs`; character-list flag
+and pet projections in `enumeration_support.rs`; and race/class creation
+defaults and restored-health support in `creation_support.rs`. Their
+implementations, callers, and operation order were relocated without changing
+the `WorldSession` owner or behavior. Parent imports preserve descendant
+call-sites. `default_display_id` remains available at its existing
+`crate::handlers::character` path, and the player-visibility snapshot helper
+retains its crate-level path through an explicit re-export.
+
+The source review used pinned TrinityCore revision
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`:
+`Server/Packets/CharacterPackets.cpp` (118-156),
+`Entities/Player/Player.cpp::Player::Create` (386),
+`Player::LoadFromDB` (17060), `Player::_LoadHomeBind` (19228), and
+`Player::SendInitialPacketsBeforeAddToMap` (23455),
+`Maps/Map.cpp::Map::SendInitTransports` (1853), and
+`World/WorldStates/WorldStateMgr.cpp::FillInitialWorldStates` (259). These
+anchors establish operation and caller context only; no Rust logic was
+changed, and the structural move makes no new gameplay-parity claim.
+
+Static source inventory after the cut:
+
+```text
+wc -l crates/wow-world/src/handlers/character/mod.rs crates/wow-world/src/handlers/character/{creation_support.rs,enumeration_support.rs,login_support.rs,login_transport_support.rs}
+978 crates/wow-world/src/handlers/character/mod.rs
+105 crates/wow-world/src/handlers/character/creation_support.rs
+92 crates/wow-world/src/handlers/character/enumeration_support.rs
+274 crates/wow-world/src/handlers/character/login_support.rs
+406 crates/wow-world/src/handlers/character/login_transport_support.rs
+1855 total
+```
+
+The shared character-handler facade is below the ordinary 1,000-line review
+threshold, and each extracted support module is below 800 lines. The existing
+character-family publication-order source scan now includes all four new
+files. No tests, builds, formatters, architecture checks, or QA were run under
+level 1. The worktree remains unvalidated; `HEAD` remains
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no candidate SHA or commit.
+
+#### Continuation: lifecycle-persistence test organization and Session-state review, level 1
+
+The shared `RecordingPortLikeCpp` fixture and session builders remain in
+`session/tests/lifecycle_persistence.rs`. Its 34 persistence scenarios moved
+without test-body or attribute changes into `player_persistence.rs` (14),
+`character_lifecycle.rs` (14), and `account_collections.rs` (6). The existing
+`deferred_transfer.rs` and `save_interleaving.rs` children remain registered;
+the parent module path in `session_tests.rs` is unchanged. This is test-source
+organization only; no production persistence code or contract changed.
+
+Static inventory after the cut:
+
+```text
+wc -l crates/wow-world/src/session/tests/lifecycle_persistence.rs crates/wow-world/src/session/tests/lifecycle_persistence/{account_collections.rs,character_lifecycle.rs,player_persistence.rs}
+413 crates/wow-world/src/session/tests/lifecycle_persistence.rs
+111 crates/wow-world/src/session/tests/lifecycle_persistence/account_collections.rs
+372 crates/wow-world/src/session/tests/lifecycle_persistence/character_lifecycle.rs
+432 crates/wow-world/src/session/tests/lifecycle_persistence/player_persistence.rs
+1328 total
+```
+
+The current unvalidated worktree inventory also supersedes the earlier
+Session-root measurements in this section: `session/mod.rs` is 1,027 lines,
+`session/state.rs` is 2,090, and `session/construction.rs` is 1,185. The
+2,090-line `state.rs` is the single `WorldSession` definition and its field
+list; this pass did not alter it. Splitting fields into a generic state bag
+would obscure responsibility, while moving a partial field group without all
+direct readers would break the existing internal access paths. No complete
+semantic field-group migration is established here. This is a pending
+macro-closeout review, not a terminal exception: #1233 acceptance must either
+complete a responsibility-based migration with one canonical Session state
+or record a specific, evidence-backed bounded exception under the module
+policy. The 1,185-line constructor remains an ordinary cohesion-review item.
+
+No tests, builds, formatters, architecture checks, or QA were run under level
+1. The worktree remains unvalidated at base `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`,
+with no candidate SHA or commit.
+
+#### Continuation: world-entity scenario test organization, level 1
+
+The 1,993-line `session/tests/scenarios_world_entities_19.rs` scenario module
+is now a 22-line registration facade with seven focused children: GameObject
+use (2 tests), shared creature authority (2), creature tick ownership (4),
+creature movement ticks (3), legacy melee/aggro no-op behavior (2), player
+melee modifiers (3), and player melee outcomes (4). The existing registration
+path in `session_tests.rs` is unchanged, and each child retains its parent
+session-test fixture access.
+
+Static source comparison against `HEAD` matched all 20 test attributes and
+bodies, with no duplicate or missing registrations. Existing test comments
+remain with their corresponding scenarios. The largest resulting child is
+`player_melee_outcomes.rs` at 600 lines; all seven children are below the
+800-line preferred cohesive-file ceiling. This is test organization only: no
+production behavior, test assertion, or parity claim changed.
+
+No tests, builds, formatters, architecture checks, or QA were run under level
+1. The worktree remains unvalidated at base `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`,
+with no candidate SHA or commit.
+
+#### Continuation: player-victim creature-melee scenario organization, level 1
+
+The current 1,954-line `session/tests/scenarios_world_entities_32.rs` suite is
+now a 15-line facade with three children: hit-band and armor (2 tests,
+`melee_hit_and_armor.rs`, 612 lines), damage modifiers and expected-stat use
+(3 tests, `melee_damage_modifiers.rs`, 569 lines), and absorption/mana-shield
+behavior (3 tests, `melee_absorption.rs`, 781 lines). The registration path
+through the existing session test module is unchanged. The two ownership-ledger
+entries for armor and victim damage-taken evidence now name their actual nested
+test modules; their test fingerprints remain unchanged.
+
+Static comparison against the current worktree source preserved all eight
+remaining test attributes, bodies, and leading C++ evidence comments. The
+pre-existing `player_block_percent_matches_get_block_percent_like_cpp` case
+remains in `wow-combat/tests/melee_contract.rs`; this slice adds no test
+removals. This is test organization only and makes no new gameplay or parity
+claim.
+
+No tests, builds, formatters, architecture checks, or QA were run under level
+1. The worktree remains unvalidated at base `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`,
+with no candidate SHA or commit.
+
+#### Continuation: creature-melee absorb-stage organization, level 1
+
+The canonical shield-resolution block moved from
+`session/legacy_runtime/creature_melee_tick.rs` into the private
+`creature_melee_tick/absorption.rs` child. It contains the existing school- and
+mana-shield operations for canonical player and creature victims, plus the
+shield-amount writer. The callers remain in the same melee coordinator; only
+the two helpers called by that parent are `pub(super)`, retaining the former
+effective scope. The external `run_legacy_creature_melee_tick_once_like_cpp`
+path and map-owned mutation/publication ordering are unchanged.
+
+The source review used pinned TrinityCore revision
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`, `Entities/Unit/Unit.cpp`,
+`Unit::CalcAbsorbResist` (1789-1930), whose school-absorb loop precedes its
+mana-shield loop. Static comparison found the parent identical outside the
+extracted block, and the moved block identical apart from those two visibility
+qualifiers. The parent is now 1,608 lines and the child 269 lines. This is a
+physical organization change only; it changes no combat formula or parity
+claim.
+
+No tests, builds, formatters, architecture checks, or QA were run under level
+1. The worktree remains unvalidated at base `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`,
+with no candidate SHA or commit.
+
+#### Continuation: legacy creature-melee scenario organization, level 1
+
+The 1,669-line `session/tests/scenarios_world_entities_28.rs` suite is now a
+12-line facade with two focused children: `creature_melee_admission.rs` (8
+scenarios, 685 lines) and `creature_melee_damage.rs` (5 scenarios, 988 lines).
+The `session_tests.rs` registration path remains unchanged; no local helpers or
+include-based consumers needed relocation.
+
+Static comparison against the pre-move source preserved all 13 test attributes,
+bodies, and leading C++ comments without duplicate or missing registrations.
+The destination scenario module has no session-ownership-ledger entries to
+retarget. This is a test-organization change only; no production behavior or
+test assertion changed.
+
+No tests, builds, formatters, architecture checks, or QA were run under level
+1. The worktree remains unvalidated at base `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`,
+with no candidate SHA or commit.
+
+#### Continuation: player-item and combat-stat scenario organization, level 1
+
+The current 1,961-line `session/tests/scenarios_player_items_12.rs` suite is
+now a 16-line facade with four responsibility children: item/equipment updates
+(5 tests, 354 lines), defensive combat stats (3, 369), weapon offense (5, 697),
+and resistance/spell power (5, 555). The `session_tests.rs` mount is unchanged,
+and there are no exact module-path entries in the ownership ledger to retarget.
+
+Static comparison against the pre-move worktree source preserved all 18 test
+attributes, bodies, and leading comments. It also retains the pre-existing
+canonical item-push import-path adjustment in its original test. No test
+assertion or production behavior changed in this organization pass.
+
+No tests, builds, formatters, architecture checks, or QA were run under level
+1. The worktree remains unvalidated at base `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`,
+with no candidate SHA or commit.
+
+#### Continuation: spell-effect scenario organization, level 1
+
+The 1,905-line `session/tests/scenarios_spell_state_12.rs` suite is now a
+module root retaining the positivity-classification scenario plus five focused
+children: player power effects (13 tests, 767 lines), extra attacks (3, 208),
+inebriate effects (4, 196), reputation (4, 257), and creature power effects
+(4, 462). Its `session_tests.rs` mount is unchanged. The pre-existing change to
+exercise the positivity rule through `wow-data` remains in the root test.
+
+Static comparison against the current pre-move source matched all 29 test
+attributes, bodies, and leading comments, with no missing or duplicated cases.
+This is test organization only; no production behavior, assertion, or parity
+claim changed.
+
+No tests, builds, formatters, architecture checks, or QA were run under level
+1. The worktree remains unvalidated at base `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`,
+with no candidate SHA or commit.
+
+#### Continuation: spell-state and direct-effect scenario organization, level 1
+
+The 1,854-line `session/tests/scenarios_spell_state_11.rs` suite is now a
+35-line root retaining the replacement-spell fixture plus five children:
+spell-state ownership/registry (6 tests, 611 lines), reputation (2, 91), base
+damage (4, 265), healing (4, 356), and damage modifiers (4, 534). The existing
+`session_tests.rs` mount is unchanged.
+
+Static comparison against the pre-move source preserved all 20 test attributes,
+bodies, and leading comments; the shared fixture is present once at the parent
+and remains accessible to its child. No ownership-policy module entries needed
+retargeting. This is test organization only; no production behavior or assertion
+changed.
+
+No tests, builds, formatters, architecture checks, or QA were run under level
+1. The worktree remains unvalidated at base `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`,
+with no candidate SHA or commit.
+
+#### Continuation: additional Session scenario organization, level 1
+
+Thirteen further oversized scenario roots were decomposed into responsibility-
+scoped child modules. Together with the previously documented
+`scenarios_spell_state_11.rs` split, this brings the current inventory to
+fourteen roots. All `session_tests.rs` registration mounts remain unchanged.
+
+| Existing root | New children (tests; lines) |
+| --- | --- |
+| `scenarios_combat_4.rs` (1,674 → 11 lines; 14 tests) | `white_swing_damage` (4; 383), `attack_table_outcomes` (3; 408), `melee_damage_taken` (3; 327), `avoidance_critical_and_evade` (4; 557) |
+| `scenarios_player_items_5.rs` (1,441 → 11; 17 tests) | `appearance_admission_and_updates` (7; 365), `can_add_appearance_gates` (5; 738), `quest_reward_appearances` (3; 308), `appearance_queries` (2; 31) |
+| `scenarios_spell_state_25.rs` (1,437 → 157; 19 tests) | `health_derived_aurastate` (3; 199), `spell_damage_and_healing` (5; 363), `spell_power_coefficients` (3; 192), `attack_speed_and_form_timing` (2; 159), `shapeshift_forms_and_display_power` (6; 378) |
+| `scenarios_combat_1.rs` (1,370 → 13; 18 tests) | `combat_rating_and_swing_bonuses` (4; 522), `quest_kill_rewards` (2; 129), `combat_reach_and_visibility` (2; 90), `canonical_player_ownership` (2; 177), `death_and_healing` (3; 94), `combat_tick_admission` (5; 372) |
+| `scenarios_world_entities_10.rs` (1,161 → 12; 14 tests) | `creature_kill_and_death` (3; 223), `spell_damage_death` (2; 102), `spell_healing` (3; 192), `spell_threat` (4; 364), `creature_aura_application` (2; 290) |
+| `scenarios_player_items_9.rs` (1,130 → 10; 20 tests) | `durability_scenarios` (5; 626, with 3 fixtures), `item_template_rules` (4; 338), `inventory_position_and_open_item` (11; 178) |
+| `scenarios_world_entities_35.rs` (1,106 → 8; 4 tests) | `shared_damage_scenarios` (3; 836, with 3 fixtures), `unkillable_scenario` (1; 269); nested `share_damage` mount in `_34` is unchanged |
+| `scenarios_spell_state_26.rs` (1,062 → 19; 10 tests) | `power_drain_core` (2; 225), `power_drain_damage_taken` (7; 764), `creature_negative_damage_taken_aura` (1; 69) |
+| `scenarios_spell_state_16.rs` (1,010 → 17; 14 tests) | `healing_and_health_leech` (6; 376), `kill_credit` (2; 169), `honor_effects` (3; 191), `pet_dismissal` (2; 114), `heal_absorb` (1; 171) |
+| `scenarios_misc_3.rs` (1,026 → 15; 13 tests) | `map_value_publication` (3; 174), `dynamic_object_snapshots` (5; 288), `rest_and_far_sight` (4; 214), `trainer_interaction` (1; 357) |
+| `login_auxiliary_persistence.rs` (1,055 → 311; 12 tests) | `auxiliary_login_reads` (4; 180), `spell_history` (2; 114), `trait_configuration` (6; 460); the typed persistence-port fixture remains at the parent |
+| `scenarios_world_entities_1.rs` (1,048 → 17; 19 tests) | `combat_catalog_and_fanout` (4; 119), `creature_attack_commands` (4; 221), `creature_melee_commands` (6; 419), `durable_runtime_rail` (2; 106), `visibility_refresh_commands` (3; 200) |
+| `player_spell_hit_source.rs` (1,023 → 191; 18 tests) | `identity_and_lifetime` (4; 184), `trait_glyph_and_zone_gates` (2; 122), `outdoor_pvp_and_area_ancestry` (4; 131), `pet_and_login_sources` (5; 213), `spell_area_requirements` (2; 103), `source_mutation_invalidation` (1; 98); three shared authority fixtures remain at the parent |
+
+The shared fixture extraction leaves `session_tests.rs` as a 389-line
+registration root and `session/tests/fixtures/mod.rs` as a 54-line private
+aggregator. Fifteen responsibility-named fixture modules remain there; the
+largest is `spell_catalog.rs` at 705 lines. Static comparisons preserved every
+test attribute and body in the fourteen scenario roots, their shared fixture
+functions, and attached C++ comments. The pre-existing
+`wow_core::visibility_distance_allows_like_cpp` path change was retained; no
+ownership-policy module paths needed retargeting. These are test-organization
+changes only.
+
+A scoped physical count using
+`rg --files crates/wow-world/src/session/tests | rg '\.rs$' | xargs wc -l | sort -nr`
+reported 124,310 total lines and no Rust test file above 1,000 lines; the largest
+remaining file is `scenarios_world_entities_28/creature_melee_damage.rs` at
+988. This is navigation evidence for the test directory, not architecture
+acceptance.
+
+#### Continuation: spell-effect application modules, level 1
+
+`session/spell_effects/effect_combat.rs` is a 691-line parent retaining the
+shared damage, healing, and target projections. The existing
+`session/spell_effects/mod.rs` mount remains unchanged. Damage/environmental
+and taunt operations live in
+`effect_combat/damage_and_combat_application.rs` (516 lines); heal
+application and publication live in
+`effect_combat/healing_application.rs` (384 lines).
+
+Static comparison against the base plus the pre-existing local call-path
+adjustment preserved all 27 `WorldSession` method signatures, visibilities,
+bodies, and attached method documentation exactly. The existing
+`crate::session::player_aura_info_like_cpp` call path remains in the moved heal
+method. No caller or gameplay behavior changed.
+
+#### Continuation: receiver-free Session rules, level 1
+
+`session_rules/rules_3.rs` is now a 14-line facade over two responsibility-
+scoped children: aura projections in `rules_3/aura_effects.rs` (558 lines) and
+melee-damage calculations in `rules_3/melee_damage.rs` (283 lines).
+`session_rules/mod.rs` re-exports preserve the prior crate-internal paths.
+
+Static comparison preserved all 25 top-level item blocks, including attached
+documentation: 19 aura-projection items and 6 melee-damage items. Only module
+placement and imports changed; callers and gameplay behavior are unchanged.
+
+#### Continuation: character-persistence test organization, level 1
+
+The 1,739-line `handlers/character_tests/persistence.rs` now retains 17
+login/persistence scenarios in a 783-line parent. The mana, health and power
+regeneration scenarios, food/drink visual scenarios, and their 10 local helpers
+now live under `persistence/resource_regeneration/`: the 31-line root retains
+the shared power-type fixture, `mana_and_food_emotes.rs` contains 7 tests
+(484 lines), and `health_and_power_regeneration.rs` contains 6 tests (473
+lines). The existing `character_tests.rs` mount remains unchanged.
+
+Static comparison against the current pre-move worktree source preserved all 23
+moved top-level function blocks, including test attributes, bodies, helpers and
+attached comments. No block was lost or duplicated. The pre-existing
+`game_time_ms_like_cpp` path adjustments remain in the moved scenarios; the
+existing login-source path adjustment remains in the parent. This is test
+organization only; assertions and production behavior are unchanged.
+
+#### Continuation: Session aura authority and query organization, level 1
+
+`session/spell_state/aura.rs` is now a 737-line parent with two focused
+children: `aura/spell_hit_authority.rs` (13 methods; 291 lines) contains the
+canonical spell-hit aura-source proof and synchronization operations, while
+`aura/effect_queries.rs` (21 methods; 366 lines) contains aura-effect
+queries and modifier projections. The existing `spell_state/mod.rs` mount
+remains unchanged. The parent retains 18 methods for aura-state projection,
+shapeshift, loading, and transform operations, together with their local
+helpers.
+
+Static comparison preserved all 52 `WorldSession` method blocks, including
+signatures, visibility, attributes, bodies, and attached documentation. Existing
+`pub(in crate::session)` and `pub(crate)` method visibility and call sites
+remain unchanged. This is a physical organization change only.
+
+#### Continuation: movement spline progression organization, level 1
+
+`session/movement/state.rs` is now a 955-line parent with spline/taxi
+progression operations in the private `state/spline_progression.rs` child
+(235 lines). The child contains five complete methods: move-time-skipped
+application, spline completion, taxi-spline completion, its private event
+recording helper, and the taxi-event projection. The existing
+`session/movement/mod.rs` mount remains unchanged.
+
+Static comparison preserved all 56 `WorldSession` method blocks, including
+signatures, visibility, attributes, bodies, and attached documentation. The
+private taxi-event helper moved with its callers; all existing external method
+call paths remain unchanged. This is a physical organization change only.
+
+#### Continuation: character-visibility handler organization, level 1
+
+`handlers/character/visibility.rs` is now a 352-line parent retaining
+creature-spawn materialization and registration. Nearby-creature delivery and
+visibility refresh live in `visibility/creatures.rs` (5 methods; 970 lines);
+nearby GameObject delivery lives in `visibility/gameobjects.rs` (1 method;
+244 lines). The existing `handlers/character/mod.rs` mount remains unchanged.
+
+Static comparison preserved all 10 `WorldSession` method blocks, including
+signatures, visibilities, bodies, and attached documentation. The private
+creature-create helper moved with its consumers; the parent materialization
+helpers and their existing effective visibility remain available to the nested
+modules. No packet registrations or call sites changed. This is a physical
+organization change only.
+
+No tests, builds, formatters, architecture checks, or QA were run for these
+continuations under level 1. The worktree remains unvalidated at base
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no candidate SHA or commit.
+
+#### Continuation: loot random-property organization, level 1
+
+The random-property representation, stack-compatibility helper, weighted
+enchantment selection, and `WorldSession` random-property generation methods
+moved from `handlers/loot/mod.rs` to the private
+`handlers/loot/random_properties.rs` module. Existing callers in creature loot
+generation and item/disenchant storage retain their method and helper names.
+The new child uses `pub(super)` only where needed to preserve the former
+visibility throughout the `handlers::loot` subtree; the helper implementations
+and caller-supplied RNG remain unchanged. The ownership syntax policy records
+the moved `WorldSession` methods under the new module.
+
+The structural move was reviewed against pinned TrinityCore 3.4.3 source
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `ItemEnchantmentMgr.cpp::GetRandomPropertyPoints`
+(81) and `ItemEnchantmentMgr::GenerateRandomProperties` (153), plus
+`Player.cpp::StoreLootItem` (25643), which invokes that generator during item
+storage. These anchors establish operation context only; this change makes no
+new parity claim. Inventory mutation, loot claims, persistence, packet
+publication, and opcode registrations are unchanged.
+
+The weighted selector remains in this private `wow-world` adapter. It consumes
+`ItemRandomEnchantmentTemplateEntry` from `wow-data`, which is categorized as
+`adapter-platform`, while `wow-loot` is `domain-runtime` under
+`dependency-policy.json`; adding that edge would invert the allowed dependency
+direction. A generic row projection solely for this one selector would add an
+unearned adapter, so no new crate or dependency was introduced.
+
+Static source inventory after the cut:
+
+```text
+wc -l crates/wow-world/src/handlers/loot/mod.rs crates/wow-world/src/handlers/loot/random_properties.rs
+1043 crates/wow-world/src/handlers/loot/mod.rs
+170 crates/wow-world/src/handlers/loot/random_properties.rs
+1213 total
+```
+
+No tests, builds, formatters, architecture checks, or QA were run for this
+continuation under level 1. The worktree remains unvalidated at the base SHA,
+with no candidate SHA or commit.
+
+#### Continuation: loot item-storage plan organization, level 1
+
+The shared direct-loot/disenchant plan records and the post-store publication
+context moved from `handlers/loot/mod.rs` into the private
+`handlers/loot/storage_plans.rs` module. Their fields remain available only
+within the `handlers::loot` subtree. Existing call sites in item storage,
+disenchant, claim, persistence, and handler operations retain the same type
+names. Planning, transaction/claim ordering, canonical item application, and
+publication remain in their existing operation owners.
+
+The C++ operation context is `Player::StoreLootItem` in the pinned
+TrinityCore 3.4.3 source `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`
+(`Entities/Player/Player.cpp:25643-25710`). This relocation does not change
+that sequence or claim a new parity result.
+
+Static source inventory after this cut:
+
+```text
+wc -l crates/wow-world/src/handlers/loot/mod.rs crates/wow-world/src/handlers/loot/random_properties.rs crates/wow-world/src/handlers/loot/storage_plans.rs
+978 crates/wow-world/src/handlers/loot/mod.rs
+170 crates/wow-world/src/handlers/loot/random_properties.rs
+79 crates/wow-world/src/handlers/loot/storage_plans.rs
+1227 total
+```
+
+The loot facade is now below the ordinary 1,000-line review threshold;
+remaining responsibility and ownership work stays in #1233. No tests, builds,
+formatters, architecture checks, or QA were run under level 1. The worktree
+remains unvalidated at the base SHA, with no candidate SHA or commit.
+
+#### Continuation: canonical loot test-fixture organization, level 1
+
+The shared builders and snapshots for canonical map objects moved from
+`handlers/loot_tests.rs` into the private `loot_tests/canonical_world.rs`
+fixture module. It groups the existing WorldObject, Creature, GameObject, and
+Corpse setup/lookup helpers. All 12 helper names remain available through
+explicit imports in the parent fixture module, so existing creature,
+GameObject, corpse, login, and miscellaneous scenarios retain their calls and
+registrations. No test scenario or production operation moved or changed.
+
+Static source inventory after the cut:
+
+```text
+wc -l crates/wow-world/src/handlers/loot_tests.rs crates/wow-world/src/handlers/loot_tests/canonical_world.rs
+1609 crates/wow-world/src/handlers/loot_tests.rs
+190 crates/wow-world/src/handlers/loot_tests/canonical_world.rs
+1799 total
+```
+
+The shared test facade remains above 1,000 lines and still needs further
+fixture decomposition within #1233. No tests, builds, formatters,
+architecture checks, or QA were run under level 1. The worktree remains
+unvalidated at the base SHA, with no candidate SHA or commit.
+
+#### Continuation: shared loot-authority test fixtures, level 1
+
+The reusable coin-loot, canonical loot-authority, two-session snapshot,
+response, and disenchant-output fixtures moved from `handlers/loot_tests.rs`
+into `loot_tests/loot_authority.rs`. The six helper names remain imported into
+the parent fixture module, preserving existing calls from creature, item,
+GameObject, login, quest, spell, persistence, and miscellaneous scenarios.
+The cached-authority helper still rebuilds the same represented personal-loot
+counters before canonical synchronization; only its internal import path now
+names the existing parent `handlers::loot` helper directly. No fixture data,
+test scenario, registration, or production operation changed.
+
+Static source inventory after the cut:
+
+```text
+wc -l crates/wow-world/src/handlers/loot_tests.rs crates/wow-world/src/handlers/loot_tests/canonical_world.rs crates/wow-world/src/handlers/loot_tests/loot_authority.rs
+1424 crates/wow-world/src/handlers/loot_tests.rs
+190 crates/wow-world/src/handlers/loot_tests/canonical_world.rs
+211 crates/wow-world/src/handlers/loot_tests/loot_authority.rs
+1825 total
+```
+
+The shared fixture facade remains above 1,000 lines and needs further
+responsibility-scoped decomposition within #1233. No tests, builds,
+formatters, architecture checks, or QA were run under level 1. The worktree
+remains unvalidated at the base SHA, with no candidate SHA or commit.
+
+#### Continuation: shared loot item-template fixtures, level 1
+
+The limited-item, disenchantable-item, and random-property item-record builders
+moved from `handlers/loot_tests.rs` into the private
+`loot_tests/item_templates.rs` module. The five fixture names remain explicitly
+imported by the parent, so existing item, loot, creature, GameObject, login,
+persistence, and miscellaneous scenarios keep their calls. The builders,
+template values, and scenario registrations are unchanged; this is test-fixture
+organization only.
+
+Static source inventory after this cut:
+
+```text
+wc -l crates/wow-world/src/handlers/loot_tests.rs crates/wow-world/src/handlers/loot_tests/item_templates.rs
+1277 crates/wow-world/src/handlers/loot_tests.rs
+171 crates/wow-world/src/handlers/loot_tests/item_templates.rs
+1448 total
+```
+
+The shared test facade remains above 1,000 lines and needs further
+responsibility-scoped decomposition within #1233. No tests, builds,
+formatters, architecture checks, or QA were run under level 1. The worktree
+remains unvalidated at the base SHA, with no candidate SHA or commit.
+
+#### Continuation: group-loot lifecycle test fixtures, level 1
+
+The shared group/master-loot setup and generation-tagged group-roll fixtures
+moved from `handlers/loot_tests.rs` into the private
+`loot_tests/group_lifecycle.rs` module. The five helper names remain explicitly
+imported by the parent, preserving their existing uses in creature, item,
+GameObject, spell, and loot-roll scenarios. The fixture values, assertions,
+session setup, and registrations are unchanged; production loot ownership and
+runtime behavior are untouched.
+
+Static source inventory after this cut:
+
+```text
+wc -l crates/wow-world/src/handlers/loot_tests.rs crates/wow-world/src/handlers/loot_tests/group_lifecycle.rs
+1130 crates/wow-world/src/handlers/loot_tests.rs
+168 crates/wow-world/src/handlers/loot_tests/group_lifecycle.rs
+1298 total
+```
+
+The shared test facade remains above 1,000 lines and needs further
+responsibility-scoped decomposition within #1233. No tests, builds,
+formatters, architecture checks, or QA were run under level 1. The worktree
+remains unvalidated at the base SHA, with no candidate SHA or commit.
+
+#### Continuation: overworld personal-loot test fixtures, level 1
+
+The shared overworld personal-loot scenario builder, fixture record, generation
+assertions, and independent-claim assertions moved into the private
+`loot_tests/overworld_personal_loot.rs` module. The parent explicitly imports
+the three existing helper functions, preserving consumers in creature and
+miscellaneous scenarios. The fixture values and assertions are unchanged; no
+production generation, authority, claim, or publication path moved.
+
+Static source inventory after this cut:
+
+```text
+wc -l crates/wow-world/src/handlers/loot_tests.rs crates/wow-world/src/handlers/loot_tests/overworld_personal_loot.rs
+879 crates/wow-world/src/handlers/loot_tests.rs
+275 crates/wow-world/src/handlers/loot_tests/overworld_personal_loot.rs
+1154 total
+```
+
+The shared loot test facade is now below the ordinary 1,000-line review
+threshold; other large scenario and fixture modules remain in scope for #1233.
+No tests, builds, formatters, architecture checks, or QA were run under level 1.
+The worktree remains unvalidated at the base SHA, with no candidate SHA or
+commit.
+
+#### Continuation: quest source-item test fixtures, level 1
+
+Quest source-item template, item-record, limit-category, and direct-inventory
+builders moved from `handlers/quest_tests.rs` into the private
+`handlers/quest_tests/source_items.rs` module. The parent fixture module exposes
+only the helpers used by its existing child scenarios; those scenarios retain
+their calls and registrations. The helper bodies and fixture values were moved
+without modification. Production quest operations and their owners remain
+unchanged; the related source path remains
+`Player.cpp::GiveQuestSourceItem` at the pinned TrinityCore revision documented
+above. No new gameplay-parity claim is made.
+
+Static source inventory after this cut:
+
+```text
+wc -l crates/wow-world/src/handlers/quest_tests.rs crates/wow-world/src/handlers/quest_tests/source_items.rs
+1187 crates/wow-world/src/handlers/quest_tests.rs
+236 crates/wow-world/src/handlers/quest_tests/source_items.rs
+1423 total
+```
+
+The shared quest-test fixture facade remains above the ordinary 1,000-line
+review threshold and needs further responsibility-scoped decomposition within
+#1233. No tests, builds, formatters, architecture checks, or QA were run under
+level 1. The worktree remains unvalidated at base
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no candidate SHA or commit.
+
+#### Continuation: quest-party and catalog-persistence fixtures, level 1
+
+The shared quest-test facade's represented party/group setup moved into
+handlers/quest_tests/party.rs; quest-POI and item-template-addon persistence
+ports moved into handlers/quest_tests/catalog_persistence.rs. Existing child
+scenarios continue to use the same fixture names through explicit parent
+imports. Canonical Player setup remains test-only and still writes through the
+canonical map; no production state owner, persistence boundary, or quest-sharing
+operation changed. These moves add no gameplay-parity claim.
+
+Static source inventory after these cuts:
+
+    wc -l crates/wow-world/src/handlers/quest_tests.rs crates/wow-world/src/handlers/quest_tests/party.rs crates/wow-world/src/handlers/quest_tests/catalog_persistence.rs
+    973 crates/wow-world/src/handlers/quest_tests.rs
+    161 crates/wow-world/src/handlers/quest_tests/party.rs
+    83 crates/wow-world/src/handlers/quest_tests/catalog_persistence.rs
+    1217 total
+
+The shared quest-test facade is now below the ordinary 1,000-line review
+threshold. No tests, builds, formatters, architecture checks, or QA were run
+under level 1. The worktree remains unvalidated at base
+9daa13f663bd1e863a3efed06721c3fcb3b6cd66, with no candidate SHA or commit.
+
+#### Continuation: spell-learning test organization, level 1
+
+The 17 tests formerly held together in session/effect_learning_tests.rs are now
+grouped under three focused children: base_fallback.rs, spell_effects.rs, and
+spell_fallback.rs. The original test bodies, assertions, fixtures, and
+production calls were relocated without behavior changes; only the Rust test
+module paths changed. No production code or canonical owner moved, and no new
+spell-parity claim is made.
+
+Static source inventory after this cut:
+
+    wc -l crates/wow-world/src/session/effect_learning_tests.rs crates/wow-world/src/session/effect_learning_tests/base_fallback.rs crates/wow-world/src/session/effect_learning_tests/spell_effects.rs crates/wow-world/src/session/effect_learning_tests/spell_fallback.rs
+    7 crates/wow-world/src/session/effect_learning_tests.rs
+    409 crates/wow-world/src/session/effect_learning_tests/base_fallback.rs
+    522 crates/wow-world/src/session/effect_learning_tests/spell_effects.rs
+    92 crates/wow-world/src/session/effect_learning_tests/spell_fallback.rs
+    1030 total
+
+All three child files remain within the ordinary 1,000-line review threshold.
+No tests, builds, formatters, architecture checks, or QA were run under level 1.
+The worktree remains unvalidated at base
+9daa13f663bd1e863a3efed06721c3fcb3b6cd66, with no candidate SHA or commit.
 
 ## P2 Player base-stat catalog classification — candidate, 2026-09-14
 
@@ -1837,3 +3880,953 @@ Las anclas C++ de esta página identifican responsabilidad y contrato; no sustit
 una captura específica ni declaran paridad de sistemas no representados. La dirección
 general, consolidación y orden de las 46 issues iniciales permanecen en `PORT_PLAN.md`
 y #49.
+
+#### Continuation: Session time-synchronization state grouping, level 1
+
+The five time-synchronization fields previously stored directly on `WorldSession` are now
+grouped in the private `TimeSynchronizationStateLikeCpp` substate in
+`crates/wow-world/src/session/time_synchronization.rs`. `WorldSession` remains the single
+canonical owner; this is composition only, with no new authority or public path. The
+constructor uses the same initial values, including a six-sample clock-delta queue. Driver,
+publication, movement, and affected test consumers now access the grouped state; the
+test-only clock-delta setter preserves the movement fixture without exposing production
+state.
+
+The behavior contract was checked against TrinityCore 3.4.3 at source SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `WorldSession.cpp:488-497` (timer phase),
+`WorldSession.cpp:1547-1577` (reset, request publication, and movement adjustment), and
+`Handlers/MovementHandler.cpp:743-800` (response sampling and clock-delta calculation).
+The existing request order, phase timing, sample capacity, latency filtering, and adjustment
+threshold remain unchanged. No packet bytes, registration, admission, persistence, or
+lifetime contract changed.
+
+Static inventory for this slice: `session/state.rs` decreased from 2,090 to 2,081 lines and
+`session/construction.rs` from 1,185 to 1,182; the extracted state type is in a 142-line
+module. No tests, builds, formatters, architecture checks, or QA were run under level 1.
+The worktree contains unvalidated changes based on base SHA
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.
+
+#### Continuation: instance-only Session test-fixture grouping, level 1
+
+The detached difficulty preferences and recent-instance map are grouped in
+`session/instances/test_fixtures.rs::InstanceTestFixtureLikeCpp`. The fixture preserves
+the four `cfg(test)` fields' previous effective visibility and their
+`WorldSession::new` defaults. Production continues to read and mutate the canonical
+map-owned Player; instance operations, accessors, and their execution order are
+unchanged. Direct test-fixture field paths now use the named fixture, while same-named
+methods remain method calls.
+
+The ownership references were reviewed against TrinityCore 3.4.3 at pinned source SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Entities/Player/Player.h`'s
+`GetDungeonDifficultyID`/`SetDungeonDifficultyID` (1962, 1965),
+`GetRaidDifficultyID`/`SetRaidDifficultyID` (1963, 1966),
+`GetLegacyRaidDifficultyID`/`SetLegacyRaidDifficultyID` (1964, 1967), and
+`GetRecentInstanceId`/`SetRecentInstance`/`m_recentInstances` (2512–2523). This is
+ownership context only and makes no new parity claim.
+
+Static source review found four grouped fields and four matching `Default` initializers;
+the three difficulty constants and the empty recent-instance map retain their prior
+values. No tests, builds, formatters, architecture checks, or QA were run under level 1.
+The session syntax-ownership inventory remains a final-acceptance item. The worktree
+remains unvalidated at base SHA `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no
+validated candidate SHA or commit.
+
+#### Continuation: visibility-only Session test-fixture grouping, level 1
+
+The detached seer and pre-owner phase-shift inputs are grouped in
+`session/visibility/test_fixtures.rs::VisibilityTestFixtureLikeCpp`. Both remain
+`cfg(test)` state on the single `WorldSession` fixture owner. Production visibility
+continues to derive viewpoint and phase from the canonical map-owned Player; no
+visibility decision, Player ownership, packet, or lifecycle behavior changed. Existing
+visibility-test accessors remain methods, while direct fixture-field consumers now use
+the grouped fixture path.
+
+The organization boundary was reviewed against TrinityCore 3.4.3 at pinned source SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Entities/Player/Player.h::m_seer` (2417),
+`SetSeer` (2423), `Entities/Player/Player.cpp::UpdateVisibilityForPlayer` (23337), and
+`Entities/Object/Object.h::GetPhaseShift` (505–511). This records ownership context only
+and makes no new parity claim.
+
+The fixture preserves the prior `WorldSession::new` defaults (`None` and
+`PhaseShift::default()`). No tests, builds, formatters, architecture checks, or QA were
+run under level 1. The session syntax-ownership inventory remains a final-acceptance
+item. The worktree remains unvalidated at base SHA
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.
+
+#### Continuation: Player item test-fixture grouping, level 1
+
+Fifteen `cfg(test)` Player-item fields now share
+`session/player_items/test_fixtures.rs::PlayerItemTestFixtureLikeCpp`: handle-less bank and
+inventory capacities, the in-memory inventory/buyback projection, and item-modifier, item-set,
+combat-stat, Titan Grip, and average-item-level evidence. `WorldSession` remains the existing
+fixture owner; production inventory and item-modifier authority remain on canonical `Player`.
+Every member retains its former `pub(in crate::session)` visibility and constructor default.
+Existing item/session methods still access this storage in the same Player-item operations;
+their signatures and the buyback/packet adapters are unchanged.
+
+The responsibility anchors were checked against TrinityCore 3.4.3 at pinned source SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Entities/Player/Player.cpp::CanStoreNewItem`
+(9610), `StoreNewItem` (11166), `_ApplyItemMods` (7654), `_ApplyAllItemMods` (8575),
+`UpdateAverageItemLevelTotal` (28803), and `UpdateAverageItemLevelEquipped` (28860). This is
+test-fixture storage organization only; item mutation order, modifier recalculation, buyback
+state, packets, persistence, and Player ownership are unchanged, with no new parity claim.
+
+Static source review matched all 15 fixture declarations to their 15 `Default` initializers and
+found no remaining direct Session field accesses; item accessors and canonical Player inventory
+methods remain unchanged. `session/state.rs` decreased from 1,823 to 1,784 lines and
+`session/construction.rs` from 1,040 to 1,012; the new fixture is 55 lines. The session
+syntax-ownership policy remains unreconciled under level 1 and is a final-acceptance item. No
+tests, builds, formatters, architecture checks, or QA were run. The worktree remains unvalidated
+at base SHA `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or
+commit.
+
+#### Continuation: quest item-mutation persistence organization, level 1
+
+The complete quest-persistence planning block for bank and item mutations moved from
+`handlers/quest/persistence.rs` to its private `persistence/item_mutations.rs` child. It
+contains the bank-move planner, begin/withdraw/finish item-transfer planners, void-storage
+status projection, aggregate transfer planner, and quest-bound source-item objective planner.
+Method names, bodies, `pub(crate)` visibility, call order, and the parent persistence module's
+remaining quest-status/load operations are unchanged.
+
+The move was checked against the pinned TrinityCore 3.4.3 source at SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Player.cpp::StoreNewItem` (11166),
+`MoveItemFromInventory` (11637), `MoveItemToInventory` (11655), `ItemAddedQuestCheck`
+(16067), and `ItemRemovedQuestCheck` (16088), plus
+`VoidStorageHandler.cpp::HandleVoidStorageTransfer` (90). These anchors establish the
+existing item/quest operation context; this structural move makes no new parity claim and
+changes no persistence participant, transaction, recovery, or publication behavior.
+
+Before the cut, a static text comparison confirmed that the 434-line source block (including
+its separator) matched the child body exactly. Separate comparisons confirmed the retained
+prefix and suffix in `persistence.rs` were unchanged. Static inventory: the parent decreased
+from 1,017 to 585 lines; `persistence/item_mutations.rs` is 445 lines. No tests, builds,
+formatters, architecture checks, or QA were run under level 1. The worktree remains
+unvalidated at base SHA `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated
+candidate SHA or commit.
+
+#### Continuation: handle-less RestMgr test fixture grouping, level 1
+
+The test-only RestMgr state and rest-rate values previously stored as separate
+`WorldSession` fields are grouped in `RestMgrTestFixtureLikeCpp`, declared with the
+`rest_progression` responsibility. The fixture is available only under `cfg(test)` and is
+used when a test session has no canonical Player handle. Production rest state remains
+owned by the canonical `Player`; loaded player-flag fixtures remain separate because they
+model Player persistence data rather than RestMgr state. Constructor defaults are unchanged.
+
+This is a storage-only fixture refactor checked against TrinityCore 3.4.3 at source SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Entities/Player/RestMgr.cpp:26-30,32-83`
+(initialization and XP bonus state), `:95-120,139-159` (rest flags, time, update, and load),
+and `Entities/Player/Player.cpp:7298-7405` (area/zone transitions). No runtime phase,
+rest-state transition, packet, persistence contract, or public path changed.
+
+Static inventory for this slice: `session/state.rs` decreased from 2,081 to 2,053 lines and
+`session/construction.rs` from 1,182 to 1,164. All consumer references were migrated to the
+test-only substate by static search. No tests, builds, formatters, architecture checks, or QA
+were run under level 1. The worktree contains unvalidated changes based on base SHA
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.
+
+#### Continuation: Player skill test-fixture grouping, level 1
+
+The six handle-less Player skill fixtures (`player_skill_values`, retained skill rows,
+non-durable tombstones, row-load/completeness flags, and occupied-slot count) are grouped in
+the test-only `PlayerSkillTestFixtureLikeCpp` under `session/progression`. `WorldSession`
+remains the fixture's owner, while production skill authority remains on canonical `Player`.
+The constructor's empty maps/sets, false flags, and absent slot count are unchanged; skill
+mutations, tombstone persistence handling, and the fallback boundary are unchanged.
+
+The source ownership and persistence contract was checked against TrinityCore 3.4.3 at SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Entities/Player/Player.h:2144-2158,2896-2897`
+and `Entities/Player/Player.cpp:5633-5694,20348-20397,25723-25851` cover Player-owned skill
+fields, loading, updates, and `_SaveSkills`. No gameplay, transaction, packet, or public
+contract changed.
+
+Static inventory for this slice: `session/state.rs` decreased from 2,053 to 2,041 lines and
+`session/construction.rs` from 1,164 to 1,156; direct fixture consumers in skill progression,
+persistence, and focused scenarios now use the named substate. No tests, builds, formatters,
+architecture checks, or QA were run under level 1. The worktree contains unvalidated changes
+based on base SHA `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA
+or commit.
+
+#### Continuation: Player spell and trait test-fixture grouping, level 1
+
+The handle-less test representation of known spells, persisted PlayerSpell rows and their
+completeness/fallback metadata, favorites/removals/dependent rows, and TraitConfig/TraitEntry
+projections is now grouped in `PlayerSpellAndTraitTestFixtureLikeCpp` under
+`session/spell_state`. The fixture is `cfg(test)` only; production spell and trait authority
+remains on canonical `Player`. Empty maps/sets, false completeness flags, and the empty
+known-spell list preserve the constructor defaults. Snapshot creation, bootstrap, persistence,
+and test consumers now read or write the same nested fields; no operation semantics changed.
+
+The ownership and persistence boundary was checked against TrinityCore 3.4.3 at source SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Entities/Player/Player.h:1834-1853,2961`,
+`Entities/Player/Player.cpp:18924-18943` (`_LoadSpells`), `:20399-20451` (`_SaveSpells`), and
+`:26635-26700` (`_LoadTraits`). This storage-only change does not alter spell/trait load order,
+save transactions, packets, or public contracts.
+
+Static inventory for this slice: `session/state.rs` decreased from 2,041 to 1,991 lines and
+`session/construction.rs` from 1,156 to 1,132. The state declaration is now below the ordinary
+2,000-line review threshold; its acceptance ceiling remains unchanged until final evidence.
+Direct fixture consumers were migrated by static search. No tests, builds, formatters,
+architecture checks, or QA were run under level 1. The worktree contains unvalidated changes
+based on base SHA `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA
+or commit.
+
+#### Continuation: character account registration organization, level 1
+
+The account-scoped `PacketHandlerEntry` declarations formerly inline in
+`handlers/character/account.rs` now live in five private registration children grouped by
+character setup, session services, world queries, world services, and inventory actions.
+`account.rs` retains its account-session methods and mounts the private `registrations` module;
+the registration metadata, handler names, closures, and declaration order are unchanged.
+
+Before removing the original block, a static text comparison of that source span against the
+concatenated child bodies reported no differences, and the ordered 70-opcode list matched the
+pre-move inventory. The character-family source scan in `handlers/character_tests/loot.rs` now
+includes the registration module and all five children. The existing frozen dispatch contract
+remains in `session/tests/dispatch.rs::every_registered_opcode_keeps_its_handler_status_and_processing_like_cpp`,
+with duplicate registration coverage in
+`session/tests/dispatch.rs::dispatch_table_has_no_duplicate_registered_opcodes`; neither test
+was changed or run. This is a physical organization change only and introduces no new parity
+claim.
+
+Static inventory: `handlers/character/account.rs` decreased from 1,437 to 212 lines; the
+registration children are 244, 188, 244, 381, and 178 lines respectively, with a 9-line
+private module declaration. No tests, builds, formatters, architecture checks, or QA were run
+under level 1. The worktree remains unvalidated at base SHA
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.
+
+#### Continuation: isolated battle-pet fixture state, level 1
+
+Twenty-two test-only battle-pet fallback and evidence fields are grouped in
+`BattlePetTestFixtureLikeCpp` under `session/pets/test_fixtures.rs`. This includes stat-store
+injection, trainer-selection overrides, represented pets and slots, critter/query state, and
+the associated criteria evidence. Their `WorldSession::new` values are unchanged, including
+the three locked-empty slot defaults. The production
+`battle_pet_account_attachment_like_cpp` remains a separate canonical field; no production
+state, battle-pet operation, or test accessor signature changed. Existing nested-field
+visibilities were retained, and the seven direct-consumer files now access the fixture through
+the grouped state.
+
+Static inventory: `session/state.rs` decreased from 1,991 to 1,915 lines and
+`session/construction.rs` from 1,132 to 1,090; the new test-only fixture module is 99 lines.
+The fixture declares and initializes the same 22 members, and `WorldSession::new` now uses
+its `Default` implementation. The session syntax-ownership policy was not regenerated or
+accepted under level 1; its changed field-path inventory remains an explicit final-acceptance
+item. No tests, builds,
+formatters, architecture checks, or QA were run. The worktree remains unvalidated at base SHA
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.
+
+#### Continuation: quest-only Session test-fixture grouping, level 1
+
+Twenty-seven `cfg(test)` fields for handle-less quest status, recurrence, reward side-effect
+evidence, titles, and quest sharing are grouped in
+`session/quest/test_fixtures.rs::QuestTestFixtureLikeCpp`. `WorldSession` remains the fixture
+owner; canonical Player gameplay state, production quest catalogs, quest-point-of-interest data,
+XP/discovery state, achievements, instance resets, and area-exploration criteria remain separate.
+The fixture preserves each member's prior effective visibility and `WorldSession::new` values.
+All Session consumers now use the named fixture path; Player quest snapshots and loot/directory
+context fields with overlapping names remain on their own types. Existing Session methods with
+the same names remain method calls rather than fixture-field accesses.
+
+The ownership references were reviewed against TrinityCore 3.4.3 at pinned source SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Entities/Player/Player.cpp::RewardQuest` (14625),
+`GetQuestStatus` (15532), `SetQuestStatus` (15557), and daily/weekly/monthly/seasonal recurrence
+setters (24037, 24061, 24077, 24067); quest-sharing adapters are
+`Handlers/QuestHandler.cpp::HandleQuestConfirmAccept` (499), `HandlePushQuestToParty` (603), and
+`HandleQuestPushResult` (758). This test-fixture organization changes no quest transition,
+reward, packet, persistence, admission, or publication behavior and makes no new parity claim.
+
+Static source review found 27 fixture declarations and 27 matching `Default` initializers,
+with no remaining direct `WorldSession` field paths for those members. The moved consumers were
+enumerated with `rg -n '\.quest_test_fixture_like_cpp\.' crates/wow-world/src -g '*.rs'`; the
+fixture-member/default name comparison returned no diff. `session/state.rs` decreased from 1,915
+to 1,823 lines and `session/construction.rs` from 1,090 to 1,040; the new test-only fixture is
+105 lines. The session syntax-ownership policy was not regenerated or accepted under level 1;
+its changed field-path inventory remains a final-acceptance item. No tests, builds, formatters,
+architecture checks, or QA were run. The worktree remains unvalidated at base SHA
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.
+
+#### Continuation: trade-only Session test-fixture grouping, level 1
+
+The ten detached trade and cancel-evidence fields are grouped in
+`session/social/test_fixtures.rs::TradeTestFixtureLikeCpp`. Their prior visibility and
+`WorldSession::new` defaults are preserved. Snapshot, mutation, and accessor methods are
+unchanged; `Player::TradeData` remains the production authority, and no trade transition,
+packet, persistence, or publication behavior changed. Direct fixture accesses now use the
+named nested path, while same-named methods remain method calls.
+
+The ownership references were reviewed against TrinityCore 3.4.3 at pinned source SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Entities/Player/Player.h::GetTradeData`
+(1449), `Entities/Player/TradeData.h::TradeData` (37–39) and its trade state fields
+(76–87), plus `Entities/Player/TradeData.cpp::SetItem` (58), `SetSpell` (84), `SetMoney`
+(103), `SetAccepted` (135), and `UpdateServerStateIndex` (150). This is ownership context
+only and makes no new parity claim.
+
+Static source review found ten fixture fields and ten matching `Default` initializers,
+including the existing slot-count array and client/server index defaults. No tests, builds,
+formatters, architecture checks, or QA were run under level 1. The session syntax-ownership
+inventory remains a final-acceptance item. The worktree remains unvalidated at base SHA
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.
+
+#### Continuation: Player bootstrap-catalog test-fixture grouping, level 1
+
+The three `PlayerStart` option mirrors and three Player-create catalog overrides are grouped
+in `session/test_support/test_fixtures.rs::PlayerBootstrapCatalogTestFixtureLikeCpp`.
+The prior `cfg(test)` visibility and `WorldSession::new` defaults are preserved. Existing
+setter/getter methods and the test-only catalog assembler remain unchanged; this moves no
+production Player data and changes no creation, spell-learning, reputation, exploration,
+packet, or persistence behavior.
+
+The ownership context was reviewed against TrinityCore 3.4.3 at pinned source SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `World/World.cpp` loads
+`CONFIG_START_ALL_SPELLS`, `CONFIG_START_ALL_EXPLORED`, and `CONFIG_START_ALL_REP`
+(1564–1571); `Entities/Player/Player.cpp::Create` (386) consumes the Player-create path
+and invokes `LearnDefaultSkills`/`LearnCustomSpells` (506–507), with the latter defined
+at 23778. This is organization context only and makes no new parity claim.
+
+Static source review found six fixture fields and six matching `Default` initializers.
+No tests, builds, formatters, architecture checks, or QA were run under level 1. The
+session syntax-ownership inventory remains a final-acceptance item. The worktree remains
+unvalidated at base SHA `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated
+candidate SHA or commit.
+
+#### Continuation: loaded Player flag test-fixture grouping, level 1
+
+The two loaded Player-flag values and their application marker are grouped in
+`session/persistence/test_fixtures.rs::LoadedPlayerFlagsTestFixtureLikeCpp`. Their prior
+`cfg(test)` visibility and defaults are preserved. Persistence load/save/commit code,
+visibility and rest accessors continue using the same fields through the grouped path;
+canonical Player flag storage and application order are unchanged.
+
+The ownership references were reviewed against TrinityCore 3.4.3 at pinned source SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Entities/Player/Player.cpp::LoadFromDB`
+(17060), which applies `fields.playerFlags`/`fields.playerFlagsEx` through
+`ReplaceAllPlayerFlags`/`ReplaceAllPlayerFlagsEx` (17323–17324), and the canonical
+`Player::SetPlayerFlag`/`SetPlayerFlagEx` update-field accessors in `Player.h`
+(2672, 2677). This records ownership context only and makes no new parity claim.
+
+Static source review found three fixture fields and three matching `Default` initializers
+(`None`, `None`, and `false`). No tests, builds, formatters, architecture checks, or QA
+were run under level 1. The session syntax-ownership inventory remains a final-acceptance
+item. The worktree remains unvalidated at base SHA
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.
+
+#### Continuation: support-feature test-fixture grouping, level 1
+
+The five test-only support-system switches are grouped in
+`session/support_features/test_fixtures.rs::SupportFeatureTestFixtureLikeCpp`. Their
+prior visibility and `WorldSession::new` defaults (`true` for support overall and `false`
+for tickets, bugs, complaints, and suggestions) are preserved. Existing accessors and
+test policy assembly remain unchanged; this moves no production configuration owner and
+does not change feature admission or response behavior.
+
+The configuration ownership context was reviewed against TrinityCore 3.4.3 at pinned
+source SHA `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `World/World.cpp` reads
+`CONFIG_SUPPORT_ENABLED`, `CONFIG_SUPPORT_TICKETS_ENABLED`, `CONFIG_SUPPORT_BUGS_ENABLED`,
+`CONFIG_SUPPORT_COMPLAINTS_ENABLED`, and `CONFIG_SUPPORT_SUGGESTIONS_ENABLED` and applies
+them to `SupportMgr` (584–595). This is organization context only and makes no new parity
+claim.
+
+Static source review found five fixture fields and five matching `Default` initializers.
+No tests, builds, formatters, architecture checks, or QA were run under level 1. The
+session syntax-ownership inventory remains a final-acceptance item. The worktree remains
+unvalidated at base SHA `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated
+candidate SHA or commit.
+
+#### Continuation: guild-only Session test-fixture grouping, level 1
+
+The four handle-less guild membership, invitation, authority-evidence, and invite-history
+fields are grouped in `session/social/test_fixtures.rs::GuildTestFixtureLikeCpp`. Their
+prior `cfg(test)` visibility and `WorldSession::new` defaults are preserved. Canonical
+Player guild ownership, existing guild methods, and invite handling remain unchanged; no
+guild admission, packet, persistence, or publication behavior changed.
+
+The ownership context was reviewed against TrinityCore 3.4.3 at pinned source SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Entities/Player/Player.h::GetGuildId`
+(1944), `SetGuildIdInvited` (1943), and `GetGuildIdInvited` (1947), plus
+`Guilds/Guild.cpp::HandleInviteMember` (1650–1695). This is structural context only and
+makes no new parity claim.
+
+Static source review found four fixture fields and four matching `Default` initializers
+(`0`, `false`, `0`, and an empty invite vector). No tests, builds, formatters, architecture
+checks, or QA were run under level 1. The session syntax-ownership inventory remains a
+final-acceptance item. The worktree remains unvalidated at base SHA
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.
+
+#### Continuation: calendar-request test-fixture grouping, level 1
+
+Three test-only calendar request evidence vectors are grouped in
+`session/social/test_fixtures.rs::CalendarTestFixtureLikeCpp`. Their prior visibility and
+empty-vector defaults are preserved. Calendar request recording and accessor methods
+retain their existing order and signatures; no event admission, packet, persistence, or
+publication behavior changed.
+
+The organization boundary was reviewed against TrinityCore 3.4.3 at pinned source SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Handlers/CalendarHandler.cpp`'s
+`HandleCalendarCommunityInvite` (108), `HandleCalendarAddEvent` (114), and
+`HandleCalendarRemoveEvent` (222). This is ownership context only and makes no new
+parity claim.
+
+Static source review found three fixture fields and three matching `Default`
+initializers. No tests, builds, formatters, architecture checks, or QA were run under
+level 1. The session syntax-ownership inventory remains a final-acceptance item. The
+worktree remains unvalidated at base SHA
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.
+
+#### Continuation: duel-only Session test-fixture grouping, level 1
+
+Six detached duel and spell-selection evidence fields are grouped in
+`session/social/test_fixtures.rs::DuelTestFixtureLikeCpp`. Their prior `cfg(test)`
+visibility and defaults are preserved. The canonical Player duel arbiter and all
+existing request, accept, cancel, and accessor methods retain their owners and call
+paths; no duel admission, state transition, packet, or spell behavior changed.
+
+The ownership context was reviewed against TrinityCore 3.4.3 at pinned source SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Entities/Player/Player.h::SetDuelArbiter`
+(1927), and `Handlers/DuelHandler.cpp::HandleCanDuel` (29), `HandleDuelAccepted` (58),
+and `HandleDuelCancelled` (86). This is structural context only and makes no new parity
+claim.
+
+Static source review found six fixture fields and six matching `Default` initializers
+(`None` for the arbiter and empty evidence vectors). No tests, builds, formatters,
+architecture checks, or QA were run under level 1. The session syntax-ownership inventory
+remains a final-acceptance item. The worktree remains unvalidated at base SHA
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.
+
+#### Continuation: login-admission read module, level 1
+
+The contiguous login-time battleground-location, homebind-location, and guild-membership
+reads are now owned by the private child module
+`handlers/character/world_entry/login/admission.rs`. The post-instance login coordinator
+still owns phase order, homebind validation/repair, and canonical Player construction.
+The helper returns only the values the coordinator already held locally; it adds no
+canonical state, persistence operation, or adapter.
+
+The existing Rust request sequence is unchanged: conditional battleground location,
+homebind location, then guild membership. Map classification is returned with those
+values because the coordinator uses it again later in the same login operation. The
+homebind read's existing failure branches still log, kick, and stop login; battleground
+and guild outcomes retain their prior warning/unknown behavior. The location/guild
+source-order assertion in `character_tests/group.rs` and the whole-character-source
+scanner in `character_tests/loot.rs` now include the child module.
+
+Reviewed target-source context at TrinityCore 3.4.3 SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Player.cpp::LoadFromDB` (17060),
+including `_LoadHomeBind` (17350) and `_LoadBGData` (17376), and
+`CharacterHandler.cpp::HandlePlayerLogin` (1070) with guild-row handling (1124).
+This move preserves the existing Rust flow; it does not reorder it to match C++ or
+claim a new parity result.
+
+Static inventory: `world_entry/login.rs` decreased from 1,936 to 1,820 lines, and the
+new admission child is 163 lines. Existing source assertions were redirected to the
+child where they inspect the moved read family. No tests, builds, formatters,
+architecture checks, or QA were run under level 1. The worktree remains unvalidated
+at base SHA `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate
+SHA or commit.
+
+#### Continuation: spell target-resolution phase, level 1
+
+The implicit-destination selection and per-effect target-data snapshots moved from the
+spell execution coordinator into the private child module
+`session/spell_effects/execution/target_resolution.rs`. The coordinator still calls the
+phase at the same point - after its represented power-debit branch and before constructing
+`SpellGo`. The helper returns the same three local values the coordinator previously
+held; it adds no state authority, persistence boundary, or async/lock scope. Later
+continuations moved the post-publication phases, the fallback, and cast completion into
+their own private children while leaving packet publication and the remaining direct
+effect/aura phases in the coordinator.
+
+Effect order, target-A/target-B order, replacement of prior implicit destinations,
+per-effect destination snapshots, transport-offset projection, and `SpellGo` map-id
+projection are unchanged. Existing movement and nearby-entry scenario coverage remains
+registered; no test uses a source-text include of `execution.rs`, so no source scanner
+needed relocation.
+
+Reviewed target-source context at TrinityCore 3.4.3 SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `SpellCastTargets::ModDst`
+(`Spell.cpp:401-412`), `Spell::SelectSpellTargets` (`Spell.cpp:736`), and
+`Spell::handle_immediate` target-selection/`SendSpellGo` path (`Spell.cpp:3773-3843`).
+This is a structural move only; it does not expand the represented target-selection
+coverage or claim parity for the surrounding spell executor.
+
+Static inventory: `session/spell_effects/execution.rs` decreased from 1,257 to 1,197
+lines; the new target-resolution child is 102 lines. The coordinator remains above
+1,000 lines and retains the rest of the ordered cast operation for a later cohesive
+split/review. No tests, builds, formatters, architecture checks, or QA were run under
+level 1. The worktree remains unvalidated at base SHA
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.
+
+#### Continuation: pet login hydration family, level 1
+
+The contiguous pet-login work now lives in the private
+`handlers/character/world_entry/login/pet_loading.rs` child. It keeps the existing reset
+request, pet-authority load start, stable read, conditional active-pet aura/effect/spell/
+cooldown/charge/declined-name reads, and in-memory talent/spec reset in the same Rust
+order. The login coordinator calls it at the former block position; group reset and group
+membership loading still follow. It uses the same lifecycle port and mutates the same
+canonical pet owner through the existing Session operations.
+
+Reviewed target-source context at TrinityCore 3.4.3 SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `WorldSession::HandlePlayerLogin`
+(`CharacterHandler.cpp:1244-1259`) resets pet spells and specializations before pet
+resummoning; `Player::LoadFromDB` calls `_LoadPetStable` (`Player.cpp:17663`); and
+`Pet::LoadPetFromDB`'s query-holder callback loads aura/effect rows, then spells and
+cooldowns/charges (`Pet.cpp:386-410`). The Rust operation retains its existing serial
+lifecycle-port request order and its current placement of the reset around its own stable
+and pet-row hydration. This move does not reconcile those broader phase differences or
+claim new C++ parity.
+
+The persistence source assertion now scans both the coordinator and pet child, and the
+whole-character source inventory includes the child. Static inventory: `world_entry/login.rs`
+decreased from 1,820 to 1,543 lines; `world_entry/login/pet_loading.rs` is 297 lines. No
+tests, builds, formatters, architecture checks, or QA were run under level 1. The worktree
+remains unvalidated at base SHA `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no
+validated candidate SHA or commit.
+
+#### Continuation: post-SpellGo target-effect phase grouping, level 1
+
+The post-publication farsight/visibility, teleport/bind, and empty-effects fallback phase
+now runs through `execution/post_spell_go.rs::apply_post_spell_go_target_effects_like_cpp`.
+The next GameObject summon loop uses the adjacent private
+`apply_spell_gameobject_summon_effects_like_cpp` helper; the coordinator retains the
+following visibility refresh at its original point. Both helpers are called immediately
+after the unchanged `SpellGo` publication. Per-effect target-data lookup, loop order,
+fallback construction, result handling, and the existing visibility awaits retain their
+prior order. These helpers only receive borrowed spell/target data and the existing
+catalog capability; `WorldSession` remains the state owner, with no new persistence,
+lock, or runtime boundary.
+
+Reviewed target-source context at TrinityCore 3.4.3 SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Spell::DoProcessTargetContainer`
+(`Spell.cpp:3950-3962`) and `SpellEffects.cpp`'s effect-handler table entries for
+teleport/bind (93-99), farsight (160), and wild object summon (164), with the corresponding
+handlers `EffectTeleportUnits` (938), `EffectAddFarsight` (2237),
+`EffectSummonObjectWild` (2937), and `EffectBind` (5213). This is source-context review
+for a structural move; it does not claim that the represented execution covers all C++
+targeting or handler-mode behavior.
+
+Static inventory: `session/spell_effects/execution.rs` decreased from 1,197 to 1,124
+lines; `execution/post_spell_go.rs` is 126 lines. The coordinator remains above 1,000
+lines at this checkpoint and still owns the direct-effect match, aura sequence, primary
+fallback, and cast-completion phase. No tests, builds, formatters, architecture checks,
+or QA were run under level 1. The worktree remains unvalidated at base SHA
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.
+
+#### Continuation: preparation, fallback, and completion phase grouping, level 1
+
+The pre-publication preparation sequence now runs through the private
+`execution/preparation.rs` helper. Cast preparation, the required nearby-entry rejection,
+and client power debit remain ordered before implicit-target resolution. Each original
+early exit still publishes interrupted frames; the nearby-entry failure still sends the
+same cast-failure packet, and the power-failure branch retains its conditional cast-time
+restoration. The helper preserves the cast-check result's nested optional focus shape:
+`None` represents those same terminal paths to the coordinator, while `Some(None)` still
+means preparation succeeded without a resolved focus object. Terminal paths return
+without continuing to target resolution or `SpellGo`.
+
+The legacy primary-effect fallback and the final execute-log, threat, and player-cooldown
+bookkeeping now live in `primary_effect_fallback.rs` and `completion.rs`. The coordinator
+calls them consecutively in their original order after the aura phase. The completion
+helper retains the existing difficulty-specific spell data lookup and cooldown-state
+gate; neither helper adds a state owner, persistence fence, or publication phase.
+
+Reviewed target-source context at TrinityCore 3.4.3 SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Spell::prepare` (`Spell.cpp:3411`),
+`Spell::SelectImplicitNearbyTargets` (`Spell.cpp:1103`), `Spell::TakePower`
+(`Spell.cpp:5378`), and `Spell::FinishTargetProcessing` (`Spell.cpp:8493-8496`). This
+records the relevant preparation, rejection, debit, and execute-log source context only;
+the represented Rust paths retain their existing behavior and coverage boundary.
+
+Static inventory: `session/spell_effects/execution.rs` decreased from 1,124 to 959
+lines. The new `preparation.rs`, `primary_effect_fallback.rs`, and `completion.rs` children
+are 80, 91, and 75 lines respectively. The coordinator is now below the 1,000-line
+ordinary cohesion-review threshold; the larger direct-effect and aura phases remain for
+later review. No tests, builds, formatters, architecture checks, or QA were run under
+level 1. The worktree remains unvalidated at base SHA
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.
+
+#### Continuation: persisted-transport login restoration, level 1
+
+The persisted-transport restore and fallback phase now lives in the private
+`world_entry/login/transport_restore.rs` child. The coordinator still stores the loaded
+identity before this call and performs the same transport restore before its next-level
+XP refresh and reputation read. The helper preserves the saved-transport/non-battleground
+gate, the existing async transport resolver, successful location and canonical transport
+updates, the invalid-transport homebind fallback, and transport clearing when no transport
+is eligible. Optional canonical world-map establishment remains conditional on the same
+attached-controller value. The helper takes only the existing login inputs and mutable local
+map/location values; it introduces no state owner, persistence path, packet, or runtime loop.
+
+Reviewed target-source context at TrinityCore 3.4.3 SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Player::LoadFromDB` (`Player.cpp:17443-17499`)
+resolves a saved transport through `CreateMap`/`GetTransport`, checks the expected map,
+converts passenger offsets to world coordinates, falls back to homebind for unavailable or
+invalid attachments, and adds a successful passenger. This source review does not claim that
+the existing Rust resolver/map-install path now has that complete C++ behavior; the change is
+a structural move only.
+
+The login source-order test now requires identity setup, transport restoration, and reputation
+loading to remain in that order and checks the success, clear, and homebind branches. The
+character persistence and whole-character source inventories now include the new child.
+Static inventory: `world_entry/login.rs` decreased from 1,543 to 1,502 lines, and
+`world_entry/login/transport_restore.rs` is 79 lines. No tests, builds, formatters,
+architecture checks, or QA were run under level 1. The worktree remains unvalidated at base
+SHA `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.
+
+#### Continuation: CUF profile login hydration, level 1
+
+The CUF profile read now lives in the private `world_entry/login/cuf_profiles.rs` child. The
+coordinator retains it after inventory hydration and before the currency request. Within the
+helper, represented profiles are cleared before the same lifecycle-port request; loaded rows
+are converted field-for-field, passed through the existing profile validator, and the profile
+family is marked loaded only after a `Loaded` outcome, including an empty row vector. Failure
+still logs after the initial clear, and a mismatched row-family outcome remains unreachable.
+
+Reviewed target-source context at TrinityCore 3.4.3 SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: the `Player::LoadFromDB` call site is
+`Player.cpp:17886`, and `Player::_LoadCUFProfiles` is `Player.cpp:17928-17960`. C++ uses
+`id > MAX_CUF_PROFILES` before indexing an array of `MAX_CUF_PROFILES`, while the existing
+Rust profile validator rejects `id >= MAX` to avoid that out-of-bounds case. The split keeps
+that established Rust behavior and does not claim newly proven CUF parity.
+
+The login source-order test pins inventory → CUF profiles → currencies and checks clear →
+request → loaded-marker ordering. The character persistence and whole-character source
+inventories now include the child; the existing CUF boundary test still covers rejecting the
+legacy out-of-bounds ID. Static inventory: `world_entry/login.rs` decreased from 1,502 to
+1,455 lines, and `world_entry/login/cuf_profiles.rs` is 66 lines. No tests, builds,
+formatters, architecture checks, or QA were run under level 1. The worktree remains
+unvalidated at base SHA `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated
+candidate SHA or commit.
+
+#### Continuation: canonical currency login hydration, level 1
+
+The character-currency row read and application now lives in the private
+`world_entry/login/currency_loading.rs` child. Its boolean result preserves the existing
+outer-login early exit when canonical Player currency state is unavailable; adapter failure
+still logs and allows login to continue. Loaded rows still require a known currency type,
+retain an existing map entry through `or_insert_with`, initialize new entries as unchanged,
+and publish through `set_player_currencies_like_cpp`. A mismatched auxiliary result remains
+unreachable. The coordinator keeps this call after CUF loading and before the existing spell
+read; no canonical currency owner or persistence adapter changed.
+
+Reviewed target-source context at TrinityCore 3.4.3 SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Player::_LoadCurrency`
+(`Player.cpp:6771-6798`) skips unknown `CurrencyTypes` rows and inserts unchanged values;
+`Player::LoadFromDB` calls it at `Player.cpp:17370`. C++ performs that call materially earlier
+than the current Rust login coordinator. This structural move deliberately preserves the
+existing Rust phase rather than reconciling login order or claiming currency-load parity.
+
+The login source-order test now pins CUF → currency hydration → spell loading and checks the
+canonical owner, store filter, existing-entry preservation, and failure branches. Both the
+character persistence scan and whole-character source inventory include the new child. The
+existing Session currency tests exercise the canonical currency APIs, but no direct dynamic
+scenario currently drives this complete login currency adapter. Static inventory:
+`world_entry/login.rs` decreased from 1,455 to 1,414 lines, and
+`world_entry/login/currency_loading.rs` is 65 lines. No tests, builds, formatters,
+architecture checks, or QA were run under level 1. The worktree remains unvalidated at base
+SHA `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.
+
+#### Continuation: action-button login hydration, level 1
+
+Action-button row loading and packet projection now live in the private
+`world_entry/login/action_buttons.rs` child. The coordinator still calls it after glyph
+hydration and before storing the post-load identity. The helper preserves reset-before-context
+lookup, the active-spec/trait-config selection, the lifecycle-port request, row bounds and
+positive-action filter, canonical action-button recording, loaded marking only for a `Loaded`
+outcome, failure logging, and the same fixed 180-entry packed array returned to the later
+login packet phase. Missing specialization state still kicks and terminates login through the
+existing call-site return path.
+
+Reviewed target-source context at TrinityCore 3.4.3 SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Player::LoadFromDB` calls
+`StartLoadingActionButtons` after inventory (`Player.cpp:17748-17756`);
+`Player::StartLoadingActionButtons` selects the active talent group and trait configuration,
+issues the asynchronous action query, and checks the live Player GUID in its callback
+(`Player.cpp:27033-27075`); `LoadActions` applies rows and sends the action buttons
+(`Player.cpp:27077-27082`). This move preserves the current Rust await/result contract and does
+not claim that its session-side timing matches the C++ callback/publication path.
+
+The login source-order test pins glyph loading → action-button hydration → identity storage and
+checks active configuration, row filtering, canonical recording, marking, and packet encoding.
+The character persistence scan and whole-character source inventory include the child. No
+dynamic test currently exercises this complete login query/packet phase. Static inventory:
+`world_entry/login.rs` decreased from 1,414 to 1,371 lines, and
+`world_entry/login/action_buttons.rs` is 67 lines. No tests, builds, formatters, architecture
+checks, or QA were run under level 1. The worktree remains unvalidated at base SHA
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.
+
+#### Continuation: glyph login hydration, level 1
+
+Glyph row loading now lives in the private `world_entry/login/glyph_loading.rs` child. The
+coordinator still calls it after spell loading and mount promotion and before action-button
+hydration. The helper preserves the represented-glyph reset before the lifecycle-port request,
+the per-row GlyphProperties filter through `load_represented_glyph_row_like_cpp`, loaded marking
+only for a `Loaded` outcome, and failure logging without aborting login. The
+`reputation_rows_complete_like_cpp` flag, previously declared inside the glyph block, stays in
+the coordinator at the same point because the later reputation phase owns it.
+
+Reviewed target-source context at TrinityCore 3.4.3 SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Player::LoadFromDB` calls `_LoadGlyphs` after
+`_LoadSpells` and the collection loads (`Player.cpp:17710-17717`); `Player::_LoadGlyphs`
+(`Player.cpp:26573-26598`) skips talent groups `>= MAX_SPECIALIZATIONS`, slots
+`>= MAX_GLYPH_SLOT_INDEX` and ids missing from `sGlyphPropertiesStore`, then calls `SetGlyph`.
+This move preserves the existing Rust row validation and phase; it does not claim new parity.
+
+The new login source-order test pins mount promotion → glyph hydration → action-button
+hydration, checks that the coordinator no longer issues the glyph request itself, and checks
+the reset, request, catalog filter, marking and failure branch in the child. The action-button
+order test now anchors on the delegated glyph call. The character persistence scan and
+whole-character source inventory include the child. No dynamic test currently exercises this
+complete login glyph phase. Static inventory: `world_entry/login.rs` decreased from 1,371 to
+1,335 lines, and `world_entry/login/glyph_loading.rs` is 60 lines. No tests, builds,
+formatters, architecture checks, or QA were run under level 1. The worktree remains unvalidated
+at base SHA `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.
+
+#### Continuation: reputation login hydration, level 1
+
+Reputation row loading now lives in the private `world_entry/login/reputation_loading.rs` child.
+The coordinator still calls it after persisted-transport restoration and next-level XP refresh,
+and before saved health/power restoration. The helper preserves the lifecycle-port request, the
+row conversion into `CharacterReputationRowLikeCpp`, the merge through
+`load_character_reputation_rows_like_cpp`, the missing-Faction.db2 warning, and failure logging
+without aborting login. It now returns the completion flag instead of mutating a coordinator
+local; the coordinator binds `reputation_rows_complete_like_cpp` immutably and the later
+complete-spell-rows gate consumes it unchanged. The former `let mut ... = false` declaration
+left after the glyph extraction is removed.
+
+Reviewed target-source context at TrinityCore 3.4.3 SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Player::LoadFromDB` calls
+`m_reputationMgr->LoadFromDB` at `Player.cpp:17746`; `ReputationMgr::LoadFromDB`
+(`ReputationMgr.cpp:729`) runs `Initialize()` and then merges rows whose faction can have
+reputation. C++ performs this after inventory/action-button loading; this move preserves the
+current Rust phase and does not claim order or reputation-load parity.
+
+The new login source-order test pins transport restoration → reputation loading → saved health
+→ the completion-flag consumer, checks that the coordinator no longer issues the request or
+declares a mutable flag, and checks the child's request, conversion, merge, warnings and return.
+The transport-restore order test now anchors on the delegated call. The character persistence
+scan and whole-character source inventory include the child. No dynamic test currently
+exercises this complete login reputation phase. Static inventory: `world_entry/login.rs`
+decreased from 1,335 to 1,300 lines, and `world_entry/login/reputation_loading.rs` is 60 lines.
+No tests, builds, formatters, architecture checks, or QA were run under level 1. The worktree
+remains unvalidated at base SHA `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated
+candidate SHA or commit.
+
+#### Continuation: talent login hydration, level 1
+
+Talent row loading now lives in the private `world_entry/login/talent_loading.rs` child. The
+coordinator still calls it after skill loading and skill-rewarded spell changes, and before
+`CONFIG_START_ALL_SPELLS` custom spells and the loaded-spell dependency pass. The helper preserves
+the represented-talent reset before the lifecycle-port request, the per-row
+`load_represented_talent_row_with_spell_side_effects_like_cpp` call against the TalentTab catalog
+with the same `known_spells` and `skill_rewarded_dependent_spells` accumulators (now borrowed
+`&mut` from the coordinator), loaded marking and completion only for a `Loaded` outcome, and
+failure logging without aborting login. It returns the completion flag; the coordinator binds
+`talent_rows_complete_like_cpp` immutably and the complete-spell-rows gate consumes it unchanged.
+
+Reviewed target-source context at TrinityCore 3.4.3 SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Player::LoadFromDB` calls `_LoadTalents` before
+`_LoadSpells` (`Player.cpp:17709-17710`); `Player::_LoadTalents` (`Player.cpp:26623-26633`) looks
+each row up in `sTalentStore` and calls `AddTalent(..., false)`. The Rust coordinator runs this
+phase after the spell/skill rows; this move preserves that existing phase and does not claim order
+or talent-load parity.
+
+The new login source-order test pins skill loading → talent hydration → custom spells → the
+completion-flag consumer, checks that the coordinator no longer issues the request or declares a
+mutable flag, and checks the child's reset, request, side-effect call, accumulators, marking,
+failure branch and return. The character persistence scan and whole-character source inventory
+include the child. No dynamic test currently exercises this complete login talent phase. Static
+inventory: `world_entry/login.rs` decreased from 1,300 to 1,259 lines, and
+`world_entry/login/talent_loading.rs` is 74 lines. No tests, builds, formatters, architecture
+checks, or QA were run under level 1. The worktree remains unvalidated at base SHA
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.
+
+#### Continuation: persisted skill-row login query, level 1
+
+The persisted `character_skills` query now lives in the private
+`world_entry/login/skill_loading.rs` child. It returns the raw represented rows (positive skill
+ids, `step` 0, persisted value/max/profession slot, `Unchanged` state) together with the
+completion flag. The coordinator keeps the `// ── C++ Player::_LoadSkills ──` phase marker, the
+`skill_info_by_id` accumulator, race/class/level normalization through
+`loaded_skill_info_like_cpp`, fist-weapon synchronization, the completion-gated canonical
+`replace_player_skill_records_like_cpp` call with its kick/return, and the skill-rewarded spell
+pass. Only the query/row conversion moved; failure still logs without aborting login and leaves
+the canonical owner untouched.
+
+Reviewed target-source context at TrinityCore 3.4.3 SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Player::LoadFromDB` calls `_LoadSkills` at
+`Player.cpp:17696`; `Player::_LoadSkills` starts at `Player.cpp:25723`. This move preserves the
+existing Rust split between query and normalization and does not claim new skill-load parity.
+
+The new login source-order test pins favorite spells → skill-row query → normalization → the
+completion-gated replacement, checks that the coordinator no longer issues the request or
+declares a mutable completion flag, and checks the child's request, filter, row shape, failure
+branch and return tuple. The persistence scan and whole-character source inventory include the
+child. No dynamic test currently exercises this complete login phase. Static inventory:
+`world_entry/login.rs` decreased from 1,259 to 1,221 lines, and
+`world_entry/login/skill_loading.rs` is 66 lines. No tests, builds, formatters, architecture
+checks, or QA were run under level 1. The worktree remains unvalidated at base SHA
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.
+
+#### Continuation: spell and favorite-spell login queries, level 1
+
+The persisted `character_spell` and favorite-spell queries now live in the private
+`world_entry/login/spell_loading.rs` child. `load_character_spell_rows_for_login_like_cpp`
+returns a private `LoginSpellRowsLikeCpp` projection with the same three accumulators the
+coordinator previously filled inline (raw logical rows with positive `i32` ids and `Unchanged`
+state, `AddSpell` side-effect spells via `loaded_spell_for_add_spell_side_effects_like_cpp`, and
+active client spells via `active_known_spell_for_send_like_cpp`) plus the completion flag.
+`load_character_favorite_spells_for_login_like_cpp` returns the favorite set and its completion
+flag. The coordinator destructures both results into the same local names, keeping
+`known_spells` and `loaded_spell_side_effect_spells` mutable for the later skill/talent/default
+passes, and still declares the skill-rewarded accumulators before `_LoadSkills`. The two row
+converters moved out of the coordinator's import list into the child. Failure of either query
+still logs without aborting login and leaves the completion flag false for the
+complete-spell-rows gate.
+
+Reviewed target-source context at TrinityCore 3.4.3 SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Player::LoadFromDB` calls `_LoadSpells` with the
+spell and favorite results (`Player.cpp:17710`); `Player::_LoadSpells` (`Player.cpp:18924-18943`)
+calls `AddSpell` per row and then marks favorites only for spells already in `m_spells`. Rust
+retains its existing split projection and later favorite application; this move does not claim
+new order or spell-load parity.
+
+The new login source-order test pins currency hydration → spell rows → favorites → skill rows →
+the complete-spell-rows gate, checks that the coordinator no longer issues either request or
+declares mutable completion flags, and checks the child's filters, converters, completion and
+failure branches. The currency and skill-row order tests now anchor on the delegated calls. The
+persistence scan and whole-character source inventory include the child. No dynamic test
+currently exercises this complete login phase. Static inventory: `world_entry/login.rs`
+decreased from 1,221 to 1,150 lines, and `world_entry/login/spell_loading.rs` is 121 lines. No
+tests, builds, formatters, architecture checks, or QA were run under level 1. The worktree
+remains unvalidated at base SHA `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated
+candidate SHA or commit.
+
+#### Continuation: default-skill login pass, level 1
+
+The `LearnDefaultSkills` representation now lives in the private
+`world_entry/login/default_skills.rs` child as the synchronous
+`apply_default_skills_for_login_like_cpp`. The coordinator still captures
+`persisted_skill_count` after quest loading, calls the child, and then runs the skill-rewarded
+spell pass over the returned entries. The helper preserves the three catalog-store guard, the
+`default_starting_skill_info_like_cpp` candidates, the skip for skills already held with a
+positive value, the 256-slot limit, profession-slot reuse, the Deleted→Changed / otherwise New
+state rule, the `skill_info_by_id` insertion, and the canonical
+`replace_player_skill_records_like_cpp` call. The former `kick` + `return` becomes `kick` +
+`None`, and the coordinator returns on `None` at the same point; `skill_records` and
+`skill_info_by_id` are borrowed `&mut` from the coordinator.
+
+Reviewed target-source context at TrinityCore 3.4.3 SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Player::LoadFromDB` calls `LearnDefaultSkills` after
+spell and quest loading (`Player.cpp:17737-17740`); `Player::LearnDefaultSkills`
+(`Player.cpp:23798-23813`) skips held skills and rows above the player's level, then calls
+`LearnDefaultSkill`. This move preserves the existing Rust representation and does not claim new
+parity.
+
+The new login source-order test pins quest loading → persisted count → default-skill pass →
+skill-rewarded spells, checks that the coordinator no longer computes candidates or declares the
+entry vector, and checks the child's filters, limit, state rule, replacement, kick/None path and
+return. The persistence scan and whole-character source inventory include the child. No dynamic
+test currently exercises this complete login phase. Static inventory: `world_entry/login.rs`
+decreased from 1,150 to 1,097 lines, and `world_entry/login/default_skills.rs` is 86 lines. No
+tests, builds, formatters, architecture checks, or QA were run under level 1. The worktree remains
+unvalidated at base SHA `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate
+SHA or commit.
+
+#### Continuation: character-aura login hydration, level 1
+
+The character-aura and aura-effect queries now live in the private
+`world_entry/login/aura_loading.rs` child. The coordinator still calls it after
+account-data loading and before the initial `_ApplyAllItemMods` replay. The former inline block
+scope becomes the helper body unchanged: aura authority is reset to incomplete first, both rows
+families are converted with `object_guid_from_db_binary_like_cpp`, failures log without aborting
+login, `load_represented_character_auras_like_cpp` runs with both row sets, and aura authority
+becomes complete only when both queries completed.
+
+Reviewed target-source context at TrinityCore 3.4.3 SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Player::LoadFromDB` calls `_LoadAuras` with the aura
+and aura-effect results at `Player.cpp:17718`; `Player::_LoadAuras` starts at `Player.cpp:18034`.
+This move preserves the existing Rust phase and does not claim new aura-load parity.
+
+The new login source-order test pins account data → aura hydration → initial item mods, checks
+that the coordinator no longer issues either request, and checks the child's reset → apply →
+authority order, converters and failure branch. The persistence scan and whole-character source
+inventory include the child. No dynamic test currently exercises this complete login phase. Static
+inventory: `world_entry/login.rs` decreased from 1,097 to 1,016 lines, and
+`world_entry/login/aura_loading.rs` is 99 lines. No tests, builds, formatters, architecture checks,
+or QA were run under level 1. The worktree remains unvalidated at base SHA
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.
+
+#### Continuation: PlayerSpellMap login finalization, level 1
+
+The merge of raw `character_spell` rows with the canonical known-spell projection now lives in
+the private `world_entry/login/spell_map_finalization.rs` child as the synchronous
+`finalize_player_spell_map_for_login_like_cpp`. The coordinator still runs it after mount
+promotion and before the `LearnDefaultSkills` summary log. The coordinator now computes the
+unchanged five-flag conjunction (spell rows, favorites, talents, account mounts, reputation) into
+`login_spell_map_authority_complete_like_cpp` and passes it with the raw rows (moved), favorites and
+the skill-rewarded dependent/removed sets (borrowed). The helper keeps the dependent/favorite
+derivation, Removed-state rewrite, active refresh for enabled rows, canonical-spell insertion,
+`set_complete_represented_player_spell_rows_like_cpp`, acquisition-snapshot marking and both
+warnings unchanged. Evaluating the conjunction before the call is order-neutral: every operand is
+an immutable bool already bound.
+
+No new C++ anchor: this is Rust representation of the post-`_LoadSpells` PlayerSpellMap and claims
+no new parity. The new login source-order test pins mount promotion → gate → finalization →
+summary, checks all five gate operands remain, and checks the child's merge rules, gate and
+warnings. The spell-phase order test now anchors on the gate binding. The persistence scan and
+whole-character source inventory include the child. Static inventory: `world_entry/login.rs`
+decreased from 1,016 to 957 lines, and `world_entry/login/spell_map_finalization.rs` is 91 lines.
+No tests, builds, formatters, architecture checks, or QA were run under level 1. The worktree
+remains unvalidated at base SHA `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated
+candidate SHA or commit.
+
+#### Continuation: group-membership login hydration, level 1
+
+The group-membership query now lives in the private `world_entry/login/group_loading.rs` child.
+The coordinator still calls it after the login pet-state load and before the next-level XP
+refresh/clamp. The helper preserves clearing the owned group first, the lifecycle-port request,
+restoration of only the first row through `load_represented_group_by_db_store_id_like_cpp`
+followed by `reset_group_update_sequence_if_needed_like_cpp`, and the failure warning without
+aborting login.
+
+Reviewed target-source context at TrinityCore 3.4.3 SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Player::LoadFromDB` calls `_LoadGroup` at
+`Player.cpp:17368`; `Player::_LoadGroup` (`Player.cpp:18981-19003`) also sets the leader flag,
+subgroup, party type and offline difficulty changes. Rust applies the leader flag later
+(`apply_represented_group_leader_flag_like_cpp`); this move preserves that existing split and does
+not claim new group-load parity.
+
+The new login source-order test pins pet state → group membership → XP clamp, checks the
+coordinator no longer issues the request or clears the group itself, and checks the child's
+reset → request order, first-row restore, sequence reset and failure warning. The persistence scan
+and whole-character source inventory include the child. Static inventory: `world_entry/login.rs`
+decreased from 957 to 936 lines, and `world_entry/login/group_loading.rs` is 41 lines. No tests,
+builds, formatters, architecture checks, or QA were run under level 1. The worktree remains
+unvalidated at base SHA `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate
+SHA or commit.
+
+#### Continuation: Player mail login hydration, level 1
+
+The mail query and canonical mail-owner replacement now live in the private
+`world_entry/login/mail_loading.rs` child. The coordinator still calls it right after
+`ensure_login_player_controller_like_cpp` and before played-time/money hydration. The helper
+preserves the lifecycle-port request, the kick on a failed or mismatched outcome, the
+`PlayerMailRecord` conversion (zero template id → `None`), and the kick when
+`replace_owned_player_mails_like_cpp` fails. Each former `kick` + `return` becomes `kick` +
+`return false`; the coordinator returns on `false` at the same point, so login still aborts.
+
+Reviewed target-source context at TrinityCore 3.4.3 SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: `Player::LoadFromDB` calls `_LoadMail` with mail and
+mail-item results at `Player.cpp:17759`; `Player::_LoadMail` starts at `Player.cpp:18560`. C++ loads
+mail much later than the current Rust coordinator; this move preserves the Rust phase and does not
+claim order or mail-load parity.
+
+The new login source-order test pins controller → mail → money hydration, checks the coordinator
+no longer issues the request or replaces mails itself, and checks the child's failure kicks,
+conversion and replacement. The persistence scan and whole-character source inventory include the
+child. Static inventory: `world_entry/login.rs` decreased from 936 to 904 lines, and
+`world_entry/login/mail_loading.rs` is 58 lines. No tests, builds, formatters, architecture checks,
+or QA were run under level 1. The worktree remains unvalidated at base SHA
+`9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, with no validated candidate SHA or commit.

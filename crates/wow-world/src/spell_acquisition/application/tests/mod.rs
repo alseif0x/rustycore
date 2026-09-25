@@ -1,4 +1,5 @@
 use super::*;
+use wow_spell_acquisition::test_fixtures::SpellAcquisitionPlanFixtureLikeCpp;
 
 mod faults;
 mod preparation;
@@ -125,7 +126,7 @@ fn direct_learn_plan() -> (
             root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         },
     };
-    let plan = SpellAcquisitionPlanLikeCpp {
+    let plan = SpellAcquisitionPlanFixtureLikeCpp {
         root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         source_snapshot: source.clone(),
         mutations: vec![PlannedAcquisitionMutationLikeCpp::Spell(transition.clone())],
@@ -138,7 +139,8 @@ fn direct_learn_plan() -> (
         post_commit_actions: direct_learn_actions(100, false, false),
         diagnostics: Vec::new(),
         resulting_snapshot: snapshot(vec![learned]),
-    };
+    }
+    .build();
     (source, plan)
 }
 

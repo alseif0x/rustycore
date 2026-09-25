@@ -1,0 +1,5 @@
+# Known banned dependencies (ADR-003/004). This list may only shrink: check-deps fails on new or stale entries.
+L3 wow-ai declares `rand` (ADR-003/004)
+L3 wow-conditions declares `parking_lot` (ADR-003/004)
+L3 wow-loot declares `rand` (ADR-003/004)
+L3 wow-loot declares `tokio` (ADR-003/004)

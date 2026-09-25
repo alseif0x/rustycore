@@ -65,6 +65,7 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
     ));
     assert!(
         session
+            .player_skill_test_fixture_like_cpp
             .player_skill_non_durable_tombstones_like_cpp
             .contains(&95)
     );
@@ -95,6 +96,7 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
     assert!(session.player_aura_authority_complete_like_cpp());
     assert!(
         session
+            .player_skill_test_fixture_like_cpp
             .player_skill_non_durable_tombstones_like_cpp
             .contains(&95),
         "reasserting the same Player identity retains its skill tombstones"
@@ -115,6 +117,7 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
     );
     assert!(
         session
+            .player_skill_test_fixture_like_cpp
             .player_skill_non_durable_tombstones_like_cpp
             .is_empty(),
         "skill tombstones cannot cross a C++ Player lifetime"
@@ -180,7 +183,9 @@ fn reset_seasonal_keeps_equal_and_newer_completions_like_cpp() {
     assert_eq!(bucket.get(&1001), Some(&100));
     assert_eq!(bucket.get(&1002), Some(&101));
     assert_eq!(
-        session.represented_quest_completed_bits_like_cpp,
+        session
+            .quest_test_fixture_like_cpp
+            .represented_quest_completed_bits_like_cpp,
         BTreeSet::from([65, 66])
     );
     assert!(!session.seasonal_quest_changed_like_cpp());
@@ -200,7 +205,12 @@ fn reset_seasonal_zero_or_missing_unique_bit_removes_without_inventing_bit_like_
     assert_eq!(outcome.completed_bit_skipped_no_quest_v2_store, 0);
     assert_eq!(outcome.completed_bit_clear_unrepresented, 0);
     assert_eq!(session.seasonal_quest_bucket_like_cpp(7), None);
-    assert!(session.represented_quest_completed_bits_like_cpp.is_empty());
+    assert!(
+        session
+            .quest_test_fixture_like_cpp
+            .represented_quest_completed_bits_like_cpp
+            .is_empty()
+    );
 }
 #[test]
 fn reset_seasonal_missing_event_leaves_changed_false_like_cpp() {
@@ -284,7 +294,7 @@ async fn criteria_tree_tracking_event_objective_auto_rewards_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id,

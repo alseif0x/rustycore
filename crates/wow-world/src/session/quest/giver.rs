@@ -43,7 +43,7 @@ impl WorldSession {
         if state.rewarded_quest_ids_like_cpp().contains(&quest_id)
             && self.represented_quest_can_increase_rewarded_counters_like_cpp(quest_id)?
         {
-            return Some(crate::conditions::QUEST_STATUS_REWARDED_LIKE_CPP);
+            return Some(wow_conditions::QUEST_STATUS_REWARDED_LIKE_CPP);
         }
 
         Some(
@@ -51,7 +51,7 @@ impl WorldSession {
                 .statuses_like_cpp()
                 .get(&quest_id)
                 .map(|quest| quest.status)
-                .unwrap_or(crate::conditions::QUEST_STATUS_NONE_LIKE_CPP),
+                .unwrap_or(wow_conditions::QUEST_STATUS_NONE_LIKE_CPP),
         )
     }
     pub(crate) fn load_seasonal_quest_status_like_cpp(

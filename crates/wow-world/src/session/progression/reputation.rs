@@ -42,11 +42,13 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub fn set_start_all_reputation_like_cpp(&mut self, enabled: bool) {
-        self.start_all_reputation_like_cpp = enabled;
+        self.player_bootstrap_catalog_test_fixture_like_cpp
+            .start_all_reputation_like_cpp = enabled;
     }
     #[cfg(test)]
     pub(crate) fn start_all_reputation_like_cpp(&self) -> bool {
-        self.start_all_reputation_like_cpp
+        self.player_bootstrap_catalog_test_fixture_like_cpp
+            .start_all_reputation_like_cpp
     }
     pub(crate) fn reputation_price_discount_for_faction_template_like_cpp(
         &self,

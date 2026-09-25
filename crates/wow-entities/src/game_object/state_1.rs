@@ -295,6 +295,10 @@ pub(super) fn game_object_owned_loot_from_snapshot(
 }
 
 impl GameObjectLootSource {
+    pub const fn loot_ids_like_cpp(&self) -> [u32; 3] {
+        [self.loot_id, self.personal_loot_id, self.push_loot_id]
+    }
+
     pub const fn is_empty(&self) -> bool {
         self.loot_id == 0 && self.personal_loot_id == 0 && self.push_loot_id == 0
     }
@@ -443,6 +447,16 @@ pub struct BarberChairUseSource {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct UiLinkUseSource {
     pub ui_link_type: u32,
+}
+
+pub const fn ui_link_player_interaction_type_like_cpp(ui_link_type: u32) -> i32 {
+    match ui_link_type {
+        0 => 54,
+        1 => 39,
+        2 => 40,
+        3 => 44,
+        _ => 0,
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

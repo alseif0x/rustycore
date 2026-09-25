@@ -97,9 +97,9 @@ impl WorldSession {
             return false;
         };
         let quest_already_rewarded = state.rewarded_quest_ids_like_cpp().contains(&quest.id);
-        if !crate::handlers::quest_rules::represented_can_complete_quest_after_objective_like_cpp(
+        if !wow_entities::represented_can_complete_quest_after_objective_like_cpp(
             status,
-            quest,
+            &quest.objective_rules_like_cpp(),
             ignored_objective_id,
             quest_already_rewarded,
         ) {
@@ -223,7 +223,8 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        self.represented_auto_accept_acknowledged_quests_like_cpp
+        self.quest_test_fixture_like_cpp
+            .represented_auto_accept_acknowledged_quests_like_cpp
             .push(quest_id);
         true
     }
@@ -238,9 +239,7 @@ impl WorldSession {
         };
 
         let (accept_time_secs, end_time_secs) =
-            crate::handlers::quest_rules::represented_accept_and_end_time_for_new_quest_like_cpp(
-                quest,
-            );
+            quest.accepted_and_end_time_like_cpp(wow_core::GameTime::now().as_secs() as i64);
 
         self.invalidate_player_quest_status_authority_like_cpp();
         let status = PlayerQuestStatus {
@@ -270,7 +269,8 @@ impl WorldSession {
         if removed {
             #[cfg(test)]
             {
-                self.represented_timed_quest_removals_like_cpp
+                self.quest_test_fixture_like_cpp
+                    .represented_timed_quest_removals_like_cpp
                     .push(quest_id);
             }
         }

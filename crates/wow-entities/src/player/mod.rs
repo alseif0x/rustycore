@@ -50,10 +50,22 @@ pub use effective_stats::PlayerEffectiveCombatStatsLikeCpp;
 pub use equipment_sets::PlayerEquipmentSetsLikeCpp;
 pub use item_modifiers::{
     PlayerItemBonusStateLikeCpp, PlayerItemLevelCapsLikeCpp, PlayerItemModifierRuntimeStateLikeCpp,
-    PlayerItemSetEffectLikeCpp,
+    PlayerItemSetEffectLikeCpp, loaded_enchantment_effect_action_is_unrepresented_like_cpp,
+    represented_item_bonus_action_updates_stats_like_cpp,
+};
+pub use items::{
+    ExistingStorageStackUpdateLikeCpp, InventoryStorageMovePlanLikeCpp,
+    plan_inventory_storage_move_like_cpp,
+};
+pub use items::{
+    represented_avg_total_item_level_maybe_replace_slot_like_cpp,
+    represented_total_avg_equipment_slot_candidates_like_cpp,
 };
 pub use progression::PreparedPlayerSpellAcquisitionLikeCpp;
-pub use quest_state::PlayerQuestGameplayState;
+pub use quest_state::{
+    PlayerQuestGameplayState, QuestBoundItemObjectiveProgressLikeCpp,
+    QuestItemObjectiveProgressLikeCpp,
+};
 pub use reputation::{
     PlayerFactionStateLikeCpp, PlayerReputationStateLikeCpp, ReputationRankCounterLikeCpp,
     ReputationRankCountersLikeCpp,
@@ -4638,7 +4650,7 @@ fn is_bag_storage_slot(slot: u8) -> bool {
         || (REAGENT_BAG_SLOT_START..REAGENT_BAG_SLOT_END).contains(&slot)
 }
 
-fn is_buyback_slot(slot: u8) -> bool {
+pub fn is_buyback_slot(slot: u8) -> bool {
     (BUYBACK_SLOT_START..BUYBACK_SLOT_END).contains(&slot)
 }
 
@@ -4712,4 +4724,3 @@ fn can_take_more_similar_ok() -> CanTakeMoreSimilarItemsOutcome {
 #[cfg(test)]
 #[path = "../player_tests.rs"]
 mod tests;
-pub(crate) use crate::player_rules::*;

@@ -4,6 +4,8 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use wow_loot::{LOOT_METHOD_GROUP_LIKE_CPP, LOOT_METHOD_MASTER_LIKE_CPP};
+use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
 
 #[tokio::test]
 async fn master_loot_item_target_not_allowed_for_loot_sends_master_other_like_cpp() {

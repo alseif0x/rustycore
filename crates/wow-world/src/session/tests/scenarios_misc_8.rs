@@ -83,7 +83,12 @@ fn tavern_rest_revalidation_clears_stale_trigger_like_cpp() {
 
     assert!(session.set_represented_tavern_resting_like_cpp(42, true));
     assert!(session.represented_is_resting_like_cpp());
-    assert_eq!(session.represented_inn_area_trigger_id_like_cpp, 42);
+    assert_eq!(
+        session
+            .rest_mgr_test_fixture_like_cpp
+            .represented_inn_area_trigger_id_like_cpp,
+        42
+    );
     assert!(
         session
             .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_RESTING_LIKE_CPP)
@@ -94,7 +99,12 @@ fn tavern_rest_revalidation_clears_stale_trigger_like_cpp() {
     session.revalidate_represented_tavern_resting_like_cpp();
 
     assert!(!session.represented_is_resting_like_cpp());
-    assert_eq!(session.represented_inn_area_trigger_id_like_cpp, 0);
+    assert_eq!(
+        session
+            .rest_mgr_test_fixture_like_cpp
+            .represented_inn_area_trigger_id_like_cpp,
+        0
+    );
     assert!(
         !session
             .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_RESTING_LIKE_CPP)

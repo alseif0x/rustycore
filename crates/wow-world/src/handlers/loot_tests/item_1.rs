@@ -4,6 +4,7 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use wow_loot::{LOOT_METHOD_GROUP_LIKE_CPP, LOOT_METHOD_MASTER_LIKE_CPP};
 
 #[test]
 fn stored_item_money_commit_unknown_requires_joint_balance_and_source_evidence_like_cpp() {
@@ -319,43 +320,6 @@ fn prospecting_and_milling_release_consume_at_most_five_source_items_like_cpp() 
     assert_eq!(direct_item_count_after_loot_release_like_cpp(20, None), 0);
 }
 #[test]
-fn represented_unlooted_count_counts_shared_items_once_like_cpp() {
-    let player_guid = ObjectGuid::create_player(1, 42);
-    let other_guid = ObjectGuid::create_player(1, 77);
-    let loot_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 102);
-
-    let mut entry = represented_loot_entry(0, 25, player_guid);
-    entry.allowed_looters.clear();
-
-    let mut loot = CreatureLoot {
-        loot_guid,
-        coins: 0,
-        unlooted_count: 0,
-        loot_type: LOOT_TYPE_CORPSE_LIKE_CPP,
-        dungeon_encounter_id: 0,
-        loot_method: LOOT_METHOD_GROUP_LIKE_CPP,
-        loot_master: ObjectGuid::EMPTY,
-        round_robin_player: ObjectGuid::EMPTY,
-        player_ffa_items: Vec::new(),
-        players_looting: Vec::new(),
-        allowed_looters: Vec::new(),
-        items: vec![entry],
-        looted_by_player: false,
-    };
-
-    mark_loot_allowed_for_player_like_cpp(&mut loot, player_guid);
-    assert_eq!(loot.unlooted_count, 1);
-    assert!(loot.items[0].flags.counted);
-
-    mark_loot_allowed_for_player_like_cpp(&mut loot, other_guid);
-    assert_eq!(loot.unlooted_count, 1);
-
-    mark_loot_item_looted_for_player_like_cpp(&mut loot, 0, player_guid);
-    assert_eq!(loot.unlooted_count, 0);
-    mark_loot_item_looted_for_player_like_cpp(&mut loot, 0, player_guid);
-    assert_eq!(loot.unlooted_count, 0);
-}
-#[test]
 fn durable_item_fanout_uses_precommit_union_exact_commit_cut_like_cpp() {
     let before = ObjectGuid::create_player(1, 41);
     let during = ObjectGuid::create_player(1, 42);
@@ -463,7 +427,11 @@ async fn quest_bound_loot_credits_objective_without_physical_item_like_cpp() {
         0,
         "C++ StoreNewItem returns nullptr for quest-bound objective credit"
     );
-    let status = first.player_quests.get(&quest_id).expect("active quest");
+    let status = first
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .get(&quest_id)
+        .expect("active quest");
     assert_eq!(status.objective_counts, vec![6]);
     assert_eq!(
         status.status,
@@ -535,7 +503,11 @@ async fn quest_bound_loot_still_requires_can_store_new_item_like_cpp() {
         .await;
 
     assert_eq!(grants.load(Ordering::SeqCst), 0);
-    let status = first.player_quests.get(&quest_id).expect("active quest");
+    let status = first
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .get(&quest_id)
+        .expect("active quest");
     assert_eq!(status.objective_counts, vec![5]);
     assert_eq!(
         status.status,

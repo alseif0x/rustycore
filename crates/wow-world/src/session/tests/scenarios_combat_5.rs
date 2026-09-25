@@ -5,48 +5,6 @@
 
 use super::*;
 
-#[test]
-fn melee_crushing_band_preserves_cpp_expression_and_gates() {
-    use crate::session_rules::{
-        RepresentedMeleeAttackerFactsLikeCpp as Attacker,
-        RepresentedMeleeOutcomeLikeCpp as Outcome, RepresentedMeleeVictimFactsLikeCpp as Victim,
-        melee_outcome_inputs_like_cpp, melee_outcome_like_cpp,
-    };
-
-    // C++ `Unit.cpp:2364-2378` admits the band for a creature attacker four
-    // levels above its victim, then evaluates `attackerLevel - victimLevel *
-    // 1000 - 1500` verbatim. At 80 versus 76 that is -77,420, so the outcome
-    // remains Hit even at the top of the roll range.
-    let mut attacker = Attacker {
-        level: 80,
-        is_controlled_by_player: false,
-        no_crushing_blows: false,
-        ..Default::default()
-    };
-    let victim = Victim {
-        level: 76,
-        is_creature: true,
-        ..Default::default()
-    };
-    let inputs = melee_outcome_inputs_like_cpp(&attacker, &victim);
-    assert_eq!(inputs[0].crushing_chance_units, -77_420);
-    assert_eq!(melee_outcome_like_cpp(&inputs[0], 9_999), Outcome::Hit);
-
-    // Player-controlled creatures and NO_CRUSHING_BLOWS skip the band before
-    // the source expression is evaluated.
-    attacker.is_controlled_by_player = true;
-    assert_eq!(
-        melee_outcome_inputs_like_cpp(&attacker, &victim)[0].crushing_chance_units,
-        0
-    );
-    attacker.is_controlled_by_player = false;
-    attacker.no_crushing_blows = true;
-    assert_eq!(
-        melee_outcome_inputs_like_cpp(&attacker, &victim)[0].crushing_chance_units,
-        0
-    );
-}
-
 /// C++ `Unit::CalcAbsorbResist`'s school-absorb loop
 /// (`Unit.cpp:1812-1880`) for one physical melee hit.
 ///

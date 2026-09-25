@@ -17,6 +17,7 @@ mod objectives;
 mod persistence;
 mod rewards;
 mod sharing;
+mod source_items;
 mod state;
 
 use crate::session::mailbox::SessionCommand;
@@ -69,10 +70,6 @@ use wow_packet::packets::update::{
     UpdateObject,
 };
 
-use crate::conditions::{
-    QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-    QUEST_STATUS_NONE_LIKE_CPP, QUEST_STATUS_REWARDED_LIKE_CPP,
-};
 use crate::handlers::character::ExtendedCostItemTurninChange;
 use crate::session::{
     CurrencyGainSourceLikeCpp, InventoryItem, RepresentedAdventureMapStartQuestLikeCpp,
@@ -89,6 +86,10 @@ use crate::session::{
     RepresentedQuestRewardSpellCastLikeCpp, RepresentedQuestRewardSpellKindLikeCpp,
     RepresentedQuestRewardTalentPointsLikeCpp, RepresentedQuestRewardTitleLikeCpp,
 };
+use wow_conditions::{
+    QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+    QUEST_STATUS_NONE_LIKE_CPP, QUEST_STATUS_REWARDED_LIKE_CPP,
+};
 
 fn quest_giver_creature_id_from_source_like_cpp(source_guid: ObjectGuid) -> i32 {
     if source_guid.is_any_type_creature() {
@@ -102,11 +103,10 @@ pub(crate) const QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP: u32 = 0x0001_0000;
 #[cfg(test)]
 pub(crate) const QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP: u32 = 0x0020_0000;
 pub(crate) const QUEST_FLAGS_SHARABLE_LIKE_CPP: u32 = 0x0000_0008;
-pub(crate) const QUEST_FLAGS_COMPLETION_EVENT_LIKE_CPP: u32 = 0x0000_0002;
-pub(crate) const QUEST_FLAGS_COMPLETION_AREA_TRIGGER_LIKE_CPP: u32 = 0x0000_0004;
 const QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP: u32 = 0x0000_0400;
-pub(crate) const QUEST_FLAGS_EX_REWARDS_IGNORE_CAPS_LIKE_CPP: u32 = 0x0080_0000;
-pub(crate) const QUEST_FLAGS_EX_IS_WORLD_QUEST_LIKE_CPP: u32 = 0x0100_0000;
+pub(crate) use wow_constants::quest::{
+    QUEST_FLAGS_EX_IS_WORLD_QUEST_LIKE_CPP, QUEST_FLAGS_EX_REWARDS_IGNORE_CAPS_LIKE_CPP,
+};
 const QUEST_STATE_COMPLETE_LIKE_CPP: u32 = 0x0001;
 const QUEST_STATE_FAIL_LIKE_CPP: u32 = 0x0002;
 const QUEST_STATE_OBJECTIVE_FLAG_BASE_LIKE_CPP: u32 = 256;
@@ -462,21 +462,18 @@ pub(crate) const MAX_QUEST_LOG_SIZE_LIKE_CPP: u8 = 25;
 #[path = "../quest_tests.rs"]
 mod tests;
 
-pub(crate) const QUEST_OBJECTIVE_MONSTER_LIKE_CPP_LOCAL: u8 = 0;
-pub(crate) const QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL: u8 = 1;
-pub(crate) const QUEST_OBJECTIVE_GAMEOBJECT_LIKE_CPP_LOCAL: u8 = 2;
-pub(crate) const QUEST_OBJECTIVE_TALKTO_LIKE_CPP_LOCAL: u8 = 3;
-pub(crate) const QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP_LOCAL: u8 = 9;
-pub(crate) const QUEST_OBJECTIVE_WINPVPPETBATTLES_LIKE_CPP_LOCAL: u8 = 13;
-pub(crate) const QUEST_OBJECTIVE_CRITERIA_TREE_LIKE_CPP_LOCAL: u8 = 14;
-pub(crate) const QUEST_OBJECTIVE_PROGRESS_BAR_LIKE_CPP_LOCAL: u8 = 15;
-pub(crate) const QUEST_OBJECTIVE_HAVE_CURRENCY_LIKE_CPP_LOCAL: u8 = 16;
-pub(crate) const QUEST_OBJECTIVE_OBTAIN_CURRENCY_LIKE_CPP_LOCAL: u8 = 17;
-pub(crate) const QUEST_OBJECTIVE_INCREASE_REPUTATION_LIKE_CPP_LOCAL: u8 = 18;
-pub(crate) const QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP_LOCAL: u32 = 0x2;
-pub(crate) const QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP_LOCAL: u32 = 0x4;
-pub(crate) const QUEST_OBJECTIVE_FLAG_PART_OF_PROGRESS_BAR_LIKE_CPP_LOCAL: u32 = 0x40;
-pub(crate) const QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL: u32 = 0x1;
+use wow_constants::quest::{
+    QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP as QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL,
+    QUEST_OBJECTIVE_ITEM_LIKE_CPP as QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL,
+};
+#[cfg(test)]
+use wow_constants::quest::{
+    QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP as QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP_LOCAL,
+    QUEST_OBJECTIVE_FLAG_PART_OF_PROGRESS_BAR_LIKE_CPP as QUEST_OBJECTIVE_FLAG_PART_OF_PROGRESS_BAR_LIKE_CPP_LOCAL,
+    QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP as QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP_LOCAL,
+    QUEST_OBJECTIVE_MONSTER_LIKE_CPP as QUEST_OBJECTIVE_MONSTER_LIKE_CPP_LOCAL,
+    QUEST_OBJECTIVE_PROGRESS_BAR_LIKE_CPP as QUEST_OBJECTIVE_PROGRESS_BAR_LIKE_CPP_LOCAL,
+};
 
 // ── PlayerQuestStatus ────────────────────────────────────────────────────────
 

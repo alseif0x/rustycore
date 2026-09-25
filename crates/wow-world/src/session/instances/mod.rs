@@ -8,3 +8,5 @@ mod difficulty;
 mod instance;
 mod map_key;
 mod map_resolution;
+#[cfg(test)]
+pub(crate) mod test_fixtures;

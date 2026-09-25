@@ -37,280 +37,12 @@ fn represented_aura_visual_without_caster_like_cpp(
     0
 }
 
+#[path = "aura/effect_queries.rs"]
+mod effect_queries;
+#[path = "aura/spell_hit_authority.rs"]
+mod spell_hit_authority;
+
 impl WorldSession {
-    pub(in crate::session) fn player_aura_subsystem_snapshot_like_cpp(
-        &self,
-    ) -> Option<wow_entities::AuraSubsystem> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.unit().subsystems().auras.clone());
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            let mut auras = wow_entities::AuraSubsystem::default();
-            auras.set_persisted_player_aura_authority_complete_like_cpp(
-                self.player_aura_authority_complete_like_cpp,
-            );
-            if self.player_spell_hit_aura_authority_tombstoned_like_cpp {
-                auras.tombstone_spell_hit_aura_authority_like_cpp();
-            }
-            for aura in self.visible_auras.values().cloned() {
-                auras.insert_runtime_application_like_cpp(aura);
-            }
-            for (&slot, snapshot) in &self.canonical_threat_aura_snapshots_like_cpp {
-                auras.insert_threat_snapshot_like_cpp(slot, snapshot.clone());
-            }
-            return Some(auras);
-        }
-        canonical
-    }
-    #[cfg(test)]
-    pub(in crate::session) fn mutate_player_aura_subsystem_like_cpp<R>(
-        &mut self,
-        mutate: impl FnOnce(&mut wow_entities::AuraSubsystem) -> R,
-    ) -> Option<R> {
-        let mut mutate = Some(mutate);
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            let mut auras = self.player_aura_subsystem_snapshot_like_cpp()?;
-            let result =
-                mutate
-                    .take()
-                    .expect("test Player aura mutation executes once")(&mut auras);
-            self.player_aura_authority_complete_like_cpp =
-                auras.persisted_player_aura_authority_complete_like_cpp();
-            self.player_spell_hit_aura_authority_tombstoned_like_cpp =
-                auras.spell_hit_aura_authority_tombstoned_like_cpp();
-            self.visible_auras = auras.runtime_applications_like_cpp().clone();
-            self.canonical_threat_aura_snapshots_like_cpp.clear();
-            for slot in 0..=u8::MAX {
-                if let Some(snapshot) = auras.threat_snapshot_like_cpp(slot) {
-                    self.canonical_threat_aura_snapshots_like_cpp
-                        .insert(slot, snapshot.clone());
-                }
-            }
-            return Some(result);
-        }
-        self.with_owned_player_mut_like_cpp(|player| {
-            mutate.take().expect("Player aura mutation executes once")(
-                &mut player.unit_mut().subsystems_mut().auras,
-            )
-        })
-    }
-    pub(crate) fn set_player_aura_authority_complete_like_cpp(&mut self, complete: bool) -> bool {
-        let _canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_player_aura_authority_complete_like_cpp(complete);
-            })
-            .is_some();
-        #[cfg(test)]
-        if !_canonical && self.player_handle_like_cpp.is_none() {
-            return self
-                .mutate_player_aura_subsystem_like_cpp(|auras| {
-                    auras.set_persisted_player_aura_authority_complete_like_cpp(complete);
-                })
-                .is_some();
-        }
-        _canonical
-    }
-    #[cfg(test)]
-    pub(crate) fn player_aura_authority_complete_like_cpp(&self) -> bool {
-        self.player_aura_authority_complete_like_cpp
-    }
-    pub(crate) fn resolved_player_aura_authority_complete_like_cpp(&self) -> Option<bool> {
-        self.player_aura_subsystem_snapshot_like_cpp()
-            .map(|auras| auras.persisted_player_aura_authority_complete_like_cpp())
-    }
-    pub(crate) fn tombstone_player_spell_hit_aura_authority_like_cpp(&mut self) {
-        let _canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.tombstone_player_spell_hit_aura_authority_like_cpp();
-            })
-            .is_some();
-        #[cfg(test)]
-        if !_canonical && self.player_handle_like_cpp.is_none() {
-            let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
-                auras.tombstone_spell_hit_aura_authority_like_cpp();
-            });
-        }
-    }
-    fn represented_active_glyph_aura_source_is_empty_like_cpp(&self) -> bool {
-        self.player_talent_runtime_snapshot_like_cpp()
-            .filter(|runtime| runtime.glyphs_loaded_like_cpp())
-            .map(|runtime| {
-                let active_group = runtime.active_group_like_cpp();
-                (0..wow_entities::PLAYER_MAX_GLYPH_SLOTS_LIKE_CPP as u8)
-                    .all(|slot| runtime.glyph_like_cpp(active_group, slot) == Some(0))
-            })
-            .unwrap_or(false)
-    }
-    /// C++ `_LoadTraits` creates missing configs for specialization indexes
-    /// `0..MAX_SPECIALIZATIONS - 1`, and `CreateTraitConfig` can attach granted
-    /// entries. This narrow proof is therefore limited to a complete set of
-    /// persisted, active-for-spec combat configs whose global entry query was
-    /// empty. `ValidateConfig` accepts those empty configs, so C++ neither
-    /// replaces them with granted entries nor creates a missing config.
-    fn represented_trait_config_aura_source_is_empty_like_cpp(&self) -> bool {
-        let Some(runtime) = self.player_spell_runtime_snapshot_like_cpp() else {
-            return false;
-        };
-        if !runtime.trait_config_rows_complete
-            || !runtime.trait_entry_rows_complete
-            || !runtime.trait_entry_rows_empty
-        {
-            return false;
-        }
-
-        let Some(specializations) = self.chr.specialization_store.as_ref() else {
-            return false;
-        };
-        let mut expected_specs = BTreeSet::new();
-        for index in 0..(MAX_SPECIALIZATIONS_LIKE_CPP - 1) {
-            let Some(spec) = u8::try_from(index).ok().and_then(|index| {
-                specializations.get_by_class_and_index_like_cpp(self.player_class_like_cpp(), index)
-            }) else {
-                return false;
-            };
-            let Ok(spec_id) = i32::try_from(spec.id) else {
-                return false;
-            };
-            if !expected_specs.insert(spec_id) {
-                return false;
-            }
-        }
-
-        if runtime.trait_config_rows.len() != expected_specs.len() {
-            return false;
-        }
-        for config in runtime.trait_config_rows.values() {
-            let (config_type, specialization_id, combat_flags) = config.header;
-            const TRAIT_CONFIG_TYPE_COMBAT_LIKE_CPP: i32 = 1;
-            const TRAIT_COMBAT_CONFIG_ACTIVE_FOR_SPEC_LIKE_CPP: i32 = 0x1;
-            if config_type != TRAIT_CONFIG_TYPE_COMBAT_LIKE_CPP
-                || combat_flags & TRAIT_COMBAT_CONFIG_ACTIVE_FOR_SPEC_LIKE_CPP == 0
-                || !expected_specs.remove(&specialization_id)
-            {
-                return false;
-            }
-        }
-        expected_specs.is_empty()
-    }
-    /// C++ `Map::AddPlayerToMap` can dispatch `InstanceScript::OnPlayerEnter`,
-    /// Scenario, and Battleground hooks before the login authority is
-    /// published. Those hooks are not represented, so only an exact ordinary
-    /// world-map DB2 row excludes them.
-    fn represented_add_player_to_map_aura_source_is_empty_like_cpp(&self) -> bool {
-        self.maps
-            .store
-            .as_ref()
-            .and_then(|store| store.get(u32::from(self.player_map_id_like_cpp())))
-            .is_some_and(|map| map.instance_type == wow_data::map::MAP_COMMON)
-    }
-    pub(in crate::session) fn can_authorize_empty_player_spell_hit_aura_source_for_difficulty_like_cpp(
-        &self,
-        difficulty_id: u8,
-    ) -> bool {
-        let Some(aura_subsystem) = self.player_aura_subsystem_snapshot_like_cpp() else {
-            return false;
-        };
-        if !self.player_spell_hit_source_identity_complete_like_cpp()
-            || aura_subsystem.spell_hit_aura_authority_tombstoned_like_cpp()
-            || !aura_subsystem.persisted_player_aura_authority_complete_like_cpp()
-            || !self.player_equipment_inventory_authority_complete_like_cpp()
-            || self
-                .resolved_represented_guild_id_like_cpp()
-                .is_none_or(|guild_id| guild_id != 0)
-            || self.complete_player_skill_records_like_cpp().is_none()
-            || self
-                .complete_represented_player_spell_rows_like_cpp()
-                .is_none()
-            || self
-                .complete_represented_spell_trait_definition_ids_like_cpp()
-                .is_none_or(|traits| !traits.is_empty())
-            || !self.represented_trait_config_aura_source_is_empty_like_cpp()
-            || !self.represented_active_glyph_aura_source_is_empty_like_cpp()
-            || !self.represented_battle_pet_login_spell_source_is_empty_like_cpp()
-            || !self.represented_add_player_to_map_aura_source_is_empty_like_cpp()
-            || !self.represented_auto_push_quest_aura_source_is_empty_like_cpp()
-            || !self.represented_character_pet_aura_source_is_empty_like_cpp()
-            || !self.represented_quest_login_aura_sources_are_hit_inert_like_cpp(difficulty_id)
-            || !self.represented_spell_area_autocast_source_is_empty_like_cpp()
-            || !self.represented_war_mode_update_zone_aura_source_is_empty_like_cpp()
-            || !self.represented_update_area_pvp_rule_aura_source_is_empty_like_cpp()
-            || !self.represented_update_zone_script_aura_source_is_hit_inert_like_cpp()
-            || !aura_subsystem
-                .runtime_applications_like_cpp()
-                .values()
-                .all(|aura| self.player_visible_aura_is_spell_hit_inert_like_cpp(aura))
-            || self
-                .resolved_inventory_items_like_cpp()
-                .is_none_or(|items| !items.is_empty())
-            || self
-                .resolved_buyback_items_like_cpp()
-                .is_none_or(|items| !items.is_empty())
-            || self
-                .resolved_inventory_item_objects_like_cpp()
-                .is_none_or(|items| !items.is_empty())
-        {
-            return false;
-        }
-
-        let known_spells = self.known_spells_like_cpp();
-        if known_spells.is_empty() {
-            return true;
-        }
-        let Some(spell_store) = self.spell_catalogs.spell_store.as_ref() else {
-            return false;
-        };
-        known_spells.iter().copied().all(|spell_id| {
-            spell_id > 0
-                && spell_store
-                    .misc_attributes_for_difficulty_like_cpp(
-                        spell_id,
-                        difficulty_id,
-                        self.difficulty_store.as_deref(),
-                    )
-                    .is_some_and(|attributes| {
-                        attributes[0] & wow_data::spell::attributes::SPELL_ATTR0_PASSIVE == 0
-                            || u32::try_from(spell_id).ok().is_some_and(|spell_id| {
-                                self.player_target_spell_is_hit_inert_like_cpp(
-                                    spell_id,
-                                    difficulty_id,
-                                )
-                            })
-                    })
-        })
-    }
-    pub(crate) fn can_authorize_empty_player_spell_hit_aura_source_like_cpp(&self) -> bool {
-        self.can_authorize_empty_player_spell_hit_aura_source_for_difficulty_like_cpp(
-            self.current_map_difficulty_id_like_cpp(),
-        )
-    }
-    /// Publish the combined session-source proof to the canonical Player.
-    /// Positive publication is reserved for explicit login/snapshot boundaries;
-    /// individual source mutations call the invalidation helper instead.
-    pub(crate) fn sync_player_spell_hit_aura_authority_to_canonical_like_cpp(
-        &mut self,
-    ) -> Option<bool> {
-        let complete = self.can_authorize_empty_player_spell_hit_aura_source_like_cpp();
-        self.mutate_canonical_player_like_cpp(|player| {
-            player
-                .unit_mut()
-                .subsystems_mut()
-                .auras
-                .set_spell_hit_aura_authority_inert_like_cpp(complete);
-            complete
-        })
-    }
-    pub(in crate::session) fn invalidate_canonical_player_spell_hit_aura_authority_like_cpp(
-        &mut self,
-    ) {
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
-            player
-                .unit_mut()
-                .subsystems_mut()
-                .auras
-                .invalidate_spell_hit_aura_authority_like_cpp();
-        });
-    }
     pub(crate) fn spell_area_for_aura_map_bounds_like_cpp(
         &self,
         spell_id: u32,
@@ -321,6 +53,7 @@ impl WorldSession {
             .map(|store| store.spell_area_for_aura_map_bounds_like_cpp(spell_id))
             .unwrap_or_default()
     }
+
     /// C++ `Unit::HasAuraState(flag)` for the represented Caster: the union of
     /// the unit's aura-driven state bits and its health-derived bits.
     pub(in crate::session) fn represented_has_aura_state_like_cpp(&self, aura_state: u32) -> bool {
@@ -609,6 +342,7 @@ impl WorldSession {
 
         effect.effect_base_points
     }
+
     pub(crate) fn load_represented_character_auras_like_cpp(
         &mut self,
         aura_rows: impl IntoIterator<Item = CharacterAuraRowLikeCpp>,
@@ -787,6 +521,7 @@ impl WorldSession {
         }
         loaded
     }
+
     #[allow(dead_code)]
     pub(crate) fn represented_mount_aura_display_candidates_like_cpp(
         &self,
@@ -821,6 +556,7 @@ impl WorldSession {
             .map(|display| display.creature_display_info_id)
             .collect()
     }
+
     #[allow(dead_code)]
     pub(crate) fn select_represented_mount_aura_display_like_cpp(
         &mut self,
@@ -831,219 +567,7 @@ impl WorldSession {
             .choose(&mut self.represented_runtime_rng_like_cpp)
             .copied()
     }
-    pub(in crate::session) fn resolved_has_represented_aura_effect_like_cpp(
-        &self,
-        effect: RepresentedAuraEffectLikeCpp,
-    ) -> Option<bool> {
-        self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .any(|aura| aura.represented_effect == Some(effect))
-        })
-    }
-    #[cfg(test)]
-    fn has_represented_aura_effect_like_cpp(&self, effect: RepresentedAuraEffectLikeCpp) -> bool {
-        self.resolved_has_represented_aura_effect_like_cpp(effect)
-            .expect("test Player aura owner must resolve")
-    }
-    pub(in crate::session) fn resolved_has_represented_aura_effect_with_misc_value_like_cpp(
-        &self,
-        effect: RepresentedAuraEffectLikeCpp,
-        misc_value: i32,
-    ) -> Option<bool> {
-        self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras.values().any(|aura| {
-                aura.represented_effect == Some(effect)
-                    && aura.represented_misc_value == Some(misc_value)
-            })
-        })
-    }
-    #[cfg(test)]
-    pub(in crate::session) fn has_represented_aura_effect_with_misc_value_like_cpp(
-        &self,
-        effect: RepresentedAuraEffectLikeCpp,
-        misc_value: i32,
-    ) -> bool {
-        self.resolved_has_represented_aura_effect_with_misc_value_like_cpp(effect, misc_value)
-            .expect("test Player aura owner must resolve")
-    }
-    pub(in crate::session) fn resolved_total_represented_aura_modifier_like_cpp(
-        &self,
-        effect: RepresentedAuraEffectLikeCpp,
-    ) -> Option<i32> {
-        self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .filter(|aura| aura.represented_effect == Some(effect))
-                .map(|aura| aura.represented_amount)
-                .sum()
-        })
-    }
-    #[cfg(test)]
-    pub(in crate::session) fn total_represented_aura_modifier_like_cpp(
-        &self,
-        effect: RepresentedAuraEffectLikeCpp,
-    ) -> i32 {
-        self.resolved_total_represented_aura_modifier_like_cpp(effect)
-            .expect("test Player aura owner must resolve")
-    }
-    pub(in crate::session) fn resolved_total_represented_aura_modifier_by_misc_value_like_cpp(
-        &self,
-        effect: RepresentedAuraEffectLikeCpp,
-        misc_value: i32,
-    ) -> Option<i32> {
-        self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .filter(|aura| {
-                    aura.represented_effect == Some(effect)
-                        && aura.represented_misc_value == Some(misc_value)
-                })
-                .map(|aura| aura.represented_amount)
-                .sum()
-        })
-    }
-    pub(in crate::session) fn resolved_total_represented_aura_multiplier_like_cpp(
-        &self,
-        effect: RepresentedAuraEffectLikeCpp,
-    ) -> Option<f32> {
-        self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .filter(|aura| aura.represented_effect == Some(effect))
-                .fold(1.0, |acc, aura| acc * aura.represented_multiplier)
-        })
-    }
-    /// Resolve active aura effects directly from the canonical visible aura
-    /// applications and their immutable SpellInfo. This keeps StatSystem
-    /// producers independent of packet-only aura mirrors and also covers
-    /// loaded applications whose represented-effect enum is intentionally
-    /// unset. Each tuple is `(MiscValue, amount)` from the C++ AuraEffect.
-    pub(crate) fn resolved_aura_effects_by_spell_aura_type_like_cpp(
-        &self,
-        aura_type: i32,
-    ) -> Option<Vec<(i32, i32)>> {
-        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
-        let spell_store = self.spell_store()?;
-        // Delegates to the receiver-free projection the map-owned swing path
-        // uses, so both owners resolve the same canonical auras identically.
-        Some(
-            crate::session_rules::player_aura_effects_by_spell_aura_type_like_cpp(
-                &visible_auras,
-                spell_store,
-                aura_type,
-            ),
-        )
-    }
-    /// Resolve active aura effects of `aura_type` paired with their owning
-    /// spell id. C++ `GetTotalAuraModifier(aurType, predicate)` filters the
-    /// `AuraEffect` list with a predicate that reads the owning `SpellInfo`
-    /// (for example `Player::UpdateExpertise`'s item-fit check), so callers
-    /// need the spell id next to the amount. Each tuple is `(spell_id, amount)`.
-    pub(crate) fn resolved_aura_effect_amounts_by_spell_like_cpp(
-        &self,
-        aura_type: i32,
-    ) -> Option<Vec<(i32, i32)>> {
-        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
-        let spell_store = self.spell_store()?;
-        let mut effects = Vec::new();
-        for aura in visible_auras.values() {
-            let Some(spell) = spell_store.get(aura.spell_id) else {
-                continue;
-            };
-            for effect in spell.effects().iter().filter(|effect| {
-                effect.effect_aura == aura_type
-                    && 1u32
-                        .checked_shl(effect.effect_index)
-                        .is_some_and(|bit| aura.effect_mask & bit != 0)
-            }) {
-                let amount = aura
-                    .represented_effect_amounts
-                    .iter()
-                    .find(|represented| {
-                        u8::try_from(effect.effect_index).ok() == Some(represented.effect_index)
-                    })
-                    .map(|represented| represented.amount)
-                    .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
-                effects.push((aura.spell_id, amount));
-            }
-        }
-        Some(effects)
-    }
-    /// Resolve active aura effects of `aura_type` with the owning spell id, the
-    /// C++ `GetMiscValue()` and the amount. `Unit::UpdateDamagePctDoneMods`
-    /// (`Unit.cpp:9033-9072`) filters `SPELL_AURA_MOD_DAMAGE_PERCENT_DONE` by the
-    /// physical school mask and by `Player::CheckAttackFitToAuraRequirement`,
-    /// which needs the spell's `SpellEquippedItems` row, so callers need
-    /// `(spell_id, misc_value, amount)`.
-    pub(crate) fn resolved_aura_effects_with_spell_and_misc_like_cpp(
-        &self,
-        aura_type: i32,
-    ) -> Option<Vec<(i32, i32, i32)>> {
-        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
-        let spell_store = self.spell_store()?;
-        let mut effects = Vec::new();
-        for aura in visible_auras.values() {
-            let Some(spell) = spell_store.get(aura.spell_id) else {
-                continue;
-            };
-            for effect in spell.effects().iter().filter(|effect| {
-                effect.effect_aura == aura_type
-                    && 1u32
-                        .checked_shl(effect.effect_index)
-                        .is_some_and(|bit| aura.effect_mask & bit != 0)
-            }) {
-                let amount = aura
-                    .represented_effect_amounts
-                    .iter()
-                    .find(|represented| {
-                        u8::try_from(effect.effect_index).ok() == Some(represented.effect_index)
-                    })
-                    .map(|represented| represented.amount)
-                    .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
-                effects.push((aura.spell_id, effect.effect_misc_value_1, amount));
-            }
-        }
-        Some(effects)
-    }
-    /// Resolve active aura effects of `aura_type` with both C++ misc values and
-    /// the amount. Several `UnitMods` producers (`HandleAuraModResistance`,
-    /// `HandleModResistanceOfStatPercent`) select by `GetMiscValue()` and read
-    /// `GetMiscValueB()`, so callers need `(misc_value, misc_value_b, amount)`.
-    pub(crate) fn resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(
-        &self,
-        aura_type: i32,
-    ) -> Option<Vec<(i32, i32, i32)>> {
-        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
-        let spell_store = self.spell_store()?;
-        let mut effects = Vec::new();
-        for aura in visible_auras.values() {
-            let Some(spell) = spell_store.get(aura.spell_id) else {
-                continue;
-            };
-            for effect in spell.effects().iter().filter(|effect| {
-                effect.effect_aura == aura_type
-                    && 1u32
-                        .checked_shl(effect.effect_index)
-                        .is_some_and(|bit| aura.effect_mask & bit != 0)
-            }) {
-                let amount = aura
-                    .represented_effect_amounts
-                    .iter()
-                    .find(|represented| {
-                        u8::try_from(effect.effect_index).ok() == Some(represented.effect_index)
-                    })
-                    .map(|represented| represented.amount)
-                    .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
-                effects.push((
-                    effect.effect_misc_value_1,
-                    effect.effect_misc_value_2,
-                    amount,
-                ));
-            }
-        }
-        Some(effects)
-    }
+
     /// Whether the represented application carries an active
     /// `SPELL_AURA_TRANSFORM` effect, the trigger C++ routes to
     /// `AuraEffect::HandleAuraTransform`.
@@ -1062,6 +586,7 @@ impl WorldSession {
             })
         })
     }
+
     /// C++ `AuraEffect::HandleAuraTransform` apply path
     /// (`SpellAuraEffects.cpp:1935-1951`) for the canonical Player: the applied
     /// transform aura updates `Unit::m_transformSpell` when there is no current
@@ -1092,9 +617,9 @@ impl WorldSession {
             let current_is_positive = (current != 0)
                 .then(|| store.get(current))
                 .flatten()
-                .map(crate::session_rules::represented_spell_is_positive_like_cpp);
+                .map(wow_data::represented_spell_is_positive_like_cpp);
             (
-                crate::session_rules::represented_spell_is_positive_like_cpp(new_spell),
+                wow_data::represented_spell_is_positive_like_cpp(new_spell),
                 current_is_positive,
             )
         };
@@ -1120,6 +645,7 @@ impl WorldSession {
         }
         true
     }
+
     /// C++ `AuraEffect::HandleAuraTransform` remove path
     /// (`SpellAuraEffects.cpp:2129-2131`): only the aura that owns the current
     /// transform spell clears it.
@@ -1151,6 +677,7 @@ impl WorldSession {
         }
         true
     }
+
     /// C++ `Unit::IsPolymorphed` (`Unit.cpp:9993-10004`): the active
     /// `m_transformSpell` classifies as `SPELL_SPECIFIC_MAGE_POLYMORPH`.
     ///
@@ -1185,133 +712,6 @@ impl WorldSession {
                 && effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_MOD_CONFUSE
         });
         Some(family_matches && effect_zero_is_confuse)
-    }
-    /// Resolve a C++ `GetTotalAuraMultiplierByMiscValue` family from the
-    /// canonical aura effects.
-    pub(crate) fn resolved_total_aura_multiplier_by_spell_aura_type_and_misc_value_like_cpp(
-        &self,
-        aura_type: i32,
-        misc_value: i32,
-    ) -> Option<f32> {
-        self.resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
-            .map(|effects| {
-                effects
-                    .into_iter()
-                    .filter(|(effect_misc_value, _)| *effect_misc_value == misc_value)
-                    .fold(1.0, |acc, (_, amount)| acc * (1.0 + amount as f32 / 100.0))
-            })
-    }
-    /// Resolve a C++ `GetTotalAuraModifierByMiscValue` family from the
-    /// canonical aura effects.
-    pub(crate) fn resolved_total_aura_modifier_by_spell_aura_type_and_misc_value_like_cpp(
-        &self,
-        aura_type: i32,
-        misc_value: i32,
-    ) -> Option<i32> {
-        self.resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
-            .map(|effects| {
-                effects
-                    .into_iter()
-                    .filter(|(effect_misc_value, _)| *effect_misc_value == misc_value)
-                    .map(|(_, amount)| amount)
-                    .sum()
-            })
-    }
-    #[cfg(test)]
-    pub(in crate::session) fn total_represented_aura_multiplier_like_cpp(
-        &self,
-        effect: RepresentedAuraEffectLikeCpp,
-    ) -> f32 {
-        self.resolved_total_represented_aura_multiplier_like_cpp(effect)
-            .expect("test Player aura owner must resolve")
-    }
-    pub(in crate::session) fn aura_has_total_stat_percentage_effect_like_cpp(
-        &self,
-        aura: &AuraApplication,
-    ) -> bool {
-        self.spell_store().is_some_and(|store| {
-            store.get(aura.spell_id).is_some_and(|spell| {
-                spell.effects().iter().any(|effect| {
-                    1u32.checked_shl(effect.effect_index)
-                        .is_some_and(|bit| aura.effect_mask & bit != 0)
-                        && effect.effect_aura
-                            == wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE
-                })
-            })
-        })
-    }
-    pub(in crate::session) fn total_stat_percentage_aura_preserves_health_pct_like_cpp(
-        &self,
-        aura: &AuraApplication,
-    ) -> bool {
-        self.spell_store().is_some_and(|store| {
-            store.has_attribute0_like_cpp(
-                aura.spell_id,
-                wow_data::spell::attributes::SPELL_ATTR0_IS_ABILITY,
-            ) && store.get(aura.spell_id).is_some_and(|spell| {
-                spell.effects().iter().any(|effect| {
-                    1u32.checked_shl(effect.effect_index)
-                        .is_some_and(|bit| aura.effect_mask & bit != 0)
-                        && effect.effect_aura
-                            == wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE
-                        && (effect.effect_misc_value_2 == 0
-                            || effect.effect_misc_value_2 & (1 << 2) != 0)
-                })
-            })
-        })
-    }
-    pub(in crate::session) fn max_represented_aura_amount_like_cpp(
-        &self,
-        effect: RepresentedAuraEffectLikeCpp,
-    ) -> Option<i32> {
-        self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .filter(|aura| aura.represented_effect == Some(effect))
-                .map(|aura| aura.represented_amount)
-                .filter(|amount| *amount > 0)
-                .max()
-                .unwrap_or(0)
-        })
-    }
-    pub(in crate::session) fn max_negative_represented_aura_amount_like_cpp(
-        &self,
-        effect: RepresentedAuraEffectLikeCpp,
-    ) -> Option<i32> {
-        self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .filter(|aura| aura.represented_effect == Some(effect))
-                .map(|aura| aura.represented_amount)
-                .filter(|amount| *amount < 0)
-                .min()
-                .unwrap_or(0)
-        })
-    }
-    pub(in crate::session) fn total_represented_aura_amount_multiplier_like_cpp(
-        &self,
-        effect: RepresentedAuraEffectLikeCpp,
-    ) -> Option<f32> {
-        self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .filter(|aura| aura.represented_effect == Some(effect))
-                .fold(1.0, |multiplier, aura| {
-                    multiplier * (1.0 + aura.represented_amount.max(0) as f32 / 100.0)
-                })
-        })
-    }
-    pub(in crate::session) fn total_represented_aura_amount_like_cpp(
-        &self,
-        effect: RepresentedAuraEffectLikeCpp,
-    ) -> Option<i32> {
-        self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .filter(|aura| aura.represented_effect == Some(effect))
-                .map(|aura| aura.represented_amount)
-                .sum()
-        })
     }
 }
 

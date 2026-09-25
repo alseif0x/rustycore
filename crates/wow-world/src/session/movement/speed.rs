@@ -242,7 +242,7 @@ impl WorldSession {
             return;
         };
         let Some((set_opcode, update_opcode)) =
-            crate::session_rules::player_movement_speed_opcodes_like_cpp(move_type)
+            crate::session::player_movement_speed_opcodes_like_cpp(move_type)
         else {
             return;
         };
@@ -291,8 +291,7 @@ impl WorldSession {
         ack: &mut wow_packet::packets::movement::MovementAck,
         speed: f32,
     ) -> bool {
-        let Some(move_type) = crate::session_rules::movement_speed_ack_move_type_like_cpp(opcode)
-        else {
+        let Some(move_type) = crate::session::movement_speed_ack_move_type_like_cpp(opcode) else {
             self.trace_anticheat_violation_like_cpp(
                 "HandleForceSpeedChangeAck.UnknownMoveType",
                 Some(opcode),

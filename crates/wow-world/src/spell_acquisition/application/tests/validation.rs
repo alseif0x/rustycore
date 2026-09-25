@@ -84,7 +84,7 @@ fn required_learning_publications_cannot_be_omitted() {
 #[test]
 fn skill_line_criteria_require_exact_occurrence_identity_and_cardinality() {
     let (source, mut plan) = direct_learn_plan();
-    plan.publication_requirements.splice(
+    plan.publication_requirements_for_test_like_cpp().splice(
         0..0,
         [
             SpellAcquisitionPublicationRequirementLikeCpp::UpdateLearnTradeskillSkillLineCriteria {
@@ -185,7 +185,7 @@ fn profession_plan_cannot_omit_an_existing_primary_profession() {
             root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         },
     };
-    let plan = SpellAcquisitionPlanLikeCpp {
+    let plan = SpellAcquisitionPlanFixtureLikeCpp {
         root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         source_snapshot: source.clone(),
         mutations: vec![PlannedAcquisitionMutationLikeCpp::Skill(transition.clone())],
@@ -198,7 +198,8 @@ fn profession_plan_cannot_omit_an_existing_primary_profession() {
         post_commit_actions: Vec::new(),
         diagnostics: Vec::new(),
         resulting_snapshot: resulting,
-    };
+    }
+    .build();
     let omitted_existing = PrimaryProfessionCapacityPlanLikeCpp {
         configured_max: 2,
         used_before: 0,
@@ -271,7 +272,7 @@ fn prepared_plan_rejects_stale_or_tampered_authority_before_sql() {
             root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         },
     };
-    let mut plan = SpellAcquisitionPlanLikeCpp {
+    let mut plan = SpellAcquisitionPlanFixtureLikeCpp {
         root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         source_snapshot: source.clone(),
         mutations: vec![PlannedAcquisitionMutationLikeCpp::Spell(transition.clone())],
@@ -284,7 +285,8 @@ fn prepared_plan_rejects_stale_or_tampered_authority_before_sql() {
         post_commit_actions: direct_learn_actions(100, false, false),
         diagnostics: Vec::new(),
         resulting_snapshot: snapshot(vec![learned]),
-    };
+    }
+    .build();
     let stale = snapshot(vec![spell(
         99,
         PlayerSpellPersistenceStateLikeCpp::Unchanged,
@@ -315,7 +317,7 @@ fn learned_action_must_match_the_final_favorite_row() {
             root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         },
     };
-    let plan = SpellAcquisitionPlanLikeCpp {
+    let plan = SpellAcquisitionPlanFixtureLikeCpp {
         root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         source_snapshot: source.clone(),
         mutations: vec![PlannedAcquisitionMutationLikeCpp::Spell(transition.clone())],
@@ -338,7 +340,8 @@ fn learned_action_must_match_the_final_favorite_row() {
         }],
         diagnostics: Vec::new(),
         resulting_snapshot: snapshot(vec![learned]),
-    };
+    }
+    .build();
     assert_eq!(
         prepare_player_spell_acquisition_like_cpp(&plan, &no_profession_changes(), &source),
         Err(PlayerSpellAcquisitionPrepareErrorLikeCpp::LearnedActionRowMismatch(100))
@@ -349,7 +352,7 @@ fn learned_action_must_match_the_final_favorite_row() {
 fn learned_action_requires_a_causal_learning_transition() {
     let unchanged = spell(100, PlayerSpellPersistenceStateLikeCpp::Unchanged);
     let source = snapshot(vec![unchanged]);
-    let plan = SpellAcquisitionPlanLikeCpp {
+    let plan = SpellAcquisitionPlanFixtureLikeCpp {
         root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         source_snapshot: source.clone(),
         mutations: Vec::new(),
@@ -372,7 +375,8 @@ fn learned_action_requires_a_causal_learning_transition() {
         }],
         diagnostics: Vec::new(),
         resulting_snapshot: source.clone(),
-    };
+    }
+    .build();
 
     assert_eq!(
         prepare_player_spell_acquisition_like_cpp(&plan, &no_profession_changes(), &source,),
@@ -397,7 +401,7 @@ fn learned_transition_evidence_is_consumed_once() {
         favorite: false,
         suppress_messaging: false,
     };
-    let plan = SpellAcquisitionPlanLikeCpp {
+    let plan = SpellAcquisitionPlanFixtureLikeCpp {
         root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         source_snapshot: source.clone(),
         mutations: vec![PlannedAcquisitionMutationLikeCpp::Spell(transition.clone())],
@@ -421,7 +425,8 @@ fn learned_transition_evidence_is_consumed_once() {
         post_commit_actions: vec![duplicate.clone(), duplicate],
         diagnostics: Vec::new(),
         resulting_snapshot: snapshot(vec![learned]),
-    };
+    }
+    .build();
 
     assert_eq!(
         prepare_player_spell_acquisition_like_cpp(&plan, &no_profession_changes(), &source),
@@ -432,7 +437,7 @@ fn learned_transition_evidence_is_consumed_once() {
 #[test]
 fn dual_wield_diagnostic_cannot_replace_live_cast_effect_authority() {
     let source = snapshot(Vec::new());
-    let plan = SpellAcquisitionPlanLikeCpp {
+    let plan = SpellAcquisitionPlanFixtureLikeCpp {
         root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         source_snapshot: source.clone(),
         mutations: Vec::new(),
@@ -455,7 +460,8 @@ fn dual_wield_diagnostic_cannot_replace_live_cast_effect_authority() {
             },
         ],
         resulting_snapshot: source.clone(),
-    };
+    }
+    .build();
 
     assert_eq!(
         prepare_player_spell_acquisition_like_cpp(&plan, &no_profession_changes(), &source),
@@ -480,7 +486,7 @@ fn unrelated_publication_actions_are_rejected_before_application() {
             root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         },
     };
-    let base_plan = SpellAcquisitionPlanLikeCpp {
+    let base_plan = SpellAcquisitionPlanFixtureLikeCpp {
         root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
         source_snapshot: source.clone(),
         mutations: vec![PlannedAcquisitionMutationLikeCpp::Spell(transition.clone())],
@@ -493,7 +499,8 @@ fn unrelated_publication_actions_are_rejected_before_application() {
         post_commit_actions: Vec::new(),
         diagnostics: Vec::new(),
         resulting_snapshot: snapshot(vec![learned]),
-    };
+    }
+    .build();
     let unrelated_actions = [
         SpellAcquisitionPostCommitActionLikeCpp::UnlearnedSpell { spell_id: 999 },
         SpellAcquisitionPostCommitActionLikeCpp::SupersededSpell {

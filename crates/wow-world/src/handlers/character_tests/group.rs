@@ -7,13 +7,10 @@ use super::*;
 
 #[test]
 fn continue_login_no_longer_names_location_or_guild_statements() {
-    let source = include_str!("../character/world_entry.rs");
-    let (_, tail) = source
-        .split_once("pub async fn handle_continue_player_login")
-        .expect("continue-login handler starts");
-    let (handler, _) = tail
-        .split_once("pub(super) fn player_login_combat_stats_like_cpp")
-        .expect("continue-login handler ends before packet helper");
+    let handler = concat!(
+        include_str!("../character/world_entry/login.rs"),
+        include_str!("../character/world_entry/login/admission.rs"),
+    );
     assert!(handler.contains("load_login_admission_like_cpp"));
     assert!(handler.contains("PlayerLoginAdmissionLoadedLikeCpp::BattlegroundLocation"));
     assert!(handler.contains("PlayerLoginAdmissionLoadedLikeCpp::HomebindLocation"));

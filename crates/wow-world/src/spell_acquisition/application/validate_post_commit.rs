@@ -56,7 +56,7 @@ pub(super) fn validate_post_commit_actions_like_cpp(
             _ => None,
         })
         .collect::<Vec<_>>();
-    if actual_publication_requirements != plan.publication_requirements {
+    if actual_publication_requirements.as_slice() != plan.publication_requirements_like_cpp() {
         return Err(
             PlayerSpellAcquisitionPrepareErrorLikeCpp::PostCommitActionCausalityMismatch {
                 action: "required publication tape",

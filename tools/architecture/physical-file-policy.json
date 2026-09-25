@@ -540,7 +540,7 @@
       "path": "crates/wow-world/src/handlers/loot_tests.rs",
       "observed_lines": 1760,
       "ceiling_lines": 1760,
-      "split": "Separate loot admission, claim, race and persistence scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 16393 to 1735 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved. #787 adds the phase-rail field to this file's shared registration fixture. #584 Transport VALUES adds the explicit transport-visibility fixture field and a focused command-consumer regression.",
+      "split": "Separate loot admission, claim, race and persistence scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #628 moves this file's test functions into bounded scenario modules beside it. #1233 continues the physical cut by moving cohesive canonical-world, loot-authority, item-template, group-lifecycle and overworld personal-loot fixtures into private children; the facade retains direct scenario support and explicit imports where needed. The 1,760-line observed ceiling remains historical until final validated acceptance; this level-1 reduction does not close terminal physical debt. Test count and production behavior are unchanged by these fixture-only moves. #787 adds the phase-rail field to this file's shared registration fixture. #584 Transport VALUES adds the explicit transport-visibility fixture field and a focused command-consumer regression.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -625,6 +625,20 @@
       "observed_lines": 2438,
       "ceiling_lines": 2438,
       "split": "Separate directory registration/lifetime, recipient queries and fanout; keep it derived rather than gameplay authority. #589 adds sixteen inseparable lines: one PlayerRegistry publication entry point for represented Player spell frames over the existing bounded durable rail, alongside the creature equivalent it mirrors. Relocating a single registry accessor would fragment the registry's own responsibility. #743 adds nine inseparable lines: the `group_state` module declaration, the delivery-obligation field with its Default entry, and the two lifecycle calls that forget an obligation when its incarnation is unregistered. The contract, its API and its documentation live in `directory/group_state.rs`; the field itself cannot leave the struct it belongs to. #756 adds twenty inseparable lines for the same reason: the quest snapshot projection reads through named accessors instead of the retired public fields. #787 adds the session phase rail to the directory: the canonical producer addresses a session's map phase through a generation-checked rail of its own, never through the command mailbox that a phase pass drains. The detached rail helper keeps fixtures and pre-parking registrations addressable without a consumer. #584 Transport VALUES adds one generation-safe transport visibility projection to the registration and recipient contracts; ordinary visibility remains a separate set.",
+      "review_checkpoint": "584:C4"
+    },
+    {
+      "path": "crates/wow-world/src/session/state.rs",
+      "observed_lines": 2090,
+      "ceiling_lines": 2090,
+      "split": "Bounded aggregate exception: this file is the single WorldSession field declaration, including its private canonical/session delivery state. Moving fields into nested mirrors or synthetic accessors would change the owner surface and require broad reader/writer churn without a semantic boundary. Exit at 584:C4: extract a named capability aggregate only when all readers, writers, construction, persistence and fixture paths can migrate together; no physical growth is permitted before that review.",
+      "review_checkpoint": "584:C4"
+    },
+    {
+      "path": "crates/wow-world/src/handlers/character/world_entry/login.rs",
+      "observed_lines": 2490,
+      "ceiling_lines": 2490,
+      "split": "Bounded transitional exception: the extracted child contains the single C++-ordered post-instance player-login operation and its complete hydration/publication phase sequence. The parent facade is now 305 lines and retains only admission, logout and final packet helpers; further splitting requires an explicit login-phase context and reader/writer audit under #584 C4. No physical growth is permitted before that boundary review.",
       "review_checkpoint": "584:C4"
     },
     {

@@ -32,7 +32,8 @@ impl WorldSession {
         &mut self,
         store: Arc<PlayerCreateInfoCustomSpellStoreLikeCpp>,
     ) {
-        self.player_create_custom_spell_store_like_cpp = Some(store);
+        self.player_bootstrap_catalog_test_fixture_like_cpp
+            .player_create_custom_spell_store_like_cpp = Some(store);
     }
     /// Set the spell store for this session.
     pub fn set_spell_store(&mut self, store: Arc<SpellStore>) {
@@ -57,22 +58,35 @@ impl WorldSession {
         runtime: RepresentedPlayerSpellRuntimeLikeCpp,
     ) -> bool {
         if self.player_handle_like_cpp.is_none() {
-            self.known_spells = runtime.known_spells;
-            self.represented_player_spell_rows_like_cpp = runtime.rows;
-            self.represented_player_spell_rows_loaded_like_cpp = runtime.rows_loaded;
-            self.represented_player_spell_rows_complete_like_cpp = runtime.rows_complete;
-            self.represented_fallback_player_spell_rows_like_cpp = runtime.fallback_rows;
-            self.represented_dependent_known_spells_like_cpp = runtime.dependent_known_spells;
-            self.represented_removed_known_spells_like_cpp = runtime.removed_known_spells;
-            self.represented_favorite_known_spells_like_cpp = runtime.favorite_known_spells;
-            self.represented_spell_trait_definition_ids_like_cpp = runtime.trait_definition_ids;
-            self.represented_spell_trait_definition_ids_complete_like_cpp =
+            self.player_spell_test_fixture_like_cpp.known_spells = runtime.known_spells;
+            self.player_spell_test_fixture_like_cpp
+                .represented_player_spell_rows_like_cpp = runtime.rows;
+            self.player_spell_test_fixture_like_cpp
+                .represented_player_spell_rows_loaded_like_cpp = runtime.rows_loaded;
+            self.player_spell_test_fixture_like_cpp
+                .represented_player_spell_rows_complete_like_cpp = runtime.rows_complete;
+            self.player_spell_test_fixture_like_cpp
+                .represented_fallback_player_spell_rows_like_cpp = runtime.fallback_rows;
+            self.player_spell_test_fixture_like_cpp
+                .represented_dependent_known_spells_like_cpp = runtime.dependent_known_spells;
+            self.player_spell_test_fixture_like_cpp
+                .represented_removed_known_spells_like_cpp = runtime.removed_known_spells;
+            self.player_spell_test_fixture_like_cpp
+                .represented_favorite_known_spells_like_cpp = runtime.favorite_known_spells;
+            self.player_spell_test_fixture_like_cpp
+                .represented_spell_trait_definition_ids_like_cpp = runtime.trait_definition_ids;
+            self.player_spell_test_fixture_like_cpp
+                .represented_spell_trait_definition_ids_complete_like_cpp =
                 runtime.trait_definition_ids_complete;
-            self.represented_trait_config_rows_like_cpp = runtime.trait_config_rows;
-            self.represented_trait_config_rows_complete_like_cpp =
+            self.player_spell_test_fixture_like_cpp
+                .represented_trait_config_rows_like_cpp = runtime.trait_config_rows;
+            self.player_spell_test_fixture_like_cpp
+                .represented_trait_config_rows_complete_like_cpp =
                 runtime.trait_config_rows_complete;
-            self.represented_trait_entry_rows_complete_like_cpp = runtime.trait_entry_rows_complete;
-            self.represented_trait_entry_rows_empty_like_cpp = runtime.trait_entry_rows_empty;
+            self.player_spell_test_fixture_like_cpp
+                .represented_trait_entry_rows_complete_like_cpp = runtime.trait_entry_rows_complete;
+            self.player_spell_test_fixture_like_cpp
+                .represented_trait_entry_rows_empty_like_cpp = runtime.trait_entry_rows_empty;
             self.represented_override_spells_like_cpp = runtime.override_spells;
             self.represented_override_spells_complete_like_cpp = runtime.override_spells_complete;
             return true;

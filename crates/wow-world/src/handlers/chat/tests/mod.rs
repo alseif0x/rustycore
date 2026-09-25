@@ -3,6 +3,7 @@
 //! Separated from the chat.rs root under #654.
 
 use super::*;
+use crate::handlers::test_support::*;
 use crate::session::AuraApplication;
 use crate::session::directory::{PlayerRegistry, PlayerSessionRegistrationLikeCpp};
 use crate::session_policy::{
@@ -490,6 +491,7 @@ fn bind_social_presence_like_cpp(
     });
 }
 
+mod channels;
 mod scenarios_1;
 mod scenarios_2;
 mod scenarios_3;

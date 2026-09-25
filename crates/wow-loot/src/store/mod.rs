@@ -2,7 +2,10 @@
 //!
 //! Separated from the crate root under #642.
 
-use super::*;
+use std::collections::{HashMap, HashSet};
+
+use rand::Rng;
+use wow_core::ObjectGuid;
 
 mod state_1;
 mod state_2;

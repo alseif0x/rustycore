@@ -19,6 +19,11 @@ use wow_packet::packets::social::{
     DelIgnore, FriendStatusPkt, FriendsResult, SetContactNotes, SocialContractRequestResponse,
 };
 
+use crate::session::mailbox::{
+    CancelRepresentedTradeLikeCppCommand, SendRepresentedDuelCountdownLikeCppCommand,
+    SendRepresentedDuelRequestedLikeCppCommand, SendRepresentedTradeStatusLikeCppCommand,
+    UnacceptRepresentedTradeLikeCppCommand,
+};
 use crate::session::{WorldSession, player_team_for_race_cpp};
 use wow_persistence::{
     PersistenceOutcomeLikeCpp, SocialAddCandidateLoadOutcomeLikeCpp,
@@ -682,6 +687,70 @@ impl WorldSession {
         };
 
         self.send_contact_list_like_cpp(flags).await;
+    }
+
+    pub(crate) fn handle_cancel_represented_trade_command_like_cpp(
+        &mut self,
+        command: CancelRepresentedTradeLikeCppCommand,
+    ) {
+        if !matches!(
+            self.resolved_represented_active_trade_partner_like_cpp(),
+            Some(Some(_))
+        ) {
+            return;
+        }
+
+        self.record_represented_trade_cancel_like_cpp(command.status);
+        if !self.clear_represented_active_trade_partner_like_cpp() {
+            return;
+        }
+        self.send_raw_packet(&command.packet_bytes);
+    }
+
+    pub(crate) fn handle_send_represented_trade_status_command_like_cpp(
+        &mut self,
+        command: SendRepresentedTradeStatusLikeCppCommand,
+    ) {
+        if !matches!(
+            self.resolved_represented_active_trade_partner_like_cpp(),
+            Some(Some(_))
+        ) {
+            return;
+        }
+
+        self.send_raw_packet(&command.packet_bytes);
+    }
+
+    pub(crate) fn handle_unaccept_represented_trade_command_like_cpp(
+        &mut self,
+        command: UnacceptRepresentedTradeLikeCppCommand,
+    ) {
+        if !matches!(
+            self.resolved_represented_active_trade_partner_like_cpp(),
+            Some(Some(_))
+        ) {
+            return;
+        }
+
+        if !self.set_represented_trade_accepted_like_cpp_for_command(false) {
+            return;
+        }
+        self.send_raw_packet(&command.packet_bytes);
+    }
+
+    pub(crate) fn handle_send_represented_duel_countdown_command_like_cpp(
+        &mut self,
+        command: SendRepresentedDuelCountdownLikeCppCommand,
+    ) {
+        self.send_raw_packet(&command.packet_bytes);
+    }
+
+    pub(crate) fn handle_send_represented_duel_requested_command_like_cpp(
+        &mut self,
+        command: SendRepresentedDuelRequestedLikeCppCommand,
+    ) {
+        self.set_represented_duel_arbiter_guid_like_cpp(Some(command.arbiter_guid));
+        self.send_raw_packet(&command.packet_bytes);
     }
 }
 

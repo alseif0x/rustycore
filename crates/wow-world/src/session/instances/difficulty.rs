@@ -103,9 +103,12 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some((
-                self.represented_dungeon_difficulty_id_like_cpp,
-                self.represented_raid_difficulty_id_like_cpp,
-                self.represented_legacy_raid_difficulty_id_like_cpp,
+                self.instance_test_fixture_like_cpp
+                    .represented_dungeon_difficulty_id_like_cpp,
+                self.instance_test_fixture_like_cpp
+                    .represented_raid_difficulty_id_like_cpp,
+                self.instance_test_fixture_like_cpp
+                    .represented_legacy_raid_difficulty_id_like_cpp,
             ));
         }
         canonical
@@ -123,9 +126,12 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
-            self.represented_dungeon_difficulty_id_like_cpp = dungeon;
-            self.represented_raid_difficulty_id_like_cpp = raid;
-            self.represented_legacy_raid_difficulty_id_like_cpp = legacy_raid;
+            self.instance_test_fixture_like_cpp
+                .represented_dungeon_difficulty_id_like_cpp = dungeon;
+            self.instance_test_fixture_like_cpp
+                .represented_raid_difficulty_id_like_cpp = raid;
+            self.instance_test_fixture_like_cpp
+                .represented_legacy_raid_difficulty_id_like_cpp = legacy_raid;
             return true;
         }
         canonical
@@ -143,13 +149,16 @@ impl WorldSession {
         if self.player_handle_like_cpp.is_none() {
             match kind {
                 SessionDifficultyKindLikeCpp::Dungeon => {
-                    self.represented_dungeon_difficulty_id_like_cpp = difficulty_id;
+                    self.instance_test_fixture_like_cpp
+                        .represented_dungeon_difficulty_id_like_cpp = difficulty_id;
                 }
                 SessionDifficultyKindLikeCpp::Raid => {
-                    self.represented_raid_difficulty_id_like_cpp = difficulty_id;
+                    self.instance_test_fixture_like_cpp
+                        .represented_raid_difficulty_id_like_cpp = difficulty_id;
                 }
                 SessionDifficultyKindLikeCpp::LegacyRaid => {
-                    self.represented_legacy_raid_difficulty_id_like_cpp = difficulty_id;
+                    self.instance_test_fixture_like_cpp
+                        .represented_legacy_raid_difficulty_id_like_cpp = difficulty_id;
                 }
             }
             return true;

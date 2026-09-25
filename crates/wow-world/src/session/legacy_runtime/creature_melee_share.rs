@@ -381,7 +381,7 @@ fn apply_secondary_share_damage_like_cpp(
             .damage_after_unkillable_gate_like_cpp(attacker_guid == caster_guid, applied_damage);
         let killed = caster.apply_ai_damage_before_death_state_at_game_time_like_cpp(
             applied_damage,
-            u64::from(crate::session_rules::game_time_ms_like_cpp()),
+            u64::from(crate::session::game_time_ms_like_cpp()),
             wow_entities::game_time_secs_like_cpp(),
         );
         if killed {

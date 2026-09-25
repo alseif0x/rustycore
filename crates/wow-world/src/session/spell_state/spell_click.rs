@@ -60,7 +60,7 @@ impl WorldSession {
             return plan;
         };
         let player_snapshot = self.condition_player_snapshot_like_cpp();
-        let creature_unit_snapshot = crate::conditions::ConditionUnitSnapshot {
+        let creature_unit_snapshot = wow_conditions::ConditionUnitSnapshot {
             level: creature.level,
             health: creature.health,
             max_health: creature.max_health,
@@ -129,7 +129,7 @@ impl WorldSession {
             }
 
             let conditions_match =
-                crate::conditions::is_object_meeting_spell_click_conditions_like_cpp(
+                wow_conditions::is_object_meeting_spell_click_conditions_like_cpp(
                     condition_store,
                     creature.entry,
                     click_info.spell_id,
@@ -145,7 +145,7 @@ impl WorldSession {
                                 source_info.set_player_condition_context(0, context);
                             }
                         }
-                        crate::conditions::condition_meets_basic_like_cpp(
+                        wow_conditions::condition_meets_basic_like_cpp(
                             condition,
                             source_info,
                             |area_id, required_area_id| {
@@ -409,7 +409,7 @@ impl WorldSession {
             let click_bounds =
                 spell_click_store.spell_click_info_map_bounds_like_cpp(creature.entry);
             if !click_bounds.iter().any(|click| {
-                crate::conditions::has_conditions_for_spell_click_event_like_cpp(
+                wow_conditions::has_conditions_for_spell_click_event_like_cpp(
                     condition_store,
                     creature.entry,
                     click.spell_id,

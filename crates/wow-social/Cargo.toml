@@ -15,3 +15,6 @@ wow-constants = { workspace = true }
 # validation. Development-only edges are outside the production boundary, so
 # this does not make `wow-social` depend on an adapter at run time.
 wow-data = { workspace = true }
+
+[lints]
+workspace = true

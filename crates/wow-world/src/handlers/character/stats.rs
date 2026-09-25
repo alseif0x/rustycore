@@ -767,17 +767,17 @@ impl WorldSession {
             .max(0.0);
         // C++ `Unit::CalcArmorReducedDamage` reads the live
         // `GetRatingBonusValue(CR_ARMOR_PENETRATION)` and clamps it to 100.
-        let armor_penetration_rating = crate::session_rules::CR_ARMOR_PENETRATION_LIKE_CPP;
+        let armor_penetration_rating = crate::session::CR_ARMOR_PENETRATION_LIKE_CPP;
         let armor_penetration_pct = (gear.combat_ratings[usize::from(armor_penetration_rating)]
             as f32
             * self.combat_rating_multiplier_like_cpp(level, u32::from(armor_penetration_rating)))
         .clamp(0.0, 100.0);
         // C++ `Player::UpdateMeleeHitChances` (`StatSystem.cpp:743-746`).
         let melee_hit_chance_pct = 7.5
-            + gear.combat_ratings[usize::from(crate::session_rules::CR_HIT_MELEE_LIKE_CPP)] as f32
+            + gear.combat_ratings[usize::from(crate::session::CR_HIT_MELEE_LIKE_CPP)] as f32
                 * self.combat_rating_multiplier_like_cpp(
                     level,
-                    u32::from(crate::session_rules::CR_HIT_MELEE_LIKE_CPP),
+                    u32::from(crate::session::CR_HIT_MELEE_LIKE_CPP),
                 );
         let mana_regen_mp5 = gear.mana_regen_bonus as f32 / 5.0
             + self.mana_regen_mp5_from_auras_like_cpp(projection.stats);

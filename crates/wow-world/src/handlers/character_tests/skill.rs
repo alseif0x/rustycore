@@ -102,18 +102,3 @@ async fn opening_cinematic_requires_zero_xp_and_prefers_class_like_cpp() {
         expected_trigger_cinematic(222)
     );
 }
-#[test]
-fn vendor_required_reputation_fails_closed_until_reputation_mgr_exists() {
-    assert_eq!(
-        vendor_buy_required_reputation_block_result(None, None, -1),
-        None
-    );
-    assert_eq!(
-        vendor_buy_required_reputation_block_result(Some(72), Some(5), -1),
-        Some(BuyResult::ReputationRequire)
-    );
-    assert_eq!(
-        vendor_buy_required_reputation_block_result(Some(72), Some(5), 5),
-        None
-    );
-}

@@ -14,11 +14,9 @@ use crate::player::inventory_persistence_test_fixture::PlayerInventoryPersistenc
 use crate::player::quest_persistence_test_fixture::{
     PlayerQuestLoadStageFixtureLikeCpp, PlayerQuestPersistencePortFixtureLikeCpp,
 };
-use crate::session::InventoryItem;
 use crate::session::directory::PlayerRegistry;
 use wow_constants::{
     ComparisonType, ConditionSourceType, ConditionType, InventoryType, ItemBondingType, ItemClass,
-    ItemContext,
 };
 use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position};
@@ -31,8 +29,8 @@ use wow_data::quest::{
 };
 use wow_data::{
     AdventureMapPoiEntry, AdventureMapPoiStore, Condition, ConditionEntriesByTypeStore,
-    CurrencyTypesEntry, CurrencyTypesStore, ItemLimitCategoryEntry, ItemLimitCategoryStore,
-    ItemRecord, ItemSparseTemplateEntry, ItemStatsStore, ItemStore,
+    CurrencyTypesEntry, CurrencyTypesStore, ItemRecord, ItemSparseTemplateEntry, ItemStatsStore,
+    ItemStore,
     progression_rewards::{
         FactionEntry, FactionStore, QUEST_PACKAGE_FILTER_UNMATCHED_LIKE_CPP,
         QuestFactionRewardEntry, QuestFactionRewardStore, QuestInfoEntry, QuestInfoStore,
@@ -40,7 +38,7 @@ use wow_data::{
     },
     reputation::{ReputationRewardRateEntryLikeCpp, ReputationRewardRateStoreLikeCpp},
 };
-use wow_entities::{ITEM_LIMIT_CATEGORY_MODE_HAVE, Player, PlayerFactionStateLikeCpp};
+use wow_entities::{Player, PlayerFactionStateLikeCpp};
 use wow_packet::packets::item::InventoryChangeFailure;
 use wow_packet::packets::quest::QuestGiverQuestFailed;
 use wow_packet::{ClientPacket, WorldPacket};
@@ -54,6 +52,30 @@ use wow_persistence::{
     QuestPoiPersistencePortLikeCpp, QuestPoiPointLoadRowLikeCpp,
 };
 use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
+
+#[path = "quest_tests/source_items.rs"]
+mod source_items;
+pub(super) use source_items::{
+    insert_direct_inventory_item, install_have_limit_category_like_cpp,
+    install_source_item_template, install_source_item_template_with_flags3,
+    install_source_item_template_with_limit_category,
+    install_source_item_template_with_start_quest,
+    install_source_item_template_with_start_quest_and_limit_category,
+    install_source_item_template_with_start_quest_limit_category_flags3_and_bonding,
+    quest_template_with_source_item, store_with_source_item_quest,
+};
+#[path = "quest_tests/party.rs"]
+mod party;
+pub(super) use party::{
+    install_confirm_accept_sender_snapshot, install_represented_party,
+    set_canonical_party_reputation_like_cpp,
+};
+#[path = "quest_tests/catalog_persistence.rs"]
+mod catalog_persistence;
+pub(super) use catalog_persistence::{
+    ItemTemplateAddonCatalogPortFixtureLikeCpp, QuestPoiPortFixtureLikeCpp,
+    quest_poi_blob_row_like_cpp,
+};
 
 /// The quest opcode registrations.
 ///
@@ -244,300 +266,6 @@ fn store_with_sharable_timed_quest_objectives(
     quest.flags |= QUEST_FLAGS_SHARABLE_LIKE_CPP;
     quest.limit_time_secs = limit_time_secs;
     QuestStore::from_quests_like_cpp([quest])
-}
-
-fn quest_template_with_source_item(
-    id: u32,
-    source_item_id: u32,
-    source_item_count: u32,
-    source_spell_id: u32,
-) -> QuestTemplate {
-    let mut quest = quest_template(id);
-    quest.source_item_id = source_item_id;
-    quest.source_item_count = source_item_count;
-    quest.source_spell_id = source_spell_id;
-    quest
-}
-
-fn store_with_source_item_quest(
-    quest_id: u32,
-    source_item_id: u32,
-    source_item_count: u32,
-    source_spell_id: u32,
-) -> QuestStore {
-    QuestStore::from_quests_like_cpp([quest_template_with_source_item(
-        quest_id,
-        source_item_id,
-        source_item_count,
-        source_spell_id,
-    )])
-}
-
-fn install_source_item_template(
-    session: &mut WorldSession,
-    entry: u32,
-    stackable: i32,
-    max_count: u32,
-) {
-    install_source_item_template_with_start_quest_limit_category_and_flags3(
-        session, entry, stackable, max_count, 0, 0, 0,
-    );
-}
-
-fn install_source_item_template_with_flags3(
-    session: &mut WorldSession,
-    entry: u32,
-    stackable: i32,
-    max_count: u32,
-    flags3: u32,
-) {
-    install_source_item_template_with_start_quest_limit_category_and_flags3(
-        session, entry, stackable, max_count, 0, 0, flags3,
-    );
-}
-
-fn install_source_item_template_with_start_quest(
-    session: &mut WorldSession,
-    entry: u32,
-    stackable: i32,
-    max_count: u32,
-    start_quest_id: i32,
-) {
-    install_source_item_template_with_start_quest_and_limit_category(
-        session,
-        entry,
-        stackable,
-        max_count,
-        start_quest_id,
-        0,
-    );
-}
-
-fn install_source_item_template_with_limit_category(
-    session: &mut WorldSession,
-    entry: u32,
-    stackable: i32,
-    max_count: u32,
-    limit_category: u16,
-) {
-    install_source_item_template_with_start_quest_and_limit_category(
-        session,
-        entry,
-        stackable,
-        max_count,
-        0,
-        limit_category,
-    );
-}
-
-fn install_source_item_template_with_start_quest_and_limit_category(
-    session: &mut WorldSession,
-    entry: u32,
-    stackable: i32,
-    max_count: u32,
-    start_quest_id: i32,
-    limit_category: u16,
-) {
-    install_source_item_template_with_start_quest_limit_category_and_flags3(
-        session,
-        entry,
-        stackable,
-        max_count,
-        start_quest_id,
-        limit_category,
-        0,
-    );
-}
-
-fn install_source_item_template_with_start_quest_limit_category_and_flags3(
-    session: &mut WorldSession,
-    entry: u32,
-    stackable: i32,
-    max_count: u32,
-    start_quest_id: i32,
-    limit_category: u16,
-    flags3: u32,
-) {
-    install_source_item_template_with_start_quest_limit_category_flags3_and_bonding(
-        session,
-        entry,
-        stackable,
-        max_count,
-        start_quest_id,
-        limit_category,
-        flags3,
-        ItemBondingType::None,
-    );
-}
-
-fn install_source_item_template_with_start_quest_limit_category_flags3_and_bonding(
-    session: &mut WorldSession,
-    entry: u32,
-    stackable: i32,
-    max_count: u32,
-    start_quest_id: i32,
-    limit_category: u16,
-    flags3: u32,
-    bonding: ItemBondingType,
-) {
-    session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
-        id: entry,
-        class_id: ItemClass::Consumable as u8,
-        subclass_id: 0,
-        material: 0,
-        inventory_type: InventoryType::NonEquip as i8,
-        sheathe_type: 0,
-        random_select: 0,
-        random_suffix_group_id: 0,
-        scaling_stat_distribution_id: 0,
-        scaling_stat_value: 0,
-    }])));
-    session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([(
-        entry,
-        ItemSparseTemplateEntry {
-            flags: [0, 0, flags3, 0],
-            bag_family: 0,
-            start_quest_id,
-            stackable,
-            max_count: i32::try_from(max_count).unwrap_or(i32::MAX),
-            lock_id: 0,
-            required_reputation_rank: 0,
-            sell_price: 0,
-            buy_price: 0,
-            vendor_stack_count: 1,
-            price_variance: 1.0,
-            price_random_value: 1.0,
-            max_durability: 0,
-            other_faction_item_id: 0,
-            content_tuning_id: 0,
-            player_level_to_item_level_curve_id: 0,
-            limit_category,
-            instance_bound: 0,
-            zone_bound: [0, 0],
-            required_reputation_faction: 0,
-            allowable_class: -1,
-            required_expansion: 0,
-            bonding: bonding as u8,
-            container_slots: 0,
-            inventory_type: InventoryType::NonEquip as i8,
-        },
-    )])));
-}
-
-fn insert_direct_inventory_item(
-    session: &mut WorldSession,
-    player_guid: ObjectGuid,
-    slot: u8,
-    entry: u32,
-    count: u32,
-    db_guid: u64,
-) {
-    let item_guid = ObjectGuid::create_item(1, db_guid as i64);
-    session.insert_inventory_item_like_cpp(
-        slot,
-        InventoryItem {
-            guid: item_guid,
-            entry_id: entry,
-            db_guid,
-            inventory_type: None,
-        },
-    );
-    let item = session.make_inventory_item_object(
-        item_guid,
-        entry,
-        player_guid,
-        count,
-        0,
-        ItemContext::None,
-        slot,
-    );
-    session.insert_inventory_item_object(item);
-}
-
-fn install_have_limit_category_like_cpp(
-    session: &mut WorldSession,
-    category_id: u32,
-    quantity: u8,
-) {
-    session.set_item_limit_category_store(Arc::new(ItemLimitCategoryStore::from_entries([
-        ItemLimitCategoryEntry {
-            id: category_id,
-            name: format!("Have Limit {category_id}"),
-            quantity,
-            flags: ITEM_LIMIT_CATEGORY_MODE_HAVE,
-        },
-    ])));
-}
-
-struct QuestPoiPortFixtureLikeCpp(QuestPoiLoadOutcomeLikeCpp);
-
-impl QuestPoiPersistencePortLikeCpp for QuestPoiPortFixtureLikeCpp {
-    fn load_quest_poi_rows_like_cpp(
-        &self,
-    ) -> PersistenceFutureLikeCpp<'_, QuestPoiLoadOutcomeLikeCpp> {
-        let outcome = self.0.clone();
-        Box::pin(async move { outcome })
-    }
-}
-
-struct ItemTemplateAddonCatalogPortFixtureLikeCpp {
-    requests: std::sync::Mutex<Vec<ItemTemplateAddonCatalogRequestLikeCpp>>,
-    outcomes:
-        std::sync::Mutex<std::collections::VecDeque<ItemTemplateAddonLootMetadataOutcomeLikeCpp>>,
-}
-
-impl ItemTemplateAddonCatalogPortFixtureLikeCpp {
-    fn new(
-        outcomes: impl IntoIterator<Item = ItemTemplateAddonLootMetadataOutcomeLikeCpp>,
-    ) -> Arc<Self> {
-        Arc::new(Self {
-            requests: std::sync::Mutex::new(Vec::new()),
-            outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
-        })
-    }
-}
-
-impl ItemTemplateAddonCatalogPersistencePortLikeCpp for ItemTemplateAddonCatalogPortFixtureLikeCpp {
-    fn load_item_template_addon_money_like_cpp<'a>(
-        &'a self,
-        _request: ItemTemplateAddonCatalogRequestLikeCpp,
-    ) -> PersistenceFutureLikeCpp<'a, ItemTemplateAddonMoneyOutcomeLikeCpp> {
-        panic!("quest source-item lookup never requests item-addon money")
-    }
-
-    fn load_item_template_addon_loot_metadata_like_cpp<'a>(
-        &'a self,
-        request: ItemTemplateAddonCatalogRequestLikeCpp,
-    ) -> PersistenceFutureLikeCpp<'a, ItemTemplateAddonLootMetadataOutcomeLikeCpp> {
-        self.requests.lock().unwrap().push(request);
-        let outcome = self
-            .outcomes
-            .lock()
-            .unwrap()
-            .pop_front()
-            .expect("one item-addon metadata outcome per uncached request");
-        Box::pin(async move { outcome })
-    }
-}
-
-fn quest_poi_blob_row_like_cpp(quest_id: i32, idx1: i32) -> QuestPoiBlobLoadRowLikeCpp {
-    QuestPoiBlobLoadRowLikeCpp {
-        quest_id,
-        blob_index: 1,
-        idx1,
-        objective_index: -1,
-        quest_objective_id: 2,
-        quest_object_id: 3,
-        map_id: 571,
-        ui_map_id: 486,
-        priority: 4,
-        flags: 5,
-        world_effect_id: 6,
-        player_condition_id: 7,
-        navigation_player_condition_id: 8,
-        spawn_tracking_id: 9,
-        always_allow_merging_blobs: false,
-    }
 }
 
 fn creature_guid(entry: u32, counter: i64) -> ObjectGuid {
@@ -1202,159 +930,6 @@ fn assert_complete_status_update_like_cpp(
     );
 }
 
-fn install_confirm_accept_sender_snapshot(
-    session: &mut WorldSession,
-    sender_guid: ObjectGuid,
-    quest_id: u32,
-    same_group: bool,
-    sender_active_status: Option<u8>,
-) -> (WorldSession, flume::Receiver<Vec<u8>>) {
-    let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
-    session.set_player_registry(Arc::clone(&player_registry));
-    session.set_loaded_player_name_like_cpp("Receiver".to_string());
-    session.register_in_player_registry();
-
-    let (mut sender_session, sender_rx) = make_session();
-    sender_session.set_player_guid(Some(sender_guid));
-    sender_session.set_loaded_player_name_like_cpp("Sender".to_string());
-    sender_session.set_player_registry(player_registry);
-    sender_session.register_in_player_registry();
-    assert!(sender_session.adopt_registered_canonical_player_fixture_like_cpp());
-    if let Some(status) = sender_active_status {
-        add_active_quest_in_slot_with_status(&mut sender_session, quest_id, 0, status);
-    }
-    sender_session.sync_player_registry_state_like_cpp();
-
-    let group_registry = Arc::new(GroupRegistry::default());
-    let mut group = GroupInfo::new(sender_guid);
-    if same_group {
-        if let Some(receiver_guid) = session.player_guid() {
-            group.add_member(receiver_guid);
-        }
-    }
-    let group_guid = group.group_guid;
-    group_registry.register_group_like_cpp(group_guid, group);
-    session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
-
-    (sender_session, sender_rx)
-}
-
-/// Put one party member's canonical `Player` on the shared map.
-///
-/// Mirrors what a live session does at world entry; the quest-share gates read
-/// reputation off this owner since #252.
-///
-/// Takes the three values it needs rather than `&WorldSession`: the session type
-/// carries database handles, so accepting it here would register this fixture as
-/// a direct persistence accessor in the ownership inventory for no reason.
-fn insert_canonical_party_player_like_cpp(
-    account_id: u32,
-    player_guid: ObjectGuid,
-    position: Position,
-    canonical: &crate::session::SharedCanonicalMapManager,
-    map_id: u32,
-    instance_id: u32,
-) {
-    let mut player = wow_entities::Player::new(Some(u64::from(account_id)), false);
-    player
-        .unit_mut()
-        .world_mut()
-        .object_mut()
-        .create(player_guid);
-    player
-        .unit_mut()
-        .world_mut()
-        .set_map(map_id, instance_id)
-        .unwrap();
-    player.unit_mut().world_mut().relocate(position);
-    player.unit_mut().world_mut().object_mut().add_to_world();
-    player.unit_mut().set_max_health(100);
-    player.unit_mut().set_health(100);
-    player.unit_mut().set_faction(1);
-    canonical
-        .lock()
-        .unwrap()
-        .create_world_map(map_id, instance_id)
-        .map_mut()
-        .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
-        .unwrap();
-}
-
-/// Set one faction standing on a party member's canonical `Player`.
-fn set_canonical_party_reputation_like_cpp(
-    canonical: &crate::session::SharedCanonicalMapManager,
-    guid: ObjectGuid,
-    faction_id: u32,
-    standing: i32,
-) {
-    let mut guard = canonical.lock().unwrap();
-    let player = guard
-        .find_map_mut(571, 0)
-        .expect("resident party map")
-        .map_mut()
-        .get_typed_player_mut(guid)
-        .expect("canonical party member");
-    player.reputation_mut_like_cpp().insert_faction_like_cpp(
-        wow_entities::PlayerFactionStateLikeCpp {
-            faction_id,
-            standing,
-            ..Default::default()
-        },
-    );
-}
-
-fn install_represented_party(
-    session: &mut WorldSession,
-    sender_guid: ObjectGuid,
-    receiver_guid: ObjectGuid,
-) -> (Arc<PlayerRegistry>, WorldSession, flume::Receiver<Vec<u8>>) {
-    let player_registry = Arc::new(PlayerRegistry::default());
-    let (mut receiver_session, receiver_rx) = make_session();
-    receiver_session.set_player_guid(Some(receiver_guid));
-    receiver_session.set_loaded_player_name_like_cpp("Receiver".to_string());
-    receiver_session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
-    receiver_session.set_player_position_like_cpp(Position::new(11.0, 0.0, 0.0, 0.0));
-    receiver_session.set_player_registry(Arc::clone(&player_registry));
-
-    // Production keeps every in-world player on the shared canonical map, and
-    // #252 reads the receiver's reputation off that owner instead of a mirrored
-    // copy. Install it here so the harness exercises the same path.
-    let canonical: crate::session::SharedCanonicalMapManager =
-        Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
-    insert_canonical_party_player_like_cpp(
-        receiver_session.account_id,
-        receiver_guid,
-        receiver_session
-            .player_position_like_cpp()
-            .expect("party member position"),
-        &canonical,
-        571,
-        0,
-    );
-    receiver_session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.set_canonical_map_manager(Arc::clone(&canonical));
-
-    receiver_session.register_in_player_registry();
-    assert!(receiver_session.adopt_registered_canonical_player_fixture_like_cpp());
-    // Production `Player::LoadFromDB` builds the canonical Player with the
-    // character's identity, and later registry movement publications read
-    // `player_level_like_cpp`. Apply the session's loaded identity after
-    // adoption so the fixture party member matches that owner instead of the
-    // identity-less synthetic Player.
-    receiver_session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
-
-    let group_registry = Arc::new(GroupRegistry::default());
-    let mut group = GroupInfo::new(sender_guid);
-    group.add_member(receiver_guid);
-    let group_guid = group.group_guid;
-    group_registry.register_group_like_cpp(group_guid, group);
-
-    session.group_guid = Some(group_guid);
-    session.set_player_registry(player_registry.clone());
-    session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
-    (player_registry, receiver_session, receiver_rx)
-}
-
 // ── SatisfyQuestDay / Week / Month tests ────────────────────────────────
 // C++ Player::CanTakeQuest (Player.cpp:14093-14102) gates on
 // SatisfyQuestDay && SatisfyQuestWeek && SatisfyQuestMonth. A daily/DF/weekly/
@@ -1382,8 +957,6 @@ mod item_2;
 mod item_3;
 #[path = "quest_tests/item_4.rs"]
 mod item_4;
-#[path = "quest_tests/misc.rs"]
-mod misc;
 #[path = "quest_tests/quest_1.rs"]
 mod quest_1;
 #[path = "quest_tests/quest_2.rs"]

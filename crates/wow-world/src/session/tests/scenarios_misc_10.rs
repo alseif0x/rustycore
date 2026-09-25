@@ -692,7 +692,9 @@ fn far_sight_disable_sets_represented_seer_back_to_self_like_cpp() {
     let target_guid = test_creature_guid(4251);
 
     session.set_player_guid(Some(player_guid));
-    session.represented_seer_guid_like_cpp = Some(target_guid);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(target_guid);
 
     session.apply_far_sight_like_cpp(false);
 

@@ -334,7 +334,7 @@ impl WorldSession {
         // C++-created rows only contain the declared PlayerRestState values.
         // Normalize legacy Rust rows that persisted the old invalid value 0,
         // while preserving every valid DB state verbatim like LoadRestBonus.
-        let rest_state = if crate::session_rules::valid_player_rest_state_like_cpp(rest_state) {
+        let rest_state = if wow_entities::valid_player_rest_state_like_cpp(rest_state) {
             rest_state
         } else {
             REST_STATE_NORMAL_LIKE_CPP
@@ -368,12 +368,18 @@ impl WorldSession {
         });
         #[cfg(test)]
         if _canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            self.represented_rest_flag_mask_like_cpp = 0;
-            self.represented_rest_location_initialized_like_cpp = false;
-            self.represented_defer_rest_flag_sync_like_cpp = false;
-            self.represented_deferred_rest_flag_update_dirty_like_cpp = false;
-            self.represented_inn_area_trigger_id_like_cpp = 0;
-            self.represented_rest_time_secs_like_cpp = 0;
+            self.rest_mgr_test_fixture_like_cpp
+                .represented_rest_flag_mask_like_cpp = 0;
+            self.rest_mgr_test_fixture_like_cpp
+                .represented_rest_location_initialized_like_cpp = false;
+            self.rest_mgr_test_fixture_like_cpp
+                .represented_defer_rest_flag_sync_like_cpp = false;
+            self.rest_mgr_test_fixture_like_cpp
+                .represented_deferred_rest_flag_update_dirty_like_cpp = false;
+            self.rest_mgr_test_fixture_like_cpp
+                .represented_inn_area_trigger_id_like_cpp = 0;
+            self.rest_mgr_test_fixture_like_cpp
+                .represented_rest_time_secs_like_cpp = 0;
         }
     }
     pub(crate) fn mark_represented_glyphs_loaded_like_cpp(&mut self) {
@@ -720,10 +726,13 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         {
-            self.represented_loaded_player_flags_like_cpp = Some(player_flags);
-            self.represented_loaded_player_flags_ex_like_cpp
+            self.player_flags_test_fixture_like_cpp
+                .represented_loaded_player_flags_like_cpp = Some(player_flags);
+            self.player_flags_test_fixture_like_cpp
+                .represented_loaded_player_flags_ex_like_cpp
                 .get_or_insert(0);
-            self.represented_loaded_player_flags_applied_like_cpp = _canonical;
+            self.player_flags_test_fixture_like_cpp
+                .represented_loaded_player_flags_applied_like_cpp = _canonical;
         }
     }
     pub(crate) fn set_loaded_player_flags_ex_like_cpp(&mut self, player_flags_ex: u32) {
@@ -735,16 +744,22 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         {
-            self.represented_loaded_player_flags_ex_like_cpp = Some(player_flags_ex);
-            self.represented_loaded_player_flags_applied_like_cpp = _canonical;
+            self.player_flags_test_fixture_like_cpp
+                .represented_loaded_player_flags_ex_like_cpp = Some(player_flags_ex);
+            self.player_flags_test_fixture_like_cpp
+                .represented_loaded_player_flags_applied_like_cpp = _canonical;
         }
     }
     #[cfg(test)]
     pub(crate) fn apply_loaded_player_flags_to_canonical_like_cpp(&mut self) {
-        let Some(player_flags) = self.represented_loaded_player_flags_like_cpp else {
+        let Some(player_flags) = self
+            .player_flags_test_fixture_like_cpp
+            .represented_loaded_player_flags_like_cpp
+        else {
             return;
         };
         let player_flags_ex = self
+            .player_flags_test_fixture_like_cpp
             .represented_loaded_player_flags_ex_like_cpp
             .unwrap_or(0);
         if self
@@ -754,7 +769,8 @@ impl WorldSession {
             })
             .is_some()
         {
-            self.represented_loaded_player_flags_applied_like_cpp = true;
+            self.player_flags_test_fixture_like_cpp
+                .represented_loaded_player_flags_applied_like_cpp = true;
         }
     }
     pub(crate) fn set_loaded_player_powers_like_cpp(
@@ -777,7 +793,10 @@ impl WorldSession {
         let canonical = self.with_owned_player_like_cpp(Player::skill_records_loaded_like_cpp);
         #[cfg(test)]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.player_skill_records_loaded_like_cpp);
+            return Some(
+                self.player_skill_test_fixture_like_cpp
+                    .player_skill_records_loaded_like_cpp,
+            );
         }
         canonical
     }
@@ -950,8 +969,10 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if !_canonical && self.player_handle_like_cpp.is_none() {
-            self.represented_known_titles_like_cpp = known_title_ids.into_iter().collect();
-            self.represented_chosen_title_like_cpp = chosen_title;
+            self.quest_test_fixture_like_cpp
+                .represented_known_titles_like_cpp = known_title_ids.into_iter().collect();
+            self.quest_test_fixture_like_cpp
+                .represented_chosen_title_like_cpp = chosen_title;
         }
     }
 }

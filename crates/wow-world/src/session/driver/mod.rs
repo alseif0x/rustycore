@@ -187,7 +187,7 @@ impl WorldSession {
             );
             self.tick_represented_online_xp_rest_bonus_with_policy_like_cpp(
                 catalogs.player_rest_rates.as_ref(),
-                crate::session_rules::current_game_time_secs_like_cpp(),
+                wow_core::GameTime::now().as_secs(),
             );
             let _ = self.set_represented_can_delay_teleport_like_cpp(false);
             self.process_represented_delayed_teleport_after_update_like_cpp()
@@ -203,14 +203,14 @@ impl WorldSession {
         // pass (`WorldSession.cpp:488-497`). A coordinated session therefore
         // sends it from its map pass tail and must not send it again here.
         if self.state == SessionState::LoggedIn
-            && self.time_sync_timer_ms > 0
+            && self.time_synchronization.timer_ms > 0
             && !self.is_map_phase_coordinated_like_cpp()
         {
             self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::TimeSync);
-            if diff_ms >= self.time_sync_timer_ms {
+            if diff_ms >= self.time_synchronization.timer_ms {
                 self.send_time_sync();
             } else {
-                self.time_sync_timer_ms -= diff_ms;
+                self.time_synchronization.timer_ms -= diff_ms;
             }
         }
 

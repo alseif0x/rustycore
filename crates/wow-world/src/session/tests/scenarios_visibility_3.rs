@@ -596,7 +596,9 @@ async fn far_sight_empty_or_missing_viewpoint_keeps_seer_and_forces_visibility_l
     session.set_player_guid(Some(player_guid));
     session.player_position = Some(pos);
     session.current_map_id = 571;
-    session.represented_seer_guid_like_cpp = Some(original_seer);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(original_seer);
     session.last_visibility_pos = Some(pos);
 
     let mut pkt = WorldPacket::new_empty();

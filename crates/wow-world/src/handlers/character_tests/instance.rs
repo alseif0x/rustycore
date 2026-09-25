@@ -215,24 +215,6 @@ async fn binder_activate_rejects_instanceable_map_like_cpp() {
     );
 }
 #[test]
-fn vendor_buy_destination_maps_player_container_like_cpp() {
-    let player_guid = ObjectGuid::create_player(1, 42);
-    let buy = BuyItem {
-        vendor_guid: ObjectGuid::EMPTY,
-        container_guid: player_guid,
-        quantity: 1,
-        muid: 1,
-        slot: 35,
-        item_type: 0,
-        item_id: 700,
-    };
-
-    assert_eq!(
-        vendor_buy_direct_inventory_destination(player_guid, &buy),
-        Some((INVENTORY_SLOT_BAG_0, 35))
-    );
-}
-#[test]
 fn enum_character_flags_do_not_map_resting_like_cpp() {
     let flags = enum_character_flags_like_cpp(0x20, 0, 0, None, false);
 

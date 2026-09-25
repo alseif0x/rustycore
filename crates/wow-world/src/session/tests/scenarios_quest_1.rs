@@ -159,7 +159,12 @@ fn reset_seasonal_missing_quest_v2_store_removes_without_inventing_bit_like_cpp(
     assert_eq!(outcome.completed_bit_skipped_no_quest_v2_store, 1);
     assert_eq!(outcome.completed_bit_clear_unrepresented, 0);
     assert_eq!(session.seasonal_quest_bucket_like_cpp(7), None);
-    assert!(session.represented_quest_completed_bits_like_cpp.is_empty());
+    assert!(
+        session
+            .quest_test_fixture_like_cpp
+            .represented_quest_completed_bits_like_cpp
+            .is_empty()
+    );
 }
 #[test]
 fn can_take_quest_rejects_completed_seasonal_bucket_quest_like_cpp() {
@@ -282,7 +287,9 @@ fn canonical_access_requirement_uses_team_quest_reward_like_cpp() {
         80,
         0,
     ));
-    session.represented_raid_difficulty_id_like_cpp = 3;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     let mut requirement = access_requirement_like_cpp(631, 3);
     requirement.quest_done_a = 100;
@@ -306,7 +313,10 @@ fn canonical_access_requirement_uses_team_quest_reward_like_cpp() {
         .to_bytes()
     );
 
-    session.rewarded_quests.insert(200);
+    session
+        .quest_test_fixture_like_cpp
+        .rewarded_quests
+        .insert(200);
     assert!(matches!(
         session.ensure_canonical_world_map_for_current_player_like_cpp(),
         Some(wow_map::CreateMapDecision::Create { .. })
@@ -330,7 +340,9 @@ fn canonical_access_requirement_quest_failed_text_sends_system_message_like_cpp(
         80,
         0,
     ));
-    session.represented_raid_difficulty_id_like_cpp = 3;
+    session
+        .instance_test_fixture_like_cpp
+        .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
         MapDifficultyEntry {
@@ -500,10 +512,8 @@ fn player_homebind_update_request_preserves_wide_semantic_values_for_adapter() {
         position: Position::new(11.0, 22.0, 33.0, 1.5),
     };
 
-    let request = crate::session_rules::player_homebind_update_request_like_cpp(
-        homebind,
-        guid.counter() as u64,
-    );
+    let request =
+        crate::session::player_homebind_update_request_like_cpp(homebind, guid.counter() as u64);
 
     assert_eq!(
         request,
@@ -518,7 +528,7 @@ fn player_homebind_update_request_preserves_wide_semantic_values_for_adapter() {
         }
     );
 
-    let wide = crate::session_rules::player_homebind_update_request_like_cpp(
+    let wide = crate::session::player_homebind_update_request_like_cpp(
         RepresentedHomebindLikeCpp {
             map_id: u32::MAX - 2,
             area_id: u32::MAX - 1,
@@ -678,7 +688,7 @@ fn quest_giver_accept_missing_or_player_source_rejects_like_cpp() {
             &quest_store,
         )
     );
-    assert!(session.player_quests.is_empty());
+    assert!(session.quest_test_fixture_like_cpp.player_quests.is_empty());
     assert!(send_rx.try_recv().is_err());
 }
 #[test]
@@ -787,7 +797,7 @@ async fn quest_giver_choose_reward_missing_source_rejects_before_mutation_like_c
     session.quests.store = Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         9_224,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id: 9_224,
@@ -810,10 +820,19 @@ async fn quest_giver_choose_reward_missing_source_rejects_before_mutation_like_c
         .await;
 
     assert_eq!(
-        session.player_quests.get(&9_224).map(|quest| quest.status),
+        session
+            .quest_test_fixture_like_cpp
+            .player_quests
+            .get(&9_224)
+            .map(|quest| quest.status),
         Some(crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP)
     );
-    assert!(!session.rewarded_quests.contains(&9_224));
+    assert!(
+        !session
+            .quest_test_fixture_like_cpp
+            .rewarded_quests
+            .contains(&9_224)
+    );
     assert_eq!(session.player_gold_like_cpp(), 5);
     assert!(send_rx.try_recv().is_err());
 }
@@ -830,7 +849,7 @@ async fn quest_giver_choose_reward_auto_complete_player_source_is_not_blocked_li
     session.quests.store = Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         9_226,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id: 9_226,
@@ -852,8 +871,18 @@ async fn quest_giver_choose_reward_auto_complete_player_source_is_not_blocked_li
         ))
         .await;
 
-    assert!(!session.player_quests.contains_key(&9_226));
-    assert!(session.rewarded_quests.contains(&9_226));
+    assert!(
+        !session
+            .quest_test_fixture_like_cpp
+            .player_quests
+            .contains_key(&9_226)
+    );
+    assert!(
+        session
+            .quest_test_fixture_like_cpp
+            .rewarded_quests
+            .contains(&9_226)
+    );
     assert_eq!(session.player_gold_like_cpp(), 42);
     assert_eq!(
         drain_server_opcodes(&send_rx),

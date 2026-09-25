@@ -253,7 +253,7 @@ impl WorldSession {
             }
             _ => None,
         };
-        let now_ms = crate::session_rules::game_time_ms_like_cpp();
+        let now_ms = crate::session::game_time_ms_like_cpp();
 
         // C++ `for (Powers power = POWER_MANA; power < MAX_POWERS; ...)`: every
         // power with a represented index gets one `Regenerate` call. Only the
@@ -404,7 +404,7 @@ impl WorldSession {
             player
                 .unit()
                 .is_power_regen_interrupted_by_mp5_rule_like_cpp(
-                    crate::session_rules::game_time_ms_like_cpp(),
+                    crate::session::game_time_ms_like_cpp(),
                 )
         })
         .unwrap_or(false)

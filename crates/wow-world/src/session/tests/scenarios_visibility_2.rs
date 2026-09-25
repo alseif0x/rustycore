@@ -156,7 +156,9 @@ async fn far_sight_update_visibility_uses_represented_seer_position_like_cpp() {
     );
 
     set_canonical_player_farsight_object_like_cpp(&canonical, player_guid, seer_guid);
-    session.represented_seer_guid_like_cpp = Some(seer_guid);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(seer_guid);
     session.apply_move_init_active_mover_complete_like_cpp(0);
 
     assert_eq!(
@@ -204,7 +206,9 @@ async fn far_sight_update_visibility_canonical_clear_resets_session_seer_like_cp
         0,
     ));
     add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
-    session.represented_seer_guid_like_cpp = Some(stale_dynamic_object_guid);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(stale_dynamic_object_guid);
     session.last_visibility_pos = Some(player_position);
 
     session.update_visibility().await;
@@ -252,7 +256,9 @@ async fn far_sight_update_visibility_non_empty_canonical_keeps_session_seer_like
     ));
     add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
     set_canonical_player_farsight_object_like_cpp(&canonical, player_guid, dynamic_object_guid);
-    session.represented_seer_guid_like_cpp = Some(dynamic_object_guid);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(dynamic_object_guid);
     session.last_visibility_pos = Some(player_position);
 
     session.update_visibility().await;
@@ -294,7 +300,9 @@ async fn far_sight_update_visibility_missing_canonical_player_keeps_session_seer
         0,
     ));
     canonical.lock().unwrap().create_world_map(571, 0);
-    session.represented_seer_guid_like_cpp = Some(stale_dynamic_object_guid);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(stale_dynamic_object_guid);
     session.last_visibility_pos = Some(player_position);
 
     session.update_visibility().await;

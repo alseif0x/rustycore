@@ -78,6 +78,7 @@ async fn quest_giver_accept_emits_player_quest_log_update_like_cpp() {
         .await;
 
     let status = session
+        .quest_test_fixture_like_cpp
         .player_quests
         .get(&quest_id)
         .expect("accepted quest should enter the represented quest log");
@@ -122,7 +123,12 @@ async fn quest_giver_accept_rejected_source_sends_no_quest_log_update_like_cpp()
         .handle_quest_giver_accept_quest(quest_giver_cmsg_packet(source_guid, quest_id, 0x00))
         .await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
+    assert!(
+        !session
+            .quest_test_fixture_like_cpp
+            .player_quests
+            .contains_key(&quest_id)
+    );
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]
@@ -381,54 +387,6 @@ async fn quest_giver_status_queries_borrow_process_metadata_not_session_catalog(
     }
 }
 #[test]
-fn represented_quest_objective_completable_accepts_cpp_storing_value_previous_types() {
-    let quest_id = 7100;
-    let mut quest = quest_template(quest_id);
-    quest.objectives = vec![
-        QuestObjective {
-            id: quest_id * 10,
-            quest_id,
-            obj_type: QUEST_OBJECTIVE_MONSTER_LIKE_CPP_LOCAL,
-            order: 0,
-            storage_index: 0,
-            object_id: 44,
-            amount: 1,
-            flags: 0,
-            flags2: 0,
-            progress_bar_weight: 0.0,
-            description: String::new(),
-        },
-        QuestObjective {
-            id: quest_id * 10 + 1,
-            quest_id,
-            obj_type: QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL,
-            order: 1,
-            storage_index: 1,
-            object_id: 55,
-            amount: 1,
-            flags: QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP_LOCAL,
-            flags2: 0,
-            progress_bar_weight: 0.0,
-            description: String::new(),
-        },
-    ];
-    let status = PlayerQuestStatus {
-        quest_id,
-        status: QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-        explored: false,
-        accept_time_secs: 0,
-        end_time_secs: 0,
-        objective_counts: vec![1, 0],
-        slot: 0,
-    };
-
-    assert!(
-        crate::handlers::quest_rules::represented_quest_objective_completable_like_cpp(
-            &status, &quest, 1
-        )
-    );
-}
-#[test]
 fn quest_giver_choose_reward_choice_parser_rejects_truncated_cpp_wire() {
     let mut pkt = WorldPacket::new_empty();
     pkt.write_bits(u32::from(QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP), 2);
@@ -491,7 +449,7 @@ async fn quest_giver_choose_reward_accepts_existing_reward_currency_like_cpp() {
         currency_entry_like_cpp(currency_id),
     ])));
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -513,8 +471,18 @@ async fn quest_giver_choose_reward_accepts_existing_reward_currency_like_cpp() {
         ))
         .await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert!(
+        !session
+            .quest_test_fixture_like_cpp
+            .player_quests
+            .contains_key(&quest_id)
+    );
+    assert!(
+        session
+            .quest_test_fixture_like_cpp
+            .rewarded_quests
+            .contains(&quest_id)
+    );
     assert_eq!(session.player_gold_like_cpp(), 42);
     assert_eq!(session.player_currency_quantity(currency_id), Some(5));
     assert_eq!(
@@ -566,7 +534,7 @@ async fn quest_giver_choose_reward_fixed_currency_rewards_like_cpp() {
         currency_entry_like_cpp(currency_id),
     ])));
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -588,8 +556,18 @@ async fn quest_giver_choose_reward_fixed_currency_rewards_like_cpp() {
         ))
         .await;
 
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert!(
+        !session
+            .quest_test_fixture_like_cpp
+            .player_quests
+            .contains_key(&quest_id)
+    );
+    assert!(
+        session
+            .quest_test_fixture_like_cpp
+            .rewarded_quests
+            .contains(&quest_id)
+    );
     assert_eq!(session.player_gold_like_cpp(), 42);
     assert_eq!(session.player_currency_quantity(currency_id), Some(7));
     assert_eq!(
@@ -635,7 +613,7 @@ async fn quest_giver_choose_reward_removes_timed_quest_before_rewards_like_cpp()
     quest.reward_money_difficulty = 37;
     session.set_player_gold_like_cpp(5);
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -661,8 +639,18 @@ async fn quest_giver_choose_reward_removes_timed_quest_before_rewards_like_cpp()
         session.represented_timed_quest_removals_like_cpp(),
         &[quest_id]
     );
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert!(
+        !session
+            .quest_test_fixture_like_cpp
+            .player_quests
+            .contains_key(&quest_id)
+    );
+    assert!(
+        session
+            .quest_test_fixture_like_cpp
+            .rewarded_quests
+            .contains(&quest_id)
+    );
     assert_eq!(session.player_gold_like_cpp(), 42);
 }
 #[tokio::test]
@@ -673,7 +661,7 @@ async fn quest_giver_choose_reward_non_timed_quest_records_no_timed_removal_like
     let mut quest = quest_template(quest_id);
     quest.flags = QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP;
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -700,8 +688,18 @@ async fn quest_giver_choose_reward_non_timed_quest_records_no_timed_removal_like
             .represented_timed_quest_removals_like_cpp()
             .is_empty()
     );
-    assert!(!session.player_quests.contains_key(&quest_id));
-    assert!(session.rewarded_quests.contains(&quest_id));
+    assert!(
+        !session
+            .quest_test_fixture_like_cpp
+            .player_quests
+            .contains_key(&quest_id)
+    );
+    assert!(
+        session
+            .quest_test_fixture_like_cpp
+            .rewarded_quests
+            .contains(&quest_id)
+    );
 }
 #[tokio::test]
 async fn quest_giver_choose_reward_emits_reward_skill_fields_like_cpp() {
@@ -715,7 +713,7 @@ async fn quest_giver_choose_reward_emits_reward_skill_fields_like_cpp() {
     quest.reward_skill_points = 5;
     session.set_player_gold_like_cpp(5);
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -765,7 +763,7 @@ async fn quest_giver_choose_reward_records_title_and_talent_rewards_like_cpp() {
     quest.reward_title_id = 77;
     quest.reward_skill_points = 3;
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -816,7 +814,7 @@ async fn quest_giver_choose_reward_records_reward_mail_sender_entry_like_cpp() {
     quest.reward_mail_delay_secs = 900;
     quest.reward_mail_sender_entry = 1234;
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         quest_id,
         PlayerQuestStatus {
             quest_id,

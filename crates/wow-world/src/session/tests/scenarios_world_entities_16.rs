@@ -14,7 +14,7 @@ fn creature_questgiver_single_complete_ender_auto_opens_request_items_can_comple
     let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([quest]);
     quest_store.ender_quests.insert(777, vec![9_103]);
     session.quests.store = Some(Arc::new(quest_store));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         9_103,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id: 9_103,
@@ -58,7 +58,7 @@ fn creature_questgiver_ender_relation_precedes_starter_like_cpp() {
     quest_store.ender_quests.insert(777, vec![9_101]);
     quest_store.starter_quests.insert(777, vec![9_102]);
     session.quests.store = Some(Arc::new(quest_store));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         9_101,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id: 9_101,
@@ -220,7 +220,7 @@ fn quest_giver_accept_creature_ender_only_relation_rejects_like_cpp() {
             &quest_store,
         )
     );
-    assert!(session.player_quests.is_empty());
+    assert!(session.quest_test_fixture_like_cpp.player_quests.is_empty());
     assert!(send_rx.try_recv().is_err());
 }
 #[test]
@@ -273,7 +273,7 @@ fn quest_giver_accept_gameobject_starter_relation_without_interaction_rejects_li
         ),
         "C++ CanInteractWithQuestGiver(TYPEID_GAMEOBJECT) requires an interactable questgiver GO, not just a canonical object"
     );
-    assert!(session.player_quests.is_empty());
+    assert!(session.quest_test_fixture_like_cpp.player_quests.is_empty());
     assert!(send_rx.try_recv().is_err());
 }
 #[test]
@@ -312,7 +312,7 @@ fn quest_giver_accept_gameobject_ender_only_or_unrelated_rejects_like_cpp() {
             &quest_store,
         )
     );
-    assert!(session.player_quests.is_empty());
+    assert!(session.quest_test_fixture_like_cpp.player_quests.is_empty());
     assert!(send_rx.try_recv().is_err());
 }
 #[test]
@@ -436,7 +436,7 @@ fn quest_giver_reward_gameobject_ender_relation_out_of_range_rejects_like_cpp() 
         )
     );
     assert!(send_rx.try_recv().is_err());
-    assert!(session.player_quests.is_empty());
+    assert!(session.quest_test_fixture_like_cpp.player_quests.is_empty());
 }
 #[test]
 fn quest_giver_reward_gameobject_ender_relation_wrong_type_rejects_like_cpp() {
@@ -466,7 +466,7 @@ fn quest_giver_reward_gameobject_ender_relation_wrong_type_rejects_like_cpp() {
         )
     );
     assert!(send_rx.try_recv().is_err());
-    assert!(session.player_quests.is_empty());
+    assert!(session.quest_test_fixture_like_cpp.player_quests.is_empty());
 }
 #[tokio::test]
 async fn quest_giver_choose_reward_creature_ender_source_allows_reward_like_cpp() {
@@ -564,7 +564,7 @@ async fn quest_giver_choose_reward_gameobject_no_relation_rejects_like_cpp() {
     session.quests.store = Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         9_225,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id: 9_225,
@@ -587,10 +587,19 @@ async fn quest_giver_choose_reward_gameobject_no_relation_rejects_like_cpp() {
         .await;
 
     assert_eq!(
-        session.player_quests.get(&9_225).map(|quest| quest.status),
+        session
+            .quest_test_fixture_like_cpp
+            .player_quests
+            .get(&9_225)
+            .map(|quest| quest.status),
         Some(crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP)
     );
-    assert!(!session.rewarded_quests.contains(&9_225));
+    assert!(
+        !session
+            .quest_test_fixture_like_cpp
+            .rewarded_quests
+            .contains(&9_225)
+    );
     assert_eq!(session.player_gold_like_cpp(), 5);
     assert!(send_rx.try_recv().is_err());
 }
@@ -770,7 +779,7 @@ fn quest_giver_query_gameobject_ender_relation_allows_request_items_like_cpp() {
         wow_data::quest::QuestStore::from_quests_like_cpp([test_quest_template(9_206)]);
     assert!(quest_store.insert_gameobject_ender_relation_like_cpp(780, 9_206));
     session.quests.store = Some(Arc::new(quest_store));
-    session.player_quests.insert(
+    session.quest_test_fixture_like_cpp.player_quests.insert(
         9_206,
         crate::handlers::quest::PlayerQuestStatus {
             quest_id: 9_206,

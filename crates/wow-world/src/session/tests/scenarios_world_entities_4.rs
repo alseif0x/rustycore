@@ -614,7 +614,9 @@ async fn gameobject_visual_despawn_mismatched_seer_without_vehicle_preserves_del
     session
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_seer_guid_like_cpp = Some(seer_guid);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(seer_guid);
 
     session.process_pending().await;
 
@@ -631,7 +633,9 @@ async fn gameobject_visual_despawn_mismatched_seer_without_vehicle_preserves_del
             .is_empty()
     );
 
-    session.represented_seer_guid_like_cpp = Some(player_guid);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(player_guid);
     assert_eq!(
         session.send_represented_gameobject_visual_despawn_from_last_update_like_cpp(),
         1
@@ -688,7 +692,9 @@ async fn gameobject_visual_despawn_shared_vision_viewer_receives_once_like_cpp()
     session
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_seer_guid_like_cpp = Some(target_guid);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(target_guid);
 
     assert_eq!(
         session.send_represented_gameobject_visual_despawn_from_last_update_like_cpp(),
@@ -766,7 +772,9 @@ async fn gameobject_visual_despawn_player_shared_vision_out_of_world_target_no_s
     session
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_seer_guid_like_cpp = Some(target_guid);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(target_guid);
 
     assert_eq!(
         session.send_represented_gameobject_visual_despawn_from_last_update_like_cpp(),
@@ -855,7 +863,9 @@ async fn gameobject_visual_despawn_creature_shared_vision_viewer_receives_once_l
     session
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_seer_guid_like_cpp = Some(target_guid);
+    session
+        .visibility_test_fixture_like_cpp
+        .represented_seer_guid_like_cpp = Some(target_guid);
 
     assert_eq!(
         session.send_represented_gameobject_visual_despawn_from_last_update_like_cpp(),

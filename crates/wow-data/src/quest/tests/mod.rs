@@ -96,4 +96,5 @@ fn weekly_quest(id: u32) -> QuestTemplate {
     quest
 }
 
+mod entity_rules;
 mod scenarios;

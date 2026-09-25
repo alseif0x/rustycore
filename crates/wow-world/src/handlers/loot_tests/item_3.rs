@@ -4,6 +4,8 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use wow_loot::{LOOT_METHOD_GROUP_LIKE_CPP, LOOT_METHOD_MASTER_LIKE_CPP};
+use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
 
 #[test]
 fn loot_item_random_context_stack_compatibility_uses_cpp_store_metadata() {
