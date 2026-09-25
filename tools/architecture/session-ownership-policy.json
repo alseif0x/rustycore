@@ -3210,20 +3210,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "represented_loaded_player_flags_ex_like_cpp",
-          "type": "Option < u32 >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_loaded_player_flags_like_cpp",
-          "type": "Option < u32 >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "represented_locked_dungeon_encounters",
           "type": "std :: collections :: HashSet < (wow_core :: ObjectGuid , u32) >",
           "visibility": "pub (crate)",
@@ -3306,13 +3292,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_partner_trade_server_state_index_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "represented_pending_spell_cast_request_like_cpp",
@@ -3426,13 +3405,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_player_recent_instances_like_cpp",
-          "type": "std :: collections :: HashMap < u32 , u32 >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "represented_player_unit_values_updates_delivered_like_cpp",
@@ -82388,7 +82360,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:a20e6b87b9c5e779b2a3371cfb17b5a0:len=87538|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:f06ccd93c7a1c0ef38f0bf259f0d159e:len=87156|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
