@@ -112,7 +112,7 @@ Se actualiza **en el mismo commit** que cierra cada fase. Convención: `[ ]` pen
 curso, `[x]` cerrada con commit.
 
 ```
-A0.1 [x]  A0.2 [x]  A0.3 [x]  A0.4 [~]  A0.5 [x]  A0.6 [x]  A0.7 [x]
+A0.1 [x]  A0.2 [x]  A0.3 [x]  A0.4 [~]  A0.5 [x]  A0.6 [x]  A0.7 [x]   <- ola A: PUERTA VERDE
 A1 [ ]  A2 [ ]  A3 [ ]
 B1 [x] e719ac38   B2 [ ]  B3 [ ]  B4 [ ]  B5 [ ]  B6 [ ]  B7 [ ]
 C1 [ ]  C2 [ ]  C3 [ ]  C4 [ ]
@@ -346,3 +346,16 @@ Tests afectados:
 - `session::tests::scenarios_instances_1::represented_player_reset_success_forgets_recent_instance_like_cpp`
 - `session::tests::scenarios_misc_8::give_xp_runtime_rejects_no_xp_gain_player_flag_like_cpp`
 - `session::tests::scenarios_persistence_3::player_create_flags_use_loaded_and_canonical_bits_like_cpp`
+
+### Cierre de la ola A (2026-09-25)
+
+`./tools/validation-v2 final --base origin/3.4.3 --architecture --timings` -> **exit 0, status
+passed, 568 s** (manifiesto `20260925T024412.450111Z-2914971-final.json`), dentro del presupuesto
+de 600 s. Antes de esta puerta la rama tenia 898 errores de compilacion y 19 tests fallando; el
+camino completo esta en los commits de la rama, cada uno con su evidencia.
+
+Publicacion: PR creada como draft al abrir la ola y fusionada al cerrarla (ADR-001). La ola A deja
+`handlers/misc` desmontado, tres fronteras movidas (personal-phase retirado, `phasing` de vuelta a
+`wow-world` por politica de categorias, fixtures compartidos extraidos), el `xtask` con ratchets,
+los lints opt-in en 41 paquetes, el ADR-009 de nomenclatura y las baselines revisadas. A1 empieza
+despues de esta fusion.
