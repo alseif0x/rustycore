@@ -48,7 +48,7 @@ impl WorldSession {
             .player_create_info_store_like_cpp = Some(store);
     }
     pub fn set_packet_spoof_config_like_cpp(&mut self, config: PacketSpoofConfigLikeCpp) {
-        self.packet_spoof_config_like_cpp = config;
+        self.admission.packet_spoof_config_like_cpp = config;
     }
     #[cfg(test)]
     pub fn set_feature_system_bpay_store_enabled_like_cpp(&mut self, enabled: bool) {

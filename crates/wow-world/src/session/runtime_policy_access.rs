@@ -34,7 +34,7 @@ impl WorldSession {
     }
 
     pub fn set_socket_timeouts_like_cpp(&mut self, timeouts: SocketTimeoutsLikeCpp) {
-        self.socket_timeouts_like_cpp = timeouts;
+        self.admission.socket_timeouts_like_cpp = timeouts;
         self.reset_timeout_time_like_cpp(false);
     }
 

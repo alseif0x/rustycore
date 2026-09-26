@@ -681,6 +681,22 @@ se resuelve moviendo campos. La siguiente palanca real es B3 (migrar los tests d
 302 observaciones de fixture) y despues B5/B6 (adaptadores y `map_manager` -> `wow-map`), que es donde
 el LOC del agregado empieza a bajar de verdad.
 
+### B4, decimo slice ejecutado: `SessionAdmissionState` (2026-09-25)
+
+Todo el mecanismo de admision y despacho de paquetes (tabla de opcodes, throttle y spoof-ban, cola de
+paquetes pendientes, fences de timeout de socket y de autoridad de fase) pasa al sub-estado nombrado
+`SessionAdmissionState`, alcanzado por un unico campo `admission`. `state: SessionState` **se queda** en
+`WorldSession`: es un unico valor con 919 accesos, donde un prefijo de contenedor no agruparia nada.
+Census: 171 -> 162 campos de produccion. Coste: +21 produccion/+36 test (el crecimiento de test es el
+mismo prefijo en las suites de admision, throttling y spoof).
+
+Septimo patron aprendido (bug de script otra vez): **los tipos genericos llevan comas dentro de los
+angulos**. El capturador equilibraba `()[]{}` pero no `<>`, asi que `HashMap<ClientOpcodes, &'static
+PacketHandle>` se trunco en su primera coma y `state.rs` dejo de parsear; revertido y corregido contando
+angulos solo cuando `<` sigue a un identificador (para no confundir `->` ni comparaciones). El script
+generalizado hace ya las tres cosas: validar antes de escribir, buscar inicializadores solo dentro del
+literal `Self {` y equilibrar parentesis, corchetes, llaves y angulos.
+
 **Siguiente slice de B4**: los dos `Arc<AtomicBool>` compartidos
 (`advanced_combat_logging_enabled_like_cpp`, `visibility_refresh_pending_like_cpp`, 14 accesos) si se
 confirma su cohesion -- comparten el patron "flag atomico que la sesion comparte con sus servicios",

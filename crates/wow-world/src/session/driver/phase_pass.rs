@@ -41,12 +41,12 @@ impl WorldSession {
     /// is the migration boundary of #787, not a permanent mode.
     #[must_use]
     pub(crate) fn is_map_phase_coordinated_like_cpp(&self) -> bool {
-        self.map_phase_coordinated_like_cpp
+        self.admission.map_phase_coordinated_like_cpp
     }
 
     /// Record that a canonical tick asked this session to run its map phase.
     pub(crate) fn mark_map_phase_coordinated_like_cpp(&mut self) {
-        self.map_phase_coordinated_like_cpp = true;
+        self.admission.map_phase_coordinated_like_cpp = true;
     }
 
     /// Queue one packet as if it had been ingested, for regressions that must
@@ -56,14 +56,14 @@ impl WorldSession {
         &mut self,
         packet: wow_packet::WorldPacket,
     ) {
-        self.pending_packets.push_back(packet);
+        self.admission.pending_packets.push_back(packet);
     }
 
     /// How many packets are still queued for a later pass.
     #[cfg(test)]
     #[must_use]
     pub(crate) fn pending_packet_count_for_test_like_cpp(&self) -> usize {
-        self.pending_packets.len()
+        self.admission.pending_packets.len()
     }
 
     /// The Player's presence at the point of packet selection.
@@ -93,13 +93,13 @@ impl WorldSession {
         phase: PacketUpdatePhase,
         residence: PlayerPacketResidence,
     ) -> bool {
-        let Some(head) = self.pending_packets.front() else {
+        let Some(head) = self.admission.pending_packets.front() else {
             return false;
         };
         let Some(opcode) = head.client_opcode() else {
             return matches!(phase, PacketUpdatePhase::World);
         };
-        let Some(entry) = self.dispatch_table.get(&opcode) else {
+        let Some(entry) = self.admission.dispatch_table.get(&opcode) else {
             return matches!(phase, PacketUpdatePhase::World);
         };
         entry.processing.allows_phase(phase, residence)
@@ -127,7 +127,7 @@ impl WorldSession {
         }
 
         let mut summary = SessionPhasePassSummaryLikeCpp::default();
-        while let Some(pkt) = self.pending_packets.pop_front() {
+        while let Some(pkt) = self.admission.pending_packets.pop_front() {
             self.dispatch_packet(catalogs, pkt).await;
             summary.dispatched = summary.dispatched.saturating_add(1);
         }
@@ -141,7 +141,7 @@ impl WorldSession {
     ) -> SessionPhasePassSummaryLikeCpp {
         let mut summary = SessionPhasePassSummaryLikeCpp::default();
         loop {
-            if self.pending_packets.is_empty() {
+            if self.admission.pending_packets.is_empty() {
                 return summary;
             }
             let residence = self.player_packet_residence_like_cpp();
@@ -149,7 +149,7 @@ impl WorldSession {
                 summary.stopped_at_ineligible_head = true;
                 return summary;
             }
-            let Some(pkt) = self.pending_packets.pop_front() else {
+            let Some(pkt) = self.admission.pending_packets.pop_front() else {
                 return summary;
             };
             self.dispatch_packet(catalogs, pkt).await;

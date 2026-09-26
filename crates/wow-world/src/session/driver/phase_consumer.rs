@@ -235,7 +235,7 @@ impl WorldSession {
             PacketUpdatePhase::World => 0,
             PacketUpdatePhase::Map => 1,
         };
-        let accepted = match self.last_phase_authority_like_cpp[slot] {
+        let accepted = match self.admission.last_phase_authority_like_cpp[slot] {
             Some((last_coordinator, _)) if coordinator_id < last_coordinator => false,
             Some((last_coordinator, last_epoch))
                 if coordinator_id == last_coordinator && tick_epoch <= last_epoch =>
@@ -245,7 +245,7 @@ impl WorldSession {
             _ => true,
         };
         if accepted {
-            self.last_phase_authority_like_cpp[slot] = Some((coordinator_id, tick_epoch));
+            self.admission.last_phase_authority_like_cpp[slot] = Some((coordinator_id, tick_epoch));
         }
         accepted
     }

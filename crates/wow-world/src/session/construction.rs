@@ -5,6 +5,7 @@
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
 use crate::session::state::SessionAddonFilter;
+use crate::session::state::SessionAdmissionState;
 use crate::session::state::SessionDirectory;
 use crate::session::state::SessionDriverServices;
 use crate::session::state::SessionLifecycleState;
@@ -134,20 +135,12 @@ impl WorldSession {
                 tx: session_phase_tx,
                 rx: session_phase_rx,
             },
-            last_phase_authority_like_cpp: [None, None],
+
             durable_creature_runtime_commands_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Arc::new(AtomicBool::new(false)),
             state: SessionState::Authed,
-            last_packet_time: Instant::now(),
-            socket_timeouts_like_cpp: SocketTimeoutsLikeCpp::default(),
-            socket_timeout_deadline_like_cpp: Instant::now()
-                + Duration::from_secs(SocketTimeoutsLikeCpp::default().unauthenticated_secs),
-            packet_spoof_config_like_cpp: PacketSpoofConfigLikeCpp::default(),
-            packet_throttling_like_cpp: HashMap::new(),
 
-            pending_packet_spoof_ban_like_cpp: None,
             legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp::default(),
-            dispatch_table: build_dispatch_table(),
 
             trainer_store_like_cpp: None,
             #[cfg(test)]
@@ -318,6 +311,19 @@ impl WorldSession {
                 session_key,
                 session_mgr: None,
             },
+            admission: SessionAdmissionState {
+                dispatch_table: build_dispatch_table(),
+                last_packet_time: Instant::now(),
+                last_phase_authority_like_cpp: [None, None],
+                map_phase_coordinated_like_cpp: false,
+                packet_spoof_config_like_cpp: PacketSpoofConfigLikeCpp::default(),
+                packet_throttling_like_cpp: HashMap::new(),
+                pending_packet_spoof_ban_like_cpp: None,
+                pending_packets: VecDeque::new(),
+                socket_timeout_deadline_like_cpp: Instant::now()
+                    + Duration::from_secs(SocketTimeoutsLikeCpp::default().unauthenticated_secs),
+                socket_timeouts_like_cpp: SocketTimeoutsLikeCpp::default(),
+            },
             view: SessionWorldView {
                 is_pvp_realm_like_cpp: false,
                 is_ffa_pvp_realm_like_cpp: false,
@@ -368,7 +374,6 @@ impl WorldSession {
             #[cfg(test)]
             void_storage_item_id_generator_like_cpp: None,
             legit_characters: Vec::new(),
-            pending_packets: VecDeque::new(),
 
             max_player_level_config_like_cpp: 80,
             max_primary_trade_skills_like_cpp:
@@ -519,7 +524,7 @@ impl WorldSession {
             map_manager: None,
             canonical_map_manager: None,
             player_handle_like_cpp: None,
-            map_phase_coordinated_like_cpp: false,
+
             mmap_pathfinder_like_cpp: None,
             #[cfg(test)]
             combat_target: None,

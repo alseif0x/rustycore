@@ -129,6 +129,13 @@
           "source_class": "production"
         },
         {
+          "name": "admission",
+          "type": "SessionAdmissionState",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "advanced_combat_logging_enabled_like_cpp",
           "type": "Arc < AtomicBool >",
           "visibility": "pub (in crate :: session)",
@@ -546,13 +553,6 @@
           "source_class": "production"
         },
         {
-          "name": "dispatch_table",
-          "type": "HashMap < ClientOpcodes , & 'static PacketHandlerEntry >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "driver",
           "type": "SessionDriverServices",
           "visibility": "pub (in crate :: session)",
@@ -959,20 +959,6 @@
           "source_class": "production"
         },
         {
-          "name": "last_packet_time",
-          "type": "Instant",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "last_phase_authority_like_cpp",
-          "type": "[Option < (u64 , u64) > ; 2]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "last_spell_cast_time",
           "type": "Option < Instant >",
           "visibility": "pub (crate)",
@@ -1127,13 +1113,6 @@
           "name": "map_manager",
           "type": "Option < crate :: map_manager :: SharedMapManager >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "map_phase_coordinated_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
         },
@@ -1434,20 +1413,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "packet_spoof_config_like_cpp",
-          "type": "PacketSpoofConfigLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "packet_throttling_like_cpp",
-          "type": "HashMap < u16 , PacketCounterLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "paragon_reputation_store",
           "type": "Option < Arc < ParagonReputationStore > >",
           "visibility": "pub (in crate :: session)",
@@ -1506,20 +1471,6 @@
           "name": "pending_creature_spawn",
           "type": "Option < PendingCreatureSpawn >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "pending_packet_spoof_ban_like_cpp",
-          "type": "Option < PacketSpoofPendingBanLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "pending_packets",
-          "type": "VecDeque < WorldPacket >",
-          "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
         },
@@ -3621,20 +3572,6 @@
         {
           "name": "social",
           "type": "SessionSocialLimits",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "socket_timeout_deadline_like_cpp",
-          "type": "Instant",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "socket_timeouts_like_cpp",
-          "type": "SocketTimeoutsLikeCpp",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -82010,7 +81947,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:990e85ef2ac50fa30e2dc5fca67dc6c0:len=79653|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:01a6ccedf6099b6fddf3069f69a95e80:len=78299|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

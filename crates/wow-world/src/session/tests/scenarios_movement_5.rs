@@ -803,7 +803,7 @@ async fn update_processes_alive_delayed_far_teleport_like_cpp() {
     ])));
     session.expansion = 1;
     session.state = SessionState::LoggedIn;
-    session.socket_timeout_deadline_like_cpp = Instant::now() + Duration::from_secs(60);
+    session.admission.socket_timeout_deadline_like_cpp = Instant::now() + Duration::from_secs(60);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "FarTeleportDelayedUpdate".to_string(),

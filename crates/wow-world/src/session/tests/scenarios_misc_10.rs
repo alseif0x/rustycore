@@ -659,7 +659,7 @@ async fn logged_in_update_consumes_expired_pvp_timer_like_cpp() {
     let (mut session, _pkt_tx, canonical, guid) =
         session_with_canonical_player_for_away_like_cpp_with_packet_tx();
     session.set_state(SessionState::LoggedIn);
-    session.socket_timeout_deadline_like_cpp = Instant::now() + Duration::from_secs(60);
+    session.admission.socket_timeout_deadline_like_cpp = Instant::now() + Duration::from_secs(60);
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.set_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);

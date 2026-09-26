@@ -12,15 +12,15 @@ use std::vec::Vec;
 impl super::WorldSession {
     pub(crate) fn reset_timeout_time_like_cpp(&mut self, only_active: bool) {
         let timeout_secs = if self.state == SessionState::LoggedIn {
-            Some(self.socket_timeouts_like_cpp.active_secs)
+            Some(self.admission.socket_timeouts_like_cpp.active_secs)
         } else if !only_active {
-            Some(self.socket_timeouts_like_cpp.unauthenticated_secs)
+            Some(self.admission.socket_timeouts_like_cpp.unauthenticated_secs)
         } else {
             None
         };
 
         if let Some(timeout_secs) = timeout_secs {
-            self.socket_timeout_deadline_like_cpp =
+            self.admission.socket_timeout_deadline_like_cpp =
                 Instant::now() + Duration::from_secs(timeout_secs);
         }
     }
@@ -30,7 +30,7 @@ impl super::WorldSession {
     }
 
     pub(crate) fn is_connection_idle_like_cpp(&self) -> bool {
-        Instant::now() > self.socket_timeout_deadline_like_cpp
+        Instant::now() > self.admission.socket_timeout_deadline_like_cpp
     }
 
     fn packet_spoof_now_secs_like_cpp() -> u64 {
@@ -266,6 +266,7 @@ impl super::WorldSession {
 
         let now = Self::packet_spoof_now_secs_like_cpp();
         let counter = self
+            .admission
             .packet_throttling_like_cpp
             .entry(pkt.opcode_raw())
             .or_default();
@@ -288,7 +289,7 @@ impl super::WorldSession {
             amount_counter
         );
 
-        match self.packet_spoof_config_like_cpp.policy {
+        match self.admission.packet_spoof_config_like_cpp.policy {
             PacketSpoofConfigLikeCpp::POLICY_LOG => true,
             PacketSpoofConfigLikeCpp::POLICY_KICK => {
                 self.kick("WorldSession::DosProtection::EvaluateOpcode AntiDOS");
@@ -304,7 +305,7 @@ impl super::WorldSession {
     }
 
     fn stage_packet_spoof_ban_like_cpp(&mut self) {
-        let target = match self.packet_spoof_config_like_cpp.ban_mode {
+        let target = match self.admission.packet_spoof_config_like_cpp.ban_mode {
             PacketSpoofConfigLikeCpp::BAN_IP => {
                 let Some(address) = self.transport.remote_address_like_cpp.clone() else {
                     warn!(
@@ -324,14 +325,17 @@ impl super::WorldSession {
             }
         };
 
-        self.pending_packet_spoof_ban_like_cpp = Some(PacketSpoofPendingBanLikeCpp {
+        self.admission.pending_packet_spoof_ban_like_cpp = Some(PacketSpoofPendingBanLikeCpp {
             target,
-            duration_secs: self.packet_spoof_config_like_cpp.ban_duration_secs,
+            duration_secs: self
+                .admission
+                .packet_spoof_config_like_cpp
+                .ban_duration_secs,
         });
     }
 
     pub(super) async fn flush_packet_spoof_ban_like_cpp(&mut self) {
-        let Some(plan) = self.pending_packet_spoof_ban_like_cpp.take() else {
+        let Some(plan) = self.admission.pending_packet_spoof_ban_like_cpp.take() else {
             return;
         };
         let Some(port) = self
@@ -345,7 +349,7 @@ impl super::WorldSession {
                 account = self.account_id,
                 "AntiDOS: PacketSpoof ban requested but login DB is unavailable"
             );
-            self.pending_packet_spoof_ban_like_cpp = Some(plan);
+            self.admission.pending_packet_spoof_ban_like_cpp = Some(plan);
             return;
         };
 
@@ -384,7 +388,7 @@ impl super::WorldSession {
                     error = %reason,
                     "AntiDOS: failed to persist PacketSpoof ban"
                 );
-                self.pending_packet_spoof_ban_like_cpp = Some(plan);
+                self.admission.pending_packet_spoof_ban_like_cpp = Some(plan);
             }
         }
     }

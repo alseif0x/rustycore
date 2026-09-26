@@ -330,6 +330,31 @@ pub(crate) struct SessionTransport {
     pub(in crate::session) session_mgr: Option<Arc<SessionManager>>,
 }
 
+/// Packet admission and dispatch state: the opcode dispatch table, the ingress
+/// throttle and spoof-ban bookkeeping, the pending packet queue and the socket
+/// timeout and phase-authority fences for the admitted traffic.
+pub(crate) struct SessionAdmissionState {
+    pub(in crate::session) dispatch_table: HashMap<ClientOpcodes, &'static PacketHandlerEntry>,
+    pub(in crate::session) last_packet_time: Instant,
+    /// The producer and step this session last accepted, per phase (#787).
+    ///
+    /// C++ has one caller and needs no such watermark. Here it is what rejects
+    /// a foreign producer, a retired step and a replay of one already served,
+    /// none of which the identity of the player can distinguish. It is kept per
+    /// phase because one step legitimately issues the world phase and then the
+    /// map phase under the same epoch (`World.cpp:2704` then `World.cpp:2748`).
+    pub(in crate::session) last_phase_authority_like_cpp: [Option<(u64, u64)>; 2],
+    /// Set by the first canonical map-phase request (#787). Until then this
+    /// session has no coordinator and keeps draining its own queue.
+    pub(in crate::session) map_phase_coordinated_like_cpp: bool,
+    pub(in crate::session) packet_spoof_config_like_cpp: PacketSpoofConfigLikeCpp,
+    pub(in crate::session) packet_throttling_like_cpp: HashMap<u16, PacketCounterLikeCpp>,
+    pub(in crate::session) pending_packet_spoof_ban_like_cpp: Option<PacketSpoofPendingBanLikeCpp>,
+    pub(in crate::session) pending_packets: VecDeque<WorldPacket>,
+    pub(in crate::session) socket_timeout_deadline_like_cpp: Instant,
+    pub(in crate::session) socket_timeouts_like_cpp: SocketTimeoutsLikeCpp,
+}
+
 pub struct WorldSession {
     // Account info
     pub account_id: u32,
@@ -370,31 +395,17 @@ pub struct WorldSession {
     // Cross-session commands executed by this session's own update loop.
     pub(in crate::session) session_command_tx: flume::Sender<SessionCommand>,
     pub(in crate::session) session_command_rx: flume::Receiver<SessionCommand>,
-    /// The producer and step this session last accepted, per phase (#787).
-    ///
-    /// C++ has one caller and needs no such watermark. Here it is what rejects
-    /// a foreign producer, a retired step and a replay of one already served,
-    /// none of which the identity of the player can distinguish. It is kept per
-    /// phase because one step legitimately issues the world phase and then the
-    /// map phase under the same epoch (`World.cpp:2704` then `World.cpp:2748`).
-    pub(in crate::session) last_phase_authority_like_cpp: [Option<(u64, u64)>; 2],
+
     pub(in crate::session) durable_creature_runtime_commands_like_cpp:
         Arc<std::sync::Mutex<crate::session::mailbox::DurableCreatureRuntimeCommandsLikeCpp>>,
     pub(in crate::session) visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
 
     // State
     pub(in crate::session) state: SessionState,
-    pub(in crate::session) last_packet_time: Instant,
-    pub(in crate::session) socket_timeouts_like_cpp: SocketTimeoutsLikeCpp,
-    pub(in crate::session) socket_timeout_deadline_like_cpp: Instant,
-    pub(in crate::session) packet_spoof_config_like_cpp: PacketSpoofConfigLikeCpp,
-    pub(in crate::session) packet_throttling_like_cpp: HashMap<u16, PacketCounterLikeCpp>,
 
-    pub(in crate::session) pending_packet_spoof_ban_like_cpp: Option<PacketSpoofPendingBanLikeCpp>,
     pub(in crate::session) legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp,
 
     // Dispatch table (built once, shared ref)
-    pub(in crate::session) dispatch_table: HashMap<ClientOpcodes, &'static PacketHandlerEntry>,
 
     // FIFO sender for C++ CharacterDatabase.Execute-style detached homebind
     // writes. Its single worker drains queued jobs after session teardown and
@@ -647,6 +658,9 @@ pub struct WorldSession {
     /// The session's view of its world: area trigger, taxi, combat and realm flags.
     pub(in crate::session) view: SessionWorldView,
 
+    /// Admission, throttling and dispatch state for the session's inbound packets.
+    pub(crate) admission: SessionAdmissionState,
+
     /// Transport kernel, remote address, session key and session manager handle.
     pub(crate) transport: SessionTransport,
 
@@ -710,7 +724,6 @@ pub struct WorldSession {
     pub(in crate::session) legit_characters: Vec<ObjectGuid>,
 
     // Pending async packets to process
-    pub(in crate::session) pending_packets: VecDeque<WorldPacket>,
 
     // ── ConnectTo flow ──────────────────────────────────────────
 
@@ -970,9 +983,7 @@ pub struct WorldSession {
     /// Generation-checked identity of the one canonical Player value owned by
     /// MapManager. It remains resolvable while detached for a far teleport.
     pub(in crate::session) player_handle_like_cpp: Option<wow_map::PlayerHandle>,
-    /// Set by the first canonical map-phase request (#787). Until then this
-    /// session has no coordinator and keeps draining its own queue.
-    pub(in crate::session) map_phase_coordinated_like_cpp: bool,
+
     /// Dedicated Detour owner handle. The underlying `MMapManager` remains on
     /// its worker thread because Detour state is not `Send + Sync`.
     pub(in crate::session) mmap_pathfinder_like_cpp: Option<Arc<WorldMMapPathfinderWorkerLikeCpp>>,
