@@ -5,6 +5,7 @@
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
 use crate::session::state::SessionDirectory;
+use crate::session::state::SessionDriverServices;
 use crate::session::state::SessionSocialLimits;
 
 #[cfg(test)]
@@ -139,7 +140,6 @@ impl WorldSession {
             remote_address_like_cpp: None,
             pending_packet_spoof_ban_like_cpp: None,
             legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp::default(),
-            represented_runtime_rng_like_cpp: StdRng::from_entropy(),
             dispatch_table: build_dispatch_table(),
             homebind_persistence_tx_like_cpp: None,
             persistence_ports_like_cpp: Box::default(),
@@ -257,6 +257,10 @@ impl WorldSession {
             phase_store: None,
             phase_group_store: None,
             player_registry: None,
+            driver: SessionDriverServices {
+                time_synchronization: TimeSynchronizationStateLikeCpp::default(),
+                represented_runtime_rng_like_cpp: StdRng::from_entropy(),
+            },
             social: SessionSocialLimits {
                 max_recruit_a_friend_bonus_player_level_like_cpp: 85,
                 max_recruit_a_friend_bonus_player_level_difference_like_cpp: 4,
@@ -302,7 +306,6 @@ impl WorldSession {
             player_logout_like_cpp: false,
             finalization: None,
             session_mgr: None,
-            time_synchronization: TimeSynchronizationStateLikeCpp::default(),
             logout_time: None,
             login_time: None,
             player_save_interval_ms_like_cpp: DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP,
@@ -949,17 +952,19 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn seed_represented_runtime_rng_like_cpp(&mut self, seed: u64) {
-        self.represented_runtime_rng_like_cpp = StdRng::seed_from_u64(seed);
+        self.driver.represented_runtime_rng_like_cpp = StdRng::seed_from_u64(seed);
     }
 
     pub(crate) fn represented_urand_u32_like_cpp(&mut self, min: u32, max: u32) -> u32 {
         if min >= max {
             return min;
         }
-        self.represented_runtime_rng_like_cpp.gen_range(min..=max)
+        self.driver
+            .represented_runtime_rng_like_cpp
+            .gen_range(min..=max)
     }
 
     pub(crate) fn represented_runtime_subrng_like_cpp(&mut self) -> StdRng {
-        StdRng::seed_from_u64(self.represented_runtime_rng_like_cpp.next_u64())
+        StdRng::seed_from_u64(self.driver.represented_runtime_rng_like_cpp.next_u64())
     }
 }

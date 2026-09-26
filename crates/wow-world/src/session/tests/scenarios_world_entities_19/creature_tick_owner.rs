@@ -192,7 +192,7 @@ async fn update_global_legacy_owner_skips_real_session_creature_tick_path() {
 
     session.state = crate::session::SessionState::LoggedIn;
     session.creature_tick = 3; // update() increments to 4, so creature tick would fire.
-    session.time_synchronization.timer_ms = 0;
+    session.driver.time_synchronization.timer_ms = 0;
 
     assert_eq!(session.update(50).await, 0);
 

@@ -39,8 +39,8 @@ pub(crate) fn game_time_ms_like_cpp() -> u32 {
 
 impl WorldSession {
     pub(crate) fn reset_time_sync_like_cpp(&mut self) {
-        self.time_synchronization.next_counter = 0;
-        self.time_synchronization.pending_requests.clear();
+        self.driver.time_synchronization.next_counter = 0;
+        self.driver.time_synchronization.pending_requests.clear();
     }
 
     pub(crate) fn record_time_sync_response_like_cpp(
@@ -49,6 +49,7 @@ impl WorldSession {
         client_time: u32,
     ) {
         let Some(server_time_at_sent) = self
+            .driver
             .time_synchronization
             .pending_requests
             .remove(&sequence_index)
@@ -75,21 +76,31 @@ impl WorldSession {
             );
         }
 
-        if self.time_synchronization.clock_delta_queue.len() == 6 {
-            self.time_synchronization.clock_delta_queue.pop_front();
+        if self.driver.time_synchronization.clock_delta_queue.len() == 6 {
+            self.driver
+                .time_synchronization
+                .clock_delta_queue
+                .pop_front();
         }
-        self.time_synchronization
+        self.driver
+            .time_synchronization
             .clock_delta_queue
             .push_back((clock_delta, round_trip_duration));
         self.compute_new_clock_delta_like_cpp();
     }
 
     pub(in crate::session) fn compute_new_clock_delta_like_cpp(&mut self) {
-        if self.time_synchronization.clock_delta_queue.is_empty() {
+        if self
+            .driver
+            .time_synchronization
+            .clock_delta_queue
+            .is_empty()
+        {
             return;
         }
 
         let mut latencies: Vec<u32> = self
+            .driver
             .time_synchronization
             .clock_delta_queue
             .iter()
@@ -112,7 +123,9 @@ impl WorldSession {
         let latency_threshold = latency_standard_deviation.saturating_add(latency_median);
         let mut clock_delta_sum = 0i64;
         let mut sample_size_after_filtering = 0u32;
-        for (clock_delta, round_trip_duration) in &self.time_synchronization.clock_delta_queue {
+        for (clock_delta, round_trip_duration) in
+            &self.driver.time_synchronization.clock_delta_queue
+        {
             if *round_trip_duration < latency_threshold {
                 clock_delta_sum += *clock_delta;
                 sample_size_after_filtering += 1;
@@ -122,11 +135,12 @@ impl WorldSession {
         if sample_size_after_filtering != 0 {
             let mean_clock_delta =
                 (clock_delta_sum as f64 / f64::from(sample_size_after_filtering)).round() as i64;
-            if (mean_clock_delta - self.time_synchronization.clock_delta).abs() > 25 {
-                self.time_synchronization.clock_delta = mean_clock_delta;
+            if (mean_clock_delta - self.driver.time_synchronization.clock_delta).abs() > 25 {
+                self.driver.time_synchronization.clock_delta = mean_clock_delta;
             }
-        } else if self.time_synchronization.clock_delta == 0 {
-            self.time_synchronization.clock_delta = self
+        } else if self.driver.time_synchronization.clock_delta == 0 {
+            self.driver.time_synchronization.clock_delta = self
+                .driver
                 .time_synchronization
                 .clock_delta_queue
                 .back()
@@ -137,6 +151,6 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn set_time_sync_clock_delta_for_test_like_cpp(&mut self, clock_delta: i64) {
-        self.time_synchronization.clock_delta = clock_delta;
+        self.driver.time_synchronization.clock_delta = clock_delta;
     }
 }

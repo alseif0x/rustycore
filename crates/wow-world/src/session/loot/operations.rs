@@ -16,7 +16,7 @@ impl WorldSession {
             min_amount,
             max_amount,
             rate,
-            &mut self.represented_runtime_rng_like_cpp,
+            &mut self.driver.represented_runtime_rng_like_cpp,
         )
     }
     pub(crate) fn canonical_gameobject_is_fully_looted_like_cpp(

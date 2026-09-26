@@ -170,6 +170,17 @@ pub(in crate::session) struct SessionSocialLimits {
     pub(in crate::session) chat_flood_data_like_cpp: [ChatFloodThrottleDataLikeCpp; 2],
 }
 
+/// Session-owned services the phase driver consults: the canonical time-sync
+/// protocol state and the represented gameplay RNG.
+pub(in crate::session) struct SessionDriverServices {
+    /// Canonical per-session time-sync protocol state.
+    pub(in crate::session) time_synchronization: TimeSynchronizationStateLikeCpp,
+    /// Session-owned RNG for represented gameplay choices that C++ resolves through
+    /// `urand`/`SelectRandomContainerElement` while the owning Player/Map runtime is
+    /// still being split out of `WorldSession`.
+    pub(in crate::session) represented_runtime_rng_like_cpp: StdRng,
+}
+
 pub struct WorldSession {
     /// The realm/instance transport, owned by `wow-session` (#297).
     ///
@@ -244,10 +255,6 @@ pub struct WorldSession {
     pub(in crate::session) remote_address_like_cpp: Option<String>,
     pub(in crate::session) pending_packet_spoof_ban_like_cpp: Option<PacketSpoofPendingBanLikeCpp>,
     pub(in crate::session) legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp,
-    /// Session-owned RNG for represented gameplay choices that C++ resolves through
-    /// `urand`/`SelectRandomContainerElement` while the owning Player/Map runtime is
-    /// still being split out of `WorldSession`.
-    pub(in crate::session) represented_runtime_rng_like_cpp: StdRng,
 
     // Dispatch table (built once, shared ref)
     pub(in crate::session) dispatch_table: HashMap<ClientOpcodes, &'static PacketHandlerEntry>,
@@ -506,6 +513,9 @@ pub struct WorldSession {
     /// Social admission limits and chat anti-flood throttle state.
     pub(in crate::session) social: SessionSocialLimits,
 
+    /// Phase-driver services: time-sync state and the represented gameplay RNG.
+    pub(in crate::session) driver: SessionDriverServices,
+
     // Test-only compatibility for pre-#578 fixtures. Production group
     // membership and Player-owned update sequences live on canonical Player.
     #[cfg(test)]
@@ -565,9 +575,6 @@ pub struct WorldSession {
 
     /// Session manager for ConnectTo flow (shared with instance listener).
     pub(in crate::session) session_mgr: Option<Arc<SessionManager>>,
-
-    /// Canonical per-session time-sync protocol state.
-    pub(in crate::session) time_synchronization: TimeSynchronizationStateLikeCpp,
 
     // ── Logout ──────────────────────────────────────────────────────
     /// When set, the session is counting down to logout (20s timer).

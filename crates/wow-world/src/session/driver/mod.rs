@@ -203,14 +203,14 @@ impl WorldSession {
         // pass (`WorldSession.cpp:488-497`). A coordinated session therefore
         // sends it from its map pass tail and must not send it again here.
         if self.state == SessionState::LoggedIn
-            && self.time_synchronization.timer_ms > 0
+            && self.driver.time_synchronization.timer_ms > 0
             && !self.is_map_phase_coordinated_like_cpp()
         {
             self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::TimeSync);
-            if diff_ms >= self.time_synchronization.timer_ms {
+            if diff_ms >= self.driver.time_synchronization.timer_ms {
                 self.send_time_sync();
             } else {
-                self.time_synchronization.timer_ms -= diff_ms;
+                self.driver.time_synchronization.timer_ms -= diff_ms;
             }
         }
 

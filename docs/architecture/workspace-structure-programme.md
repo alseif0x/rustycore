@@ -521,11 +521,31 @@ partia, anadiendo 13 lineas de mas al agregado; con `social` solo quedan dos par
 (los nombres `..._difference_like_cpp` de 58 caracteres) y el slice cuesta +16 lineas en vez de +26.
 Antes de elegir el nombre de un sub-estado conviene medir el punto de uso mas largo.
 
-**Siguiente slice de B4**: `session_driver_timers_and_transitional_misc` (`pending_bind`,
-`represented_runtime_rng_like_cpp`, `time_synchronization`) — su nombre actual es un cajon de sastre,
-asi que al partirlo hay que renombrar la familia por su responsabilidad real en el ledger — y despues
-`player_registry` con su propio slice por radio de llamadas. Metodo ya probado: (1) mover campos con su
-visibilidad efectiva y sus comentarios de procedencia al sub-estado, (2) repuntar solo accesos con
-`cargo check -p wow-world` entre pasos, (3) regenerar census y ledger de runtime con delta revisado
--- incluida la entrada de crecimiento del hotspot y los nombres de familia --, (4)
-`check_architecture.py check` + `self-test`, (5) commit.
+### B4, tercer slice ejecutado: `SessionDriverServices` (2026-09-25)
+
+El estado de sincronizacion de tiempo y el RNG de gameplay representado pasan al sub-estado nombrado
+`SessionDriverServices`, alcanzado por un unico campo `driver`; valores de construccion identicos
+(`TimeSynchronizationStateLikeCpp::default()` y `StdRng::from_entropy()`). Census: 217 -> 216 campos
+de produccion. `pending_bind` **no** se mueve en este slice: sus lectores incluyen
+`handlers/instances`, que dependen del `pub(crate)` mas ancho que el campo ya tenia, y su dueno real
+es la confirmacion de bind de Player/InstanceMap; la familia conserva su nombre transitorio hasta que
+ese ultimo miembro salga.
+
+Segunda leccion medida sobre el coste de un sub-estado: **los nombres de campo largos mas el prefijo
+del contenedor se pagan en re-envoltura de `rustfmt`**. Aqui el diff inserta 111 lineas y borra 62
+(+29 produccion, +20 test) sin cambiar una sola llamada ni comportamiento: `time_synchronization`
+tiene 19 caracteres y, detras de `self.driver.`, empuja condiciones de `session/time_synchronization.rs`
+y de los tests de driver/movimiento/publicacion por encima de 100 columnas. Antes de mover una familia
+conviene contar las lineas que quedarian entre 94 y 100 columnas: ese es el coste real, no el numero de
+campos. Cuando ese coste domine, el siguiente paso no es ensanchar el contenedor sino mover los
+*metodos* de esa familia al `impl` del sub-estado, donde `self.<campo>` no lleva prefijo.
+
+**Siguiente slice de B4**: `pending_bind` (transitorio, visibilidad `pub(crate)` por sus lectores de
+`handlers/instances`; su destino es Player/InstanceMap) y despues, por tamano, las familias
+`player_movement_combat_and_visibility` (6), `mailbox_and_cross_session_delivery` (9) y
+`packet_admission_dispatch` (11); `player_registry` y `transport_and_physical_connections` van con
+slice propio por radio de llamadas. Metodo ya probado: (1) mover campos con su visibilidad efectiva y
+sus comentarios de procedencia al sub-estado, (2) repuntar solo accesos con `cargo check -p wow-world`
+entre pasos, (3) regenerar census y ledger de runtime con delta revisado -- incluida la entrada de
+crecimiento del hotspot y los nombres de familia --, (4) `check_architecture.py check` + `self-test`,
+(5) commit.

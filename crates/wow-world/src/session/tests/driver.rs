@@ -28,6 +28,7 @@ mod queued_packets {
                 Box::pin(async move {
                     let marker = packet.read_uint32().unwrap();
                     session
+                        .driver
                         .time_synchronization
                         .clock_delta_queue
                         .push_back((i64::from(marker), 0));
@@ -65,6 +66,7 @@ mod queued_packets {
         drop(pass);
         assert_eq!(
             session
+                .driver
                 .time_synchronization
                 .clock_delta_queue
                 .iter()
@@ -86,6 +88,7 @@ mod queued_packets {
         assert!(session.pending_packets.is_empty());
         assert_eq!(
             session
+                .driver
                 .time_synchronization
                 .clock_delta_queue
                 .iter()

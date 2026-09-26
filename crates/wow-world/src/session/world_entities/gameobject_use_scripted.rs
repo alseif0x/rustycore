@@ -112,7 +112,7 @@ impl WorldSession {
             );
             for _ in 0..source.caster_target_spell_targets {
                 let Some(target_guid) = unique_users
-                    .choose(&mut self.represented_runtime_rng_like_cpp)
+                    .choose(&mut self.driver.represented_runtime_rng_like_cpp)
                     .copied()
                 else {
                     continue;

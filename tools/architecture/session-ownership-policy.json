@@ -588,6 +588,13 @@
           "source_class": "production"
         },
         {
+          "name": "driver",
+          "type": "SessionDriverServices",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "driver_phase_trace_like_cpp",
           "type": "Vec < crate :: session :: driver :: phases :: SessionDriverPhaseLikeCpp >",
           "visibility": "pub (in crate :: session)",
@@ -3445,13 +3452,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "represented_runtime_rng_like_cpp",
-          "type": "StdRng",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "represented_self_res_spells_like_cpp",
           "type": "BTreeSet < i32 >",
           "visibility": "pub (in crate :: session)",
@@ -4068,13 +4068,6 @@
         {
           "name": "terrain_swap_store",
           "type": "Option < Arc < wow_data :: TerrainSwapStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "time_synchronization",
-          "type": "TimeSynchronizationStateLikeCpp",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -82332,7 +82325,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:74c439a2fc7edba37b37c2a157574578:len=86777|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:6b8e8a650b521f1fdac1bd7806f7ec1c:len=86473|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

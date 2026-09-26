@@ -183,14 +183,14 @@ impl WorldSession {
     }
 
     pub(crate) fn adjust_client_movement_time_like_cpp(&self, time: u32) -> u32 {
-        let movement_time = i64::from(time) + self.time_synchronization.clock_delta;
-        if self.time_synchronization.clock_delta == 0
+        let movement_time = i64::from(time) + self.driver.time_synchronization.clock_delta;
+        if self.driver.time_synchronization.clock_delta == 0
             || !(0..=i64::from(u32::MAX)).contains(&movement_time)
         {
             warn!(
                 account = self.account_id,
                 client_time = time,
-                clock_delta = self.time_synchronization.clock_delta,
+                clock_delta = self.driver.time_synchronization.clock_delta,
                 "The computed movement time using clockDelta is erroneous. Using fallback instead"
             );
             crate::session::game_time_ms_like_cpp()
