@@ -302,10 +302,10 @@ impl WorldSession {
             .unwrap_or(0.0);
         let now = Instant::now();
         let diff_ms = now
-            .saturating_duration_since(self.combat_tick_last_at_like_cpp)
+            .saturating_duration_since(self.view.combat_tick_last_at_like_cpp)
             .as_millis()
             .min(u128::from(u32::MAX)) as u32;
-        self.combat_tick_last_at_like_cpp = now;
+        self.view.combat_tick_last_at_like_cpp = now;
         // Check if target still exists. C++ `Unit::UpdateMeleeAttackingState`
         // is driven from `GetVictim()`; if the represented creature vanished,
         // clear the canonical player's attack state as well as session mirrors.

@@ -540,11 +540,24 @@ conviene contar las lineas que quedarian entre 94 y 100 columnas: ese es el cost
 campos. Cuando ese coste domine, el siguiente paso no es ensanchar el contenedor sino mover los
 *metodos* de esa familia al `impl` del sub-estado, donde `self.<campo>` no lleva prefijo.
 
+### B4, cuarto slice ejecutado: `SessionWorldView` (2026-09-25)
+
+Los seis miembros restantes de `player_movement_combat_and_visibility` (area trigger activo, lookup de
+mapas de taxi, instante del ultimo tick de combate, revision de salud melee presentada y los dos flags
+de reino PvP) pasan al sub-estado nombrado `SessionWorldView`, alcanzado por un unico campo `view`.
+Comentarios de procedencia C++ movidos con sus campos; valores de construccion identicos. Census:
+216 -> 211 campos de produccion. Coste: +14 produccion/+7 test (solo una envoltura nueva).
+
+Este slice ademas **estrecha** visibilidad: `active_area_trigger` era `pub(crate)` y pasa a
+`pub(in crate::session)` porque sus seis lectores viven dentro del arbol de `session`; la visibilidad
+ancha estaba sin usar. Es el sentido correcto de la escalera de visibilidad: el sub-estado no
+ensancha, y aprovecha para apretar lo que sobraba.
+
 **Siguiente slice de B4**: `pending_bind` (transitorio, visibilidad `pub(crate)` por sus lectores de
 `handlers/instances`; su destino es Player/InstanceMap) y despues, por tamano, las familias
-`player_movement_combat_and_visibility` (6), `mailbox_and_cross_session_delivery` (9) y
-`packet_admission_dispatch` (11); `player_registry` y `transport_and_physical_connections` van con
-slice propio por radio de llamadas. Metodo ya probado: (1) mover campos con su visibilidad efectiva y
+`mailbox_and_cross_session_delivery` (9) y `packet_admission_dispatch` (11);
+`player_registry` y `transport_and_physical_connections` van con slice propio por radio de llamadas.
+Metodo ya probado: (1) mover campos con su visibilidad efectiva y
 sus comentarios de procedencia al sub-estado, (2) repuntar solo accesos con `cargo check -p wow-world`
 entre pasos, (3) regenerar census y ledger de runtime con delta revisado -- incluida la entrada de
 crecimiento del hotspot y los nombres de familia --, (4) `check_architecture.py check` + `self-test`,

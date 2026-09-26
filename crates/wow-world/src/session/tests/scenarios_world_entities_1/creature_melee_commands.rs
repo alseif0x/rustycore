@@ -189,7 +189,9 @@ async fn apply_creature_melee_damage_command_delayed_after_heal_presents_current
     assert_eq!(session.player_health_like_cpp(), 95);
     assert!(session.player_is_alive_like_cpp());
     assert_eq!(
-        session.last_presented_creature_melee_health_state_revision_like_cpp,
+        session
+            .view
+            .last_presented_creature_melee_health_state_revision_like_cpp,
         committed_revision
     );
 
@@ -278,7 +280,9 @@ async fn apply_creature_melee_damage_command_replay_after_resurrection_is_suppre
             )
         })
         .unwrap();
-    let presented_before = session.last_presented_creature_melee_health_state_revision_like_cpp;
+    let presented_before = session
+        .view
+        .last_presented_creature_melee_health_state_revision_like_cpp;
     session
         .session_command_tx()
         .try_send(SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command))
@@ -301,7 +305,9 @@ async fn apply_creature_melee_damage_command_replay_after_resurrection_is_suppre
     assert_eq!(session.player_health_like_cpp(), 40);
     assert!(session.player_is_alive_like_cpp());
     assert_eq!(
-        session.last_presented_creature_melee_health_state_revision_like_cpp,
+        session
+            .view
+            .last_presented_creature_melee_health_state_revision_like_cpp,
         presented_before
     );
     assert!(send_rx.try_recv().is_err(), "replay emits no packets");

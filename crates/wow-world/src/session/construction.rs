@@ -7,6 +7,7 @@
 use crate::session::state::SessionDirectory;
 use crate::session::state::SessionDriverServices;
 use crate::session::state::SessionSocialLimits;
+use crate::session::state::SessionWorldView;
 
 #[cfg(test)]
 use super::BattlePetTestFixtureLikeCpp;
@@ -257,6 +258,14 @@ impl WorldSession {
             phase_store: None,
             phase_group_store: None,
             player_registry: None,
+            view: SessionWorldView {
+                is_pvp_realm_like_cpp: false,
+                is_ffa_pvp_realm_like_cpp: false,
+                combat_tick_last_at_like_cpp: Instant::now(),
+                last_presented_creature_melee_health_state_revision_like_cpp: 0,
+                taxi_node_map_ids_like_cpp: HashMap::new(),
+                active_area_trigger: None,
+            },
             driver: SessionDriverServices {
                 time_synchronization: TimeSynchronizationStateLikeCpp::default(),
                 represented_runtime_rng_like_cpp: StdRng::from_entropy(),
@@ -316,8 +325,6 @@ impl WorldSession {
             max_player_level_config_like_cpp: 80,
             max_primary_trade_skills_like_cpp:
                 crate::profession::DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP,
-            is_pvp_realm_like_cpp: false,
-            is_ffa_pvp_realm_like_cpp: false,
             #[cfg(test)]
             rest_mgr_test_fixture_like_cpp: RestMgrTestFixtureLikeCpp::default(),
             #[cfg(test)]
@@ -475,7 +482,6 @@ impl WorldSession {
             mmap_pathfinder_like_cpp: None,
             #[cfg(test)]
             combat_target: None,
-            combat_tick_last_at_like_cpp: Instant::now(),
             #[cfg(test)]
             in_combat: false,
             #[cfg(test)]
@@ -492,7 +498,6 @@ impl WorldSession {
             player_health_like_cpp: 100,
             #[cfg(test)]
             player_max_health_like_cpp: 100,
-            last_presented_creature_melee_health_state_revision_like_cpp: 0,
             #[cfg(test)]
             player_movement_time_like_cpp: 0,
             #[cfg(test)]
@@ -562,7 +567,6 @@ impl WorldSession {
             represented_void_storage_loaded_like_cpp: false,
             #[cfg(test)]
             represented_adventure_map_start_quest_requests_like_cpp: Vec::new(),
-            taxi_node_map_ids_like_cpp: HashMap::new(),
             #[cfg(test)]
             taxi_flight_state_like_cpp: None,
             #[cfg(test)]
@@ -942,7 +946,6 @@ impl WorldSession {
             player_interaction_data_like_cpp: PlayerInteractionDataLikeCpp::default(),
             #[cfg(test)]
             gossip_options: Vec::new(),
-            active_area_trigger: None,
             #[cfg(test)]
             pending_teleport: None,
             instance_lock_mgr: None,

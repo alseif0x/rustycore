@@ -465,7 +465,7 @@ impl WorldSession {
     /// in the map, except for GMs and players whose loaded/zone-restored flags
     /// already say they are resting.
     pub(in crate::session) fn apply_represented_ffa_pvp_login_state_like_cpp(&mut self) -> bool {
-        if !self.is_ffa_pvp_realm_like_cpp
+        if !self.view.is_ffa_pvp_realm_like_cpp
             || self.player_is_game_master_like_cpp() != Some(false)
             || self.resolved_visible_resting_like_cpp() != Some(false)
         {
@@ -475,10 +475,10 @@ impl WorldSession {
         self.set_represented_ffa_pvp_flag_like_cpp(true)
     }
     pub fn set_pvp_realm_like_cpp(&mut self, is_pvp_realm: bool) {
-        self.is_pvp_realm_like_cpp = is_pvp_realm;
+        self.view.is_pvp_realm_like_cpp = is_pvp_realm;
     }
     pub fn set_ffa_pvp_realm_like_cpp(&mut self, is_ffa_pvp_realm: bool) {
-        self.is_ffa_pvp_realm_like_cpp = is_ffa_pvp_realm;
+        self.view.is_ffa_pvp_realm_like_cpp = is_ffa_pvp_realm;
     }
     pub(crate) fn resolved_combat_target_like_cpp(&self) -> Option<Option<ObjectGuid>> {
         let canonical = self.with_owned_player_like_cpp(|player| player.unit().attacking());

@@ -434,7 +434,7 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn set_taxi_node_map_id_like_cpp(&mut self, node_id: u32, map_id: u16) {
-        self.taxi_node_map_ids_like_cpp.insert(node_id, map_id);
+        self.view.taxi_node_map_ids_like_cpp.insert(node_id, map_id);
     }
     /// The legacy map facade must follow the same map instance that owns the
     /// canonical Player. Instance `0` remains only the bootstrap fallback for

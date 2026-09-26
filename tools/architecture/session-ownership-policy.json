@@ -56,13 +56,6 @@
           "source_class": "production"
         },
         {
-          "name": "active_area_trigger",
-          "type": "Option < u32 >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "active_loot_guid",
           "type": "wow_core :: ObjectGuid",
           "visibility": "pub (crate)",
@@ -407,13 +400,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "combat_tick_last_at_like_cpp",
-          "type": "Instant",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "condition_store",
@@ -945,20 +931,6 @@
           "source_class": "production"
         },
         {
-          "name": "is_ffa_pvp_realm_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "is_pvp_realm_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "item_class_store",
           "type": "Option < Arc < ItemClassStore > >",
           "visibility": "pub (in crate :: session)",
@@ -1052,13 +1024,6 @@
         {
           "name": "last_phase_authority_like_cpp",
           "type": "[Option < (u64 , u64) > ; 2]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "last_presented_creature_melee_health_state_revision_like_cpp",
-          "type": "u64",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -4023,13 +3988,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "taxi_node_map_ids_like_cpp",
-          "type": "HashMap < u32 , u16 >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "taxi_unit_flags_like_cpp",
           "type": "UnitFlags",
           "visibility": "pub (in crate :: session)",
@@ -4210,6 +4168,13 @@
           "name": "vendor_item_counts",
           "type": "HashMap < (wow_core :: ObjectGuid , u32) , VendorItemCount >",
           "visibility": "pub (crate)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "name": "view",
+          "type": "SessionWorldView",
+          "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
         },
@@ -82325,7 +82290,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:6b8e8a650b521f1fdac1bd7806f7ec1c:len=86473|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:b5ace3779035efa1bb69c1e7aa4b21d8:len=85498|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

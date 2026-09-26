@@ -181,6 +181,25 @@ pub(in crate::session) struct SessionDriverServices {
     pub(in crate::session) represented_runtime_rng_like_cpp: StdRng,
 }
 
+/// The session's view of the world it is in: the active area trigger, the taxi
+/// travel map lookup, the combat-tick bookkeeping and the realm PvP flags.
+pub(in crate::session) struct SessionWorldView {
+    /// C++ `World::IsPvPRealm()` classification.
+    pub(in crate::session) is_pvp_realm_like_cpp: bool,
+    /// C++ `World::IsFFAPvPRealm()` classification.
+    pub(in crate::session) is_ffa_pvp_realm_like_cpp: bool,
+    /// Last represented player melee tick used to decrement C++ `m_attackTimer`.
+    pub(in crate::session) combat_tick_last_at_like_cpp: Instant,
+    /// High-water mark for map-owned creature-melee presentation commands.
+    /// Canonical health/death authority lives on `wow-map`; this suppresses
+    /// durable FIFO replay without writing delayed values back to that owner.
+    pub(in crate::session) last_presented_creature_melee_health_state_revision_like_cpp: u64,
+    /// Minimal TaxiNodes.db2 map lookup used by represented `MoveSplineDone` taxi transitions.
+    pub(in crate::session) taxi_node_map_ids_like_cpp: HashMap<u32, u16>,
+    /// Currently active area trigger ID, set when entered and cleared when exited.
+    pub(in crate::session) active_area_trigger: Option<u32>,
+}
+
 pub struct WorldSession {
     /// The realm/instance transport, owned by `wow-session` (#297).
     ///
@@ -516,6 +535,9 @@ pub struct WorldSession {
     /// Phase-driver services: time-sync state and the represented gameplay RNG.
     pub(in crate::session) driver: SessionDriverServices,
 
+    /// The session's view of its world: area trigger, taxi, combat and realm flags.
+    pub(in crate::session) view: SessionWorldView,
+
     // Test-only compatibility for pre-#578 fixtures. Production group
     // membership and Player-owned update sequences live on canonical Player.
     #[cfg(test)]
@@ -598,10 +620,6 @@ pub struct WorldSession {
     /// C++ `CONFIG_MAX_PRIMARY_TRADE_SKILL`, kept independent from talent
     /// `CharacterPoints` and from the two physical profession associations.
     pub(in crate::session) max_primary_trade_skills_like_cpp: u8,
-    /// C++ `World::IsPvPRealm()` classification.
-    pub(in crate::session) is_pvp_realm_like_cpp: bool,
-    /// C++ `World::IsFFAPvPRealm()` classification.
-    pub(in crate::session) is_ffa_pvp_realm_like_cpp: bool,
     /// Handle-less RestMgr and rate-policy fixture; production state belongs to Player.
     #[cfg(test)]
     pub(in crate::session) rest_mgr_test_fixture_like_cpp: RestMgrTestFixtureLikeCpp,
@@ -880,8 +898,6 @@ pub struct WorldSession {
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
     #[cfg(test)]
     pub(crate) combat_target: Option<wow_core::ObjectGuid>,
-    /// Last represented player melee tick used to decrement C++ `m_attackTimer`.
-    pub(in crate::session) combat_tick_last_at_like_cpp: Instant,
     /// True when the player is engaged in combat.
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
     #[cfg(test)]
@@ -907,10 +923,6 @@ pub struct WorldSession {
     /// Test-only legacy max-health fixture for sessions without a Player handle.
     #[cfg(test)]
     pub(in crate::session) player_max_health_like_cpp: u32,
-    /// High-water mark for map-owned creature-melee presentation commands.
-    /// Canonical health/death authority lives on `wow-map`; this suppresses
-    /// durable FIFO replay without writing delayed values back to that owner.
-    pub(in crate::session) last_presented_creature_melee_health_state_revision_like_cpp: u64,
     /// Represented `Unit::m_movementInfo.time` for client movement ACK side effects.
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
     #[cfg(test)]
@@ -1037,8 +1049,6 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(in crate::session) represented_adventure_map_start_quest_requests_like_cpp:
         Vec<RepresentedAdventureMapStartQuestLikeCpp>,
-    /// Minimal TaxiNodes.db2 map lookup used by represented `MoveSplineDone` taxi transitions.
-    pub(in crate::session) taxi_node_map_ids_like_cpp: HashMap<u32, u16>,
     /// Represented active `FlightPathMovementGenerator`, if any.
     #[cfg(test)]
     pub(in crate::session) taxi_flight_state_like_cpp: Option<RepresentedTaxiFlightStateLikeCpp>,
@@ -1727,10 +1737,6 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(crate) gossip_options: Vec<GossipOptionInfo>,
 
-    // ── Area trigger tracking ──────────────────────────────────────
-    /// Currently active area trigger ID (to prevent retriggering on same position).
-    /// Set to Some(trigger_id) when entered, None when exited.
-    pub(crate) active_area_trigger: Option<u32>,
     /// Ownerless legacy fixtures only; production uses Player's teleport state.
     #[cfg(test)]
     pub(in crate::session) pending_teleport: Option<(u32, wow_core::Position)>,

@@ -59,7 +59,7 @@ impl WorldSession {
         if !self.set_pending_teleport_like_cpp(Some((map_id, destination))) {
             return;
         }
-        self.active_area_trigger = None;
+        self.view.active_area_trigger = None;
         if !self.set_represented_far_teleport_pending_like_cpp(true) {
             return;
         }

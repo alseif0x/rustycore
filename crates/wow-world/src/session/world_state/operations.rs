@@ -133,7 +133,7 @@ impl WorldSession {
                         } else if (faction_template.enemy_group & faction_group_mask) != 0 {
                             true
                         } else {
-                            self.is_pvp_realm_like_cpp
+                            self.view.is_pvp_realm_like_cpp
                         }
                     })
             }
@@ -155,7 +155,7 @@ impl WorldSession {
         if self.set_represented_tavern_resting_like_cpp(trigger_id, entered) {
             self.send_represented_resting_player_flag_update_like_cpp();
         }
-        if self.is_ffa_pvp_realm_like_cpp {
+        if self.view.is_ffa_pvp_realm_like_cpp {
             // C++ `MiscHandler.cpp::HandleAreaTriggerOpcode` toggles FFA
             // directly from `packet.Entered`, independently of RestMgr's
             // aggregate mask. Leaving an inn can therefore restore FFA while
@@ -529,7 +529,7 @@ impl WorldSession {
         let (exited_trigger_id, entered_trigger) = {
             // Get all triggers at the current position on the player's current map.
             let triggers = store.get_triggers_at_position(self.player_map_id_like_cpp(), &pos);
-            let exited_trigger_id = self.active_area_trigger.filter(|prev_trigger_id| {
+            let exited_trigger_id = self.view.active_area_trigger.filter(|prev_trigger_id| {
                 !triggers
                     .iter()
                     .any(|trigger| trigger.trigger_id == *prev_trigger_id)
@@ -552,18 +552,18 @@ impl WorldSession {
                 prev_trigger_id,
                 false,
             );
-            self.active_area_trigger = None;
+            self.view.active_area_trigger = None;
         }
 
         // Check if we've entered a new trigger
         if let Some((trigger_id, teleport)) = entered_trigger {
             // Only trigger if this is a NEW trigger (wasn't active before)
-            if self.active_area_trigger != Some(trigger_id) {
+            if self.view.active_area_trigger != Some(trigger_id) {
                 info!(
                     account = self.account_id,
                     trigger_id, "Entered area trigger"
                 );
-                self.active_area_trigger = Some(trigger_id);
+                self.view.active_area_trigger = Some(trigger_id);
 
                 if self.handle_represented_tavern_area_trigger_with_catalog_like_cpp(
                     catalogs.taverns.as_ref(),

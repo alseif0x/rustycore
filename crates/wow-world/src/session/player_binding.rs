@@ -230,7 +230,8 @@ impl WorldSession {
         }
         self.player_guid = guid;
         if player_changed {
-            self.last_presented_creature_melee_health_state_revision_like_cpp = 0;
+            self.view
+                .last_presented_creature_melee_health_state_revision_like_cpp = 0;
             // Visible auras and their completeness proof belong to the C++
             // Player, not the authenticated WorldSession. Clear both at the
             // identity boundary so a later character cannot inherit positive

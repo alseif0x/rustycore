@@ -478,7 +478,9 @@ impl WorldSession {
     ) -> Option<u64> {
         if committed_revision == 0
             || committed_revision
-                <= self.last_presented_creature_melee_health_state_revision_like_cpp
+                <= self
+                    .view
+                    .last_presented_creature_melee_health_state_revision_like_cpp
         {
             return None;
         }
@@ -519,7 +521,8 @@ impl WorldSession {
                 canonical_health.min(u64::from(self.player_max_health_like_cpp)) as u32;
             self.player_alive_like_cpp = _canonical_alive && self.player_health_like_cpp > 0;
         }
-        self.last_presented_creature_melee_health_state_revision_like_cpp = committed_revision;
+        self.view
+            .last_presented_creature_melee_health_state_revision_like_cpp = committed_revision;
         self.sync_player_registry_state_like_cpp();
         Some(canonical_health)
     }
