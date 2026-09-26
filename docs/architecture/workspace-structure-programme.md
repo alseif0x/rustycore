@@ -716,12 +716,51 @@ por eso va aparte y despues.
 Balance acumulado de B4 (produccion): **221 -> 150 campos** en once slices. El LOC del agregado sube
 (~+640 lineas registradas como deuda transitoria) y baja cuando los sub-estados salgan del arbol.
 
-**Siguiente slice de B4**: los dos `Arc<AtomicBool>` compartidos
-(`advanced_combat_logging_enabled_like_cpp`, `visibility_refresh_pending_like_cpp`, 14 accesos) si se
-confirma su cohesion -- comparten el patron "flag atomico que la sesion comparte con sus servicios",
-pero sus comentarios de procedencia son de familias distintas, asi que si no se sostiene se dejan; los
-railes de comando (`session_command_tx`, 136 accesos en 112 funciones) van con el metodo de mover
-metodos, no de mover campos, empezando por introducir el helper de envio que hoy no existe.
+### B4, duodecimo slice ejecutado: `SessionSharedFlags` (2026-09-25)
+
+Los dos `Arc<AtomicBool>` compartidos (`advanced_combat_logging_enabled_like_cpp`,
+`visibility_refresh_pending_like_cpp`) pasan al sub-estado nombrado `SessionSharedFlags`, alcanzado por
+el campo `flags`: son el mismo tipo de valor (un booleano que la sesion publica a sus tareas de
+publicacion), que es lo que los hace cohesionados y no un cajon. Census: 150 -> **149** campos de
+produccion; coste +19 produccion/+2 test. Balance B4: **221 -> 149** en doce slices.
+
+### B3: hallazgo con datos -- los tests de dominio son suites de integracion de la app (2026-09-25)
+
+Medidos los cuatro modulos que B3 nombra antes de mover nada: `loot_tests` (15 610 lineas, 29
+ficheros), `quest_tests` (10 079, 18), `character_tests` (13 146, 29) y `group_tests` (5 830, 14) =
+**44 665 lineas y 90 ficheros**, con solo 92 referencias a `WorldSession` y 290 a crates de dominio.
+El desglose parecia prometedor (70 de 90 ficheros sin `WorldSession`), pero al abrir uno se ve el
+patron real: `use super::*;`, fixtures del padre y llamadas del tipo
+`session.process_represented_session_commands_like_cpp()`, `session.session_command_tx()`,
+`SessionCommand::...`, `crate::conditions::...`. **Son suites de integracion de la aplicacion**, no
+tests de reglas de dominio: importan constantes de `wow_loot`, pero ejercitan el adaptador y el
+runtime de la sesion. No pueden cruzar a `wow-loot`/`wow-social`/`wow-entities` porque la direccion de
+dependencias lo prohibe (los crates de dominio no pueden depender de `wow-world`).
+
+B3 queda reformulado, con lo que si es accionable: (i) cada crate de dominio debe tener sus propias
+pruebas de regla (auditar cobertura, no mover); (ii) las suites de app son candidatas a **target de
+integracion** (`crates/wow-world/tests/`) consumiendo una feature `test-fixtures`, lo que saca ~44k
+lineas de la masa de test de la lib y es un trabajo por modulo con re-exportacion de fixtures; (iii)
+los **306 campos de fixture** de `WorldSession` se retiran fichero a fichero cuando cada test construye
+un `Player` canonico, que es la parte de B3 con ganancia directa de superficie.
+
+### B7: la limpieza de avisos esta bloqueada por el ratchet de lineas de test (2026-09-25)
+
+Medido antes de tocar: `cargo check -p wow-world` reporta **167 imports sin usar** en 53 ficheros (172
+en la lib, 224 con `--tests`). Intente retirarlos y la compilacion de tests demostro que **todos** los
+avisos son codigo vivo para los modulos `#[cfg(test)]` del mismo crate: quitar los 151 imports privados
+rompe 206 compilaciones y quitar los 16 `pub(crate) use` (re-exports) rompe 301. La correccion honesta
+es `#[cfg(test)]` en cada uno, pero eso **mueve lineas de produccion a lineas de test**, y el ratchet
+de hotspot limita las tres cifras (produccion, test y total): no se puede. Conclusion: B7 no se
+desbloquea hasta que la migracion de B3 retire los consumidores de test, o hasta que exista una
+decision explicita que permita esa reclasificacion. Queda registrado, no forzado.
+
+**Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
+capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
+superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
+son los mayores) y **B6** (`map_manager` + `map_manager_tests` -> `wow-map` con contrato), que son las
+dos que sacan lineas del agregado. El rail de comandos (`session_command_tx`, 136 accesos en 112
+funciones) sigue pendiente del helper de envio que hoy no existe.
 
 Metodo ya probado: (1) mover campos con su visibilidad efectiva y
 sus comentarios de procedencia al sub-estado, (2) repuntar solo accesos con `cargo check -p wow-world`

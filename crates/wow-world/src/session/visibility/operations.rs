@@ -366,7 +366,8 @@ impl WorldSession {
             .await;
     }
     pub(crate) fn clear_pending_visibility_refresh_like_cpp(&self) {
-        self.visibility_refresh_pending_like_cpp
+        self.flags
+            .visibility_refresh_pending_like_cpp
             .store(false, Ordering::Release);
     }
     pub(crate) async fn flush_pending_visibility_refresh_with_catalogs_like_cpp(
@@ -377,6 +378,7 @@ impl WorldSession {
             return;
         }
         if self
+            .flags
             .visibility_refresh_pending_like_cpp
             .swap(false, Ordering::AcqRel)
         {

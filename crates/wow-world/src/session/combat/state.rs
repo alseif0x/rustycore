@@ -546,11 +546,13 @@ impl WorldSession {
             .represented_combat_stat_recalculations_like_cpp
     }
     pub(crate) fn represented_set_advanced_combat_logging_like_cpp(&mut self, enable: bool) {
-        self.advanced_combat_logging_enabled_like_cpp
+        self.flags
+            .advanced_combat_logging_enabled_like_cpp
             .store(enable, Ordering::Relaxed);
     }
     pub(crate) fn represented_advanced_combat_logging_enabled_like_cpp(&self) -> bool {
-        self.advanced_combat_logging_enabled_like_cpp
+        self.flags
+            .advanced_combat_logging_enabled_like_cpp
             .load(Ordering::Relaxed)
     }
     #[cfg(test)]

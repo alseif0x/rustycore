@@ -13,6 +13,7 @@ use crate::session::state::SessionLifecycleState;
 use crate::session::state::SessionPhaseRail;
 use crate::session::state::SessionQuestState;
 use crate::session::state::SessionRealmPolicy;
+use crate::session::state::SessionSharedFlags;
 use crate::session::state::SessionSocialLimits;
 use crate::session::state::SessionSpellState;
 use crate::session::state::SessionTransport;
@@ -134,7 +135,7 @@ impl WorldSession {
             },
 
             durable_creature_runtime_commands_like_cpp: Default::default(),
-            visibility_refresh_pending_like_cpp: Arc::new(AtomicBool::new(false)),
+
             state: SessionState::Authed,
 
             legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp::default(),
@@ -341,6 +342,10 @@ impl WorldSession {
                 legit_characters: Vec::new(),
                 recent_player_guid_low_like_cpp: 0,
                 mute_time_like_cpp: 0,
+            },
+            flags: SessionSharedFlags {
+                advanced_combat_logging_enabled_like_cpp: Arc::new(AtomicBool::new(false)),
+                visibility_refresh_pending_like_cpp: Arc::new(AtomicBool::new(false)),
             },
             view: SessionWorldView {
                 is_pvp_realm_like_cpp: false,
@@ -590,7 +595,7 @@ impl WorldSession {
             represented_action_buttons_like_cpp: [0; wow_packet::packets::misc::MAX_ACTION_BUTTONS],
             #[cfg(test)]
             represented_action_buttons_loaded_like_cpp: false,
-            advanced_combat_logging_enabled_like_cpp: Arc::new(AtomicBool::new(false)),
+
             #[cfg(test)]
             player_moved_unit_guid_like_cpp: ObjectGuid::EMPTY,
 

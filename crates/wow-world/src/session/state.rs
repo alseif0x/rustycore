@@ -382,6 +382,19 @@ pub(crate) struct SessionAccountState {
     pub(in crate::session) mute_time_like_cpp: i64,
 }
 
+/// Cross-thread session flags shared with the services that publish for this
+/// session: whether advanced combat logging selects the full spell-log payload,
+/// and whether a deferred visibility refresh is still owed.
+pub(crate) struct SessionSharedFlags {
+    /// C++ `Player::_advancedCombatLoggingEnabled`; consumed when combat-log fanout selects full/basic payloads.
+    /// C++ `WorldSession::_filterAddonMessages`' sibling for
+    /// `SMSG_SPELL_GO`: shared so a producer can commit the combat-log packet
+    /// variant per recipient while distributing a cast, the way C++ selects it
+    /// synchronously inside `WorldObject::SendCombatLogMessage`.
+    pub(in crate::session) advanced_combat_logging_enabled_like_cpp: Arc<AtomicBool>,
+    pub(in crate::session) visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
+}
+
 pub struct WorldSession {
     // Account info
     pub account_id: u32,
@@ -419,7 +432,6 @@ pub struct WorldSession {
 
     pub(in crate::session) durable_creature_runtime_commands_like_cpp:
         Arc<std::sync::Mutex<crate::session::mailbox::DurableCreatureRuntimeCommandsLikeCpp>>,
-    pub(in crate::session) visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
 
     // State
     pub(in crate::session) state: SessionState,
@@ -678,6 +690,9 @@ pub struct WorldSession {
 
     /// The session's view of its world: area trigger, taxi, combat and realm flags.
     pub(in crate::session) view: SessionWorldView,
+
+    /// Flags this session publishes to its publisher tasks.
+    pub(crate) flags: SessionSharedFlags,
 
     /// Realm and instance policy for this session.
     pub(crate) realm_policy: SessionRealmPolicy,
@@ -1101,12 +1116,7 @@ pub struct WorldSession {
         [u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS],
     #[cfg(test)]
     pub(in crate::session) represented_action_buttons_loaded_like_cpp: bool,
-    /// C++ `Player::_advancedCombatLoggingEnabled`; consumed when combat-log fanout selects full/basic payloads.
-    /// C++ `WorldSession::_filterAddonMessages`' sibling for
-    /// `SMSG_SPELL_GO`: shared so a producer can commit the combat-log packet
-    /// variant per recipient while distributing a cast, the way C++ selects it
-    /// synchronously inside `WorldObject::SendCombatLogMessage`.
-    pub(in crate::session) advanced_combat_logging_enabled_like_cpp: Arc<AtomicBool>,
+
     /// C++ `Player::GetUnitBeingMoved()` represented GUID.
     #[cfg(test)]
     pub(in crate::session) player_moved_unit_guid_like_cpp: ObjectGuid,

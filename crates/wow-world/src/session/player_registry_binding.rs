@@ -145,10 +145,10 @@ impl WorldSession {
                 client_visible_guids_like_cpp: self.client_visible_guids_like_cpp.clone(),
                 client_visible_transports_like_cpp: self.client_visible_transports_like_cpp.clone(),
                 advanced_combat_logging_enabled_like_cpp: Arc::clone(
-                    &self.advanced_combat_logging_enabled_like_cpp,
+                    &self.flags.advanced_combat_logging_enabled_like_cpp,
                 ),
                 visibility_refresh_pending_like_cpp: Arc::clone(
-                    &self.visibility_refresh_pending_like_cpp,
+                    &self.flags.visibility_refresh_pending_like_cpp,
                 ),
             },
             Arc::clone(&self.lifecycle.durable_loot_money_persistence_like_cpp),

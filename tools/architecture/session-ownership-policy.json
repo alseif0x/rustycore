@@ -143,13 +143,6 @@
           "source_class": "production"
         },
         {
-          "name": "advanced_combat_logging_enabled_like_cpp",
-          "type": "Arc < AtomicBool >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "adventure_map_poi_store",
           "type": "Option < Arc < AdventureMapPoiStore > >",
           "visibility": "pub (in crate :: session)",
@@ -709,6 +702,13 @@
           "name": "fishing_base_skill_store",
           "type": "Option < Arc < FishingBaseSkillStoreLikeCpp > >",
           "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "name": "flags",
+          "type": "SessionSharedFlags",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -3747,13 +3747,6 @@
         {
           "name": "view",
           "type": "SessionWorldView",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "visibility_refresh_pending_like_cpp",
-          "type": "Arc < AtomicBool >",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -81863,7 +81856,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:a17b92cb043a06425df24ff57b93926d:len=77580|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:594889279f7c710e15d60504eb571919:len=77086|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
