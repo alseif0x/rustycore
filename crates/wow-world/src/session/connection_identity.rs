@@ -258,12 +258,13 @@ impl WorldSession {
     pub(crate) fn is_addon_registered_like_cpp(&self, prefix: &str) -> bool {
         // C++ WorldSession::IsAddonRegistered: if the registration filter is
         // disabled (initial state or softcap exceeded), all prefixes pass.
-        if !self.filter_addon_messages {
+        if !self.addon_filter.filter_addon_messages {
             return true;
         }
 
-        !self.registered_addon_prefixes.is_empty()
+        !self.addon_filter.registered_addon_prefixes.is_empty()
             && self
+                .addon_filter
                 .registered_addon_prefixes
                 .iter()
                 .any(|registered| registered == prefix)

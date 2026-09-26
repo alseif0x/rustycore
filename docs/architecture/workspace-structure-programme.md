@@ -553,10 +553,34 @@ Este slice ademas **estrecha** visibilidad: `active_area_trigger` era `pub(crate
 ancha estaba sin usar. Es el sentido correcto de la escalera de visibilidad: el sub-estado no
 ensancha, y aprovecha para apretar lo que sobraba.
 
-**Siguiente slice de B4**: `pending_bind` (transitorio, visibilidad `pub(crate)` por sus lectores de
-`handlers/instances`; su destino es Player/InstanceMap) y despues, por tamano, las familias
-`mailbox_and_cross_session_delivery` (9) y `packet_admission_dispatch` (11);
-`player_registry` y `transport_and_physical_connections` van con slice propio por radio de llamadas.
+### B4, quinto slice ejecutado: `SessionAddonFilter` (2026-09-25)
+
+El filtro de addons del chat (`registered_addon_prefixes`, `filter_addon_messages`, C++
+`WorldSession::_registeredAddonPrefixes` y `_filterAddonMessages`) pasa al sub-estado nombrado
+`SessionAddonFilter`, alcanzado por un unico campo `addon_filter`. Census: 211 -> 210 campos de
+produccion; coste +8 produccion, 0 test.
+
+Tercer patron aprendido, y el que gobernara casi todas las familias que quedan: **si la familia se lee
+desde `handlers/**`, el sub-estado no puede ser privado al arbol de `session`**. Estos dos campos eran
+`pub(crate)` porque `handlers/chat/*` los lee; el sub-estado y su contenedor nacen con esa misma
+visibilidad, y el comentario del tipo lo dice explicitamente para que nadie lo "arregle" estrechandolo.
+Es la excepcion legitima a la escalera: no se ensancha nada nuevo, se conserva lo que los consumidores
+ya necesitaban, y se documenta quien lo justifica.
+
+**Frontera economica de B4**: la reduccion de campos se paga en accesos repuntados, y ese precio no es
+uniforme. Medido por familia: `player_social_*` y `player_movement_*` costaron +16 y +14 produccion por
+3 y 6 campos; `mailbox_and_cross_session_delivery` tiene 9 campos pero **196 accesos**, y
+`immutable_catalogs_configuration_and_services` acumula 77 campos leidos por todo el arbol. Para esas
+dos, el metodo de mover solo campos no escala: hay que mover *metodos* al `impl` del sub-estado (donde
+`self.<campo>` no lleva prefijo) o extraer primero los subgrupos cohesivos y baratos, que es lo que se
+hizo aqui con el filtro de addons.
+
+**Siguiente slice de B4**: `session_phase_tx`/`session_phase_rx` (6 accesos, railes de fase #787) como
+sub-estado propio, y despues los dos `Arc<AtomicBool>` compartidos
+(`advanced_combat_logging_enabled_like_cpp`, `visibility_refresh_pending_like_cpp`, 14 accesos) si se
+confirma su cohesion; los railes de comando (`session_command_tx`, 136 accesos) van con el metodo de
+mover metodos, no de mover campos.
+
 Metodo ya probado: (1) mover campos con su visibilidad efectiva y
 sus comentarios de procedencia al sub-estado, (2) repuntar solo accesos con `cargo check -p wow-world`
 entre pasos, (3) regenerar census y ledger de runtime con delta revisado -- incluida la entrada de

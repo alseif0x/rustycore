@@ -200,6 +200,15 @@ pub(in crate::session) struct SessionWorldView {
     pub(in crate::session) active_area_trigger: Option<u32>,
 }
 
+/// Addon chat filtering: C++ `WorldSession::_registeredAddonPrefixes` and
+/// `_filterAddonMessages`. Read by the chat handlers, which is why the filter
+/// keeps crate visibility instead of narrowing to the session tree.
+#[derive(Default)]
+pub(crate) struct SessionAddonFilter {
+    pub(crate) registered_addon_prefixes: Vec<String>,
+    pub(crate) filter_addon_messages: bool,
+}
+
 pub struct WorldSession {
     /// The realm/instance transport, owned by `wow-session` (#297).
     ///
@@ -538,6 +547,9 @@ pub struct WorldSession {
     /// The session's view of its world: area trigger, taxi, combat and realm flags.
     pub(in crate::session) view: SessionWorldView,
 
+    /// Addon chat filtering state shared with the chat handlers.
+    pub(crate) addon_filter: SessionAddonFilter,
+
     // Test-only compatibility for pre-#578 fixtures. Production group
     // membership and Player-owned update sequences live on canonical Player.
     #[cfg(test)]
@@ -856,11 +868,6 @@ pub struct WorldSession {
     /// Detached fixture identity; production name belongs to the canonical Player.
     #[cfg(test)]
     pub(in crate::session) player_name: Option<String>,
-
-    // Addon chat filtering state. Mirrors C++ WorldSession::_registeredAddonPrefixes
-    // and _filterAddonMessages.
-    pub(crate) registered_addon_prefixes: Vec<String>,
-    pub(crate) filter_addon_messages: bool,
 
     // ── Creature AI tracking ──────────────────────────────────────
     /// Tick counter for creature movement (throttle to every N ticks).

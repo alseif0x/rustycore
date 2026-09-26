@@ -50,18 +50,21 @@ async fn chat_register_addon_prefixes_accumulates_and_updates_filter_like_cpp() 
     session
         .handle_chat_register_addon_prefixes(chat_register_addon_prefixes_packet(&["ABC", "DEF"]))
         .await;
-    assert_eq!(session.registered_addon_prefixes, vec!["ABC", "DEF"]);
-    assert!(session.filter_addon_messages);
+    assert_eq!(
+        session.addon_filter.registered_addon_prefixes,
+        vec!["ABC", "DEF"]
+    );
+    assert!(session.addon_filter.filter_addon_messages);
 
     let too_many = vec!["X"; ChatRegisterAddonPrefixes::MAX_PREFIXES - 1];
     session
         .handle_chat_register_addon_prefixes(chat_register_addon_prefixes_packet(&too_many))
         .await;
     assert_eq!(
-        session.registered_addon_prefixes.len(),
+        session.addon_filter.registered_addon_prefixes.len(),
         ChatRegisterAddonPrefixes::MAX_PREFIXES + 1
     );
-    assert!(!session.filter_addon_messages);
+    assert!(!session.addon_filter.filter_addon_messages);
     assert!(send_rx.try_recv().is_err());
 }
 

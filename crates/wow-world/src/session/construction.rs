@@ -4,6 +4,7 @@
 //! Construction: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
+use crate::session::state::SessionAddonFilter;
 use crate::session::state::SessionDirectory;
 use crate::session::state::SessionDriverServices;
 use crate::session::state::SessionSocialLimits;
@@ -258,6 +259,7 @@ impl WorldSession {
             phase_store: None,
             phase_group_store: None,
             player_registry: None,
+            addon_filter: SessionAddonFilter::default(),
             view: SessionWorldView {
                 is_pvp_realm_like_cpp: false,
                 is_ffa_pvp_realm_like_cpp: false,
@@ -469,8 +471,6 @@ impl WorldSession {
             represented_mover_fixed_position_vehicle_like_cpp: false,
             #[cfg(test)]
             player_name: None,
-            registered_addon_prefixes: Vec::new(),
-            filter_addon_messages: false,
             creature_tick: 0,
             vendor_item_counts: HashMap::new(),
             #[cfg(test)]

@@ -147,8 +147,8 @@ async fn addon_command_delivers_only_when_prefix_registered_like_cpp() {
     let receiver = ObjectGuid::create_player(1, 501);
     let (mut session, _, send_rx) = session_for_chat_routing_like_cpp(receiver);
     session.set_state(crate::session::SessionState::LoggedIn);
-    session.filter_addon_messages = true;
-    session.registered_addon_prefixes = vec!["ABC".to_string()];
+    session.addon_filter.filter_addon_messages = true;
+    session.addon_filter.registered_addon_prefixes = vec!["ABC".to_string()];
     let packet = ChatPkt {
         msg_type: ChatMsg::Raid,
         language: LANG_ADDON_LIKE_CPP,

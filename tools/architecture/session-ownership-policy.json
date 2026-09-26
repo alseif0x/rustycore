@@ -129,6 +129,13 @@
           "source_class": "test_fixture"
         },
         {
+          "name": "addon_filter",
+          "type": "SessionAddonFilter",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "advanced_combat_logging_enabled_like_cpp",
           "type": "Arc < AtomicBool >",
           "visibility": "pub (in crate :: session)",
@@ -739,13 +746,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "filter_addon_messages",
-          "type": "bool",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "finalization",
@@ -2413,13 +2413,6 @@
           "name": "regen_game_tables",
           "type": "Option < Arc < RegenGameTablesLikeCpp > >",
           "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "registered_addon_prefixes",
-          "type": "Vec < String >",
-          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -82290,7 +82283,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:b5ace3779035efa1bb69c1e7aa4b21d8:len=85498|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:0cfb9e572448950ead81eb5f9f99ca55:len=85517|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
