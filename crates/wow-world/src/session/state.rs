@@ -159,6 +159,17 @@ pub(in crate::session) struct SessionDirectory {
     pub(in crate::session) pending_invites: Option<Arc<PendingInvites>>,
 }
 
+/// Social admission limits the session applies: the C++ Recruit-A-Friend XP
+/// level gates and the chat anti-flood throttle state charged per message.
+#[derive(Default)]
+pub(in crate::session) struct SessionSocialLimits {
+    /// C++ Recruit-A-Friend XP level gates used by `Player::GetsRecruitAFriendBonus(true)`.
+    pub(in crate::session) max_recruit_a_friend_bonus_player_level_like_cpp: u32,
+    pub(in crate::session) max_recruit_a_friend_bonus_player_level_difference_like_cpp: u32,
+    /// C++ `WorldSession::m_chatFloodData` accumulators.
+    pub(in crate::session) chat_flood_data_like_cpp: [ChatFloodThrottleDataLikeCpp; 2],
+}
+
 pub struct WorldSession {
     /// The realm/instance transport, owned by `wow-session` (#297).
     ///
@@ -492,6 +503,9 @@ pub struct WorldSession {
     /// Party registries and the world-event channel, grouped by the B4 split.
     pub(in crate::session) directory: SessionDirectory,
 
+    /// Social admission limits and chat anti-flood throttle state.
+    pub(in crate::session) social: SessionSocialLimits,
+
     // Test-only compatibility for pre-#578 fixtures. Production group
     // membership and Player-owned update sequences live on canonical Player.
     #[cfg(test)]
@@ -581,9 +595,6 @@ pub struct WorldSession {
     pub(in crate::session) is_pvp_realm_like_cpp: bool,
     /// C++ `World::IsFFAPvPRealm()` classification.
     pub(in crate::session) is_ffa_pvp_realm_like_cpp: bool,
-    /// C++ Recruit-A-Friend XP level gates used by `Player::GetsRecruitAFriendBonus(true)`.
-    pub(in crate::session) max_recruit_a_friend_bonus_player_level_like_cpp: u32,
-    pub(in crate::session) max_recruit_a_friend_bonus_player_level_difference_like_cpp: u32,
     /// Handle-less RestMgr and rate-policy fixture; production state belongs to Player.
     #[cfg(test)]
     pub(in crate::session) rest_mgr_test_fixture_like_cpp: RestMgrTestFixtureLikeCpp,
@@ -1599,7 +1610,6 @@ pub struct WorldSession {
     /// C++ `CONFIG_CHATFLOOD_*` represented chat spam protection.
     #[cfg(test)]
     pub(in crate::session) chat_flood_config_like_cpp: ChatFloodConfigLikeCpp,
-    pub(in crate::session) chat_flood_data_like_cpp: [ChatFloodThrottleDataLikeCpp; 2],
     /// C++ `CONFIG_ENABLE_MMAPS` + `DataDir` represented until map lifecycle owns real mmaps.
     pub(in crate::session) mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp,
     /// C++ `sWaypointMgr->GetPath(pathId)` resolver for session-created legacy `WorldCreature`

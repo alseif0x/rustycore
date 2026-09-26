@@ -338,13 +338,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "chat_flood_data_like_cpp",
-          "type": "[ChatFloodThrottleDataLikeCpp ; 2]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "chat_level_requirements_like_cpp",
           "type": "ChatLevelRequirementsLikeCpp",
           "visibility": "pub (in crate :: session)",
@@ -1273,20 +1266,6 @@
         {
           "name": "max_primary_trade_skills_like_cpp",
           "type": "u8",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "max_recruit_a_friend_bonus_player_level_difference_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "max_recruit_a_friend_bonus_player_level_like_cpp",
-          "type": "u32",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -3894,6 +3873,13 @@
         {
           "name": "skill_tiers_store",
           "type": "Option < Arc < SkillTiersStoreLikeCpp > >",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "name": "social",
+          "type": "SessionSocialLimits",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -82346,7 +82332,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:bd43cb53ce25feb2f350bc26b18c0ddd:len=87012|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:74c439a2fc7edba37b37c2a157574578:len=86777|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

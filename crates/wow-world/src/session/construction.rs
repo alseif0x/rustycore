@@ -5,6 +5,7 @@
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
 use crate::session::state::SessionDirectory;
+use crate::session::state::SessionSocialLimits;
 
 #[cfg(test)]
 use super::BattlePetTestFixtureLikeCpp;
@@ -256,6 +257,11 @@ impl WorldSession {
             phase_store: None,
             phase_group_store: None,
             player_registry: None,
+            social: SessionSocialLimits {
+                max_recruit_a_friend_bonus_player_level_like_cpp: 85,
+                max_recruit_a_friend_bonus_player_level_difference_like_cpp: 4,
+                chat_flood_data_like_cpp: [ChatFloodThrottleDataLikeCpp::default(); 2],
+            },
             directory: SessionDirectory::default(),
             #[cfg(test)]
             group_guid: None,
@@ -309,8 +315,6 @@ impl WorldSession {
                 crate::profession::DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP,
             is_pvp_realm_like_cpp: false,
             is_ffa_pvp_realm_like_cpp: false,
-            max_recruit_a_friend_bonus_player_level_like_cpp: 85,
-            max_recruit_a_friend_bonus_player_level_difference_like_cpp: 4,
             #[cfg(test)]
             rest_mgr_test_fixture_like_cpp: RestMgrTestFixtureLikeCpp::default(),
             #[cfg(test)]
@@ -897,7 +901,6 @@ impl WorldSession {
             chat_listen_ranges_like_cpp: ChatListenRangesLikeCpp::default(),
             #[cfg(test)]
             chat_flood_config_like_cpp: ChatFloodConfigLikeCpp::default(),
-            chat_flood_data_like_cpp: [ChatFloodThrottleDataLikeCpp::default(); 2],
             mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp::default(),
             waypoint_path_resolver_like_cpp: None,
             represented_unique_gameobject_uses: std::collections::HashSet::new(),

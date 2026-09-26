@@ -74,7 +74,7 @@ impl WorldSession {
             }
         };
         let current = unix_now();
-        let data = &mut self.chat_flood_data_like_cpp[index as usize];
+        let data = &mut self.social.chat_flood_data_like_cpp[index as usize];
 
         if data.time > current {
             if limit == 0 {

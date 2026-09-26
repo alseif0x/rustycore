@@ -507,12 +507,25 @@ Evidencia del slice: `cargo check -p wow-world` (0 errores), `cargo check -p wow
 produccion), `check_architecture.py check` PASS y `self-test` PASS (20 fixtures). `cargo check
 --workspace --all-targets` sigue en 0 errores.
 
-**Siguiente slice de B4**: `player_social_chat_calendar_and_group_views`
-(`chat_flood_data_like_cpp`, `max_recruit_a_friend_bonus_player_level_like_cpp`,
-`max_recruit_a_friend_bonus_player_level_difference_like_cpp`), por ser la familia cohesiva mas
-pequena que queda; despues `session_driver_timers_and_transitional_misc` (cuyo nombre es un cajon de
-sastre y exige renombrar la familia al partirla), y `player_registry` con su propio slice por radio
-de llamadas. Metodo ya probado: (1) mover campos con su visibilidad efectiva y sus comentarios de
-procedencia al sub-estado, (2) repuntar solo accesos con `cargo check -p wow-world` entre pasos,
-(3) regenerar census y ledger de runtime con delta revisado -- incluida la entrada de crecimiento del
-hotspot y los nombres de familia --, (4) `check_architecture.py check` + `self-test`, (5) commit.
+### B4, segundo slice ejecutado: `SessionSocialLimits` (2026-09-25)
+
+La familia `player_social_chat_calendar_and_group_views` (los dos topes de XP de Recruit-A-Friend y el
+estado anti-flood de chat) pasa al sub-estado nombrado `SessionSocialLimits`, alcanzado por un unico
+campo `social`. Misma visibilidad estrecha y mismos valores de construccion (85/4 y el par de
+acumuladores por defecto); los cinco puntos de lectura/escritura (`session/social/contacts.rs`,
+`session/catalogs/operations.rs`) conservan su comportamiento. Census: 219 -> 217 campos de produccion.
+
+Leccion nueva de este slice: **el nombre del campo contenedor se paga en lineas**. Con
+`social_limits`, tres de las cinco expresiones repuntadas superaban las 100 columnas y `rustfmt` las
+partia, anadiendo 13 lineas de mas al agregado; con `social` solo quedan dos particiones inevitables
+(los nombres `..._difference_like_cpp` de 58 caracteres) y el slice cuesta +16 lineas en vez de +26.
+Antes de elegir el nombre de un sub-estado conviene medir el punto de uso mas largo.
+
+**Siguiente slice de B4**: `session_driver_timers_and_transitional_misc` (`pending_bind`,
+`represented_runtime_rng_like_cpp`, `time_synchronization`) — su nombre actual es un cajon de sastre,
+asi que al partirlo hay que renombrar la familia por su responsabilidad real en el ledger — y despues
+`player_registry` con su propio slice por radio de llamadas. Metodo ya probado: (1) mover campos con su
+visibilidad efectiva y sus comentarios de procedencia al sub-estado, (2) repuntar solo accesos con
+`cargo check -p wow-world` entre pasos, (3) regenerar census y ledger de runtime con delta revisado
+-- incluida la entrada de crecimiento del hotspot y los nombres de familia --, (4)
+`check_architecture.py check` + `self-test`, (5) commit.
