@@ -10,13 +10,13 @@ impl WorldSession {
         &mut self,
         sender: flume::Sender<GameEventQuestCompleteCommandLikeCpp>,
     ) {
-        self.game_event_quest_complete_tx = Some(sender);
+        self.directory.game_event_quest_complete_tx = Some(sender);
     }
     pub async fn notify_game_event_quest_complete_like_cpp(
         &self,
         quest_id: u32,
     ) -> GameEventQuestCompleteClientOutcomeLikeCpp {
-        let Some(sender) = self.game_event_quest_complete_tx.as_ref() else {
+        let Some(sender) = self.directory.game_event_quest_complete_tx.as_ref() else {
             return GameEventQuestCompleteClientOutcomeLikeCpp::SenderMissing { quest_id };
         };
 

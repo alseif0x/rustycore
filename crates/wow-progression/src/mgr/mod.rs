@@ -32,5 +32,5 @@ mod state_3;
 pub use {borrowed::*, state_1::*, state_2_ops_1::*, state_2_ops_2::*, state_3::*};
 
 #[cfg(test)]
-#[path = "mgr/tests/mod.rs"]
+#[path = "tests/mod.rs"]
 mod tests;

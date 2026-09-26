@@ -185,7 +185,7 @@ impl WorldSession {
     }
     pub(crate) fn load_character_reputation_rows_like_cpp(
         &mut self,
-        rows: impl IntoIterator<Item = crate::reputation::mgr::CharacterReputationRowLikeCpp>,
+        rows: impl IntoIterator<Item = wow_progression::mgr::CharacterReputationRowLikeCpp>,
     ) -> bool {
         let Some(faction_store) = self.faction_store().cloned() else {
             return false;
@@ -242,7 +242,7 @@ impl WorldSession {
     pub(crate) fn load_represented_group_difficulties_like_cpp(&mut self) -> bool {
         let (Some(group_guid), Some(group_registry)) = (
             self.resolved_group_guid_like_cpp(),
-            self.group_registry.as_ref(),
+            self.directory.group_registry.as_ref(),
         ) else {
             return false;
         };
@@ -270,7 +270,7 @@ impl WorldSession {
         let (Some(group_guid), Some(player_guid), Some(group_registry)) = (
             self.resolved_group_guid_like_cpp(),
             self.player_guid(),
-            self.group_registry.as_ref(),
+            self.directory.group_registry.as_ref(),
         ) else {
             let _ = self.set_owned_player_group_like_cpp(None);
             return false;
@@ -294,7 +294,7 @@ impl WorldSession {
         &mut self,
         db_store_id: u32,
     ) -> bool {
-        let Some(group_registry) = self.group_registry.as_ref() else {
+        let Some(group_registry) = self.directory.group_registry.as_ref() else {
             let _ = self.set_owned_player_group_like_cpp(None);
             return false;
         };

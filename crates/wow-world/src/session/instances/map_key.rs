@@ -41,7 +41,8 @@ impl WorldSession {
                         .resolved_group_guid_like_cpp()
                         .zip(owner_guid)
                         .and_then(|(group_guid, owner_guid)| {
-                            self.group_registry
+                            self.directory
+                                .group_registry
                                 .as_ref()?
                                 .set_recent_instance_transition_like_cpp(
                                     group_guid,
@@ -117,7 +118,7 @@ impl WorldSession {
 
         let group = self
             .resolved_group_guid_like_cpp()
-            .and_then(|group_guid| self.group_registry.as_ref()?.get(&group_guid))
+            .and_then(|group_guid| self.directory.group_registry.as_ref()?.get(&group_guid))
             .map(|group| {
                 let difficulty_id = self.represented_group_difficulty_id_for_map_entry_like_cpp(
                     map_id, map_entry, &group,

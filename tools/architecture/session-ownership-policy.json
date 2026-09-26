@@ -338,13 +338,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "chat_flood_data_like_cpp",
-          "type": "[ChatFloodThrottleDataLikeCpp ; 2]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "chat_level_requirements_like_cpp",
           "type": "ChatLevelRequirementsLikeCpp",
           "visibility": "pub (in crate :: session)",
@@ -574,6 +567,13 @@
           "source_class": "production"
         },
         {
+          "name": "directory",
+          "type": "SessionDirectory",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "disable_mgr",
           "type": "Option < Arc < DisableMgrLikeCpp > >",
           "visibility": "pub (in crate :: session)",
@@ -785,13 +785,6 @@
           "source_class": "production"
         },
         {
-          "name": "game_event_quest_complete_tx",
-          "type": "Option < flume :: Sender < GameEventQuestCompleteCommandLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "gameobject_template_lifecycle_store_like_cpp",
           "type": "Option < Arc < GameObjectTemplateLifecycleStoreLikeCpp > >",
           "visibility": "pub (in crate :: session)",
@@ -847,13 +840,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "group_registry",
-          "type": "Option < Arc < GroupRegistry > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "guid_generator",
@@ -1285,20 +1271,6 @@
           "source_class": "production"
         },
         {
-          "name": "max_recruit_a_friend_bonus_player_level_difference_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "max_recruit_a_friend_bonus_player_level_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "min_discovered_scaled_xp_ratio_like_cpp",
           "type": "u32",
           "visibility": "pub (crate)",
@@ -1660,13 +1632,6 @@
           "name": "pending_creature_spawn",
           "type": "Option < PendingCreatureSpawn >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "pending_invites",
-          "type": "Option < Arc < PendingInvites > >",
-          "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
         },
@@ -3908,6 +3873,13 @@
         {
           "name": "skill_tiers_store",
           "type": "Option < Arc < SkillTiersStoreLikeCpp > >",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "name": "social",
+          "type": "SessionSocialLimits",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -31053,7 +31025,7 @@
           "kind": "method",
           "name": "load_character_reputation_rows_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn load_character_reputation_rows_like_cpp (& mut self , rows : impl IntoIterator < Item = crate :: reputation :: mgr :: CharacterReputationRowLikeCpp > ,) -> bool",
+          "signature": "fn load_character_reputation_rows_like_cpp (& mut self , rows : impl IntoIterator < Item = wow_progression :: mgr :: CharacterReputationRowLikeCpp > ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -68633,7 +68605,7 @@
           "cfg": [
             "cfg_attr (not (test) , allow (unused_variables))"
           ],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -68723,7 +68695,7 @@
           "cfg": [
             "cfg_attr (not (test) , allow (unused_variables))"
           ],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -68798,7 +68770,7 @@
           "cfg": [
             "cfg_attr (not (test) , allow (unused_variables))"
           ],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -68884,7 +68856,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -68949,7 +68921,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -69001,7 +68973,7 @@
           "symbol": "group_registry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -69027,7 +68999,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -69053,7 +69025,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -69066,7 +69038,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -69365,7 +69337,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -69404,7 +69376,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -69456,7 +69428,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -69638,7 +69610,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -69716,7 +69688,7 @@
           "symbol": "pending_invites",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . pending_invites",
+          "fingerprint": "self . directory . pending_invites",
           "count": 1
         },
         {
@@ -69729,7 +69701,7 @@
           "symbol": "registry",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . pending_invites . as_ref ()",
+          "fingerprint": "self . directory . pending_invites . as_ref ()",
           "count": 1
         },
         {
@@ -70054,7 +70026,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70158,7 +70130,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70184,7 +70156,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70249,7 +70221,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70301,7 +70273,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70366,7 +70338,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70405,7 +70377,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70522,7 +70494,7 @@
           "symbol": "group_registry",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70535,7 +70507,7 @@
           "symbol": "registry",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . group_registry . as_ref ()",
+          "fingerprint": "self . directory . group_registry . as_ref ()",
           "count": 1
         },
         {
@@ -70548,7 +70520,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70626,7 +70598,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70756,7 +70728,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70808,7 +70780,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70873,7 +70845,7 @@
           "symbol": "group_registry",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70912,7 +70884,7 @@
           "symbol": "pending_invites",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . pending_invites",
+          "fingerprint": "self . directory . pending_invites",
           "count": 1
         },
         {
@@ -70938,7 +70910,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -71205,20 +71177,7 @@
           "package": "wow-world",
           "module": "crate::session::state",
           "source": "crates/wow-world/src/session/state.rs",
-          "enclosing": "struct WorldSession",
-          "registry": "PlayerRegistry",
-          "operation": "type_reference",
-          "symbol": "player_registry",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "fingerprint": "Option < Arc < PlayerRegistry > >",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::state",
-          "source": "crates/wow-world/src/session/state.rs",
-          "enclosing": "struct WorldSession",
+          "enclosing": "struct SessionDirectory",
           "registry": "GroupRegistry",
           "operation": "type_reference",
           "symbol": "group_registry",
@@ -71231,13 +71190,26 @@
           "package": "wow-world",
           "module": "crate::session::state",
           "source": "crates/wow-world/src/session/state.rs",
-          "enclosing": "struct WorldSession",
+          "enclosing": "struct SessionDirectory",
           "registry": "PendingInvites",
           "operation": "type_reference",
           "symbol": "pending_invites",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "fingerprint": "Option < Arc < PendingInvites > >",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::state",
+          "source": "crates/wow-world/src/session/state.rs",
+          "enclosing": "struct WorldSession",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "player_registry",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "Option < Arc < PlayerRegistry > >",
           "count": 1
         },
         {
@@ -71302,7 +71274,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -71380,7 +71352,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -82360,7 +82332,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:f06ccd93c7a1c0ef38f0bf259f0d159e:len=87156|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:74c439a2fc7edba37b37c2a157574578:len=86777|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

@@ -614,9 +614,9 @@
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/reputation/mgr.rs",
-      "observed_lines": 2520,
-      "ceiling_lines": 39,
+      "path": "crates/wow-progression/src/mgr/mod.rs",
+      "observed_lines": 36,
+      "ceiling_lines": 36,
       "split": "Separate the reputation manager state from its operations and regressions. #662 decomposes the 2,520-line file into two state modules plus two ops modules dividing the 1,058-line inherent `impl ReputationMgrLikeCpp`, and two regression modules, dropping it to 39 lines and tightening the ceiling to that figure. Item-for-item with the crate's 3,822 lib tests unchanged.",
       "review_checkpoint": "584:C4"
     },

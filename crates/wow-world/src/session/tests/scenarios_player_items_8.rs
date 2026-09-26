@@ -272,7 +272,7 @@ async fn repair_item_handler_requires_repair_npc_and_repairs_single_item_like_cp
     session.set_player_faction_template_like_cpp(1);
     session.set_player_gold_like_cpp(500);
     assert!(session.load_character_reputation_rows_like_cpp([
-        crate::reputation::mgr::CharacterReputationRowLikeCpp {
+        wow_progression::mgr::CharacterReputationRowLikeCpp {
             faction_id: 72,
             standing: 9_000,
             flags: 0,

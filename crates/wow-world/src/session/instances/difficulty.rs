@@ -418,7 +418,7 @@ impl WorldSession {
     ) -> Option<wow_persistence::RepresentedGroupPersistenceCommandLikeCpp> {
         let group_guid = self.resolved_group_guid_like_cpp()?;
         let player_guid = self.player_guid()?;
-        let registry = self.group_registry.as_ref()?;
+        let registry = self.directory.group_registry.as_ref()?;
         let outcome = registry
             .set_difficulty_transition_like_cpp(group_guid, player_guid, difficulty_id, kind)
             .ok()?;
@@ -473,7 +473,7 @@ impl WorldSession {
 
         let player_guid = self.player_guid()?;
         if let Some(group_guid) = self.resolved_group_guid_like_cpp() {
-            let group = self.group_registry.as_ref()?.get(&group_guid)?;
+            let group = self.directory.group_registry.as_ref()?.get(&group_guid)?;
             if !group.is_leader_like_cpp(player_guid) || group.is_lfg_group_like_cpp() {
                 return None;
             }

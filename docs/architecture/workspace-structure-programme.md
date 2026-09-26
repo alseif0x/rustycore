@@ -114,7 +114,7 @@ curso, `[x]` cerrada con commit.
 ```
 A0.1 [x]  A0.2 [x]  A0.3 [x]  A0.4 [~]  A0.5 [x]  A0.6 [x]  A0.7 [x]   <- ola A: PUERTA VERDE
 A1 [x]  A2 [x]  A3 [x]
-B1 [x] e719ac38   B2 [ ]  B3 [ ]  B4 [ ]  B5 [ ]  B6 [ ]  B7 [ ]
+B1 [x] e719ac38   B2 [x] 98c5b14a   B3 [ ]  B4 [~]  B5 [ ]  B6 [ ]  B7 [ ]
 C1 [ ]  C2 [ ]  C3 [ ]  C4 [ ]
 D1 [ ]  D2 [ ]  D3 [ ]  D4 [ ]  D5 [ ]
 E1 [ ]  E2 [ ]  E3 [ ]  E4 [ ]
@@ -397,3 +397,135 @@ convenciones de nomenclatura, conservando su clasificacion de dependencia.
 Leccion registrada: **la auditoria en Python y `xtask check-layers` deben coincidir**; cuando
 discrepen, manda la politica (`dependency-policy.json`) y se corrige la herramienta que se
 desvie.
+
+### B2: segundo slice verificado-negativo y preparacion de B4 (2026-09-25)
+
+**`entity_update_bridge` se queda en la aplicacion.** El plan lo enviaba a `wow-entities`, pero
+importa `wow_packet` (3 usos): moverlo alli crearia la arista `domain-runtime -> adapter-platform`
+que la politica prohibe. Es una **frontera entidad -> wire**, asi que su sitio es la app (o, mas
+adelante, un crate de categoria `adapter-platform` con contrato propio). Igual criterio para
+`profession` y `trainer_offer`, que ademas tocan `session`: van despues de B4.
+
+**B4 (partir el tipo Dios): analisis previo, con datos.** `WorldSession` tiene **221 campos de
+produccion** repartidos en las familias del ledger. Tamanos (produccion):
+
+| campos | familia |
+|---:|---|
+| 1 | `player_identity_login_bootstrap` |
+| 1 | `session_selected_player_binding` |
+| 1 | `test_only_fixtures` |
+| 3 | `player_social_chat_calendar_and_group_views` |
+| 3 | `session_driver_timers_and_transitional_misc` |
+| 4 | `directory_group_and_social_coordination` |
+| 4 | `transport_and_physical_connections` |
+| 6 | `player_movement_combat_and_visibility` |
+| 9 | `mailbox_and_cross_session_delivery` |
+| 11 | `packet_admission_dispatch` |
+| 15 | `player_spells_quests_and_progression` |
+| 16 | `player_inventory_loot_and_economy` |
+| 22 | `session_identity_account_and_realm_policy` |
+| 23 | `persistence_and_session_lifecycle` |
+| 25 | `map_runtime_creature_gameobject_and_visibility` |
+| 77 | `immutable_catalogs_configuration_and_services` |
+
+**Primer corte recomendado**: la familia mas pequena con cohesión real y sin ser el nucleo de
+identidad/conexion, es decir **`directory_group_and_social_coordination`** (4 campos:
+`group_registry`, `pending_invites`, `game_event_quest_complete_tx`), seguida de
+`session_driver_timers_and_transitional_misc` (3) y `player_social_chat_calendar_and_group_views`
+(3). No se empieza por `transport_and_physical_connections` ni
+`session_identity_account_and_realm_policy`: son centrales y su radio de llamadas es enorme.
+
+**Metodo para cada sub-estado** (sin romper nada):
+1. Declarar el sub-estructo en `session/state.rs` y mover alli SOLO los campos de la familia.
+2. Exponer dos accesores estrechos: `pub(in crate::session) fn <nombre>(&mut self) -> &mut SubEstado`
+   y su version de lectura. Un dueño, ningun espejo.
+3. Mover a `impl SubEstado` los metodos que solo tocan esa familia; el resto de llamadores se
+   repunta con `cargo check -p wow-world` como guia.
+4. Cuando el sub-estado tenga contrato completo y ningun `&mut WorldSession` haga falta, se puede
+   convertir en crate de dominio; hasta entonces es un modulo privado de la app.
+5. Cualquier cambio de comportamiento va en su propio commit, con ancla C++.
+
+### B4, primer intento: revertido y pitfall registrado (2026-09-25)
+
+Intente sacar a `SessionDirectory` los tres campos de directorio social de la familia
+`directory_group_and_social_coordination` (dejando `player_registry`, que tiene 58 ficheros de radio,
+para su propio slice). El movimiento de campos y el inicializador anidado funcionan, pero la
+**reescritura de puntos de uso es mas delicada de lo que asumi**:
+
+- **Existen metodos accesores con el mismo nombre que los campos** (`fn pending_invites(&self)`).
+  Una sustitucion global de `.<campo>` convierte tambien las *llamadas* `self.pending_invites()` en
+  `self.directory.pending_invites()`, que el compilador rechaza. La reescritura debe distinguir
+  acceso a campo de llamada a metodo (p. ej. por el parentesis siguiente) o, mejor, mover primero
+  los metodos al `impl` del sub-estructo y dejar que los llamadores usen el accesor.
+- La visibilidad efectiva de los tres campos era `pub(crate)`, no `pub(in crate::session)`: hay
+  consumidores en `crates/wow-world/src/handlers/**`. El sub-estructo y su campo contenedor deben
+  nacer con esa visibilidad, no ensancharla despues.
+- Hay un `use` que debe acompanar al tipo en cada fichero que lo nombre (`construction.rs`), y el
+  chequeo de propiedades de campos de `WorldSession` deja de contar los campos anidados: al mover
+  la familia, la census de `session-ownership-policy.json` baja de 221 campos de produccion y hay
+  que regenerarla con delta revisado.
+
+El intento se revirtio sin dejar el arbol sucio; la rama sigue verde. Se retoma con el metodo
+corregido: mover campos, mover metodos al `impl` del sub-estructo, y repuntar solo accesos (no
+llamadas), con `cargo check` entre pasos.
+
+### B4, primer slice ejecutado: `SessionDirectory` (2026-09-25)
+
+`WorldSession` pierde tres declaraciones de campo (`game_event_quest_complete_tx`, `group_registry`,
+`pending_invites`) hacia el sub-estado nombrado `SessionDirectory`, declarado junto a su dueno con la
+visibilidad mas estrecha (`pub(in crate::session)`, la que ya tenian los campos: no se ensancha
+nada). Los tres accesores (`set_group_registry`, `group_registry`, `pending_invites`) y sus 39
+llamadores en `handlers/**` conservan la frontera, asi que no cambia ningun paquete, ninguna
+persistencia ni ninguna autoridad; la construccion usa el `Default` derivado. `player_registry`
+queda para su propio slice por radio de llamadas.
+
+Lo que el intento anterior no habia visto, ahora medido:
+
+- **El ledger de hotspot es un ratchet de crecimiento, no una medida libre.** Mover una familia a un
+  sub-estado *anade* lineas de produccion al agregado logico (`session/mod.rs`), y el unico modo de
+  que el slice cierre es registrar el crecimiento revisado en `runtime-ownership-ledger.json`
+  (`latest_growth_review`) o retirar lineas equivalentes. Este slice cuesta **+3 lineas** de
+  produccion (227862 -> 227865 totales) y se registro con la revision completa: sin segunda
+  autoridad, espejo, cerrojo, reloj ni tarea. Las lineas bajan a cero cuando el sub-estado tenga
+  contrato y salga del arbol.
+- **Retirar imports "muertos" no es un atajo valido.** Los 9 imports que el chequeo de produccion
+  marca como no usados en `session/{state,construction}.rs` los usa codigo `#[cfg(test)]` del mismo
+  fichero; borrarlos rompe los tests, y marcarlos `#[cfg(test)]` solo traslada lineas de produccion a
+  lineas de test, que el mismo ratchet tambien limita. Se revirtio.
+- **La familia tambien se declara en el ledger de runtime**, no solo en la census: hay que mover los
+  nombres a `directory` en `world_session_responsibility_families` y ajustar los contadores globales
+  (525/219/306) o `check_architecture` falla por campos ausentes/obsoletos.
+- **Repuntar accesos, no llamadas, con cuidado en los fixtures.** Los fixtures de test que tienen
+  campos homonimos (`GroupReconciliationFixtureLikeCpp.group_registry`) no se repuntan; el compilador
+  los senala uno a uno. Y un `use` nuevo debe insertarse fuera del grupo `#[cfg(test)]`, no entre el
+  atributo y su import.
+- **Conservar la procedencia al mover.** Los comentarios C++ de cada campo viajan con el campo al
+  sub-estado; dejarlos atras pierde la ancla y deja comentarios huerfanos en el dueno.
+
+Evidencia del slice: `cargo check -p wow-world` (0 errores), `cargo check -p wow-world --tests`
+(0 errores), `cargo test -p wow-world --lib` (3901 pasan), census de sintaxis PASS (219 campos de
+produccion), `check_architecture.py check` PASS y `self-test` PASS (20 fixtures). `cargo check
+--workspace --all-targets` sigue en 0 errores.
+
+### B4, segundo slice ejecutado: `SessionSocialLimits` (2026-09-25)
+
+La familia `player_social_chat_calendar_and_group_views` (los dos topes de XP de Recruit-A-Friend y el
+estado anti-flood de chat) pasa al sub-estado nombrado `SessionSocialLimits`, alcanzado por un unico
+campo `social`. Misma visibilidad estrecha y mismos valores de construccion (85/4 y el par de
+acumuladores por defecto); los cinco puntos de lectura/escritura (`session/social/contacts.rs`,
+`session/catalogs/operations.rs`) conservan su comportamiento. Census: 219 -> 217 campos de produccion.
+
+Leccion nueva de este slice: **el nombre del campo contenedor se paga en lineas**. Con
+`social_limits`, tres de las cinco expresiones repuntadas superaban las 100 columnas y `rustfmt` las
+partia, anadiendo 13 lineas de mas al agregado; con `social` solo quedan dos particiones inevitables
+(los nombres `..._difference_like_cpp` de 58 caracteres) y el slice cuesta +16 lineas en vez de +26.
+Antes de elegir el nombre de un sub-estado conviene medir el punto de uso mas largo.
+
+**Siguiente slice de B4**: `session_driver_timers_and_transitional_misc` (`pending_bind`,
+`represented_runtime_rng_like_cpp`, `time_synchronization`) — su nombre actual es un cajon de sastre,
+asi que al partirlo hay que renombrar la familia por su responsabilidad real en el ledger — y despues
+`player_registry` con su propio slice por radio de llamadas. Metodo ya probado: (1) mover campos con su
+visibilidad efectiva y sus comentarios de procedencia al sub-estado, (2) repuntar solo accesos con
+`cargo check -p wow-world` entre pasos, (3) regenerar census y ledger de runtime con delta revisado
+-- incluida la entrada de crecimiento del hotspot y los nombres de familia --, (4)
+`check_architecture.py check` + `self-test`, (5) commit.

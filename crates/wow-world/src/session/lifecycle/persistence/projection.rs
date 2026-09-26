@@ -396,7 +396,7 @@ pub(super) fn request(
         level_time,
     };
 
-    let reputations = crate::reputation::ReputationMgrLikeCpp::borrowing_like_cpp(&game.reputation)
+    let reputations = wow_progression::ReputationMgrLikeCpp::borrowing_like_cpp(&game.reputation)
         .pending_save_rows_like_cpp()
         .into_iter()
         .map(

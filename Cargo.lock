@@ -3396,6 +3396,16 @@ name = "wow-persistence"
 version = "0.1.0"
 
 [[package]]
+name = "wow-progression"
+version = "0.1.0"
+dependencies = [
+ "wow-constants",
+ "wow-data",
+ "wow-entities",
+ "wow-packet",
+]
+
+[[package]]
 name = "wow-proto"
 version = "0.1.0"
 dependencies = [
@@ -3498,6 +3508,7 @@ dependencies = [
  "wow-network",
  "wow-packet",
  "wow-persistence",
+ "wow-progression",
  "wow-recastdetour",
  "wow-script",
  "wow-session",

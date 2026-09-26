@@ -28,13 +28,13 @@ impl WorldSession {
             return false;
         }
         let player_level = u32::from(self.player_level_like_cpp());
-        if for_xp && player_level > self.max_recruit_a_friend_bonus_player_level_like_cpp {
+        if for_xp && player_level > self.social.max_recruit_a_friend_bonus_player_level_like_cpp {
             return false;
         }
         let (Some(player_guid), Some(group_guid), Some(group_registry), Some(player_registry)) = (
             self.player_guid(),
             self.resolved_group_guid_like_cpp(),
-            self.group_registry.as_ref(),
+            self.directory.group_registry.as_ref(),
             self.player_registry.as_ref(),
         ) else {
             return false;
@@ -85,12 +85,14 @@ impl WorldSession {
             }
             if for_xp {
                 let member_level = u32::from(member.level);
-                if member_level > self.max_recruit_a_friend_bonus_player_level_like_cpp {
+                if member_level > self.social.max_recruit_a_friend_bonus_player_level_like_cpp {
                     continue;
                 }
                 if member_level < player_level
                     && player_level - member_level
-                        > self.max_recruit_a_friend_bonus_player_level_difference_like_cpp
+                        > self
+                            .social
+                            .max_recruit_a_friend_bonus_player_level_difference_like_cpp
                 {
                     continue;
                 }
@@ -110,7 +112,8 @@ impl WorldSession {
         max_bonus_level: u32,
         max_level_difference: u32,
     ) {
-        self.max_recruit_a_friend_bonus_player_level_like_cpp = max_bonus_level;
-        self.max_recruit_a_friend_bonus_player_level_difference_like_cpp = max_level_difference;
+        self.social.max_recruit_a_friend_bonus_player_level_like_cpp = max_bonus_level;
+        self.social
+            .max_recruit_a_friend_bonus_player_level_difference_like_cpp = max_level_difference;
     }
 }

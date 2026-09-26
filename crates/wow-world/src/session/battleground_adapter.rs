@@ -308,7 +308,7 @@ impl WorldSession {
         let (Some(player_guid), Some(group_guid), Some(group_registry)) = (
             self.player_guid(),
             self.resolved_group_guid_like_cpp(),
-            self.group_registry.as_ref(),
+            self.directory.group_registry.as_ref(),
         ) else {
             return false;
         };
@@ -382,7 +382,7 @@ impl WorldSession {
             let (Some(player_guid), Some(group_guid), Some(group_registry)) = (
                 self.player_guid(),
                 self.resolved_group_guid_like_cpp(),
-                self.group_registry.as_ref(),
+                self.directory.group_registry.as_ref(),
             ) else {
                 return false;
             };
@@ -568,7 +568,7 @@ impl WorldSession {
             self.player_guid(),
             self.resolved_group_guid_like_cpp(),
             self.player_registry.as_ref(),
-            self.group_registry.as_ref(),
+            self.directory.group_registry.as_ref(),
         )
         else {
             return;

@@ -17,7 +17,7 @@ impl WorldSession {
         if ObjectGuid::create_group(group_guid) != group_owner {
             return false;
         }
-        let Some(group_registry) = self.group_registry.as_ref() else {
+        let Some(group_registry) = self.directory.group_registry.as_ref() else {
             return false;
         };
         let Some(player_guid) = self.player_guid() else {
@@ -34,7 +34,7 @@ impl WorldSession {
     ) -> bool {
         let (Some(group_guid), Some(group_registry), Some(player_guid)) = (
             current_group_guid,
-            self.group_registry.as_ref(),
+            self.directory.group_registry.as_ref(),
             self.player_guid(),
         ) else {
             return false;
@@ -46,7 +46,7 @@ impl WorldSession {
     pub(in crate::session) fn current_player_is_in_raid_group_like_cpp(&self) -> bool {
         let (Some(group_guid), Some(group_registry), Some(player_guid)) = (
             self.resolved_group_guid_like_cpp(),
-            self.group_registry.as_ref(),
+            self.directory.group_registry.as_ref(),
             self.player_guid(),
         ) else {
             return false;
@@ -63,7 +63,7 @@ impl WorldSession {
     ) -> bool {
         let (Some(group_guid), Some(group_registry)) = (
             self.resolved_group_guid_like_cpp(),
-            self.group_registry.as_ref(),
+            self.directory.group_registry.as_ref(),
         ) else {
             return false;
         };
@@ -80,7 +80,7 @@ impl WorldSession {
         // removal notification still in flight cannot keep granting them.
         let (Some(group_guid), Some(group_registry)) = (
             self.authoritative_group_membership_like_cpp(),
-            self.group_registry.as_ref(),
+            self.directory.group_registry.as_ref(),
         ) else {
             return Vec::new();
         };
@@ -221,7 +221,7 @@ impl WorldSession {
                 let Some(player_guid) = self.player_guid() else {
                     return false;
                 };
-                let Some(group_registry) = self.group_registry.as_ref() else {
+                let Some(group_registry) = self.directory.group_registry.as_ref() else {
                     return false;
                 };
                 let Some(group) = group_registry.get(&group_guid) else {
@@ -294,7 +294,7 @@ impl WorldSession {
             player_registry.mark_group_state_reconciliation_like_cpp(player_guid);
             return false;
         }
-        let Some(group_registry) = self.group_registry.as_ref().map(Arc::clone) else {
+        let Some(group_registry) = self.directory.group_registry.as_ref().map(Arc::clone) else {
             return false;
         };
         let applied = self.apply_authoritative_group_state_like_cpp(player_guid, &group_registry);
@@ -408,7 +408,7 @@ impl WorldSession {
     pub(crate) fn authoritative_group_membership_like_cpp(&self) -> Option<u64> {
         let (Some(group_guid), Some(group_registry), Some(player_guid)) = (
             self.resolved_group_guid_like_cpp(),
-            self.group_registry.as_ref(),
+            self.directory.group_registry.as_ref(),
             self.player_guid(),
         ) else {
             return None;
@@ -431,7 +431,7 @@ impl WorldSession {
     pub(crate) fn reset_group_update_sequence_if_needed_like_cpp(&mut self) -> bool {
         let (Some(group_guid), Some(group_registry)) = (
             self.resolved_group_guid_like_cpp(),
-            self.group_registry.as_ref(),
+            self.directory.group_registry.as_ref(),
         ) else {
             return false;
         };
@@ -517,14 +517,14 @@ impl WorldSession {
             return false;
         };
 
-        let is_group_leader = self
-            .resolved_group_guid_like_cpp()
-            .and_then(|group_guid| {
-                self.group_registry
-                    .as_ref()
-                    .and_then(|registry| registry.get(&group_guid).map(|group| group.leader_guid))
-            })
-            .is_some_and(|leader_guid| leader_guid == player_guid);
+        let is_group_leader =
+            self.resolved_group_guid_like_cpp()
+                .and_then(|group_guid| {
+                    self.directory.group_registry.as_ref().and_then(|registry| {
+                        registry.get(&group_guid).map(|group| group.leader_guid)
+                    })
+                })
+                .is_some_and(|leader_guid| leader_guid == player_guid);
 
         let updated = self
             .mutate_canonical_player_like_cpp(|player| {
@@ -565,16 +565,17 @@ impl WorldSession {
     }
     /// Set the shared group registry and pending invites.
     pub fn set_group_registry(&mut self, reg: Arc<GroupRegistry>, invites: Arc<PendingInvites>) {
-        self.group_registry = Some(reg);
-        self.pending_invites = Some(invites);
+        self.directory.group_registry = Some(reg);
+        self.directory.pending_invites = Some(invites);
     }
     /// Get a reference to the shared group registry.
     pub fn group_registry(&self) -> Option<&Arc<GroupRegistry>> {
-        self.group_registry.as_ref()
+        self.directory.group_registry.as_ref()
     }
     pub(crate) fn party_member_party_type_like_cpp(&self) -> [u8; 2] {
         let mut party_type = [wow_social::group::GROUP_TYPE_NONE_LIKE_CPP; 2];
-        let (Some(group_registry), Some(player_guid)) = (&self.group_registry, self.player_guid())
+        let (Some(group_registry), Some(player_guid)) =
+            (&self.directory.group_registry, self.player_guid())
         else {
             return party_type;
         };
