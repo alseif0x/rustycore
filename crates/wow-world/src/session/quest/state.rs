@@ -476,18 +476,18 @@ impl WorldSession {
     }
     /// Set C++ `CONFIG_QUEST_LOW_LEVEL_HIDE_DIFF`.
     pub fn set_quest_low_level_hide_diff_like_cpp(&mut self, value: u32) {
-        self.quest_low_level_hide_diff_like_cpp = value;
+        self.quest_state.quest_low_level_hide_diff_like_cpp = value;
     }
     /// Set C++ `CONFIG_QUEST_HIGH_LEVEL_HIDE_DIFF`.
     pub fn set_quest_high_level_hide_diff_like_cpp(&mut self, value: u32) {
-        self.quest_high_level_hide_diff_like_cpp = value;
+        self.quest_state.quest_high_level_hide_diff_like_cpp = value;
     }
     /// Set the QuestXP store (loaded from QuestXP.db2).
     pub fn set_quest_xp_store(&mut self, store: Arc<wow_data::quest_xp::QuestXpStore>) {
         self.quests.xp_store = Some(store);
     }
     pub fn set_min_quest_scaled_xp_ratio_like_cpp(&mut self, ratio: u32) {
-        self.min_quest_scaled_xp_ratio_like_cpp = if ratio > 100 { 0 } else { ratio };
+        self.quest_state.min_quest_scaled_xp_ratio_like_cpp = if ratio > 100 { 0 } else { ratio };
     }
     /// C++ `Player::GetQuestLevel`.
     pub(crate) fn player_quest_level_like_cpp(
@@ -514,7 +514,7 @@ impl WorldSession {
                 self.player_level_like_cpp(),
                 difficulty,
                 xp_multiplier,
-                self.min_quest_scaled_xp_ratio_like_cpp,
+                self.quest_state.min_quest_scaled_xp_ratio_like_cpp,
             )
         } else {
             const XP_TABLE: [u32; 10] = [0, 50, 100, 200, 400, 650, 1000, 1500, 2500, 4000];
@@ -734,13 +734,20 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn movement_visibility_refresh_requests_like_cpp(&self) -> u32 {
-        self.movement_visibility_refresh_requests_like_cpp
+        self.quest_state
+            .movement_visibility_refresh_requests_like_cpp
     }
     pub(crate) fn consume_movement_visibility_refresh_request_like_cpp(&mut self) -> bool {
-        if self.movement_visibility_refresh_requests_like_cpp == 0 {
+        if self
+            .quest_state
+            .movement_visibility_refresh_requests_like_cpp
+            == 0
+        {
             return false;
         }
-        self.movement_visibility_refresh_requests_like_cpp = self
+        self.quest_state
+            .movement_visibility_refresh_requests_like_cpp = self
+            .quest_state
             .movement_visibility_refresh_requests_like_cpp
             .saturating_sub(1);
         true

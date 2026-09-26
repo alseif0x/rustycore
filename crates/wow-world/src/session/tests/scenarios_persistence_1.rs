@@ -32,6 +32,7 @@ async fn save_first_durable_money_completion_preserves_and_drains_money_event() 
     assert!(applied.load(Ordering::Acquire));
     assert_eq!(
         session
+            .quest_state
             .represented_quest_objective_progress_events_like_cpp
             .len(),
         1,
@@ -64,6 +65,7 @@ async fn save_first_durable_money_completion_preserves_and_drains_money_event() 
 
     assert!(
         session
+            .quest_state
             .represented_quest_objective_progress_events_like_cpp
             .is_empty(),
         "packet publication must drain the save-first MoneyChanged event"

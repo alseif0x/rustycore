@@ -577,13 +577,16 @@ impl WorldSession {
     pub(crate) fn represented_quest_complete_status_updates_like_cpp(
         &self,
     ) -> &[RepresentedQuestCompleteStatusUpdateLikeCpp] {
-        &self.represented_quest_complete_status_updates_like_cpp
+        &self
+            .quest_state
+            .represented_quest_complete_status_updates_like_cpp
     }
     pub(crate) fn record_represented_quest_complete_status_update_like_cpp(
         &mut self,
         evidence: RepresentedQuestCompleteStatusUpdateLikeCpp,
     ) {
-        self.represented_quest_complete_status_updates_like_cpp
+        self.quest_state
+            .represented_quest_complete_status_updates_like_cpp
             .push(evidence);
     }
 }

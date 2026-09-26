@@ -94,6 +94,7 @@ impl WorldSession {
             .unwrap_or(false);
         if can_complete_now {
             let completion_evidence_start = self
+                .quest_state
                 .represented_quest_complete_status_updates_like_cpp
                 .len();
             self.complete_represented_quest_after_add_with_generator_like_cpp(

@@ -216,6 +216,47 @@ pub(in crate::session) struct SessionPhaseRail {
     pub(in crate::session) rx: flume::Receiver<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
 }
 
+/// The session's spell-side represented state: the cached spell-script id sets
+/// the startup audit installs, the spell-acquisition authorities, the execute-log
+/// effects and the offhand re-check switch, until the owning Player runtime and the
+/// spell-acquisition module take them over.
+pub(crate) struct SessionSpellState {
+    pub(in crate::session) legacy_spell_script_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
+    pub(in crate::session) spell_linked_rejected_trigger_spell_ids_like_cpp:
+        Option<Arc<BTreeSet<u32>>>,
+    pub(in crate::session) spell_script_all_rank_root_spell_ids_like_cpp:
+        Option<Arc<BTreeSet<u32>>>,
+    /// Effective C++ spell-script hooks. These remain optional so a session
+    /// constructed without the startup audit fails closed.
+    pub(in crate::session) spell_script_exact_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
+    /// C++ `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` represented switch.
+    pub(in crate::session) represented_offhand_check_at_spell_unlearn_like_cpp: bool,
+    pub(in crate::session) represented_spell_execute_log_effects_like_cpp:
+        Vec<wow_packet::packets::combat::SpellLogEffect>,
+    pub(crate) spell_acquisition_cast_authority_like_cpp:
+        Option<Arc<crate::spell_acquisition::SpellAcquisitionCastAuthorityLikeCpp>>,
+    pub(crate) spell_acquisition_craft_authority_like_cpp:
+        Option<Arc<crate::spell_acquisition::SpellAcquisitionCraftValidityAuthorityLikeCpp>>,
+}
+
+/// The session's quest-side represented state: the level-gap thresholds that
+/// decide quest visibility, the completed-quest status updates and objective
+/// progress the player owner drains, and the visibility refreshes those
+/// transitions request.
+pub(crate) struct SessionQuestState {
+    pub(crate) min_quest_scaled_xp_ratio_like_cpp: u32,
+    pub(crate) quest_high_level_hide_diff_like_cpp: u32,
+    pub(crate) quest_low_level_hide_diff_like_cpp: u32,
+    /// Evidence for represented `Player::CompleteQuest` status-update side effects.
+    pub(crate) represented_quest_complete_status_updates_like_cpp:
+        Vec<RepresentedQuestCompleteStatusUpdateLikeCpp>,
+    pub(in crate::session) represented_quest_objective_progress_draining_like_cpp: bool,
+    pub(in crate::session) represented_quest_objective_progress_events_like_cpp:
+        VecDeque<RepresentedQuestObjectiveProgressEventLikeCpp>,
+    /// Count of visibility refreshes requested by movement initialization.
+    pub(in crate::session) movement_visibility_refresh_requests_like_cpp: u32,
+}
+
 pub struct WorldSession {
     /// The realm/instance transport, owned by `wow-session` (#297).
     ///
@@ -358,8 +399,6 @@ pub struct WorldSession {
     // C++ `Spell::_executeLogEffects` (`Spell.h:519`, `Spell.cpp:5048-5095`):
     // the current cast's execute-log effects, published once by
     // `Spell::FinishTargetProcessing`.
-    pub(in crate::session) represented_spell_execute_log_effects_like_cpp:
-        Vec<wow_packet::packets::combat::SpellLogEffect>,
 
     // Transmog set item store (TransmogSetItem.db2 data)
     pub(in crate::session) transmog_set_item_store: Option<Arc<TransmogSetItemStore>>,
@@ -547,6 +586,12 @@ pub struct WorldSession {
 
     /// The session's view of its world: area trigger, taxi, combat and realm flags.
     pub(in crate::session) view: SessionWorldView,
+
+    /// Spell-side represented state shared with the spell and acquisition adapters.
+    pub(crate) spell_state: SessionSpellState,
+
+    /// Quest-side represented state shared with the quest handlers.
+    pub(crate) quest_state: SessionQuestState,
 
     /// Addon chat filtering state shared with the chat handlers.
     pub(crate) addon_filter: SessionAddonFilter,
@@ -776,9 +821,6 @@ pub struct WorldSession {
     /// Legacy handle-less test fixture for C++ `Player::_currencyStorage`.
     #[cfg(test)]
     pub(in crate::session) player_currencies: HashMap<u32, PlayerCurrency>,
-    pub(in crate::session) represented_quest_objective_progress_events_like_cpp:
-        VecDeque<RepresentedQuestObjectiveProgressEventLikeCpp>,
-    pub(in crate::session) represented_quest_objective_progress_draining_like_cpp: bool,
 
     /// In-memory item objects keyed by item GUID, mirroring C++ `Player::m_items` ownership.
     #[cfg(test)]
@@ -1002,8 +1044,7 @@ pub struct WorldSession {
     /// C++ `Player::GetUnitBeingMoved()` represented GUID.
     #[cfg(test)]
     pub(in crate::session) player_moved_unit_guid_like_cpp: ObjectGuid,
-    /// Count of visibility refreshes requested by movement initialization.
-    pub(in crate::session) movement_visibility_refresh_requests_like_cpp: u32,
+
     /// ACKs accepted by represented movement handling until full Unit movement runtime/broadcasts exist.
     #[cfg(test)]
     pub(in crate::session) movement_ack_events_like_cpp: Vec<MovementAckEventLikeCpp>,
@@ -1373,18 +1414,6 @@ pub struct WorldSession {
     pub(in crate::session) canonical_threat_aura_snapshots_like_cpp:
         HashMap<u8, CanonicalThreatAuraSnapshotLikeCpp>,
 
-    pub(crate) spell_acquisition_cast_authority_like_cpp:
-        Option<Arc<crate::spell_acquisition::SpellAcquisitionCastAuthorityLikeCpp>>,
-    pub(crate) spell_acquisition_craft_authority_like_cpp:
-        Option<Arc<crate::spell_acquisition::SpellAcquisitionCraftValidityAuthorityLikeCpp>>,
-    /// Effective C++ spell-script hooks. These remain optional so a session
-    /// constructed without the startup audit fails closed.
-    pub(in crate::session) spell_script_exact_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
-    pub(in crate::session) spell_script_all_rank_root_spell_ids_like_cpp:
-        Option<Arc<BTreeSet<u32>>>,
-    pub(in crate::session) legacy_spell_script_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
-    pub(in crate::session) spell_linked_rejected_trigger_spell_ids_like_cpp:
-        Option<Arc<BTreeSet<u32>>>,
     pub(in crate::session) talent_store: Option<Arc<TalentStore>>,
     pub(in crate::session) num_talents_at_level_store: Option<Arc<NumTalentsAtLevelStore>>,
     pub(in crate::session) power_type_store: Option<Arc<PowerTypeStore>>,
@@ -1464,9 +1493,7 @@ pub struct WorldSession {
     pub(crate) min_discovered_scaled_xp_ratio_like_cpp: u32,
     #[cfg(test)]
     pub(crate) quest_test_fixture_like_cpp: QuestTestFixtureLikeCpp,
-    pub(crate) min_quest_scaled_xp_ratio_like_cpp: u32,
-    pub(crate) quest_low_level_hide_diff_like_cpp: u32,
-    pub(crate) quest_high_level_hide_diff_like_cpp: u32,
+
     /// C++ `CollectionMgr::_heirlooms`, represented until account collection runtime is complete.
     #[cfg(test)]
     pub(crate) represented_account_heirlooms_like_cpp: BTreeMap<u32, AccountHeirloomDataLikeCpp>,
@@ -1502,9 +1529,7 @@ pub struct WorldSession {
     /// C++ `Player::_instanceResetTimes`: instance id -> release time.
     #[cfg(test)]
     pub(crate) represented_instance_reset_times_like_cpp: BTreeMap<u32, u64>,
-    /// Evidence for represented `Player::CompleteQuest` status-update side effects.
-    pub(crate) represented_quest_complete_status_updates_like_cpp:
-        Vec<RepresentedQuestCompleteStatusUpdateLikeCpp>,
+
     /// C++ `ActivePlayerData::ExploredZones`, represented before the canonical Player owns persistence.
     #[cfg(test)]
     pub(in crate::session) represented_explored_zones_like_cpp:
@@ -1589,8 +1614,7 @@ pub struct WorldSession {
     pub(in crate::session) stats_limits_like_cpp: wow_data::StatsLimitsLikeCpp,
     /// C++ `CONFIG_RESET_SCHEDULE_{HOUR,WEEK_DAY}` consumed by `InstanceLockMgr::GetNextResetTime`.
     pub(in crate::session) reset_schedule_like_cpp: wow_instances::ResetSchedule,
-    /// C++ `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` represented switch.
-    pub(in crate::session) represented_offhand_check_at_spell_unlearn_like_cpp: bool,
+
     /// C++ `CONFIG_VMAP_INDOOR_CHECK` represented switch.
     pub(in crate::session) vmap_indoor_check_like_cpp: bool,
     /// Represented C++ `WorldObject::IsOutdoors()` result until VMAP owns it.

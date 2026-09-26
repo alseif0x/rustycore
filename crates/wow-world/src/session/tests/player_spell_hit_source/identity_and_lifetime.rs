@@ -8,7 +8,9 @@ fn rejected_spell_linked_trigger_blocks_hookless_inert_candidate_like_cpp() {
     assert!(session.spell_has_no_unrepresented_runtime_hooks_like_cpp(CANDIDATE_SPELL_ID));
     assert!(session.player_target_spell_is_hit_inert_like_cpp(CANDIDATE_SPELL_ID, 0));
 
-    session.spell_linked_rejected_trigger_spell_ids_like_cpp = None;
+    session
+        .spell_state
+        .spell_linked_rejected_trigger_spell_ids_like_cpp = None;
     assert!(
         !session.spell_has_no_unrepresented_runtime_hooks_like_cpp(CANDIDATE_SPELL_ID),
         "missing rejected-row authority must fail closed"

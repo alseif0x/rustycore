@@ -8,7 +8,9 @@ use crate::session::state::SessionAddonFilter;
 use crate::session::state::SessionDirectory;
 use crate::session::state::SessionDriverServices;
 use crate::session::state::SessionPhaseRail;
+use crate::session::state::SessionQuestState;
 use crate::session::state::SessionSocialLimits;
+use crate::session::state::SessionSpellState;
 use crate::session::state::SessionWorldView;
 
 #[cfg(test)]
@@ -169,7 +171,7 @@ impl WorldSession {
             regen_game_tables: None,
             shield_block_regular_game_table: None,
             represented_creature_auras_like_cpp: Vec::new(),
-            represented_spell_execute_log_effects_like_cpp: Vec::new(),
+
             transmog_set_item_store: None,
             #[cfg(test)]
             item_price_base_store: None,
@@ -263,6 +265,25 @@ impl WorldSession {
             phase_group_store: None,
             player_registry: None,
             addon_filter: SessionAddonFilter::default(),
+            spell_state: SessionSpellState {
+                legacy_spell_script_spell_ids_like_cpp: None,
+                spell_linked_rejected_trigger_spell_ids_like_cpp: None,
+                spell_script_all_rank_root_spell_ids_like_cpp: None,
+                spell_script_exact_spell_ids_like_cpp: None,
+                represented_offhand_check_at_spell_unlearn_like_cpp: true,
+                represented_spell_execute_log_effects_like_cpp: Vec::new(),
+                spell_acquisition_cast_authority_like_cpp: None,
+                spell_acquisition_craft_authority_like_cpp: None,
+            },
+            quest_state: SessionQuestState {
+                min_quest_scaled_xp_ratio_like_cpp: 0,
+                quest_high_level_hide_diff_like_cpp: 7,
+                quest_low_level_hide_diff_like_cpp: 4,
+                represented_quest_complete_status_updates_like_cpp: Vec::new(),
+                represented_quest_objective_progress_draining_like_cpp: false,
+                represented_quest_objective_progress_events_like_cpp: VecDeque::new(),
+                movement_visibility_refresh_requests_like_cpp: 0,
+            },
             view: SessionWorldView {
                 is_pvp_realm_like_cpp: false,
                 is_ffa_pvp_realm_like_cpp: false,
@@ -382,7 +403,7 @@ impl WorldSession {
             exploration_base_xp_store: None,
             #[cfg(test)]
             exploration_xp_rate_like_cpp: 1.0,
-            min_quest_scaled_xp_ratio_like_cpp: 0,
+
             #[cfg(test)]
             min_discovered_scaled_xp_ratio_like_cpp: 0,
             #[cfg(test)]
@@ -426,8 +447,7 @@ impl WorldSession {
             represented_guild_repair_bank_withdraws_like_cpp: Vec::new(),
             #[cfg(test)]
             player_currencies: HashMap::new(),
-            represented_quest_objective_progress_events_like_cpp: VecDeque::new(),
-            represented_quest_objective_progress_draining_like_cpp: false,
+
             #[cfg(test)]
             inventory_item_objects: HashMap::new(),
             current_map_id: 0,
@@ -538,7 +558,7 @@ impl WorldSession {
             advanced_combat_logging_enabled_like_cpp: Arc::new(AtomicBool::new(false)),
             #[cfg(test)]
             player_moved_unit_guid_like_cpp: ObjectGuid::EMPTY,
-            movement_visibility_refresh_requests_like_cpp: 0,
+
             #[cfg(test)]
             movement_ack_events_like_cpp: Vec::new(),
             #[cfg(test)]
@@ -755,12 +775,7 @@ impl WorldSession {
             player_equipment_inventory_authority_complete_like_cpp: false,
             #[cfg(test)]
             canonical_threat_aura_snapshots_like_cpp: HashMap::new(),
-            spell_acquisition_cast_authority_like_cpp: None,
-            spell_acquisition_craft_authority_like_cpp: None,
-            spell_script_exact_spell_ids_like_cpp: None,
-            spell_script_all_rank_root_spell_ids_like_cpp: None,
-            legacy_spell_script_spell_ids_like_cpp: None,
-            spell_linked_rejected_trigger_spell_ids_like_cpp: None,
+
             talent_store: None,
             num_talents_at_level_store: None,
             power_type_store: None,
@@ -785,8 +800,7 @@ impl WorldSession {
             object_mgr_catalogs_like_cpp: None,
             gameobject_template_lifecycle_store_like_cpp: None,
             quest_poi_store_like_cpp: None,
-            quest_low_level_hide_diff_like_cpp: 4,
-            quest_high_level_hide_diff_like_cpp: 7,
+
             #[cfg(test)]
             quest_test_fixture_like_cpp: QuestTestFixtureLikeCpp::default(),
             #[cfg(test)]
@@ -810,7 +824,7 @@ impl WorldSession {
             represented_completed_achievements_like_cpp: HashSet::new(),
             #[cfg(test)]
             represented_instance_reset_times_like_cpp: BTreeMap::new(),
-            represented_quest_complete_status_updates_like_cpp: Vec::new(),
+
             #[cfg(test)]
             represented_explored_zones_like_cpp: [0; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
             #[cfg(test)]
@@ -881,7 +895,7 @@ impl WorldSession {
             durability_loss_on_death_rate_like_cpp: 0.1,
             stats_limits_like_cpp: wow_data::StatsLimitsLikeCpp::default(),
             reset_schedule_like_cpp: wow_instances::ResetSchedule::default(),
-            represented_offhand_check_at_spell_unlearn_like_cpp: true,
+
             vmap_indoor_check_like_cpp: false,
             #[cfg(test)]
             represented_is_outdoors_like_cpp: None,

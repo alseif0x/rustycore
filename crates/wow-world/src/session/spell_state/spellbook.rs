@@ -11,7 +11,8 @@ impl WorldSession {
     }
 
     pub fn set_offhand_check_at_spell_unlearn_like_cpp(&mut self, enabled: bool) {
-        self.represented_offhand_check_at_spell_unlearn_like_cpp = enabled;
+        self.spell_state
+            .represented_offhand_check_at_spell_unlearn_like_cpp = enabled;
     }
     pub(crate) fn spell_learn_skill_like_cpp(
         &self,
@@ -665,7 +666,10 @@ impl WorldSession {
         }
         self.cleanup_removed_spell_titan_grip_like_cpp(spell_id);
         self.cleanup_removed_spell_dual_wield_like_cpp(spell_id);
-        if self.represented_offhand_check_at_spell_unlearn_like_cpp {
+        if self
+            .spell_state
+            .represented_offhand_check_at_spell_unlearn_like_cpp
+        {
             self.represented_auto_unequip_offhand_if_need_like_cpp(false);
         }
 

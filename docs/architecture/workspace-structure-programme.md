@@ -592,6 +592,31 @@ tipos ajenos; aqui se repunto solo `self.session_phase_tx` en los dos ficheros d
 generico, repuntar por fichero y con el receptor `self.`, nunca con regex global; y comprobar antes
 cuantos literales ajenos comparten el nombre.
 
+### B4, septimo slice ejecutado: `SessionSpellState` + `SessionQuestState` (2026-09-25)
+
+La familia `player_spells_quests_and_progression` (15 campos) se parte en dos sub-estados cohesivos:
+`SessionSpellState` (los cuatro sets de ids de spell-script, las dos autoridades de adquisicion, los
+efectos de execute-log y el switch de offhand) y `SessionQuestState` (los umbrales de visibilidad de
+quest por diferencia de nivel, las actualizaciones de estado de quest completada, la cola de progreso
+de objetivos y los refrescos de visibilidad que esas transiciones piden), alcanzados por `spell_state`
+y `quest_state`. **Census: 209 -> 196 campos de produccion** (el mayor salto de la ola). Coste: +83
+produccion/+4 test, el mas caro hasta ahora, porque los nombres de campo llegan a 55 caracteres
+(`represented_quest_objective_progress_events_like_cpp`) y el prefijo los re-envuelve; se paga a cambio
+de 13 campos menos de tipo Dios. Los cuatro accesores homonimos se quedan en `WorldSession` y sus
+llamadores no se tocan.
+
+**Quinto patron, y el metodo que conviene usar de aqui en adelante.** Cuatro de esos nombres existen
+*tambien* en un struct ajeno (`LegacyCreatureAggroConfigLikeCpp` en `creature_aggro_contracts.rs`) y hay
+mas literales ajenos en `world-server`, asi que una sustitucion textual es corrupcion segura. El metodo
+que funciono: mover primero la estructura (declaraciones + inicializadores) y despues **repuntar guiado
+por el compilador**, parseando sus errores y reescribiendo exactamente esas lineas. Dos codigos hay que
+cubrir: `E0609` (`no field ... on type WorldSession`) para los accesos normales y **`E0615`
+(`attempted to take value of method ...`) para los campos que tienen un accesor homonimo**, porque al
+quitar el campo el uso sin parentesis pasa a resolver al metodo. Con eso, un ciclo de repunte basto en
+la lib y otro en `--tests`; el struct ajeno quedo intacto (0 sustituciones alli). El mismo slice hizo
+crecer `handlers/quest/mod.rs` (+3 por re-envoltura), registro que el ledger tambien recoge: los
+hotspots auditados son varios y no solo `session/mod.rs`.
+
 **Siguiente slice de B4**: los dos `Arc<AtomicBool>` compartidos
 (`advanced_combat_logging_enabled_like_cpp`, `visibility_refresh_pending_like_cpp`, 14 accesos) si se
 confirma su cohesion -- comparten el patron "flag atomico que la sesion comparte con sus servicios",

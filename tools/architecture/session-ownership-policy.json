@@ -1061,13 +1061,6 @@
           "source_class": "production"
         },
         {
-          "name": "legacy_spell_script_spell_ids_like_cpp",
-          "type": "Option < Arc < BTreeSet < u32 > > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "legit_characters",
           "type": "Vec < ObjectGuid >",
           "visibility": "pub (in crate :: session)",
@@ -1250,13 +1243,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "min_quest_scaled_xp_ratio_like_cpp",
-          "type": "u32",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "mmap_pathfinder_like_cpp",
@@ -1459,13 +1445,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "movement_visibility_refresh_requests_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "movie_store",
@@ -2324,22 +2303,15 @@
           "source_class": "production"
         },
         {
-          "name": "quest_high_level_hide_diff_like_cpp",
-          "type": "u32",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "quest_low_level_hide_diff_like_cpp",
-          "type": "u32",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "quest_poi_store_like_cpp",
           "type": "Option < Arc < HashMap < i32 , wow_packet :: packets :: query :: QuestPoiData > > >",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "name": "quest_state",
+          "type": "SessionQuestState",
           "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
@@ -3197,13 +3169,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "represented_offhand_check_at_spell_unlearn_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "represented_old_pet_spell_like_cpp",
           "type": "u32",
           "visibility": "pub (in crate :: session)",
@@ -3369,27 +3334,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "represented_quest_complete_status_updates_like_cpp",
-          "type": "Vec < RepresentedQuestCompleteStatusUpdateLikeCpp >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_quest_objective_progress_draining_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_quest_objective_progress_events_like_cpp",
-          "type": "VecDeque < RepresentedQuestObjectiveProgressEventLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "represented_repop_at_graveyard_count",
           "type": "u32",
           "visibility": "pub (crate)",
@@ -3460,13 +3404,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_spell_execute_log_effects_like_cpp",
-          "type": "Vec < wow_packet :: packets :: combat :: SpellLogEffect >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "represented_spell_history_packets_like_cpp",
@@ -3850,20 +3787,6 @@
           "source_class": "production"
         },
         {
-          "name": "spell_acquisition_cast_authority_like_cpp",
-          "type": "Option < Arc < crate :: spell_acquisition :: SpellAcquisitionCastAuthorityLikeCpp > >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_acquisition_craft_authority_like_cpp",
-          "type": "Option < Arc < crate :: spell_acquisition :: SpellAcquisitionCraftValidityAuthorityLikeCpp > >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "spell_catalogs",
           "type": "crate :: catalogs :: spell :: SpellCatalogsLikeCpp",
           "visibility": "pub (crate)",
@@ -3871,23 +3794,9 @@
           "source_class": "production"
         },
         {
-          "name": "spell_linked_rejected_trigger_spell_ids_like_cpp",
-          "type": "Option < Arc < BTreeSet < u32 > > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_script_all_rank_root_spell_ids_like_cpp",
-          "type": "Option < Arc < BTreeSet < u32 > > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_script_exact_spell_ids_like_cpp",
-          "type": "Option < Arc < BTreeSet < u32 > > >",
-          "visibility": "pub (in crate :: session)",
+          "name": "spell_state",
+          "type": "SessionSpellState",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -82276,7 +82185,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:fa538576c8e93a16af3db7b82aa84e51:len=85238|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:ed06100d5c55469efbf2cd3087eadda9:len=83546|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

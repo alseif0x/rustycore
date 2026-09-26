@@ -21,13 +21,13 @@ impl WorldSession {
         safe_cast_spell_ids: impl IntoIterator<Item = u32>,
         valid_craft_spell_ids: impl IntoIterator<Item = u32>,
     ) {
-        self.spell_acquisition_cast_authority_like_cpp = Some(Arc::new(
+        self.spell_state.spell_acquisition_cast_authority_like_cpp = Some(Arc::new(
             crate::spell_acquisition::SpellAcquisitionCastAuthorityLikeCpp::from_audited_rows_like_cpp(
                 safe_cast_spell_ids,
                 std::iter::empty(),
             ),
         ));
-        self.spell_acquisition_craft_authority_like_cpp = Some(Arc::new(
+        self.spell_state.spell_acquisition_craft_authority_like_cpp = Some(Arc::new(
             crate::spell_acquisition::SpellAcquisitionCraftValidityAuthorityLikeCpp::from_audited_rows_like_cpp(
                 valid_craft_spell_ids,
                 std::iter::empty(),
