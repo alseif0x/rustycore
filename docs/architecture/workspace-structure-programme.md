@@ -820,6 +820,25 @@ uso de `wow_packet`** en `map_manager/` (`CreatureCreateData` en `mod.rs`) y el 
 Evidencia: `cargo check` lib y tests 0 errores, 3901 tests pasan, `check_architecture.py check` y
 `self-test` verdes. Coste: +11 lineas.
 
+### B6, pieza 2 dimensionada: `create_data` es un puente de 56 usos (2026-09-25)
+
+Antes de tocar `CreatureCreateData` se midio su radio: **56 usos de `.create_data`** repartidos en 10+
+ficheros (`map_manager/pending_respawn.rs` 9, `map_manager_tests/persistence.rs` 9, `creature_1.rs` 7,
+`session/spell_effects/ticks.rs` 4, `runtime/creature.rs` 4, `runtime/manager.rs` 3, ...), mas los
+puntos que *construyen* el tipo (`session/world_entities/creature_registry.rs` 4, fixtures y tests de
+handlers). No es una arista que se inyecte como el codificador de anim-kit: el contrato exige
+
+1. una **proyeccion de dominio** (`CreatureCreateProjectionLikeCpp` o equivalente) con los mismos
+   datos que hoy lleva el tipo de wire, declarada en un crate `domain-runtime`;
+2. que `WorldCreature.create_data` pase a ser esa proyeccion;
+3. que el **adaptador** de `wow-world` componga `CreatureCreateData` al construir el paquete
+   (`session/world_entities/creature_registry.rs` y los fixtures que hoy lo construyen a mano).
+
+Es un slice propio, no una pieza suelta: se hara con el mismo metodo probado (mover el tipo, repuntar
+guiado por el compilador, regenerar census/ledger con delta revisado) y despues de la pieza 3, porque el
+movimiento de `map_manager` a un crate `domain-runtime` necesita las dos. Queda dimensionado y no
+iniciado a medias.
+
 Criterio de cierre de B6: `map_manager` vive en `wow-map` (o en un crate `domain-runtime` propio),
 `wow-world` conserva solo el adaptador, y `check-deps` no necesita ninguna excepcion nueva.
 
