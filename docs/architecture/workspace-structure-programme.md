@@ -114,7 +114,7 @@ curso, `[x]` cerrada con commit.
 ```
 A0.1 [x]  A0.2 [x]  A0.3 [x]  A0.4 [~]  A0.5 [x]  A0.6 [x]  A0.7 [x]   <- ola A: PUERTA VERDE
 A1 [x]  A2 [x]  A3 [x]
-B1 [x] e719ac38   B2 [ ]  B3 [ ]  B4 [ ]  B5 [ ]  B6 [ ]  B7 [ ]
+B1 [x] e719ac38   B2 [x] 98c5b14a   B3 [ ]  B4 [~]  B5 [ ]  B6 [ ]  B7 [ ]
 C1 [ ]  C2 [ ]  C3 [ ]  C4 [ ]
 D1 [ ]  D2 [ ]  D3 [ ]  D4 [ ]  D5 [ ]
 E1 [ ]  E2 [ ]  E3 [ ]  E4 [ ]
@@ -468,3 +468,40 @@ para su propio slice). El movimiento de campos y el inicializador anidado funcio
 El intento se revirtio sin dejar el arbol sucio; la rama sigue verde. Se retoma con el metodo
 corregido: mover campos, mover metodos al `impl` del sub-estructo, y repuntar solo accesos (no
 llamadas), con `cargo check` entre pasos.
+
+### B4, primer slice ejecutado: `SessionDirectory` (2026-09-25)
+
+`WorldSession` pierde tres declaraciones de campo (`game_event_quest_complete_tx`, `group_registry`,
+`pending_invites`) hacia el sub-estado nombrado `SessionDirectory`, declarado junto a su dueno con la
+visibilidad mas estrecha (`pub(in crate::session)`, la que ya tenian los campos: no se ensancha
+nada). Los tres accesores (`set_group_registry`, `group_registry`, `pending_invites`) y sus 39
+llamadores en `handlers/**` conservan la frontera, asi que no cambia ningun paquete, ninguna
+persistencia ni ninguna autoridad; la construccion usa el `Default` derivado. `player_registry`
+queda para su propio slice por radio de llamadas.
+
+Lo que el intento anterior no habia visto, ahora medido:
+
+- **El ledger de hotspot es un ratchet de crecimiento, no una medida libre.** Mover una familia a un
+  sub-estado *anade* lineas de produccion al agregado logico (`session/mod.rs`), y el unico modo de
+  que el slice cierre es registrar el crecimiento revisado en `runtime-ownership-ledger.json`
+  (`latest_growth_review`) o retirar lineas equivalentes. Este slice cuesta **+3 lineas** de
+  produccion (227862 -> 227865 totales) y se registro con la revision completa: sin segunda
+  autoridad, espejo, cerrojo, reloj ni tarea. Las lineas bajan a cero cuando el sub-estado tenga
+  contrato y salga del arbol.
+- **Retirar imports "muertos" no es un atajo valido.** Los 9 imports que el chequeo de produccion
+  marca como no usados en `session/{state,construction}.rs` los usa codigo `#[cfg(test)]` del mismo
+  fichero; borrarlos rompe los tests, y marcarlos `#[cfg(test)]` solo traslada lineas de produccion a
+  lineas de test, que el mismo ratchet tambien limita. Se revirtio.
+- **La familia tambien se declara en el ledger de runtime**, no solo en la census: hay que mover los
+  nombres a `directory` en `world_session_responsibility_families` y ajustar los contadores globales
+  (525/219/306) o `check_architecture` falla por campos ausentes/obsoletos.
+- **Repuntar accesos, no llamadas, con cuidado en los fixtures.** Los fixtures de test que tienen
+  campos homonimos (`GroupReconciliationFixtureLikeCpp.group_registry`) no se repuntan; el compilador
+  los senala uno a uno. Y un `use` nuevo debe insertarse fuera del grupo `#[cfg(test)]`, no entre el
+  atributo y su import.
+- **Conservar la procedencia al mover.** Los comentarios C++ de cada campo viajan con el campo al
+  sub-estado; dejarlos atras pierde la ancla y deja comentarios huerfanos en el dueno.
+
+Evidencia del slice: `cargo check -p wow-world` (0 errores), `cargo check -p wow-world --tests`
+(0 errores), `cargo test -p wow-world --lib` (3901 pasan), census de sintaxis PASS (219 campos de
+produccion), `check_architecture.py check` PASS y `self-test` PASS (20 fixtures).

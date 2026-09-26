@@ -77,7 +77,7 @@ impl WorldSession {
     ) -> f32 {
         let (Some(group_guid), Some(group_registry)) = (
             self.resolved_group_guid_like_cpp(),
-            self.group_registry.as_ref(),
+            self.directory.group_registry.as_ref(),
         ) else {
             return 1.0;
         };

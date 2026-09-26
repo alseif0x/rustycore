@@ -25,7 +25,7 @@ impl WorldSession {
 
     /// Get a reference to the shared pending invites map.
     pub fn pending_invites(&self) -> Option<&Arc<PendingInvites>> {
-        self.pending_invites.as_ref()
+        self.directory.pending_invites.as_ref()
     }
 
     pub(crate) fn player_is_in_world_for_registry_like_cpp(&self) -> bool {

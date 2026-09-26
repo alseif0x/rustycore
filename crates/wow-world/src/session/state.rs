@@ -147,6 +147,18 @@ use super::{VehicleTemplateStoreLikeCpp, VendorBuyItemTestOverrideLikeCpp};
 use super::{WaypointPathResolverLikeCpp, WorldMMapPathfinderWorkerLikeCpp, WorldPacket};
 use super::{WorldSafeLocStore, driver, lifecycle};
 
+/// Shared registries and the game-event channel the session coordinates through.
+#[derive(Default)]
+pub(in crate::session) struct SessionDirectory {
+    /// Session -> world-server bridge for C++ GameEventMgr::HandleQuestComplete.
+    pub(in crate::session) game_event_quest_complete_tx:
+        Option<flume::Sender<GameEventQuestCompleteCommandLikeCpp>>,
+    /// Shared group registry for party management.
+    pub(in crate::session) group_registry: Option<Arc<GroupRegistry>>,
+    /// Pending party invites: invited_guid → inviter_guid.
+    pub(in crate::session) pending_invites: Option<Arc<PendingInvites>>,
+}
+
 pub struct WorldSession {
     /// The realm/instance transport, owned by `wow-session` (#297).
     ///
@@ -477,15 +489,8 @@ pub struct WorldSession {
     // Shared player registry for broadcasting to nearby sessions
     pub(in crate::session) player_registry: Option<Arc<PlayerRegistry>>,
 
-    // Session -> world-server bridge for C++ GameEventMgr::HandleQuestComplete.
-    pub(in crate::session) game_event_quest_complete_tx:
-        Option<flume::Sender<GameEventQuestCompleteCommandLikeCpp>>,
-
-    // Shared group registry for party management
-    pub(in crate::session) group_registry: Option<Arc<GroupRegistry>>,
-
-    // Pending party invites: invited_guid → inviter_guid
-    pub(in crate::session) pending_invites: Option<Arc<PendingInvites>>,
+    /// Party registries and the world-event channel, grouped by the B4 split.
+    pub(in crate::session) directory: SessionDirectory,
 
     // Test-only compatibility for pre-#578 fixtures. Production group
     // membership and Player-owned update sequences live on canonical Player.

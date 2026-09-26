@@ -34,7 +34,7 @@ impl WorldSession {
         let (Some(player_guid), Some(group_guid), Some(group_registry), Some(player_registry)) = (
             self.player_guid(),
             self.resolved_group_guid_like_cpp(),
-            self.group_registry.as_ref(),
+            self.directory.group_registry.as_ref(),
             self.player_registry.as_ref(),
         ) else {
             return false;

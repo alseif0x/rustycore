@@ -123,7 +123,7 @@ impl WorldSession {
         // ownership through the authority so a member removed while a
         // notification is still queued cannot keep the group's instance.
         self.authoritative_group_membership_like_cpp()
-            .and_then(|group_guid| self.group_registry.as_ref()?.get(&group_guid))
+            .and_then(|group_guid| self.directory.group_registry.as_ref()?.get(&group_guid))
             .map(|group| group.recent_instance_owner_like_cpp(map_id))
             .or(self.player_guid)
     }

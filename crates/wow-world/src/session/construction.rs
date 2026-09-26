@@ -4,6 +4,8 @@
 //! Construction: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
+use crate::session::state::SessionDirectory;
+
 #[cfg(test)]
 use super::BattlePetTestFixtureLikeCpp;
 use super::DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP;
@@ -254,9 +256,7 @@ impl WorldSession {
             phase_store: None,
             phase_group_store: None,
             player_registry: None,
-            game_event_quest_complete_tx: None,
-            group_registry: None,
-            pending_invites: None,
+            directory: SessionDirectory::default(),
             #[cfg(test)]
             group_guid: None,
             #[cfg(test)]
