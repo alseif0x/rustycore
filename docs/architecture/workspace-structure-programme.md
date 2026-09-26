@@ -755,6 +755,26 @@ de hotspot limita las tres cifras (produccion, test y total): no se puede. Concl
 desbloquea hasta que la migracion de B3 retire los consumidores de test, o hasta que exista una
 decision explicita que permita esa reclasificacion. Queda registrado, no forzado.
 
+### B5: correccion de medida y costura real (2026-09-25)
+
+Mi primera medida de "masa de test" en los ficheros grandes de handlers era un **artefacto**: conte
+llaves desde cada `#[cfg(test)]` sin parser y conclui que `handlers/loot/mod.rs` tenia un `mod tests` de
+945 lineas. No existe tal modulo: lo que hay son **items `#[cfg(test)]` sueltos intercalados** con el
+codigo de produccion (imports, helpers y funciones gated una a una), el mismo patron que bloquea B7. La
+costura "extrae el modulo de test" **no existe**, y el script no movio nada (arbol limpio, tres builds
+verdes). B5 necesita diseno por fichero: decidir que item gated es fixture y debe vivir en un modulo de
+test, y en que orden, sabiendo que cada extraccion que reclasifique lineas de produccion a test choca
+con el ratchet de hotspot. Se hara junto con B3.
+
+### B7, primer slice ejecutado: techos fisicos obsoletos endurecidos (2026-09-25)
+
+Medido antes de tocar: **31 filas** de `physical-file-policy.json` tenian el techo por encima del
+tamano vivo, es decir, el ratchet **no vigilaba** esos ficheros (entre ellas
+`world-server/src/spawn_store_loader.rs` 3427 -> 730 y `handlers/character/items.rs` 3904 -> 793, de
+particiones anteriores que nunca se apretaron). Se endurecieron las 31 a la cifra observada, con nota
+de revision en cada `split`: **51 801 lineas de holgura retiradas** del ratchet, sin tocar una linea de
+codigo. `check_architecture.py check`, `self-test` y `test_physical_files.py` verdes.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
