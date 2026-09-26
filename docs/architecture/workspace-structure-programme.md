@@ -504,4 +504,15 @@ Lo que el intento anterior no habia visto, ahora medido:
 
 Evidencia del slice: `cargo check -p wow-world` (0 errores), `cargo check -p wow-world --tests`
 (0 errores), `cargo test -p wow-world --lib` (3901 pasan), census de sintaxis PASS (219 campos de
-produccion), `check_architecture.py check` PASS y `self-test` PASS (20 fixtures).
+produccion), `check_architecture.py check` PASS y `self-test` PASS (20 fixtures). `cargo check
+--workspace --all-targets` sigue en 0 errores.
+
+**Siguiente slice de B4**: `player_social_chat_calendar_and_group_views`
+(`chat_flood_data_like_cpp`, `max_recruit_a_friend_bonus_player_level_like_cpp`,
+`max_recruit_a_friend_bonus_player_level_difference_like_cpp`), por ser la familia cohesiva mas
+pequena que queda; despues `session_driver_timers_and_transitional_misc` (cuyo nombre es un cajon de
+sastre y exige renombrar la familia al partirla), y `player_registry` con su propio slice por radio
+de llamadas. Metodo ya probado: (1) mover campos con su visibilidad efectiva y sus comentarios de
+procedencia al sub-estado, (2) repuntar solo accesos con `cargo check -p wow-world` entre pasos,
+(3) regenerar census y ledger de runtime con delta revisado -- incluida la entrada de crecimiento del
+hotspot y los nombres de familia --, (4) `check_architecture.py check` + `self-test`, (5) commit.
