@@ -808,6 +808,18 @@ Contrato en tres piezas, en este orden:
    resto. La decision depende de cuanto del manager lo use (hoy: un `use`), asi que se resuelve al
    implementar 1 y 2.
 
+### B6, pieza 1 del contrato ejecutada: codificador inyectado (2026-09-25)
+
+`MapManager::set_creature_anim_kit_id_like_cpp` ya no construye paquetes: recibe un puerto por
+parametro, `encode_anim_kit: impl Fn(CreatureAnimKitSlotLikeCpp, ObjectGuid, u16) -> Vec<u8>`, igual que
+ya recibia `anim_kit_exists: impl Fn(u16) -> bool`. El manager muta el estado y devuelve su
+`RuntimeEvent` con los bytes que el adaptador codifique; **`runtime/manager.rs` deja de nombrar
+`wow_packet`** (0 usos, eran 4). Los tres unicos llamadores eran de test, asi que el codificador vive
+ahora en `map_manager_tests/creature_5.rs` como helper y las aserciones de opcode no cambian. Queda **1
+uso de `wow_packet`** en `map_manager/` (`CreatureCreateData` en `mod.rs`) y el de `wow_recastdetour`.
+Evidencia: `cargo check` lib y tests 0 errores, 3901 tests pasan, `check_architecture.py check` y
+`self-test` verdes. Coste: +11 lineas.
+
 Criterio de cierre de B6: `map_manager` vive en `wow-map` (o en un crate `domain-runtime` propio),
 `wow-world` conserva solo el adaptador, y `check-deps` no necesita ninguna excepcion nueva.
 
