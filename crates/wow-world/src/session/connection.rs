@@ -165,7 +165,7 @@ impl WorldSession {
                 .await;
             }
             InstanceLinkPollOutcome::Failed => {
-                self.player_loading = None;
+                self.lifecycle.player_loading = None;
                 self.release_character_login_claim_like_cpp();
             }
         }
@@ -225,7 +225,7 @@ impl WorldSession {
     /// the kernel does not own.
     pub(crate) fn restore_realm_channels(&mut self) {
         self.connection.restore_realm_channels(self.account_id);
-        self.player_loading = None;
+        self.lifecycle.player_loading = None;
     }
 
     #[cfg(test)]

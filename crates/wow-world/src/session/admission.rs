@@ -335,6 +335,7 @@ impl super::WorldSession {
             return;
         };
         let Some(port) = self
+            .lifecycle
             .persistence_ports_like_cpp
             .admission
             .packet_spoof_ban

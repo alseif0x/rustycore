@@ -43,7 +43,7 @@ impl WorldSession {
 
         use wow_packet::packets::misc::{SuspendToken, TransferPending};
 
-        if !self.player_logout_like_cpp && options & TELE_TO_SEAMLESS_LIKE_CPP == 0 {
+        if !self.lifecycle.player_logout_like_cpp && options & TELE_TO_SEAMLESS_LIKE_CPP == 0 {
             let transfer_pending = TransferPending {
                 map_id,
                 old_map_position: current_pos,
@@ -65,7 +65,7 @@ impl WorldSession {
         }
         self.state = SessionState::Transfer;
 
-        if !self.player_logout_like_cpp {
+        if !self.lifecycle.player_logout_like_cpp {
             if options & TELE_TO_SEAMLESS_LIKE_CPP == 0
                 && !self
                     .wait_for_realm_send_before_instance_update_like_cpp()

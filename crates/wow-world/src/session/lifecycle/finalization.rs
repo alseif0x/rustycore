@@ -10,12 +10,15 @@ use wow_packet::packets::misc::LogoutComplete;
 
 impl WorldSession {
     pub fn finalization_report_like_cpp(&self) -> Option<FinalizationReport> {
-        self.finalization.as_ref().map(SessionFinalization::report)
+        self.lifecycle
+            .finalization
+            .as_ref()
+            .map(SessionFinalization::report)
     }
 
     /// Cancellation leaves an in-flight obligation, never a rollback receipt.
     pub fn interrupt_finalization_like_cpp(&mut self) -> Option<FinalizationReport> {
-        if let Some(operation) = &mut self.finalization {
+        if let Some(operation) = &mut self.lifecycle.finalization {
             operation.interrupt();
         }
         self.finalization_report_like_cpp()
@@ -23,6 +26,7 @@ impl WorldSession {
 
     fn finalization_result(&mut self) -> FinalizationReport {
         let report = self
+            .lifecycle
             .finalization
             .as_ref()
             .expect("admitted finalization")
@@ -39,7 +43,7 @@ impl WorldSession {
         item_guid_generator: &wow_core::ObjectGuidGenerator,
     ) -> FinalizationReport {
         let no_player = self.player_guid().is_none();
-        if let Some(previous) = &mut self.finalization {
+        if let Some(previous) = &mut self.lifecycle.finalization {
             let report = previous.report();
             if previous.is_unstarted() && report.mode == FinalizationMode::TimedLogout {
                 mode = FinalizationMode::TimedLogout;
@@ -60,18 +64,19 @@ impl WorldSession {
                 return self.finalization_result();
             }
         }
-        self.finalization = Some(SessionFinalization::new(
+        self.lifecycle.finalization = Some(SessionFinalization::new(
             mode,
             !no_player,
             self.player_handle_like_cpp,
         ));
 
-        while let Some(step) = self.finalization.as_ref().unwrap().next_step() {
-            if !self.finalization.as_mut().unwrap().begin(step) {
+        while let Some(step) = self.lifecycle.finalization.as_ref().unwrap().next_step() {
+            if !self.lifecycle.finalization.as_mut().unwrap().begin(step) {
                 return self.finalization_result();
             }
             if !self.finalization_identity_is_current() {
-                self.finalization
+                self.lifecycle
+                    .finalization
                     .as_mut()
                     .unwrap()
                     .finish(step, FinalizationOutcome::Unavailable);
@@ -80,16 +85,22 @@ impl WorldSession {
             let outcome = self
                 .execute_finalization_step(step, mode, item_guid_generator)
                 .await;
-            if !self.finalization.as_mut().unwrap().finish(step, outcome) {
+            if !self
+                .lifecycle
+                .finalization
+                .as_mut()
+                .unwrap()
+                .finish(step, outcome)
+            {
                 return self.finalization_result();
             }
         }
-        self.finalization.as_mut().unwrap().complete();
+        self.lifecycle.finalization.as_mut().unwrap().complete();
         self.finalization_result()
     }
 
     fn finalization_identity_is_current(&self) -> bool {
-        let report = self.finalization.as_ref().unwrap().report();
+        let report = self.lifecycle.finalization.as_ref().unwrap().report();
         if report.outcome(FinalizationStep::Retirement) == FinalizationOutcome::Applied {
             return self.player_handle_like_cpp.is_none();
         }
@@ -119,7 +130,7 @@ impl WorldSession {
                 }
                 if self.player_guid().is_some() {
                     self.set_player_logout_like_cpp(true);
-                    self.logout_time = None;
+                    self.lifecycle.logout_time = None;
                 }
                 FinalizationOutcome::Applied
             }

@@ -64,8 +64,8 @@ impl SessionAccountStatePortLikeCpp for RecordingSessionAccountStatePortLikeCpp 
 #[tokio::test]
 async fn account_data_load_keeps_scope_and_cpp_mask_validation_in_session() {
     let (mut session, _, _) = make_session();
-    session.account_data_like_cpp[0].time = 99;
-    session.account_data_like_cpp[1].time = 88;
+    session.lifecycle.account_data_like_cpp[0].time = 99;
+    session.lifecycle.account_data_like_cpp[1].time = 88;
     let port = RecordingSessionAccountStatePortLikeCpp::new(
         SessionAccountDataLoadOutcomeLikeCpp::Loaded(vec![
             SessionAccountDataRowLikeCpp {
@@ -91,9 +91,9 @@ async fn account_data_load_keeps_scope_and_cpp_mask_validation_in_session() {
 
     session.load_global_account_data_like_cpp().await;
 
-    assert_eq!(session.account_data_like_cpp[0].time, 17);
-    assert_eq!(session.account_data_like_cpp[0].data, "global");
-    assert_eq!(session.account_data_like_cpp[1].time, 88);
+    assert_eq!(session.lifecycle.account_data_like_cpp[0].time, 17);
+    assert_eq!(session.lifecycle.account_data_like_cpp[0].data, "global");
+    assert_eq!(session.lifecycle.account_data_like_cpp[1].time, 88);
     assert_eq!(
         *port.scopes.lock().unwrap(),
         [SessionAccountDataScopeLikeCpp::Global { account_id: 1 }]
@@ -113,7 +113,7 @@ async fn account_data_load_keeps_scope_and_cpp_mask_validation_in_session() {
     session
         .load_player_account_data_like_cpp(character_guid)
         .await;
-    assert_eq!(session.account_data_like_cpp[1].time, 37);
+    assert_eq!(session.lifecycle.account_data_like_cpp[1].time, 37);
     assert_eq!(
         *character_port.scopes.lock().unwrap(),
         [SessionAccountDataScopeLikeCpp::Character { guid_low: 73 }]
@@ -124,11 +124,11 @@ async fn account_data_load_keeps_scope_and_cpp_mask_validation_in_session() {
         SessionTutorialsLoadOutcomeLikeCpp::Loaded(None),
         PersistenceOutcomeLikeCpp::Applied { rows: 1 },
     );
-    session.account_data_like_cpp[0].time = 101;
+    session.lifecycle.account_data_like_cpp[0].time = 101;
     session.set_session_account_state_port_like_cpp(empty_port);
     session.load_global_account_data_like_cpp().await;
     assert_eq!(
-        session.account_data_like_cpp[0],
+        session.lifecycle.account_data_like_cpp[0],
         AccountDataLikeCpp::default()
     );
 }
@@ -145,10 +145,13 @@ async fn tutorial_load_publishes_only_a_successful_typed_outcome_like_cpp() {
 
     session.load_tutorials_data_like_cpp().await;
 
-    assert_eq!(session.tutorials_like_cpp, [1, 2, 3, 4, 5, 6, 7, 8]);
-    assert!(session.tutorials_loaded_from_db_like_cpp);
-    assert!(session.tutorials_loaded_coherently_like_cpp);
-    assert!(!session.tutorials_changed_like_cpp);
+    assert_eq!(
+        session.lifecycle.tutorials_like_cpp,
+        [1, 2, 3, 4, 5, 6, 7, 8]
+    );
+    assert!(session.lifecycle.tutorials_loaded_from_db_like_cpp);
+    assert!(session.lifecycle.tutorials_loaded_coherently_like_cpp);
+    assert!(!session.lifecycle.tutorials_changed_like_cpp);
 
     let (mut failed_session, _, _) = make_session();
     let failed_port = RecordingSessionAccountStatePortLikeCpp::new(
@@ -160,7 +163,11 @@ async fn tutorial_load_publishes_only_a_successful_typed_outcome_like_cpp() {
     );
     failed_session.set_session_account_state_port_like_cpp(failed_port);
     failed_session.load_tutorials_data_like_cpp().await;
-    assert!(!failed_session.tutorials_loaded_coherently_like_cpp);
+    assert!(
+        !failed_session
+            .lifecycle
+            .tutorials_loaded_coherently_like_cpp
+    );
 }
 
 #[tokio::test]
@@ -180,7 +187,7 @@ async fn account_data_save_updates_memory_only_after_applied_but_keeps_missing_p
             .await
     );
     assert_eq!(
-        session.account_data_like_cpp[0],
+        session.lifecycle.account_data_like_cpp[0],
         AccountDataLikeCpp::default()
     );
     assert_eq!(failed.saves.lock().unwrap().len(), 1);
@@ -196,10 +203,11 @@ async fn account_data_save_updates_memory_only_after_applied_but_keeps_missing_p
             .set_account_data_persisted_like_cpp(0, 42, "applied".to_owned())
             .await
     );
-    assert_eq!(session.account_data_like_cpp[0].time, 42);
+    assert_eq!(session.lifecycle.account_data_like_cpp[0].time, 42);
     assert_eq!(applied.saves.lock().unwrap().len(), 1);
 
     session
+        .lifecycle
         .persistence_ports_like_cpp
         .admission
         .session_account_state = None;
@@ -208,6 +216,6 @@ async fn account_data_save_updates_memory_only_after_applied_but_keeps_missing_p
             .set_account_data_persisted_like_cpp(0, 43, "fallback".to_owned())
             .await
     );
-    assert_eq!(session.account_data_like_cpp[0].time, 43);
-    assert_eq!(session.account_data_like_cpp[0].data, "fallback");
+    assert_eq!(session.lifecycle.account_data_like_cpp[0].time, 43);
+    assert_eq!(session.lifecycle.account_data_like_cpp[0].data, "fallback");
 }

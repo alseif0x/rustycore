@@ -181,13 +181,17 @@ impl WorldSession {
         &mut self,
         port: Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>,
     ) {
-        self.persistence_ports_like_cpp.player.player_lifecycle = Some(port);
+        self.lifecycle
+            .persistence_ports_like_cpp
+            .player
+            .player_lifecycle = Some(port);
     }
 
     pub(crate) fn player_lifecycle_port_like_cpp(
         &self,
     ) -> Option<&Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>> {
-        self.persistence_ports_like_cpp
+        self.lifecycle
+            .persistence_ports_like_cpp
             .player
             .player_lifecycle
             .as_ref()

@@ -7,6 +7,7 @@
 use crate::session::state::SessionAddonFilter;
 use crate::session::state::SessionDirectory;
 use crate::session::state::SessionDriverServices;
+use crate::session::state::SessionLifecycleState;
 use crate::session::state::SessionPhaseRail;
 use crate::session::state::SessionQuestState;
 use crate::session::state::SessionSocialLimits;
@@ -148,8 +149,7 @@ impl WorldSession {
             pending_packet_spoof_ban_like_cpp: None,
             legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp::default(),
             dispatch_table: build_dispatch_table(),
-            homebind_persistence_tx_like_cpp: None,
-            persistence_ports_like_cpp: Box::default(),
+
             trainer_store_like_cpp: None,
             #[cfg(test)]
             bank_bag_slot_prices_store: None,
@@ -284,6 +284,35 @@ impl WorldSession {
                 represented_quest_objective_progress_events_like_cpp: VecDeque::new(),
                 movement_visibility_refresh_requests_like_cpp: 0,
             },
+            lifecycle: SessionLifecycleState {
+                account_data_like_cpp: default_account_data_like_cpp(),
+                battle_pet_account_attachment_like_cpp: None,
+                character_rename_callbacks: Default::default(),
+                durable_item_loot_persistence_like_cpp:
+                    DurableItemLootPersistenceTrackerLikeCpp::default(),
+                durable_loot_money_persistence_like_cpp: Arc::new(
+                    DurableLootMoneyPersistenceTrackerLikeCpp::default(),
+                ),
+                finalization: None,
+                homebind_persistence_tx_like_cpp: None,
+                level_played_time: 0,
+                login_time: None,
+                logout_time: None,
+                next_player_save_ms_like_cpp: DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP,
+                pending_periodic_player_save_like_cpp: false,
+                persistence_ports_like_cpp: Box::default(),
+                pet_load_query_holder_rows_like_cpp:
+                    lifecycle::PetLoadQueryHolderRowsLikeCpp::default(),
+                player_loading: None,
+                player_login_claim_like_cpp: None,
+                player_logout_like_cpp: false,
+                player_save_interval_ms_like_cpp: DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP,
+                total_played_time: 0,
+                tutorials_changed_like_cpp: false,
+                tutorials_like_cpp: [0; 8],
+                tutorials_loaded_coherently_like_cpp: false,
+                tutorials_loaded_from_db_like_cpp: false,
+            },
             view: SessionWorldView {
                 is_pvp_realm_like_cpp: false,
                 is_ffa_pvp_realm_like_cpp: false,
@@ -335,19 +364,9 @@ impl WorldSession {
             void_storage_item_id_generator_like_cpp: None,
             legit_characters: Vec::new(),
             pending_packets: VecDeque::new(),
-            character_rename_callbacks: Default::default(),
-            player_loading: None,
-            player_login_claim_like_cpp: None,
-            player_logout_like_cpp: false,
-            finalization: None,
+
             session_mgr: None,
-            logout_time: None,
-            login_time: None,
-            player_save_interval_ms_like_cpp: DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP,
-            next_player_save_ms_like_cpp: DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP,
-            pending_periodic_player_save_like_cpp: false,
-            total_played_time: 0,
-            level_played_time: 0,
+
             max_player_level_config_like_cpp: 80,
             max_primary_trade_skills_like_cpp:
                 crate::profession::DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP,
@@ -412,11 +431,7 @@ impl WorldSession {
             recent_player_guid_low_like_cpp: 0,
             #[cfg(test)]
             player_bootstrap_attached_like_cpp: false,
-            account_data_like_cpp: default_account_data_like_cpp(),
-            tutorials_like_cpp: [0; 8],
-            tutorials_loaded_from_db_like_cpp: false,
-            tutorials_loaded_coherently_like_cpp: false,
-            tutorials_changed_like_cpp: false,
+
             pending_creature_spawn: None,
             pending_creature_kill_loot_like_cpp: Vec::new(),
             pending_creature_kill_rewards_like_cpp: Vec::new(),
@@ -656,8 +671,7 @@ impl WorldSession {
             represented_pet_stable_like_cpp: PetStable::default(),
             #[cfg(test)]
             represented_character_pet_rows_empty_authority_complete_like_cpp: false,
-            pet_load_query_holder_rows_like_cpp: lifecycle::PetLoadQueryHolderRowsLikeCpp::default(
-            ),
+
             #[cfg(test)]
             represented_pet_created_by_spell_like_cpp: 0,
             #[cfg(test)]
@@ -819,7 +833,7 @@ impl WorldSession {
             represented_transmog_illusions_like_cpp: HashSet::new(),
             #[cfg(test)]
             battle_pet_test_fixture_like_cpp: BattlePetTestFixtureLikeCpp::default(),
-            battle_pet_account_attachment_like_cpp: None,
+
             #[cfg(test)]
             represented_completed_achievements_like_cpp: HashSet::new(),
             #[cfg(test)]
@@ -867,11 +881,7 @@ impl WorldSession {
             active_loot_view_owners: std::collections::HashSet::new(),
             active_loot_view_generations_like_cpp: std::collections::HashMap::new(),
             active_loot_view_authorities_like_cpp: std::collections::HashMap::new(),
-            durable_item_loot_persistence_like_cpp:
-                DurableItemLootPersistenceTrackerLikeCpp::default(),
-            durable_loot_money_persistence_like_cpp: Arc::new(
-                DurableLootMoneyPersistenceTrackerLikeCpp::default(),
-            ),
+
             #[cfg(test)]
             module_registry_like_cpp: None,
             represented_loot_rolls: std::collections::HashMap::new(),

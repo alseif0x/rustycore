@@ -835,10 +835,10 @@ async fn periodic_player_save_defers_while_teleport_pending_like_cpp() {
         .await;
 
     assert!(
-        session.pending_periodic_player_save_like_cpp,
+        session.lifecycle.pending_periodic_player_save_like_cpp,
         "autosave remains pending until the teleport handshake clears"
     );
-    assert_eq!(session.next_player_save_ms_like_cpp, 0);
+    assert_eq!(session.lifecycle.next_player_save_ms_like_cpp, 0);
 }
 #[test]
 fn player_currency_remove_and_save_state_match_cpp() {

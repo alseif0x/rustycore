@@ -19,13 +19,6 @@
           "source_class": "production"
         },
         {
-          "name": "account_data_like_cpp",
-          "type": "[AccountDataLikeCpp ; NUM_ACCOUNT_DATA_TYPES]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "account_expansion",
           "type": "u8",
           "visibility": "pub",
@@ -231,13 +224,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "battle_pet_account_attachment_like_cpp",
-          "type": "Option < BattlePetAccountAttachmentLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "battle_pet_test_fixture_like_cpp",
           "type": "BattlePetTestFixtureLikeCpp",
           "visibility": "pub (crate)",
@@ -302,13 +288,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "character_rename_callbacks",
-          "type": "driver :: RenameCallbacks",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "characters_per_realm_like_cpp",
@@ -641,20 +620,6 @@
           "source_class": "production"
         },
         {
-          "name": "durable_item_loot_persistence_like_cpp",
-          "type": "DurableItemLootPersistenceTrackerLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "durable_loot_money_persistence_like_cpp",
-          "type": "Arc < DurableLootMoneyPersistenceTrackerLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "emotes_store",
           "type": "Option < Arc < EmotesStore > >",
           "visibility": "pub (in crate :: session)",
@@ -746,13 +711,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "finalization",
-          "type": "Option < crate :: finalization :: SessionFinalization >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "fishing_base_skill_store",
@@ -855,13 +813,6 @@
         {
           "name": "heirloom_store",
           "type": "Option < Arc < HeirloomStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "homebind_persistence_tx_like_cpp",
-          "type": "Option < tokio :: sync :: mpsc :: UnboundedSender < HomebindPersistenceJobLikeCpp > >",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -1068,13 +1019,6 @@
           "source_class": "production"
         },
         {
-          "name": "level_played_time",
-          "type": "u32",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "lfg_dungeon_store_like_cpp",
           "type": "Option < Arc < LfgDungeonStoreLikeCpp > >",
           "visibility": "pub (in crate :: session)",
@@ -1087,6 +1031,13 @@
           "name": "lfg_dungeons_store",
           "type": "Option < Arc < LfgDungeonsStore > >",
           "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "name": "lifecycle",
+          "type": "SessionLifecycleState",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -1110,20 +1061,6 @@
           "name": "lock_store",
           "type": "Option < Arc < LockStore > >",
           "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "login_time",
-          "type": "Option < Instant >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "logout_time",
-          "type": "Option < Instant >",
-          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -1488,13 +1425,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "next_player_save_ms_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "num_talents_at_level_store",
           "type": "Option < Arc < NumTalentsAtLevelStore > >",
           "visibility": "pub (in crate :: session)",
@@ -1601,13 +1531,6 @@
           "source_class": "production"
         },
         {
-          "name": "pending_periodic_player_save_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "pending_teleport",
           "type": "Option < (u32 , wow_core :: Position) >",
           "visibility": "pub (in crate :: session)",
@@ -1615,20 +1538,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "persistence_ports_like_cpp",
-          "type": "Box < SessionPersistencePortsLikeCpp >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "pet_load_query_holder_rows_like_cpp",
-          "type": "lifecycle :: PetLoadQueryHolderRowsLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "phase",
@@ -1923,27 +1832,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "player_loading",
-          "type": "Option < ObjectGuid >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "player_login_claim_like_cpp",
-          "type": "Option < (ObjectGuid , Arc < () >) >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "player_logout_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "player_max_health_like_cpp",
           "type": "u32",
           "visibility": "pub (in crate :: session)",
@@ -2153,13 +2041,6 @@
         {
           "name": "player_registry",
           "type": "Option < Arc < PlayerRegistry > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "player_save_interval_ms_like_cpp",
-          "type": "u32",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -3926,13 +3807,6 @@
           "source_class": "production"
         },
         {
-          "name": "total_played_time",
-          "type": "u32",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "toy_store",
           "type": "Option < Arc < ToyStore > >",
           "visibility": "pub (in crate :: session)",
@@ -3979,34 +3853,6 @@
         {
           "name": "trinity_string_store",
           "type": "Option < Arc < TrinityStringStoreLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "tutorials_changed_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "tutorials_like_cpp",
-          "type": "[u32 ; 8]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "tutorials_loaded_coherently_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "tutorials_loaded_from_db_like_cpp",
-          "type": "bool",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -82185,7 +82031,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:ed06100d5c55469efbf2cd3087eadda9:len=83546|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:14c513ceff573973e19c8520d151e6ec:len=80183|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

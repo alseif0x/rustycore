@@ -724,7 +724,7 @@ impl WorldSession {
         &self,
         request_key: BattlePetAddRequestKeyLikeCpp,
     ) -> Result<bool, BattlePetAddFailureLikeCpp> {
-        let Some(attachment) = &self.battle_pet_account_attachment_like_cpp else {
+        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
             return Ok(false);
         };
         attachment

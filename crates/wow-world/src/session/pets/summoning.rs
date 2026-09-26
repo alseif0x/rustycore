@@ -341,6 +341,7 @@ impl WorldSession {
             charm_info.load_pet_action_bar_like_cpp(&info.action_bar);
             self.validate_represented_pet_action_bar_like_cpp(charm_info);
             if let Some(spells) = self
+                .lifecycle
                 .pet_load_query_holder_rows_like_cpp
                 .spells
                 .get(&pet_number)
@@ -361,6 +362,7 @@ impl WorldSession {
                 .spells
                 .history;
             if let Some(cooldowns) = self
+                .lifecycle
                 .pet_load_query_holder_rows_like_cpp
                 .spell_cooldowns
                 .get(&pet_number)
@@ -377,6 +379,7 @@ impl WorldSession {
                 }
             }
             if let Some(charges) = self
+                .lifecycle
                 .pet_load_query_holder_rows_like_cpp
                 .spell_charges
                 .get(&pet_number)
@@ -390,12 +393,14 @@ impl WorldSession {
                 }
             }
             let pet_aura_effects = self
+                .lifecycle
                 .pet_load_query_holder_rows_like_cpp
                 .aura_effects
                 .get(&pet_number)
                 .cloned()
                 .unwrap_or_default();
             if let Some(auras) = self
+                .lifecycle
                 .pet_load_query_holder_rows_like_cpp
                 .auras
                 .get(&pet_number)
@@ -474,6 +479,7 @@ impl WorldSession {
             }
             if info.pet_type == PetType::Hunter
                 && let Some(declined_names) = self
+                    .lifecycle
                     .pet_load_query_holder_rows_like_cpp
                     .declined_names
                     .get(&pet_number)

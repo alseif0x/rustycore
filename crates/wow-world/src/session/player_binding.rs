@@ -314,7 +314,7 @@ impl WorldSession {
             self.last_observed_farsight_object_like_cpp = wow_core::ObjectGuid::EMPTY;
             // Old registry clones remain permanently closed; a later character
             // selected on this authenticated session receives a fresh fence.
-            self.durable_loot_money_persistence_like_cpp =
+            self.lifecycle.durable_loot_money_persistence_like_cpp =
                 Arc::new(DurableLootMoneyPersistenceTrackerLikeCpp::default());
         }
     }

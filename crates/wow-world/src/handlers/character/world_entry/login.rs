@@ -203,8 +203,8 @@ impl WorldSession {
         }
 
         // Load played time + money/xp from DB using C++ CHAR_SEL_CHARACTER order.
-        self.total_played_time = base_row.total_played_time.unwrap_or(0);
-        self.level_played_time = base_row.level_played_time.unwrap_or(0);
+        self.lifecycle.total_played_time = base_row.total_played_time.unwrap_or(0);
+        self.lifecycle.level_played_time = base_row.level_played_time.unwrap_or(0);
         if !self.set_player_gold_like_cpp(base_row.money.unwrap_or(0)) {
             self.kick("WorldSession::HandlePlayerLogin canonical Player money hydration failed");
             return;

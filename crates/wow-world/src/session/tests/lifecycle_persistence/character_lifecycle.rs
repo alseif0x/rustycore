@@ -20,8 +20,8 @@ fn character_save_session_with_port(
             orientation: 0.5,
         },
     );
-    session.tutorials_changed_like_cpp = true;
-    session.tutorials_loaded_coherently_like_cpp = true;
+    session.lifecycle.tutorials_changed_like_cpp = true;
+    session.lifecycle.tutorials_loaded_coherently_like_cpp = true;
     (session, port)
 }
 
@@ -60,8 +60,8 @@ async fn character_save_reaches_the_sqlx_free_port_and_cleans_only_after_apply_l
             recharge_end_unix_secs: 8_000,
         }])
     );
-    assert!(!session.tutorials_changed_like_cpp);
-    assert!(session.tutorials_loaded_from_db_like_cpp);
+    assert!(!session.lifecycle.tutorials_changed_like_cpp);
+    assert!(session.lifecycle.tutorials_loaded_from_db_like_cpp);
 }
 
 #[tokio::test]
@@ -76,8 +76,8 @@ async fn definite_character_save_rollback_preserves_dirty_state_like_cpp() {
     session.save_current_player_to_db_like_cpp().await;
 
     assert_eq!(port.character_saves().len(), 1);
-    assert!(session.tutorials_changed_like_cpp);
-    assert!(!session.tutorials_loaded_from_db_like_cpp);
+    assert!(session.lifecycle.tutorials_changed_like_cpp);
+    assert!(!session.lifecycle.tutorials_loaded_from_db_like_cpp);
     assert!(
         !session
             .durable_loot_money_persistence_tracker_like_cpp()
@@ -97,8 +97,8 @@ async fn unknown_character_save_commit_fences_and_preserves_dirty_state_like_cpp
     session.save_current_player_to_db_like_cpp().await;
 
     assert_eq!(port.character_saves().len(), 1);
-    assert!(session.tutorials_changed_like_cpp);
-    assert!(!session.tutorials_loaded_from_db_like_cpp);
+    assert!(session.lifecycle.tutorials_changed_like_cpp);
+    assert!(!session.lifecycle.tutorials_loaded_from_db_like_cpp);
     assert!(
         session
             .durable_loot_money_persistence_tracker_like_cpp()
@@ -177,7 +177,7 @@ async fn character_save_does_not_reapply_save_destination_or_progression_to_runt
             })
             .unwrap();
         assert_eq!(
-            session.tutorials_changed_like_cpp, remains_dirty,
+            session.lifecycle.tutorials_changed_like_cpp, remains_dirty,
             "only confirmed commit cleans dirty groups"
         );
     }

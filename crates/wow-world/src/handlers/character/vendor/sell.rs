@@ -165,6 +165,7 @@ impl WorldSession {
             .saturating_mul(u64::from(sold_count))
             .min(u64::from(u32::MAX)) as u32;
         let buyback_timestamp = self
+            .lifecycle
             .login_time
             .map(|login_time| login_time.elapsed().as_secs())
             .unwrap_or(0)

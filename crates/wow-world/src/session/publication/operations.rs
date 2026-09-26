@@ -525,7 +525,7 @@ impl WorldSession {
         &self,
     ) -> wow_packet::packets::misc::TutorialFlags {
         wow_packet::packets::misc::TutorialFlags {
-            tutorial_data: self.tutorials_like_cpp,
+            tutorial_data: self.lifecycle.tutorials_like_cpp,
         }
     }
     pub(in crate::session) fn try_send_connected_player_command_like_cpp(

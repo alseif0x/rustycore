@@ -617,6 +617,25 @@ la lib y otro en `--tests`; el struct ajeno quedo intacto (0 sustituciones alli)
 crecer `handlers/quest/mod.rs` (+3 por re-envoltura), registro que el ledger tambien recoge: los
 hotspots auditados son varios y no solo `session/mod.rs`.
 
+### B4, octavo slice ejecutado: `SessionLifecycleState` (2026-09-25)
+
+La familia completa `persistence_and_session_lifecycle` (23 campos) pasa al sub-estado nombrado
+`SessionLifecycleState`, alcanzado por un unico campo `lifecycle`: instantes de login/logout y
+calendario de guardado periodico, reclamaciones de carga y logout, tutoriales y datos de cuenta, los
+puertos de persistencia, el rail de finalizacion, las filas de carga de mascotas y los trackers
+durables de loot. Mismos valores de construccion y misma visibilidad de crate que sus handlers ya
+necesitaban. **Census: 196 -> 174 campos de produccion** (segunda mayor reduccion de la ola). Coste:
++196 produccion/+27 test, el mayor hasta ahora, sobre 343 accesos repartidos por los modulos de
+lifecycle, persistencia, driver, items y mascotas (620 inserciones, 352 borrados, casi todo
+re-envoltura de `rustfmt`). Ningun otro owner auditado crecio: el ratchet solo exigio actualizar la
+fila de `session/mod.rs`.
+
+Balance acumulado de B4 (produccion): 221 -> 174 campos en ocho slices; el coste en lineas esta
+registrado como deuda transitoria en `latest_growth_review`, y se retira cuando los sub-estados salgan
+del agregado (olas D/E). La ganancia que persigue B4 es la superficie del tipo, no el LOC del arbol:
+`WorldSession` ya no declara estado de transporte social, social limits, driver, vista de mundo,
+filtro de addons, rail de fase, hechizos/quests ni persistencia/ciclo de vida.
+
 **Siguiente slice de B4**: los dos `Arc<AtomicBool>` compartidos
 (`advanced_combat_logging_enabled_like_cpp`, `visibility_refresh_pending_like_cpp`, 14 accesos) si se
 confirma su cohesion -- comparten el patron "flag atomico que la sesion comparte con sus servicios",

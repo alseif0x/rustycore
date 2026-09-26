@@ -128,7 +128,7 @@ impl WorldSession {
         } else {
             let port = self.player_lifecycle_port_like_cpp().cloned()?;
             let mut cancellation_fence = PlayerMoneyCommitCancellationFenceLikeCpp::new(
-                Arc::clone(&self.durable_loot_money_persistence_like_cpp),
+                Arc::clone(&self.lifecycle.durable_loot_money_persistence_like_cpp),
             );
             match port
                 .persist_talent_reset_like_cpp(persistence_request)
@@ -144,7 +144,8 @@ impl WorldSession {
                     return None;
                 }
                 wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
-                    self.durable_loot_money_persistence_like_cpp
+                    self.lifecycle
+                        .durable_loot_money_persistence_like_cpp
                         .mark_indeterminate_like_cpp();
                     cancellation_fence.disarm_like_cpp();
                     self.kick(

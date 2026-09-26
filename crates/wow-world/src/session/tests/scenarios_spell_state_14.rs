@@ -57,6 +57,7 @@ fn load_represented_pet_aura_rows_filters_unknown_spell_like_cpp() {
     assert_eq!(loaded, 1);
     assert_eq!(
         session
+            .lifecycle
             .pet_load_query_holder_rows_like_cpp
             .auras
             .get(&42)
@@ -184,6 +185,7 @@ fn load_represented_pet_aura_rows_ticks_attr4_offline_auras_like_cpp() {
 
     assert_eq!(loaded, 2);
     let auras = session
+        .lifecycle
         .pet_load_query_holder_rows_like_cpp
         .auras
         .get(&42)
@@ -275,6 +277,7 @@ fn load_represented_pet_aura_rows_normalizes_proc_charges_like_cpp() {
 
     assert_eq!(loaded, 3);
     let auras = session
+        .lifecycle
         .pet_load_query_holder_rows_like_cpp
         .auras
         .get(&42)
@@ -346,6 +349,7 @@ fn load_represented_pet_aura_rows_filters_unknown_difficulty_like_cpp() {
 
     assert_eq!(loaded, 2);
     let loaded_spell_ids: Vec<_> = session
+        .lifecycle
         .pet_load_query_holder_rows_like_cpp
         .auras
         .get(&42)
@@ -388,6 +392,7 @@ fn load_represented_pet_aura_effect_rows_filters_bad_effect_index_like_cpp() {
     assert_eq!(loaded, 1);
     assert_eq!(
         session
+            .lifecycle
             .pet_load_query_holder_rows_like_cpp
             .aura_effects
             .get(&42)

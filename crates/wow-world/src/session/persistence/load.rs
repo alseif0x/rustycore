@@ -515,26 +515,27 @@ impl WorldSession {
     }
     /// Set the player loading GUID (ConnectTo flow).
     pub fn set_player_loading(&mut self, guid: Option<ObjectGuid>) {
-        self.player_loading = guid;
+        self.lifecycle.player_loading = guid;
         self.sync_current_player_session_visibility_detection_like_cpp();
     }
     /// Get the player loading GUID.
     pub fn player_loading(&self) -> Option<ObjectGuid> {
-        self.player_loading
+        self.lifecycle.player_loading
     }
     pub(crate) fn load_tutorials_data_values_like_cpp(&mut self, values: Option<[u32; 8]>) {
-        self.tutorials_like_cpp = values.unwrap_or([0; 8]);
-        self.tutorials_loaded_from_db_like_cpp = values.is_some();
-        self.tutorials_loaded_coherently_like_cpp = true;
-        self.tutorials_changed_like_cpp = false;
+        self.lifecycle.tutorials_like_cpp = values.unwrap_or([0; 8]);
+        self.lifecycle.tutorials_loaded_from_db_like_cpp = values.is_some();
+        self.lifecycle.tutorials_loaded_coherently_like_cpp = true;
+        self.lifecycle.tutorials_changed_like_cpp = false;
     }
     pub async fn load_tutorials_data_like_cpp(&mut self) {
-        self.tutorials_like_cpp = [0; 8];
-        self.tutorials_loaded_from_db_like_cpp = false;
-        self.tutorials_loaded_coherently_like_cpp = false;
-        self.tutorials_changed_like_cpp = false;
+        self.lifecycle.tutorials_like_cpp = [0; 8];
+        self.lifecycle.tutorials_loaded_from_db_like_cpp = false;
+        self.lifecycle.tutorials_loaded_coherently_like_cpp = false;
+        self.lifecycle.tutorials_changed_like_cpp = false;
 
         let Some(port) = self
+            .lifecycle
             .persistence_ports_like_cpp
             .admission
             .session_account_state
@@ -575,7 +576,7 @@ impl WorldSession {
 
         for index in 0..NUM_ACCOUNT_DATA_TYPES {
             if mask & (1u32 << index) != 0 {
-                self.account_data_like_cpp[index] = AccountDataLikeCpp::default();
+                self.lifecycle.account_data_like_cpp[index] = AccountDataLikeCpp::default();
             }
         }
 
@@ -590,6 +591,7 @@ impl WorldSession {
         };
 
         let Some(port) = self
+            .lifecycle
             .persistence_ports_like_cpp
             .admission
             .session_account_state
@@ -632,8 +634,8 @@ impl WorldSession {
                     "LoadAccountData ignored account data type inappropriate for table like C++"
                 );
             } else {
-                self.account_data_like_cpp[usize::from(data_type)].time = row.time;
-                self.account_data_like_cpp[usize::from(data_type)].data = row.data;
+                self.lifecycle.account_data_like_cpp[usize::from(data_type)].time = row.time;
+                self.lifecycle.account_data_like_cpp[usize::from(data_type)].data = row.data;
             }
         }
     }

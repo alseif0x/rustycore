@@ -592,6 +592,7 @@ fn login_pet_talent_reset_clears_pet_spells_and_specs_without_clearing_flag_like
 
     assert!(
         session
+            .lifecycle
             .pet_load_query_holder_rows_like_cpp
             .spells
             .is_empty(),
@@ -615,6 +616,7 @@ fn login_pet_talent_reset_clears_pet_spells_and_specs_without_clearing_flag_like
     );
     assert!(
         !session
+            .lifecycle
             .pet_load_query_holder_rows_like_cpp
             .spell_cooldowns
             .is_empty(),
@@ -622,6 +624,7 @@ fn login_pet_talent_reset_clears_pet_spells_and_specs_without_clearing_flag_like
     );
     assert!(
         !session
+            .lifecycle
             .pet_load_query_holder_rows_like_cpp
             .spell_charges
             .is_empty(),
@@ -780,6 +783,7 @@ fn load_represented_pet_spell_rows_filters_zero_spell_like_cpp() {
     assert_eq!(loaded, 1);
     assert_eq!(
         session
+            .lifecycle
             .pet_load_query_holder_rows_like_cpp
             .spells
             .get(&42)
@@ -825,6 +829,7 @@ fn load_represented_pet_spell_cooldown_rows_filters_unknown_spell_like_cpp() {
     assert_eq!(loaded, 1);
     assert_eq!(
         session
+            .lifecycle
             .pet_load_query_holder_rows_like_cpp
             .spell_cooldowns
             .get(&42)
@@ -876,6 +881,7 @@ fn load_represented_pet_spell_charge_rows_preserves_db_order_like_cpp() {
 
     assert_eq!(loaded, 2);
     let rows = session
+        .lifecycle
         .pet_load_query_holder_rows_like_cpp
         .spell_charges
         .get(&42)

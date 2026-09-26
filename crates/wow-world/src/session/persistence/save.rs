@@ -250,23 +250,26 @@ impl WorldSession {
         )
     }
     pub fn set_player_save_interval_ms_like_cpp(&mut self, interval_ms: u32) {
-        self.player_save_interval_ms_like_cpp = interval_ms;
+        self.lifecycle.player_save_interval_ms_like_cpp = interval_ms;
         self.reset_player_save_timer_like_cpp();
     }
     pub(in crate::session) fn reset_player_save_timer_like_cpp(&mut self) {
-        self.next_player_save_ms_like_cpp = self.player_save_interval_ms_like_cpp;
-        self.pending_periodic_player_save_like_cpp = false;
+        self.lifecycle.next_player_save_ms_like_cpp =
+            self.lifecycle.player_save_interval_ms_like_cpp;
+        self.lifecycle.pending_periodic_player_save_like_cpp = false;
     }
     pub(in crate::session) fn update_player_save_timer_like_cpp(&mut self, diff_ms: u32) {
-        if self.player_save_interval_ms_like_cpp == 0 || self.next_player_save_ms_like_cpp == 0 {
+        if self.lifecycle.player_save_interval_ms_like_cpp == 0
+            || self.lifecycle.next_player_save_ms_like_cpp == 0
+        {
             return;
         }
 
-        if diff_ms >= self.next_player_save_ms_like_cpp {
-            self.next_player_save_ms_like_cpp = 0;
-            self.pending_periodic_player_save_like_cpp = true;
+        if diff_ms >= self.lifecycle.next_player_save_ms_like_cpp {
+            self.lifecycle.next_player_save_ms_like_cpp = 0;
+            self.lifecycle.pending_periodic_player_save_like_cpp = true;
         } else {
-            self.next_player_save_ms_like_cpp -= diff_ms;
+            self.lifecycle.next_player_save_ms_like_cpp -= diff_ms;
         }
     }
     pub(in crate::session) fn resolved_player_flags_for_rest_state_save_like_cpp(
@@ -309,7 +312,9 @@ impl WorldSession {
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
     ) {
-        if !self.pending_periodic_player_save_like_cpp || self.state != SessionState::LoggedIn {
+        if !self.lifecycle.pending_periodic_player_save_like_cpp
+            || self.state != SessionState::LoggedIn
+        {
             return;
         }
         if self.pending_teleport_save_destination_like_cpp().is_some() {

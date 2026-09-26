@@ -95,14 +95,14 @@ impl WorldSession {
     /// C++ `WorldSession::Update` logout decision, on the `ProcessUnsafe()`
     /// branch reserved for the world filter (`WorldSession.cpp:498-503`).
     pub(crate) fn run_logout_timer_like_cpp(&mut self) {
-        let Some(logout_time) = self.logout_time else {
+        let Some(logout_time) = self.lifecycle.logout_time else {
             return;
         };
         self.record_driver_phase_like_cpp(
             crate::session::driver::phases::SessionDriverPhaseLikeCpp::LogoutTimer,
         );
         if std::time::Instant::now() >= logout_time {
-            self.logout_time = None;
+            self.lifecycle.logout_time = None;
             self.complete_logout();
         }
     }
