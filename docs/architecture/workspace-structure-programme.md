@@ -873,6 +873,16 @@ externa retiradas y **1 excepcion obsoleta** (`wow-world -> wow-logging`). Recue
 **aristas de workspace 112 -> 102**, **dependencias externas vigiladas 63 -> 49**, **excepciones 16 ->
 15**. `check_architecture.py check` y `self-test` verdes; la suite de `wow-world` (3901 tests) pasa.
 
+### B7, tercer slice ejecutado: `[workspace.dependencies]` sin uso (2026-09-25)
+
+De las 9 entradas de `[workspace.dependencies]` que ningun miembro referencia, se retiran las **6
+externas** (`prost-types`, `strum`, `bumpalo`, `hyper-util`, `reqwest`, `cfg-if`) y se **conservan las
+3 internas** (`wow-math`, `wow-util-collections`, `wow-spell`) por decision explicita: `wow-spell` es el
+paquete reservado documentado y las otras dos son miembros con consumidores planificados; el coste de
+mantenerlas es una linea y su retirada seria churn sin ganancia. `dev-dependencies` y
+`build-dependencies`: **0 candidatos** (ninguna declaracion sin referencia). `cargo check --workspace
+--all-targets` 0 errores; `check_architecture.py check` y `self-test` verdes.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
