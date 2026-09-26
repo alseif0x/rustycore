@@ -883,6 +883,22 @@ mantenerlas es una linea y su retirada seria churn sin ganancia. `dev-dependenci
 `build-dependencies`: **0 candidatos** (ninguna declaracion sin referencia). `cargo check --workspace
 --all-targets` 0 errores; `check_architecture.py check` y `self-test` verdes.
 
+### Puerta de la ola medida en el tip de 15 rondas (2026-09-26)
+
+`./tools/validation-v2 final --base origin/3.4.3 --architecture --timings` sobre `0f5ccdd5`:
+
+- **En frio: 1011,98 s y `exit_code 143`** (terminada por el limite de tiempo durante la compilacion).
+  El manifiesto queda `failed` con el tiempo agotado, no por un fallo de validacion: el coste lo domina
+  la recompilacion que provocan los cambios de `Cargo.lock` de los slices de dependencias.
+- **En caliente, mismo comando sin trocear: 122 s y `exit 0`**, manifiesto
+  `20260926T233514.027935Z-3621532-final.json` con estado `passed`, y la suite completa de `wow-world`
+  (3901 tests) dentro de la misma campana.
+
+Leccion operativa: con el presupuesto de 600 s, la puerta hay que correrla **despues** de un build del
+mismo tip; una corrida en frio de esta rama no cabe en el limite (y el ejecutor mata los trabajos de
+fondo alrededor de los 1000 s, asi que una campana en frio no puede completarse en un solo trabajo).
+No se trocea la campana para declararla verde: la corrida verde es el mismo comando entero, en caliente.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
