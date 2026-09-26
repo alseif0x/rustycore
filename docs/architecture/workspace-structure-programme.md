@@ -899,6 +899,20 @@ mismo tip; una corrida en frio de esta rama no cabe en el limite (y el ejecutor 
 fondo alrededor de los 1000 s, asi que una campana en frio no puede completarse en un solo trabajo).
 No se trocea la campana para declararla verde: la corrida verde es el mismo comando entero, en caliente.
 
+### B4: un sub-estado de un solo campo no reduce nada (revertido, con regla) (2026-09-26)
+
+Intente cerrar el ultimo item barato de B4 moviendo `pending_bind` a un `SessionBindState`. El
+movimiento funciono (14 accesos repuntados, lib/tests/workspace limpios) pero al medir el censo se vio
+el error de juicio: **un sub-estado de un campo deja el recuento igual** (uno sale, uno entra) y solo
+anade indireccion — el mismo olor que el estandar prohibe ("ninguna crate/trait por helper... solo para
+reubicar codigo"). Revertido con `git checkout -- crates/`, arbol limpio y lib a 0 errores.
+
+Regla que queda: **un contenedor solo se justifica cuando agrupa dos o mas campos** de la misma
+responsabilidad. Los campos solos (`pending_bind`, `player_guid`, `player_identity_bootstrap_like_cpp`)
+no se anidan: esperan a que su dueno real se los lleve (Player/InstanceMap, el binding de la sesion,
+`wow-entities::Player`). Con esto **la lista barata de B4 esta agotada**: lo que queda exige la
+proyeccion de `create_data` (B6) o cambio de dueno, no otro sub-estado.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
