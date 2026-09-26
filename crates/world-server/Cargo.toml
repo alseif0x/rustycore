@@ -31,7 +31,6 @@ wow-handler = { workspace = true }
 wow-instances = { workspace = true }
 wow-packet = { workspace = true }
 wow-constants = { workspace = true }
-wow-crypto = { workspace = true }
 wow-entities = { workspace = true }
 wow-map = { workspace = true }
 wow-social = { workspace = true }

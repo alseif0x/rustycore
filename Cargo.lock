@@ -230,10 +230,8 @@ dependencies = [
  "axum",
  "bitflags",
  "bytes",
- "dashmap",
  "flate2",
  "hyper",
- "hyper-util",
  "num-bigint",
  "num-traits",
  "parking_lot",
@@ -2236,28 +2234,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "strum"
-version = "0.26.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fec0f0aef304996cf250b31b5a10dee7980c85da9d759361292b8bca5a18f06"
-dependencies = [
- "strum_macros",
-]
-
-[[package]]
-name = "strum_macros"
-version = "0.26.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c6bee85a5a24955dc440386795aa378cd9cf82acd5f764469152d2270e581be"
-dependencies = [
- "heck",
- "proc-macro2",
- "quote",
- "rustversion",
- "syn",
-]
-
-[[package]]
 name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3121,7 +3097,6 @@ dependencies = [
  "wow-config",
  "wow-constants",
  "wow-core",
- "wow-crypto",
  "wow-data",
  "wow-database",
  "wow-entities",
@@ -3145,7 +3120,6 @@ name = "wow-ai"
 version = "0.1.0"
 dependencies = [
  "rand",
- "wow-constants",
  "wow-core",
  "wow-instances",
 ]
@@ -3161,10 +3135,6 @@ dependencies = [
 [[package]]
 name = "wow-chat"
 version = "0.1.0"
-dependencies = [
- "wow-constants",
- "wow-core",
-]
 
 [[package]]
 name = "wow-combat"
@@ -3199,21 +3169,14 @@ dependencies = [
  "bitflags",
  "num-derive",
  "num-traits",
- "serde",
- "strum",
 ]
 
 [[package]]
 name = "wow-core"
 version = "0.1.0"
 dependencies = [
- "bitflags",
  "libc",
- "num-derive",
- "num-traits",
  "rand",
- "serde",
- "thiserror",
 ]
 
 [[package]]
@@ -3244,7 +3207,6 @@ name = "wow-data"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bitflags",
  "num-traits",
  "rand",
  "tracing",
@@ -3268,8 +3230,6 @@ dependencies = [
  "tokio",
  "toml",
  "tracing",
- "wow-config",
- "wow-logging",
  "wow-persistence",
 ]
 
@@ -3304,7 +3264,6 @@ version = "0.1.0"
 dependencies = [
  "tracing",
  "tracing-subscriber",
- "wow-config",
 ]
 
 [[package]]
@@ -3321,15 +3280,11 @@ dependencies = [
 name = "wow-map"
 version = "0.1.0"
 dependencies = [
- "bumpalo",
- "parking_lot",
  "rand",
- "smallvec",
  "wow-constants",
  "wow-core",
  "wow-entities",
  "wow-loot",
- "wow-math",
 ]
 
 [[package]]
@@ -3361,7 +3316,6 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "dashmap",
- "ed25519-dalek",
  "flate2",
  "flume",
  "num-traits",
@@ -3384,7 +3338,6 @@ dependencies = [
  "flate2",
  "num-traits",
  "thiserror",
- "tracing",
  "wow-constants",
  "wow-core",
  "wow-loot",
@@ -3409,10 +3362,8 @@ dependencies = [
 name = "wow-proto"
 version = "0.1.0"
 dependencies = [
- "bytes",
  "prost",
  "prost-build",
- "prost-types",
 ]
 
 [[package]]
@@ -3429,7 +3380,6 @@ name = "wow-script"
 version = "0.1.0"
 dependencies = [
  "inventory",
- "wow-constants",
  "wow-core",
 ]
 
@@ -3481,7 +3431,6 @@ dependencies = [
  "flume",
  "inventory",
  "num-traits",
- "parking_lot",
  "rand",
  "serde",
  "serde_json",
@@ -3500,7 +3449,6 @@ dependencies = [
  "wow-entities",
  "wow-handler",
  "wow-instances",
- "wow-logging",
  "wow-loot",
  "wow-map",
  "wow-module-api",

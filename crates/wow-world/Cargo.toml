@@ -12,7 +12,6 @@ test-fixtures = []
 [dependencies]
 tokio = { workspace = true }
 dashmap = { workspace = true }
-parking_lot = { workspace = true }
 flume = { workspace = true }
 inventory = { workspace = true }
 num-traits = { workspace = true }
@@ -31,7 +30,6 @@ wow-progression = { workspace = true }
 wow-data = { workspace = true }
 wow-entities = { workspace = true }
 wow-network = { workspace = true }
-wow-logging = { workspace = true }
 wow-loot = { workspace = true }
 wow-map = { workspace = true }
 wow-module-api = { workspace = true }

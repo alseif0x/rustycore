@@ -180,12 +180,6 @@
     },
     {
       "from": "wow-world",
-      "to": "wow-logging",
-      "tracking_issue": 584,
-      "reason": "The mixed world application crate still consumes logging infrastructure directly."
-    },
-    {
-      "from": "wow-world",
       "to": "wow-network",
       "tracking_issue": 584,
       "reason": "Directory, Group and mailbox authority have already left wow-network. The mixed wow-world application still adapts concrete session-link, framing and transport-fence contracts. This adapter consumption is not itself a second gameplay owner. #584 owns separating those legitimate protocol/lifecycle uses from any remaining gameplay-to-transport coupling, preserving socket, ordering and backpressure contracts. It may retain an evidenced adapter edge; no new trait or crate is required solely to remove the exception. #153 verifies the final classification."
@@ -258,28 +252,20 @@
         "normal": [
           "bitflags",
           "num-derive",
-          "num-traits",
-          "serde",
-          "strum"
+          "num-traits"
         ],
         "build": []
       },
       "wow-core": {
         "normal": [
-          "bitflags",
           "libc",
-          "num-derive",
-          "num-traits",
-          "rand",
-          "serde",
-          "thiserror"
+          "rand"
         ],
         "build": []
       },
       "wow-data": {
         "normal": [
           "anyhow",
-          "bitflags",
           "num-traits",
           "rand",
           "tracing"
@@ -307,10 +293,7 @@
       },
       "wow-map": {
         "normal": [
-          "bumpalo",
-          "parking_lot",
-          "rand",
-          "smallvec"
+          "rand"
         ],
         "build": []
       },
@@ -334,7 +317,6 @@
         "normal": [
           "bytes",
           "dashmap",
-          "ed25519-dalek",
           "flume",
           "num-traits",
           "rand",
@@ -350,8 +332,7 @@
           "bytes",
           "flate2",
           "num-traits",
-          "thiserror",
-          "tracing"
+          "thiserror"
         ],
         "build": []
       },
@@ -393,7 +374,6 @@
           "flume",
           "inventory",
           "num-traits",
-          "parking_lot",
           "rand",
           "tracing"
         ],

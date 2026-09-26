@@ -858,6 +858,21 @@ movimiento de las 6 721 lineas depende ya solo de esa proyeccion.
 Criterio de cierre de B6: `map_manager` vive en `wow-map` (o en un crate `domain-runtime` propio),
 `wow-world` conserva solo el adaptador, y `check-deps` no necesita ninguna excepcion nueva.
 
+### B7, segundo slice ejecutado: superficie de dependencias recortada (2026-09-25)
+
+Auditoria manual (no hay `cargo-machete` en el host) de dependencias declaradas con **cero referencias**
+en el codigo del crate, con el compilador como juez: **28 declaraciones retiradas** de
+`[dependencies]` y el workspace compila limpio a la primera (`--workspace --all-targets`). Incluye
+`serde`/`thiserror`/`num-derive`/`strum` en crates donde ya no se derivaban, `parking_lot` y
+`smallvec`/`bumpalo` en `wow-map`, `dashmap`/`hyper-util` en `bnet-server`, `bytes`/`prost-types` en
+`wow-proto`, `wow-constants`/`wow-core`/`wow-math`/`wow-config`/`wow-logging`/`wow-crypto` en quien ya
+no los usaba.
+
+Politica regenerada con el delta exacto que el checker exigio: **14 entradas obsoletas** de superficie
+externa retiradas y **1 excepcion obsoleta** (`wow-world -> wow-logging`). Recuentos:
+**aristas de workspace 112 -> 102**, **dependencias externas vigiladas 63 -> 49**, **excepciones 16 ->
+15**. `check_architecture.py check` y `self-test` verdes; la suite de `wow-world` (3901 tests) pasa.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
