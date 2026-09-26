@@ -775,6 +775,42 @@ particiones anteriores que nunca se apretaron). Se endurecieron las 31 a la cifr
 de revision en cada `split`: **51 801 lineas de holgura retiradas** del ratchet, sin tocar una linea de
 codigo. `check_architecture.py check`, `self-test` y `test_physical_files.py` verdes.
 
+### B6: analisis medido y contrato necesario (2026-09-25)
+
+`crates/wow-world/src/map_manager/` son **6 721 lineas en 11 ficheros**, con solo dos menciones a tipos
+de app (`WorldSession`) y ambas en comentarios de documentacion: es dominio puro y el mejor candidato a
+salir del arbol de la aplicacion. Pero **no es un `git mv`**: `wow-map` es `domain-runtime` y la politica
+solo le permite depender de `foundation` y `domain-runtime`, mientras que `map_manager` usa dos crates
+`adapter-platform`. Las aristas que el movimiento crearia, comprobadas contra
+`dependency-policy.json`:
+
+- `domain-runtime -> adapter-platform` via **`wow-packet`** (5 usos, los dos ficheros de abajo);
+- `domain-runtime -> adapter-platform` via **`wow-recastdetour`** (1 uso).
+
+Es exactamente el error que ya se revirtio una vez con `phasing -> wow-map`, asi que B6 empieza por el
+**contrato**, no por el movimiento. El acoplamiento esta confinado y medido:
+
+| fichero | lineas | usos | que es |
+|---|---:|---:|---|
+| `map_manager/mod.rs` | 251 | 2 | `use wow_packet::packets::update::CreatureCreateData` y los tipos de `wow_recastdetour` del pathfinder |
+| `map_manager/runtime/manager.rs` | 532 | 4 | `ServerPacket` y tres literales `Set{Ai,Movement,Melee}AnimKit` |
+
+Contrato en tres piezas, en este orden:
+
+1. **Anim kits (la mas limpia)**: el manager deja de construir paquetes y emite una intencion
+   (`CreatureAnimKitUpdateLikeCpp { guid, slot, kit_id }`) que el adaptador de `wow-world` codifica y
+   envia. Es la regla del ledger ya aplicada en otras familias: el dominio devuelve la intencion, la app
+   la aplica. Elimina 4 de los 6 usos y no necesita porta nueva, solo un tipo de intencion.
+2. **`CreatureCreateData`**: la proyeccion que lo usa deja de nombrar el tipo de wire; el contrato es una
+   proyeccion de dominio (o un tipo generico) y el adaptador compone el `CreatureCreateData`.
+3. **`wow_recastdetour`**: el pathfinder necesita los tipos de detour. Opciones: (a) porta en `wow-map`
+   con implementacion en un crate adaptador, (b) dejar el pathfinder en `wow-world` y mover solo el
+   resto. La decision depende de cuanto del manager lo use (hoy: un `use`), asi que se resuelve al
+   implementar 1 y 2.
+
+Criterio de cierre de B6: `map_manager` vive en `wow-map` (o en un crate `domain-runtime` propio),
+`wow-world` conserva solo el adaptador, y `check-deps` no necesita ninguna excepcion nueva.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
