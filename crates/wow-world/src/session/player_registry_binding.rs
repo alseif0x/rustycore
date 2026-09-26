@@ -120,7 +120,7 @@ impl WorldSession {
                     name.clone(),
                     self.account_id,
                     self.battlenet_account_id(),
-                    self.recruiter_id_like_cpp,
+                    self.account_state.recruiter_id_like_cpp,
                     race,
                     class,
                     gender,

@@ -292,7 +292,7 @@ impl WorldSession {
             }
         }
         if let Some(guid) = guid {
-            self.recent_player_guid_low_like_cpp = guid.counter() as u64;
+            self.account_state.recent_player_guid_low_like_cpp = guid.counter() as u64;
             self.last_observed_farsight_object_like_cpp = wow_core::ObjectGuid::EMPTY;
             #[cfg(test)]
             {

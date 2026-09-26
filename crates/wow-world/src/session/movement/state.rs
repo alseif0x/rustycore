@@ -128,7 +128,7 @@ impl WorldSession {
 
     /// Remove a GUID from the legit characters list.
     pub fn remove_legit_character(&mut self, guid: &ObjectGuid) {
-        self.legit_characters.retain(|g| g != guid);
+        self.account_state.legit_characters.retain(|g| g != guid);
     }
 
     pub(in crate::session) fn current_player_movement_info_like_cpp(

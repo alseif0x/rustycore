@@ -426,7 +426,8 @@ impl WorldSession {
         if area_entry.exploration_level > 0 {
             use wow_packet::packets::misc::ExplorationExperience;
 
-            let max_level = max_level_for_expansion_like_cpp(self.server_expansion_like_cpp);
+            let max_level =
+                max_level_for_expansion_like_cpp(self.realm_policy.server_expansion_like_cpp);
             let xp = if self.player_level_like_cpp() >= max_level {
                 0
             } else {

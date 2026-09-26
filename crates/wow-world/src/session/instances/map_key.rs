@@ -235,8 +235,8 @@ impl WorldSession {
         }
 
         if map_entry.instance_type == wow_data::map::MAP_RAID
-            && map_entry.expansion_like_cpp() >= self.server_expansion_like_cpp
-            && !self.instance_ignore_raid_like_cpp
+            && map_entry.expansion_like_cpp() >= self.realm_policy.server_expansion_like_cpp
+            && !self.realm_policy.instance_ignore_raid_like_cpp
             && !self.current_player_is_in_raid_group_like_cpp()
         {
             return Some((TRANSFER_ABORT_NEED_GROUP_LIKE_CPP, 0, 0));

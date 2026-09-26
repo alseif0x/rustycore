@@ -475,7 +475,7 @@ impl WorldSession {
         }
 
         let is_global = (1u32 << data_type) & GLOBAL_CACHE_MASK_LIKE_CPP != 0;
-        let player_guid_low = self.recent_player_guid_low_like_cpp;
+        let player_guid_low = self.account_state.recent_player_guid_low_like_cpp;
 
         if !is_global && player_guid_low == 0 {
             return false;

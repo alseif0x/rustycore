@@ -697,6 +697,25 @@ angulos solo cuando `<` sigue a un identificador (para no confundir `->` ni comp
 generalizado hace ya las tres cosas: validar antes de escribir, buscar inicializadores solo dentro del
 literal `Self {` y equilibrar parentesis, corchetes, llaves y angulos.
 
+### B4, undecimo slice ejecutado: `SessionRealmPolicy` + `SessionAccountState` (2026-09-25)
+
+La familia `session_identity_account_and_realm_policy` (22 campos) se parte en dos sub-estados
+cohesivos: `SessionRealmPolicy` (region, battlegroup, tabla y secreto de nombres de reino, tope de
+expansion del servidor, presupuesto horario de instancias y los dos switches de instance-ignore) y
+`SessionAccountState` (id de Battle.net, aristas de recruit-a-friend, personajes legitimos, low guid
+reciente y expiracion de mute), tras los campos `realm_policy` y `account_state`. Census: 162 -> **150**
+campos de produccion. Coste: +39 produccion, 0 test (barato: solo 14 campos y ~60 accesos).
+
+Los **ocho escalares de identidad que otros crates leen** (`account_id`, `expansion`, `locale`, `build`,
+`security`, `account_name`, `account_expansion`, `realm_id`) se quedan en `WorldSession`: declararlos
+`pub` los lee composicion y bnet, y su destino segun el ledger es "cohesive application Session identity
+plus typed immutable realm/account policy supplied by composition", no un contenedor mas. Ese slice
+necesita decidir si la identidad es un agregado publico o un valor tipado que llega de composicion, y
+por eso va aparte y despues.
+
+Balance acumulado de B4 (produccion): **221 -> 150 campos** en once slices. El LOC del agregado sube
+(~+640 lineas registradas como deuda transitoria) y baja cuando los sub-estados salgan del arbol.
+
 **Siguiente slice de B4**: los dos `Arc<AtomicBool>` compartidos
 (`advanced_combat_logging_enabled_like_cpp`, `visibility_refresh_pending_like_cpp`, 14 accesos) si se
 confirma su cohesion -- comparten el patron "flag atomico que la sesion comparte con sus servicios",

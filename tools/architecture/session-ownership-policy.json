@@ -49,6 +49,13 @@
           "source_class": "production"
         },
         {
+          "name": "account_state",
+          "type": "SessionAccountState",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "active_loot_guid",
           "type": "wow_core :: ObjectGuid",
           "visibility": "pub (crate)",
@@ -247,13 +254,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "battlenet_account_id",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "build",
@@ -829,20 +829,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "instance_ignore_level_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "instance_ignore_raid_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "instance_lock_mgr",
           "type": "Option < Arc < std :: sync :: RwLock < wow_instances :: InstanceLockMgr > > >",
           "visibility": "pub (crate)",
@@ -866,13 +852,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "is_a_recruiter_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "item_class_store",
@@ -986,13 +965,6 @@
         {
           "name": "legacy_creature_aggro_config_like_cpp",
           "type": "LegacyCreatureAggroConfigLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "legit_characters",
-          "type": "Vec < ObjectGuid >",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -1120,13 +1092,6 @@
           "name": "maps",
           "type": "crate :: catalogs :: map :: MapCatalogsLikeCpp",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "max_instances_per_hour_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
         },
@@ -1358,13 +1323,6 @@
         {
           "name": "movie_store",
           "type": "Option < Arc < MovieStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "mute_time_like_cpp",
-          "type": "i64",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -2165,13 +2123,6 @@
           "source_class": "production"
         },
         {
-          "name": "realm_battlegroup",
-          "type": "u8",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "realm_id",
           "type": "u16",
           "visibility": "pub (in crate :: session)",
@@ -2179,37 +2130,9 @@
           "source_class": "production"
         },
         {
-          "name": "realm_list_secret_like_cpp",
-          "type": "[u8 ; 32]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "realm_names_like_cpp",
-          "type": "BTreeMap < u32 , (String , String) >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "realm_region",
-          "type": "u8",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "recent_player_guid_low_like_cpp",
-          "type": "u64",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "recruiter_id_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
+          "name": "realm_policy",
+          "type": "SessionRealmPolicy",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -3519,13 +3442,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "server_expansion_like_cpp",
-          "type": "u8",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "session_command_rx",
@@ -81947,7 +81863,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:01a6ccedf6099b6fddf3069f69a95e80:len=78299|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:a17b92cb043a06425df24ff57b93926d:len=77580|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

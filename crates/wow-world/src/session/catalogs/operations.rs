@@ -84,8 +84,8 @@ impl WorldSession {
             data.count = data.count.saturating_add(1);
             if data.count >= limit {
                 let new_mute = current.saturating_add(i64::from(config.mute_time_secs));
-                if self.mute_time_like_cpp < new_mute {
-                    self.mute_time_like_cpp = new_mute;
+                if self.account_state.mute_time_like_cpp < new_mute {
+                    self.account_state.mute_time_like_cpp = new_mute;
                 }
                 data.count = 0;
             }
@@ -338,7 +338,7 @@ impl WorldSession {
         FeatureSystemStatusGlueScreen::from_config_like_cpp(
             policy.feature_system_config_like_cpp(),
             policy.max_characters_per_realm as i32,
-            i32::from(self.server_expansion_like_cpp),
+            i32::from(self.realm_policy.server_expansion_like_cpp),
         )
     }
     #[cfg(test)]

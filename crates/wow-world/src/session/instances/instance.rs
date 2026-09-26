@@ -16,7 +16,7 @@ impl WorldSession {
             player.check_instance_count_probe_like_cpp(
                 instance_id,
                 now_secs,
-                self.max_instances_per_hour_like_cpp,
+                self.realm_policy.max_instances_per_hour_like_cpp,
             )
         }) {
             return result;
@@ -30,7 +30,7 @@ impl WorldSession {
                         .values()
                         .filter(|release_time| **release_time > now_secs)
                         .count()
-                        < self.max_instances_per_hour_like_cpp as usize
+                        < self.realm_policy.max_instances_per_hour_like_cpp as usize
                         || times
                             .get(&instance_id)
                             .is_some_and(|release_time| *release_time > now_secs)
@@ -47,7 +47,7 @@ impl WorldSession {
             player.check_instance_count_like_cpp(
                 instance_id,
                 now_secs,
-                self.max_instances_per_hour_like_cpp,
+                self.realm_policy.max_instances_per_hour_like_cpp,
             )
         }) {
             return result;
@@ -58,7 +58,7 @@ impl WorldSession {
             return self
                 .instance_reset_times_snapshot_like_cpp()
                 .is_some_and(|times| {
-                    times.len() < self.max_instances_per_hour_like_cpp as usize
+                    times.len() < self.realm_policy.max_instances_per_hour_like_cpp as usize
                         || times.contains_key(&instance_id)
                 });
         }
@@ -128,13 +128,13 @@ impl WorldSession {
             .or(self.player_guid)
     }
     pub fn set_instance_ignore_raid_like_cpp(&mut self, ignore: bool) {
-        self.instance_ignore_raid_like_cpp = ignore;
+        self.realm_policy.instance_ignore_raid_like_cpp = ignore;
     }
     pub fn set_instance_ignore_level_like_cpp(&mut self, ignore: bool) {
-        self.instance_ignore_level_like_cpp = ignore;
+        self.realm_policy.instance_ignore_level_like_cpp = ignore;
     }
     pub fn set_max_instances_per_hour_like_cpp(&mut self, max_instances: u32) {
-        self.max_instances_per_hour_like_cpp = max_instances;
+        self.realm_policy.max_instances_per_hour_like_cpp = max_instances;
     }
     /// C++ `Player::GetRecentInstanceId`.
     pub(crate) fn resolved_player_recent_instance_id_like_cpp(&self, map_id: u32) -> Option<u32> {

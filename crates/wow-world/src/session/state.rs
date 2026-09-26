@@ -355,18 +355,42 @@ pub(crate) struct SessionAdmissionState {
     pub(in crate::session) socket_timeouts_like_cpp: SocketTimeoutsLikeCpp,
 }
 
+/// The realm and instance policy the session admits play under: the realm's
+/// region, battlegroup, name table and secret, the server expansion cap, the
+/// hourly instance budget and the two instance-ignore switches.
+pub(crate) struct SessionRealmPolicy {
+    pub(in crate::session) realm_battlegroup: u8,
+    pub(in crate::session) realm_region: u8,
+    pub(in crate::session) realm_names_like_cpp: BTreeMap<u32, (String, String)>,
+    pub(in crate::session) realm_list_secret_like_cpp: [u8; 32],
+    pub(in crate::session) server_expansion_like_cpp: u8,
+    pub(in crate::session) max_instances_per_hour_like_cpp: u32,
+    pub(in crate::session) instance_ignore_level_like_cpp: bool,
+    pub(in crate::session) instance_ignore_raid_like_cpp: bool,
+}
+
+/// Account-level session state: the Battle.net account id, the recruit-a-friend
+/// edges, the account's legitimate characters, the recent character low guid and
+/// the mute expiry the chat handlers enforce.
+pub(crate) struct SessionAccountState {
+    pub(in crate::session) battlenet_account_id: u32,
+    pub(in crate::session) is_a_recruiter_like_cpp: bool,
+    pub(in crate::session) recruiter_id_like_cpp: u32,
+    pub(in crate::session) legit_characters: Vec<ObjectGuid>,
+    /// C++ `WorldSession::m_GUIDLow`: last logged-in character low GUID kept after logout.
+    pub(in crate::session) recent_player_guid_low_like_cpp: u64,
+    pub(in crate::session) mute_time_like_cpp: i64,
+}
+
 pub struct WorldSession {
     // Account info
     pub account_id: u32,
-    pub(in crate::session) battlenet_account_id: u32,
-    pub(in crate::session) realm_list_secret_like_cpp: [u8; 32],
-    pub(in crate::session) recruiter_id_like_cpp: u32,
-    pub(in crate::session) is_a_recruiter_like_cpp: bool,
+
     pub account_name: String,
     pub security: u8,
     pub expansion: u8,
     pub account_expansion: u8,
-    pub(in crate::session) server_expansion_like_cpp: u8,
+
     #[cfg(test)]
     pub(in crate::session) characters_per_realm_like_cpp: u32,
     #[cfg(test)]
@@ -375,9 +399,7 @@ pub struct WorldSession {
     pub(in crate::session) feature_system_bpay_store_enabled_like_cpp: bool,
     #[cfg(test)]
     pub(in crate::session) feature_system_character_undelete_enabled_like_cpp: bool,
-    pub(in crate::session) instance_ignore_raid_like_cpp: bool,
-    pub(in crate::session) instance_ignore_level_like_cpp: bool,
-    pub(in crate::session) max_instances_per_hour_like_cpp: u32,
+
     /// Detached Player bootstrap-catalog inputs used only by tests.
     #[cfg(test)]
     pub(in crate::session) player_bootstrap_catalog_test_fixture_like_cpp:
@@ -385,7 +407,6 @@ pub struct WorldSession {
     pub build: u32,
 
     pub locale: String,
-    pub(in crate::session) mute_time_like_cpp: i64,
 
     // Inbound packet queue (from WorldSocket)
 
@@ -658,6 +679,12 @@ pub struct WorldSession {
     /// The session's view of its world: area trigger, taxi, combat and realm flags.
     pub(in crate::session) view: SessionWorldView,
 
+    /// Realm and instance policy for this session.
+    pub(crate) realm_policy: SessionRealmPolicy,
+
+    /// Account-level session state shared with the chat and character handlers.
+    pub(crate) account_state: SessionAccountState,
+
     /// Admission, throttling and dispatch state for the session's inbound packets.
     pub(crate) admission: SessionAdmissionState,
 
@@ -701,9 +728,6 @@ pub struct WorldSession {
 
     // Realm ID for GUID creation
     pub(in crate::session) realm_id: u16,
-    pub(in crate::session) realm_region: u8,
-    pub(in crate::session) realm_battlegroup: u8,
-    pub(in crate::session) realm_names_like_cpp: BTreeMap<u32, (String, String)>,
 
     // Process-owned GUID generators retained only as test fixtures.
     #[cfg(test)]
@@ -721,7 +745,6 @@ pub struct WorldSession {
         Option<Arc<VoidStorageItemIdGeneratorLikeCpp>>,
 
     // Characters confirmed for this account
-    pub(in crate::session) legit_characters: Vec<ObjectGuid>,
 
     // Pending async packets to process
 
@@ -812,8 +835,7 @@ pub struct WorldSession {
 
     /// GUID of the character currently logged in (set after login completes).
     pub(in crate::session) player_guid: Option<ObjectGuid>,
-    /// C++ `WorldSession::m_GUIDLow`: last logged-in character low GUID kept after logout.
-    pub(in crate::session) recent_player_guid_low_like_cpp: u64,
+
     /// Test fixtures may attach a Player bootstrap before injecting the
     /// production MapManager. Production attachment is represented solely by
     /// the generation-checked PlayerHandle.

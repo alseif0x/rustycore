@@ -4,6 +4,7 @@
 //! Construction: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
+use crate::session::state::SessionAccountState;
 use crate::session::state::SessionAddonFilter;
 use crate::session::state::SessionAdmissionState;
 use crate::session::state::SessionDirectory;
@@ -11,6 +12,7 @@ use crate::session::state::SessionDriverServices;
 use crate::session::state::SessionLifecycleState;
 use crate::session::state::SessionPhaseRail;
 use crate::session::state::SessionQuestState;
+use crate::session::state::SessionRealmPolicy;
 use crate::session::state::SessionSocialLimits;
 use crate::session::state::SessionSpellState;
 use crate::session::state::SessionTransport;
@@ -103,15 +105,12 @@ impl WorldSession {
             maps: crate::catalogs::map::MapCatalogsLikeCpp::default(),
             spell_catalogs: crate::catalogs::spell::SpellCatalogsLikeCpp::default(),
             account_id,
-            battlenet_account_id: account_id,
-            realm_list_secret_like_cpp: [0; 32],
-            recruiter_id_like_cpp: 0,
-            is_a_recruiter_like_cpp: false,
+
             account_name,
             security,
             expansion,
             account_expansion,
-            server_expansion_like_cpp: 2,
+
             #[cfg(test)]
             characters_per_realm_like_cpp: 60,
             #[cfg(test)]
@@ -120,15 +119,13 @@ impl WorldSession {
             feature_system_bpay_store_enabled_like_cpp: false,
             #[cfg(test)]
             feature_system_character_undelete_enabled_like_cpp: false,
-            instance_ignore_raid_like_cpp: false,
-            instance_ignore_level_like_cpp: false,
-            max_instances_per_hour_like_cpp: 5,
+
             #[cfg(test)]
             player_bootstrap_catalog_test_fixture_like_cpp:
                 PlayerBootstrapCatalogTestFixtureLikeCpp::default(),
             build,
             locale,
-            mute_time_like_cpp: 0,
+
             session_command_tx,
             session_command_rx,
             phase: SessionPhaseRail {
@@ -324,6 +321,27 @@ impl WorldSession {
                     + Duration::from_secs(SocketTimeoutsLikeCpp::default().unauthenticated_secs),
                 socket_timeouts_like_cpp: SocketTimeoutsLikeCpp::default(),
             },
+            realm_policy: SessionRealmPolicy {
+                realm_battlegroup: 1,
+                realm_region: 1,
+                realm_names_like_cpp: BTreeMap::from([(
+                    0x0101_0001,
+                    ("RustyCore".to_string(), "RustyCore".to_string()),
+                )]),
+                realm_list_secret_like_cpp: [0; 32],
+                server_expansion_like_cpp: 2,
+                max_instances_per_hour_like_cpp: 5,
+                instance_ignore_level_like_cpp: false,
+                instance_ignore_raid_like_cpp: false,
+            },
+            account_state: SessionAccountState {
+                battlenet_account_id: account_id,
+                is_a_recruiter_like_cpp: false,
+                recruiter_id_like_cpp: 0,
+                legit_characters: Vec::new(),
+                recent_player_guid_low_like_cpp: 0,
+                mute_time_like_cpp: 0,
+            },
             view: SessionWorldView {
                 is_pvp_realm_like_cpp: false,
                 is_ffa_pvp_realm_like_cpp: false,
@@ -359,12 +377,7 @@ impl WorldSession {
             #[cfg(test)]
             represented_gray_level_script_overrides_like_cpp: HashMap::new(),
             realm_id: 1,
-            realm_region: 1,
-            realm_battlegroup: 1,
-            realm_names_like_cpp: BTreeMap::from([(
-                0x0101_0001,
-                ("RustyCore".to_string(), "RustyCore".to_string()),
-            )]),
+
             #[cfg(test)]
             guid_generator: None,
             #[cfg(test)]
@@ -373,7 +386,6 @@ impl WorldSession {
             equipment_set_guid_generator_like_cpp: None,
             #[cfg(test)]
             void_storage_item_id_generator_like_cpp: None,
-            legit_characters: Vec::new(),
 
             max_player_level_config_like_cpp: 80,
             max_primary_trade_skills_like_cpp:
@@ -436,7 +448,7 @@ impl WorldSession {
             #[cfg(test)]
             selection_guid: None,
             player_guid: None,
-            recent_player_guid_low_like_cpp: 0,
+
             #[cfg(test)]
             player_bootstrap_attached_like_cpp: false,
 

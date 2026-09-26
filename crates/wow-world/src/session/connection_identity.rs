@@ -126,8 +126,8 @@ impl WorldSession {
     }
 
     pub fn set_realm_handle_like_cpp(&mut self, region: u8, battlegroup: u8, realm_id: u16) {
-        self.realm_region = region;
-        self.realm_battlegroup = battlegroup;
+        self.realm_policy.realm_region = region;
+        self.realm_policy.realm_battlegroup = battlegroup;
         self.realm_id = realm_id;
     }
 
@@ -135,7 +135,7 @@ impl WorldSession {
         &mut self,
         names: impl IntoIterator<Item = (u32, String, String)>,
     ) {
-        self.realm_names_like_cpp = names
+        self.realm_policy.realm_names_like_cpp = names
             .into_iter()
             .map(|(address, actual, normalized)| (address, (actual, normalized)))
             .collect();
@@ -146,8 +146,8 @@ impl WorldSession {
     /// Region and Battlegroup come from the active `realmlist` row, matching C++
     /// `Battlenet::RealmHandle{ realm.Id.Region, realm.Id.Site, realm.Id.Realm }.GetAddress()`.
     pub(crate) fn virtual_realm_address(&self) -> u32 {
-        (u32::from(self.realm_region) << 24)
-            | (u32::from(self.realm_battlegroup) << 16)
+        (u32::from(self.realm_policy.realm_region) << 24)
+            | (u32::from(self.realm_policy.realm_battlegroup) << 16)
             | u32::from(self.realm_id)
     }
 
@@ -155,7 +155,8 @@ impl WorldSession {
         &self,
         realm_address: u32,
     ) -> Option<(&str, &str)> {
-        self.realm_names_like_cpp
+        self.realm_policy
+            .realm_names_like_cpp
             .get(&realm_address)
             .map(|(actual, normalized)| (actual.as_str(), normalized.as_str()))
     }
@@ -198,40 +199,43 @@ impl WorldSession {
     }
 
     pub(crate) fn set_realm_list_secret_like_cpp(&mut self, secret: [u8; 32]) {
-        self.realm_list_secret_like_cpp = secret;
+        self.realm_policy.realm_list_secret_like_cpp = secret;
     }
 
     pub(crate) fn realm_list_secret_like_cpp(&self) -> &[u8; 32] {
-        &self.realm_list_secret_like_cpp
+        &self.realm_policy.realm_list_secret_like_cpp
     }
 
     pub fn set_mute_time_like_cpp(&mut self, mute_time: i64) {
-        self.mute_time_like_cpp = mute_time;
+        self.account_state.mute_time_like_cpp = mute_time;
     }
 
     pub(crate) fn can_speak_like_cpp(&self) -> bool {
-        self.mute_time_like_cpp <= unix_now()
+        self.account_state.mute_time_like_cpp <= unix_now()
     }
 
     pub(crate) fn mute_time_remaining_secs_like_cpp(&self) -> Option<u64> {
-        let remaining = self.mute_time_like_cpp.saturating_sub(unix_now());
+        let remaining = self
+            .account_state
+            .mute_time_like_cpp
+            .saturating_sub(unix_now());
         (remaining > 0).then_some(remaining as u64)
     }
 
     pub fn set_recruiter_id_like_cpp(&mut self, recruiter_id: u32) {
-        self.recruiter_id_like_cpp = recruiter_id;
+        self.account_state.recruiter_id_like_cpp = recruiter_id;
     }
 
     pub(crate) fn recruiter_id_like_cpp(&self) -> u32 {
-        self.recruiter_id_like_cpp
+        self.account_state.recruiter_id_like_cpp
     }
 
     pub fn set_is_a_recruiter_like_cpp(&mut self, is_a_recruiter: bool) {
-        self.is_a_recruiter_like_cpp = is_a_recruiter;
+        self.account_state.is_a_recruiter_like_cpp = is_a_recruiter;
     }
 
     pub(crate) fn is_a_recruiter_like_cpp(&self) -> bool {
-        self.is_a_recruiter_like_cpp
+        self.account_state.is_a_recruiter_like_cpp
     }
 
     pub(crate) fn session_locale_name_like_cpp(&self) -> &str {
@@ -281,12 +285,12 @@ impl WorldSession {
 
     /// Set the list of legitimate characters for this account.
     pub fn set_legit_characters(&mut self, guids: Vec<ObjectGuid>) {
-        self.legit_characters = guids;
+        self.account_state.legit_characters = guids;
     }
 
     /// Check if a GUID is in the legit characters list.
     pub fn is_legit_character(&self, guid: &ObjectGuid) -> bool {
-        self.legit_characters.contains(guid)
+        self.account_state.legit_characters.contains(guid)
     }
 
     /// Get the current session state.

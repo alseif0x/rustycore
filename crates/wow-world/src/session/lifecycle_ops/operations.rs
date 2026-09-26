@@ -21,10 +21,10 @@ impl WorldSession {
             .session_account_state = Some(port);
     }
     pub fn set_battlenet_account_id(&mut self, battlenet_account_id: u32) {
-        self.battlenet_account_id = battlenet_account_id;
+        self.account_state.battlenet_account_id = battlenet_account_id;
     }
     pub fn battlenet_account_id(&self) -> u32 {
-        self.battlenet_account_id
+        self.account_state.battlenet_account_id
     }
     /// C++ `CollectionMgr::SaveAccountHeirlooms`.
     pub(crate) fn account_heirloom_rows_like_cpp(&self) -> Vec<(u32, u32)> {
