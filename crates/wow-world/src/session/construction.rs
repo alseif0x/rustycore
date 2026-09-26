@@ -7,6 +7,7 @@
 use crate::session::state::SessionAddonFilter;
 use crate::session::state::SessionDirectory;
 use crate::session::state::SessionDriverServices;
+use crate::session::state::SessionPhaseRail;
 use crate::session::state::SessionSocialLimits;
 use crate::session::state::SessionWorldView;
 
@@ -127,8 +128,10 @@ impl WorldSession {
             connection,
             session_command_tx,
             session_command_rx,
-            session_phase_tx,
-            session_phase_rx,
+            phase: SessionPhaseRail {
+                tx: session_phase_tx,
+                rx: session_phase_rx,
+            },
             last_phase_authority_like_cpp: [None, None],
             durable_creature_runtime_commands_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Arc::new(AtomicBool::new(false)),

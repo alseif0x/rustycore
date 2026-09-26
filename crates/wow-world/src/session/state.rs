@@ -209,6 +209,13 @@ pub(crate) struct SessionAddonFilter {
     pub(crate) filter_addon_messages: bool,
 }
 
+/// The canonical producer's phase rail for this session (#787), separate from
+/// the command mailbox because a phase pass drains that mailbox.
+pub(in crate::session) struct SessionPhaseRail {
+    pub(in crate::session) tx: flume::Sender<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
+    pub(in crate::session) rx: flume::Receiver<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
+}
+
 pub struct WorldSession {
     /// The realm/instance transport, owned by `wow-session` (#297).
     ///
@@ -255,12 +262,6 @@ pub struct WorldSession {
     // Cross-session commands executed by this session's own update loop.
     pub(in crate::session) session_command_tx: flume::Sender<SessionCommand>,
     pub(in crate::session) session_command_rx: flume::Receiver<SessionCommand>,
-    /// The canonical producer's phase rail for this session (#787), separate
-    /// from the command mailbox because a phase pass drains that mailbox.
-    pub(in crate::session) session_phase_tx:
-        flume::Sender<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
-    pub(in crate::session) session_phase_rx:
-        flume::Receiver<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
     /// The producer and step this session last accepted, per phase (#787).
     ///
     /// C++ has one caller and needs no such watermark. Here it is what rejects
@@ -549,6 +550,9 @@ pub struct WorldSession {
 
     /// Addon chat filtering state shared with the chat handlers.
     pub(crate) addon_filter: SessionAddonFilter,
+
+    /// The producer-addressed phase rail the driver parks on between phases.
+    pub(in crate::session) phase: SessionPhaseRail,
 
     // Test-only compatibility for pre-#578 fixtures. Production group
     // membership and Player-owned update sequences live on canonical Player.

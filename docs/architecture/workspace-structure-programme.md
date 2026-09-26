@@ -575,11 +575,29 @@ dos, el metodo de mover solo campos no escala: hay que mover *metodos* al `impl`
 `self.<campo>` no lleva prefijo) o extraer primero los subgrupos cohesivos y baratos, que es lo que se
 hizo aqui con el filtro de addons.
 
-**Siguiente slice de B4**: `session_phase_tx`/`session_phase_rx` (6 accesos, railes de fase #787) como
-sub-estado propio, y despues los dos `Arc<AtomicBool>` compartidos
+### B4, sexto slice ejecutado: `SessionPhaseRail` (2026-09-25)
+
+El rail de fase #787 (`session_phase_tx`, `session_phase_rx`) pasa al sub-estado nombrado
+`SessionPhaseRail`, alcanzado por un unico campo `phase` con `tx`/`rx` dentro. El `bounded(2)` de
+construccion, los dos accesores (`session_phase_sender_like_cpp`, `session_phase_receiver_like_cpp`),
+las entradas del directorio que clonan el emisor y el consumidor del driver conservan su
+comportamiento. Census: 210 -> 209 campos de produccion; coste +7 produccion, 0 test.
+
+Cuarto patron aprendido, y aviso para los slices que quedan: **el nombre de campo puede existir en otros
+tipos del mismo arbol**. `SessionPhaseAddressLikeCpp` y las entradas del directorio tienen su *propio*
+`session_phase_tx`, y hay 8 literales de test que lo rellenan con
+`detached_session_phase_rail_like_cpp()`. Una reescritura global de `.session_phase_tx` habria roto
+tipos ajenos; aqui se repunto solo `self.session_phase_tx` en los dos ficheros de `WorldSession`
+(`driver/phase_consumer.rs` y `player_registry_binding.rs`). Regla: cuando el nombre del campo es
+generico, repuntar por fichero y con el receptor `self.`, nunca con regex global; y comprobar antes
+cuantos literales ajenos comparten el nombre.
+
+**Siguiente slice de B4**: los dos `Arc<AtomicBool>` compartidos
 (`advanced_combat_logging_enabled_like_cpp`, `visibility_refresh_pending_like_cpp`, 14 accesos) si se
-confirma su cohesion; los railes de comando (`session_command_tx`, 136 accesos) van con el metodo de
-mover metodos, no de mover campos.
+confirma su cohesion -- comparten el patron "flag atomico que la sesion comparte con sus servicios",
+pero sus comentarios de procedencia son de familias distintas, asi que si no se sostiene se dejan; los
+railes de comando (`session_command_tx`, 136 accesos en 112 funciones) van con el metodo de mover
+metodos, no de mover campos, empezando por introducir el helper de envio que hoy no existe.
 
 Metodo ya probado: (1) mover campos con su visibilidad efectiva y
 sus comentarios de procedencia al sub-estado, (2) repuntar solo accesos con `cargo check -p wow-world`

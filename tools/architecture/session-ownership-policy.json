@@ -1652,6 +1652,13 @@
           "source_class": "production"
         },
         {
+          "name": "phase",
+          "type": "SessionPhaseRail",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "phase_group_store",
           "type": "Option < Arc < PhaseGroupStore > >",
           "visibility": "pub (in crate :: session)",
@@ -3789,20 +3796,6 @@
         {
           "name": "session_mgr",
           "type": "Option < Arc < SessionManager > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "session_phase_rx",
-          "type": "flume :: Receiver < crate :: session :: mailbox :: SessionPhaseRequestLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "session_phase_tx",
-          "type": "flume :: Sender < crate :: session :: mailbox :: SessionPhaseRequestLikeCpp >",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -82283,7 +82276,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:0cfb9e572448950ead81eb5f9f99ca55:len=85517|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:fa538576c8e93a16af3db7b82aa84e51:len=85238|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

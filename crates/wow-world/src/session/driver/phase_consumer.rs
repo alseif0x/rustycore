@@ -210,14 +210,14 @@ impl WorldSession {
     /// The rail the canonical producer addresses this session's phases through.
     #[must_use]
     pub fn session_phase_sender_like_cpp(&self) -> flume::Sender<SessionPhaseRequestLikeCpp> {
-        self.session_phase_tx.clone()
+        self.phase.tx.clone()
     }
 
     /// A receiving handle for the same rail, for the task that owns this
     /// session and parks on it between phases.
     #[must_use]
     pub fn session_phase_receiver_like_cpp(&self) -> flume::Receiver<SessionPhaseRequestLikeCpp> {
-        self.session_phase_rx.clone()
+        self.phase.rx.clone()
     }
 
     /// Whether a request comes from the authority this session is serving.
@@ -257,7 +257,7 @@ impl WorldSession {
     /// wait for and nothing half-done. Returns how many were refused.
     pub fn refuse_pending_phase_requests_like_cpp(&mut self) -> usize {
         let mut refused = 0;
-        while let Ok(request) = self.session_phase_rx.try_recv() {
+        while let Ok(request) = self.phase.rx.try_recv() {
             refused += 1;
             self.refuse_requested_session_phase_like_cpp(request);
         }

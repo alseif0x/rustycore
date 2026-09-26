@@ -138,7 +138,7 @@ impl WorldSession {
                 send_tx: self.send_tx().clone(),
                 realm_send_tx: self.realm_route_tx().clone(),
                 command_tx: self.session_command_tx.clone(),
-                session_phase_tx: self.session_phase_tx.clone(),
+                session_phase_tx: self.phase.tx.clone(),
                 durable_creature_runtime_commands_like_cpp: Arc::clone(
                     &self.durable_creature_runtime_commands_like_cpp,
                 ),
