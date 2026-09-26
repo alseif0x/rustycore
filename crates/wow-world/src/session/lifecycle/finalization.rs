@@ -247,6 +247,7 @@ mod tests {
         );
         let fence = wow_network::SocketWriteFenceLikeCpp::default();
         session
+            .transport
             .connection
             .set_send_write_fence_like_cpp(fence.clone());
         let mut publication = Box::pin(session.execute_finalization_step(

@@ -12,6 +12,7 @@ use crate::session::state::SessionPhaseRail;
 use crate::session::state::SessionQuestState;
 use crate::session::state::SessionSocialLimits;
 use crate::session::state::SessionSpellState;
+use crate::session::state::SessionTransport;
 use crate::session::state::SessionWorldView;
 
 #[cfg(test)]
@@ -125,10 +126,8 @@ impl WorldSession {
             player_bootstrap_catalog_test_fixture_like_cpp:
                 PlayerBootstrapCatalogTestFixtureLikeCpp::default(),
             build,
-            session_key,
             locale,
             mute_time_like_cpp: 0,
-            connection,
             session_command_tx,
             session_command_rx,
             phase: SessionPhaseRail {
@@ -145,7 +144,7 @@ impl WorldSession {
                 + Duration::from_secs(SocketTimeoutsLikeCpp::default().unauthenticated_secs),
             packet_spoof_config_like_cpp: PacketSpoofConfigLikeCpp::default(),
             packet_throttling_like_cpp: HashMap::new(),
-            remote_address_like_cpp: None,
+
             pending_packet_spoof_ban_like_cpp: None,
             legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp::default(),
             dispatch_table: build_dispatch_table(),
@@ -313,6 +312,12 @@ impl WorldSession {
                 tutorials_loaded_coherently_like_cpp: false,
                 tutorials_loaded_from_db_like_cpp: false,
             },
+            transport: SessionTransport {
+                connection,
+                remote_address_like_cpp: None,
+                session_key,
+                session_mgr: None,
+            },
             view: SessionWorldView {
                 is_pvp_realm_like_cpp: false,
                 is_ffa_pvp_realm_like_cpp: false,
@@ -364,8 +369,6 @@ impl WorldSession {
             void_storage_item_id_generator_like_cpp: None,
             legit_characters: Vec::new(),
             pending_packets: VecDeque::new(),
-
-            session_mgr: None,
 
             max_player_level_config_like_cpp: 80,
             max_primary_trade_skills_like_cpp:

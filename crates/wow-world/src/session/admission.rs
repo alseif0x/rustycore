@@ -306,7 +306,7 @@ impl super::WorldSession {
     fn stage_packet_spoof_ban_like_cpp(&mut self) {
         let target = match self.packet_spoof_config_like_cpp.ban_mode {
             PacketSpoofConfigLikeCpp::BAN_IP => {
-                let Some(address) = self.remote_address_like_cpp.clone() else {
+                let Some(address) = self.transport.remote_address_like_cpp.clone() else {
                     warn!(
                         account = self.account_id,
                         "AntiDOS: PacketSpoof BAN_IP requested but remote address is unavailable; kicking without persistent IP ban"

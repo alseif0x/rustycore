@@ -636,6 +636,51 @@ del agregado (olas D/E). La ganancia que persigue B4 es la superficie del tipo, 
 `WorldSession` ya no declara estado de transporte social, social limits, driver, vista de mundo,
 filtro de addons, rail de fase, hechizos/quests ni persistencia/ciclo de vida.
 
+### B4, noveno slice ejecutado: `SessionTransport` (2026-09-25)
+
+La familia `transport_and_physical_connections` (4 campos) pasa al sub-estado nombrado
+`SessionTransport`, alcanzado por un unico campo `transport`: el kernel de transporte de
+`wow-session` (#297), la direccion remota fisica, la clave de sesion y el handle compartido del
+`SessionManager`. Dos de los cuatro se inicializaban en forma abreviada (`connection`, `session_key`) y
+siguen abreviados dentro del literal anidado; `session_key` se estrecha de `pub` a `pub(crate)` porque
+la pasada de workspace demuestra que ningun otro crate lo leia. Census: 174 -> 171 campos de
+produccion. Coste: +29 produccion/+1 test.
+
+Sexto patron aprendido (y bug real de mi propio script, corregido): **el nombre de un campo puede
+aparecer antes en el fichero como parametro de la funcion constructora**. El recogedor de
+inicializadores tomo `session_key: Vec<u8>` de la firma de `create_session` en vez del `session_key,`
+del literal `Self {`. Ademas, `connection` no tiene forma `campo: expr` sino solo la abreviada. Reglas:
+soportar ambas formas y **buscar solo dentro del literal del constructor** (`Self {`), y validar TODO
+antes de escribir: la primera version escribio `state.rs` y aborto en `construction.rs`, dejando el
+arbol a medio mover (revertido con `git checkout -- crates/`). El script generalizado queda en
+`/tmp/b4gen2.py` con esas dos reglas; en este slice repunto 23 lineas en la lib, 9 en `--tests` y 0 en
+el workspace.
+
+### B4: que familias siguen con sub-estado y cuales no (decision, 2026-09-25)
+
+Leidos los `target_owner` del ledger, el resto de familias de B4 se parte en dos grupos y no conviene
+tratarlas igual:
+
+- **Sub-estado correcto** (el dueno final es la propia sesion de aplicacion, asi que nombrar el estado
+  es el paso intermedio): `transport_and_physical_connections` (hecho),
+  `packet_admission_dispatch` (11 campos, "private wow_world::session admission/dispatch adapters") y la
+  parte de identidad de `session_identity_account_and_realm_policy` (22 campos, "cohesive application
+  Session identity plus typed immutable realm/account policy supplied by composition").
+- **Sub-estado no es el paso** (el dueno final es composicion u otro crate, y anidar solo maquilla el
+  localizador de servicios que el ledger quiere retirar): `immutable_catalogs_configuration_and_services`
+  (77 campos; su retiro exige *capability-specific immutable views* desde el bootstrap de world-server,
+  no un `catalogs` dentro de `WorldSession`), `map_runtime_creature_gameobject_and_visibility` (25; el
+  trabajo es retirar el puente legacy hacia `wow-map`/`wow-entities`) y
+  `player_inventory_loot_and_economy` (16; el trabajo es que el dueno sea `wow-entities`/`wow-loot`). Las
+  familias de un solo campo (`player_identity_login_bootstrap`, `session_selected_player_binding`) y las
+  de fixtures (`test_only_fixtures` con 302, `player_identity_test_fixtures` con 5) esperan a la
+  migracion de tests a un `Player` canonico, que es B3.
+
+Consecuencia para la ola: tras cerrar `packet_admission_dispatch` y la identidad, lo que queda de B4 no
+se resuelve moviendo campos. La siguiente palanca real es B3 (migrar los tests de dominio y retirar las
+302 observaciones de fixture) y despues B5/B6 (adaptadores y `map_manager` -> `wow-map`), que es donde
+el LOC del agregado empieza a bajar de verdad.
+
 **Siguiente slice de B4**: los dos `Arc<AtomicBool>` compartidos
 (`advanced_combat_logging_enabled_like_cpp`, `visibility_refresh_pending_like_cpp`, 14 accesos) si se
 confirma su cohesion -- comparten el patron "flag atomico que la sesion comparte con sus servicios",

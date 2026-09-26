@@ -314,13 +314,23 @@ pub(crate) struct SessionLifecycleState {
     pub(in crate::session) tutorials_loaded_from_db_like_cpp: bool,
 }
 
-pub struct WorldSession {
+/// The session's transport and connection identity: the `wow-session` transport
+/// kernel (#297), the physical remote address, the authentication session key
+/// and the shared session manager handle for the ConnectTo flow.
+pub(crate) struct SessionTransport {
     /// The realm/instance transport, owned by `wow-session` (#297).
     ///
     /// The first piece of this type to earn its own crate: it compiles without
     /// gameplay, databases or catalogs, so the compiler now prevents transport
     /// decisions from reaching a `Player`, a `Map` or a query.
     pub(in crate::session) connection: wow_session::SessionConnection,
+    pub(in crate::session) remote_address_like_cpp: Option<String>,
+    pub session_key: Vec<u8>,
+    /// Session manager for ConnectTo flow (shared with instance listener).
+    pub(in crate::session) session_mgr: Option<Arc<SessionManager>>,
+}
+
+pub struct WorldSession {
     // Account info
     pub account_id: u32,
     pub(in crate::session) battlenet_account_id: u32,
@@ -348,7 +358,7 @@ pub struct WorldSession {
     pub(in crate::session) player_bootstrap_catalog_test_fixture_like_cpp:
         PlayerBootstrapCatalogTestFixtureLikeCpp,
     pub build: u32,
-    pub session_key: Vec<u8>,
+
     pub locale: String,
     pub(in crate::session) mute_time_like_cpp: i64,
 
@@ -379,7 +389,7 @@ pub struct WorldSession {
     pub(in crate::session) socket_timeout_deadline_like_cpp: Instant,
     pub(in crate::session) packet_spoof_config_like_cpp: PacketSpoofConfigLikeCpp,
     pub(in crate::session) packet_throttling_like_cpp: HashMap<u16, PacketCounterLikeCpp>,
-    pub(in crate::session) remote_address_like_cpp: Option<String>,
+
     pub(in crate::session) pending_packet_spoof_ban_like_cpp: Option<PacketSpoofPendingBanLikeCpp>,
     pub(in crate::session) legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp,
 
@@ -637,6 +647,9 @@ pub struct WorldSession {
     /// The session's view of its world: area trigger, taxi, combat and realm flags.
     pub(in crate::session) view: SessionWorldView,
 
+    /// Transport kernel, remote address, session key and session manager handle.
+    pub(crate) transport: SessionTransport,
+
     /// Persistence and lifecycle state shared with the lifecycle and handler code.
     pub(crate) lifecycle: SessionLifecycleState,
 
@@ -700,8 +713,6 @@ pub struct WorldSession {
     pub(in crate::session) pending_packets: VecDeque<WorldPacket>,
 
     // ── ConnectTo flow ──────────────────────────────────────────
-    /// Session manager for ConnectTo flow (shared with instance listener).
-    pub(in crate::session) session_mgr: Option<Arc<SessionManager>>,
 
     // ── Logout ──────────────────────────────────────────────────────
     /// C++ `CONFIG_MAX_PLAYER_LEVEL`. `RestMgr::SetRestBonus` reads this value

@@ -347,7 +347,7 @@ impl WorldSession {
     }
     /// Get a clone of the send channel.
     pub fn send_tx(&self) -> &flume::Sender<Vec<u8>> {
-        self.connection.send_tx()
+        self.transport.connection.send_tx()
     }
     pub(in crate::session) fn send_represented_mount_unit_update_like_cpp(
         &mut self,

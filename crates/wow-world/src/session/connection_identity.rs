@@ -251,12 +251,12 @@ impl WorldSession {
 
     /// Set the session manager for ConnectTo flow.
     pub fn set_session_mgr(&mut self, mgr: Arc<SessionManager>) {
-        self.session_mgr = Some(mgr);
+        self.transport.session_mgr = Some(mgr);
     }
 
     /// Get the session manager reference.
     pub fn session_mgr(&self) -> Option<&Arc<SessionManager>> {
-        self.session_mgr.as_ref()
+        self.transport.session_mgr.as_ref()
     }
 
     pub(crate) fn is_addon_registered_like_cpp(&self, prefix: &str) -> bool {
