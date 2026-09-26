@@ -7,7 +7,8 @@
       "wow-core",
       "wow-math",
       "wow-module-api",
-      "wow-persistence"
+      "wow-persistence",
+      "wow-recastdetour"
     ],
     "domain-runtime": [
       "wow-ai",
@@ -39,7 +40,6 @@
       "wow-network",
       "wow-packet",
       "wow-proto",
-      "wow-recastdetour",
       "wow-session"
     ],
     "composition": [
@@ -195,12 +195,6 @@
       "to": "wow-packet",
       "tracking_issue": 584,
       "reason": "Protocol handlers and presenters legitimately decode and encode wow-packet DTOs inside the mixed wow-world application crate. The debt is gameplay rules and ownership still exposed through WorldSession, not the existence of packet presentation at that edge. #584 owns complete command/query/outcome verticals that keep packet DTOs outside domain APIs and records the final adapter classification. It must not invent a crate or trait merely to make this Cargo edge disappear. #153 verifies the completed boundary."
-    },
-    {
-      "from": "wow-world",
-      "to": "wow-recastdetour",
-      "tracking_issue": 584,
-      "reason": "The mixed world application crate still reaches the concrete pathfinding adapter."
     },
     {
       "from": "wow-world",
@@ -414,6 +408,15 @@
       "wow-progression": {
         "normal": [],
         "build": []
+      },
+      "wow-recastdetour": {
+        "normal": [
+          "bitflags",
+          "thiserror"
+        ],
+        "build": [
+          "cc"
+        ]
       }
     },
     "exceptions": [

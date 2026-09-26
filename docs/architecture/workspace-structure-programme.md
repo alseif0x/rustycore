@@ -839,6 +839,22 @@ guiado por el compilador, regenerar census/ledger con delta revisado) y despues 
 movimiento de `map_manager` a un crate `domain-runtime` necesita las dos. Queda dimensionado y no
 iniciado a medias.
 
+### B6, pieza 3 resuelta por reclasificacion: `wow-recastdetour` es `foundation` (2026-09-25)
+
+La pieza 3 no necesitaba porta: `wow-recastdetour` estaba mal clasificado como `adapter-platform`. Es un
+**port vendido de terceros** (el propio estandar lo exime de presupuestos de tamano y de la regla de
+nombres `_like_cpp`) que **no depende de ningun crate del workspace** — solo de `bitflags` y `thiserror`,
+mas `cc` en build-dependencies para compilar el C++ vendido. Eso es una libreria de base, no un adaptador
+de plataforma, y la politica ya permite `domain-runtime -> foundation`.
+
+Cambios: `wow-recastdetour` pasa a `foundation`; se declara su superficie externa
+(`normal: [bitflags, thiserror]`, `build: [cc]`), y se **retira la excepcion obsoleta**
+`wow-world -> wow-recastdetour` que ya no hace falta. El recuento pasa de 17 a **16 excepciones de
+workspace** y de 60 a 63 dependencias externas vigiladas. `check_architecture.py check` y `self-test`
+verdes. Efecto sobre B6: de las dos aristas prohibidas que bloqueaban el movimiento de `map_manager`,
+**queda una** — `wow-packet` via `create_data` (la pieza 2, ya dimensionada en 56 usos) — asi que el
+movimiento de las 6 721 lineas depende ya solo de esa proyeccion.
+
 Criterio de cierre de B6: `map_manager` vive en `wow-map` (o en un crate `domain-runtime` propio),
 `wow-world` conserva solo el adaptador, y `check-deps` no necesita ninguna excepcion nueva.
 
