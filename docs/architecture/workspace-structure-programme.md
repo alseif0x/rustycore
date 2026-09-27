@@ -1030,6 +1030,18 @@ Resultado: 9 avisos menos, 0 errores en lib/tests/workspace en cada paso, y los 
 mismo tipo y se limpian repitiendo el patron, ahora que esta probado tres veces y con reglas de proceso
 escritas.
 
+### B7: lote mecanico completado en los modulos no auditados (2026-09-26)
+
+Con el bucle corregido (borrar solo los nombres avisados; restaurar **unicamente** los ficheros que el
+build de test nombra en lineas `: error`; **re-verificar tras cada restauracion**) el lote edito **29
+sentencias en 25 ficheros** en dos ciclos: dos ficheros conservaban nombres que sus propios tests
+consumen y se restauraron intactos. Resultado: lib/tests/workspace limpios, 3901 tests verdes,
+`check_architecture.py check` PASS, **23 ficheros con 7 inserciones y 32 borrados** (neto -25 lineas) y
+los avisos de imports en modulos no auditados bajan de **29 a 5**.
+
+B7 queda practicamente cerrado: los avisos restantes de `wow-world` estan en los cuatro agregados
+auditados (donde el ratchet impide reclasificar lineas) y quedan documentados como fuera de alcance.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
