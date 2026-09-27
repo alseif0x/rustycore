@@ -11,6 +11,7 @@ mod character_rules;
 mod conversation;
 mod corpse;
 mod creature;
+pub mod creature_create;
 mod dynamic_object;
 mod game_object;
 mod item;

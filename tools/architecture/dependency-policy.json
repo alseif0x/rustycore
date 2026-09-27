@@ -207,6 +207,13 @@
       "to": "wow-packet",
       "tracking_issue": 584,
       "reason": "The reputation domain still builds its reputation-list presentation packets directly. The edge is presentation debt, not state ownership: the rank math and faction state are the domain's, and the retirement condition is moving packet construction behind the application adapter (B-phase rules extraction), as #584 tracks."
+    },
+    {
+      "from": "wow-packet",
+      "to": "wow-entities",
+      "kind": "normal",
+      "tracking_issue": 584,
+      "reason": "The creature CREATE projection lives in the domain crate so the map manager can hold it without depending on the wire crate; the wire crate consumes it to encode, which is the correct direction of the dependency and removes the last domain-runtime -> adapter-platform edge of the B6 map_manager extraction. The alternative is a duplicated mirror of the struct, which the structure standard forbids."
     }
   ],
   "external_dependencies": {

@@ -15,7 +15,6 @@ pub mod quest_persistence_projection;
 pub mod quest_persistence_test_fixture;
 
 #[cfg(any(test, feature = "test-fixtures"))]
-pub use directory_test_fixtures::*;
 #[cfg(test)]
 pub use inventory_persistence_test_fixture::*;
 #[cfg(test)]

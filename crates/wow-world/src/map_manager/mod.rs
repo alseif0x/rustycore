@@ -30,6 +30,7 @@ use wow_constants::{
     UnitFlags2, UnitMoveType, UnitStandStateType, UnitState, WeaponAttackType,
 };
 use wow_core::{ObjectGuid, Position};
+use wow_entities::creature_create::CreatureCreateData;
 use wow_entities::{
     AllowedPositionZCaps, Creature, CreatureAddonLifecycleRecordLikeCpp, CreatureAiState,
     CreatureCombatLogStatsLikeCpp, DEFAULT_HEIGHT_SEARCH, DistractMovementAction,
@@ -55,7 +56,6 @@ use wow_movement::{
     WaypointLaunchPlan, WaypointMovementAction, WaypointMovementGenerator, WaypointPath,
     WaypointRandomAtPathEnd, WaypointUnitSnapshot, compute_random_destination_like_cpp,
 };
-use wow_packet::packets::update::CreatureCreateData;
 use wow_persistence::{RespawnPersistenceKeyLikeCpp, RespawnPersistenceMutationLikeCpp};
 use wow_recastdetour::{
     CENTER_GRID_ID_LIKE_CPP, DetourNavMeshQueryError, DetourOwnerCapabilitiesLikeCpp,

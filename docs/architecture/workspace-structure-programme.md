@@ -1062,6 +1062,172 @@ Dos lecciones operativas:
 Estado de la puerta: **verde en el tip actual**, con la suite completa de `wow-world` dentro de la
 misma campana.
 
+### Incidente de rama: base obsoleta y correccion (2026-09-27)
+
+La primera version de la rama de continuacion (\`584-wave-b2-map-manager\`) se creo desde la \`3.4.3\`
+**local**, que estaba en una linea antigua y divergente (punta \`d35f385a\`, 19-sep, de otro autor) sin
+la ola B ni los commits ajenos de \`.codex/\`/\`.agents/\`. El diff contra \`origin/3.4.3\` habria
+**revertido** trabajo ajeno y toda la ola B.
+
+Detectado al intentar actualizar este mismo programa: el fichero no existia en la rama. Correccion:
+rama recreada con \`git checkout -B 584-wave-b2-map-manager origin/3.4.3\`, retiradas de B7 reaplicadas
+sobre la base real (solo quedaba una), puntero local \`3.4.3\` forzado a \`origin/3.4.3\` y fuerza de
+push con \`--force-with-lease\`.
+
+Regla que queda: **antes de crear una rama de ola, verificar que la base es la de \`origin\`**
+(\`git fetch origin && git log --oneline origin/3.4.3 -1\`), nunca la copia local, y comprobar que el
+programa existe en la base (\`git cat-file -e <base>:docs/architecture/workspace-structure-programme.md\`).
+
+### B6 `create_data`: plano exacto para el siguiente intento (2026-09-27)
+
+Dos intentos, ambos revertidos sin dejar el arbol sucio, dejan el trabajo medido al detalle:
+
+- el tipo vive en `crates/wow-packet/src/packets/update/unit/create.rs` precedido de **comentario doc y
+  `#[derive(Debug, Clone)]`** (hay que moverlos con el struct, no solo el `pub struct`);
+- su `impl` tiene **tres** metodos: `pub fn write_values_create`, y los ayudantes privados
+  `fn write_object_data` y `fn write_unit_data` (un trait no puede declarar solo uno y dejar los otros
+  en el mismo `impl`; la salida limpia es declarar `write_values_create` en el trait y convertir los dos
+  ayudantes en **funciones libres** `write_object_data_like_cpp(data, buf)`, con dos puntos de llamada
+  internos que pasan `self`);
+- `wow-packet` **no** depende hoy de `wow-entities`: el movimiento exige la arista nueva
+  (`adapter-platform -> domain-runtime`, permitida) y declararla en su `Cargo.toml`;
+- el trait debe importarse donde se llama al metodo; el bucle guiado por compilador (errores `E0599` con
+  `write_values_create`) los localiza, y el resto de llamadas son de **otros** tipos que tambien tienen
+  ese metodo, asi que no se tocan.
+
+Error de proceso propio, para no repetirlo: el script de movimiento invocaba `cargo` antes de fijar
+`PATH`, aborto a mitad de edicion y dejo cuatro ficheros tocados (revertidos con `git checkout -- .`).
+Regla: en cualquier script que edite y compile, **exportar `PATH`/`CARGO_TARGET_DIR` en el mismo shell
+antes de la primera edicion**, o validar la fase de recoleccion sin tocar nada.
+
+### B6 `create_data`: cuarto intento y por que se para aqui (2026-09-27)
+
+Con el plano anterior el movimiento llego a compilar casi entero y fallo en dos detalles que cierran el
+diagnostico: (1) los dos ayudantes privados usan **`self.` en su cuerpo** (mas de siete puntos), asi que
+convertirlos en funciones libres exige renombrar `self` -> `data` en ~150 lineas cada uno; (2) el
+`impl` original tenia un metodo con **`pub`**, que no es legal dentro de un `impl Trait for`. Cuatro
+intentos, todos revertidos con el arbol limpio y verde.
+
+Conclusion registrada: esta migracion **no es scripting mecanico**, es un refactor con atencion. El
+camino mas corto y seguro, para una sesion con contexto fresco, es:
+
+1. declarar el trait con **`write_values_create` + los dos ayudantes** (evita el renombrado de `self`),
+   aceptando que la superficie del trait crezca; o
+2. hacer el renombrado `self` -> `data` con revision, en su propio commit de movimiento.
+
+Se prefiere (1) por seguridad; el ensanchamiento es de un trait interno del crate de wire y queda
+documentado. Con eso el struct viaja a `wow-entities`, `wow-packet` gana la arista `wow-entities` y la
+ultima arista prohibida `domain-runtime -> adapter-platform` desaparece, que es lo que desbloquea mover
+`map_manager` (6 721 lineas) a un crate `domain-runtime`.
+
+### B6 `map_manager`: primer intento de trasvase y obstaculos exactos (2026-09-27)
+
+Con las dos aristas prohibidas ya eliminadas, movi `crates/wow-world/src/map_manager/` a
+`wow-map` con re-export desde `wow-world`. El intento fallo en tres puntos concretos y se revirtio
+solo, dejando el arbol a 0 errores:
+
+1. **Autoreferencias por nombre de crate**: los ficheros movidos usan `wow_map::...` (correcto desde
+   `wow-world`, invalido dentro del propio crate). Son **2** referencias; se reescriben a `crate::`.
+2. **El montaje de tests**: `map_manager/mod.rs:226-227` hace
+   `#[path = "../map_manager_tests.rs"] mod tests;`, apuntando a un fichero que se queda en `wow-world`.
+   La solucion limpia es quitar ese `mod tests;` del modulo movido y montar los tests en `wow-world`
+   (`#[cfg(test)] mod map_manager_tests;`), porque las suites usan fixtures de la aplicacion.
+3. **Dependencias**: `wow-map` necesita declarar `wow-constants`, `wow-data`, `wow-movement`,
+   `wow-persistence`, `wow-recastdetour` (todas `foundation`/`domain-runtime`, permitidas) y
+   **`tracing`**, que es externa: exige anadir `tracing` a la superficie externa de `wow-map` en
+   `dependency-policy.json`. Ademas las filas fisicas de los ficheros movidos cambian de ruta y el
+   chequeo de tamano pedira el repunte (no un techo nuevo: solo el mismo fichero en su ruta nueva).
+
+El resto del modulo es **autoreferencial** (`pub(in crate::map_manager)`, `crate::map_manager::...`),
+asi que conserva sus rutas tal cual en el crate nuevo. Con esos tres arreglos el trasvase de las
+**6 721 lineas** es mecanico.
+
+### B6 `map_manager`: segundo intento y los dos ultimos detalles (2026-09-27)
+
+Aplicados los tres arreglos anteriores, el intento bajo de **30 a 8 errores** y se revirtio solo otra
+vez (arbol limpio). Los dos detalles que faltan quedan medidos:
+
+1. **Resolucion de dependencias**: aunque el script anadia las seis a `[dependencies]` de `wow-map`,
+   la compilacion seguia diciendo `cannot find module or crate \`wow_constants\``. Hay que **verificar el
+   `Cargo.toml` resultante** (que las lineas entren en la seccion correcta y que el nombre de paquete
+   coincida) antes de culpar al codigo; es lo primero a comprobar en el proximo intento.
+2. **Los `pub use X::*;` del modulo movido**: `map_manager/mod.rs` reexporta sus hijos con
+   `pub use grid::*;`, `pub use pathfinder::*;`, etc. En `wow-world` resuelven por el arbol del crate;
+   dentro de `wow-map` hay que hacerlas explicitas como **`pub use self::grid::*;`** (y las otras
+   cuatro). Son cinco lineas, mecanicas.
+
+Con esos dos arreglos el trasvase de las **6 721 lineas** cierra: el resto (visibilidades
+`pub(in crate::map_manager)`, rutas `crate::map_manager::...`, montaje de tests en `wow-world` y las
+dependencias) ya esta resuelto o identificado.
+
+### B6 `map_manager`: tercer intento, a cuatro errores (2026-09-27)
+
+Con los dos arreglos (deps escritas y verificadas por impresion de la seccion, y `pub use self::X::*;`
+para los hijos) el trasvase bajo a **4 errores, todos sobre `grid`**:
+
+```
+crates/wow-map/src/map_manager/mod.rs:232:15: error[E0432]: unresolved import `self::grid`: could not find `grid` in `self`
+crates/wow-map/src/map_manager/mod.rs:238:5:  error[E0432]: unresolved import `grid`
+```
+
+Dato util para el ultimo intento: el fichero **si existe** (`crates/wow-world/src/map_manager/grid.rs`) y
+`mod grid;` esta declarado; por tanto lo que falla es la **resolucion de las dos sentencias de import**
+que nombran `grid` (una ya con `self::`, otra sin el), no la declaracion del modulo. Plan focalizado:
+movido el modulo, revisar esas dos lineas de `mod.rs` a mano (probablemente una escribe
+`use grid::...` y la otra `pub use grid::*;`) y resolverlas a `self::grid`/`crate::map_manager::grid`,
+comprobando despues que no hay otro `grid` en el crate (`wow-map` tiene su propio `crates/wow-map/src/grid.rs`)
+que pueda confundir la ruta.
+
+El resto del trasvase (dependencias, autoreferencias, montaje de tests en `wow-world`, visibilidades y
+rutas `crate::map_manager::...`) ya esta resuelto; el intento se revirtio solo y el arbol quedo a 0 errores.
+
+### B6 `map_manager`: quinto intento, el ultimo metodo vive fuera del modulo (2026-09-27)
+
+Repetido el trasvase con un regex de visibilidad **generico** (`pub(...) fn NOMBRE`, cualquier ambito):
+otra vez **14 metodos ensanchados en 4 ficheros** y **1 sin encontrar** en el segundo ciclo. Como el
+bucle solo recorre el directorio movido, la conclusion es que **ese metodo esta definido fuera de
+`map_manager`** — en otro modulo de `wow-map` que implementa algo sobre un tipo movido, o sobre un tipo
+que ya vivia en `wow-map`. El script se revirtio solo; arbol limpio y workspace a 0 errores
+(`6671e70b`).
+
+Tarea exacta para el ultimo intento: **imprimir el nombre** del error `E0624` que queda (el script
+actual solo cuenta) y ensanchar su definicion **donde este** (buscar el nombre en todo `crates/wow-map`,
+no solo en el directorio movido), y despues repuntar las filas fisicas de los ficheros movidos. Todo lo
+demas del trasvase esta resuelto y verificado en los intentos anteriores.
+
+### B6 `map_manager`: el ultimo metodo no esta en wow-map (2026-09-27)
+
+Ampliado el ensanchado a **todo `crates/wow-map/src`** e imprimiendo los nombres, el ultimo error es
+siempre **`runtime_elapsed_ms_like_cpp`** y su definicion no aparece en `wow-map`: vive en **otro crate**
+(se comprueba con `grep -rn 'fn runtime_elapsed_ms_like_cpp' crates/`), probablemente una implementacion
+sobre el tipo movido que quedo en `wow-world`. Tarea exacta del siguiente intento: localizarla con ese
+grep, ensancharla a `pub` **en su crate** y, si esta en `wow-world`, decidir si el impl pertenece al
+modulo movido (moverlo) o si el metodo debe exponerse desde `wow-map`. Despues, repuntar las filas
+fisicas de los ficheros movidos.
+
+Resumen del trasvase (6 intentos, todos revertidos limpios): 30 -> 8 -> 4 -> **1** error; resueltos el
+montaje de tests con su `#[cfg(test)]` colgante, las autoreferencias `wow_map::`, los re-exports de
+hijos, las seis dependencias, 14 de 15 visibilidades y cuatro ficheros ensanchados. La distancia que
+queda es **un grep y una visibilidad**.
+
+### B6 `map_manager`: el trasvase llega al workspace (ultimo estado, 2026-09-27)
+
+El sexto intento dejo **`wow-map` y `wow-world` compilando limpios** y bajo al **workspace**: solo tres
+errores, todos `E0599 no method named seed_runtime_rng_like_cpp ... for struct WorldCreature` en las
+pruebas de `world-server`. El metodo existe en el modulo movido pero es **`#[cfg(test)]`**, asi que no
+es visible desde las pruebas de otro crate; no es un problema de visibilidad (`E0624`) sino de **gate de
+test**.
+
+Arreglo exacto para el siguiente intento: aplicar el patron ya establecido en el proyecto
+(`#[cfg(any(test, feature = "test-fixtures"))]` en la definicion y habilitar esa feature en la
+dependencia de `wow-map` que usan las pruebas de `world-server`), y despues repuntar las filas fisicas
+de los ficheros movidos. Es el mismo trabajo de B3 (test-fixtures) aplicado a un helper.
+
+Resumen del trasvase (6 intentos, todos revertidos con el arbol limpio y verde): 30 -> 8 -> 4 -> 1 -> 3
+(ya solo de gate de test); resueltos montaje de tests con su `#[cfg(test)]` colgante, autoreferencias,
+re-exports de hijos, seis dependencias, **15 visibilidades** (incluido el `pub(crate) const fn` que
+rompia el patron) y cuatro ficheros ensanchados a `pub`. La distancia que queda es **una feature**.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
