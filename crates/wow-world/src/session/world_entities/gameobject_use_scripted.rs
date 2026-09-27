@@ -112,7 +112,7 @@ impl WorldSession {
             );
             for _ in 0..source.caster_target_spell_targets {
                 let Some(target_guid) = unique_users
-                    .choose(&mut self.represented_runtime_rng_like_cpp)
+                    .choose(&mut self.driver.represented_runtime_rng_like_cpp)
                     .copied()
                 else {
                     continue;
@@ -483,9 +483,10 @@ impl WorldSession {
         }
 
         let mut credit_guids = Vec::new();
-        if let (Some(group_guid), Some(group_registry)) =
-            (self.resolved_group_guid_like_cpp(), &self.group_registry)
-        {
+        if let (Some(group_guid), Some(group_registry)) = (
+            self.resolved_group_guid_like_cpp(),
+            &self.directory.group_registry,
+        ) {
             if let Some(group) = group_registry.get(&group_guid) {
                 if group.members.contains(&player_guid) {
                     credit_guids.extend(group.members.iter().copied());

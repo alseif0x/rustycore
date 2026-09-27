@@ -12,13 +12,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use wow_data::{
-    SpellAcquisitionCatalogLikeCpp, SpellAcquisitionEffectLikeCpp, SpellAcquisitionMiscLikeCpp,
+    SpellAcquisitionCatalogLikeCpp, SpellAcquisitionEffectLikeCpp,
     SpellAcquisitionResolvedEffectsLookupLikeCpp, SpellAcquisitionResolvedMetadataLookupLikeCpp,
-    SpellChainLookupLikeCpp, SpellChainStoreLikeCpp, SpellLearnSkillNodeLikeCpp,
-    SpellLinkedTypeLikeCpp, SpellRequiredStoreLikeCpp,
+    SpellChainLookupLikeCpp, SpellChainStoreLikeCpp, SpellLinkedTypeLikeCpp,
+    SpellRequiredStoreLikeCpp,
 };
 
-use wow_data::skill::{SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP, SKILL_RIDING_LIKE_CPP};
+use wow_data::skill::SKILL_RIDING_LIKE_CPP;
 use wow_data::spell::spell_effect_types::{
     SPELL_EFFECT_DUAL_WIELD, SPELL_EFFECT_LEARN_SPELL, SPELL_EFFECT_SKILL, SPELL_EFFECT_SKILL_STEP,
 };

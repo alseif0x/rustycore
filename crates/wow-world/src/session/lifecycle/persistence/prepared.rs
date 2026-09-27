@@ -22,6 +22,7 @@ impl WorldSession {
         now: i64,
     ) -> Option<PreparedPlayerSave> {
         if self
+            .lifecycle
             .durable_loot_money_persistence_like_cpp
             .is_indeterminate_like_cpp()
         {
@@ -206,10 +207,10 @@ impl SavedPlayerReceipt {
         // check for its account-owned tutorials; do not extend the Player receipt to them.
         if let Some(saved) = self.tutorials {
             if groups.tutorials_insert {
-                session.tutorials_loaded_from_db_like_cpp = true;
+                session.lifecycle.tutorials_loaded_from_db_like_cpp = true;
             }
-            if groups.tutorials_changed && session.tutorials_like_cpp == saved.tutorials {
-                session.tutorials_changed_like_cpp = false;
+            if groups.tutorials_changed && session.lifecycle.tutorials_like_cpp == saved.tutorials {
+                session.lifecycle.tutorials_changed_like_cpp = false;
             }
         }
         // Derived registry publication occurs after releasing the canonical owner guard.

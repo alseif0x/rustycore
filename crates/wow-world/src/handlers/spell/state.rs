@@ -3,6 +3,7 @@
 //! Separated from the spell.rs root under #662. Behaviour is preserved.
 
 use super::*;
+use wow_constants::{ItemFieldFlags, ItemUpdateState};
 
 pub(super) const LOOT_MODE_DEFAULT_LIKE_CPP: u16 = 1;
 

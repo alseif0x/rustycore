@@ -498,7 +498,7 @@ fn inventory_item_object_uses_template_durability_and_runtime_fields() {
     let (mut session, _, _) = make_session();
     let owner_guid = ObjectGuid::create_player(1, 42);
     let item_guid = ObjectGuid::create_item(1, 900);
-    session.total_played_time = 123;
+    session.lifecycle.total_played_time = 123;
     session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([(
         700,
         ItemSparseTemplateEntry {

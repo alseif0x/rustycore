@@ -348,8 +348,8 @@ impl WorldSession {
             .template_mount_store
             .as_ref()?
             .get(creature_entry)?;
-        let display_id =
-            template.choose_display_id_like_cpp(&mut self.represented_runtime_rng_like_cpp)?;
+        let display_id = template
+            .choose_display_id_like_cpp(&mut self.driver.represented_runtime_rng_like_cpp)?;
         Some((i32::try_from(display_id).unwrap_or(0), template.vehicle_id))
     }
 }

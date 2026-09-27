@@ -32,6 +32,7 @@ async fn save_first_durable_money_completion_preserves_and_drains_money_event() 
     assert!(applied.load(Ordering::Acquire));
     assert_eq!(
         session
+            .quest_state
             .represented_quest_objective_progress_events_like_cpp
             .len(),
         1,
@@ -64,6 +65,7 @@ async fn save_first_durable_money_completion_preserves_and_drains_money_event() 
 
     assert!(
         session
+            .quest_state
             .represented_quest_objective_progress_events_like_cpp
             .is_empty(),
         "packet publication must drain the save-first MoneyChanged event"
@@ -321,7 +323,7 @@ fn load_character_reputation_rows_like_cpp_merges_rows_after_identity_and_store(
     session.set_faction_store(Arc::new(FactionStore::from_entries([faction])));
 
     assert!(session.load_character_reputation_rows_like_cpp([
-        crate::reputation::mgr::CharacterReputationRowLikeCpp {
+        wow_progression::mgr::CharacterReputationRowLikeCpp {
             faction_id: 72,
             standing: 3500,
             flags: (ReputationFlagsLikeCpp::VISIBLE | ReputationFlagsLikeCpp::AT_WAR).bits(),

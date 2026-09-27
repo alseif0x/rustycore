@@ -15,15 +15,16 @@ impl WorldSession {
         &mut self,
         port: Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>,
     ) {
-        self.persistence_ports_like_cpp
+        self.lifecycle
+            .persistence_ports_like_cpp
             .admission
             .session_account_state = Some(port);
     }
     pub fn set_battlenet_account_id(&mut self, battlenet_account_id: u32) {
-        self.battlenet_account_id = battlenet_account_id;
+        self.account_state.battlenet_account_id = battlenet_account_id;
     }
     pub fn battlenet_account_id(&self) -> u32 {
-        self.battlenet_account_id
+        self.account_state.battlenet_account_id
     }
     /// C++ `CollectionMgr::SaveAccountHeirlooms`.
     pub(crate) fn account_heirloom_rows_like_cpp(&self) -> Vec<(u32, u32)> {
@@ -280,7 +281,8 @@ impl WorldSession {
     pub(in crate::session) fn represented_battle_pet_login_spell_source_is_empty_like_cpp(
         &self,
     ) -> bool {
-        let slots = if let Some(attachment) = &self.battle_pet_account_attachment_like_cpp {
+        let slots = if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp
+        {
             attachment
                 .owner_like_cpp()
                 .journal_like_cpp(attachment.lease_id_like_cpp(), self.player_guid())
@@ -368,7 +370,9 @@ impl WorldSession {
         }
     }
     pub(crate) fn account_data_like_cpp(&self, data_type: u8) -> Option<&AccountDataLikeCpp> {
-        self.account_data_like_cpp.get(usize::from(data_type))
+        self.lifecycle
+            .account_data_like_cpp
+            .get(usize::from(data_type))
     }
     pub(crate) fn account_data_times_like_cpp(
         &self,
@@ -376,7 +380,7 @@ impl WorldSession {
         mask: u32,
     ) -> wow_packet::packets::misc::AccountDataTimes {
         let mut times = [0i64; NUM_ACCOUNT_DATA_TYPES];
-        for (index, account_data) in self.account_data_like_cpp.iter().enumerate() {
+        for (index, account_data) in self.lifecycle.account_data_like_cpp.iter().enumerate() {
             if mask & (1u32 << index) != 0 {
                 times[index] = account_data.time;
             }
@@ -390,7 +394,11 @@ impl WorldSession {
         time: i64,
         data: String,
     ) -> bool {
-        let Some(account_data) = self.account_data_like_cpp.get_mut(usize::from(data_type)) else {
+        let Some(account_data) = self
+            .lifecycle
+            .account_data_like_cpp
+            .get_mut(usize::from(data_type))
+        else {
             return false;
         };
 

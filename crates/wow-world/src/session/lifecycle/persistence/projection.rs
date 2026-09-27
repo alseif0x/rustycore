@@ -367,11 +367,11 @@ pub(super) fn request(
     // yet. Rewriting every active quest here can delete objective rows that were not mapped
     // into represented state, so preserve them until that dirty tracking exists.
 
-    let tutorials = if session.tutorials_changed_like_cpp {
-        if session.tutorials_loaded_coherently_like_cpp {
+    let tutorials = if session.lifecycle.tutorials_changed_like_cpp {
+        if session.lifecycle.tutorials_loaded_coherently_like_cpp {
             Some(PlayerTutorialsSaveLikeCpp {
-                tutorials: session.tutorials_like_cpp,
-                already_persisted: session.tutorials_loaded_from_db_like_cpp,
+                tutorials: session.lifecycle.tutorials_like_cpp,
+                already_persisted: session.lifecycle.tutorials_loaded_from_db_like_cpp,
             })
         } else {
             None
@@ -396,7 +396,7 @@ pub(super) fn request(
         level_time,
     };
 
-    let reputations = crate::reputation::ReputationMgrLikeCpp::borrowing_like_cpp(&game.reputation)
+    let reputations = wow_progression::ReputationMgrLikeCpp::borrowing_like_cpp(&game.reputation)
         .pending_save_rows_like_cpp()
         .into_iter()
         .map(

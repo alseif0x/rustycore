@@ -298,7 +298,7 @@ fn canonical_player_reputation_follows_active_detached_and_stale_ownership_like_
     assert!(
         session
             .mutate_reputation_mgr_like_cpp(|mgr| {
-                let mut faction = crate::reputation::FactionStateLikeCpp::new_like_cpp(
+                let mut faction = wow_progression::FactionStateLikeCpp::new_like_cpp(
                     72,
                     5,
                     ReputationFlagsLikeCpp::VISIBLE,

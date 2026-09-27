@@ -153,8 +153,8 @@ impl WorldSession {
         if is_dungeon
             && !bypass_player_cannot_enter_like_cpp
             && map_entry.instance_type == wow_data::map::MAP_RAID
-            && map_entry.expansion_like_cpp() >= self.server_expansion_like_cpp
-            && !self.instance_ignore_raid_like_cpp
+            && map_entry.expansion_like_cpp() >= self.realm_policy.server_expansion_like_cpp
+            && !self.realm_policy.instance_ignore_raid_like_cpp
             && !self.current_player_is_in_raid_group_like_cpp()
         {
             if publish {

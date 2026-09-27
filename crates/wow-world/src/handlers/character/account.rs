@@ -39,7 +39,7 @@ impl WorldSession {
         self.set_connect_to_serial(Some(serial));
 
         // Register in SessionManager — returns oneshot receiver for instance link
-        let rx = session_mgr.register(self.account_id, key_raw, self.session_key.clone());
+        let rx = session_mgr.register(self.account_id, key_raw, self.transport.session_key.clone());
         self.set_instance_link_rx(Some(rx));
 
         // Build the ConnectTo payload
@@ -83,13 +83,20 @@ impl WorldSession {
 
         // Session time elapsed since login (seconds).
         let session_secs: u32 = self
+            .lifecycle
             .login_time
             .map(|t| t.elapsed().as_secs() as u32)
             .unwrap_or(0);
 
         // Add session time on top of DB-loaded base values.
-        let total_time = self.total_played_time.saturating_add(session_secs);
-        let level_time = self.level_played_time.saturating_add(session_secs);
+        let total_time = self
+            .lifecycle
+            .total_played_time
+            .saturating_add(session_secs);
+        let level_time = self
+            .lifecycle
+            .level_played_time
+            .saturating_add(session_secs);
 
         self.send_packet(&PlayedTime {
             total_time,

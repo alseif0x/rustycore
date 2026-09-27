@@ -672,19 +672,25 @@ impl WorldSession {
         &mut self,
         event: RepresentedQuestObjectiveProgressEventLikeCpp,
     ) {
-        self.represented_quest_objective_progress_events_like_cpp
+        self.quest_state
+            .represented_quest_objective_progress_events_like_cpp
             .push_back(event);
     }
     pub(crate) async fn drain_represented_quest_objective_progress_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
     ) {
-        if self.represented_quest_objective_progress_draining_like_cpp {
+        if self
+            .quest_state
+            .represented_quest_objective_progress_draining_like_cpp
+        {
             return;
         }
 
-        self.represented_quest_objective_progress_draining_like_cpp = true;
+        self.quest_state
+            .represented_quest_objective_progress_draining_like_cpp = true;
         while let Some(event) = self
+            .quest_state
             .represented_quest_objective_progress_events_like_cpp
             .pop_front()
         {
@@ -758,7 +764,8 @@ impl WorldSession {
                 }
             }
         }
-        self.represented_quest_objective_progress_draining_like_cpp = false;
+        self.quest_state
+            .represented_quest_objective_progress_draining_like_cpp = false;
     }
     #[cfg(test)]
     pub(crate) async fn drain_represented_quest_objective_progress_like_cpp(&mut self) {

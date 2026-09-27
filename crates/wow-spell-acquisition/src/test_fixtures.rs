@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::*;
 use wow_data::{
-    EffectiveSpellAcquisitionRowsLikeCpp, MountEntry, SkillLineAbilityRecord, SkillLineEntry,
+    EffectiveSpellAcquisitionRowsLikeCpp, SkillLineAbilityRecord, SkillLineEntry,
     SkillRaceClassInfoRecord, SkillTiersRowLikeCpp, SpellAcquisitionCoverageSeedLikeCpp,
     SpellAcquisitionDependencyLikeCpp, SpellAcquisitionLevelsLikeCpp, SpellAcquisitionMiscLikeCpp,
     SpellAcquisitionTableHashesLikeCpp,

@@ -34,13 +34,13 @@ pub(in crate::session) fn make_action_button_like_cpp(action: u32, action_type: 
 
 impl WorldSession {
     pub(crate) fn set_tutorial_int_like_cpp(&mut self, index: usize, value: u32) -> bool {
-        let Some(current) = self.tutorials_like_cpp.get_mut(index) else {
+        let Some(current) = self.lifecycle.tutorials_like_cpp.get_mut(index) else {
             return false;
         };
 
         if *current != value {
             *current = value;
-            self.tutorials_changed_like_cpp = true;
+            self.lifecycle.tutorials_changed_like_cpp = true;
         }
         true
     }
@@ -56,20 +56,21 @@ impl WorldSession {
                     return false;
                 };
                 let index = (tutorial_bit >> 5) as usize;
-                if index >= self.tutorials_like_cpp.len() {
+                if index >= self.lifecycle.tutorials_like_cpp.len() {
                     return false;
                 }
-                let flag = self.tutorials_like_cpp[index] | (1u32 << (tutorial_bit & 0x1F));
+                let flag =
+                    self.lifecycle.tutorials_like_cpp[index] | (1u32 << (tutorial_bit & 0x1F));
                 self.set_tutorial_int_like_cpp(index, flag)
             }
             wow_packet::packets::misc::TUTORIAL_ACTION_CLEAR_LIKE_CPP => {
-                for index in 0..self.tutorials_like_cpp.len() {
+                for index in 0..self.lifecycle.tutorials_like_cpp.len() {
                     self.set_tutorial_int_like_cpp(index, u32::MAX);
                 }
                 true
             }
             wow_packet::packets::misc::TUTORIAL_ACTION_RESET_LIKE_CPP => {
-                for index in 0..self.tutorials_like_cpp.len() {
+                for index in 0..self.lifecycle.tutorials_like_cpp.len() {
                     self.set_tutorial_int_like_cpp(index, 0);
                 }
                 true

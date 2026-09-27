@@ -41,7 +41,8 @@ impl WorldSession {
                         .resolved_group_guid_like_cpp()
                         .zip(owner_guid)
                         .and_then(|(group_guid, owner_guid)| {
-                            self.group_registry
+                            self.directory
+                                .group_registry
                                 .as_ref()?
                                 .set_recent_instance_transition_like_cpp(
                                     group_guid,
@@ -117,7 +118,7 @@ impl WorldSession {
 
         let group = self
             .resolved_group_guid_like_cpp()
-            .and_then(|group_guid| self.group_registry.as_ref()?.get(&group_guid))
+            .and_then(|group_guid| self.directory.group_registry.as_ref()?.get(&group_guid))
             .map(|group| {
                 let difficulty_id = self.represented_group_difficulty_id_for_map_entry_like_cpp(
                     map_id, map_entry, &group,
@@ -234,8 +235,8 @@ impl WorldSession {
         }
 
         if map_entry.instance_type == wow_data::map::MAP_RAID
-            && map_entry.expansion_like_cpp() >= self.server_expansion_like_cpp
-            && !self.instance_ignore_raid_like_cpp
+            && map_entry.expansion_like_cpp() >= self.realm_policy.server_expansion_like_cpp
+            && !self.realm_policy.instance_ignore_raid_like_cpp
             && !self.current_player_is_in_raid_group_like_cpp()
         {
             return Some((TRANSFER_ABORT_NEED_GROUP_LIKE_CPP, 0, 0));
@@ -433,7 +434,7 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn set_taxi_node_map_id_like_cpp(&mut self, node_id: u32, map_id: u16) {
-        self.taxi_node_map_ids_like_cpp.insert(node_id, map_id);
+        self.view.taxi_node_map_ids_like_cpp.insert(node_id, map_id);
     }
     /// The legacy map facade must follow the same map instance that owns the
     /// canonical Player. Instance `0` remains only the bootstrap fallback for

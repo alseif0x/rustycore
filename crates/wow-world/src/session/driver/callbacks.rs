@@ -194,30 +194,45 @@ impl WorldSession {
         guid: wow_core::ObjectGuid,
         name: String,
     ) -> bool {
-        self.character_rename_callbacks.submit(port, guid, name)
+        self.lifecycle
+            .character_rename_callbacks
+            .submit(port, guid, name)
     }
 
     /// The production driver invokes this after packet dispatch. Full World/Map
     /// coordination remains separate; this method never waits for a DB worker.
     pub fn process_ready_character_rename_callbacks_like_cpp(&mut self) {
-        self.character_rename_callbacks.process_ready();
-        if self.character_rename_callbacks.has_worker_failure() {
+        self.lifecycle.character_rename_callbacks.process_ready();
+        if self
+            .lifecycle
+            .character_rename_callbacks
+            .has_worker_failure()
+        {
             // Join failure is not an ordinary DB rejection or proven rollback.
             // Retire this Session and let composition drain/classify remaining work.
             self.kick("Character rename worker failed; completion unproven");
             return;
         }
-        for index in self.character_rename_callbacks.pending_delivery.len()
-            ..self.character_rename_callbacks.pending_results.len()
+        for index in self
+            .lifecycle
+            .character_rename_callbacks
+            .pending_delivery
+            .len()
+            ..self
+                .lifecycle
+                .character_rename_callbacks
+                .pending_results
+                .len()
         {
-            let (guid, outcome) = &self.character_rename_callbacks.pending_results[index];
+            let (guid, outcome) = &self.lifecycle.character_rename_callbacks.pending_results[index];
             let delivery = self.enqueue_character_rename_like_cpp(*guid, outcome);
-            self.character_rename_callbacks
+            self.lifecycle
+                .character_rename_callbacks
                 .pending_delivery
                 .push_back(Delivery::Pending(delivery));
         }
         let mut disconnected = false;
-        for delivery in &mut self.character_rename_callbacks.pending_delivery {
+        for delivery in &mut self.lifecycle.character_rename_callbacks.pending_delivery {
             if let Delivery::Pending(future) = delivery {
                 // Register the ENTIRE ready batch in the shared channel FIFO,
                 // not just its head. Later packets must not overtake its tail.
@@ -232,17 +247,30 @@ impl WorldSession {
             }
         }
         if disconnected {
-            self.character_rename_callbacks.stop_read_admission();
-            self.character_rename_callbacks.pending_delivery.clear();
-            self.character_rename_callbacks.pending_results.clear();
+            self.lifecycle
+                .character_rename_callbacks
+                .stop_read_admission();
+            self.lifecycle
+                .character_rename_callbacks
+                .pending_delivery
+                .clear();
+            self.lifecycle
+                .character_rename_callbacks
+                .pending_results
+                .clear();
             self.kick("Character rename response channel closed");
             return;
         }
         while matches!(
-            self.character_rename_callbacks.pending_delivery.front(),
+            self.lifecycle
+                .character_rename_callbacks
+                .pending_delivery
+                .front(),
             Some(Delivery::Accepted)
         ) {
-            self.character_rename_callbacks.acknowledge_result();
+            self.lifecycle
+                .character_rename_callbacks
+                .acknowledge_result();
         }
     }
 
@@ -250,6 +278,6 @@ impl WorldSession {
     /// Pending reads cannot admit new commits; submitted writes are joined.
     /// Cancelling this await retains remaining handles for a repeated drain.
     pub async fn finish_character_rename_callbacks_like_cpp(&mut self) -> bool {
-        self.character_rename_callbacks.finish().await
+        self.lifecycle.character_rename_callbacks.finish().await
     }
 }

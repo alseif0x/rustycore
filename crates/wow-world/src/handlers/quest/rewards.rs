@@ -465,7 +465,7 @@ impl WorldSession {
                 if let (Some(faction_entry), Some(faction_store)) =
                     (faction_entry.as_ref(), faction_store.as_deref())
                 {
-                    let options = crate::reputation::mgr::SetReputationOptionsLikeCpp {
+                    let options = wow_progression::mgr::SetReputationOptionsLikeCpp {
                         incremental: true,
                         spillover_only: false,
                         no_spillover,

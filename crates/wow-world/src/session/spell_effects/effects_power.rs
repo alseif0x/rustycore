@@ -155,20 +155,29 @@ impl WorldSession {
         effect: i32,
     ) -> &mut wow_packet::packets::combat::SpellLogEffect {
         if let Some(index) = self
+            .spell_state
             .represented_spell_execute_log_effects_like_cpp
             .iter()
             .position(|entry| entry.effect == effect)
         {
-            return &mut self.represented_spell_execute_log_effects_like_cpp[index];
+            return &mut self
+                .spell_state
+                .represented_spell_execute_log_effects_like_cpp[index];
         }
-        self.represented_spell_execute_log_effects_like_cpp.push(
-            wow_packet::packets::combat::SpellLogEffect {
+        self.spell_state
+            .represented_spell_execute_log_effects_like_cpp
+            .push(wow_packet::packets::combat::SpellLogEffect {
                 effect,
                 ..Default::default()
-            },
-        );
-        let index = self.represented_spell_execute_log_effects_like_cpp.len() - 1;
-        &mut self.represented_spell_execute_log_effects_like_cpp[index]
+            });
+        let index = self
+            .spell_state
+            .represented_spell_execute_log_effects_like_cpp
+            .len()
+            - 1;
+        &mut self
+            .spell_state
+            .represented_spell_execute_log_effects_like_cpp[index]
     }
 
     /// C++ `Spell::ExecuteLogEffectTakeTargetPower` (`Spell.cpp:5076-5086`).
@@ -237,12 +246,17 @@ impl WorldSession {
         caster_guid: ObjectGuid,
     ) {
         if self
+            .spell_state
             .represented_spell_execute_log_effects_like_cpp
             .is_empty()
         {
             return;
         }
-        let effects = std::mem::take(&mut self.represented_spell_execute_log_effects_like_cpp);
+        let effects = std::mem::take(
+            &mut self
+                .spell_state
+                .represented_spell_execute_log_effects_like_cpp,
+        );
         self.send_packet(&wow_packet::packets::combat::SpellExecuteLog {
             caster: caster_guid,
             spell_id,

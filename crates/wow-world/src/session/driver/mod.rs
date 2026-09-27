@@ -55,7 +55,7 @@ impl WorldSession {
 
         // Drain the primary (instance) packet channel
         while processed < MAX_PACKETS_PER_UPDATE
-            && self.pending_packets.len() < MAX_PACKETS_PER_UPDATE
+            && self.admission.pending_packets.len() < MAX_PACKETS_PER_UPDATE
         {
             let pkt = match self.packet_rx().try_recv() {
                 Ok(p) => p,
@@ -70,7 +70,7 @@ impl WorldSession {
                 }
             };
 
-            self.last_packet_time = Instant::now();
+            self.admission.last_packet_time = Instant::now();
             self.reset_timeout_time_for_packet_like_cpp(pkt.opcode_raw());
             if !self.evaluate_packet_spoof_like_cpp(&pkt) {
                 break;
@@ -81,11 +81,11 @@ impl WorldSession {
                 info!(
                     account = self.account_id,
                     state = ?self.state,
-                    pending_before = self.pending_packets.len(),
+                    pending_before = self.admission.pending_packets.len(),
                     "RUST_CEMETERY_TRACE queued primary packet"
                 );
             }
-            self.pending_packets.push_back(pkt);
+            self.admission.pending_packets.push_back(pkt);
             processed += 1;
         }
 
@@ -94,11 +94,11 @@ impl WorldSession {
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DrainRealmPackets);
         if let Some(realm_rx) = self.realm_packet_rx() {
             while processed < MAX_PACKETS_PER_UPDATE
-                && self.pending_packets.len() < MAX_PACKETS_PER_UPDATE
+                && self.admission.pending_packets.len() < MAX_PACKETS_PER_UPDATE
             {
                 match realm_rx.try_recv() {
                     Ok(pkt) => {
-                        self.last_packet_time = Instant::now();
+                        self.admission.last_packet_time = Instant::now();
                         self.reset_timeout_time_for_packet_like_cpp(pkt.opcode_raw());
                         if !self.evaluate_packet_spoof_like_cpp(&pkt) {
                             break;
@@ -109,11 +109,11 @@ impl WorldSession {
                             info!(
                                 account = self.account_id,
                                 state = ?self.state,
-                                pending_before = self.pending_packets.len(),
+                                pending_before = self.admission.pending_packets.len(),
                                 "RUST_CEMETERY_TRACE queued realm packet"
                             );
                         }
-                        self.pending_packets.push_back(pkt);
+                        self.admission.pending_packets.push_back(pkt);
                         processed += 1;
                     }
                     Err(flume::TryRecvError::Empty) => break,
@@ -203,14 +203,14 @@ impl WorldSession {
         // pass (`WorldSession.cpp:488-497`). A coordinated session therefore
         // sends it from its map pass tail and must not send it again here.
         if self.state == SessionState::LoggedIn
-            && self.time_synchronization.timer_ms > 0
+            && self.driver.time_synchronization.timer_ms > 0
             && !self.is_map_phase_coordinated_like_cpp()
         {
             self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::TimeSync);
-            if diff_ms >= self.time_synchronization.timer_ms {
+            if diff_ms >= self.driver.time_synchronization.timer_ms {
                 self.send_time_sync();
             } else {
-                self.time_synchronization.timer_ms -= diff_ms;
+                self.driver.time_synchronization.timer_ms -= diff_ms;
             }
         }
 
@@ -320,6 +320,7 @@ impl WorldSession {
         // stops at an ineligible head instead of skipping it.
         if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some()
             && self
+                .admission
                 .pending_packets
                 .iter()
                 .any(|pkt| pkt.client_opcode() == Some(ClientOpcodes::RequestCemeteryList))

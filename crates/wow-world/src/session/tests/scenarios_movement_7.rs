@@ -94,7 +94,7 @@ async fn update_processes_alive_delayed_same_map_teleport_like_cpp() {
     ])));
     session.expansion = 1;
     session.state = SessionState::LoggedIn;
-    session.socket_timeout_deadline_like_cpp = Instant::now() + Duration::from_secs(60);
+    session.admission.socket_timeout_deadline_like_cpp = Instant::now() + Duration::from_secs(60);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "NearTeleportDelayedUpdate".to_string(),
@@ -835,10 +835,10 @@ async fn periodic_player_save_defers_while_teleport_pending_like_cpp() {
         .await;
 
     assert!(
-        session.pending_periodic_player_save_like_cpp,
+        session.lifecycle.pending_periodic_player_save_like_cpp,
         "autosave remains pending until the teleport handshake clears"
     );
-    assert_eq!(session.next_player_save_ms_like_cpp, 0);
+    assert_eq!(session.lifecycle.next_player_save_ms_like_cpp, 0);
 }
 #[test]
 fn player_currency_remove_and_save_state_match_cpp() {

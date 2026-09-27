@@ -205,10 +205,12 @@ impl crate::session::WorldSession {
             );
         };
         let cast_authority = self
+            .spell_state
             .spell_acquisition_cast_authority_like_cpp
             .as_deref()
             .unwrap_or(&FAIL_CLOSED_CAST_AUTHORITY_LIKE_CPP);
         let craft_validity_authority = self
+            .spell_state
             .spell_acquisition_craft_authority_like_cpp
             .as_deref()
             .unwrap_or(&FAIL_CLOSED_CRAFT_AUTHORITY_LIKE_CPP);

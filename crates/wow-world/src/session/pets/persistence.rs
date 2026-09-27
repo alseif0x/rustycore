@@ -7,7 +7,7 @@ use super::*;
 
 impl WorldSession {
     pub(crate) fn begin_represented_character_pet_authority_load_like_cpp(&mut self) {
-        self.pet_load_query_holder_rows_like_cpp.reset();
+        self.lifecycle.pet_load_query_holder_rows_like_cpp.reset();
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
     }
     pub(crate) fn load_represented_pet_declined_names_like_cpp(
@@ -17,12 +17,14 @@ impl WorldSession {
     ) -> bool {
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
         if let Some(row) = row {
-            self.pet_load_query_holder_rows_like_cpp
+            self.lifecycle
+                .pet_load_query_holder_rows_like_cpp
                 .declined_names
                 .insert(pet_number, row);
             true
         } else {
-            self.pet_load_query_holder_rows_like_cpp
+            self.lifecycle
+                .pet_load_query_holder_rows_like_cpp
                 .declined_names
                 .remove(&pet_number)
                 .is_some()
@@ -35,6 +37,9 @@ impl WorldSession {
         &mut self,
         store: Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>,
     ) {
-        self.persistence_ports_like_cpp.player.battle_pet_purchase = Some(store);
+        self.lifecycle
+            .persistence_ports_like_cpp
+            .player
+            .battle_pet_purchase = Some(store);
     }
 }

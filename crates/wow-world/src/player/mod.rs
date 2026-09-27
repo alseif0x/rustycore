@@ -14,13 +14,11 @@ pub mod quest_persistence_projection;
 #[cfg(test)]
 pub mod quest_persistence_test_fixture;
 
-pub use directory_canonical_queries::*;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use directory_test_fixtures::*;
 #[cfg(test)]
 pub use inventory_persistence_test_fixture::*;
 #[cfg(test)]
 pub use lifecycle_contract::*;
-pub use quest_persistence_projection::*;
 #[cfg(test)]
 pub use quest_persistence_test_fixture::*;

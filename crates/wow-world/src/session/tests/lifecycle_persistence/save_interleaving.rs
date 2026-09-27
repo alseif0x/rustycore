@@ -205,8 +205,8 @@ fn full_save_preparation_is_owned_and_matches_previous_projection_for_loaded_gro
     session.record_loaded_character_spell_cooldown_like_cpp(635, 6948, 9_000, 12, 8_000);
     session.mark_represented_character_spell_charges_loaded_like_cpp();
     session.record_loaded_character_spell_charge_like_cpp(42, 7_000, 8_000);
-    session.tutorials_changed_like_cpp = true;
-    session.tutorials_loaded_coherently_like_cpp = true;
+    session.lifecycle.tutorials_changed_like_cpp = true;
+    session.lifecycle.tutorials_loaded_coherently_like_cpp = true;
     session
         .with_owned_player_mut_like_cpp(|p| {
             let game = p.gameplay_state_mut();

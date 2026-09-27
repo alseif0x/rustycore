@@ -10,7 +10,8 @@ impl WorldSession {
         &mut self,
         port: Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>,
     ) {
-        self.persistence_ports_like_cpp
+        self.lifecycle
+            .persistence_ports_like_cpp
             .player
             .player_spell_acquisition = Some(port);
     }
@@ -21,13 +22,13 @@ impl WorldSession {
         safe_cast_spell_ids: impl IntoIterator<Item = u32>,
         valid_craft_spell_ids: impl IntoIterator<Item = u32>,
     ) {
-        self.spell_acquisition_cast_authority_like_cpp = Some(Arc::new(
+        self.spell_state.spell_acquisition_cast_authority_like_cpp = Some(Arc::new(
             crate::spell_acquisition::SpellAcquisitionCastAuthorityLikeCpp::from_audited_rows_like_cpp(
                 safe_cast_spell_ids,
                 std::iter::empty(),
             ),
         ));
-        self.spell_acquisition_craft_authority_like_cpp = Some(Arc::new(
+        self.spell_state.spell_acquisition_craft_authority_like_cpp = Some(Arc::new(
             crate::spell_acquisition::SpellAcquisitionCraftValidityAuthorityLikeCpp::from_audited_rows_like_cpp(
                 valid_craft_spell_ids,
                 std::iter::empty(),
@@ -51,6 +52,7 @@ impl WorldSession {
         }
 
         let port = self
+            .lifecycle
             .persistence_ports_like_cpp
             .player
             .player_spell_acquisition
@@ -58,7 +60,7 @@ impl WorldSession {
         let player_guid = self.player_guid()?;
         let guid_counter = player_guid.counter() as u64;
         let mut cancellation_fence = PlayerMoneyCommitCancellationFenceLikeCpp::new(Arc::clone(
-            &self.durable_loot_money_persistence_like_cpp,
+            &self.lifecycle.durable_loot_money_persistence_like_cpp,
         ));
         let mut operation_token = [0u8; 16];
         rand::thread_rng().fill_bytes(&mut operation_token);
@@ -98,7 +100,8 @@ impl WorldSession {
                 Some(money_persistence)
             }
             Outcome::Indeterminate(reason) => {
-                self.durable_loot_money_persistence_like_cpp
+                self.lifecycle
+                    .durable_loot_money_persistence_like_cpp
                     .mark_indeterminate_like_cpp();
                 cancellation_fence.disarm_like_cpp();
                 self.kick("trainer purchase COMMIT outcome is unknown; relog required");

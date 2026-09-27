@@ -43,7 +43,7 @@ impl WorldSession {
 
         use wow_packet::packets::misc::{SuspendToken, TransferPending};
 
-        if !self.player_logout_like_cpp && options & TELE_TO_SEAMLESS_LIKE_CPP == 0 {
+        if !self.lifecycle.player_logout_like_cpp && options & TELE_TO_SEAMLESS_LIKE_CPP == 0 {
             let transfer_pending = TransferPending {
                 map_id,
                 old_map_position: current_pos,
@@ -59,13 +59,13 @@ impl WorldSession {
         if !self.set_pending_teleport_like_cpp(Some((map_id, destination))) {
             return;
         }
-        self.active_area_trigger = None;
+        self.view.active_area_trigger = None;
         if !self.set_represented_far_teleport_pending_like_cpp(true) {
             return;
         }
         self.state = SessionState::Transfer;
 
-        if !self.player_logout_like_cpp {
+        if !self.lifecycle.player_logout_like_cpp {
             if options & TELE_TO_SEAMLESS_LIKE_CPP == 0
                 && !self
                     .wait_for_realm_send_before_instance_update_like_cpp()

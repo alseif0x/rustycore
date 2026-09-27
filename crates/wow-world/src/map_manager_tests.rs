@@ -11,7 +11,7 @@
 use super::*;
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
-use wow_constants::{Class, CreatureFlagsExtra, DeathState, PhaseFlags, PowerType};
+use wow_constants::{Class, CreatureFlagsExtra, DeathState, PowerType};
 use wow_core::guid::HighGuid;
 use wow_map::map::MapWorldObjectEnvironment;
 

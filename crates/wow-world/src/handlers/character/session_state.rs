@@ -488,7 +488,7 @@ impl WorldSession {
                 "RUST_LOGIN_POWER_SYNC"
             );
         }
-        self.login_time = Some(std::time::Instant::now());
+        self.lifecycle.login_time = Some(std::time::Instant::now());
         self.suppress_creature_movement_queued_at_or_before_like_cpp = None;
         // Clear per-session loot/combat state as part of the Rust AddToWorld
         // equivalent, before C++ would build `Map::SendInitSelf`.

@@ -875,7 +875,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[test]
     fn attacker_state_update_writes_the_block_fields_like_cpp() {
         let attacker = ObjectGuid::create_world_object(
             wow_core::guid::HighGuid::Creature,

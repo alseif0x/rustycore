@@ -78,7 +78,7 @@ impl WorldSession {
         };
         let leader_guid = self
             .resolved_group_guid_like_cpp()
-            .and_then(|group_guid| self.group_registry.as_ref()?.get(&group_guid))
+            .and_then(|group_guid| self.directory.group_registry.as_ref()?.get(&group_guid))
             .map(|group| group.leader_guid)
             .unwrap_or(player_guid);
         if leader_guid == player_guid {

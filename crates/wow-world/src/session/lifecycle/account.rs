@@ -192,7 +192,7 @@ impl WorldSession {
             return FinalizationOutcome::NoWork;
         }
 
-        if let Some(operation) = &mut self.finalization {
+        if let Some(operation) = &mut self.lifecycle.finalization {
             operation.retain_collection(save.clone());
         }
         let outcome = port.save_account_collection_like_cpp(save).await;
@@ -240,7 +240,7 @@ impl WorldSession {
             return FinalizationOutcome::NoWork;
         }
 
-        if let Some(operation) = &mut self.finalization {
+        if let Some(operation) = &mut self.lifecycle.finalization {
             operation.retain_collection(save.clone());
         }
         let outcome = port.save_account_collection_like_cpp(save).await;
@@ -287,7 +287,7 @@ impl WorldSession {
             return FinalizationOutcome::NoWork;
         }
 
-        if let Some(operation) = &mut self.finalization {
+        if let Some(operation) = &mut self.lifecycle.finalization {
             operation.retain_collection(save.clone());
         }
         let outcome = port.save_account_collection_like_cpp(save).await;
@@ -337,7 +337,7 @@ impl WorldSession {
             favorite_deletes: plan.favorite_deletes,
         };
 
-        if let Some(operation) = &mut self.finalization {
+        if let Some(operation) = &mut self.lifecycle.finalization {
             operation.retain_collection(save.clone());
         }
         let outcome = port.save_account_collection_like_cpp(save).await;
@@ -385,7 +385,7 @@ impl WorldSession {
                 .collect(),
         };
 
-        if let Some(operation) = &mut self.finalization {
+        if let Some(operation) = &mut self.lifecycle.finalization {
             operation.retain_collection(save.clone());
         }
         let outcome = port.save_account_collection_like_cpp(save).await;

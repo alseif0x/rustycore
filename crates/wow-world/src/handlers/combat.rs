@@ -69,9 +69,7 @@ impl WorldSession {
         command: crate::session::mailbox::ApplyPlayerMeleeResultLikeCppCommand,
     ) {
         use wow_packet::ServerPacket;
-        use wow_packet::packets::combat::{
-            AttackerStateUpdate, HIT_INFO_AFFECTS_VICTIM, VICTIM_STATE_HIT,
-        };
+        use wow_packet::packets::combat::AttackerStateUpdate;
         use wow_packet::packets::movement::MonsterMoveStop;
 
         // Re-gate on arrival: a command resolved for one incarnation must not

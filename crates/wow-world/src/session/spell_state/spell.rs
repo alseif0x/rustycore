@@ -109,10 +109,12 @@ impl WorldSession {
         rejected_linked_trigger_spell_ids: Arc<BTreeSet<u32>>,
     ) {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.spell_script_exact_spell_ids_like_cpp = Some(exact_spell_ids);
-        self.spell_script_all_rank_root_spell_ids_like_cpp = Some(all_rank_root_spell_ids);
-        self.legacy_spell_script_spell_ids_like_cpp = Some(legacy_spell_ids);
-        self.spell_linked_rejected_trigger_spell_ids_like_cpp =
+        self.spell_state.spell_script_exact_spell_ids_like_cpp = Some(exact_spell_ids);
+        self.spell_state
+            .spell_script_all_rank_root_spell_ids_like_cpp = Some(all_rank_root_spell_ids);
+        self.spell_state.legacy_spell_script_spell_ids_like_cpp = Some(legacy_spell_ids);
+        self.spell_state
+            .spell_linked_rejected_trigger_spell_ids_like_cpp =
             Some(rejected_linked_trigger_spell_ids);
     }
     /// Prove that applying/casting one spell cannot enter an unrepresented
@@ -126,11 +128,17 @@ impl WorldSession {
     ) -> bool {
         spell_has_no_unrepresented_runtime_hooks_from_authority_like_cpp(
             spell_id,
-            self.spell_script_exact_spell_ids_like_cpp.as_deref(),
-            self.spell_script_all_rank_root_spell_ids_like_cpp
+            self.spell_state
+                .spell_script_exact_spell_ids_like_cpp
                 .as_deref(),
-            self.legacy_spell_script_spell_ids_like_cpp.as_deref(),
-            self.spell_linked_rejected_trigger_spell_ids_like_cpp
+            self.spell_state
+                .spell_script_all_rank_root_spell_ids_like_cpp
+                .as_deref(),
+            self.spell_state
+                .legacy_spell_script_spell_ids_like_cpp
+                .as_deref(),
+            self.spell_state
+                .spell_linked_rejected_trigger_spell_ids_like_cpp
                 .as_deref(),
             self.spell_catalogs.spell_chain_store.as_deref(),
             self.spell_catalogs.spell_linked_store.as_deref(),

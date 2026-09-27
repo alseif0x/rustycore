@@ -241,6 +241,7 @@ fn load_represented_pet_declined_names_replaces_and_clears_row_like_cpp() {
     assert!(session.load_represented_pet_declined_names_like_cpp(42, Some(row.clone())));
     assert_eq!(
         session
+            .lifecycle
             .pet_load_query_holder_rows_like_cpp
             .declined_names
             .get(&42),
@@ -249,6 +250,7 @@ fn load_represented_pet_declined_names_replaces_and_clears_row_like_cpp() {
     assert!(session.load_represented_pet_declined_names_like_cpp(42, None));
     assert!(
         !session
+            .lifecycle
             .pet_load_query_holder_rows_like_cpp
             .declined_names
             .contains_key(&42)
@@ -315,6 +317,7 @@ fn beginning_character_pet_load_replaces_pet_query_holder_rows_like_cpp() {
     );
     assert!(
         !session
+            .lifecycle
             .pet_load_query_holder_rows_like_cpp
             .spells
             .is_empty()
@@ -322,7 +325,7 @@ fn beginning_character_pet_load_replaces_pet_query_holder_rows_like_cpp() {
 
     session.begin_represented_character_pet_authority_load_like_cpp();
 
-    let holder = &session.pet_load_query_holder_rows_like_cpp;
+    let holder = &session.lifecycle.pet_load_query_holder_rows_like_cpp;
     assert!(holder.spells.is_empty());
     assert!(holder.spell_cooldowns.is_empty());
     assert!(holder.spell_charges.is_empty());

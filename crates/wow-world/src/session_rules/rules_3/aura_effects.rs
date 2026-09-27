@@ -5,7 +5,6 @@
 
 //! Aura-effect projections over canonical player and creature applications.
 
-use crate::session::*;
 use std::collections::HashMap;
 use wow_data::SpellStore;
 use wow_entities::{AppliedAuraRef, AuraApplicationLikeCpp};

@@ -25,7 +25,7 @@ impl WorldSession {
 
     /// Get a reference to the shared pending invites map.
     pub fn pending_invites(&self) -> Option<&Arc<PendingInvites>> {
-        self.pending_invites.as_ref()
+        self.directory.pending_invites.as_ref()
     }
 
     pub(crate) fn player_is_in_world_for_registry_like_cpp(&self) -> bool {
@@ -120,7 +120,7 @@ impl WorldSession {
                     name.clone(),
                     self.account_id,
                     self.battlenet_account_id(),
-                    self.recruiter_id_like_cpp,
+                    self.account_state.recruiter_id_like_cpp,
                     race,
                     class,
                     gender,
@@ -138,20 +138,20 @@ impl WorldSession {
                 send_tx: self.send_tx().clone(),
                 realm_send_tx: self.realm_route_tx().clone(),
                 command_tx: self.session_command_tx.clone(),
-                session_phase_tx: self.session_phase_tx.clone(),
+                session_phase_tx: self.phase.tx.clone(),
                 durable_creature_runtime_commands_like_cpp: Arc::clone(
                     &self.durable_creature_runtime_commands_like_cpp,
                 ),
                 client_visible_guids_like_cpp: self.client_visible_guids_like_cpp.clone(),
                 client_visible_transports_like_cpp: self.client_visible_transports_like_cpp.clone(),
                 advanced_combat_logging_enabled_like_cpp: Arc::clone(
-                    &self.advanced_combat_logging_enabled_like_cpp,
+                    &self.flags.advanced_combat_logging_enabled_like_cpp,
                 ),
                 visibility_refresh_pending_like_cpp: Arc::clone(
-                    &self.visibility_refresh_pending_like_cpp,
+                    &self.flags.visibility_refresh_pending_like_cpp,
                 ),
             },
-            Arc::clone(&self.durable_loot_money_persistence_like_cpp),
+            Arc::clone(&self.lifecycle.durable_loot_money_persistence_like_cpp),
         );
         // Production already has the canonical Player before publication. The
         // explicit owner-installing test harness creates it while registering,

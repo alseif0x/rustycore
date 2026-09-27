@@ -62,7 +62,7 @@ impl WorldSession {
     pub(in crate::session) fn broadcast_item_push_result_to_group(&self, bytes: Vec<u8>) -> bool {
         let (Some(group_guid), Some(group_registry), Some(player_registry)) = (
             self.resolved_group_guid_like_cpp(),
-            &self.group_registry,
+            &self.directory.group_registry,
             &self.player_registry,
         ) else {
             return false;

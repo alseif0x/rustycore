@@ -15,6 +15,7 @@ async fn time_sync_response_alias_opcodes_dispatch_to_same_handler_like_cpp() {
         std::thread::sleep(std::time::Duration::from_millis(2));
         let sent_time = crate::session::game_time_ms_like_cpp();
         session
+            .driver
             .time_synchronization
             .pending_requests
             .insert(11, sent_time);
@@ -32,11 +33,15 @@ async fn time_sync_response_alias_opcodes_dispatch_to_same_handler_like_cpp() {
             .await;
 
         assert!(
-            session.time_synchronization.pending_requests.is_empty(),
+            session
+                .driver
+                .time_synchronization
+                .pending_requests
+                .is_empty(),
             "{opcode:?} must consume the pending request like C++ HandleTimeSyncResponse"
         );
         assert_eq!(
-            session.time_synchronization.clock_delta_queue.len(),
+            session.driver.time_synchronization.clock_delta_queue.len(),
             1,
             "{opcode:?} must record one clock-delta sample through the shared handler"
         );
@@ -69,6 +74,7 @@ fn reconciled_handler_registrations_match_cpp_metadata_and_rust_targets() {
 
     for (opcode, status, processing, handler_name) in expected {
         let entry = session
+            .admission
             .dispatch_table
             .get(&opcode)
             .unwrap_or_else(|| panic!("missing linked registration for {opcode:?}"));
@@ -81,7 +87,7 @@ fn reconciled_handler_registrations_match_cpp_metadata_and_rust_targets() {
 #[test]
 fn dispatch_metadata_matches_cpp_for_registered_active_opcodes() {
     let (session, _, _) = make_session();
-    let table = &session.dispatch_table;
+    let table = &session.admission.dispatch_table;
 
     fn status_from_cpp(value: &str) -> Option<SessionStatus> {
         match value {

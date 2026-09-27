@@ -10,8 +10,6 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use tokio::sync::Notify;
 
-use super::*;
-
 /// In-memory Character DB with the same transition guards as the
 /// production SQL. Fault flags model the crash boundaries: a raw commit
 /// that fails before applying (`fail_*_pre_commit`), and a raw commit

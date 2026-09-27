@@ -145,7 +145,7 @@ impl WorldSession {
             .unwrap_or(false);
 
         let failed_map_difficulty_x_condition =
-            if self.instance_ignore_level_like_cpp || map_difficulty_id == 0 {
+            if self.realm_policy.instance_ignore_level_like_cpp || map_difficulty_id == 0 {
                 0
             } else {
                 self.maps
@@ -181,7 +181,7 @@ impl WorldSession {
         let mut missing_achievement = 0;
 
         if let Some(access_requirement) = access_requirement {
-            if !self.instance_ignore_level_like_cpp {
+            if !self.realm_policy.instance_ignore_level_like_cpp {
                 if access_requirement.level_min != 0
                     && self.player_level_like_cpp() < access_requirement.level_min
                 {

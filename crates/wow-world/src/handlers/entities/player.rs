@@ -473,8 +473,9 @@ impl crate::session::WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        let current_total_played_time = self.total_played_time.saturating_add(
-            self.login_time
+        let current_total_played_time = self.lifecycle.total_played_time.saturating_add(
+            self.lifecycle
+                .login_time
                 .map(|login_time| login_time.elapsed().as_secs() as u32)
                 .unwrap_or(0),
         );

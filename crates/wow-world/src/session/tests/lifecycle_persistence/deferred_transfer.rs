@@ -261,7 +261,10 @@ async fn cancelled_before_deferred_save_submission_retains_intent_without_quaran
         PlayerSaveOutcomeLikeCpp::Deferred
     );
     session.update_player_teleport_state_like_cpp(|s| s.far_pending = false);
-    let tracker = session.durable_loot_money_persistence_like_cpp.clone();
+    let tracker = session
+        .lifecycle
+        .durable_loot_money_persistence_like_cpp
+        .clone();
     let lock = tracker.lock_money_mutation_like_cpp().await;
     let mut save = Box::pin(session.save_current_player_to_db_like_cpp());
     use std::future::Future;

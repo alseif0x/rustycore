@@ -786,16 +786,26 @@ fn time_sync_response_sets_initial_clock_delta_like_cpp() {
     std::thread::sleep(std::time::Duration::from_millis(2));
     let sent_time = crate::session::game_time_ms_like_cpp();
     session
+        .driver
         .time_synchronization
         .pending_requests
         .insert(7, sent_time);
 
     session.record_time_sync_response_like_cpp(7, sent_time.saturating_sub(1));
 
-    assert!(session.time_synchronization.pending_requests.is_empty());
-    assert_eq!(session.time_synchronization.clock_delta_queue.len(), 1);
     assert!(
-        session.time_synchronization.clock_delta >= 1,
+        session
+            .driver
+            .time_synchronization
+            .pending_requests
+            .is_empty()
+    );
+    assert_eq!(
+        session.driver.time_synchronization.clock_delta_queue.len(),
+        1
+    );
+    assert!(
+        session.driver.time_synchronization.clock_delta >= 1,
         "expected initial fallback delta from first sample"
     );
 }
@@ -804,20 +814,22 @@ fn send_time_sync_uses_cpp_timer_sequence() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
 
     session.send_time_sync();
-    assert_eq!(session.time_synchronization.next_counter, 1);
-    assert_eq!(session.time_synchronization.timer_ms, 5_000);
+    assert_eq!(session.driver.time_synchronization.next_counter, 1);
+    assert_eq!(session.driver.time_synchronization.timer_ms, 5_000);
     assert!(
         session
+            .driver
             .time_synchronization
             .pending_requests
             .contains_key(&0)
     );
 
     session.send_time_sync();
-    assert_eq!(session.time_synchronization.next_counter, 2);
-    assert_eq!(session.time_synchronization.timer_ms, 10_000);
+    assert_eq!(session.driver.time_synchronization.next_counter, 2);
+    assert_eq!(session.driver.time_synchronization.timer_ms, 10_000);
     assert!(
         session
+            .driver
             .time_synchronization
             .pending_requests
             .contains_key(&1)

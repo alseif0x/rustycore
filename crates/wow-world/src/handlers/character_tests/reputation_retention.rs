@@ -30,7 +30,7 @@ fn repeated_login_attachment_preserves_loaded_reputation_for_final_save() {
         wow_data::progression_rewards::FactionStore::from_entries([faction]),
     ));
     assert!(session.load_character_reputation_rows_like_cpp([
-        crate::reputation::mgr::CharacterReputationRowLikeCpp {
+        wow_progression::mgr::CharacterReputationRowLikeCpp {
             faction_id: 910,
             standing: 17,
             flags: 2,

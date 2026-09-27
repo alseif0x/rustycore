@@ -30,7 +30,7 @@ impl WorldSession {
                 true
             })
             .unwrap_or(false);
-        if begun && self.pending_periodic_player_save_like_cpp {
+        if begun && self.lifecycle.pending_periodic_player_save_like_cpp {
             // The timer can expire before Transfer stops ordinary Session autosaves.
             // Give that due request the same native delayed-operation phase as a
             // direct SaveToDB call, before any following queued packet is admitted.
@@ -270,7 +270,7 @@ mod tests {
         let mut session = save_fixture();
         session.set_player_save_interval_ms_like_cpp(100);
         session.update_player_save_timer_like_cpp(100);
-        assert!(session.pending_periodic_player_save_like_cpp);
+        assert!(session.lifecycle.pending_periodic_player_save_like_cpp);
         assert!(session.update_player_teleport_state_like_cpp(|state| {
             state.far_pending = true;
             state.far_destination = Some((1, Position::new(7.0, 8.0, 9.0, 0.5)));
@@ -285,8 +285,8 @@ mod tests {
                 Some(true)
             );
         }
-        assert_eq!(session.next_player_save_ms_like_cpp, 100);
-        assert!(!session.pending_periodic_player_save_like_cpp);
+        assert_eq!(session.lifecycle.next_player_save_ms_like_cpp, 100);
+        assert!(!session.lifecycle.pending_periodic_player_save_like_cpp);
         assert!(session.finish_worldport_native_before_disconnect_like_cpp());
         // Unavailable persistence is not a confirmation and must retain the intent.
         assert_eq!(
