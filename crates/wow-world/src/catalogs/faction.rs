@@ -9,7 +9,6 @@
 //! field of this type, so no slot is mirrored. The owner depends on `wow-data`
 //! stores only and performs no async work.
 
-use std::collections::BTreeSet;
 use std::sync::Arc;
 
 #[derive(Default)]

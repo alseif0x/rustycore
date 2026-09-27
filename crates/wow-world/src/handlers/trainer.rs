@@ -40,7 +40,6 @@ use wow_data::{
 
 use wow_packet::ClientPacket;
 #[cfg(test)]
-use wow_packet::ServerPacket;
 #[cfg(test)]
 use wow_packet::packets::spell::PlaySpellVisualKit;
 use wow_packet::packets::trainer::{

@@ -61,15 +61,10 @@ pub(crate) use wow_social::group::{
 // kept; `item_purchase_contents_from_extended_cost` now reaches the entity
 // scenarios directly through `handlers::entities::tests::*`.
 pub(crate) use crate::session::registry::PacketHandlerEntry;
-pub(crate) use wow_constants::ItemExtendedCostFlags;
+
 pub(crate) use wow_handler::{PacketProcessing, SessionStatus};
 pub(crate) use wow_packet::packets::chat::{
     JoinChannel, MAX_CHANNEL_NAME_STR_LIKE_CPP, MAX_CHANNEL_PASS_STR_LIKE_CPP,
-};
-pub(crate) use wow_packet::packets::misc::{
-    CalendarAddEvent, CalendarCommunityInvite, CalendarComplain, CalendarCopyEvent,
-    CalendarEventSignUp, CalendarGetEvent, CalendarInvite, CalendarModeratorStatusQuery,
-    CalendarRemoveEvent, CalendarRemoveInvite, CalendarRsvp, CalendarStatus, CalendarUpdateEvent,
 };
 
 pub(crate) use entries::*;

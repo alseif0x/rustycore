@@ -24,7 +24,7 @@ use wow_data::{
 use wow_packet::{ServerPacket, WorldPacket};
 
 use super::tests::{FakeBattlePetPurchaseStoreLikeCpp, test_money_commit_fence_like_cpp};
-use super::*;
+
 use crate::battle_pet_account::{
     BattlePetAccountRegistryLikeCpp, BattlePetPersistenceErrorLikeCpp, BattlePetPersistenceLikeCpp,
     BattlePetProcessLeaseLikeCpp, DurableBattlePetAddLikeCpp, DurableBattlePetAddReceiptLikeCpp,
