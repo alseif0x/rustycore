@@ -1042,6 +1042,26 @@ los avisos de imports en modulos no auditados bajan de **29 a 5**.
 B7 queda practicamente cerrado: los avisos restantes de `wow-world` estan en los cuatro agregados
 auditados (donde el ratchet impide reclasificar lineas) y quedan documentados como fuera de alcance.
 
+### La puerta de la ola caza una regresion real de formato (2026-09-26)
+
+Corrida de la puerta en el tip de 27 rondas: **fallo con `exit 1` en `cargo fmt --check`**. Causa real:
+el slice B7 que retiro imports **fuera** de wow-world edito ficheros de `wow-database`, `wow-entities`,
+`wow-spell-acquisition` y otros, pero el script solo formateaba `wow-world`; quedaron lineas en blanco
+dobles y una llave sin formatear. Arreglado con `cargo fmt --all` (10 ficheros, 3 inserciones / 18
+borrados, sin cambios de codigo) en `6e8b2e11`.
+
+Dos lecciones operativas:
+
+1. **Cada slice que edite Rust debe formatear los paquetes que toca**, no solo `wow-world`; el linter de
+   la puerta es la red de seguridad, pero llega al final.
+2. **Un `cargo fmt --all` invalida la cache de varios crates**: la puerta siguiente tardo 900 s (tope
+   agotado) porque reconstruia todo el grafo afectado, y la siguiente ya en caliente **paso en 195,5 s**
+   (`exit 0`, manifiesto `passed`). El presupuesto de 600 s se cumple **despues** de que el rebuild de un
+   cambio transversal haya ocurrido; un cambio de formato global es un cambio transversal.
+
+Estado de la puerta: **verde en el tip actual**, con la suite completa de `wow-world` dentro de la
+misma campana.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
