@@ -9,7 +9,7 @@ checkbox or an old percentage is not proof that the current server implements th
 | --- | --- |
 | What is implemented, integrated or still unproven? | [STATE.md](migration/STATE.md), its dated evidence boundaries and the active issue/checkpoint |
 | What do we execute next? | [PORT_PLAN.md](migration/PORT_PLAN.md) and [GitHub #49](https://github.com/alseif0x/rustycore/issues/49) |
-| How do I resume autonomous Codex work in a new session? | [Codex resume prompt](operations/codex-resume-prompt.md) |
+| How do Opus and DeepSeek split the work? | [orchestrate-rustycore](../.agents/skills/orchestrate-rustycore/SKILL.md) |
 | What remains in the current architecture delivery? | [Architecture program state](architecture/modularity-and-ecs-plan.md#architecture-program-state--2026-09-11) |
 | How should Claude continue the complete refactor? | [Refactor completion plan](architecture/refactor-completion-plan.md) |
 | What must a quest reward make durable, and when? | [Quest reward operation contract](architecture/quest-reward-operation-contract.md) |

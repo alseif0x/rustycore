@@ -45,16 +45,15 @@ Logs/
 Thumbs.db
 
 # OpenClaw agent internal dirs (not for public repo)
-# Share only the intentional project Codex configuration and role definitions.
-.codex/*
-!.codex/config.toml
-!.codex/agents/
-.codex/agents/*
-!.codex/agents/luna-worker.toml
-!.codex/agents/astra-specialist.toml
+.codex/
 .agent/
 .agents/*
-.claude/
+.claude/*
+!.claude/settings.json
+!.claude/agents/
+.claude/agents/*
+!.claude/agents/rustycore-worker.md
+!.claude/agents/deepseek-worker.md
 .openclaw/
 .trae/
 memory/

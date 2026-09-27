@@ -19,6 +19,10 @@ on:
         options:
           - audit
           - final
+      base:
+        description: Explicit ancestor base required for a manual final run
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -55,6 +59,36 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Validate manual final base
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.profile == 'final'
+        shell: bash
+        env:
+          MANUAL_BASE: ${{ inputs.base || '' }}
+        run: |
+          set -euo pipefail
+          if [ -z "$MANUAL_BASE" ]; then
+            echo "::error::manual final requires an explicit base input"
+            exit 1
+          fi
+          if ! base_commit="$(git rev-parse --quiet --verify --end-of-options "${MANUAL_BASE}^{commit}" 2>/dev/null)"; then
+            echo "::error::manual final base must resolve to a commit"
+            exit 1
+          fi
+          head_commit="$(git rev-parse --verify HEAD)"
+          if [ "$base_commit" = "$head_commit" ]; then
+            echo "::error::manual final base must differ from HEAD"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$base_commit" "$head_commit"; then
+            echo "::error::manual final base must be an ancestor of HEAD"
+            exit 1
+          fi
+          if git diff --quiet "$base_commit" "$head_commit" --; then
+            echo "::error::manual final base has no changed paths"
+            exit 1
+          fi
+          printf 'VALIDATED_MANUAL_BASE_SHA=%s\n' "$base_commit" >> "$GITHUB_ENV"
 
       - name: Install pinned Rust
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
@@ -130,6 +164,7 @@ jobs:
 
       - name: Run canonical Validation V2 profile
         env:
+          EVENT_NAME: ${{ github.event_name }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
           PROFILE: ${{ github.event_name == 'pull_request' && 'final' || github.event.inputs.profile || 'audit' }}
@@ -139,8 +174,15 @@ jobs:
           RUSTYCORE_CPP_REFERENCE_ROOT: ${{ runner.temp }}/trinity-reference
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$PROFILE" = "final" ]; then
+            BASE_SHA="${VALIDATED_MANUAL_BASE_SHA:?manual final base was not validated}"
+          fi
           echo "Profile: ${PROFILE}" >> "$GITHUB_STEP_SUMMARY"
-          ./tools/validation-v2 "$PROFILE" --base "$BASE_SHA"
+          args=("$PROFILE" --base "$BASE_SHA" --timings --logs)
+          if [ "$PROFILE" = "final" ]; then
+            args+=(--require-changes)
+          fi
+          ./tools/validation-v2 "${args[@]}"
 
       - name: Verify Validation V2 manifest verdict
         if: always()
@@ -153,6 +195,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: validation-v2-${{ github.event_name == 'pull_request' && 'final' || github.event.inputs.profile || 'audit' }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/validation-v2-manifest.json
+          path: |
+            ${{ runner.temp }}/validation-v2-manifest.json
+            ${{ runner.temp }}/validation-v2-manifest-logs/
+            target/cargo-timings/*.html
           if-no-files-found: error
           retention-days: 14

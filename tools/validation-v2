@@ -13,6 +13,7 @@ from pathlib import Path
 import platform
 import re
 import resource
+import shlex
 import shutil
 import signal
 import subprocess
@@ -34,9 +35,14 @@ DEFAULT_TIMEOUT = 900
 # so the ordinary per-command budget cannot be the audit's.
 AUDIT_TIMEOUT = 3600
 DEFAULT_BASE = "origin/3.4.3"
+LEVEL_PROFILES = {"1": "none", "2": "quick", "3": "final"}
 DEFAULT_HEAVY_LOCK = "/tmp/rustycore-validation-v2-heavy.lock"
 RUNNER_PATH = "tools/validation-v2"
 RUNNER_CONTRACT_SUITE = "tools/test_validation_v2.py"
+WORKFLOW_CONTRACT_SUITE = "tools/test_validation_workflows.py"
+BUILD_INPUT_DIAGNOSTIC = "tools/measure_build_inputs.py"
+BUILD_INPUT_CONTRACT_SUITE = "tools/test_measure_build_inputs.py"
+CARGO_CONFIG_PATHS = {".cargo/config", ".cargo/config.toml"}
 CHECKER_MANIFEST = "tools/architecture/handler-contract-check/Cargo.toml"
 BOT_MANIFEST = "tools/wow-test-bot/Cargo.toml"
 INTERRUPT_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
@@ -248,6 +254,7 @@ COMPARED_SHAPE: dict[str, frozenset[str]] = {
         {
             "base_input", "base_commit", "changed_paths", "path_classes", "workspace",
             "metadata", "optional_skips", "planned_steps", "planned_commands",
+            "failure_policy", "require_changes",
         }
     ),
     "command": frozenset(
@@ -366,6 +373,7 @@ def classify_path(path: str) -> str:
         return "workspace-rust"
     if (
         path in {"Cargo.toml", "Cargo.lock", "rust-toolchain.toml", ".protoc-version"}
+        or path in CARGO_CONFIG_PATHS
         or path.startswith("proto/")
         or path.endswith("/build.rs")
     ):
@@ -546,7 +554,11 @@ def affected_workspace(
     # path is the only thing that changed, which is exactly when anything can
     # break.
     matched_library_ids = library_ids({package_id for _, package_id in matched})
-    if root_wide:
+    if CARGO_CONFIG_PATHS.intersection(paths):
+        # Flags/linkers/target/profile settings apply to every package, even
+        # when a source edit happens to accompany the configuration change.
+        tested_library_ids = library_ids(set(by_id))
+    elif root_wide:
         tested_library_ids = matched_library_ids or library_ids(set(by_id))
     else:
         tested_library_ids = library_ids(direct_ids)
@@ -568,15 +580,8 @@ def audit_steps(base_commit: str, jobs: int) -> list[dict[str, object]]:
     commands = [
         ("diff-hygiene", ["git", "diff", "--check", base_commit]),
         (
-            "architecture-policy-self-test",
-            ["python3", "tools/architecture/check_architecture.py", "self-test"],
-        ),
-        (
             "architecture-policy-check",
-            ["python3", "tools/architecture/check_architecture.py", "check"],
-            # The exhaustive session ownership ratchet is an independent
-            # acceptance; a policy breach must not hide its verdict.
-            "session-persistence-ratchet",
+            ["python3", "tools/architecture/check_architecture.py", "check", "--self-test"],
         ),
         ("workspace-format", ["cargo", "fmt", "--all", "--check"]),
         (
@@ -590,7 +595,7 @@ def audit_steps(base_commit: str, jobs: int) -> list[dict[str, object]]:
         (
             "handler-contract-unit-tests",
             [
-                "cargo", "test", "--release", "--locked", "--manifest-path",
+                "cargo", "test", "--no-fail-fast", "--release", "--locked", "--manifest-path",
                 CHECKER_MANIFEST, "--lib", "--jobs", str(jobs),
             ],
         ),
@@ -612,14 +617,14 @@ def audit_steps(base_commit: str, jobs: int) -> list[dict[str, object]]:
         (
             "qa-bot-tests",
             [
-                "cargo", "test", "--locked", "--manifest-path", BOT_MANIFEST,
+                "cargo", "test", "--no-fail-fast", "--locked", "--manifest-path", BOT_MANIFEST,
                 "--jobs", str(jobs),
             ],
         ),
         (
             "workspace-all-target-tests",
             [
-                "cargo", "test", "--locked", "--workspace", "--all-targets",
+                "cargo", "test", "--no-fail-fast", "--locked", "--workspace", "--all-targets",
                 "--exclude", "world-modules", "--jobs", str(jobs),
             ],
         ),
@@ -643,12 +648,8 @@ def audit_steps(base_commit: str, jobs: int) -> list[dict[str, object]]:
         ),
     ]
     steps: list[dict[str, object]] = []
-    for command in commands:
-        section, argv = command[0], command[1]
-        step: dict[str, object] = {"section": section, "argv": argv}
-        if len(command) == 3:
-            step["continue_to_section_on_failure"] = command[2]
-        steps.append(step)
+    for section, argv in commands:
+        steps.append({"section": section, "argv": argv})
     argv_values = [tuple(step["argv"]) for step in steps]
     if len(set(argv_values)) != len(argv_values):
         raise ValueError("audit plan contains duplicate commands")
@@ -665,7 +666,7 @@ def validation_commands(
 ) -> tuple[list[list[str]], list[str]]:
     planned: list[list[str]] = []
     optional_skips: list[str] = []
-    if not groups:
+    if profile == "none" or not groups:
         return planned, optional_skips
     add_command(planned, ["git", "diff", "--check", base_commit])
     existing = lambda paths: [path for path in paths if (repo / path).is_file()]
@@ -675,19 +676,19 @@ def validation_commands(
     # invokes Cargo or the exhaustive persistence inventory.
     if profile == "final":
         add_command(planned, ["python3", "tools/architecture/check_architecture.py", "physical-files"])
-    if any(path in {
+    if profile == "final" and any(path in {
         "tools/architecture/physical_files.py",
         "tools/architecture/test_physical_files.py",
         "tools/architecture/physical-file-policy.json",
     } for path in all_paths):
         add_command(planned, ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_physical_files.py"])
-    if any(path in {
+    if profile == "final" and any(path in {
         "tools/architecture/check_architecture.py",
         "tools/architecture/architecture_common.py",
         "tools/architecture/hotspot_metrics.py",
     } for path in all_paths):
         add_command(planned, ["python3", "tools/architecture/check_architecture.py", "self-test"])
-    if any(path in {
+    if profile == "final" and any(path in {
         "tools/architecture/check_architecture.py",
         "tools/architecture/test_check_architecture.py",
         "tools/architecture/hotspot_metrics.py",
@@ -699,6 +700,7 @@ def validation_commands(
             path
             for path in all_paths
             if Path(path).suffix in text_suffixes or path == "tools/validation-v2"
+            or path in CARGO_CONFIG_PATHS
         )
     )
     if text_files:
@@ -729,7 +731,7 @@ def validation_commands(
         # Changing the gate must run the gate's own contract suite. A syntax
         # check is what let #364 — a plan that compiled the workspace and tested
         # nothing — be written here in the first place.
-        if any(path in {RUNNER_PATH, RUNNER_CONTRACT_SUITE} for path in python_files) and (
+        if profile == "final" and any(path in {RUNNER_PATH, RUNNER_CONTRACT_SUITE} for path in python_files) and (
             repo / RUNNER_CONTRACT_SUITE
         ).exists():
             add_command(planned, ["python3", RUNNER_CONTRACT_SUITE])
@@ -741,6 +743,24 @@ def validation_commands(
             optional_skips.append("actionlint is unavailable; workflow syntax was not validated")
         else:
             optional_skips.append("all changed workflow files were deleted; no syntax input remains")
+    if profile == "final" and any(path in {
+        ".github/workflows/rust-ci.yml", ".github/workflows/validation-determinism.yml",
+        WORKFLOW_CONTRACT_SUITE, RUNNER_PATH,
+    } for path in all_paths) and (repo / WORKFLOW_CONTRACT_SUITE).is_file():
+        add_command(planned, ["python3", WORKFLOW_CONTRACT_SUITE])
+    if profile == "final" and any(path in {BUILD_INPUT_DIAGNOSTIC, BUILD_INPUT_CONTRACT_SUITE} for path in all_paths):
+        add_command(planned, ["python3", BUILD_INPUT_CONTRACT_SUITE])
+
+    if profile == "quick":
+        # Iteration feedback only: Cargo fmt may inspect manifests, but never
+        # resolve/build the dependency graph or run project/checker test suites.
+        if "workspace-rust" in groups or "workspace-root" in groups:
+            add_command(planned, ["cargo", "fmt", "--all", "--check"])
+        config_changed = bool(CARGO_CONFIG_PATHS.intersection(all_paths))
+        for group, manifest in (("architecture-checker", CHECKER_MANIFEST), ("wow-test-bot", BOT_MANIFEST)):
+            if group in groups or config_changed:
+                add_command(planned, ["cargo", "fmt", "--manifest-path", manifest, "--", "--check"])
+        return planned, optional_skips
 
     workspace_changed = workspace is not None
     if workspace_changed:
@@ -776,10 +796,13 @@ def validation_commands(
             ]
             add_command(
                 planned,
-                ["cargo", "test", "--locked", "--lib", "--jobs", str(jobs), *package_args],
+                ["cargo", "test", "--no-fail-fast", "--locked", "--lib", "--jobs", str(jobs), *package_args],
             )
 
-    if "architecture-checker" in groups:
+    cargo_config_changed = bool(CARGO_CONFIG_PATHS.intersection(all_paths))
+    # Cargo resolves configuration from cwd, including --manifest-path calls
+    # for these standalone tools; a root config change affects them too.
+    if "architecture-checker" in groups or cargo_config_changed:
         add_command(planned, ["cargo", "fmt", "--manifest-path", CHECKER_MANIFEST, "--", "--check"])
         command = "test" if profile == "final" else "check"
         checker = ["cargo", command, "--locked", "--manifest-path", CHECKER_MANIFEST, "--jobs", str(jobs)]
@@ -788,9 +811,9 @@ def validation_commands(
             # used to be, because it asked for a persistence inventory it never
             # asserted; it collects the syntax surface it actually reads and runs
             # in seconds (#363).
-            checker.append("--lib")
+            checker.extend(["--lib", "--no-fail-fast"])
         add_command(planned, checker)
-    if "wow-test-bot" in groups:
+    if "wow-test-bot" in groups or cargo_config_changed:
         add_command(
             planned,
             ["cargo", "fmt", "--manifest-path", BOT_MANIFEST, "--", "--check"],
@@ -849,7 +872,7 @@ def build_plan(
         }
     workspace: dict[str, object] | None = None
     metadata_outcome: dict[str, object] | None = None
-    if "workspace-rust" in groups or "workspace-root" in groups:
+    if profile == "final" and ("workspace-rust" in groups or "workspace-root" in groups):
         metadata, metadata_outcome = cargo_metadata(repo, environment, timeout)
         workspace = affected_workspace(repo, paths, groups, metadata)
     planned, optional_skips = validation_commands(
@@ -859,7 +882,8 @@ def build_plan(
         {"section": f"path-{index:02d}", "argv": command}
         for index, command in enumerate(planned, start=1)
     ]
-    require_protoc_for(steps, environment)
+    if profile != "quick":
+        require_protoc_for(steps, environment)
     return {
         "base_input": base,
         "base_commit": base_commit,
@@ -970,7 +994,7 @@ def resolve_cargo_target_dir(repo: Path, configured: str | None = None) -> Path:
     return target.resolve()
 
 
-def command_environment(repo: Path, jobs: int) -> dict[str, str]:
+def command_environment(repo: Path, jobs: int, *, resolve_protobuf: bool = True) -> dict[str, str]:
     environment = os.environ.copy()
     environment.update(
         {
@@ -981,7 +1005,7 @@ def command_environment(repo: Path, jobs: int) -> dict[str, str]:
             ),
         }
     )
-    protoc = resolve_protoc(repo, environment)
+    protoc = resolve_protoc(repo, environment) if resolve_protobuf else None
     if protoc is not None:
         environment["PROTOC"] = protoc
     else:
@@ -1005,10 +1029,19 @@ def terminate_group(process: subprocess.Popen) -> int:
         return process.wait()
 
 
-def tee_output(stream, reports: list[dict[str, object]]) -> None:
+def tee_output(stream, reports: list[dict[str, object]], log=None,
+               errors: list[str] | None = None) -> None:
     """Stream child output through unchanged while noting reported signals."""
     target = sys.stdout.buffer
     for line in iter(stream.readline, b""):
+        if log is not None:
+            try:
+                log.write(line)
+                log.flush()
+            except OSError as error:
+                if errors is not None:
+                    errors.append(f"command log write failed: {error}")
+                log = None  # Keep draining the child even if its log disk is full.
         target.write(line)
         target.flush()
         if len(reports) >= MAX_SIGNAL_REPORTS:
@@ -1047,8 +1080,9 @@ def run_one(
     environment: dict[str, str],
     timeout: int,
     sink: list[dict[str, object]] | None = None,
+    log_path: Path | None = None,
 ) -> dict[str, object]:
-    print("+ " + " ".join(command), flush=True)
+    print("+ " + shlex.join(command), flush=True)
     started_at = utc_now()
     started = time.monotonic()
     timed_out = False
@@ -1057,7 +1091,15 @@ def run_one(
     oom_before = oom_kill_count()
     process: subprocess.Popen | None = None
     pump: threading.Thread | None = None
+    log = None
+    log_errors: list[str] = []
     try:
+        if log_path is not None:
+            # Exclusive creation refuses stale files and symlinks. Logs are
+            # opt-in, private, and never include an environment dump.
+            log = os.fdopen(os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb")
+            log.write((json.dumps({"argv": command, "started_at": started_at}) + "\n").encode())
+            log.flush()
         process = subprocess.Popen(
             command,
             cwd=repo,
@@ -1066,7 +1108,7 @@ def run_one(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
-        pump = threading.Thread(target=tee_output, args=(process.stdout, reports), daemon=True)
+        pump = threading.Thread(target=tee_output, args=(process.stdout, reports, log, log_errors), daemon=True)
         pump.start()
         return_code = process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -1082,6 +1124,11 @@ def run_one(
             pump.join(timeout=TERMINATE_GRACE_SECONDS)
         if process is not None and process.stdout is not None:
             process.stdout.close()
+        if log is not None:
+            try:
+                log.close()
+            except OSError as error:
+                log_errors.append(f"command log close failed: {error}")
     duration = round(time.monotonic() - started, 3)
     signal_number = -return_code if return_code < 0 else None
     exit_code = 128 + signal_number if signal_number is not None else return_code
@@ -1092,6 +1139,10 @@ def run_one(
     failure_kind = classify_failure(exit_code, signal_number, timed_out, oom_kills, reports)
     if interrupt is not None:
         failure_kind = "interrupted"
+    elif log_errors and failure_kind in {None, "exit"}:
+        failure_kind = "output-log"
+    for error in log_errors:
+        print(f"validation-v2: {error}", file=sys.stderr)
     outcome = {
         "argv": command,
         "started_at": started_at,
@@ -1124,6 +1175,8 @@ def run_steps(
     environment: dict[str, str],
     timeout: int,
     outcomes: list[dict[str, object]] | None = None,
+    log_directory: Path | None = None,
+    keep_going: bool = False,
 ) -> tuple[list[dict[str, object]], int]:
     """Run the planned steps, stopping at the first failure.
 
@@ -1131,22 +1184,29 @@ def run_steps(
     hide an independent acceptance that a later step carries, so the run keeps
     executing steps until that named section has completed, then stops with the
     first failure's exit code. Without the declaration the ordinary fail-fast
-    budget is unchanged.
+    budget is unchanged. Explicit keep_going instead collects ordinary exit
+    failures across the plan, retaining red verdicts; resource/signal/output
+    failures still stop immediately.
     """
     if outcomes is None:
         outcomes = []
     failure_code = 0
     continue_until: str | None = None
-    for step in steps:
+    for index, step in enumerate(steps, start=1):
         section = step.get("section")
         command = step.get("argv")
         if not isinstance(section, str) or not isinstance(command, list):
             raise ValueError("planned step has an invalid section or argv")
         if not all(isinstance(item, str) for item in command):
             raise ValueError(f"planned step '{section}' contains a non-string argument")
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+", section):
+            raise ValueError(f"planned step has an unsafe section name: {section!r}")
         before = len(outcomes)
         try:
-            outcome = run_one(repo, command, environment, timeout, sink=outcomes)
+            options = {} if log_directory is None else {
+                "log_path": log_directory / f"{index:02d}-{section}.log",
+            }
+            outcome = run_one(repo, command, environment, timeout, sink=outcomes, **options)
         except BaseException:
             # An interrupted command is still recorded through the sink.
             for recorded in outcomes[before:]:
@@ -1155,6 +1215,16 @@ def run_steps(
         outcome["section"] = section
         if outcome["status"] != "passed" and failure_code == 0:
             failure_code = failed_exit_code(outcome)
+        print(f"validation-v2: {section}: {outcome['status']} ({outcome['duration_seconds']}s)", flush=True)
+        if outcome["status"] != "passed":
+            print("validation-v2: failed command context (do not narrow packages/features blindly): "
+                  + shlex.join(command), file=sys.stderr)
+        if keep_going:
+            # Collect ordinary independent failures once, but never continue
+            # after resource exhaustion, timeout, signals or lost diagnostics.
+            if outcome["status"] != "passed" and outcome.get("failure_kind") != "exit":
+                return outcomes, failure_code
+            continue
         if continue_until is not None:
             if section == continue_until:
                 return outcomes, failure_code
@@ -1165,6 +1235,13 @@ def run_steps(
                 return outcomes, failure_code
             continue_until = target
     return outcomes, failure_code
+
+
+def create_log_directory(manifest: Path) -> Path:
+    directory = manifest.with_name(f"{manifest.stem}-logs")
+    directory.parent.mkdir(parents=True, exist_ok=True)
+    directory.mkdir(mode=0o700)  # No overwrite/reuse of a previous run's evidence.
+    return directory
 
 
 def manifest_problems(document: object) -> list[str]:
@@ -1207,7 +1284,7 @@ def manifest_problems(document: object) -> list[str]:
     return problems
 
 
-def verify_manifest(path: Path) -> int:
+def verify_manifest(path: Path, required_profile: str | None = None) -> int:
     """A missing, unreadable, or non-green manifest is a failed run."""
     try:
         raw = path.read_text(encoding="utf-8")
@@ -1220,11 +1297,15 @@ def verify_manifest(path: Path) -> int:
     except json.JSONDecodeError as error:
         return fail(f"manifest {path} is not valid JSON: {error}", VERDICT_ERROR)
     problems = manifest_problems(document)
+    if isinstance(document, dict) and required_profile is not None and document.get("profile") != required_profile:
+        problems.append(f"profile is {document.get('profile')!r}; required {required_profile!r}")
     if problems:
         for problem in problems:
             print(f"validation-v2: {path}: {problem}", file=sys.stderr)
         return VERDICT_ERROR
-    print(f"validation-v2: manifest {path} verified green")
+    print(f"validation-v2: manifest {path} verified green for profile {document.get('profile')}")
+    if document.get("profile") == "quick":
+        print("validation-v2: LEVEL 2 / ITERATION ONLY: not final acceptance")
     return 0
 
 
@@ -1248,9 +1329,17 @@ def normalise_to_stdout(path: Path) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(prog="tools/validation-v2")
     parser.add_argument(
-        "profile", choices=("self-test", "quick", "final", "audit", "verify", "normalize")
+        "profile", nargs="?", default="none",
+        choices=("1", "2", "3", "none", "self-test", "quick", "final", "audit", "verify", "normalize"),
+        help="1/none (default): no checks; 2/quick: syntax/format only; 3/final: scoped acceptance",
     )
     parser.add_argument("--base", default=DEFAULT_BASE)
+    parser.add_argument("--logs", action="store_true",
+                        help="retain private per-command logs beside the manifest (no environment dump)")
+    parser.add_argument("--require-changes", action="store_true",
+                        help="reject an empty changed-path scope in quick/final")
+    parser.add_argument("--keep-going", action="store_true",
+                        help="collect ordinary final failures without reruns; never turn them green")
     parser.add_argument(
         "--timings", action="store_true",
         help="record Cargo timing reports during quick/final/audit without a second build",
@@ -1262,7 +1351,25 @@ def main() -> int:
     parser.add_argument(
         "--manifest", help="manifest for the verify and normalize profiles"
     )
+    parser.add_argument("--require-profile", choices=("self-test", "quick", "final", "audit"),
+                        help="verify only: reject evidence from a different profile")
     args = parser.parse_args()
+    args.profile = LEVEL_PROFILES.get(args.profile, args.profile)
+    if args.require_profile and args.profile != "verify":
+        return fail("--require-profile is only valid with verify")
+    if args.profile == "none":
+        if any((args.logs, args.require_changes, args.keep_going, args.architecture, args.timings, args.manifest)):
+            return fail("level 1/none does not run checks or produce evidence; select level 2 or 3 for validation options")
+        # Deliberately before provenance, toolchain/protoc probes, Git, locks or
+        # manifests. Exit 0 acknowledges this choice; it is not a passing gate.
+        print("validation-v2: LEVEL 1 / NOT VALIDATED: no checks executed; no acceptance manifest produced")
+        return 0
+    if args.logs and args.profile not in {"self-test", "quick", "final", "audit"}:
+        return fail("--logs is only valid with self-test, quick, final or audit")
+    if args.require_changes and args.profile not in {"quick", "final"}:
+        return fail("--require-changes is only valid with quick or final")
+    if args.keep_going and args.profile != "final":
+        return fail("--keep-going is only valid with final")
     if args.architecture and args.profile != "final":
         return fail("--architecture is only valid with final")
     if args.timings and args.profile not in {"quick", "final", "audit"}:
@@ -1271,7 +1378,7 @@ def main() -> int:
         if not args.manifest:
             return fail(f"{args.profile} requires --manifest")
         if args.profile == "verify":
-            return verify_manifest(Path(args.manifest))
+            return verify_manifest(Path(args.manifest), args.require_profile)
         return normalise_to_stdout(Path(args.manifest))
     if args.manifest:
         return fail("--manifest is only valid with the verify and normalize profiles")
@@ -1334,7 +1441,12 @@ def main() -> int:
     document["commands"] = outcomes
     exit_code = 0
     try:
-        environment = command_environment(repo, jobs)
+        log_directory = create_log_directory(path) if args.logs else None
+        if log_directory is not None:
+            print(f"validation-v2: command logs {log_directory}", flush=True)
+        environment = command_environment(repo, jobs, resolve_protobuf=args.profile in {"final", "audit"})
+        if args.profile == "quick":
+            print("validation-v2: LEVEL 2 / ITERATION ONLY: syntax/format; no compilation, tests or final acceptance", flush=True)
         print(
             f"validation-v2: cargo target={environment['CARGO_TARGET_DIR']} jobs={jobs}",
             flush=True,
@@ -1346,10 +1458,16 @@ def main() -> int:
                 environment,
                 timeout,
                 sink=outcomes,
+                log_path=log_directory / "01-self-test.log" if log_directory is not None else None,
             )
             exit_code = 0 if outcome["status"] == "passed" else failed_exit_code(outcome)
         else:
             plan = build_plan(repo, args.profile, jobs, args.base, environment, timeout)
+            plan["failure_policy"] = "collect-independent" if args.keep_going else "fail-fast"
+            plan["require_changes"] = args.require_changes
+            document["plan"] = plan
+            if args.require_changes and not plan["changed_paths"]:
+                raise ValueError("empty validation scope: choose an explicit base containing the intended changes")
             if args.architecture:
                 enable_architecture_acceptance(plan, jobs)
                 require_protoc_for(plan["planned_steps"], environment)
@@ -1358,7 +1476,10 @@ def main() -> int:
             document["plan"] = plan
             steps = plan["planned_steps"]
             assert isinstance(steps, list)
-            _, exit_code = run_steps(repo, steps, environment, timeout, outcomes)
+            if not steps:
+                print("validation-v2: NO CHANGED PATHS: no checks executed; not acceptance of a build", flush=True)
+            _, exit_code = run_steps(repo, steps, environment, timeout, outcomes,
+                                     log_directory=log_directory, keep_going=args.keep_going)
     except RunnerInterrupted as error:
         exit_code = 128 + error.number
         document["runner_signal"] = error.number
