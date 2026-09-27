@@ -949,6 +949,29 @@ fichero**; necesita la migracion de tests de B3 (mover cada `tests/` a un target
 feature `test-fixtures`) o una decision explicita que permita reclasificar lineas de produccion a test.
 El arbol se revirtio (`git checkout -- crates/`) y queda limpio, con la lib a 0 errores.
 
+### B7 en wow-world: la superficie de imports del modulo es compartida (conclusion, 2026-09-26)
+
+Segundo intento, mas preciso: en vez de borrar los imports "sin usar", moverlos al modulo `tests/` del
+propio modulo (donde la pasada de test los necesitaba). Resultado medido: **8 movimientos, y la lib cae
+con 23 errores** — `spell_acquisition/adapter.rs` necesita `SpellAcquisitionEffectLikeCpp`,
+`SpellAcquisitionCatalogLikeCpp`, `SpellChainStoreLikeCpp`, `SpellRequiredStoreLikeCpp` y
+`SKILL_RIDING_LIKE_CPP` que importa `spell_acquisition/mod.rs`; `handlers/chat/ops_1.rs` necesita
+`UnitState` que importa `handlers/chat.rs`. Revertido entero (automatico), arbol limpio.
+
+Conclusion definitiva, con las dos clases de error ya identificadas:
+
+- los imports que el compilador llama "sin usar" en los ficheros raiz de modulo de `wow-world` son la
+  **superficie compartida** que consumen (a) los submodulos de produccion del mismo modulo y (b) su
+  modulo `tests/` via `use super::*`;
+- por tanto **no son deuda muerta y no se retiran**: ni borrandolos (rompe tests) ni moviendolos a
+  `tests/` (rompe produccion). Los 167 avisos de `wow-world` quedan **fuera del alcance de B7** por
+  decision, no por pereza: tocarlos exige primero cambiar como se organizan los imports de cada modulo
+  (por ejemplo, que cada hijo importe lo suyo en vez de heredarlo del padre), y eso es un refactor de
+  imports por modulo, no una limpieza.
+
+Lo que si queda hecho de B7: 31 techos fisicos endurecidos, 34 declaraciones de dependencia y 10
+imports retirados **fuera** de wow-world, 1 defecto arreglado y 3 bloqueos documentados con evidencia.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
