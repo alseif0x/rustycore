@@ -1181,6 +1181,20 @@ que pueda confundir la ruta.
 El resto del trasvase (dependencias, autoreferencias, montaje de tests en `wow-world`, visibilidades y
 rutas `crate::map_manager::...`) ya esta resuelto; el intento se revirtio solo y el arbol quedo a 0 errores.
 
+### B6 `map_manager`: quinto intento, el ultimo metodo vive fuera del modulo (2026-09-27)
+
+Repetido el trasvase con un regex de visibilidad **generico** (`pub(...) fn NOMBRE`, cualquier ambito):
+otra vez **14 metodos ensanchados en 4 ficheros** y **1 sin encontrar** en el segundo ciclo. Como el
+bucle solo recorre el directorio movido, la conclusion es que **ese metodo esta definido fuera de
+`map_manager`** — en otro modulo de `wow-map` que implementa algo sobre un tipo movido, o sobre un tipo
+que ya vivia en `wow-map`. El script se revirtio solo; arbol limpio y workspace a 0 errores
+(`6671e70b`).
+
+Tarea exacta para el ultimo intento: **imprimir el nombre** del error `E0624` que queda (el script
+actual solo cuenta) y ensanchar su definicion **donde este** (buscar el nombre en todo `crates/wow-map`,
+no solo en el directorio movido), y despues repuntar las filas fisicas de los ficheros movidos. Todo lo
+demas del trasvase esta resuelto y verificado en los intentos anteriores.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
