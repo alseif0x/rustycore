@@ -1120,6 +1120,28 @@ documentado. Con eso el struct viaja a `wow-entities`, `wow-packet` gana la aris
 ultima arista prohibida `domain-runtime -> adapter-platform` desaparece, que es lo que desbloquea mover
 `map_manager` (6 721 lineas) a un crate `domain-runtime`.
 
+### B6 `map_manager`: primer intento de trasvase y obstaculos exactos (2026-09-27)
+
+Con las dos aristas prohibidas ya eliminadas, movi `crates/wow-world/src/map_manager/` a
+`wow-map` con re-export desde `wow-world`. El intento fallo en tres puntos concretos y se revirtio
+solo, dejando el arbol a 0 errores:
+
+1. **Autoreferencias por nombre de crate**: los ficheros movidos usan `wow_map::...` (correcto desde
+   `wow-world`, invalido dentro del propio crate). Son **2** referencias; se reescriben a `crate::`.
+2. **El montaje de tests**: `map_manager/mod.rs:226-227` hace
+   `#[path = "../map_manager_tests.rs"] mod tests;`, apuntando a un fichero que se queda en `wow-world`.
+   La solucion limpia es quitar ese `mod tests;` del modulo movido y montar los tests en `wow-world`
+   (`#[cfg(test)] mod map_manager_tests;`), porque las suites usan fixtures de la aplicacion.
+3. **Dependencias**: `wow-map` necesita declarar `wow-constants`, `wow-data`, `wow-movement`,
+   `wow-persistence`, `wow-recastdetour` (todas `foundation`/`domain-runtime`, permitidas) y
+   **`tracing`**, que es externa: exige anadir `tracing` a la superficie externa de `wow-map` en
+   `dependency-policy.json`. Ademas las filas fisicas de los ficheros movidos cambian de ruta y el
+   chequeo de tamano pedira el repunte (no un techo nuevo: solo el mismo fichero en su ruta nueva).
+
+El resto del modulo es **autoreferencial** (`pub(in crate::map_manager)`, `crate::map_manager::...`),
+asi que conserva sus rutas tal cual en el crate nuevo. Con esos tres arreglos el trasvase de las
+**6 721 lineas** es mecanico.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
