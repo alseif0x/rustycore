@@ -1078,6 +1078,28 @@ Regla que queda: **antes de crear una rama de ola, verificar que la base es la d
 (\`git fetch origin && git log --oneline origin/3.4.3 -1\`), nunca la copia local, y comprobar que el
 programa existe en la base (\`git cat-file -e <base>:docs/architecture/workspace-structure-programme.md\`).
 
+### B6 `create_data`: plano exacto para el siguiente intento (2026-09-27)
+
+Dos intentos, ambos revertidos sin dejar el arbol sucio, dejan el trabajo medido al detalle:
+
+- el tipo vive en `crates/wow-packet/src/packets/update/unit/create.rs` precedido de **comentario doc y
+  `#[derive(Debug, Clone)]`** (hay que moverlos con el struct, no solo el `pub struct`);
+- su `impl` tiene **tres** metodos: `pub fn write_values_create`, y los ayudantes privados
+  `fn write_object_data` y `fn write_unit_data` (un trait no puede declarar solo uno y dejar los otros
+  en el mismo `impl`; la salida limpia es declarar `write_values_create` en el trait y convertir los dos
+  ayudantes en **funciones libres** `write_object_data_like_cpp(data, buf)`, con dos puntos de llamada
+  internos que pasan `self`);
+- `wow-packet` **no** depende hoy de `wow-entities`: el movimiento exige la arista nueva
+  (`adapter-platform -> domain-runtime`, permitida) y declararla en su `Cargo.toml`;
+- el trait debe importarse donde se llama al metodo; el bucle guiado por compilador (errores `E0599` con
+  `write_values_create`) los localiza, y el resto de llamadas son de **otros** tipos que tambien tienen
+  ese metodo, asi que no se tocan.
+
+Error de proceso propio, para no repetirlo: el script de movimiento invocaba `cargo` antes de fijar
+`PATH`, aborto a mitad de edicion y dejo cuatro ficheros tocados (revertidos con `git checkout -- .`).
+Regla: en cualquier script que edite y compile, **exportar `PATH`/`CARGO_TARGET_DIR` en el mismo shell
+antes de la primera edicion**, o validar la fase de recoleccion sin tocar nada.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
