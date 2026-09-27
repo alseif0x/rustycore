@@ -913,6 +913,25 @@ no se anidan: esperan a que su dueno real se los lleve (Player/InstanceMap, el b
 `wow-entities::Player`). Con esto **la lista barata de B4 esta agotada**: lo que queda exige la
 proyeccion de `create_data` (B6) o cambio de dueno, no otro sub-estado.
 
+### B7, cuarto/quinto slice: defectos y hallazgos de avisos (2026-09-26)
+
+Arreglado: un **`#[test]` duplicado** en `wow-packet/src/packets/combat.rs` (el compilador avisaba
+`duplicated attribute`; ahora el test se registra una sola vez). `wow-packet` sigue con 754 tests
+verdes.
+
+Hallazgos registrados, **no silenciados**:
+
+- **Cluster de variables sin usar en `session/legacy_runtime/creature_movement_tick.rs`** (11+ avisos:
+  `filter_context`, `owner_capabilities`, `previous_poly_refs`, `avoided`). Prefijarlas con `_`
+  apagaria el aviso sin decidir nada; que el runtime legacy reciba contextos de pathfinding y no los use
+  es candidato a **defecto o a codigo transitorio deliberado**, y se investiga antes de tocar. Es el
+  siguiente trabajo real de B7 en wow-world.
+- **Falso positivo de `mut` entre cfg**: `handlers/loot/money.rs:48` avisa "variable does not need to be
+  mutable" en la pasada de lib y sin embargo la pasada de test **si** asigna dos veces; quitar el `mut`
+  rompe el build de test (`E0384`). Revertido: el aviso no es accionable sin reestructurar el flujo, y
+  silenciarlo o romper el test serian peores. Queda anotado como advertencia de metodo: los avisos de
+  `--all-targets` pueden venir de una sola de las dos configuraciones.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
