@@ -1062,6 +1062,22 @@ Dos lecciones operativas:
 Estado de la puerta: **verde en el tip actual**, con la suite completa de `wow-world` dentro de la
 misma campana.
 
+### Incidente de rama: base obsoleta y correccion (2026-09-27)
+
+La primera version de la rama de continuacion (\`584-wave-b2-map-manager\`) se creo desde la \`3.4.3\`
+**local**, que estaba en una linea antigua y divergente (punta \`d35f385a\`, 19-sep, de otro autor) sin
+la ola B ni los commits ajenos de \`.codex/\`/\`.agents/\`. El diff contra \`origin/3.4.3\` habria
+**revertido** trabajo ajeno y toda la ola B.
+
+Detectado al intentar actualizar este mismo programa: el fichero no existia en la rama. Correccion:
+rama recreada con \`git checkout -B 584-wave-b2-map-manager origin/3.4.3\`, retiradas de B7 reaplicadas
+sobre la base real (solo quedaba una), puntero local \`3.4.3\` forzado a \`origin/3.4.3\` y fuerza de
+push con \`--force-with-lease\`.
+
+Regla que queda: **antes de crear una rama de ola, verificar que la base es la de \`origin\`**
+(\`git fetch origin && git log --oneline origin/3.4.3 -1\`), nunca la copia local, y comprobar que el
+programa existe en la base (\`git cat-file -e <base>:docs/architecture/workspace-structure-programme.md\`).
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
