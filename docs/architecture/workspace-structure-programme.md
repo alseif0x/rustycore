@@ -972,6 +972,25 @@ Conclusion definitiva, con las dos clases de error ya identificadas:
 Lo que si queda hecho de B7: 31 techos fisicos endurecidos, 34 declaraciones de dependencia y 10
 imports retirados **fuera** de wow-world, 1 defecto arreglado y 3 bloqueos documentados con evidencia.
 
+### B7, piloto por modulo: `handlers/chat` limpio (2026-09-26)
+
+La conclusion anterior era demasiado amplia y el piloto la corrige. Clave medida: **un nombre que usa
+un modulo hijo NO genera aviso** (por eso `UnitState`, usado por `handlers/chat/ops_1.rs`, nunca se
+marco). Por tanto los avisos que quedan **si** son muertos dentro de todo el subarbol del modulo, y se
+retiran con la operacion quirurgica correcta: borrar **solo los nombres avisados** de su `use`, nunca la
+sentencia entera (que puede llevar nombres vivos al lado).
+
+Aplicado a `handlers/chat.rs`: retirados `ClientOpcodes` (de `use wow_constants::{ClientOpcodes,
+UnitState};`, que queda `use wow_constants::UnitState;`), y las sentencias completas
+`use wow_handler::{PacketProcessing, SessionStatus};` y
+`use crate::session::registry::PacketHandlerEntry;`, restos del traslado de registraciones de la ola A.
+Resultado: **4 nombres muertos menos, 0 avisos en ese fichero**, lib/tests/workspace a 0 errores.
+
+Regla afinada para el resto de wow-world: (1) borrar solo los nombres avisados; (2) si el unico usuario
+es el modulo `tests/`, envolver el import en `#[cfg(test)]` en lugar de borrarlo — permitido en los
+modulos **no auditados** por el ratchet, que es donde quedan avisos; (3) nunca mover sentencias enteras
+al modulo `tests/`, porque arrastran los nombres vivos que comparten.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
