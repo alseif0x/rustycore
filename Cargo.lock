@@ -3340,6 +3340,7 @@ dependencies = [
  "thiserror",
  "wow-constants",
  "wow-core",
+ "wow-entities",
  "wow-loot",
  "wow-movement",
 ]
