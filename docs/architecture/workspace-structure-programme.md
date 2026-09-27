@@ -1142,6 +1142,24 @@ El resto del modulo es **autoreferencial** (`pub(in crate::map_manager)`, `crate
 asi que conserva sus rutas tal cual en el crate nuevo. Con esos tres arreglos el trasvase de las
 **6 721 lineas** es mecanico.
 
+### B6 `map_manager`: segundo intento y los dos ultimos detalles (2026-09-27)
+
+Aplicados los tres arreglos anteriores, el intento bajo de **30 a 8 errores** y se revirtio solo otra
+vez (arbol limpio). Los dos detalles que faltan quedan medidos:
+
+1. **Resolucion de dependencias**: aunque el script anadia las seis a `[dependencies]` de `wow-map`,
+   la compilacion seguia diciendo `cannot find module or crate \`wow_constants\``. Hay que **verificar el
+   `Cargo.toml` resultante** (que las lineas entren en la seccion correcta y que el nombre de paquete
+   coincida) antes de culpar al codigo; es lo primero a comprobar en el proximo intento.
+2. **Los `pub use X::*;` del modulo movido**: `map_manager/mod.rs` reexporta sus hijos con
+   `pub use grid::*;`, `pub use pathfinder::*;`, etc. En `wow-world` resuelven por el arbol del crate;
+   dentro de `wow-map` hay que hacerlas explicitas como **`pub use self::grid::*;`** (y las otras
+   cuatro). Son cinco lineas, mecanicas.
+
+Con esos dos arreglos el trasvase de las **6 721 lineas** cierra: el resto (visibilidades
+`pub(in crate::map_manager)`, rutas `crate::map_manager::...`, montaje de tests en `wow-world` y las
+dependencias) ya esta resuelto o identificado.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
