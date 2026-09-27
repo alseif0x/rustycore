@@ -991,6 +991,27 @@ es el modulo `tests/`, envolver el import en `#[cfg(test)]` en lugar de borrarlo
 modulos **no auditados** por el ratchet, que es donde quedan avisos; (3) nunca mover sentencias enteras
 al modulo `tests/`, porque arrastran los nombres vivos que comparten.
 
+### B7: lotes de imports, leccion de proceso y veredictos por fichero (2026-09-26)
+
+Intente extender el piloto a los 19 avisos restantes en 15 ficheros no auditados con un solo lote
+automatizado. **Fallo por proceso, no por diseno**, y conviene dejarlo escrito:
+
+1. el script restauraba el fichero que fallaba y **seguia** al siguiente modo de build sin volver a
+   verificar, asi que termino con el arbol a medio limpiar;
+2. mi filtro de ficheros fallidos (`grep -oE '^crates/[^:]+'`) capturo tambien **lineas de aviso**, no
+   solo errores, y restauro de mas. Todo lo anterior estaba commiteado, asi que la recuperacion fue
+   `git checkout -- .` y el tip verde quedo intacto (`ccd3d205`, workspace a 0 errores).
+
+Reglas de proceso para el proximo intento: filtrar **solo** lineas con `: error`, restaurar por fichero
+y **volver a verificar tras cada restauracion**, y commitear el resultado parcial en cuanto pase.
+
+Veredictos medidos (ficheros cuyos `tests/` necesitan los nombres, y que por tanto piden `#[cfg(test)]`
+en lugar de borrado, permitido al no ser owners auditados): `handlers/trainer.rs` (`PacketHandlerEntry`,
+`ClientOpcodes`, `SessionStatus`, `PacketProcessing`), `spell_acquisition/mod.rs`
+(`SpellLearnSkillNodeLikeCpp`, `SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP`) y
+`handlers/spell.rs` (`ItemFieldFlags`, `ItemUpdateState`). Los demas ficheros del lote no fallaron: son
+candidatos directos a borrado con la operacion quirurgica ya probada en `handlers/chat.rs`.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
