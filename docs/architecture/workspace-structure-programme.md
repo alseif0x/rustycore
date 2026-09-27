@@ -1100,6 +1100,26 @@ Error de proceso propio, para no repetirlo: el script de movimiento invocaba `ca
 Regla: en cualquier script que edite y compile, **exportar `PATH`/`CARGO_TARGET_DIR` en el mismo shell
 antes de la primera edicion**, o validar la fase de recoleccion sin tocar nada.
 
+### B6 `create_data`: cuarto intento y por que se para aqui (2026-09-27)
+
+Con el plano anterior el movimiento llego a compilar casi entero y fallo en dos detalles que cierran el
+diagnostico: (1) los dos ayudantes privados usan **`self.` en su cuerpo** (mas de siete puntos), asi que
+convertirlos en funciones libres exige renombrar `self` -> `data` en ~150 lineas cada uno; (2) el
+`impl` original tenia un metodo con **`pub`**, que no es legal dentro de un `impl Trait for`. Cuatro
+intentos, todos revertidos con el arbol limpio y verde.
+
+Conclusion registrada: esta migracion **no es scripting mecanico**, es un refactor con atencion. El
+camino mas corto y seguro, para una sesion con contexto fresco, es:
+
+1. declarar el trait con **`write_values_create` + los dos ayudantes** (evita el renombrado de `self`),
+   aceptando que la superficie del trait crezca; o
+2. hacer el renombrado `self` -> `data` con revision, en su propio commit de movimiento.
+
+Se prefiere (1) por seguridad; el ensanchamiento es de un trait interno del crate de wire y queda
+documentado. Con eso el struct viaja a `wow-entities`, `wow-packet` gana la arista `wow-entities` y la
+ultima arista prohibida `domain-runtime -> adapter-platform` desaparece, que es lo que desbloquea mover
+`map_manager` (6 721 lineas) a un crate `domain-runtime`.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
