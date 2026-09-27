@@ -1210,6 +1210,24 @@ montaje de tests con su `#[cfg(test)]` colgante, las autoreferencias `wow_map::`
 hijos, las seis dependencias, 14 de 15 visibilidades y cuatro ficheros ensanchados. La distancia que
 queda es **un grep y una visibilidad**.
 
+### B6 `map_manager`: el trasvase llega al workspace (ultimo estado, 2026-09-27)
+
+El sexto intento dejo **`wow-map` y `wow-world` compilando limpios** y bajo al **workspace**: solo tres
+errores, todos `E0599 no method named seed_runtime_rng_like_cpp ... for struct WorldCreature` en las
+pruebas de `world-server`. El metodo existe en el modulo movido pero es **`#[cfg(test)]`**, asi que no
+es visible desde las pruebas de otro crate; no es un problema de visibilidad (`E0624`) sino de **gate de
+test**.
+
+Arreglo exacto para el siguiente intento: aplicar el patron ya establecido en el proyecto
+(`#[cfg(any(test, feature = "test-fixtures"))]` en la definicion y habilitar esa feature en la
+dependencia de `wow-map` que usan las pruebas de `world-server`), y despues repuntar las filas fisicas
+de los ficheros movidos. Es el mismo trabajo de B3 (test-fixtures) aplicado a un helper.
+
+Resumen del trasvase (6 intentos, todos revertidos con el arbol limpio y verde): 30 -> 8 -> 4 -> 1 -> 3
+(ya solo de gate de test); resueltos montaje de tests con su `#[cfg(test)]` colgante, autoreferencias,
+re-exports de hijos, seis dependencias, **15 visibilidades** (incluido el `pub(crate) const fn` que
+rompia el patron) y cuatro ficheros ensanchados a `pub`. La distancia que queda es **una feature**.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
