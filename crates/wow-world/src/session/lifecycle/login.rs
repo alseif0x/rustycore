@@ -19,13 +19,14 @@ impl WorldSession {
     /// Re-entry by this same session is idempotent; a live foreign claim is
     /// rejected before either session can load and later save stale rows.
     pub(crate) fn try_claim_character_login_like_cpp(&mut self, guid: ObjectGuid) -> bool {
-        if let Some(operation) = &self.finalization {
+        if let Some(operation) = &self.lifecycle.finalization {
             if operation.report().disposition != crate::FinalizationDisposition::Complete {
                 return false;
             }
-            self.finalization = None;
+            self.lifecycle.finalization = None;
         }
         if self
+            .lifecycle
             .player_login_claim_like_cpp
             .as_ref()
             .is_some_and(|(claimed_guid, _)| *claimed_guid == guid)
@@ -39,7 +40,7 @@ impl WorldSession {
             dashmap::mapref::entry::Entry::Vacant(entry) => {
                 let identity = Arc::new(());
                 entry.insert(Arc::downgrade(&identity));
-                self.player_login_claim_like_cpp = Some((guid, identity));
+                self.lifecycle.player_login_claim_like_cpp = Some((guid, identity));
                 true
             }
             dashmap::mapref::entry::Entry::Occupied(mut entry) => {
@@ -48,14 +49,14 @@ impl WorldSession {
                 }
                 let identity = Arc::new(());
                 entry.insert(Arc::downgrade(&identity));
-                self.player_login_claim_like_cpp = Some((guid, identity));
+                self.lifecycle.player_login_claim_like_cpp = Some((guid, identity));
                 true
             }
         }
     }
 
     pub(crate) fn release_character_login_claim_like_cpp(&mut self) {
-        let Some((guid, identity)) = self.player_login_claim_like_cpp.take() else {
+        let Some((guid, identity)) = self.lifecycle.player_login_claim_like_cpp.take() else {
             return;
         };
         let Some(claims) = ACTIVE_CHARACTER_LOGIN_CLAIMS_LIKE_CPP.get() else {

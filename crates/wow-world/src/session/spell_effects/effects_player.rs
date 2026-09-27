@@ -107,6 +107,7 @@ impl WorldSession {
         // Send it to one FIFO worker so SQL latency stays off the packet path
         // without allowing an older bind to finish after a newer one.
         let persistence_tx = self
+            .lifecycle
             .homebind_persistence_tx_like_cpp
             .get_or_insert_with(|| {
                 let (tx, mut rx) =

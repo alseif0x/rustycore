@@ -22,22 +22,22 @@ use super::WorldSession;
 impl WorldSession {
     /// Set the instance server address and port.
     pub fn set_instance_endpoint(&mut self, addr: [u8; 4], port: u16) {
-        self.connection.set_instance_endpoint(addr, port);
+        self.transport.connection.set_instance_endpoint(addr, port);
     }
 
     /// Get the instance server address.
     pub fn instance_address(&self) -> [u8; 4] {
-        self.connection.instance_address()
+        self.transport.connection.instance_address()
     }
 
     /// Get the instance server port.
     pub fn instance_port(&self) -> u16 {
-        self.connection.instance_port()
+        self.transport.connection.instance_port()
     }
 
     /// Set the ConnectTo key.
     pub fn set_connect_to_key(&mut self, key: Option<i64>) {
-        self.connection.set_connect_to_key(key);
+        self.transport.connection.set_connect_to_key(key);
     }
 
     /// Set the ConnectTo serial.
@@ -45,7 +45,7 @@ impl WorldSession {
         &mut self,
         serial: Option<wow_packet::packets::auth::ConnectToSerial>,
     ) {
-        self.connection.set_connect_to_serial(serial);
+        self.transport.connection.set_connect_to_serial(serial);
     }
 
     /// Set the instance link receiver.
@@ -53,17 +53,19 @@ impl WorldSession {
         &mut self,
         rx: Option<tokio::sync::oneshot::Receiver<InstanceLink>>,
     ) {
-        self.connection.set_instance_link_rx(rx);
+        self.transport.connection.set_instance_link_rx(rx);
     }
 
     /// Install the FIFO completion fence paired with the initial realm socket.
     pub fn set_send_write_fence_like_cpp(&mut self, fence: SocketWriteFenceLikeCpp) {
-        self.connection.set_send_write_fence_like_cpp(fence);
+        self.transport
+            .connection
+            .set_send_write_fence_like_cpp(fence);
     }
 
     /// The channel currently delivering client packets.
     pub(crate) fn packet_rx(&self) -> &flume::Receiver<wow_packet::WorldPacket> {
-        self.connection.packet_rx()
+        self.transport.connection.packet_rx()
     }
 
     /// The pending ConnectTo key, if a redirect is in flight.
@@ -71,7 +73,7 @@ impl WorldSession {
     /// transport state through the operations above, never field by field.
     #[cfg(test)]
     pub(crate) fn connect_to_key(&self) -> Option<i64> {
-        self.connection.connect_to_key()
+        self.transport.connection.connect_to_key()
     }
 
     /// Whether a ConnectTo serial is still recorded.
@@ -79,7 +81,7 @@ impl WorldSession {
     /// transport state through the operations above, never field by field.
     #[cfg(test)]
     pub(crate) fn has_connect_to_serial(&self) -> bool {
-        self.connection.has_connect_to_serial()
+        self.transport.connection.has_connect_to_serial()
     }
 
     /// Whether an instance link receiver is installed and still awaited.
@@ -87,7 +89,7 @@ impl WorldSession {
     /// transport state through the operations above, never field by field.
     #[cfg(test)]
     pub(crate) fn is_awaiting_instance_link(&self) -> bool {
-        self.connection.is_awaiting_instance_link()
+        self.transport.connection.is_awaiting_instance_link()
     }
 
     /// Whether a realm send channel is parked.
@@ -95,17 +97,17 @@ impl WorldSession {
     /// transport state through the operations above, never field by field.
     #[cfg(test)]
     pub(crate) fn has_parked_realm_send_channel(&self) -> bool {
-        self.connection.has_parked_realm_send_channel()
+        self.transport.connection.has_parked_realm_send_channel()
     }
 
     /// The channel a realm-routed packet takes.
     pub(crate) fn realm_route_tx(&self) -> &flume::Sender<Vec<u8>> {
-        self.connection.realm_route_tx()
+        self.transport.connection.realm_route_tx()
     }
 
     /// A clone of the parked realm receive channel.
     pub(crate) fn realm_packet_rx(&self) -> Option<flume::Receiver<wow_packet::WorldPacket>> {
-        self.connection.realm_packet_rx()
+        self.transport.connection.realm_packet_rx()
     }
 
     /// Replace the primary receive channel.
@@ -113,7 +115,7 @@ impl WorldSession {
     /// transport state through the operations above, never field by field.
     #[cfg(test)]
     pub(crate) fn set_packet_rx(&mut self, rx: flume::Receiver<wow_packet::WorldPacket>) {
-        self.connection.set_packet_rx(rx);
+        self.transport.connection.set_packet_rx(rx);
     }
 
     /// Park a realm receive channel directly.
@@ -125,12 +127,12 @@ impl WorldSession {
         &mut self,
         rx: flume::Receiver<wow_packet::WorldPacket>,
     ) {
-        self.connection.install_realm_packet_channel(rx);
+        self.transport.connection.install_realm_packet_channel(rx);
     }
 
     /// Drop the parked realm receive channel after its writer disconnected.
     pub(crate) fn clear_realm_packet_rx(&mut self) {
-        self.connection.clear_realm_packet_rx();
+        self.transport.connection.clear_realm_packet_rx();
     }
 
     /// Poll the instance link, then perform the session step it reports.
@@ -148,7 +150,11 @@ impl WorldSession {
         feature_policy: &super::SupportFeaturePolicyLikeCpp,
         player_grid_loader: &super::PlayerGridLoadResolverLikeCpp,
     ) {
-        match self.connection.poll_instance_link(self.account_id) {
+        match self
+            .transport
+            .connection
+            .poll_instance_link(self.account_id)
+        {
             InstanceLinkPollOutcome::Pending => {}
             InstanceLinkPollOutcome::Attached => {
                 // Continue the player login sequence on the instance socket
@@ -165,7 +171,7 @@ impl WorldSession {
                 .await;
             }
             InstanceLinkPollOutcome::Failed => {
-                self.player_loading = None;
+                self.lifecycle.player_loading = None;
                 self.release_character_login_claim_like_cpp();
             }
         }
@@ -198,25 +204,30 @@ impl WorldSession {
 
     /// Send a server packet on the **realm** connection.
     pub fn send_packet_realm(&self, pkt: &impl wow_packet::ServerPacket) {
-        self.connection
+        self.transport
+            .connection
             .send_realm_bytes(pkt.to_bytes(), self.account_id);
     }
 
     /// Send pre-serialized packet bytes on the realm connection.
     pub(crate) fn send_raw_packet_realm(&self, data: &[u8]) {
-        self.connection.send_raw_packet_realm(data, self.account_id);
+        self.transport
+            .connection
+            .send_raw_packet_realm(data, self.account_id);
     }
 
     /// Wait for instance packets to be written before emitting a realm packet.
     pub(crate) async fn wait_for_instance_send_before_realm_send_like_cpp(&self) -> bool {
-        self.connection
+        self.transport
+            .connection
             .wait_for_instance_send_before_realm_send_like_cpp(self.account_id)
             .await
     }
 
     /// Wait for realm packets to be written before emitting an instance update.
     pub(crate) async fn wait_for_realm_send_before_instance_update_like_cpp(&self) -> bool {
-        self.connection
+        self.transport
+            .connection
             .wait_for_realm_send_before_instance_update_like_cpp(self.account_id)
             .await
     }
@@ -224,13 +235,15 @@ impl WorldSession {
     /// Restore the realm socket as primary, and clear the login-loading state
     /// the kernel does not own.
     pub(crate) fn restore_realm_channels(&mut self) {
-        self.connection.restore_realm_channels(self.account_id);
-        self.player_loading = None;
+        self.transport
+            .connection
+            .restore_realm_channels(self.account_id);
+        self.lifecycle.player_loading = None;
     }
 
     #[cfg(test)]
     pub(crate) fn install_realm_send_channel_for_test(&mut self, tx: flume::Sender<Vec<u8>>) {
-        self.connection.install_realm_send_channel(tx);
+        self.transport.connection.install_realm_send_channel(tx);
     }
 
     #[cfg(test)]
@@ -238,6 +251,8 @@ impl WorldSession {
         &mut self,
         fence: SocketWriteFenceLikeCpp,
     ) {
-        self.connection.install_realm_send_write_fence(fence);
+        self.transport
+            .connection
+            .install_realm_send_write_fence(fence);
     }
 }

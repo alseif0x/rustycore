@@ -20,7 +20,7 @@ fn apply_player_session_visibility_detection_like_cpp(
 
 impl WorldSession {
     fn player_session_never_visible_for_seer_like_cpp(&self, guid: ObjectGuid) -> bool {
-        self.player_logout_like_cpp || self.player_loading == Some(guid)
+        self.lifecycle.player_logout_like_cpp || self.lifecycle.player_loading == Some(guid)
     }
     pub(crate) fn sync_current_player_session_visibility_detection_like_cpp(&mut self) {
         let Some(guid) = self.player_guid() else {
@@ -366,7 +366,8 @@ impl WorldSession {
             .await;
     }
     pub(crate) fn clear_pending_visibility_refresh_like_cpp(&self) {
-        self.visibility_refresh_pending_like_cpp
+        self.flags
+            .visibility_refresh_pending_like_cpp
             .store(false, Ordering::Release);
     }
     pub(crate) async fn flush_pending_visibility_refresh_with_catalogs_like_cpp(
@@ -377,6 +378,7 @@ impl WorldSession {
             return;
         }
         if self
+            .flags
             .visibility_refresh_pending_like_cpp
             .swap(false, Ordering::AcqRel)
         {

@@ -16,10 +16,7 @@ use std::collections::HashMap;
 use rand::Rng;
 use tracing::{debug, warn};
 
-use wow_constants::{
-    BagFamilyMask, ClientOpcodes, InventoryResult, ItemFieldFlags, ItemFlags, ItemUpdateState,
-    TypeId,
-};
+use wow_constants::{BagFamilyMask, ClientOpcodes, InventoryResult, ItemFlags, TypeId};
 use wow_core::ObjectGuid;
 use wow_data::{DISABLE_TYPE_SPELL, DisableWorldObjectRefLikeCpp};
 use wow_entities::INVENTORY_SLOT_BAG_0;

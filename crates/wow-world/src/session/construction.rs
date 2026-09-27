@@ -4,6 +4,21 @@
 //! Construction: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
+use crate::session::state::SessionAccountState;
+use crate::session::state::SessionAddonFilter;
+use crate::session::state::SessionAdmissionState;
+use crate::session::state::SessionDirectory;
+use crate::session::state::SessionDriverServices;
+use crate::session::state::SessionLifecycleState;
+use crate::session::state::SessionPhaseRail;
+use crate::session::state::SessionQuestState;
+use crate::session::state::SessionRealmPolicy;
+use crate::session::state::SessionSharedFlags;
+use crate::session::state::SessionSocialLimits;
+use crate::session::state::SessionSpellState;
+use crate::session::state::SessionTransport;
+use crate::session::state::SessionWorldView;
+
 #[cfg(test)]
 use super::BattlePetTestFixtureLikeCpp;
 use super::DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP;
@@ -91,15 +106,12 @@ impl WorldSession {
             maps: crate::catalogs::map::MapCatalogsLikeCpp::default(),
             spell_catalogs: crate::catalogs::spell::SpellCatalogsLikeCpp::default(),
             account_id,
-            battlenet_account_id: account_id,
-            realm_list_secret_like_cpp: [0; 32],
-            recruiter_id_like_cpp: 0,
-            is_a_recruiter_like_cpp: false,
+
             account_name,
             security,
             expansion,
             account_expansion,
-            server_expansion_like_cpp: 2,
+
             #[cfg(test)]
             characters_per_realm_like_cpp: 60,
             #[cfg(test)]
@@ -108,38 +120,26 @@ impl WorldSession {
             feature_system_bpay_store_enabled_like_cpp: false,
             #[cfg(test)]
             feature_system_character_undelete_enabled_like_cpp: false,
-            instance_ignore_raid_like_cpp: false,
-            instance_ignore_level_like_cpp: false,
-            max_instances_per_hour_like_cpp: 5,
+
             #[cfg(test)]
             player_bootstrap_catalog_test_fixture_like_cpp:
                 PlayerBootstrapCatalogTestFixtureLikeCpp::default(),
             build,
-            session_key,
             locale,
-            mute_time_like_cpp: 0,
-            connection,
+
             session_command_tx,
             session_command_rx,
-            session_phase_tx,
-            session_phase_rx,
-            last_phase_authority_like_cpp: [None, None],
+            phase: SessionPhaseRail {
+                tx: session_phase_tx,
+                rx: session_phase_rx,
+            },
+
             durable_creature_runtime_commands_like_cpp: Default::default(),
-            visibility_refresh_pending_like_cpp: Arc::new(AtomicBool::new(false)),
+
             state: SessionState::Authed,
-            last_packet_time: Instant::now(),
-            socket_timeouts_like_cpp: SocketTimeoutsLikeCpp::default(),
-            socket_timeout_deadline_like_cpp: Instant::now()
-                + Duration::from_secs(SocketTimeoutsLikeCpp::default().unauthenticated_secs),
-            packet_spoof_config_like_cpp: PacketSpoofConfigLikeCpp::default(),
-            packet_throttling_like_cpp: HashMap::new(),
-            remote_address_like_cpp: None,
-            pending_packet_spoof_ban_like_cpp: None,
+
             legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp::default(),
-            represented_runtime_rng_like_cpp: StdRng::from_entropy(),
-            dispatch_table: build_dispatch_table(),
-            homebind_persistence_tx_like_cpp: None,
-            persistence_ports_like_cpp: Box::default(),
+
             trainer_store_like_cpp: None,
             #[cfg(test)]
             bank_bag_slot_prices_store: None,
@@ -161,7 +161,7 @@ impl WorldSession {
             regen_game_tables: None,
             shield_block_regular_game_table: None,
             represented_creature_auras_like_cpp: Vec::new(),
-            represented_spell_execute_log_effects_like_cpp: Vec::new(),
+
             transmog_set_item_store: None,
             #[cfg(test)]
             item_price_base_store: None,
@@ -254,9 +254,117 @@ impl WorldSession {
             phase_store: None,
             phase_group_store: None,
             player_registry: None,
-            game_event_quest_complete_tx: None,
-            group_registry: None,
-            pending_invites: None,
+            addon_filter: SessionAddonFilter::default(),
+            spell_state: SessionSpellState {
+                legacy_spell_script_spell_ids_like_cpp: None,
+                spell_linked_rejected_trigger_spell_ids_like_cpp: None,
+                spell_script_all_rank_root_spell_ids_like_cpp: None,
+                spell_script_exact_spell_ids_like_cpp: None,
+                represented_offhand_check_at_spell_unlearn_like_cpp: true,
+                represented_spell_execute_log_effects_like_cpp: Vec::new(),
+                spell_acquisition_cast_authority_like_cpp: None,
+                spell_acquisition_craft_authority_like_cpp: None,
+            },
+            quest_state: SessionQuestState {
+                min_quest_scaled_xp_ratio_like_cpp: 0,
+                quest_high_level_hide_diff_like_cpp: 7,
+                quest_low_level_hide_diff_like_cpp: 4,
+                represented_quest_complete_status_updates_like_cpp: Vec::new(),
+                represented_quest_objective_progress_draining_like_cpp: false,
+                represented_quest_objective_progress_events_like_cpp: VecDeque::new(),
+                movement_visibility_refresh_requests_like_cpp: 0,
+            },
+            lifecycle: SessionLifecycleState {
+                account_data_like_cpp: default_account_data_like_cpp(),
+                battle_pet_account_attachment_like_cpp: None,
+                character_rename_callbacks: Default::default(),
+                durable_item_loot_persistence_like_cpp:
+                    DurableItemLootPersistenceTrackerLikeCpp::default(),
+                durable_loot_money_persistence_like_cpp: Arc::new(
+                    DurableLootMoneyPersistenceTrackerLikeCpp::default(),
+                ),
+                finalization: None,
+                homebind_persistence_tx_like_cpp: None,
+                level_played_time: 0,
+                login_time: None,
+                logout_time: None,
+                next_player_save_ms_like_cpp: DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP,
+                pending_periodic_player_save_like_cpp: false,
+                persistence_ports_like_cpp: Box::default(),
+                pet_load_query_holder_rows_like_cpp:
+                    lifecycle::PetLoadQueryHolderRowsLikeCpp::default(),
+                player_loading: None,
+                player_login_claim_like_cpp: None,
+                player_logout_like_cpp: false,
+                player_save_interval_ms_like_cpp: DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP,
+                total_played_time: 0,
+                tutorials_changed_like_cpp: false,
+                tutorials_like_cpp: [0; 8],
+                tutorials_loaded_coherently_like_cpp: false,
+                tutorials_loaded_from_db_like_cpp: false,
+            },
+            transport: SessionTransport {
+                connection,
+                remote_address_like_cpp: None,
+                session_key,
+                session_mgr: None,
+            },
+            admission: SessionAdmissionState {
+                dispatch_table: build_dispatch_table(),
+                last_packet_time: Instant::now(),
+                last_phase_authority_like_cpp: [None, None],
+                map_phase_coordinated_like_cpp: false,
+                packet_spoof_config_like_cpp: PacketSpoofConfigLikeCpp::default(),
+                packet_throttling_like_cpp: HashMap::new(),
+                pending_packet_spoof_ban_like_cpp: None,
+                pending_packets: VecDeque::new(),
+                socket_timeout_deadline_like_cpp: Instant::now()
+                    + Duration::from_secs(SocketTimeoutsLikeCpp::default().unauthenticated_secs),
+                socket_timeouts_like_cpp: SocketTimeoutsLikeCpp::default(),
+            },
+            realm_policy: SessionRealmPolicy {
+                realm_battlegroup: 1,
+                realm_region: 1,
+                realm_names_like_cpp: BTreeMap::from([(
+                    0x0101_0001,
+                    ("RustyCore".to_string(), "RustyCore".to_string()),
+                )]),
+                realm_list_secret_like_cpp: [0; 32],
+                server_expansion_like_cpp: 2,
+                max_instances_per_hour_like_cpp: 5,
+                instance_ignore_level_like_cpp: false,
+                instance_ignore_raid_like_cpp: false,
+            },
+            account_state: SessionAccountState {
+                battlenet_account_id: account_id,
+                is_a_recruiter_like_cpp: false,
+                recruiter_id_like_cpp: 0,
+                legit_characters: Vec::new(),
+                recent_player_guid_low_like_cpp: 0,
+                mute_time_like_cpp: 0,
+            },
+            flags: SessionSharedFlags {
+                advanced_combat_logging_enabled_like_cpp: Arc::new(AtomicBool::new(false)),
+                visibility_refresh_pending_like_cpp: Arc::new(AtomicBool::new(false)),
+            },
+            view: SessionWorldView {
+                is_pvp_realm_like_cpp: false,
+                is_ffa_pvp_realm_like_cpp: false,
+                combat_tick_last_at_like_cpp: Instant::now(),
+                last_presented_creature_melee_health_state_revision_like_cpp: 0,
+                taxi_node_map_ids_like_cpp: HashMap::new(),
+                active_area_trigger: None,
+            },
+            driver: SessionDriverServices {
+                time_synchronization: TimeSynchronizationStateLikeCpp::default(),
+                represented_runtime_rng_like_cpp: StdRng::from_entropy(),
+            },
+            social: SessionSocialLimits {
+                max_recruit_a_friend_bonus_player_level_like_cpp: 85,
+                max_recruit_a_friend_bonus_player_level_difference_like_cpp: 4,
+                chat_flood_data_like_cpp: [ChatFloodThrottleDataLikeCpp::default(); 2],
+            },
+            directory: SessionDirectory::default(),
             #[cfg(test)]
             group_guid: None,
             #[cfg(test)]
@@ -274,12 +382,7 @@ impl WorldSession {
             #[cfg(test)]
             represented_gray_level_script_overrides_like_cpp: HashMap::new(),
             realm_id: 1,
-            realm_region: 1,
-            realm_battlegroup: 1,
-            realm_names_like_cpp: BTreeMap::from([(
-                0x0101_0001,
-                ("RustyCore".to_string(), "RustyCore".to_string()),
-            )]),
+
             #[cfg(test)]
             guid_generator: None,
             #[cfg(test)]
@@ -288,29 +391,10 @@ impl WorldSession {
             equipment_set_guid_generator_like_cpp: None,
             #[cfg(test)]
             void_storage_item_id_generator_like_cpp: None,
-            legit_characters: Vec::new(),
-            pending_packets: VecDeque::new(),
-            character_rename_callbacks: Default::default(),
-            player_loading: None,
-            player_login_claim_like_cpp: None,
-            player_logout_like_cpp: false,
-            finalization: None,
-            session_mgr: None,
-            time_synchronization: TimeSynchronizationStateLikeCpp::default(),
-            logout_time: None,
-            login_time: None,
-            player_save_interval_ms_like_cpp: DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP,
-            next_player_save_ms_like_cpp: DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP,
-            pending_periodic_player_save_like_cpp: false,
-            total_played_time: 0,
-            level_played_time: 0,
+
             max_player_level_config_like_cpp: 80,
             max_primary_trade_skills_like_cpp:
                 crate::profession::DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP,
-            is_pvp_realm_like_cpp: false,
-            is_ffa_pvp_realm_like_cpp: false,
-            max_recruit_a_friend_bonus_player_level_like_cpp: 85,
-            max_recruit_a_friend_bonus_player_level_difference_like_cpp: 4,
             #[cfg(test)]
             rest_mgr_test_fixture_like_cpp: RestMgrTestFixtureLikeCpp::default(),
             #[cfg(test)]
@@ -363,20 +447,16 @@ impl WorldSession {
             exploration_base_xp_store: None,
             #[cfg(test)]
             exploration_xp_rate_like_cpp: 1.0,
-            min_quest_scaled_xp_ratio_like_cpp: 0,
+
             #[cfg(test)]
             min_discovered_scaled_xp_ratio_like_cpp: 0,
             #[cfg(test)]
             selection_guid: None,
             player_guid: None,
-            recent_player_guid_low_like_cpp: 0,
+
             #[cfg(test)]
             player_bootstrap_attached_like_cpp: false,
-            account_data_like_cpp: default_account_data_like_cpp(),
-            tutorials_like_cpp: [0; 8],
-            tutorials_loaded_from_db_like_cpp: false,
-            tutorials_loaded_coherently_like_cpp: false,
-            tutorials_changed_like_cpp: false,
+
             pending_creature_spawn: None,
             pending_creature_kill_loot_like_cpp: Vec::new(),
             pending_creature_kill_rewards_like_cpp: Vec::new(),
@@ -407,8 +487,7 @@ impl WorldSession {
             represented_guild_repair_bank_withdraws_like_cpp: Vec::new(),
             #[cfg(test)]
             player_currencies: HashMap::new(),
-            represented_quest_objective_progress_events_like_cpp: VecDeque::new(),
-            represented_quest_objective_progress_draining_like_cpp: false,
+
             #[cfg(test)]
             inventory_item_objects: HashMap::new(),
             current_map_id: 0,
@@ -455,8 +534,6 @@ impl WorldSession {
             represented_mover_fixed_position_vehicle_like_cpp: false,
             #[cfg(test)]
             player_name: None,
-            registered_addon_prefixes: Vec::new(),
-            filter_addon_messages: false,
             creature_tick: 0,
             vendor_item_counts: HashMap::new(),
             #[cfg(test)]
@@ -464,11 +541,10 @@ impl WorldSession {
             map_manager: None,
             canonical_map_manager: None,
             player_handle_like_cpp: None,
-            map_phase_coordinated_like_cpp: false,
+
             mmap_pathfinder_like_cpp: None,
             #[cfg(test)]
             combat_target: None,
-            combat_tick_last_at_like_cpp: Instant::now(),
             #[cfg(test)]
             in_combat: false,
             #[cfg(test)]
@@ -485,7 +561,6 @@ impl WorldSession {
             player_health_like_cpp: 100,
             #[cfg(test)]
             player_max_health_like_cpp: 100,
-            last_presented_creature_melee_health_state_revision_like_cpp: 0,
             #[cfg(test)]
             player_movement_time_like_cpp: 0,
             #[cfg(test)]
@@ -520,10 +595,10 @@ impl WorldSession {
             represented_action_buttons_like_cpp: [0; wow_packet::packets::misc::MAX_ACTION_BUTTONS],
             #[cfg(test)]
             represented_action_buttons_loaded_like_cpp: false,
-            advanced_combat_logging_enabled_like_cpp: Arc::new(AtomicBool::new(false)),
+
             #[cfg(test)]
             player_moved_unit_guid_like_cpp: ObjectGuid::EMPTY,
-            movement_visibility_refresh_requests_like_cpp: 0,
+
             #[cfg(test)]
             movement_ack_events_like_cpp: Vec::new(),
             #[cfg(test)]
@@ -555,7 +630,6 @@ impl WorldSession {
             represented_void_storage_loaded_like_cpp: false,
             #[cfg(test)]
             represented_adventure_map_start_quest_requests_like_cpp: Vec::new(),
-            taxi_node_map_ids_like_cpp: HashMap::new(),
             #[cfg(test)]
             taxi_flight_state_like_cpp: None,
             #[cfg(test)]
@@ -622,8 +696,7 @@ impl WorldSession {
             represented_pet_stable_like_cpp: PetStable::default(),
             #[cfg(test)]
             represented_character_pet_rows_empty_authority_complete_like_cpp: false,
-            pet_load_query_holder_rows_like_cpp: lifecycle::PetLoadQueryHolderRowsLikeCpp::default(
-            ),
+
             #[cfg(test)]
             represented_pet_created_by_spell_like_cpp: 0,
             #[cfg(test)]
@@ -741,12 +814,7 @@ impl WorldSession {
             player_equipment_inventory_authority_complete_like_cpp: false,
             #[cfg(test)]
             canonical_threat_aura_snapshots_like_cpp: HashMap::new(),
-            spell_acquisition_cast_authority_like_cpp: None,
-            spell_acquisition_craft_authority_like_cpp: None,
-            spell_script_exact_spell_ids_like_cpp: None,
-            spell_script_all_rank_root_spell_ids_like_cpp: None,
-            legacy_spell_script_spell_ids_like_cpp: None,
-            spell_linked_rejected_trigger_spell_ids_like_cpp: None,
+
             talent_store: None,
             num_talents_at_level_store: None,
             power_type_store: None,
@@ -771,8 +839,7 @@ impl WorldSession {
             object_mgr_catalogs_like_cpp: None,
             gameobject_template_lifecycle_store_like_cpp: None,
             quest_poi_store_like_cpp: None,
-            quest_low_level_hide_diff_like_cpp: 4,
-            quest_high_level_hide_diff_like_cpp: 7,
+
             #[cfg(test)]
             quest_test_fixture_like_cpp: QuestTestFixtureLikeCpp::default(),
             #[cfg(test)]
@@ -791,12 +858,12 @@ impl WorldSession {
             represented_transmog_illusions_like_cpp: HashSet::new(),
             #[cfg(test)]
             battle_pet_test_fixture_like_cpp: BattlePetTestFixtureLikeCpp::default(),
-            battle_pet_account_attachment_like_cpp: None,
+
             #[cfg(test)]
             represented_completed_achievements_like_cpp: HashSet::new(),
             #[cfg(test)]
             represented_instance_reset_times_like_cpp: BTreeMap::new(),
-            represented_quest_complete_status_updates_like_cpp: Vec::new(),
+
             #[cfg(test)]
             represented_explored_zones_like_cpp: [0; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
             #[cfg(test)]
@@ -839,11 +906,7 @@ impl WorldSession {
             active_loot_view_owners: std::collections::HashSet::new(),
             active_loot_view_generations_like_cpp: std::collections::HashMap::new(),
             active_loot_view_authorities_like_cpp: std::collections::HashMap::new(),
-            durable_item_loot_persistence_like_cpp:
-                DurableItemLootPersistenceTrackerLikeCpp::default(),
-            durable_loot_money_persistence_like_cpp: Arc::new(
-                DurableLootMoneyPersistenceTrackerLikeCpp::default(),
-            ),
+
             #[cfg(test)]
             module_registry_like_cpp: None,
             represented_loot_rolls: std::collections::HashMap::new(),
@@ -867,7 +930,7 @@ impl WorldSession {
             durability_loss_on_death_rate_like_cpp: 0.1,
             stats_limits_like_cpp: wow_data::StatsLimitsLikeCpp::default(),
             reset_schedule_like_cpp: wow_instances::ResetSchedule::default(),
-            represented_offhand_check_at_spell_unlearn_like_cpp: true,
+
             vmap_indoor_check_like_cpp: false,
             #[cfg(test)]
             represented_is_outdoors_like_cpp: None,
@@ -897,7 +960,6 @@ impl WorldSession {
             chat_listen_ranges_like_cpp: ChatListenRangesLikeCpp::default(),
             #[cfg(test)]
             chat_flood_config_like_cpp: ChatFloodConfigLikeCpp::default(),
-            chat_flood_data_like_cpp: [ChatFloodThrottleDataLikeCpp::default(); 2],
             mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp::default(),
             waypoint_path_resolver_like_cpp: None,
             represented_unique_gameobject_uses: std::collections::HashSet::new(),
@@ -936,7 +998,6 @@ impl WorldSession {
             player_interaction_data_like_cpp: PlayerInteractionDataLikeCpp::default(),
             #[cfg(test)]
             gossip_options: Vec::new(),
-            active_area_trigger: None,
             #[cfg(test)]
             pending_teleport: None,
             instance_lock_mgr: None,
@@ -946,17 +1007,19 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn seed_represented_runtime_rng_like_cpp(&mut self, seed: u64) {
-        self.represented_runtime_rng_like_cpp = StdRng::seed_from_u64(seed);
+        self.driver.represented_runtime_rng_like_cpp = StdRng::seed_from_u64(seed);
     }
 
     pub(crate) fn represented_urand_u32_like_cpp(&mut self, min: u32, max: u32) -> u32 {
         if min >= max {
             return min;
         }
-        self.represented_runtime_rng_like_cpp.gen_range(min..=max)
+        self.driver
+            .represented_runtime_rng_like_cpp
+            .gen_range(min..=max)
     }
 
     pub(crate) fn represented_runtime_subrng_like_cpp(&mut self) -> StdRng {
-        StdRng::seed_from_u64(self.represented_runtime_rng_like_cpp.next_u64())
+        StdRng::seed_from_u64(self.driver.represented_runtime_rng_like_cpp.next_u64())
     }
 }

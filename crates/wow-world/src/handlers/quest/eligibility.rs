@@ -456,7 +456,7 @@ impl WorldSession {
         self.player_level_like_cpp() as i32
             > quest
                 .quest_level
-                .saturating_add(self.quest_low_level_hide_diff_like_cpp as i32)
+                .saturating_add(self.quest_state.quest_low_level_hide_diff_like_cpp as i32)
     }
 
     fn satisfy_quest_level_represented_like_cpp(
@@ -530,7 +530,7 @@ impl WorldSession {
 
         self.satisfy_quest_race_class_represented_like_cpp(quest)
             && i32::from(self.player_level_like_cpp())
-                .saturating_add(self.quest_high_level_hide_diff_like_cpp as i32)
+                .saturating_add(self.quest_state.quest_high_level_hide_diff_like_cpp as i32)
                 >= quest.min_level
     }
 

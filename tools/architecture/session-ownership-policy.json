@@ -19,13 +19,6 @@
           "source_class": "production"
         },
         {
-          "name": "account_data_like_cpp",
-          "type": "[AccountDataLikeCpp ; NUM_ACCOUNT_DATA_TYPES]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "account_expansion",
           "type": "u8",
           "visibility": "pub",
@@ -56,8 +49,8 @@
           "source_class": "production"
         },
         {
-          "name": "active_area_trigger",
-          "type": "Option < u32 >",
+          "name": "account_state",
+          "type": "SessionAccountState",
           "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
@@ -136,9 +129,16 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "advanced_combat_logging_enabled_like_cpp",
-          "type": "Arc < AtomicBool >",
-          "visibility": "pub (in crate :: session)",
+          "name": "addon_filter",
+          "type": "SessionAddonFilter",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "name": "admission",
+          "type": "SessionAdmissionState",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -231,13 +231,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "battle_pet_account_attachment_like_cpp",
-          "type": "Option < BattlePetAccountAttachmentLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "battle_pet_test_fixture_like_cpp",
           "type": "BattlePetTestFixtureLikeCpp",
           "visibility": "pub (crate)",
@@ -254,13 +247,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "battlenet_account_id",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "build",
@@ -304,13 +290,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "character_rename_callbacks",
-          "type": "driver :: RenameCallbacks",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "characters_per_realm_like_cpp",
           "type": "u32",
           "visibility": "pub (in crate :: session)",
@@ -336,13 +315,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "chat_flood_data_like_cpp",
-          "type": "[ChatFloodThrottleDataLikeCpp ; 2]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "chat_level_requirements_like_cpp",
@@ -416,22 +388,8 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "combat_tick_last_at_like_cpp",
-          "type": "Instant",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "condition_store",
           "type": "Option < Arc < ConditionEntriesByTypeStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "connection",
-          "type": "wow_session :: SessionConnection",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -574,6 +532,13 @@
           "source_class": "production"
         },
         {
+          "name": "directory",
+          "type": "SessionDirectory",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "disable_mgr",
           "type": "Option < Arc < DisableMgrLikeCpp > >",
           "visibility": "pub (in crate :: session)",
@@ -581,8 +546,8 @@
           "source_class": "production"
         },
         {
-          "name": "dispatch_table",
-          "type": "HashMap < ClientOpcodes , & 'static PacketHandlerEntry >",
+          "name": "driver",
+          "type": "SessionDriverServices",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -636,20 +601,6 @@
         {
           "name": "durable_creature_runtime_commands_like_cpp",
           "type": "Arc < std :: sync :: Mutex < crate :: session :: mailbox :: DurableCreatureRuntimeCommandsLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "durable_item_loot_persistence_like_cpp",
-          "type": "DurableItemLootPersistenceTrackerLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "durable_loot_money_persistence_like_cpp",
-          "type": "Arc < DurableLootMoneyPersistenceTrackerLikeCpp >",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -748,23 +699,16 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "filter_addon_messages",
-          "type": "bool",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "finalization",
-          "type": "Option < crate :: finalization :: SessionFinalization >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "fishing_base_skill_store",
           "type": "Option < Arc < FishingBaseSkillStoreLikeCpp > >",
           "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "name": "flags",
+          "type": "SessionSharedFlags",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -780,13 +724,6 @@
         {
           "name": "friendship_rep_reaction_store",
           "type": "Option < Arc < FriendshipRepReactionStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "game_event_quest_complete_tx",
-          "type": "Option < flume :: Sender < GameEventQuestCompleteCommandLikeCpp > >",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -849,13 +786,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "group_registry",
-          "type": "Option < Arc < GroupRegistry > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "guid_generator",
           "type": "Option < Arc < ObjectGuidGenerator > >",
           "visibility": "pub (in crate :: session)",
@@ -881,13 +811,6 @@
           "source_class": "production"
         },
         {
-          "name": "homebind_persistence_tx_like_cpp",
-          "type": "Option < tokio :: sync :: mpsc :: UnboundedSender < HomebindPersistenceJobLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "import_price_stores",
           "type": "Option < Arc < ImportPriceStores > >",
           "visibility": "pub (in crate :: session)",
@@ -904,20 +827,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "instance_ignore_level_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "instance_ignore_raid_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "instance_lock_mgr",
@@ -943,27 +852,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "is_a_recruiter_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "is_ffa_pvp_realm_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "is_pvp_realm_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "item_class_store",
@@ -1050,27 +938,6 @@
           "source_class": "production"
         },
         {
-          "name": "last_packet_time",
-          "type": "Instant",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "last_phase_authority_like_cpp",
-          "type": "[Option < (u64 , u64) > ; 2]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "last_presented_creature_melee_health_state_revision_like_cpp",
-          "type": "u64",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "last_spell_cast_time",
           "type": "Option < Instant >",
           "visibility": "pub (crate)",
@@ -1103,27 +970,6 @@
           "source_class": "production"
         },
         {
-          "name": "legacy_spell_script_spell_ids_like_cpp",
-          "type": "Option < Arc < BTreeSet < u32 > > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "legit_characters",
-          "type": "Vec < ObjectGuid >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "level_played_time",
-          "type": "u32",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "lfg_dungeon_store_like_cpp",
           "type": "Option < Arc < LfgDungeonStoreLikeCpp > >",
           "visibility": "pub (in crate :: session)",
@@ -1136,6 +982,13 @@
           "name": "lfg_dungeons_store",
           "type": "Option < Arc < LfgDungeonsStore > >",
           "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "name": "lifecycle",
+          "type": "SessionLifecycleState",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -1159,20 +1012,6 @@
           "name": "lock_store",
           "type": "Option < Arc < LockStore > >",
           "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "login_time",
-          "type": "Option < Instant >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "logout_time",
-          "type": "Option < Instant >",
-          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -1250,23 +1089,9 @@
           "source_class": "production"
         },
         {
-          "name": "map_phase_coordinated_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "maps",
           "type": "crate :: catalogs :: map :: MapCatalogsLikeCpp",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "max_instances_per_hour_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
         },
@@ -1285,20 +1110,6 @@
           "source_class": "production"
         },
         {
-          "name": "max_recruit_a_friend_bonus_player_level_difference_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "max_recruit_a_friend_bonus_player_level_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "min_discovered_scaled_xp_ratio_like_cpp",
           "type": "u32",
           "visibility": "pub (crate)",
@@ -1306,13 +1117,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "min_quest_scaled_xp_ratio_like_cpp",
-          "type": "u32",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "mmap_pathfinder_like_cpp",
@@ -1517,22 +1321,8 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "movement_visibility_refresh_requests_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "movie_store",
           "type": "Option < Arc < MovieStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "mute_time_like_cpp",
-          "type": "i64",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -1565,13 +1355,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "next_player_save_ms_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "num_talents_at_level_store",
           "type": "Option < Arc < NumTalentsAtLevelStore > >",
           "visibility": "pub (in crate :: session)",
@@ -1586,20 +1369,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "packet_spoof_config_like_cpp",
-          "type": "PacketSpoofConfigLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "packet_throttling_like_cpp",
-          "type": "HashMap < u16 , PacketCounterLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "paragon_reputation_store",
@@ -1664,34 +1433,6 @@
           "source_class": "production"
         },
         {
-          "name": "pending_invites",
-          "type": "Option < Arc < PendingInvites > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "pending_packet_spoof_ban_like_cpp",
-          "type": "Option < PacketSpoofPendingBanLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "pending_packets",
-          "type": "VecDeque < WorldPacket >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "pending_periodic_player_save_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "pending_teleport",
           "type": "Option < (u32 , wow_core :: Position) >",
           "visibility": "pub (in crate :: session)",
@@ -1701,15 +1442,8 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "persistence_ports_like_cpp",
-          "type": "Box < SessionPersistencePortsLikeCpp >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "pet_load_query_holder_rows_like_cpp",
-          "type": "lifecycle :: PetLoadQueryHolderRowsLikeCpp",
+          "name": "phase",
+          "type": "SessionPhaseRail",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -2000,27 +1734,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "player_loading",
-          "type": "Option < ObjectGuid >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "player_login_claim_like_cpp",
-          "type": "Option < (ObjectGuid , Arc < () >) >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "player_logout_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "player_max_health_like_cpp",
           "type": "u32",
           "visibility": "pub (in crate :: session)",
@@ -2235,13 +1948,6 @@
           "source_class": "production"
         },
         {
-          "name": "player_save_interval_ms_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "player_scale_duration_like_cpp",
           "type": "i32",
           "visibility": "pub (in crate :: session)",
@@ -2380,22 +2086,15 @@
           "source_class": "production"
         },
         {
-          "name": "quest_high_level_hide_diff_like_cpp",
-          "type": "u32",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "quest_low_level_hide_diff_like_cpp",
-          "type": "u32",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "quest_poi_store_like_cpp",
           "type": "Option < Arc < HashMap < i32 , wow_packet :: packets :: query :: QuestPoiData > > >",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "name": "quest_state",
+          "type": "SessionQuestState",
           "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
@@ -2424,13 +2123,6 @@
           "source_class": "production"
         },
         {
-          "name": "realm_battlegroup",
-          "type": "u8",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "realm_id",
           "type": "u16",
           "visibility": "pub (in crate :: session)",
@@ -2438,57 +2130,15 @@
           "source_class": "production"
         },
         {
-          "name": "realm_list_secret_like_cpp",
-          "type": "[u8 ; 32]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "realm_names_like_cpp",
-          "type": "BTreeMap < u32 , (String , String) >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "realm_region",
-          "type": "u8",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "recent_player_guid_low_like_cpp",
-          "type": "u64",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "recruiter_id_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
+          "name": "realm_policy",
+          "type": "SessionRealmPolicy",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
         {
           "name": "regen_game_tables",
           "type": "Option < Arc < RegenGameTablesLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "registered_addon_prefixes",
-          "type": "Vec < String >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "remote_address_like_cpp",
-          "type": "Option < String >",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -3260,13 +2910,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "represented_offhand_check_at_spell_unlearn_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "represented_old_pet_spell_like_cpp",
           "type": "u32",
           "visibility": "pub (in crate :: session)",
@@ -3432,27 +3075,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "represented_quest_complete_status_updates_like_cpp",
-          "type": "Vec < RepresentedQuestCompleteStatusUpdateLikeCpp >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_quest_objective_progress_draining_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_quest_objective_progress_events_like_cpp",
-          "type": "VecDeque < RepresentedQuestObjectiveProgressEventLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "represented_repop_at_graveyard_count",
           "type": "u32",
           "visibility": "pub (crate)",
@@ -3478,13 +3100,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_runtime_rng_like_cpp",
-          "type": "StdRng",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "represented_self_res_spells_like_cpp",
@@ -3530,13 +3145,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_spell_execute_log_effects_like_cpp",
-          "type": "Vec < wow_packet :: packets :: combat :: SpellLogEffect >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "represented_spell_history_packets_like_cpp",
@@ -3836,13 +3444,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "server_expansion_like_cpp",
-          "type": "u8",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "session_command_rx",
           "type": "flume :: Receiver < SessionCommand >",
           "visibility": "pub (in crate :: session)",
@@ -3852,34 +3453,6 @@
         {
           "name": "session_command_tx",
           "type": "flume :: Sender < SessionCommand >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "session_key",
-          "type": "Vec < u8 >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "session_mgr",
-          "type": "Option < Arc < SessionManager > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "session_phase_rx",
-          "type": "flume :: Receiver < crate :: session :: mailbox :: SessionPhaseRequestLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "session_phase_tx",
-          "type": "flume :: Sender < crate :: session :: mailbox :: SessionPhaseRequestLikeCpp >",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -3913,30 +3486,9 @@
           "source_class": "production"
         },
         {
-          "name": "socket_timeout_deadline_like_cpp",
-          "type": "Instant",
+          "name": "social",
+          "type": "SessionSocialLimits",
           "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "socket_timeouts_like_cpp",
-          "type": "SocketTimeoutsLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_acquisition_cast_authority_like_cpp",
-          "type": "Option < Arc < crate :: spell_acquisition :: SpellAcquisitionCastAuthorityLikeCpp > >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_acquisition_craft_authority_like_cpp",
-          "type": "Option < Arc < crate :: spell_acquisition :: SpellAcquisitionCraftValidityAuthorityLikeCpp > >",
-          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -3948,23 +3500,9 @@
           "source_class": "production"
         },
         {
-          "name": "spell_linked_rejected_trigger_spell_ids_like_cpp",
-          "type": "Option < Arc < BTreeSet < u32 > > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_script_all_rank_root_spell_ids_like_cpp",
-          "type": "Option < Arc < BTreeSet < u32 > > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_script_exact_spell_ids_like_cpp",
-          "type": "Option < Arc < BTreeSet < u32 > > >",
-          "visibility": "pub (in crate :: session)",
+          "name": "spell_state",
+          "type": "SessionSpellState",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -4051,13 +3589,6 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "taxi_node_map_ids_like_cpp",
-          "type": "HashMap < u32 , u16 >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "taxi_unit_flags_like_cpp",
           "type": "UnitFlags",
           "visibility": "pub (in crate :: session)",
@@ -4097,20 +3628,6 @@
           "name": "terrain_swap_store",
           "type": "Option < Arc < wow_data :: TerrainSwapStore > >",
           "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "time_synchronization",
-          "type": "TimeSynchronizationStateLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "total_played_time",
-          "type": "u32",
-          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -4159,36 +3676,15 @@
           "source_class": "production"
         },
         {
+          "name": "transport",
+          "type": "SessionTransport",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "trinity_string_store",
           "type": "Option < Arc < TrinityStringStoreLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "tutorials_changed_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "tutorials_like_cpp",
-          "type": "[u32 ; 8]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "tutorials_loaded_coherently_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "tutorials_loaded_from_db_like_cpp",
-          "type": "bool",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -4249,8 +3745,8 @@
           "source_class": "production"
         },
         {
-          "name": "visibility_refresh_pending_like_cpp",
-          "type": "Arc < AtomicBool >",
+          "name": "view",
+          "type": "SessionWorldView",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -31053,7 +30549,7 @@
           "kind": "method",
           "name": "load_character_reputation_rows_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn load_character_reputation_rows_like_cpp (& mut self , rows : impl IntoIterator < Item = crate :: reputation :: mgr :: CharacterReputationRowLikeCpp > ,) -> bool",
+          "signature": "fn load_character_reputation_rows_like_cpp (& mut self , rows : impl IntoIterator < Item = wow_progression :: mgr :: CharacterReputationRowLikeCpp > ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -68633,7 +68129,7 @@
           "cfg": [
             "cfg_attr (not (test) , allow (unused_variables))"
           ],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -68723,7 +68219,7 @@
           "cfg": [
             "cfg_attr (not (test) , allow (unused_variables))"
           ],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -68798,7 +68294,7 @@
           "cfg": [
             "cfg_attr (not (test) , allow (unused_variables))"
           ],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -68884,7 +68380,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -68949,7 +68445,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -69001,7 +68497,7 @@
           "symbol": "group_registry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -69027,7 +68523,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -69053,7 +68549,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -69066,7 +68562,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -69365,7 +68861,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -69404,7 +68900,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -69456,7 +68952,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -69638,7 +69134,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -69716,7 +69212,7 @@
           "symbol": "pending_invites",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . pending_invites",
+          "fingerprint": "self . directory . pending_invites",
           "count": 1
         },
         {
@@ -69729,7 +69225,7 @@
           "symbol": "registry",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . pending_invites . as_ref ()",
+          "fingerprint": "self . directory . pending_invites . as_ref ()",
           "count": 1
         },
         {
@@ -70054,7 +69550,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70158,7 +69654,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70184,7 +69680,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70249,7 +69745,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70301,7 +69797,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70366,7 +69862,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70405,7 +69901,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70522,7 +70018,7 @@
           "symbol": "group_registry",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70535,7 +70031,7 @@
           "symbol": "registry",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . group_registry . as_ref ()",
+          "fingerprint": "self . directory . group_registry . as_ref ()",
           "count": 1
         },
         {
@@ -70548,7 +70044,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70626,7 +70122,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70756,7 +70252,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70808,7 +70304,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70873,7 +70369,7 @@
           "symbol": "group_registry",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -70912,7 +70408,7 @@
           "symbol": "pending_invites",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . pending_invites",
+          "fingerprint": "self . directory . pending_invites",
           "count": 1
         },
         {
@@ -70938,7 +70434,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -71205,20 +70701,7 @@
           "package": "wow-world",
           "module": "crate::session::state",
           "source": "crates/wow-world/src/session/state.rs",
-          "enclosing": "struct WorldSession",
-          "registry": "PlayerRegistry",
-          "operation": "type_reference",
-          "symbol": "player_registry",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "fingerprint": "Option < Arc < PlayerRegistry > >",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::state",
-          "source": "crates/wow-world/src/session/state.rs",
-          "enclosing": "struct WorldSession",
+          "enclosing": "struct SessionDirectory",
           "registry": "GroupRegistry",
           "operation": "type_reference",
           "symbol": "group_registry",
@@ -71231,13 +70714,26 @@
           "package": "wow-world",
           "module": "crate::session::state",
           "source": "crates/wow-world/src/session/state.rs",
-          "enclosing": "struct WorldSession",
+          "enclosing": "struct SessionDirectory",
           "registry": "PendingInvites",
           "operation": "type_reference",
           "symbol": "pending_invites",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "fingerprint": "Option < Arc < PendingInvites > >",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::state",
+          "source": "crates/wow-world/src/session/state.rs",
+          "enclosing": "struct WorldSession",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "player_registry",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "fingerprint": "Option < Arc < PlayerRegistry > >",
           "count": 1
         },
         {
@@ -71302,7 +70798,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -71380,7 +70876,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . group_registry",
+          "fingerprint": "self . directory . group_registry",
           "count": 1
         },
         {
@@ -82360,7 +81856,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:f06ccd93c7a1c0ef38f0bf259f0d159e:len=87156|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:594889279f7c710e15d60504eb571919:len=77086|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

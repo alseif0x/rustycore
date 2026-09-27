@@ -31,7 +31,6 @@ pub type ReputationMgrMutLikeCpp<'a> = ReputationMgrLikeCpp<&'a mut PlayerReputa
 /// Production always borrows the canonical Player's state; owning a copy here
 /// would be the second authority #735 retires, so this constructor exists only
 /// under `cfg(test)`.
-#[cfg(test)]
 impl ReputationMgrLikeCpp<PlayerReputationStateLikeCpp> {
     #[must_use]
     pub fn new_like_cpp() -> Self {
@@ -76,7 +75,7 @@ impl<S: std::borrow::BorrowMut<PlayerReputationStateLikeCpp>> ReputationMgrLikeC
     /// Install a previously read state, as a fixture that reinstalls a Player
     /// owner does. This is a whole-state assignment and has no production
     /// caller: a transition uses the named operations instead.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn replace_state_like_cpp(&mut self, state: PlayerReputationStateLikeCpp) {
         *self.state_mut() = state;
     }

@@ -105,7 +105,7 @@ impl WorldSession {
         self.chat_flood_config_like_cpp = config;
     }
     pub fn set_remote_address_like_cpp(&mut self, address: Option<String>) {
-        self.remote_address_like_cpp = address;
+        self.transport.remote_address_like_cpp = address;
     }
     #[cfg(test)]
     pub(crate) fn chat_fake_message_preventing_like_cpp(&self) -> bool {

@@ -67,7 +67,7 @@ async fn set_faction_inactive_marks_visible_state_like_cpp() {
     let (mut session, send_rx) = make_session();
     session
         .reputation_mgr_like_cpp_mut()
-        .insert_state_for_test_like_cpp(crate::reputation::mgr::FactionStateLikeCpp::new_like_cpp(
+        .insert_state_for_test_like_cpp(wow_progression::mgr::FactionStateLikeCpp::new_like_cpp(
             72,
             4,
             ReputationFlagsLikeCpp::VISIBLE,

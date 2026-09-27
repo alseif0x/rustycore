@@ -445,12 +445,17 @@ impl WorldSession {
 
     pub(crate) fn current_played_time_values_like_cpp(&self) -> (u32, u32) {
         let session_secs: u32 = self
+            .lifecycle
             .login_time
             .map(|time| time.elapsed().as_secs() as u32)
             .unwrap_or(0);
         (
-            self.total_played_time.saturating_add(session_secs),
-            self.level_played_time.saturating_add(session_secs),
+            self.lifecycle
+                .total_played_time
+                .saturating_add(session_secs),
+            self.lifecycle
+                .level_played_time
+                .saturating_add(session_secs),
         )
     }
 

@@ -223,7 +223,7 @@ impl WorldSession {
         slot: u8,
     ) -> Item {
         let max_durability = self.item_template_max_durability(entry_id).max(durability);
-        let mut item = Item::new(i64::from(self.total_played_time));
+        let mut item = Item::new(i64::from(self.lifecycle.total_played_time));
         item.initialize_created_state(ItemCreateInfo {
             guid: item_guid,
             item_id: entry_id,

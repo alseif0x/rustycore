@@ -95,14 +95,14 @@ impl WorldSession {
     /// C++ `WorldSession::Update` logout decision, on the `ProcessUnsafe()`
     /// branch reserved for the world filter (`WorldSession.cpp:498-503`).
     pub(crate) fn run_logout_timer_like_cpp(&mut self) {
-        let Some(logout_time) = self.logout_time else {
+        let Some(logout_time) = self.lifecycle.logout_time else {
             return;
         };
         self.record_driver_phase_like_cpp(
             crate::session::driver::phases::SessionDriverPhaseLikeCpp::LogoutTimer,
         );
         if std::time::Instant::now() >= logout_time {
-            self.logout_time = None;
+            self.lifecycle.logout_time = None;
             self.complete_logout();
         }
     }
@@ -113,11 +113,11 @@ impl WorldSession {
     /// that pass's diff, then the query callbacks. Neither depends on a packet
     /// having been dispatched, so both run for an empty pass too.
     pub(crate) fn run_map_phase_tail_like_cpp(&mut self, diff_ms: u32) {
-        if self.state == SessionState::LoggedIn && self.time_synchronization.timer_ms > 0 {
-            if diff_ms >= self.time_synchronization.timer_ms {
+        if self.state == SessionState::LoggedIn && self.driver.time_synchronization.timer_ms > 0 {
+            if diff_ms >= self.driver.time_synchronization.timer_ms {
                 self.send_time_sync();
             } else {
-                self.time_synchronization.timer_ms -= diff_ms;
+                self.driver.time_synchronization.timer_ms -= diff_ms;
             }
         }
         self.process_ready_character_rename_callbacks_like_cpp();
@@ -210,14 +210,14 @@ impl WorldSession {
     /// The rail the canonical producer addresses this session's phases through.
     #[must_use]
     pub fn session_phase_sender_like_cpp(&self) -> flume::Sender<SessionPhaseRequestLikeCpp> {
-        self.session_phase_tx.clone()
+        self.phase.tx.clone()
     }
 
     /// A receiving handle for the same rail, for the task that owns this
     /// session and parks on it between phases.
     #[must_use]
     pub fn session_phase_receiver_like_cpp(&self) -> flume::Receiver<SessionPhaseRequestLikeCpp> {
-        self.session_phase_rx.clone()
+        self.phase.rx.clone()
     }
 
     /// Whether a request comes from the authority this session is serving.
@@ -235,7 +235,7 @@ impl WorldSession {
             PacketUpdatePhase::World => 0,
             PacketUpdatePhase::Map => 1,
         };
-        let accepted = match self.last_phase_authority_like_cpp[slot] {
+        let accepted = match self.admission.last_phase_authority_like_cpp[slot] {
             Some((last_coordinator, _)) if coordinator_id < last_coordinator => false,
             Some((last_coordinator, last_epoch))
                 if coordinator_id == last_coordinator && tick_epoch <= last_epoch =>
@@ -245,7 +245,7 @@ impl WorldSession {
             _ => true,
         };
         if accepted {
-            self.last_phase_authority_like_cpp[slot] = Some((coordinator_id, tick_epoch));
+            self.admission.last_phase_authority_like_cpp[slot] = Some((coordinator_id, tick_epoch));
         }
         accepted
     }
@@ -257,7 +257,7 @@ impl WorldSession {
     /// wait for and nothing half-done. Returns how many were refused.
     pub fn refuse_pending_phase_requests_like_cpp(&mut self) -> usize {
         let mut refused = 0;
-        while let Ok(request) = self.session_phase_rx.try_recv() {
+        while let Ok(request) = self.phase.rx.try_recv() {
             refused += 1;
             self.refuse_requested_session_phase_like_cpp(request);
         }

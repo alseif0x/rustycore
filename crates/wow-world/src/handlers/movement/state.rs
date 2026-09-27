@@ -2,8 +2,6 @@
 //!
 //! Separated from the movement.rs root under #654. Behaviour is preserved.
 
-use super::*;
-
 // C++ `HandleMoveSetVehicleRecAck` has no session-visible side effect, so
 // the #142 wire-dispatch test proves reachability with a test-only call
 // counter instead of inventing production state.

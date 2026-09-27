@@ -394,6 +394,7 @@ impl WorldSession {
         // radius/direction behavior; terrain raycast/first-collision remains
         // part of the full map/path runtime work.
         let distance = self
+            .driver
             .represented_runtime_rng_like_cpp
             .gen_range(0.0..=radius);
         let angle = caster_position.orientation - std::f32::consts::FRAC_PI_4;

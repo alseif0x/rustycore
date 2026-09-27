@@ -564,7 +564,7 @@ impl WorldSession {
     ) -> Option<i32> {
         let candidates = self.represented_mount_aura_display_candidates_like_cpp(spell_id);
         candidates
-            .choose(&mut self.represented_runtime_rng_like_cpp)
+            .choose(&mut self.driver.represented_runtime_rng_like_cpp)
             .copied()
     }
 

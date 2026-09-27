@@ -4,8 +4,6 @@
 
 use super::*;
 
-use super::*;
-
 fn guid(low: i64) -> ObjectGuid {
     ObjectGuid::new(0, low)
 }

@@ -247,9 +247,8 @@ impl MapManager {
         slot: CreatureAnimKitSlotLikeCpp,
         anim_kit_id: u16,
         anim_kit_exists: impl Fn(u16) -> bool,
+        encode_anim_kit: impl Fn(CreatureAnimKitSlotLikeCpp, ObjectGuid, u16) -> Vec<u8>,
     ) -> Option<RuntimeEvent> {
-        use wow_packet::ServerPacket;
-
         let creature = self.find_creature_mut(map_id, instance_id, guid)?;
         if anim_kit_id != 0 && !anim_kit_exists(anim_kit_id) {
             return None;
@@ -291,23 +290,7 @@ impl MapManager {
             return None;
         }
 
-        let packet_bytes = match slot {
-            CreatureAnimKitSlotLikeCpp::Ai => wow_packet::packets::misc::SetAiAnimKit {
-                unit: guid,
-                anim_kit_id,
-            }
-            .to_bytes(),
-            CreatureAnimKitSlotLikeCpp::Movement => wow_packet::packets::misc::SetMovementAnimKit {
-                unit: guid,
-                anim_kit_id,
-            }
-            .to_bytes(),
-            CreatureAnimKitSlotLikeCpp::Melee => wow_packet::packets::misc::SetMeleeAnimKit {
-                unit: guid,
-                anim_kit_id,
-            }
-            .to_bytes(),
-        };
+        let packet_bytes = encode_anim_kit(slot, guid, anim_kit_id);
         let source_position = creature.position();
         let range = creature.visibility_range_like_cpp();
         Some(RuntimeEvent {

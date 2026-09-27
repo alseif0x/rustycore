@@ -110,6 +110,7 @@ impl WorldSession {
             };
 
             let destination_map_id = self
+                .view
                 .taxi_node_map_ids_like_cpp
                 .get(&destination_node_id)
                 .copied();

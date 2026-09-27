@@ -1,4 +1,7 @@
 use super::*;
+use crate::session::registry::PacketHandlerEntry;
+use wow_constants::ClientOpcodes;
+use wow_handler::{PacketProcessing, SessionStatus};
 
 #[tokio::test]
 async fn definite_trainer_commit_failure_never_charges_grants_or_publishes() {

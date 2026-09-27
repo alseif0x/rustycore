@@ -268,7 +268,10 @@ impl WorldSession {
         }) {
             return false;
         }
-        self.pet_load_query_holder_rows_like_cpp.spells.clear();
+        self.lifecycle
+            .pet_load_query_holder_rows_like_cpp
+            .spells
+            .clear();
         true
     }
     /// C++ `Player::RemovePet(nullptr, PET_SAVE_NOT_IN_SLOT, true)`.

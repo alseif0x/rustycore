@@ -307,9 +307,9 @@ fn player_save_plan_marks_dirty_state_only_after_commit_like_cpp() {
         ])
     );
 
-    session.tutorials_loaded_coherently_like_cpp = true;
-    session.tutorials_loaded_from_db_like_cpp = false;
-    session.tutorials_changed_like_cpp = true;
+    session.lifecycle.tutorials_loaded_coherently_like_cpp = true;
+    session.lifecycle.tutorials_loaded_from_db_like_cpp = false;
+    session.lifecycle.tutorials_changed_like_cpp = true;
 
     session.mark_represented_equipment_sets_loaded_like_cpp();
     let mut changed_equipment = RepresentedEquipmentSetLikeCpp::equipment(
@@ -322,10 +322,10 @@ fn player_save_plan_marks_dirty_state_only_after_commit_like_cpp() {
 
     session
         .reputation_mgr_like_cpp_mut()
-        .insert_state_for_test_like_cpp(crate::reputation::mgr::FactionStateLikeCpp {
+        .insert_state_for_test_like_cpp(wow_progression::mgr::FactionStateLikeCpp {
             standing: 123,
             flags: ReputationFlagsLikeCpp::VISIBLE,
-            ..crate::reputation::mgr::FactionStateLikeCpp::new_like_cpp(
+            ..wow_progression::mgr::FactionStateLikeCpp::new_like_cpp(
                 85,
                 14,
                 ReputationFlagsLikeCpp::VISIBLE,
@@ -346,8 +346,8 @@ fn player_save_plan_marks_dirty_state_only_after_commit_like_cpp() {
     ));
     assert!(committed.equipment_sets);
     assert!(committed.reputation);
-    assert!(session.tutorials_changed_like_cpp);
-    assert!(!session.tutorials_loaded_from_db_like_cpp);
+    assert!(session.lifecycle.tutorials_changed_like_cpp);
+    assert!(!session.lifecycle.tutorials_loaded_from_db_like_cpp);
     assert_eq!(
         session
             .complete_represented_player_spell_rows_like_cpp()
@@ -375,7 +375,7 @@ fn player_save_plan_marks_dirty_state_only_after_commit_like_cpp() {
 
     session.mark_current_player_save_to_db_committed_like_cpp(&committed);
 
-    assert!(!session.tutorials_changed_like_cpp);
+    assert!(!session.lifecycle.tutorials_changed_like_cpp);
     assert_eq!(
         session
             .complete_represented_player_spell_rows_like_cpp()
@@ -384,7 +384,7 @@ fn player_save_plan_marks_dirty_state_only_after_commit_like_cpp() {
         Some(RepresentedPlayerSpellStateLikeCpp::Unchanged),
         "successful Player::SaveToDB consumes the same dirty state as C++ _SaveSpells"
     );
-    assert!(session.tutorials_loaded_from_db_like_cpp);
+    assert!(session.lifecycle.tutorials_loaded_from_db_like_cpp);
     assert_eq!(
         session
             .represented_equipment_set_like_cpp(900)
@@ -693,17 +693,17 @@ fn player_save_timer_marks_periodic_save_due_like_cpp() {
     let (mut session, _, _) = make_session();
     session.set_player_save_interval_ms_like_cpp(100);
 
-    assert_eq!(session.next_player_save_ms_like_cpp, 100);
-    assert!(!session.pending_periodic_player_save_like_cpp);
+    assert_eq!(session.lifecycle.next_player_save_ms_like_cpp, 100);
+    assert!(!session.lifecycle.pending_periodic_player_save_like_cpp);
 
     session.update_player_save_timer_like_cpp(99);
-    assert_eq!(session.next_player_save_ms_like_cpp, 1);
-    assert!(!session.pending_periodic_player_save_like_cpp);
+    assert_eq!(session.lifecycle.next_player_save_ms_like_cpp, 1);
+    assert!(!session.lifecycle.pending_periodic_player_save_like_cpp);
 
     session.update_player_save_timer_like_cpp(1);
-    assert_eq!(session.next_player_save_ms_like_cpp, 0);
+    assert_eq!(session.lifecycle.next_player_save_ms_like_cpp, 0);
     assert!(
-        session.pending_periodic_player_save_like_cpp,
+        session.lifecycle.pending_periodic_player_save_like_cpp,
         "C++ Player::Update calls SaveToDB when m_nextSave expires; Rust marks the async save pending"
     );
 }

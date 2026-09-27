@@ -465,13 +465,14 @@ async fn player_visibility_refresh_survives_full_command_queue_like_cpp() {
     let mut receiver_info =
         broadcast_info_with_command(receiver_guid, receiver_send_tx, full_command_tx);
     receiver_info.visibility_refresh_pending_like_cpp =
-        Arc::clone(&receiver.visibility_refresh_pending_like_cpp);
+        Arc::clone(&receiver.flags.visibility_refresh_pending_like_cpp);
     source_registry.register_or_replace(receiver_guid, receiver_info, Default::default());
 
     source.notify_other_players_visibility_changed_like_cpp();
 
     assert!(
         receiver
+            .flags
             .visibility_refresh_pending_like_cpp
             .load(Ordering::Acquire),
         "a full bounded queue must retain the C++ visibility notification"
@@ -488,6 +489,7 @@ async fn player_visibility_refresh_survives_full_command_queue_like_cpp() {
 
     assert!(
         !receiver
+            .flags
             .visibility_refresh_pending_like_cpp
             .load(Ordering::Acquire)
     );

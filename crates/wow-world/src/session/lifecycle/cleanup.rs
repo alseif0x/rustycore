@@ -51,14 +51,24 @@ impl WorldSession {
     }
 
     pub fn cleanup_shared_runtime_state(&mut self) -> FinalizationOutcome {
-        if self.finalization.as_ref().is_some_and(|operation| {
-            operation.report().disposition == crate::FinalizationDisposition::Complete
-        }) {
+        if self
+            .lifecycle
+            .finalization
+            .as_ref()
+            .is_some_and(|operation| {
+                operation.report().disposition == crate::FinalizationDisposition::Complete
+            })
+        {
             return FinalizationOutcome::NoWork;
         }
-        if self.finalization.as_ref().is_some_and(|operation| {
-            operation.report().disposition != crate::FinalizationDisposition::Complete
-        }) {
+        if self
+            .lifecycle
+            .finalization
+            .as_ref()
+            .is_some_and(|operation| {
+                operation.report().disposition != crate::FinalizationDisposition::Complete
+            })
+        {
             return FinalizationOutcome::Unavailable;
         }
         self.unregister_from_player_registry();

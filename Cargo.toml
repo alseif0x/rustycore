@@ -16,6 +16,7 @@ members = [
     # ECS + Game Core
     "crates/wow-world",
     "crates/wow-conditions",
+    "crates/wow-progression",
     "crates/wow-spell-acquisition",
     "crates/wow-map",
     "crates/wow-movement",
@@ -75,7 +76,6 @@ rustls-pemfile = "2"
 # Protobuf
 prost = "0.13"
 prost-build = "0.13"
-prost-types = "0.13"
 
 # ECS
 
@@ -91,7 +91,6 @@ anyhow = "1"
 bitflags = "2"
 num-derive = "0.4"
 num-traits = "0.2"
-strum = { version = "0.26", features = ["derive"] }
 
 # Cryptography
 num-bigint = "0.4"
@@ -122,7 +121,6 @@ libc = "0.2"
 inventory = "0.3"
 
 # Allocation
-bumpalo = { version = "3", features = ["collections"] }
 
 # Buffer management
 bytes = "1"
@@ -140,14 +138,11 @@ smallvec = { version = "1", features = ["union", "const_generics"] }
 
 # HTTP / Hyper
 hyper = { version = "1", features = ["http1", "http2", "server"] }
-hyper-util = { version = "0.1", features = ["tokio", "server-auto", "http1", "http2", "service"] }
 
 # HTTP client
-reqwest = { version = "0.12", features = ["json"] }
 
 # Misc
 once_cell = "1"
-cfg-if = "1"
 
 # Workspace crates
 wow-core = { path = "crates/wow-core" }
@@ -163,6 +158,7 @@ wow-network = { path = "crates/wow-network" }
 wow-proto = { path = "crates/wow-proto" }
 wow-world = { path = "crates/wow-world" }
 wow-conditions = { path = "crates/wow-conditions" }
+wow-progression = { path = "crates/wow-progression" }
 wow-spell-acquisition = { path = "crates/wow-spell-acquisition" }
 wow-map = { path = "crates/wow-map" }
 wow-movement = { path = "crates/wow-movement" }

@@ -13,7 +13,6 @@ tracing = { workspace = true }
 num-traits = { workspace = true }
 rand = { workspace = true }
 sha2 = { workspace = true }
-ed25519-dalek = { workspace = true }
 flume = { workspace = true }
 dashmap = { workspace = true }
 wow-core = { workspace = true }

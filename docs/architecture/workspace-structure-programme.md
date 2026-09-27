@@ -114,7 +114,7 @@ curso, `[x]` cerrada con commit.
 ```
 A0.1 [x]  A0.2 [x]  A0.3 [x]  A0.4 [~]  A0.5 [x]  A0.6 [x]  A0.7 [x]   <- ola A: PUERTA VERDE
 A1 [x]  A2 [x]  A3 [x]
-B1 [x] e719ac38   B2 [ ]  B3 [ ]  B4 [ ]  B5 [ ]  B6 [ ]  B7 [ ]
+B1 [x] e719ac38   B2 [x] 98c5b14a   B3 [ ]  B4 [~]  B5 [ ]  B6 [ ]  B7 [ ]
 C1 [ ]  C2 [ ]  C3 [ ]  C4 [ ]
 D1 [ ]  D2 [ ]  D3 [ ]  D4 [ ]  D5 [ ]
 E1 [ ]  E2 [ ]  E3 [ ]  E4 [ ]
@@ -397,3 +397,680 @@ convenciones de nomenclatura, conservando su clasificacion de dependencia.
 Leccion registrada: **la auditoria en Python y `xtask check-layers` deben coincidir**; cuando
 discrepen, manda la politica (`dependency-policy.json`) y se corrige la herramienta que se
 desvie.
+
+### B2: segundo slice verificado-negativo y preparacion de B4 (2026-09-25)
+
+**`entity_update_bridge` se queda en la aplicacion.** El plan lo enviaba a `wow-entities`, pero
+importa `wow_packet` (3 usos): moverlo alli crearia la arista `domain-runtime -> adapter-platform`
+que la politica prohibe. Es una **frontera entidad -> wire**, asi que su sitio es la app (o, mas
+adelante, un crate de categoria `adapter-platform` con contrato propio). Igual criterio para
+`profession` y `trainer_offer`, que ademas tocan `session`: van despues de B4.
+
+**B4 (partir el tipo Dios): analisis previo, con datos.** `WorldSession` tiene **221 campos de
+produccion** repartidos en las familias del ledger. Tamanos (produccion):
+
+| campos | familia |
+|---:|---|
+| 1 | `player_identity_login_bootstrap` |
+| 1 | `session_selected_player_binding` |
+| 1 | `test_only_fixtures` |
+| 3 | `player_social_chat_calendar_and_group_views` |
+| 3 | `session_driver_timers_and_transitional_misc` |
+| 4 | `directory_group_and_social_coordination` |
+| 4 | `transport_and_physical_connections` |
+| 6 | `player_movement_combat_and_visibility` |
+| 9 | `mailbox_and_cross_session_delivery` |
+| 11 | `packet_admission_dispatch` |
+| 15 | `player_spells_quests_and_progression` |
+| 16 | `player_inventory_loot_and_economy` |
+| 22 | `session_identity_account_and_realm_policy` |
+| 23 | `persistence_and_session_lifecycle` |
+| 25 | `map_runtime_creature_gameobject_and_visibility` |
+| 77 | `immutable_catalogs_configuration_and_services` |
+
+**Primer corte recomendado**: la familia mas pequena con cohesión real y sin ser el nucleo de
+identidad/conexion, es decir **`directory_group_and_social_coordination`** (4 campos:
+`group_registry`, `pending_invites`, `game_event_quest_complete_tx`), seguida de
+`session_driver_timers_and_transitional_misc` (3) y `player_social_chat_calendar_and_group_views`
+(3). No se empieza por `transport_and_physical_connections` ni
+`session_identity_account_and_realm_policy`: son centrales y su radio de llamadas es enorme.
+
+**Metodo para cada sub-estado** (sin romper nada):
+1. Declarar el sub-estructo en `session/state.rs` y mover alli SOLO los campos de la familia.
+2. Exponer dos accesores estrechos: `pub(in crate::session) fn <nombre>(&mut self) -> &mut SubEstado`
+   y su version de lectura. Un dueño, ningun espejo.
+3. Mover a `impl SubEstado` los metodos que solo tocan esa familia; el resto de llamadores se
+   repunta con `cargo check -p wow-world` como guia.
+4. Cuando el sub-estado tenga contrato completo y ningun `&mut WorldSession` haga falta, se puede
+   convertir en crate de dominio; hasta entonces es un modulo privado de la app.
+5. Cualquier cambio de comportamiento va en su propio commit, con ancla C++.
+
+### B4, primer intento: revertido y pitfall registrado (2026-09-25)
+
+Intente sacar a `SessionDirectory` los tres campos de directorio social de la familia
+`directory_group_and_social_coordination` (dejando `player_registry`, que tiene 58 ficheros de radio,
+para su propio slice). El movimiento de campos y el inicializador anidado funcionan, pero la
+**reescritura de puntos de uso es mas delicada de lo que asumi**:
+
+- **Existen metodos accesores con el mismo nombre que los campos** (`fn pending_invites(&self)`).
+  Una sustitucion global de `.<campo>` convierte tambien las *llamadas* `self.pending_invites()` en
+  `self.directory.pending_invites()`, que el compilador rechaza. La reescritura debe distinguir
+  acceso a campo de llamada a metodo (p. ej. por el parentesis siguiente) o, mejor, mover primero
+  los metodos al `impl` del sub-estructo y dejar que los llamadores usen el accesor.
+- La visibilidad efectiva de los tres campos era `pub(crate)`, no `pub(in crate::session)`: hay
+  consumidores en `crates/wow-world/src/handlers/**`. El sub-estructo y su campo contenedor deben
+  nacer con esa visibilidad, no ensancharla despues.
+- Hay un `use` que debe acompanar al tipo en cada fichero que lo nombre (`construction.rs`), y el
+  chequeo de propiedades de campos de `WorldSession` deja de contar los campos anidados: al mover
+  la familia, la census de `session-ownership-policy.json` baja de 221 campos de produccion y hay
+  que regenerarla con delta revisado.
+
+El intento se revirtio sin dejar el arbol sucio; la rama sigue verde. Se retoma con el metodo
+corregido: mover campos, mover metodos al `impl` del sub-estructo, y repuntar solo accesos (no
+llamadas), con `cargo check` entre pasos.
+
+### B4, primer slice ejecutado: `SessionDirectory` (2026-09-25)
+
+`WorldSession` pierde tres declaraciones de campo (`game_event_quest_complete_tx`, `group_registry`,
+`pending_invites`) hacia el sub-estado nombrado `SessionDirectory`, declarado junto a su dueno con la
+visibilidad mas estrecha (`pub(in crate::session)`, la que ya tenian los campos: no se ensancha
+nada). Los tres accesores (`set_group_registry`, `group_registry`, `pending_invites`) y sus 39
+llamadores en `handlers/**` conservan la frontera, asi que no cambia ningun paquete, ninguna
+persistencia ni ninguna autoridad; la construccion usa el `Default` derivado. `player_registry`
+queda para su propio slice por radio de llamadas.
+
+Lo que el intento anterior no habia visto, ahora medido:
+
+- **El ledger de hotspot es un ratchet de crecimiento, no una medida libre.** Mover una familia a un
+  sub-estado *anade* lineas de produccion al agregado logico (`session/mod.rs`), y el unico modo de
+  que el slice cierre es registrar el crecimiento revisado en `runtime-ownership-ledger.json`
+  (`latest_growth_review`) o retirar lineas equivalentes. Este slice cuesta **+3 lineas** de
+  produccion (227862 -> 227865 totales) y se registro con la revision completa: sin segunda
+  autoridad, espejo, cerrojo, reloj ni tarea. Las lineas bajan a cero cuando el sub-estado tenga
+  contrato y salga del arbol.
+- **Retirar imports "muertos" no es un atajo valido.** Los 9 imports que el chequeo de produccion
+  marca como no usados en `session/{state,construction}.rs` los usa codigo `#[cfg(test)]` del mismo
+  fichero; borrarlos rompe los tests, y marcarlos `#[cfg(test)]` solo traslada lineas de produccion a
+  lineas de test, que el mismo ratchet tambien limita. Se revirtio.
+- **La familia tambien se declara en el ledger de runtime**, no solo en la census: hay que mover los
+  nombres a `directory` en `world_session_responsibility_families` y ajustar los contadores globales
+  (525/219/306) o `check_architecture` falla por campos ausentes/obsoletos.
+- **Repuntar accesos, no llamadas, con cuidado en los fixtures.** Los fixtures de test que tienen
+  campos homonimos (`GroupReconciliationFixtureLikeCpp.group_registry`) no se repuntan; el compilador
+  los senala uno a uno. Y un `use` nuevo debe insertarse fuera del grupo `#[cfg(test)]`, no entre el
+  atributo y su import.
+- **Conservar la procedencia al mover.** Los comentarios C++ de cada campo viajan con el campo al
+  sub-estado; dejarlos atras pierde la ancla y deja comentarios huerfanos en el dueno.
+
+Evidencia del slice: `cargo check -p wow-world` (0 errores), `cargo check -p wow-world --tests`
+(0 errores), `cargo test -p wow-world --lib` (3901 pasan), census de sintaxis PASS (219 campos de
+produccion), `check_architecture.py check` PASS y `self-test` PASS (20 fixtures). `cargo check
+--workspace --all-targets` sigue en 0 errores.
+
+### B4, segundo slice ejecutado: `SessionSocialLimits` (2026-09-25)
+
+La familia `player_social_chat_calendar_and_group_views` (los dos topes de XP de Recruit-A-Friend y el
+estado anti-flood de chat) pasa al sub-estado nombrado `SessionSocialLimits`, alcanzado por un unico
+campo `social`. Misma visibilidad estrecha y mismos valores de construccion (85/4 y el par de
+acumuladores por defecto); los cinco puntos de lectura/escritura (`session/social/contacts.rs`,
+`session/catalogs/operations.rs`) conservan su comportamiento. Census: 219 -> 217 campos de produccion.
+
+Leccion nueva de este slice: **el nombre del campo contenedor se paga en lineas**. Con
+`social_limits`, tres de las cinco expresiones repuntadas superaban las 100 columnas y `rustfmt` las
+partia, anadiendo 13 lineas de mas al agregado; con `social` solo quedan dos particiones inevitables
+(los nombres `..._difference_like_cpp` de 58 caracteres) y el slice cuesta +16 lineas en vez de +26.
+Antes de elegir el nombre de un sub-estado conviene medir el punto de uso mas largo.
+
+### B4, tercer slice ejecutado: `SessionDriverServices` (2026-09-25)
+
+El estado de sincronizacion de tiempo y el RNG de gameplay representado pasan al sub-estado nombrado
+`SessionDriverServices`, alcanzado por un unico campo `driver`; valores de construccion identicos
+(`TimeSynchronizationStateLikeCpp::default()` y `StdRng::from_entropy()`). Census: 217 -> 216 campos
+de produccion. `pending_bind` **no** se mueve en este slice: sus lectores incluyen
+`handlers/instances`, que dependen del `pub(crate)` mas ancho que el campo ya tenia, y su dueno real
+es la confirmacion de bind de Player/InstanceMap; la familia conserva su nombre transitorio hasta que
+ese ultimo miembro salga.
+
+Segunda leccion medida sobre el coste de un sub-estado: **los nombres de campo largos mas el prefijo
+del contenedor se pagan en re-envoltura de `rustfmt`**. Aqui el diff inserta 111 lineas y borra 62
+(+29 produccion, +20 test) sin cambiar una sola llamada ni comportamiento: `time_synchronization`
+tiene 19 caracteres y, detras de `self.driver.`, empuja condiciones de `session/time_synchronization.rs`
+y de los tests de driver/movimiento/publicacion por encima de 100 columnas. Antes de mover una familia
+conviene contar las lineas que quedarian entre 94 y 100 columnas: ese es el coste real, no el numero de
+campos. Cuando ese coste domine, el siguiente paso no es ensanchar el contenedor sino mover los
+*metodos* de esa familia al `impl` del sub-estado, donde `self.<campo>` no lleva prefijo.
+
+### B4, cuarto slice ejecutado: `SessionWorldView` (2026-09-25)
+
+Los seis miembros restantes de `player_movement_combat_and_visibility` (area trigger activo, lookup de
+mapas de taxi, instante del ultimo tick de combate, revision de salud melee presentada y los dos flags
+de reino PvP) pasan al sub-estado nombrado `SessionWorldView`, alcanzado por un unico campo `view`.
+Comentarios de procedencia C++ movidos con sus campos; valores de construccion identicos. Census:
+216 -> 211 campos de produccion. Coste: +14 produccion/+7 test (solo una envoltura nueva).
+
+Este slice ademas **estrecha** visibilidad: `active_area_trigger` era `pub(crate)` y pasa a
+`pub(in crate::session)` porque sus seis lectores viven dentro del arbol de `session`; la visibilidad
+ancha estaba sin usar. Es el sentido correcto de la escalera de visibilidad: el sub-estado no
+ensancha, y aprovecha para apretar lo que sobraba.
+
+### B4, quinto slice ejecutado: `SessionAddonFilter` (2026-09-25)
+
+El filtro de addons del chat (`registered_addon_prefixes`, `filter_addon_messages`, C++
+`WorldSession::_registeredAddonPrefixes` y `_filterAddonMessages`) pasa al sub-estado nombrado
+`SessionAddonFilter`, alcanzado por un unico campo `addon_filter`. Census: 211 -> 210 campos de
+produccion; coste +8 produccion, 0 test.
+
+Tercer patron aprendido, y el que gobernara casi todas las familias que quedan: **si la familia se lee
+desde `handlers/**`, el sub-estado no puede ser privado al arbol de `session`**. Estos dos campos eran
+`pub(crate)` porque `handlers/chat/*` los lee; el sub-estado y su contenedor nacen con esa misma
+visibilidad, y el comentario del tipo lo dice explicitamente para que nadie lo "arregle" estrechandolo.
+Es la excepcion legitima a la escalera: no se ensancha nada nuevo, se conserva lo que los consumidores
+ya necesitaban, y se documenta quien lo justifica.
+
+**Frontera economica de B4**: la reduccion de campos se paga en accesos repuntados, y ese precio no es
+uniforme. Medido por familia: `player_social_*` y `player_movement_*` costaron +16 y +14 produccion por
+3 y 6 campos; `mailbox_and_cross_session_delivery` tiene 9 campos pero **196 accesos**, y
+`immutable_catalogs_configuration_and_services` acumula 77 campos leidos por todo el arbol. Para esas
+dos, el metodo de mover solo campos no escala: hay que mover *metodos* al `impl` del sub-estado (donde
+`self.<campo>` no lleva prefijo) o extraer primero los subgrupos cohesivos y baratos, que es lo que se
+hizo aqui con el filtro de addons.
+
+### B4, sexto slice ejecutado: `SessionPhaseRail` (2026-09-25)
+
+El rail de fase #787 (`session_phase_tx`, `session_phase_rx`) pasa al sub-estado nombrado
+`SessionPhaseRail`, alcanzado por un unico campo `phase` con `tx`/`rx` dentro. El `bounded(2)` de
+construccion, los dos accesores (`session_phase_sender_like_cpp`, `session_phase_receiver_like_cpp`),
+las entradas del directorio que clonan el emisor y el consumidor del driver conservan su
+comportamiento. Census: 210 -> 209 campos de produccion; coste +7 produccion, 0 test.
+
+Cuarto patron aprendido, y aviso para los slices que quedan: **el nombre de campo puede existir en otros
+tipos del mismo arbol**. `SessionPhaseAddressLikeCpp` y las entradas del directorio tienen su *propio*
+`session_phase_tx`, y hay 8 literales de test que lo rellenan con
+`detached_session_phase_rail_like_cpp()`. Una reescritura global de `.session_phase_tx` habria roto
+tipos ajenos; aqui se repunto solo `self.session_phase_tx` en los dos ficheros de `WorldSession`
+(`driver/phase_consumer.rs` y `player_registry_binding.rs`). Regla: cuando el nombre del campo es
+generico, repuntar por fichero y con el receptor `self.`, nunca con regex global; y comprobar antes
+cuantos literales ajenos comparten el nombre.
+
+### B4, septimo slice ejecutado: `SessionSpellState` + `SessionQuestState` (2026-09-25)
+
+La familia `player_spells_quests_and_progression` (15 campos) se parte en dos sub-estados cohesivos:
+`SessionSpellState` (los cuatro sets de ids de spell-script, las dos autoridades de adquisicion, los
+efectos de execute-log y el switch de offhand) y `SessionQuestState` (los umbrales de visibilidad de
+quest por diferencia de nivel, las actualizaciones de estado de quest completada, la cola de progreso
+de objetivos y los refrescos de visibilidad que esas transiciones piden), alcanzados por `spell_state`
+y `quest_state`. **Census: 209 -> 196 campos de produccion** (el mayor salto de la ola). Coste: +83
+produccion/+4 test, el mas caro hasta ahora, porque los nombres de campo llegan a 55 caracteres
+(`represented_quest_objective_progress_events_like_cpp`) y el prefijo los re-envuelve; se paga a cambio
+de 13 campos menos de tipo Dios. Los cuatro accesores homonimos se quedan en `WorldSession` y sus
+llamadores no se tocan.
+
+**Quinto patron, y el metodo que conviene usar de aqui en adelante.** Cuatro de esos nombres existen
+*tambien* en un struct ajeno (`LegacyCreatureAggroConfigLikeCpp` en `creature_aggro_contracts.rs`) y hay
+mas literales ajenos en `world-server`, asi que una sustitucion textual es corrupcion segura. El metodo
+que funciono: mover primero la estructura (declaraciones + inicializadores) y despues **repuntar guiado
+por el compilador**, parseando sus errores y reescribiendo exactamente esas lineas. Dos codigos hay que
+cubrir: `E0609` (`no field ... on type WorldSession`) para los accesos normales y **`E0615`
+(`attempted to take value of method ...`) para los campos que tienen un accesor homonimo**, porque al
+quitar el campo el uso sin parentesis pasa a resolver al metodo. Con eso, un ciclo de repunte basto en
+la lib y otro en `--tests`; el struct ajeno quedo intacto (0 sustituciones alli). El mismo slice hizo
+crecer `handlers/quest/mod.rs` (+3 por re-envoltura), registro que el ledger tambien recoge: los
+hotspots auditados son varios y no solo `session/mod.rs`.
+
+### B4, octavo slice ejecutado: `SessionLifecycleState` (2026-09-25)
+
+La familia completa `persistence_and_session_lifecycle` (23 campos) pasa al sub-estado nombrado
+`SessionLifecycleState`, alcanzado por un unico campo `lifecycle`: instantes de login/logout y
+calendario de guardado periodico, reclamaciones de carga y logout, tutoriales y datos de cuenta, los
+puertos de persistencia, el rail de finalizacion, las filas de carga de mascotas y los trackers
+durables de loot. Mismos valores de construccion y misma visibilidad de crate que sus handlers ya
+necesitaban. **Census: 196 -> 174 campos de produccion** (segunda mayor reduccion de la ola). Coste:
++196 produccion/+27 test, el mayor hasta ahora, sobre 343 accesos repartidos por los modulos de
+lifecycle, persistencia, driver, items y mascotas (620 inserciones, 352 borrados, casi todo
+re-envoltura de `rustfmt`). Ningun otro owner auditado crecio: el ratchet solo exigio actualizar la
+fila de `session/mod.rs`.
+
+Balance acumulado de B4 (produccion): 221 -> 174 campos en ocho slices; el coste en lineas esta
+registrado como deuda transitoria en `latest_growth_review`, y se retira cuando los sub-estados salgan
+del agregado (olas D/E). La ganancia que persigue B4 es la superficie del tipo, no el LOC del arbol:
+`WorldSession` ya no declara estado de transporte social, social limits, driver, vista de mundo,
+filtro de addons, rail de fase, hechizos/quests ni persistencia/ciclo de vida.
+
+### B4, noveno slice ejecutado: `SessionTransport` (2026-09-25)
+
+La familia `transport_and_physical_connections` (4 campos) pasa al sub-estado nombrado
+`SessionTransport`, alcanzado por un unico campo `transport`: el kernel de transporte de
+`wow-session` (#297), la direccion remota fisica, la clave de sesion y el handle compartido del
+`SessionManager`. Dos de los cuatro se inicializaban en forma abreviada (`connection`, `session_key`) y
+siguen abreviados dentro del literal anidado; `session_key` se estrecha de `pub` a `pub(crate)` porque
+la pasada de workspace demuestra que ningun otro crate lo leia. Census: 174 -> 171 campos de
+produccion. Coste: +29 produccion/+1 test.
+
+Sexto patron aprendido (y bug real de mi propio script, corregido): **el nombre de un campo puede
+aparecer antes en el fichero como parametro de la funcion constructora**. El recogedor de
+inicializadores tomo `session_key: Vec<u8>` de la firma de `create_session` en vez del `session_key,`
+del literal `Self {`. Ademas, `connection` no tiene forma `campo: expr` sino solo la abreviada. Reglas:
+soportar ambas formas y **buscar solo dentro del literal del constructor** (`Self {`), y validar TODO
+antes de escribir: la primera version escribio `state.rs` y aborto en `construction.rs`, dejando el
+arbol a medio mover (revertido con `git checkout -- crates/`). El script generalizado queda en
+`/tmp/b4gen2.py` con esas dos reglas; en este slice repunto 23 lineas en la lib, 9 en `--tests` y 0 en
+el workspace.
+
+### B4: que familias siguen con sub-estado y cuales no (decision, 2026-09-25)
+
+Leidos los `target_owner` del ledger, el resto de familias de B4 se parte en dos grupos y no conviene
+tratarlas igual:
+
+- **Sub-estado correcto** (el dueno final es la propia sesion de aplicacion, asi que nombrar el estado
+  es el paso intermedio): `transport_and_physical_connections` (hecho),
+  `packet_admission_dispatch` (11 campos, "private wow_world::session admission/dispatch adapters") y la
+  parte de identidad de `session_identity_account_and_realm_policy` (22 campos, "cohesive application
+  Session identity plus typed immutable realm/account policy supplied by composition").
+- **Sub-estado no es el paso** (el dueno final es composicion u otro crate, y anidar solo maquilla el
+  localizador de servicios que el ledger quiere retirar): `immutable_catalogs_configuration_and_services`
+  (77 campos; su retiro exige *capability-specific immutable views* desde el bootstrap de world-server,
+  no un `catalogs` dentro de `WorldSession`), `map_runtime_creature_gameobject_and_visibility` (25; el
+  trabajo es retirar el puente legacy hacia `wow-map`/`wow-entities`) y
+  `player_inventory_loot_and_economy` (16; el trabajo es que el dueno sea `wow-entities`/`wow-loot`). Las
+  familias de un solo campo (`player_identity_login_bootstrap`, `session_selected_player_binding`) y las
+  de fixtures (`test_only_fixtures` con 302, `player_identity_test_fixtures` con 5) esperan a la
+  migracion de tests a un `Player` canonico, que es B3.
+
+Consecuencia para la ola: tras cerrar `packet_admission_dispatch` y la identidad, lo que queda de B4 no
+se resuelve moviendo campos. La siguiente palanca real es B3 (migrar los tests de dominio y retirar las
+302 observaciones de fixture) y despues B5/B6 (adaptadores y `map_manager` -> `wow-map`), que es donde
+el LOC del agregado empieza a bajar de verdad.
+
+### B4, decimo slice ejecutado: `SessionAdmissionState` (2026-09-25)
+
+Todo el mecanismo de admision y despacho de paquetes (tabla de opcodes, throttle y spoof-ban, cola de
+paquetes pendientes, fences de timeout de socket y de autoridad de fase) pasa al sub-estado nombrado
+`SessionAdmissionState`, alcanzado por un unico campo `admission`. `state: SessionState` **se queda** en
+`WorldSession`: es un unico valor con 919 accesos, donde un prefijo de contenedor no agruparia nada.
+Census: 171 -> 162 campos de produccion. Coste: +21 produccion/+36 test (el crecimiento de test es el
+mismo prefijo en las suites de admision, throttling y spoof).
+
+Septimo patron aprendido (bug de script otra vez): **los tipos genericos llevan comas dentro de los
+angulos**. El capturador equilibraba `()[]{}` pero no `<>`, asi que `HashMap<ClientOpcodes, &'static
+PacketHandle>` se trunco en su primera coma y `state.rs` dejo de parsear; revertido y corregido contando
+angulos solo cuando `<` sigue a un identificador (para no confundir `->` ni comparaciones). El script
+generalizado hace ya las tres cosas: validar antes de escribir, buscar inicializadores solo dentro del
+literal `Self {` y equilibrar parentesis, corchetes, llaves y angulos.
+
+### B4, undecimo slice ejecutado: `SessionRealmPolicy` + `SessionAccountState` (2026-09-25)
+
+La familia `session_identity_account_and_realm_policy` (22 campos) se parte en dos sub-estados
+cohesivos: `SessionRealmPolicy` (region, battlegroup, tabla y secreto de nombres de reino, tope de
+expansion del servidor, presupuesto horario de instancias y los dos switches de instance-ignore) y
+`SessionAccountState` (id de Battle.net, aristas de recruit-a-friend, personajes legitimos, low guid
+reciente y expiracion de mute), tras los campos `realm_policy` y `account_state`. Census: 162 -> **150**
+campos de produccion. Coste: +39 produccion, 0 test (barato: solo 14 campos y ~60 accesos).
+
+Los **ocho escalares de identidad que otros crates leen** (`account_id`, `expansion`, `locale`, `build`,
+`security`, `account_name`, `account_expansion`, `realm_id`) se quedan en `WorldSession`: declararlos
+`pub` los lee composicion y bnet, y su destino segun el ledger es "cohesive application Session identity
+plus typed immutable realm/account policy supplied by composition", no un contenedor mas. Ese slice
+necesita decidir si la identidad es un agregado publico o un valor tipado que llega de composicion, y
+por eso va aparte y despues.
+
+Balance acumulado de B4 (produccion): **221 -> 150 campos** en once slices. El LOC del agregado sube
+(~+640 lineas registradas como deuda transitoria) y baja cuando los sub-estados salgan del arbol.
+
+### B4, duodecimo slice ejecutado: `SessionSharedFlags` (2026-09-25)
+
+Los dos `Arc<AtomicBool>` compartidos (`advanced_combat_logging_enabled_like_cpp`,
+`visibility_refresh_pending_like_cpp`) pasan al sub-estado nombrado `SessionSharedFlags`, alcanzado por
+el campo `flags`: son el mismo tipo de valor (un booleano que la sesion publica a sus tareas de
+publicacion), que es lo que los hace cohesionados y no un cajon. Census: 150 -> **149** campos de
+produccion; coste +19 produccion/+2 test. Balance B4: **221 -> 149** en doce slices.
+
+### B3: hallazgo con datos -- los tests de dominio son suites de integracion de la app (2026-09-25)
+
+Medidos los cuatro modulos que B3 nombra antes de mover nada: `loot_tests` (15 610 lineas, 29
+ficheros), `quest_tests` (10 079, 18), `character_tests` (13 146, 29) y `group_tests` (5 830, 14) =
+**44 665 lineas y 90 ficheros**, con solo 92 referencias a `WorldSession` y 290 a crates de dominio.
+El desglose parecia prometedor (70 de 90 ficheros sin `WorldSession`), pero al abrir uno se ve el
+patron real: `use super::*;`, fixtures del padre y llamadas del tipo
+`session.process_represented_session_commands_like_cpp()`, `session.session_command_tx()`,
+`SessionCommand::...`, `crate::conditions::...`. **Son suites de integracion de la aplicacion**, no
+tests de reglas de dominio: importan constantes de `wow_loot`, pero ejercitan el adaptador y el
+runtime de la sesion. No pueden cruzar a `wow-loot`/`wow-social`/`wow-entities` porque la direccion de
+dependencias lo prohibe (los crates de dominio no pueden depender de `wow-world`).
+
+B3 queda reformulado, con lo que si es accionable: (i) cada crate de dominio debe tener sus propias
+pruebas de regla (auditar cobertura, no mover); (ii) las suites de app son candidatas a **target de
+integracion** (`crates/wow-world/tests/`) consumiendo una feature `test-fixtures`, lo que saca ~44k
+lineas de la masa de test de la lib y es un trabajo por modulo con re-exportacion de fixtures; (iii)
+los **306 campos de fixture** de `WorldSession` se retiran fichero a fichero cuando cada test construye
+un `Player` canonico, que es la parte de B3 con ganancia directa de superficie.
+
+### B7: la limpieza de avisos esta bloqueada por el ratchet de lineas de test (2026-09-25)
+
+Medido antes de tocar: `cargo check -p wow-world` reporta **167 imports sin usar** en 53 ficheros (172
+en la lib, 224 con `--tests`). Intente retirarlos y la compilacion de tests demostro que **todos** los
+avisos son codigo vivo para los modulos `#[cfg(test)]` del mismo crate: quitar los 151 imports privados
+rompe 206 compilaciones y quitar los 16 `pub(crate) use` (re-exports) rompe 301. La correccion honesta
+es `#[cfg(test)]` en cada uno, pero eso **mueve lineas de produccion a lineas de test**, y el ratchet
+de hotspot limita las tres cifras (produccion, test y total): no se puede. Conclusion: B7 no se
+desbloquea hasta que la migracion de B3 retire los consumidores de test, o hasta que exista una
+decision explicita que permita esa reclasificacion. Queda registrado, no forzado.
+
+### B5: correccion de medida y costura real (2026-09-25)
+
+Mi primera medida de "masa de test" en los ficheros grandes de handlers era un **artefacto**: conte
+llaves desde cada `#[cfg(test)]` sin parser y conclui que `handlers/loot/mod.rs` tenia un `mod tests` de
+945 lineas. No existe tal modulo: lo que hay son **items `#[cfg(test)]` sueltos intercalados** con el
+codigo de produccion (imports, helpers y funciones gated una a una), el mismo patron que bloquea B7. La
+costura "extrae el modulo de test" **no existe**, y el script no movio nada (arbol limpio, tres builds
+verdes). B5 necesita diseno por fichero: decidir que item gated es fixture y debe vivir en un modulo de
+test, y en que orden, sabiendo que cada extraccion que reclasifique lineas de produccion a test choca
+con el ratchet de hotspot. Se hara junto con B3.
+
+### B7, primer slice ejecutado: techos fisicos obsoletos endurecidos (2026-09-25)
+
+Medido antes de tocar: **31 filas** de `physical-file-policy.json` tenian el techo por encima del
+tamano vivo, es decir, el ratchet **no vigilaba** esos ficheros (entre ellas
+`world-server/src/spawn_store_loader.rs` 3427 -> 730 y `handlers/character/items.rs` 3904 -> 793, de
+particiones anteriores que nunca se apretaron). Se endurecieron las 31 a la cifra observada, con nota
+de revision en cada `split`: **51 801 lineas de holgura retiradas** del ratchet, sin tocar una linea de
+codigo. `check_architecture.py check`, `self-test` y `test_physical_files.py` verdes.
+
+### B6: analisis medido y contrato necesario (2026-09-25)
+
+`crates/wow-world/src/map_manager/` son **6 721 lineas en 11 ficheros**, con solo dos menciones a tipos
+de app (`WorldSession`) y ambas en comentarios de documentacion: es dominio puro y el mejor candidato a
+salir del arbol de la aplicacion. Pero **no es un `git mv`**: `wow-map` es `domain-runtime` y la politica
+solo le permite depender de `foundation` y `domain-runtime`, mientras que `map_manager` usa dos crates
+`adapter-platform`. Las aristas que el movimiento crearia, comprobadas contra
+`dependency-policy.json`:
+
+- `domain-runtime -> adapter-platform` via **`wow-packet`** (5 usos, los dos ficheros de abajo);
+- `domain-runtime -> adapter-platform` via **`wow-recastdetour`** (1 uso).
+
+Es exactamente el error que ya se revirtio una vez con `phasing -> wow-map`, asi que B6 empieza por el
+**contrato**, no por el movimiento. El acoplamiento esta confinado y medido:
+
+| fichero | lineas | usos | que es |
+|---|---:|---:|---|
+| `map_manager/mod.rs` | 251 | 2 | `use wow_packet::packets::update::CreatureCreateData` y los tipos de `wow_recastdetour` del pathfinder |
+| `map_manager/runtime/manager.rs` | 532 | 4 | `ServerPacket` y tres literales `Set{Ai,Movement,Melee}AnimKit` |
+
+Contrato en tres piezas, en este orden:
+
+1. **Anim kits (la mas limpia)**: el manager deja de construir paquetes y emite una intencion
+   (`CreatureAnimKitUpdateLikeCpp { guid, slot, kit_id }`) que el adaptador de `wow-world` codifica y
+   envia. Es la regla del ledger ya aplicada en otras familias: el dominio devuelve la intencion, la app
+   la aplica. Elimina 4 de los 6 usos y no necesita porta nueva, solo un tipo de intencion.
+2. **`CreatureCreateData`**: la proyeccion que lo usa deja de nombrar el tipo de wire; el contrato es una
+   proyeccion de dominio (o un tipo generico) y el adaptador compone el `CreatureCreateData`.
+3. **`wow_recastdetour`**: el pathfinder necesita los tipos de detour. Opciones: (a) porta en `wow-map`
+   con implementacion en un crate adaptador, (b) dejar el pathfinder en `wow-world` y mover solo el
+   resto. La decision depende de cuanto del manager lo use (hoy: un `use`), asi que se resuelve al
+   implementar 1 y 2.
+
+### B6, pieza 1 del contrato ejecutada: codificador inyectado (2026-09-25)
+
+`MapManager::set_creature_anim_kit_id_like_cpp` ya no construye paquetes: recibe un puerto por
+parametro, `encode_anim_kit: impl Fn(CreatureAnimKitSlotLikeCpp, ObjectGuid, u16) -> Vec<u8>`, igual que
+ya recibia `anim_kit_exists: impl Fn(u16) -> bool`. El manager muta el estado y devuelve su
+`RuntimeEvent` con los bytes que el adaptador codifique; **`runtime/manager.rs` deja de nombrar
+`wow_packet`** (0 usos, eran 4). Los tres unicos llamadores eran de test, asi que el codificador vive
+ahora en `map_manager_tests/creature_5.rs` como helper y las aserciones de opcode no cambian. Queda **1
+uso de `wow_packet`** en `map_manager/` (`CreatureCreateData` en `mod.rs`) y el de `wow_recastdetour`.
+Evidencia: `cargo check` lib y tests 0 errores, 3901 tests pasan, `check_architecture.py check` y
+`self-test` verdes. Coste: +11 lineas.
+
+### B6, pieza 2 dimensionada: `create_data` es un puente de 56 usos (2026-09-25)
+
+Antes de tocar `CreatureCreateData` se midio su radio: **56 usos de `.create_data`** repartidos en 10+
+ficheros (`map_manager/pending_respawn.rs` 9, `map_manager_tests/persistence.rs` 9, `creature_1.rs` 7,
+`session/spell_effects/ticks.rs` 4, `runtime/creature.rs` 4, `runtime/manager.rs` 3, ...), mas los
+puntos que *construyen* el tipo (`session/world_entities/creature_registry.rs` 4, fixtures y tests de
+handlers). No es una arista que se inyecte como el codificador de anim-kit: el contrato exige
+
+1. una **proyeccion de dominio** (`CreatureCreateProjectionLikeCpp` o equivalente) con los mismos
+   datos que hoy lleva el tipo de wire, declarada en un crate `domain-runtime`;
+2. que `WorldCreature.create_data` pase a ser esa proyeccion;
+3. que el **adaptador** de `wow-world` componga `CreatureCreateData` al construir el paquete
+   (`session/world_entities/creature_registry.rs` y los fixtures que hoy lo construyen a mano).
+
+Es un slice propio, no una pieza suelta: se hara con el mismo metodo probado (mover el tipo, repuntar
+guiado por el compilador, regenerar census/ledger con delta revisado) y despues de la pieza 3, porque el
+movimiento de `map_manager` a un crate `domain-runtime` necesita las dos. Queda dimensionado y no
+iniciado a medias.
+
+### B6, pieza 3 resuelta por reclasificacion: `wow-recastdetour` es `foundation` (2026-09-25)
+
+La pieza 3 no necesitaba porta: `wow-recastdetour` estaba mal clasificado como `adapter-platform`. Es un
+**port vendido de terceros** (el propio estandar lo exime de presupuestos de tamano y de la regla de
+nombres `_like_cpp`) que **no depende de ningun crate del workspace** — solo de `bitflags` y `thiserror`,
+mas `cc` en build-dependencies para compilar el C++ vendido. Eso es una libreria de base, no un adaptador
+de plataforma, y la politica ya permite `domain-runtime -> foundation`.
+
+Cambios: `wow-recastdetour` pasa a `foundation`; se declara su superficie externa
+(`normal: [bitflags, thiserror]`, `build: [cc]`), y se **retira la excepcion obsoleta**
+`wow-world -> wow-recastdetour` que ya no hace falta. El recuento pasa de 17 a **16 excepciones de
+workspace** y de 60 a 63 dependencias externas vigiladas. `check_architecture.py check` y `self-test`
+verdes. Efecto sobre B6: de las dos aristas prohibidas que bloqueaban el movimiento de `map_manager`,
+**queda una** — `wow-packet` via `create_data` (la pieza 2, ya dimensionada en 56 usos) — asi que el
+movimiento de las 6 721 lineas depende ya solo de esa proyeccion.
+
+Criterio de cierre de B6: `map_manager` vive en `wow-map` (o en un crate `domain-runtime` propio),
+`wow-world` conserva solo el adaptador, y `check-deps` no necesita ninguna excepcion nueva.
+
+### B7, segundo slice ejecutado: superficie de dependencias recortada (2026-09-25)
+
+Auditoria manual (no hay `cargo-machete` en el host) de dependencias declaradas con **cero referencias**
+en el codigo del crate, con el compilador como juez: **28 declaraciones retiradas** de
+`[dependencies]` y el workspace compila limpio a la primera (`--workspace --all-targets`). Incluye
+`serde`/`thiserror`/`num-derive`/`strum` en crates donde ya no se derivaban, `parking_lot` y
+`smallvec`/`bumpalo` en `wow-map`, `dashmap`/`hyper-util` en `bnet-server`, `bytes`/`prost-types` en
+`wow-proto`, `wow-constants`/`wow-core`/`wow-math`/`wow-config`/`wow-logging`/`wow-crypto` en quien ya
+no los usaba.
+
+Politica regenerada con el delta exacto que el checker exigio: **14 entradas obsoletas** de superficie
+externa retiradas y **1 excepcion obsoleta** (`wow-world -> wow-logging`). Recuentos:
+**aristas de workspace 112 -> 102**, **dependencias externas vigiladas 63 -> 49**, **excepciones 16 ->
+15**. `check_architecture.py check` y `self-test` verdes; la suite de `wow-world` (3901 tests) pasa.
+
+### B7, tercer slice ejecutado: `[workspace.dependencies]` sin uso (2026-09-25)
+
+De las 9 entradas de `[workspace.dependencies]` que ningun miembro referencia, se retiran las **6
+externas** (`prost-types`, `strum`, `bumpalo`, `hyper-util`, `reqwest`, `cfg-if`) y se **conservan las
+3 internas** (`wow-math`, `wow-util-collections`, `wow-spell`) por decision explicita: `wow-spell` es el
+paquete reservado documentado y las otras dos son miembros con consumidores planificados; el coste de
+mantenerlas es una linea y su retirada seria churn sin ganancia. `dev-dependencies` y
+`build-dependencies`: **0 candidatos** (ninguna declaracion sin referencia). `cargo check --workspace
+--all-targets` 0 errores; `check_architecture.py check` y `self-test` verdes.
+
+### Puerta de la ola medida en el tip de 15 rondas (2026-09-26)
+
+`./tools/validation-v2 final --base origin/3.4.3 --architecture --timings` sobre `0f5ccdd5`:
+
+- **En frio: 1011,98 s y `exit_code 143`** (terminada por el limite de tiempo durante la compilacion).
+  El manifiesto queda `failed` con el tiempo agotado, no por un fallo de validacion: el coste lo domina
+  la recompilacion que provocan los cambios de `Cargo.lock` de los slices de dependencias.
+- **En caliente, mismo comando sin trocear: 122 s y `exit 0`**, manifiesto
+  `20260926T233514.027935Z-3621532-final.json` con estado `passed`, y la suite completa de `wow-world`
+  (3901 tests) dentro de la misma campana.
+
+Leccion operativa: con el presupuesto de 600 s, la puerta hay que correrla **despues** de un build del
+mismo tip; una corrida en frio de esta rama no cabe en el limite (y el ejecutor mata los trabajos de
+fondo alrededor de los 1000 s, asi que una campana en frio no puede completarse en un solo trabajo).
+No se trocea la campana para declararla verde: la corrida verde es el mismo comando entero, en caliente.
+
+### B4: un sub-estado de un solo campo no reduce nada (revertido, con regla) (2026-09-26)
+
+Intente cerrar el ultimo item barato de B4 moviendo `pending_bind` a un `SessionBindState`. El
+movimiento funciono (14 accesos repuntados, lib/tests/workspace limpios) pero al medir el censo se vio
+el error de juicio: **un sub-estado de un campo deja el recuento igual** (uno sale, uno entra) y solo
+anade indireccion — el mismo olor que el estandar prohibe ("ninguna crate/trait por helper... solo para
+reubicar codigo"). Revertido con `git checkout -- crates/`, arbol limpio y lib a 0 errores.
+
+Regla que queda: **un contenedor solo se justifica cuando agrupa dos o mas campos** de la misma
+responsabilidad. Los campos solos (`pending_bind`, `player_guid`, `player_identity_bootstrap_like_cpp`)
+no se anidan: esperan a que su dueno real se los lleve (Player/InstanceMap, el binding de la sesion,
+`wow-entities::Player`). Con esto **la lista barata de B4 esta agotada**: lo que queda exige la
+proyeccion de `create_data` (B6) o cambio de dueno, no otro sub-estado.
+
+### B7, cuarto/quinto slice: defectos y hallazgos de avisos (2026-09-26)
+
+Arreglado: un **`#[test]` duplicado** en `wow-packet/src/packets/combat.rs` (el compilador avisaba
+`duplicated attribute`; ahora el test se registra una sola vez). `wow-packet` sigue con 754 tests
+verdes.
+
+Hallazgos registrados, **no silenciados**:
+
+- **Cluster de variables sin usar en `session/legacy_runtime/creature_movement_tick.rs`** (11+ avisos:
+  `filter_context`, `owner_capabilities`, `previous_poly_refs`, `avoided`). Prefijarlas con `_`
+  apagaria el aviso sin decidir nada; que el runtime legacy reciba contextos de pathfinding y no los use
+  es candidato a **defecto o a codigo transitorio deliberado**, y se investiga antes de tocar. Es el
+  siguiente trabajo real de B7 en wow-world.
+- **Falso positivo de `mut` entre cfg**: `handlers/loot/money.rs:48` avisa "variable does not need to be
+  mutable" en la pasada de lib y sin embargo la pasada de test **si** asigna dos veces; quitar el `mut`
+  rompe el build de test (`E0384`). Revertido: el aviso no es accionable sin reestructurar el flujo, y
+  silenciarlo o romper el test serian peores. Queda anotado como advertencia de metodo: los avisos de
+  `--all-targets` pueden venir de una sola de las dos configuraciones.
+
+### B7 en wow-world: el bloqueo es global, no de los owners auditados (2026-09-26)
+
+Comprobada la hipotesis optimista de que fuera de los cuatro agregados auditados de `wow-world`
+(`session/`, `handlers/{character,loot,quest}/`) si hubiera margen para retirar los imports sin usar
+(39 avisos en 20+ ficheros). **No lo hay**: la pasada de lib queda limpia, pero la de test falla con 8
+errores que muestran el mismo patron —
+`handlers/trainer/tests/failures.rs` necesita `PacketHandlerEntry`, `ClientOpcodes`, `SessionStatus` y
+`PacketProcessing` que `handlers/trainer.rs` re-exporta; `spell_acquisition/tests/planner_application.rs`
+necesita `SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP`; `handlers/spell/state.rs` necesita
+`ItemFieldFlags` y `ItemUpdateState`. Es decir: **los imports "sin usar" de wow-world son, en todo el
+crate, la superficie que consumen los modulos `tests/` del propio modulo**, no deuda muerta.
+
+Conclusion registrada: en `wow-world` la limpieza de avisos de imports **no se desbloquea fichero a
+fichero**; necesita la migracion de tests de B3 (mover cada `tests/` a un target de integracion tras la
+feature `test-fixtures`) o una decision explicita que permita reclasificar lineas de produccion a test.
+El arbol se revirtio (`git checkout -- crates/`) y queda limpio, con la lib a 0 errores.
+
+### B7 en wow-world: la superficie de imports del modulo es compartida (conclusion, 2026-09-26)
+
+Segundo intento, mas preciso: en vez de borrar los imports "sin usar", moverlos al modulo `tests/` del
+propio modulo (donde la pasada de test los necesitaba). Resultado medido: **8 movimientos, y la lib cae
+con 23 errores** — `spell_acquisition/adapter.rs` necesita `SpellAcquisitionEffectLikeCpp`,
+`SpellAcquisitionCatalogLikeCpp`, `SpellChainStoreLikeCpp`, `SpellRequiredStoreLikeCpp` y
+`SKILL_RIDING_LIKE_CPP` que importa `spell_acquisition/mod.rs`; `handlers/chat/ops_1.rs` necesita
+`UnitState` que importa `handlers/chat.rs`. Revertido entero (automatico), arbol limpio.
+
+Conclusion definitiva, con las dos clases de error ya identificadas:
+
+- los imports que el compilador llama "sin usar" en los ficheros raiz de modulo de `wow-world` son la
+  **superficie compartida** que consumen (a) los submodulos de produccion del mismo modulo y (b) su
+  modulo `tests/` via `use super::*`;
+- por tanto **no son deuda muerta y no se retiran**: ni borrandolos (rompe tests) ni moviendolos a
+  `tests/` (rompe produccion). Los 167 avisos de `wow-world` quedan **fuera del alcance de B7** por
+  decision, no por pereza: tocarlos exige primero cambiar como se organizan los imports de cada modulo
+  (por ejemplo, que cada hijo importe lo suyo en vez de heredarlo del padre), y eso es un refactor de
+  imports por modulo, no una limpieza.
+
+Lo que si queda hecho de B7: 31 techos fisicos endurecidos, 34 declaraciones de dependencia y 10
+imports retirados **fuera** de wow-world, 1 defecto arreglado y 3 bloqueos documentados con evidencia.
+
+### B7, piloto por modulo: `handlers/chat` limpio (2026-09-26)
+
+La conclusion anterior era demasiado amplia y el piloto la corrige. Clave medida: **un nombre que usa
+un modulo hijo NO genera aviso** (por eso `UnitState`, usado por `handlers/chat/ops_1.rs`, nunca se
+marco). Por tanto los avisos que quedan **si** son muertos dentro de todo el subarbol del modulo, y se
+retiran con la operacion quirurgica correcta: borrar **solo los nombres avisados** de su `use`, nunca la
+sentencia entera (que puede llevar nombres vivos al lado).
+
+Aplicado a `handlers/chat.rs`: retirados `ClientOpcodes` (de `use wow_constants::{ClientOpcodes,
+UnitState};`, que queda `use wow_constants::UnitState;`), y las sentencias completas
+`use wow_handler::{PacketProcessing, SessionStatus};` y
+`use crate::session::registry::PacketHandlerEntry;`, restos del traslado de registraciones de la ola A.
+Resultado: **4 nombres muertos menos, 0 avisos en ese fichero**, lib/tests/workspace a 0 errores.
+
+Regla afinada para el resto de wow-world: (1) borrar solo los nombres avisados; (2) si el unico usuario
+es el modulo `tests/`, envolver el import en `#[cfg(test)]` en lugar de borrarlo — permitido en los
+modulos **no auditados** por el ratchet, que es donde quedan avisos; (3) nunca mover sentencias enteras
+al modulo `tests/`, porque arrastran los nombres vivos que comparten.
+
+### B7: lotes de imports, leccion de proceso y veredictos por fichero (2026-09-26)
+
+Intente extender el piloto a los 19 avisos restantes en 15 ficheros no auditados con un solo lote
+automatizado. **Fallo por proceso, no por diseno**, y conviene dejarlo escrito:
+
+1. el script restauraba el fichero que fallaba y **seguia** al siguiente modo de build sin volver a
+   verificar, asi que termino con el arbol a medio limpiar;
+2. mi filtro de ficheros fallidos (`grep -oE '^crates/[^:]+'`) capturo tambien **lineas de aviso**, no
+   solo errores, y restauro de mas. Todo lo anterior estaba commiteado, asi que la recuperacion fue
+   `git checkout -- .` y el tip verde quedo intacto (`ccd3d205`, workspace a 0 errores).
+
+Reglas de proceso para el proximo intento: filtrar **solo** lineas con `: error`, restaurar por fichero
+y **volver a verificar tras cada restauracion**, y commitear el resultado parcial en cuanto pase.
+
+Veredictos medidos (ficheros cuyos `tests/` necesitan los nombres, y que por tanto piden `#[cfg(test)]`
+en lugar de borrado, permitido al no ser owners auditados): `handlers/trainer.rs` (`PacketHandlerEntry`,
+`ClientOpcodes`, `SessionStatus`, `PacketProcessing`), `spell_acquisition/mod.rs`
+(`SpellLearnSkillNodeLikeCpp`, `SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP`) y
+`handlers/spell.rs` (`ItemFieldFlags`, `ItemUpdateState`). Los demas ficheros del lote no fallaron: son
+candidatos directos a borrado con la operacion quirurgica ya probada en `handlers/chat.rs`.
+
+### B7: piloto por modulo completado en los tres veredictos (2026-09-26)
+
+Con las reglas de proceso corregidas, el patron "cada hijo importa lo que usa" se aplico **fichero a
+fichero con verificacion** en los tres veredictos, y los tres quedaron verdes:
+
+- `handlers/spell.rs` -> `spell/state.rs` (produccion) y `spell/tests/` (tests) importan
+  `ItemFieldFlags` e `ItemUpdateState`.
+- `handlers/trainer.rs` -> `trainer/tests/failures.rs` importa `PacketHandlerEntry`, `ClientOpcodes`,
+  `PacketProcessing` y `SessionStatus`.
+- `spell_acquisition/mod.rs` -> `spell_acquisition/tests/planner_application.rs` importa
+  `SpellAcquisitionMiscLikeCpp`, `SpellLearnSkillNodeLikeCpp` y
+  `SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP`.
+
+Resultado: 9 avisos menos, 0 errores en lib/tests/workspace en cada paso, y los 3901 tests de
+`wow-world` verdes. Quedan **31 avisos** en modulos no auditados (de 39 al empezar): el resto son del
+mismo tipo y se limpian repitiendo el patron, ahora que esta probado tres veces y con reglas de proceso
+escritas.
+
+### B7: lote mecanico completado en los modulos no auditados (2026-09-26)
+
+Con el bucle corregido (borrar solo los nombres avisados; restaurar **unicamente** los ficheros que el
+build de test nombra en lineas `: error`; **re-verificar tras cada restauracion**) el lote edito **29
+sentencias en 25 ficheros** en dos ciclos: dos ficheros conservaban nombres que sus propios tests
+consumen y se restauraron intactos. Resultado: lib/tests/workspace limpios, 3901 tests verdes,
+`check_architecture.py check` PASS, **23 ficheros con 7 inserciones y 32 borrados** (neto -25 lineas) y
+los avisos de imports en modulos no auditados bajan de **29 a 5**.
+
+B7 queda practicamente cerrado: los avisos restantes de `wow-world` estan en los cuatro agregados
+auditados (donde el ratchet impide reclasificar lineas) y quedan documentados como fuera de alcance.
+
+### La puerta de la ola caza una regresion real de formato (2026-09-26)
+
+Corrida de la puerta en el tip de 27 rondas: **fallo con `exit 1` en `cargo fmt --check`**. Causa real:
+el slice B7 que retiro imports **fuera** de wow-world edito ficheros de `wow-database`, `wow-entities`,
+`wow-spell-acquisition` y otros, pero el script solo formateaba `wow-world`; quedaron lineas en blanco
+dobles y una llave sin formatear. Arreglado con `cargo fmt --all` (10 ficheros, 3 inserciones / 18
+borrados, sin cambios de codigo) en `6e8b2e11`.
+
+Dos lecciones operativas:
+
+1. **Cada slice que edite Rust debe formatear los paquetes que toca**, no solo `wow-world`; el linter de
+   la puerta es la red de seguridad, pero llega al final.
+2. **Un `cargo fmt --all` invalida la cache de varios crates**: la puerta siguiente tardo 900 s (tope
+   agotado) porque reconstruia todo el grafo afectado, y la siguiente ya en caliente **paso en 195,5 s**
+   (`exit 0`, manifiesto `passed`). El presupuesto de 600 s se cumple **despues** de que el rebuild de un
+   cambio transversal haya ocurrido; un cambio de formato global es un cambio transversal.
+
+Estado de la puerta: **verde en el tip actual**, con la suite completa de `wow-world` dentro de la
+misma campana.
+
+**Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
+capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
+superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
+son los mayores) y **B6** (`map_manager` + `map_manager_tests` -> `wow-map` con contrato), que son las
+dos que sacan lineas del agregado. El rail de comandos (`session_command_tx`, 136 accesos en 112
+funciones) sigue pendiente del helper de envio que hoy no existe.
+
+Metodo ya probado: (1) mover campos con su visibilidad efectiva y
+sus comentarios de procedencia al sub-estado, (2) repuntar solo accesos con `cargo check -p wow-world`
+entre pasos, (3) regenerar census y ledger de runtime con delta revisado -- incluida la entrada de
+crecimiento del hotspot y los nombres de familia --, (4) `check_architecture.py check` + `self-test`,
+(5) commit.

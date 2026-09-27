@@ -5,6 +5,26 @@
 
 use super::*;
 
+/// The application injects the wire encoder; the manager returns the intent only.
+fn anim_kit_packet_bytes_like_cpp(
+    slot: CreatureAnimKitSlotLikeCpp,
+    unit: ObjectGuid,
+    anim_kit_id: u16,
+) -> Vec<u8> {
+    use wow_packet::ServerPacket;
+    match slot {
+        CreatureAnimKitSlotLikeCpp::Ai => {
+            wow_packet::packets::misc::SetAiAnimKit { unit, anim_kit_id }.to_bytes()
+        }
+        CreatureAnimKitSlotLikeCpp::Movement => {
+            wow_packet::packets::misc::SetMovementAnimKit { unit, anim_kit_id }.to_bytes()
+        }
+        CreatureAnimKitSlotLikeCpp::Melee => {
+            wow_packet::packets::misc::SetMeleeAnimKit { unit, anim_kit_id }.to_bytes()
+        }
+    }
+}
+
 #[test]
 fn world_creature_begin_point_movement_uses_point_lifecycle_and_real_spline() {
     let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54323);
@@ -568,9 +588,15 @@ fn set_creature_anim_kit_id_like_cpp_mutates_state_create_data_and_returns_fanou
     );
 
     let event = manager
-        .set_creature_anim_kit_id_like_cpp(571, 0, guid, CreatureAnimKitSlotLikeCpp::Ai, 77, |id| {
-            id == 77
-        })
+        .set_creature_anim_kit_id_like_cpp(
+            571,
+            0,
+            guid,
+            CreatureAnimKitSlotLikeCpp::Ai,
+            77,
+            |id| id == 77,
+            anim_kit_packet_bytes_like_cpp,
+        )
         .expect("valid changed anim kit emits fanout event");
 
     let creature = manager.find_creature(571, 0, guid).expect("creature");
@@ -639,6 +665,7 @@ fn set_creature_anim_kit_id_like_cpp_rejects_same_and_invalid_nonzero_like_cpp()
                 CreatureAnimKitSlotLikeCpp::Movement,
                 88,
                 |_| false,
+                anim_kit_packet_bytes_like_cpp,
             )
             .is_none(),
         "C++ Unit::SetMovementAnimKitId rejects nonzero IDs missing from sAnimKitStore"
@@ -662,6 +689,7 @@ fn set_creature_anim_kit_id_like_cpp_rejects_same_and_invalid_nonzero_like_cpp()
                 CreatureAnimKitSlotLikeCpp::Melee,
                 0,
                 |_| false,
+                anim_kit_packet_bytes_like_cpp,
             )
             .is_none(),
         "same ID must not emit the C++ live packet"

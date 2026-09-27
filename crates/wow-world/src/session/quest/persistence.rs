@@ -10,12 +10,16 @@ impl WorldSession {
         &mut self,
         port: Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>,
     ) {
-        self.persistence_ports_like_cpp.catalogs.quest_poi = Some(port);
+        self.lifecycle.persistence_ports_like_cpp.catalogs.quest_poi = Some(port);
     }
     pub(crate) fn quest_poi_persistence_port_like_cpp(
         &self,
     ) -> Option<Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>> {
-        self.persistence_ports_like_cpp.catalogs.quest_poi.clone()
+        self.lifecycle
+            .persistence_ports_like_cpp
+            .catalogs
+            .quest_poi
+            .clone()
     }
     pub(in crate::session) fn resolved_current_player_xp_persistence_request_like_cpp(
         &self,

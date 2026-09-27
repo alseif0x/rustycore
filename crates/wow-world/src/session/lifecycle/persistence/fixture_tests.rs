@@ -16,6 +16,7 @@ impl WorldSession {
         // partial full-save plan from the pre-COMMIT runtime snapshot would
         // overwrite those non-money rows even if the earlier COMMIT succeeded.
         if self
+            .lifecycle
             .durable_loot_money_persistence_like_cpp
             .is_indeterminate_like_cpp()
         {
@@ -401,11 +402,11 @@ impl WorldSession {
         // yet. Rewriting every active quest here can delete objective rows that were not mapped
         // into represented state, so preserve them until that dirty tracking exists.
 
-        let tutorials = if self.tutorials_changed_like_cpp {
-            if self.tutorials_loaded_coherently_like_cpp {
+        let tutorials = if self.lifecycle.tutorials_changed_like_cpp {
+            if self.lifecycle.tutorials_loaded_coherently_like_cpp {
                 Some(PlayerTutorialsSaveLikeCpp {
-                    tutorials: self.tutorials_like_cpp,
-                    already_persisted: self.tutorials_loaded_from_db_like_cpp,
+                    tutorials: self.lifecycle.tutorials_like_cpp,
+                    already_persisted: self.lifecycle.tutorials_loaded_from_db_like_cpp,
                 })
             } else {
                 warn!(
@@ -550,10 +551,10 @@ impl WorldSession {
             self.mark_equipment_sets_saved_like_cpp();
         }
         if committed.tutorials_insert {
-            self.tutorials_loaded_from_db_like_cpp = true;
+            self.lifecycle.tutorials_loaded_from_db_like_cpp = true;
         }
         if committed.tutorials_changed {
-            self.tutorials_changed_like_cpp = false;
+            self.lifecycle.tutorials_changed_like_cpp = false;
         }
         if committed.reputation {
             let _ = self.mutate_reputation_mgr_like_cpp(|mgr| {

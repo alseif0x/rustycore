@@ -55,7 +55,7 @@ impl WorldSession {
         F: std::future::Future<Output = wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp>,
     {
         let mut cancellation_fence = PlayerMoneyCommitCancellationFenceLikeCpp::new(Arc::clone(
-            &self.durable_loot_money_persistence_like_cpp,
+            &self.lifecycle.durable_loot_money_persistence_like_cpp,
         ));
         match outcome_future.await {
             wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::Committed => {
@@ -100,7 +100,8 @@ impl WorldSession {
                     None
                 }
                 AbsolutePlayerMoneyCommitReconciliationLikeCpp::Indeterminate => {
-                    self.durable_loot_money_persistence_like_cpp
+                    self.lifecycle
+                        .durable_loot_money_persistence_like_cpp
                         .mark_indeterminate_like_cpp();
                     cancellation_fence.disarm_like_cpp();
                     self.kick(
@@ -131,7 +132,7 @@ impl WorldSession {
             return outcome;
         }
 
-        let money_tracker = Arc::clone(&self.durable_loot_money_persistence_like_cpp);
+        let money_tracker = Arc::clone(&self.lifecycle.durable_loot_money_persistence_like_cpp);
         let money_save_fence = money_tracker.close_admission_for_save_like_cpp();
         trace!(fence = "player.save.mutations_closed", "persistence fence");
         self.wait_for_durable_item_loot_persistence_like_cpp().await;

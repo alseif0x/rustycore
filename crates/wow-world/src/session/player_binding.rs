@@ -230,7 +230,8 @@ impl WorldSession {
         }
         self.player_guid = guid;
         if player_changed {
-            self.last_presented_creature_melee_health_state_revision_like_cpp = 0;
+            self.view
+                .last_presented_creature_melee_health_state_revision_like_cpp = 0;
             // Visible auras and their completeness proof belong to the C++
             // Player, not the authenticated WorldSession. Clear both at the
             // identity boundary so a later character cannot inherit positive
@@ -291,7 +292,7 @@ impl WorldSession {
             }
         }
         if let Some(guid) = guid {
-            self.recent_player_guid_low_like_cpp = guid.counter() as u64;
+            self.account_state.recent_player_guid_low_like_cpp = guid.counter() as u64;
             self.last_observed_farsight_object_like_cpp = wow_core::ObjectGuid::EMPTY;
             #[cfg(test)]
             {
@@ -313,7 +314,7 @@ impl WorldSession {
             self.last_observed_farsight_object_like_cpp = wow_core::ObjectGuid::EMPTY;
             // Old registry clones remain permanently closed; a later character
             // selected on this authenticated session receives a fresh fence.
-            self.durable_loot_money_persistence_like_cpp =
+            self.lifecycle.durable_loot_money_persistence_like_cpp =
                 Arc::new(DurableLootMoneyPersistenceTrackerLikeCpp::default());
         }
     }

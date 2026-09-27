@@ -156,7 +156,7 @@ impl WorldSession {
     /// Handle CMSG_LOGOUT_CANCEL — player cancels a pending logout.
     pub async fn handle_logout_cancel(&mut self) {
         info!("LogoutCancel from account {}", self.account_id);
-        self.logout_time = None;
+        self.lifecycle.logout_time = None;
         self.send_packet(&LogoutCancelAck);
     }
 

@@ -514,7 +514,8 @@ fn combat_tick_spell_delay_combat_timer_pauses_attack_timer_like_cpp() {
             unit.set_current_cast_spell(wow_entities::CurrentSpellSlot::Generic, generic_cast);
         })
         .unwrap();
-    session.combat_tick_last_at_like_cpp = Instant::now() - std::time::Duration::from_millis(100);
+    session.view.combat_tick_last_at_like_cpp =
+        Instant::now() - std::time::Duration::from_millis(100);
     session.combat_target = Some(guid);
     session.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 40);

@@ -147,24 +147,263 @@ use super::{VehicleTemplateStoreLikeCpp, VendorBuyItemTestOverrideLikeCpp};
 use super::{WaypointPathResolverLikeCpp, WorldMMapPathfinderWorkerLikeCpp, WorldPacket};
 use super::{WorldSafeLocStore, driver, lifecycle};
 
-pub struct WorldSession {
+/// Shared registries and the game-event channel the session coordinates through.
+#[derive(Default)]
+pub(in crate::session) struct SessionDirectory {
+    /// Session -> world-server bridge for C++ GameEventMgr::HandleQuestComplete.
+    pub(in crate::session) game_event_quest_complete_tx:
+        Option<flume::Sender<GameEventQuestCompleteCommandLikeCpp>>,
+    /// Shared group registry for party management.
+    pub(in crate::session) group_registry: Option<Arc<GroupRegistry>>,
+    /// Pending party invites: invited_guid → inviter_guid.
+    pub(in crate::session) pending_invites: Option<Arc<PendingInvites>>,
+}
+
+/// Social admission limits the session applies: the C++ Recruit-A-Friend XP
+/// level gates and the chat anti-flood throttle state charged per message.
+#[derive(Default)]
+pub(in crate::session) struct SessionSocialLimits {
+    /// C++ Recruit-A-Friend XP level gates used by `Player::GetsRecruitAFriendBonus(true)`.
+    pub(in crate::session) max_recruit_a_friend_bonus_player_level_like_cpp: u32,
+    pub(in crate::session) max_recruit_a_friend_bonus_player_level_difference_like_cpp: u32,
+    /// C++ `WorldSession::m_chatFloodData` accumulators.
+    pub(in crate::session) chat_flood_data_like_cpp: [ChatFloodThrottleDataLikeCpp; 2],
+}
+
+/// Session-owned services the phase driver consults: the canonical time-sync
+/// protocol state and the represented gameplay RNG.
+pub(in crate::session) struct SessionDriverServices {
+    /// Canonical per-session time-sync protocol state.
+    pub(in crate::session) time_synchronization: TimeSynchronizationStateLikeCpp,
+    /// Session-owned RNG for represented gameplay choices that C++ resolves through
+    /// `urand`/`SelectRandomContainerElement` while the owning Player/Map runtime is
+    /// still being split out of `WorldSession`.
+    pub(in crate::session) represented_runtime_rng_like_cpp: StdRng,
+}
+
+/// The session's view of the world it is in: the active area trigger, the taxi
+/// travel map lookup, the combat-tick bookkeeping and the realm PvP flags.
+pub(in crate::session) struct SessionWorldView {
+    /// C++ `World::IsPvPRealm()` classification.
+    pub(in crate::session) is_pvp_realm_like_cpp: bool,
+    /// C++ `World::IsFFAPvPRealm()` classification.
+    pub(in crate::session) is_ffa_pvp_realm_like_cpp: bool,
+    /// Last represented player melee tick used to decrement C++ `m_attackTimer`.
+    pub(in crate::session) combat_tick_last_at_like_cpp: Instant,
+    /// High-water mark for map-owned creature-melee presentation commands.
+    /// Canonical health/death authority lives on `wow-map`; this suppresses
+    /// durable FIFO replay without writing delayed values back to that owner.
+    pub(in crate::session) last_presented_creature_melee_health_state_revision_like_cpp: u64,
+    /// Minimal TaxiNodes.db2 map lookup used by represented `MoveSplineDone` taxi transitions.
+    pub(in crate::session) taxi_node_map_ids_like_cpp: HashMap<u32, u16>,
+    /// Currently active area trigger ID, set when entered and cleared when exited.
+    pub(in crate::session) active_area_trigger: Option<u32>,
+}
+
+/// Addon chat filtering: C++ `WorldSession::_registeredAddonPrefixes` and
+/// `_filterAddonMessages`. Read by the chat handlers, which is why the filter
+/// keeps crate visibility instead of narrowing to the session tree.
+#[derive(Default)]
+pub(crate) struct SessionAddonFilter {
+    pub(crate) registered_addon_prefixes: Vec<String>,
+    pub(crate) filter_addon_messages: bool,
+}
+
+/// The canonical producer's phase rail for this session (#787), separate from
+/// the command mailbox because a phase pass drains that mailbox.
+pub(in crate::session) struct SessionPhaseRail {
+    pub(in crate::session) tx: flume::Sender<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
+    pub(in crate::session) rx: flume::Receiver<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
+}
+
+/// The session's spell-side represented state: the cached spell-script id sets
+/// the startup audit installs, the spell-acquisition authorities, the execute-log
+/// effects and the offhand re-check switch, until the owning Player runtime and the
+/// spell-acquisition module take them over.
+pub(crate) struct SessionSpellState {
+    pub(in crate::session) legacy_spell_script_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
+    pub(in crate::session) spell_linked_rejected_trigger_spell_ids_like_cpp:
+        Option<Arc<BTreeSet<u32>>>,
+    pub(in crate::session) spell_script_all_rank_root_spell_ids_like_cpp:
+        Option<Arc<BTreeSet<u32>>>,
+    /// Effective C++ spell-script hooks. These remain optional so a session
+    /// constructed without the startup audit fails closed.
+    pub(in crate::session) spell_script_exact_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
+    /// C++ `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` represented switch.
+    pub(in crate::session) represented_offhand_check_at_spell_unlearn_like_cpp: bool,
+    pub(in crate::session) represented_spell_execute_log_effects_like_cpp:
+        Vec<wow_packet::packets::combat::SpellLogEffect>,
+    pub(crate) spell_acquisition_cast_authority_like_cpp:
+        Option<Arc<crate::spell_acquisition::SpellAcquisitionCastAuthorityLikeCpp>>,
+    pub(crate) spell_acquisition_craft_authority_like_cpp:
+        Option<Arc<crate::spell_acquisition::SpellAcquisitionCraftValidityAuthorityLikeCpp>>,
+}
+
+/// The session's quest-side represented state: the level-gap thresholds that
+/// decide quest visibility, the completed-quest status updates and objective
+/// progress the player owner drains, and the visibility refreshes those
+/// transitions request.
+pub(crate) struct SessionQuestState {
+    pub(crate) min_quest_scaled_xp_ratio_like_cpp: u32,
+    pub(crate) quest_high_level_hide_diff_like_cpp: u32,
+    pub(crate) quest_low_level_hide_diff_like_cpp: u32,
+    /// Evidence for represented `Player::CompleteQuest` status-update side effects.
+    pub(crate) represented_quest_complete_status_updates_like_cpp:
+        Vec<RepresentedQuestCompleteStatusUpdateLikeCpp>,
+    pub(in crate::session) represented_quest_objective_progress_draining_like_cpp: bool,
+    pub(in crate::session) represented_quest_objective_progress_events_like_cpp:
+        VecDeque<RepresentedQuestObjectiveProgressEventLikeCpp>,
+    /// Count of visibility refreshes requested by movement initialization.
+    pub(in crate::session) movement_visibility_refresh_requests_like_cpp: u32,
+}
+
+/// The session's persistence and lifecycle timeline: the login/logout instants
+/// and the periodic-save schedule, the player loading and logout claims, the
+/// tutorial and account-data state it persists, the persistence ports and the
+/// finalization rail it hands work to, and the pet-load and loot trackers.
+pub(crate) struct SessionLifecycleState {
+    /// C++ `WorldSession::_accountData`, represented in-memory until DB load/save is wired.
+    pub(in crate::session) account_data_like_cpp: [AccountDataLikeCpp; NUM_ACCOUNT_DATA_TYPES],
+    pub(in crate::session) battle_pet_account_attachment_like_cpp:
+        Option<BattlePetAccountAttachmentLikeCpp>,
+    pub(in crate::session) character_rename_callbacks: driver::RenameCallbacks,
+    /// Detached durable loot grants and their post-commit runtime
+    /// publications. This covers claimed world-owner items plus Item-owner
+    /// items/money; Item owners have no map-owned loot authority.
+    pub(in crate::session) durable_item_loot_persistence_like_cpp:
+        DurableItemLootPersistenceTrackerLikeCpp,
+    /// Per-character fence published to remote loot sources before they begin
+    /// mutating this character's durable balance.
+    pub(in crate::session) durable_loot_money_persistence_like_cpp:
+        Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
+    pub(in crate::session) finalization: Option<crate::finalization::SessionFinalization>,
+    pub(in crate::session) homebind_persistence_tx_like_cpp:
+        Option<tokio::sync::mpsc::UnboundedSender<HomebindPersistenceJobLikeCpp>>,
+    /// Time played at current level loaded from DB (seconds).
+    pub(crate) level_played_time: u32,
+    /// Timestamp set when the player enters the world (PlayerLogin).
+    pub(crate) login_time: Option<Instant>,
+    /// When set, the session is counting down to logout (20s timer).
+    /// `None` means no logout is pending.
+    pub(crate) logout_time: Option<Instant>,
+    /// C++ `Player::m_nextSave` countdown in milliseconds; 0 disables autosave.
+    pub(in crate::session) next_player_save_ms_like_cpp: u32,
+    /// Set by the sync update loop when the autosave countdown expires.
+    pub(in crate::session) pending_periodic_player_save_like_cpp: bool,
+    /// Typed database capabilities live behind one indirection so adding a
+    /// persistence workflow does not keep growing this already-large session;
+    /// `wow-database` supplies the concrete adapters.
+    pub(crate) persistence_ports_like_cpp: Box<SessionPersistencePortsLikeCpp>,
+    /// Per-character asynchronous C++ `PetLoadQueryHolder` result lifetime.
+    pub(in crate::session) pet_load_query_holder_rows_like_cpp:
+        lifecycle::PetLoadQueryHolderRowsLikeCpp,
+    /// GUID of the character being logged in (set during PlayerLogin).
+    pub(in crate::session) player_loading: Option<ObjectGuid>,
+    /// Strong identity for this session's process-wide live-character claim.
+    pub(in crate::session) player_login_claim_like_cpp: Option<(ObjectGuid, Arc<()>)>,
+    /// C++ `WorldSession::m_playerLogout`: true only while the logout routine is executing.
+    pub(in crate::session) player_logout_like_cpp: bool,
+    /// C++ `CONFIG_INTERVAL_SAVE` / `PlayerSaveInterval` in milliseconds.
+    pub(in crate::session) player_save_interval_ms_like_cpp: u32,
+    /// Total played time loaded from DB (seconds).
+    pub(crate) total_played_time: u32,
+    pub(in crate::session) tutorials_changed_like_cpp: bool,
+    /// C++ `WorldSession::_tutorials`, account-scoped tutorial completion flags.
+    pub(in crate::session) tutorials_like_cpp: [u32; 8],
+    pub(in crate::session) tutorials_loaded_coherently_like_cpp: bool,
+    pub(in crate::session) tutorials_loaded_from_db_like_cpp: bool,
+}
+
+/// The session's transport and connection identity: the `wow-session` transport
+/// kernel (#297), the physical remote address, the authentication session key
+/// and the shared session manager handle for the ConnectTo flow.
+pub(crate) struct SessionTransport {
     /// The realm/instance transport, owned by `wow-session` (#297).
     ///
     /// The first piece of this type to earn its own crate: it compiles without
     /// gameplay, databases or catalogs, so the compiler now prevents transport
     /// decisions from reaching a `Player`, a `Map` or a query.
     pub(in crate::session) connection: wow_session::SessionConnection,
+    pub(in crate::session) remote_address_like_cpp: Option<String>,
+    pub session_key: Vec<u8>,
+    /// Session manager for ConnectTo flow (shared with instance listener).
+    pub(in crate::session) session_mgr: Option<Arc<SessionManager>>,
+}
+
+/// Packet admission and dispatch state: the opcode dispatch table, the ingress
+/// throttle and spoof-ban bookkeeping, the pending packet queue and the socket
+/// timeout and phase-authority fences for the admitted traffic.
+pub(crate) struct SessionAdmissionState {
+    pub(in crate::session) dispatch_table: HashMap<ClientOpcodes, &'static PacketHandlerEntry>,
+    pub(in crate::session) last_packet_time: Instant,
+    /// The producer and step this session last accepted, per phase (#787).
+    ///
+    /// C++ has one caller and needs no such watermark. Here it is what rejects
+    /// a foreign producer, a retired step and a replay of one already served,
+    /// none of which the identity of the player can distinguish. It is kept per
+    /// phase because one step legitimately issues the world phase and then the
+    /// map phase under the same epoch (`World.cpp:2704` then `World.cpp:2748`).
+    pub(in crate::session) last_phase_authority_like_cpp: [Option<(u64, u64)>; 2],
+    /// Set by the first canonical map-phase request (#787). Until then this
+    /// session has no coordinator and keeps draining its own queue.
+    pub(in crate::session) map_phase_coordinated_like_cpp: bool,
+    pub(in crate::session) packet_spoof_config_like_cpp: PacketSpoofConfigLikeCpp,
+    pub(in crate::session) packet_throttling_like_cpp: HashMap<u16, PacketCounterLikeCpp>,
+    pub(in crate::session) pending_packet_spoof_ban_like_cpp: Option<PacketSpoofPendingBanLikeCpp>,
+    pub(in crate::session) pending_packets: VecDeque<WorldPacket>,
+    pub(in crate::session) socket_timeout_deadline_like_cpp: Instant,
+    pub(in crate::session) socket_timeouts_like_cpp: SocketTimeoutsLikeCpp,
+}
+
+/// The realm and instance policy the session admits play under: the realm's
+/// region, battlegroup, name table and secret, the server expansion cap, the
+/// hourly instance budget and the two instance-ignore switches.
+pub(crate) struct SessionRealmPolicy {
+    pub(in crate::session) realm_battlegroup: u8,
+    pub(in crate::session) realm_region: u8,
+    pub(in crate::session) realm_names_like_cpp: BTreeMap<u32, (String, String)>,
+    pub(in crate::session) realm_list_secret_like_cpp: [u8; 32],
+    pub(in crate::session) server_expansion_like_cpp: u8,
+    pub(in crate::session) max_instances_per_hour_like_cpp: u32,
+    pub(in crate::session) instance_ignore_level_like_cpp: bool,
+    pub(in crate::session) instance_ignore_raid_like_cpp: bool,
+}
+
+/// Account-level session state: the Battle.net account id, the recruit-a-friend
+/// edges, the account's legitimate characters, the recent character low guid and
+/// the mute expiry the chat handlers enforce.
+pub(crate) struct SessionAccountState {
+    pub(in crate::session) battlenet_account_id: u32,
+    pub(in crate::session) is_a_recruiter_like_cpp: bool,
+    pub(in crate::session) recruiter_id_like_cpp: u32,
+    pub(in crate::session) legit_characters: Vec<ObjectGuid>,
+    /// C++ `WorldSession::m_GUIDLow`: last logged-in character low GUID kept after logout.
+    pub(in crate::session) recent_player_guid_low_like_cpp: u64,
+    pub(in crate::session) mute_time_like_cpp: i64,
+}
+
+/// Cross-thread session flags shared with the services that publish for this
+/// session: whether advanced combat logging selects the full spell-log payload,
+/// and whether a deferred visibility refresh is still owed.
+pub(crate) struct SessionSharedFlags {
+    /// C++ `Player::_advancedCombatLoggingEnabled`; consumed when combat-log fanout selects full/basic payloads.
+    /// C++ `WorldSession::_filterAddonMessages`' sibling for
+    /// `SMSG_SPELL_GO`: shared so a producer can commit the combat-log packet
+    /// variant per recipient while distributing a cast, the way C++ selects it
+    /// synchronously inside `WorldObject::SendCombatLogMessage`.
+    pub(in crate::session) advanced_combat_logging_enabled_like_cpp: Arc<AtomicBool>,
+    pub(in crate::session) visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
+}
+
+pub struct WorldSession {
     // Account info
     pub account_id: u32,
-    pub(in crate::session) battlenet_account_id: u32,
-    pub(in crate::session) realm_list_secret_like_cpp: [u8; 32],
-    pub(in crate::session) recruiter_id_like_cpp: u32,
-    pub(in crate::session) is_a_recruiter_like_cpp: bool,
+
     pub account_name: String,
     pub security: u8,
     pub expansion: u8,
     pub account_expansion: u8,
-    pub(in crate::session) server_expansion_like_cpp: u8,
+
     #[cfg(test)]
     pub(in crate::session) characters_per_realm_like_cpp: u32,
     #[cfg(test)]
@@ -173,17 +412,14 @@ pub struct WorldSession {
     pub(in crate::session) feature_system_bpay_store_enabled_like_cpp: bool,
     #[cfg(test)]
     pub(in crate::session) feature_system_character_undelete_enabled_like_cpp: bool,
-    pub(in crate::session) instance_ignore_raid_like_cpp: bool,
-    pub(in crate::session) instance_ignore_level_like_cpp: bool,
-    pub(in crate::session) max_instances_per_hour_like_cpp: u32,
+
     /// Detached Player bootstrap-catalog inputs used only by tests.
     #[cfg(test)]
     pub(in crate::session) player_bootstrap_catalog_test_fixture_like_cpp:
         PlayerBootstrapCatalogTestFixtureLikeCpp,
     pub build: u32,
-    pub session_key: Vec<u8>,
+
     pub locale: String,
-    pub(in crate::session) mute_time_like_cpp: i64,
 
     // Inbound packet queue (from WorldSocket)
 
@@ -193,52 +429,20 @@ pub struct WorldSession {
     // Cross-session commands executed by this session's own update loop.
     pub(in crate::session) session_command_tx: flume::Sender<SessionCommand>,
     pub(in crate::session) session_command_rx: flume::Receiver<SessionCommand>,
-    /// The canonical producer's phase rail for this session (#787), separate
-    /// from the command mailbox because a phase pass drains that mailbox.
-    pub(in crate::session) session_phase_tx:
-        flume::Sender<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
-    pub(in crate::session) session_phase_rx:
-        flume::Receiver<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
-    /// The producer and step this session last accepted, per phase (#787).
-    ///
-    /// C++ has one caller and needs no such watermark. Here it is what rejects
-    /// a foreign producer, a retired step and a replay of one already served,
-    /// none of which the identity of the player can distinguish. It is kept per
-    /// phase because one step legitimately issues the world phase and then the
-    /// map phase under the same epoch (`World.cpp:2704` then `World.cpp:2748`).
-    pub(in crate::session) last_phase_authority_like_cpp: [Option<(u64, u64)>; 2],
+
     pub(in crate::session) durable_creature_runtime_commands_like_cpp:
         Arc<std::sync::Mutex<crate::session::mailbox::DurableCreatureRuntimeCommandsLikeCpp>>,
-    pub(in crate::session) visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
 
     // State
     pub(in crate::session) state: SessionState,
-    pub(in crate::session) last_packet_time: Instant,
-    pub(in crate::session) socket_timeouts_like_cpp: SocketTimeoutsLikeCpp,
-    pub(in crate::session) socket_timeout_deadline_like_cpp: Instant,
-    pub(in crate::session) packet_spoof_config_like_cpp: PacketSpoofConfigLikeCpp,
-    pub(in crate::session) packet_throttling_like_cpp: HashMap<u16, PacketCounterLikeCpp>,
-    pub(in crate::session) remote_address_like_cpp: Option<String>,
-    pub(in crate::session) pending_packet_spoof_ban_like_cpp: Option<PacketSpoofPendingBanLikeCpp>,
+
     pub(in crate::session) legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp,
-    /// Session-owned RNG for represented gameplay choices that C++ resolves through
-    /// `urand`/`SelectRandomContainerElement` while the owning Player/Map runtime is
-    /// still being split out of `WorldSession`.
-    pub(in crate::session) represented_runtime_rng_like_cpp: StdRng,
 
     // Dispatch table (built once, shared ref)
-    pub(in crate::session) dispatch_table: HashMap<ClientOpcodes, &'static PacketHandlerEntry>,
 
     // FIFO sender for C++ CharacterDatabase.Execute-style detached homebind
     // writes. Its single worker drains queued jobs after session teardown and
     // preserves call order.
-    pub(in crate::session) homebind_persistence_tx_like_cpp:
-        Option<tokio::sync::mpsc::UnboundedSender<HomebindPersistenceJobLikeCpp>>,
-
-    /// Typed database capabilities live behind one indirection so adding a
-    /// persistence workflow does not keep growing this already-large session;
-    /// `wow-database` supplies the concrete adapters.
-    pub(crate) persistence_ports_like_cpp: Box<SessionPersistencePortsLikeCpp>,
 
     // C++ ObjectMgr trainer definitions and creature bindings.
     pub(in crate::session) trainer_store_like_cpp: Option<Arc<TrainerStoreLikeCpp>>,
@@ -299,8 +503,6 @@ pub struct WorldSession {
     // C++ `Spell::_executeLogEffects` (`Spell.h:519`, `Spell.cpp:5048-5095`):
     // the current cast's execute-log effects, published once by
     // `Spell::FinishTargetProcessing`.
-    pub(in crate::session) represented_spell_execute_log_effects_like_cpp:
-        Vec<wow_packet::packets::combat::SpellLogEffect>,
 
     // Transmog set item store (TransmogSetItem.db2 data)
     pub(in crate::session) transmog_set_item_store: Option<Arc<TransmogSetItemStore>>,
@@ -477,15 +679,47 @@ pub struct WorldSession {
     // Shared player registry for broadcasting to nearby sessions
     pub(in crate::session) player_registry: Option<Arc<PlayerRegistry>>,
 
-    // Session -> world-server bridge for C++ GameEventMgr::HandleQuestComplete.
-    pub(in crate::session) game_event_quest_complete_tx:
-        Option<flume::Sender<GameEventQuestCompleteCommandLikeCpp>>,
+    /// Party registries and the world-event channel, grouped by the B4 split.
+    pub(in crate::session) directory: SessionDirectory,
 
-    // Shared group registry for party management
-    pub(in crate::session) group_registry: Option<Arc<GroupRegistry>>,
+    /// Social admission limits and chat anti-flood throttle state.
+    pub(in crate::session) social: SessionSocialLimits,
 
-    // Pending party invites: invited_guid → inviter_guid
-    pub(in crate::session) pending_invites: Option<Arc<PendingInvites>>,
+    /// Phase-driver services: time-sync state and the represented gameplay RNG.
+    pub(in crate::session) driver: SessionDriverServices,
+
+    /// The session's view of its world: area trigger, taxi, combat and realm flags.
+    pub(in crate::session) view: SessionWorldView,
+
+    /// Flags this session publishes to its publisher tasks.
+    pub(crate) flags: SessionSharedFlags,
+
+    /// Realm and instance policy for this session.
+    pub(crate) realm_policy: SessionRealmPolicy,
+
+    /// Account-level session state shared with the chat and character handlers.
+    pub(crate) account_state: SessionAccountState,
+
+    /// Admission, throttling and dispatch state for the session's inbound packets.
+    pub(crate) admission: SessionAdmissionState,
+
+    /// Transport kernel, remote address, session key and session manager handle.
+    pub(crate) transport: SessionTransport,
+
+    /// Persistence and lifecycle state shared with the lifecycle and handler code.
+    pub(crate) lifecycle: SessionLifecycleState,
+
+    /// Spell-side represented state shared with the spell and acquisition adapters.
+    pub(crate) spell_state: SessionSpellState,
+
+    /// Quest-side represented state shared with the quest handlers.
+    pub(crate) quest_state: SessionQuestState,
+
+    /// Addon chat filtering state shared with the chat handlers.
+    pub(crate) addon_filter: SessionAddonFilter,
+
+    /// The producer-addressed phase rail the driver parks on between phases.
+    pub(in crate::session) phase: SessionPhaseRail,
 
     // Test-only compatibility for pre-#578 fixtures. Production group
     // membership and Player-owned update sequences live on canonical Player.
@@ -509,9 +743,6 @@ pub struct WorldSession {
 
     // Realm ID for GUID creation
     pub(in crate::session) realm_id: u16,
-    pub(in crate::session) realm_region: u8,
-    pub(in crate::session) realm_battlegroup: u8,
-    pub(in crate::session) realm_names_like_cpp: BTreeMap<u32, (String, String)>,
 
     // Process-owned GUID generators retained only as test fixtures.
     #[cfg(test)]
@@ -529,56 +760,18 @@ pub struct WorldSession {
         Option<Arc<VoidStorageItemIdGeneratorLikeCpp>>,
 
     // Characters confirmed for this account
-    pub(in crate::session) legit_characters: Vec<ObjectGuid>,
 
     // Pending async packets to process
-    pub(in crate::session) pending_packets: VecDeque<WorldPacket>,
-    pub(in crate::session) character_rename_callbacks: driver::RenameCallbacks,
 
     // ── ConnectTo flow ──────────────────────────────────────────
-    /// GUID of the character being logged in (set during PlayerLogin).
-    pub(in crate::session) player_loading: Option<ObjectGuid>,
-    /// Strong identity for this session's process-wide live-character claim.
-    pub(in crate::session) player_login_claim_like_cpp: Option<(ObjectGuid, Arc<()>)>,
-    /// C++ `WorldSession::m_playerLogout`: true only while the logout routine is executing.
-    pub(in crate::session) player_logout_like_cpp: bool,
-    pub(in crate::session) finalization: Option<crate::finalization::SessionFinalization>,
-
-    /// Session manager for ConnectTo flow (shared with instance listener).
-    pub(in crate::session) session_mgr: Option<Arc<SessionManager>>,
-
-    /// Canonical per-session time-sync protocol state.
-    pub(in crate::session) time_synchronization: TimeSynchronizationStateLikeCpp,
 
     // ── Logout ──────────────────────────────────────────────────────
-    /// When set, the session is counting down to logout (20s timer).
-    /// `None` means no logout is pending.
-    pub(crate) logout_time: Option<Instant>,
-    /// Timestamp set when the player enters the world (PlayerLogin).
-    pub(crate) login_time: Option<Instant>,
-    /// C++ `CONFIG_INTERVAL_SAVE` / `PlayerSaveInterval` in milliseconds.
-    pub(in crate::session) player_save_interval_ms_like_cpp: u32,
-    /// C++ `Player::m_nextSave` countdown in milliseconds; 0 disables autosave.
-    pub(in crate::session) next_player_save_ms_like_cpp: u32,
-    /// Set by the sync update loop when the autosave countdown expires.
-    pub(in crate::session) pending_periodic_player_save_like_cpp: bool,
-    /// Total played time loaded from DB (seconds).
-    pub(crate) total_played_time: u32,
-    /// Time played at current level loaded from DB (seconds).
-    pub(crate) level_played_time: u32,
     /// C++ `CONFIG_MAX_PLAYER_LEVEL`. `RestMgr::SetRestBonus` reads this value
     /// directly; `Player::IsMaxLevel` reads the expansion-bounded active field.
     pub(in crate::session) max_player_level_config_like_cpp: u32,
     /// C++ `CONFIG_MAX_PRIMARY_TRADE_SKILL`, kept independent from talent
     /// `CharacterPoints` and from the two physical profession associations.
     pub(in crate::session) max_primary_trade_skills_like_cpp: u8,
-    /// C++ `World::IsPvPRealm()` classification.
-    pub(in crate::session) is_pvp_realm_like_cpp: bool,
-    /// C++ `World::IsFFAPvPRealm()` classification.
-    pub(in crate::session) is_ffa_pvp_realm_like_cpp: bool,
-    /// C++ Recruit-A-Friend XP level gates used by `Player::GetsRecruitAFriendBonus(true)`.
-    pub(in crate::session) max_recruit_a_friend_bonus_player_level_like_cpp: u32,
-    pub(in crate::session) max_recruit_a_friend_bonus_player_level_difference_like_cpp: u32,
     /// Handle-less RestMgr and rate-policy fixture; production state belongs to Player.
     #[cfg(test)]
     pub(in crate::session) rest_mgr_test_fixture_like_cpp: RestMgrTestFixtureLikeCpp,
@@ -657,20 +850,12 @@ pub struct WorldSession {
 
     /// GUID of the character currently logged in (set after login completes).
     pub(in crate::session) player_guid: Option<ObjectGuid>,
-    /// C++ `WorldSession::m_GUIDLow`: last logged-in character low GUID kept after logout.
-    pub(in crate::session) recent_player_guid_low_like_cpp: u64,
+
     /// Test fixtures may attach a Player bootstrap before injecting the
     /// production MapManager. Production attachment is represented solely by
     /// the generation-checked PlayerHandle.
     #[cfg(test)]
     pub(in crate::session) player_bootstrap_attached_like_cpp: bool,
-    /// C++ `WorldSession::_accountData`, represented in-memory until DB load/save is wired.
-    pub(in crate::session) account_data_like_cpp: [AccountDataLikeCpp; NUM_ACCOUNT_DATA_TYPES],
-    /// C++ `WorldSession::_tutorials`, account-scoped tutorial completion flags.
-    pub(in crate::session) tutorials_like_cpp: [u32; 8],
-    pub(in crate::session) tutorials_loaded_from_db_like_cpp: bool,
-    pub(in crate::session) tutorials_loaded_coherently_like_cpp: bool,
-    pub(in crate::session) tutorials_changed_like_cpp: bool,
 
     /// Pending creature spawn request (set during login, processed async).
     pub(crate) pending_creature_spawn: Option<PendingCreatureSpawn>,
@@ -719,9 +904,6 @@ pub struct WorldSession {
     /// Legacy handle-less test fixture for C++ `Player::_currencyStorage`.
     #[cfg(test)]
     pub(in crate::session) player_currencies: HashMap<u32, PlayerCurrency>,
-    pub(in crate::session) represented_quest_objective_progress_events_like_cpp:
-        VecDeque<RepresentedQuestObjectiveProgressEventLikeCpp>,
-    pub(in crate::session) represented_quest_objective_progress_draining_like_cpp: bool,
 
     /// In-memory item objects keyed by item GUID, mirroring C++ `Player::m_items` ownership.
     #[cfg(test)]
@@ -816,11 +998,6 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(in crate::session) player_name: Option<String>,
 
-    // Addon chat filtering state. Mirrors C++ WorldSession::_registeredAddonPrefixes
-    // and _filterAddonMessages.
-    pub(crate) registered_addon_prefixes: Vec<String>,
-    pub(crate) filter_addon_messages: bool,
-
     // ── Creature AI tracking ──────────────────────────────────────
     /// Tick counter for creature movement (throttle to every N ticks).
     pub(crate) creature_tick: u32,
@@ -843,9 +1020,7 @@ pub struct WorldSession {
     /// Generation-checked identity of the one canonical Player value owned by
     /// MapManager. It remains resolvable while detached for a far teleport.
     pub(in crate::session) player_handle_like_cpp: Option<wow_map::PlayerHandle>,
-    /// Set by the first canonical map-phase request (#787). Until then this
-    /// session has no coordinator and keeps draining its own queue.
-    pub(in crate::session) map_phase_coordinated_like_cpp: bool,
+
     /// Dedicated Detour owner handle. The underlying `MMapManager` remains on
     /// its worker thread because Detour state is not `Send + Sync`.
     pub(in crate::session) mmap_pathfinder_like_cpp: Option<Arc<WorldMMapPathfinderWorkerLikeCpp>>,
@@ -857,8 +1032,6 @@ pub struct WorldSession {
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
     #[cfg(test)]
     pub(crate) combat_target: Option<wow_core::ObjectGuid>,
-    /// Last represented player melee tick used to decrement C++ `m_attackTimer`.
-    pub(in crate::session) combat_tick_last_at_like_cpp: Instant,
     /// True when the player is engaged in combat.
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
     #[cfg(test)]
@@ -884,10 +1057,6 @@ pub struct WorldSession {
     /// Test-only legacy max-health fixture for sessions without a Player handle.
     #[cfg(test)]
     pub(in crate::session) player_max_health_like_cpp: u32,
-    /// High-water mark for map-owned creature-melee presentation commands.
-    /// Canonical health/death authority lives on `wow-map`; this suppresses
-    /// durable FIFO replay without writing delayed values back to that owner.
-    pub(in crate::session) last_presented_creature_melee_health_state_revision_like_cpp: u64,
     /// Represented `Unit::m_movementInfo.time` for client movement ACK side effects.
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
     #[cfg(test)]
@@ -947,17 +1116,11 @@ pub struct WorldSession {
         [u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS],
     #[cfg(test)]
     pub(in crate::session) represented_action_buttons_loaded_like_cpp: bool,
-    /// C++ `Player::_advancedCombatLoggingEnabled`; consumed when combat-log fanout selects full/basic payloads.
-    /// C++ `WorldSession::_filterAddonMessages`' sibling for
-    /// `SMSG_SPELL_GO`: shared so a producer can commit the combat-log packet
-    /// variant per recipient while distributing a cast, the way C++ selects it
-    /// synchronously inside `WorldObject::SendCombatLogMessage`.
-    pub(in crate::session) advanced_combat_logging_enabled_like_cpp: Arc<AtomicBool>,
+
     /// C++ `Player::GetUnitBeingMoved()` represented GUID.
     #[cfg(test)]
     pub(in crate::session) player_moved_unit_guid_like_cpp: ObjectGuid,
-    /// Count of visibility refreshes requested by movement initialization.
-    pub(in crate::session) movement_visibility_refresh_requests_like_cpp: u32,
+
     /// ACKs accepted by represented movement handling until full Unit movement runtime/broadcasts exist.
     #[cfg(test)]
     pub(in crate::session) movement_ack_events_like_cpp: Vec<MovementAckEventLikeCpp>,
@@ -1014,8 +1177,6 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(in crate::session) represented_adventure_map_start_quest_requests_like_cpp:
         Vec<RepresentedAdventureMapStartQuestLikeCpp>,
-    /// Minimal TaxiNodes.db2 map lookup used by represented `MoveSplineDone` taxi transitions.
-    pub(in crate::session) taxi_node_map_ids_like_cpp: HashMap<u32, u16>,
     /// Represented active `FlightPathMovementGenerator`, if any.
     #[cfg(test)]
     pub(in crate::session) taxi_flight_state_like_cpp: Option<RepresentedTaxiFlightStateLikeCpp>,
@@ -1129,9 +1290,7 @@ pub struct WorldSession {
     /// narrow proof instead of attempting to model pet-to-owner aura casts.
     #[cfg(test)]
     pub(in crate::session) represented_character_pet_rows_empty_authority_complete_like_cpp: bool,
-    /// Per-character asynchronous C++ `PetLoadQueryHolder` result lifetime.
-    pub(in crate::session) pet_load_query_holder_rows_like_cpp:
-        lifecycle::PetLoadQueryHolderRowsLikeCpp,
+
     /// Represented `Pet::m_unitData->CreatedBySpell` for the active pet until UnitData owns it.
     #[cfg(test)]
     pub(in crate::session) represented_pet_created_by_spell_like_cpp: u32,
@@ -1329,18 +1488,6 @@ pub struct WorldSession {
     pub(in crate::session) canonical_threat_aura_snapshots_like_cpp:
         HashMap<u8, CanonicalThreatAuraSnapshotLikeCpp>,
 
-    pub(crate) spell_acquisition_cast_authority_like_cpp:
-        Option<Arc<crate::spell_acquisition::SpellAcquisitionCastAuthorityLikeCpp>>,
-    pub(crate) spell_acquisition_craft_authority_like_cpp:
-        Option<Arc<crate::spell_acquisition::SpellAcquisitionCraftValidityAuthorityLikeCpp>>,
-    /// Effective C++ spell-script hooks. These remain optional so a session
-    /// constructed without the startup audit fails closed.
-    pub(in crate::session) spell_script_exact_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
-    pub(in crate::session) spell_script_all_rank_root_spell_ids_like_cpp:
-        Option<Arc<BTreeSet<u32>>>,
-    pub(in crate::session) legacy_spell_script_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
-    pub(in crate::session) spell_linked_rejected_trigger_spell_ids_like_cpp:
-        Option<Arc<BTreeSet<u32>>>,
     pub(in crate::session) talent_store: Option<Arc<TalentStore>>,
     pub(in crate::session) num_talents_at_level_store: Option<Arc<NumTalentsAtLevelStore>>,
     pub(in crate::session) power_type_store: Option<Arc<PowerTypeStore>>,
@@ -1420,9 +1567,7 @@ pub struct WorldSession {
     pub(crate) min_discovered_scaled_xp_ratio_like_cpp: u32,
     #[cfg(test)]
     pub(crate) quest_test_fixture_like_cpp: QuestTestFixtureLikeCpp,
-    pub(crate) min_quest_scaled_xp_ratio_like_cpp: u32,
-    pub(crate) quest_low_level_hide_diff_like_cpp: u32,
-    pub(crate) quest_high_level_hide_diff_like_cpp: u32,
+
     /// C++ `CollectionMgr::_heirlooms`, represented until account collection runtime is complete.
     #[cfg(test)]
     pub(crate) represented_account_heirlooms_like_cpp: BTreeMap<u32, AccountHeirloomDataLikeCpp>,
@@ -1450,17 +1595,14 @@ pub struct WorldSession {
     /// Handle-less battle-pet state used only by isolated Session tests.
     #[cfg(test)]
     pub(crate) battle_pet_test_fixture_like_cpp: BattlePetTestFixtureLikeCpp,
-    pub(in crate::session) battle_pet_account_attachment_like_cpp:
-        Option<BattlePetAccountAttachmentLikeCpp>,
+
     /// C++ `Player::HasAchieved`, represented per-session until character achievements are fully loaded.
     #[cfg(test)]
     pub(crate) represented_completed_achievements_like_cpp: HashSet<u32>,
     /// C++ `Player::_instanceResetTimes`: instance id -> release time.
     #[cfg(test)]
     pub(crate) represented_instance_reset_times_like_cpp: BTreeMap<u32, u64>,
-    /// Evidence for represented `Player::CompleteQuest` status-update side effects.
-    pub(crate) represented_quest_complete_status_updates_like_cpp:
-        Vec<RepresentedQuestCompleteStatusUpdateLikeCpp>,
+
     /// C++ `ActivePlayerData::ExploredZones`, represented before the canonical Player owns persistence.
     #[cfg(test)]
     pub(in crate::session) represented_explored_zones_like_cpp:
@@ -1496,15 +1638,7 @@ pub struct WorldSession {
     /// prevent ABA when a creature GUID is recreated.
     pub(crate) active_loot_view_authorities_like_cpp:
         std::collections::HashMap<wow_core::ObjectGuid, OwnedLootAuthority>,
-    /// Detached durable loot grants and their post-commit runtime
-    /// publications. This covers claimed world-owner items plus Item-owner
-    /// items/money; Item owners have no map-owned loot authority.
-    pub(in crate::session) durable_item_loot_persistence_like_cpp:
-        DurableItemLootPersistenceTrackerLikeCpp,
-    /// Per-character fence published to remote loot sources before they begin
-    /// mutating this character's durable balance.
-    pub(in crate::session) durable_loot_money_persistence_like_cpp:
-        Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
+
     /// Test fixture for the process-owned linked-module registry. Production
     /// borrows the required registry from the session driver.
     #[cfg(test)]
@@ -1545,8 +1679,7 @@ pub struct WorldSession {
     pub(in crate::session) stats_limits_like_cpp: wow_data::StatsLimitsLikeCpp,
     /// C++ `CONFIG_RESET_SCHEDULE_{HOUR,WEEK_DAY}` consumed by `InstanceLockMgr::GetNextResetTime`.
     pub(in crate::session) reset_schedule_like_cpp: wow_instances::ResetSchedule,
-    /// C++ `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` represented switch.
-    pub(in crate::session) represented_offhand_check_at_spell_unlearn_like_cpp: bool,
+
     /// C++ `CONFIG_VMAP_INDOOR_CHECK` represented switch.
     pub(in crate::session) vmap_indoor_check_like_cpp: bool,
     /// Represented C++ `WorldObject::IsOutdoors()` result until VMAP owns it.
@@ -1594,7 +1727,6 @@ pub struct WorldSession {
     /// C++ `CONFIG_CHATFLOOD_*` represented chat spam protection.
     #[cfg(test)]
     pub(in crate::session) chat_flood_config_like_cpp: ChatFloodConfigLikeCpp,
-    pub(in crate::session) chat_flood_data_like_cpp: [ChatFloodThrottleDataLikeCpp; 2],
     /// C++ `CONFIG_ENABLE_MMAPS` + `DataDir` represented until map lifecycle owns real mmaps.
     pub(in crate::session) mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp,
     /// C++ `sWaypointMgr->GetPath(pathId)` resolver for session-created legacy `WorldCreature`
@@ -1705,10 +1837,6 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(crate) gossip_options: Vec<GossipOptionInfo>,
 
-    // ── Area trigger tracking ──────────────────────────────────────
-    /// Currently active area trigger ID (to prevent retriggering on same position).
-    /// Set to Some(trigger_id) when entered, None when exited.
-    pub(crate) active_area_trigger: Option<u32>,
     /// Ownerless legacy fixtures only; production uses Player's teleport state.
     #[cfg(test)]
     pub(in crate::session) pending_teleport: Option<(u32, wow_core::Position)>,

@@ -195,11 +195,13 @@ impl WorldSession {
         let spells: Vec<_> = rows.into_iter().filter(|row| row.spell_id != 0).collect();
         let loaded = spells.len();
         if loaded == 0 {
-            self.pet_load_query_holder_rows_like_cpp
+            self.lifecycle
+                .pet_load_query_holder_rows_like_cpp
                 .spells
                 .remove(&pet_number);
         } else {
-            self.pet_load_query_holder_rows_like_cpp
+            self.lifecycle
+                .pet_load_query_holder_rows_like_cpp
                 .spells
                 .insert(pet_number, spells);
         }
@@ -224,11 +226,13 @@ impl WorldSession {
             .collect();
         let loaded = cooldowns.len();
         if loaded == 0 {
-            self.pet_load_query_holder_rows_like_cpp
+            self.lifecycle
+                .pet_load_query_holder_rows_like_cpp
                 .spell_cooldowns
                 .remove(&pet_number);
         } else {
-            self.pet_load_query_holder_rows_like_cpp
+            self.lifecycle
+                .pet_load_query_holder_rows_like_cpp
                 .spell_cooldowns
                 .insert(pet_number, cooldowns);
         }
@@ -253,11 +257,13 @@ impl WorldSession {
             .collect();
         let loaded = charges.len();
         if loaded == 0 {
-            self.pet_load_query_holder_rows_like_cpp
+            self.lifecycle
+                .pet_load_query_holder_rows_like_cpp
                 .spell_charges
                 .remove(&pet_number);
         } else {
-            self.pet_load_query_holder_rows_like_cpp
+            self.lifecycle
+                .pet_load_query_holder_rows_like_cpp
                 .spell_charges
                 .insert(pet_number, charges);
         }
@@ -330,11 +336,13 @@ impl WorldSession {
             .collect();
         let loaded = auras.len();
         if loaded == 0 {
-            self.pet_load_query_holder_rows_like_cpp
+            self.lifecycle
+                .pet_load_query_holder_rows_like_cpp
                 .auras
                 .remove(&pet_number);
         } else {
-            self.pet_load_query_holder_rows_like_cpp
+            self.lifecycle
+                .pet_load_query_holder_rows_like_cpp
                 .auras
                 .insert(pet_number, auras);
         }
@@ -357,11 +365,13 @@ impl WorldSession {
             .collect();
         let loaded = effects.len();
         if loaded == 0 {
-            self.pet_load_query_holder_rows_like_cpp
+            self.lifecycle
+                .pet_load_query_holder_rows_like_cpp
                 .aura_effects
                 .remove(&pet_number);
         } else {
-            self.pet_load_query_holder_rows_like_cpp
+            self.lifecycle
+                .pet_load_query_holder_rows_like_cpp
                 .aura_effects
                 .insert(pet_number, effects);
         }

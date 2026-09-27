@@ -235,7 +235,7 @@ impl WorldSession {
         use wow_packet::packets::misc::{SuspendToken, TransferPending};
 
         // 1. SMSG_TRANSFER_PENDING — tell client to start loading screen
-        if !self.player_logout_like_cpp && options & TELE_TO_SEAMLESS_LIKE_CPP == 0 {
+        if !self.lifecycle.player_logout_like_cpp && options & TELE_TO_SEAMLESS_LIKE_CPP == 0 {
             let transfer_pending = TransferPending {
                 map_id: new_map,
                 old_map_position: current_pos,
@@ -252,7 +252,7 @@ impl WorldSession {
         if !self.set_pending_teleport_like_cpp(Some((new_map, new_pos))) {
             return;
         }
-        self.active_area_trigger = None;
+        self.view.active_area_trigger = None;
 
         // Retain native completion authority before an interruptible writer wait.
         if !self.set_represented_far_teleport_pending_like_cpp(true) {
@@ -266,7 +266,7 @@ impl WorldSession {
         // (the before-add reset happens only after ResumeToken). The client pairs suspend and
         // resume by this index, so they MUST match — a hardcoded 1 here vs the real counter in
         // ResumeToken left the client stuck on the loading screen. #NEXT.R8.ENTITIES.1229.
-        if !self.player_logout_like_cpp {
+        if !self.lifecycle.player_logout_like_cpp {
             if options & TELE_TO_SEAMLESS_LIKE_CPP == 0
                 && !self
                     .wait_for_realm_send_before_instance_update_like_cpp()
@@ -421,7 +421,7 @@ impl WorldSession {
             self.set_fall_information_like_cpp(0, current_pos.z);
         }
 
-        if !self.player_logout_like_cpp {
+        if !self.lifecycle.player_logout_like_cpp {
             let Some(sequence_index) = self.next_movement_counter_like_cpp() else {
                 return;
             };

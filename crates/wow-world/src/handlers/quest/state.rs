@@ -129,6 +129,7 @@ impl WorldSession {
                 .await;
             if rewarded {
                 if let Some(evidence) = self
+                    .quest_state
                     .represented_quest_complete_status_updates_like_cpp
                     .iter_mut()
                     .rev()

@@ -20,12 +20,10 @@ use tracing::debug;
 use crate::session::mailbox::{SendAddonIfRegisteredLikeCppCommand, SessionCommand};
 use wow_chat::hyperlinks::check_all_links_shape_like_cpp;
 use wow_chat::validation::validate_message_like_cpp;
-use wow_constants::{ClientOpcodes, UnitState};
+use wow_constants::UnitState;
 use wow_core::ObjectGuid;
 use wow_core::guid::HighGuid;
-use wow_handler::{PacketProcessing, SessionStatus};
 
-use crate::session::registry::PacketHandlerEntry;
 use wow_packet::packets::chat::{
     CTextEmote, ChatAddonMessage, ChatAddonMessageTargeted, ChatAddonMessageWhisper, ChatMessage,
     ChatMessageAfk, ChatMessageChannel, ChatMessageDnd, ChatMessageEmote, ChatMessageWhisper,

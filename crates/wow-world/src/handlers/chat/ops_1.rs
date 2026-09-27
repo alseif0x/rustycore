@@ -798,13 +798,15 @@ impl WorldSession {
             }
         };
 
-        self.registered_addon_prefixes.extend(packet.prefixes);
-        self.filter_addon_messages =
-            self.registered_addon_prefixes.len() <= ChatRegisterAddonPrefixes::MAX_PREFIXES;
+        self.addon_filter
+            .registered_addon_prefixes
+            .extend(packet.prefixes);
+        self.addon_filter.filter_addon_messages = self.addon_filter.registered_addon_prefixes.len()
+            <= ChatRegisterAddonPrefixes::MAX_PREFIXES;
         debug!(
             account = self.account_id,
-            prefixes = self.registered_addon_prefixes.len(),
-            filter = self.filter_addon_messages,
+            prefixes = self.addon_filter.registered_addon_prefixes.len(),
+            filter = self.addon_filter.filter_addon_messages,
             "Registered addon prefixes"
         );
     }

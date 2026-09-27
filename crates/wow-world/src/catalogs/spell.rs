@@ -16,7 +16,6 @@
 //! and no database. It performs no async work and holds no lock; every slot is
 //! filled once at startup and read afterwards.
 
-use std::collections::BTreeSet;
 use std::sync::Arc;
 
 /// Every spell and aura catalog slot a session reads, owned in one place.

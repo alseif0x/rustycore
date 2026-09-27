@@ -313,10 +313,10 @@ fn represented_mount_capability_uses_login_zone_area_fallback_like_cpp() {
 #[test]
 fn adjust_client_movement_time_uses_clock_delta_or_cpp_fallback() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
-    session.time_synchronization.clock_delta = 250;
+    session.driver.time_synchronization.clock_delta = 250;
     assert_eq!(session.adjust_client_movement_time_like_cpp(1_000), 1_250);
 
-    session.time_synchronization.clock_delta = 0;
+    session.driver.time_synchronization.clock_delta = 0;
     let adjusted = session.adjust_client_movement_time_like_cpp(1_000);
     assert_ne!(adjusted, 1_000);
 }

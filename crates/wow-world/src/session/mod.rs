@@ -580,10 +580,6 @@ use crate::map_manager::{
     WorldMMapPathfinderWorkerLikeCpp,
 };
 use crate::phasing::{init_db_phase_shift_like_cpp, init_db_visible_map_id_like_cpp};
-use crate::reputation::{
-    ReputationMgrLikeCpp, ReputationMgrMutLikeCpp, ReputationMgrRefLikeCpp,
-    reputation_to_rank_like_cpp,
-};
 use crate::session::directory::{
     PlayerRegistry, PlayerSessionRegistrationLikeCpp, PlayerVisibilityCreateSnapshot,
 };
@@ -754,6 +750,10 @@ use wow_entities::{
 };
 pub(crate) use wow_entities::{PlayerCurrency, PlayerCurrencyState};
 use wow_handler::{PacketProcessing, SessionStatus};
+use wow_progression::{
+    ReputationMgrLikeCpp, ReputationMgrMutLikeCpp, ReputationMgrRefLikeCpp,
+    reputation_to_rank_like_cpp,
+};
 
 // Only the test modules mounted into this file name these directly; the
 // production surface reaches them through `wow-session` since #297.
