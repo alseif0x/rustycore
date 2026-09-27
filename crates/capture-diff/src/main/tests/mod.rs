@@ -4,8 +4,6 @@
 
 use crate::*;
 
-
-
 fn packet(direction: Direction, opcode: u16) -> capture_diff::CapturedPacket {
     capture_diff::CapturedPacket {
         direction,

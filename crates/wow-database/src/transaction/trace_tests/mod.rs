@@ -2,8 +2,6 @@
 //!
 //! Separated from transaction.rs under #683.
 
-
-
 use super::*;
 use crate::statements::{CharStatements, StatementDef};
 

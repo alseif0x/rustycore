@@ -2,8 +2,6 @@
 //!
 //! Separated from the world.rs root under #652. Behaviour is preserved.
 
-
-
 /// Prepared statements for the world database.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]

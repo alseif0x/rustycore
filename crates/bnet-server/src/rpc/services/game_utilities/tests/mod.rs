@@ -2,8 +2,6 @@
 //!
 //! Separated from game_utilities.rs under #685.
 
-
-
 use super::{
     BnetLastLoginInfoUpdateLikeCpp, JoinRealmLoginInfoUpdateLikeCpp,
     account_info_or_status_like_cpp, apply_bnet_last_login_info_update_like_cpp,
