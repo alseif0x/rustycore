@@ -1195,6 +1195,21 @@ actual solo cuenta) y ensanchar su definicion **donde este** (buscar el nombre e
 no solo en el directorio movido), y despues repuntar las filas fisicas de los ficheros movidos. Todo lo
 demas del trasvase esta resuelto y verificado en los intentos anteriores.
 
+### B6 `map_manager`: el ultimo metodo no esta en wow-map (2026-09-27)
+
+Ampliado el ensanchado a **todo `crates/wow-map/src`** e imprimiendo los nombres, el ultimo error es
+siempre **`runtime_elapsed_ms_like_cpp`** y su definicion no aparece en `wow-map`: vive en **otro crate**
+(se comprueba con `grep -rn 'fn runtime_elapsed_ms_like_cpp' crates/`), probablemente una implementacion
+sobre el tipo movido que quedo en `wow-world`. Tarea exacta del siguiente intento: localizarla con ese
+grep, ensancharla a `pub` **en su crate** y, si esta en `wow-world`, decidir si el impl pertenece al
+modulo movido (moverlo) o si el metodo debe exponerse desde `wow-map`. Despues, repuntar las filas
+fisicas de los ficheros movidos.
+
+Resumen del trasvase (6 intentos, todos revertidos limpios): 30 -> 8 -> 4 -> **1** error; resueltos el
+montaje de tests con su `#[cfg(test)]` colgante, las autoreferencias `wow_map::`, los re-exports de
+hijos, las seis dependencias, 14 de 15 visibilidades y cuatro ficheros ensanchados. La distancia que
+queda es **un grep y una visibilidad**.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
