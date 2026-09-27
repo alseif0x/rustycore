@@ -932,6 +932,23 @@ Hallazgos registrados, **no silenciados**:
   silenciarlo o romper el test serian peores. Queda anotado como advertencia de metodo: los avisos de
   `--all-targets` pueden venir de una sola de las dos configuraciones.
 
+### B7 en wow-world: el bloqueo es global, no de los owners auditados (2026-09-26)
+
+Comprobada la hipotesis optimista de que fuera de los cuatro agregados auditados de `wow-world`
+(`session/`, `handlers/{character,loot,quest}/`) si hubiera margen para retirar los imports sin usar
+(39 avisos en 20+ ficheros). **No lo hay**: la pasada de lib queda limpia, pero la de test falla con 8
+errores que muestran el mismo patron —
+`handlers/trainer/tests/failures.rs` necesita `PacketHandlerEntry`, `ClientOpcodes`, `SessionStatus` y
+`PacketProcessing` que `handlers/trainer.rs` re-exporta; `spell_acquisition/tests/planner_application.rs`
+necesita `SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP`; `handlers/spell/state.rs` necesita
+`ItemFieldFlags` y `ItemUpdateState`. Es decir: **los imports "sin usar" de wow-world son, en todo el
+crate, la superficie que consumen los modulos `tests/` del propio modulo**, no deuda muerta.
+
+Conclusion registrada: en `wow-world` la limpieza de avisos de imports **no se desbloquea fichero a
+fichero**; necesita la migracion de tests de B3 (mover cada `tests/` a un target de integracion tras la
+feature `test-fixtures`) o una decision explicita que permita reclasificar lineas de produccion a test.
+El arbol se revirtio (`git checkout -- crates/`) y queda limpio, con la lib a 0 errores.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
