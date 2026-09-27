@@ -18,7 +18,7 @@ use std::path::PathBuf;
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use crate::{CharStatements, CharacterDatabase, Database};
+use crate::{CharStatements};
 
 use super::*;
 

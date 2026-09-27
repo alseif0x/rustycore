@@ -8,7 +8,7 @@ use rand::{SeedableRng, rngs::StdRng};
 
 use crate::CreatureModelInfoLikeCpp;
 
-use super::*;
+
 
 struct FixedCreatureModelRandomLikeCpp {
     weighted_roll: f32,

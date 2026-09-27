@@ -4,11 +4,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::*;
 use wow_data::{
-    EffectiveSpellAcquisitionRowsLikeCpp, MountEntry, SkillLineAbilityRecord, SkillLineEntry,
+    EffectiveSpellAcquisitionRowsLikeCpp, SkillLineAbilityRecord, SkillLineEntry,
     SkillRaceClassInfoRecord, SkillTiersRowLikeCpp, SpellAcquisitionCoverageSeedLikeCpp,
     SpellAcquisitionDependencyLikeCpp, SpellAcquisitionLevelsLikeCpp, SpellAcquisitionMiscLikeCpp,
-    SpellAcquisitionTableHashesLikeCpp,
-};
+    SpellAcquisitionTableHashesLikeCpp};
 
 /// A deliberately forgeable plan for downstream negative/application tests.
 /// The production plan keeps its publication tape private to the planner.

@@ -2,7 +2,7 @@
 //!
 //! Separated from main.rs under #685.
 
-use crate::*;
+
 
 use super::{
     BnetCliLikeCpp, bnet_cli_help_like_cpp, bnet_full_version_like_cpp,

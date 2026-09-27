@@ -2,7 +2,7 @@
 //!
 //! Separated from game_utilities.rs under #685.
 
-use super::super::*;
+
 
 use super::{
     BnetLastLoginInfoUpdateLikeCpp, JoinRealmLoginInfoUpdateLikeCpp,

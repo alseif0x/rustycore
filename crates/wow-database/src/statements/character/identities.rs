@@ -2,7 +2,7 @@
 //!
 //! Separated from the character.rs root under #652. Behaviour is preserved.
 
-use super::*;
+
 
 /// Prepared statements for the character database.
 ///
