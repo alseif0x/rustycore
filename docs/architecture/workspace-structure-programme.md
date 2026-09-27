@@ -1012,6 +1012,24 @@ en lugar de borrado, permitido al no ser owners auditados): `handlers/trainer.rs
 `handlers/spell.rs` (`ItemFieldFlags`, `ItemUpdateState`). Los demas ficheros del lote no fallaron: son
 candidatos directos a borrado con la operacion quirurgica ya probada en `handlers/chat.rs`.
 
+### B7: piloto por modulo completado en los tres veredictos (2026-09-26)
+
+Con las reglas de proceso corregidas, el patron "cada hijo importa lo que usa" se aplico **fichero a
+fichero con verificacion** en los tres veredictos, y los tres quedaron verdes:
+
+- `handlers/spell.rs` -> `spell/state.rs` (produccion) y `spell/tests/` (tests) importan
+  `ItemFieldFlags` e `ItemUpdateState`.
+- `handlers/trainer.rs` -> `trainer/tests/failures.rs` importa `PacketHandlerEntry`, `ClientOpcodes`,
+  `PacketProcessing` y `SessionStatus`.
+- `spell_acquisition/mod.rs` -> `spell_acquisition/tests/planner_application.rs` importa
+  `SpellAcquisitionMiscLikeCpp`, `SpellLearnSkillNodeLikeCpp` y
+  `SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP`.
+
+Resultado: 9 avisos menos, 0 errores en lib/tests/workspace en cada paso, y los 3901 tests de
+`wow-world` verdes. Quedan **31 avisos** en modulos no auditados (de 39 al empezar): el resto son del
+mismo tipo y se limpian repitiendo el patron, ahora que esta probado tres veces y con reglas de proceso
+escritas.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`

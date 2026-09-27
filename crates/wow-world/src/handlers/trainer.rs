@@ -30,7 +30,6 @@ use std::sync::Arc;
 
 use tracing::{debug, info, warn};
 
-use wow_constants::ClientOpcodes;
 use wow_constants::unit::NPCFlags1;
 use wow_data::{
     BattlePetClassificationLikeCpp, SkillLineAbilityCoverageLikeCpp,
@@ -38,9 +37,7 @@ use wow_data::{
     TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP, TRAINER_SPELL_STATE_KNOWN_LIKE_CPP,
     TRAINER_SPELL_STATE_UNAVAILABLE_LIKE_CPP, TrainerLikeCpp, TrainerStoreLikeCpp,
 };
-use wow_handler::{PacketProcessing, SessionStatus};
 
-use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 #[cfg(test)]
 use wow_packet::ServerPacket;

@@ -1,5 +1,7 @@
 //! Production-boundary scenarios retained with the world adapters.
 use super::*;
+use wow_data::skill::SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP;
+use wow_data::{SpellAcquisitionMiscLikeCpp, SpellLearnSkillNodeLikeCpp};
 
 #[test]
 fn effect_learn_spell_preserves_base_row_and_defers_unavailable_nested_cast_atomically() {
