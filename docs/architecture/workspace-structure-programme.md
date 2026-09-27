@@ -1160,6 +1160,27 @@ Con esos dos arreglos el trasvase de las **6 721 lineas** cierra: el resto (visi
 `pub(in crate::map_manager)`, rutas `crate::map_manager::...`, montaje de tests en `wow-world` y las
 dependencias) ya esta resuelto o identificado.
 
+### B6 `map_manager`: tercer intento, a cuatro errores (2026-09-27)
+
+Con los dos arreglos (deps escritas y verificadas por impresion de la seccion, y `pub use self::X::*;`
+para los hijos) el trasvase bajo a **4 errores, todos sobre `grid`**:
+
+```
+crates/wow-map/src/map_manager/mod.rs:232:15: error[E0432]: unresolved import `self::grid`: could not find `grid` in `self`
+crates/wow-map/src/map_manager/mod.rs:238:5:  error[E0432]: unresolved import `grid`
+```
+
+Dato util para el ultimo intento: el fichero **si existe** (`crates/wow-world/src/map_manager/grid.rs`) y
+`mod grid;` esta declarado; por tanto lo que falla es la **resolucion de las dos sentencias de import**
+que nombran `grid` (una ya con `self::`, otra sin el), no la declaracion del modulo. Plan focalizado:
+movido el modulo, revisar esas dos lineas de `mod.rs` a mano (probablemente una escribe
+`use grid::...` y la otra `pub use grid::*;`) y resolverlas a `self::grid`/`crate::map_manager::grid`,
+comprobando despues que no hay otro `grid` en el crate (`wow-map` tiene su propio `crates/wow-map/src/grid.rs`)
+que pueda confundir la ruta.
+
+El resto del trasvase (dependencias, autoreferencias, montaje de tests en `wow-world`, visibilidades y
+rutas `crate::map_manager::...`) ya esta resuelto; el intento se revirtio solo y el arbol quedo a 0 errores.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
