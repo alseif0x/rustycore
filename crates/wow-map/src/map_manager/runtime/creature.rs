@@ -303,18 +303,18 @@ impl WorldCreature {
             .unwrap_or(VISIBILITY_RADIUS)
     }
 
-    pub(crate) const fn runtime_elapsed_ms_like_cpp(&self) -> u64 {
+    pub const fn runtime_elapsed_ms_like_cpp(&self) -> u64 {
         self.runtime_elapsed_ms_like_cpp
     }
 
-    pub(crate) fn advance_runtime_clock_like_cpp(&mut self, diff_ms: u32) {
+    pub fn advance_runtime_clock_like_cpp(&mut self, diff_ms: u32) {
         self.runtime_elapsed_ms_like_cpp = self
             .runtime_elapsed_ms_like_cpp
             .saturating_add(u64::from(diff_ms));
     }
 
-    #[cfg(test)]
-    pub(crate) fn backdate_runtime_clock_for_test(&mut self, elapsed: Duration) {
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn backdate_runtime_clock_for_test(&mut self, elapsed: Duration) {
         self.runtime_elapsed_ms_like_cpp = elapsed.as_millis().min(u128::from(u64::MAX)) as u64;
     }
 
@@ -638,7 +638,7 @@ impl WorldCreature {
         ai.swing_timer_ms = 100;
     }
 
-    pub(crate) fn runtime_rng_authority_complete_like_cpp(&self) -> bool {
+    pub fn runtime_rng_authority_complete_like_cpp(&self) -> bool {
         self.runtime_rng_authority_complete_like_cpp
     }
 
@@ -648,7 +648,7 @@ impl WorldCreature {
     /// position. Existing transitional melee and movement continue to consume
     /// their best-effort stream so an unrepresented spell cannot freeze normal
     /// gameplay.
-    pub(crate) fn invalidate_runtime_rng_authority_like_cpp(&mut self) {
+    pub fn invalidate_runtime_rng_authority_like_cpp(&mut self) {
         self.runtime_rng_authority_complete_like_cpp = false;
     }
 

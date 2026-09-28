@@ -22,6 +22,8 @@ pub use std::sync::{Arc, Mutex, RwLock, mpsc};
 pub use std::thread;
 pub use std::time::{Duration, Instant};
 
+pub use crate::map::MapWorldObjectEnvironment;
+pub use crate::{GridMapTerrain, SharedStaticVMapLineOfSightProvider, SpawnObjectType};
 pub use rand::{Rng, RngCore, SeedableRng, rngs::StdRng};
 pub use tracing::{debug, info, warn};
 pub use wow_constants::movement::MovementFlag;
@@ -39,8 +41,6 @@ pub use wow_entities::{
     MovementSlot, PhaseShift, PointMovementAction, PointMovementInform, RotateMovementUpdate,
     Z_OFFSET_FIND_HEIGHT, allowed_position_z_from_ground_like_cpp, game_time_secs_like_cpp,
 };
-pub use wow_map::map::MapWorldObjectEnvironment;
-pub use wow_map::{GridMapTerrain, SharedStaticVMapLineOfSightProvider, SpawnObjectType};
 pub use wow_movement::generators::CreatureRandomMovementType as MovementCreatureRandomMovementType;
 pub use wow_movement::{
     ChaseMovementGenerator, HomeMovementGenerator, IdleMovementGenerator, MotionMaster, MoveSpline,
@@ -232,19 +232,19 @@ mod pending_respawn;
 mod runtime_state;
 mod terrain;
 
-pub use grid::*;
-pub use pathfinder::*;
-pub use pending_respawn::*;
-pub use runtime_state::*;
-pub use terrain::*;
+pub use self::grid::*;
+pub use self::pathfinder::*;
+pub use self::pending_respawn::*;
+pub use self::runtime_state::*;
+pub use self::terrain::*;
 
-pub use grid::{
+pub use self::grid::{
     calculate_cell_area_like_cpp, cell_area_contains_position_like_cpp, position_to_i32_tuple,
 };
 
-pub use pending_respawn::spawn_object_type_raw_like_cpp;
+pub use self::pending_respawn::spawn_object_type_raw_like_cpp;
 
-pub use runtime_state::{
+pub use self::runtime_state::{
     ActiveTauntLikeCpp, BASE_ATTACK_TIME_LIKE_CPP, NOMINAL_MELEE_RANGE_LIKE_CPP,
     RuntimeRepresentedActiveGeneratorLikeCpp, RuntimeRepresentedActiveKeyLikeCpp,
     absolute_angle_like_cpp, power_type_from_u8_like_cpp,

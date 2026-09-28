@@ -593,24 +593,24 @@
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/map_manager/mod.rs",
+      "path": "crates/wow-map/src/map_manager/mod.rs",
       "observed_lines": 251,
       "ceiling_lines": 251,
-      "split": "Separate the map manager's canonical/legacy bridge from its runtime state. #662 measured this module and deferred it: the bridge inventory pairs canonical-side and legacy-side evidence inside one enclosing module, so relocating a bridge function's context into a sibling module drops a row from the audit - `world_creature_from_pending_respawn_like_cpp` disappeared from the 65-row bridge inventory when it moved. That is a coverage narrowing, not a physical improvement, so this module needs the semantic separation owned by 584:C4. #711 separates the grid, terrain, pathfinder, pending-respawn and runtime-state item families into map_manager submodules, item-for-item with an identical 89-item surface; the root drops from 2,191 to 255 lines and the ceiling is tightened to that figure. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here.",
+      "split": "Separate the map manager's canonical/legacy bridge from its runtime state. #662 measured this module and deferred it: the bridge inventory pairs canonical-side and legacy-side evidence inside one enclosing module, so relocating a bridge function's context into a sibling module drops a row from the audit - `world_creature_from_pending_respawn_like_cpp` disappeared from the 65-row bridge inventory when it moved. That is a coverage narrowing, not a physical improvement, so this module needs the semantic separation owned by 584:C4. #711 separates the grid, terrain, pathfinder, pending-respawn and runtime-state item families into map_manager submodules, item-for-item with an identical 89-item surface; the root drops from 2,191 to 255 lines and the ceiling is tightened to that figure. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here. Moved to wow-map on 2026-09-27 (B6): the module and its test suite left the application crate as a behaviour-preserving transfer; the file keeps its content and the ceiling follows the observed size.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/map_manager/movement.rs",
+      "path": "crates/wow-map/src/map_manager/movement.rs",
       "observed_lines": 112,
       "ceiling_lines": 112,
-      "split": "Movement generators over the legacy map manager. #662 deferred this file with map_manager/mod.rs for the same reason: splitting the module breaks the bridge inventory's pairing of canonical and legacy evidence within one enclosing module, narrowing the audit. Its exit is the semantic separation owned by 584:C4. #705 divides the 2,069-line inherent WorldCreature impl into seven bounded map_manager/movement submodules - motion_master, spline, home_and_chase, random_and_waypoint, point_and_effects, terrain and corpse_loot - method-for-method with an identical 94-method surface; the root keeps its own file and drops from 2,335 to 130 lines, so the ceiling is tightened to that figure. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here.",
+      "split": "Movement generators over the legacy map manager. #662 deferred this file with map_manager/mod.rs for the same reason: splitting the module breaks the bridge inventory's pairing of canonical and legacy evidence within one enclosing module, narrowing the audit. Its exit is the semantic separation owned by 584:C4. #705 divides the 2,069-line inherent WorldCreature impl into seven bounded map_manager/movement submodules - motion_master, spline, home_and_chase, random_and_waypoint, point_and_effects, terrain and corpse_loot - method-for-method with an identical 94-method surface; the root keeps its own file and drops from 2,335 to 130 lines, so the ceiling is tightened to that figure. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here. Moved to wow-map on 2026-09-27 (B6): the module and its test suite left the application crate as a behaviour-preserving transfer; the file keeps its content and the ceiling follows the observed size.",
       "review_checkpoint": "584:C4"
     },
     {
-      "path": "crates/wow-world/src/map_manager_tests.rs",
-      "observed_lines": 339,
-      "ceiling_lines": 339,
-      "split": "Separate legacy clock/creature lifecycle, movement, combat and bridge scenarios. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 6273 to 339 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved.",
+      "path": "crates/wow-map/src/map_manager_tests.rs",
+      "observed_lines": 43,
+      "ceiling_lines": 43,
+      "split": "Separate legacy clock/creature lifecycle, movement, combat and bridge scenarios. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 6273 to 339 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved. Moved to wow-map on 2026-09-27 (B6): the module and its test suite left the application crate as a behaviour-preserving transfer; the file keeps its content and the ceiling follows the observed size.",
       "review_checkpoint": "584:C4"
     },
     {

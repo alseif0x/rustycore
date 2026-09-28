@@ -7,7 +7,7 @@ license.workspace = true
 
 [features]
 # Directory fixture helpers for cross-crate tests; never enabled in production.
-test-fixtures = []
+test-fixtures = ["wow-map/test-fixtures"]
 
 [dependencies]
 tokio = { workspace = true }
@@ -31,7 +31,7 @@ wow-data = { workspace = true }
 wow-entities = { workspace = true }
 wow-network = { workspace = true }
 wow-loot = { workspace = true }
-wow-map = { workspace = true }
+wow-map = { workspace = true, features = ["test-fixtures"] }
 wow-module-api = { workspace = true }
 wow-movement = { workspace = true }
 wow-recastdetour = { workspace = true }

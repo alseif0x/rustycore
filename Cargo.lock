@@ -3281,10 +3281,16 @@ name = "wow-map"
 version = "0.1.0"
 dependencies = [
  "rand",
+ "tracing",
  "wow-constants",
  "wow-core",
+ "wow-data",
  "wow-entities",
  "wow-loot",
+ "wow-movement",
+ "wow-packet",
+ "wow-persistence",
+ "wow-recastdetour",
 ]
 
 [[package]]

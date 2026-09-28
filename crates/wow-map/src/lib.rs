@@ -149,3 +149,4 @@ mod tests {
         );
     }
 }
+pub mod map_manager;

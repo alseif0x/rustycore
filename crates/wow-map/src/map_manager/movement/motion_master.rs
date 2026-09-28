@@ -65,7 +65,7 @@ impl WorldCreature {
         self.creature.ai_ownership().spline_id
     }
 
-    pub(crate) fn sync_runtime_motion_master_like_cpp(&mut self) {
+    pub fn sync_runtime_motion_master_like_cpp(&mut self) {
         let expected_default = match self.creature.default_movement_type() {
             MovementGeneratorType::Idle => RuntimeMovementGeneratorType::Idle,
             MovementGeneratorType::Random => RuntimeMovementGeneratorType::Random,

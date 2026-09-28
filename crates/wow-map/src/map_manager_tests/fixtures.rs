@@ -1,59 +1,63 @@
-//! Behaviour tests for [`super`].
+//! Shared imports and fixtures for the map manager test scenarios.
 //!
-//! Extracted from `map_manager.rs`, which was 12,935 lines of which
-//! 6,328 — 49% — were this one `mod tests`. The production code and its
-//! module boundaries are untouched: moving tests moves no invariant. Dedenting by
-//! one level lets rustfmt collapse some argument lists onto a single line, which
-//! drops their trailing commas; that is the only difference from the original text.
+//! Extracted from `map_manager_tests.rs` when the module moved to `wow-map`:
+//! the explicit imports are the whole inherited surface, and keeping them beside
+//! the fixtures lets the scenario modules keep importing everything through
+//! `use super::*` without depending on the test root's size.
 
-#![cfg(test)]
-
-use crate::map_manager::{
-    BASE_ATTACK_TIME_LIKE_CPP, ChaseTargetSnapshotLikeCpp, ChaseTickOutcomeLikeCpp, CreatureAnimKitSlotLikeCpp,
-    GRID_SIZE, Grid, LiveTerrainHeights, MAP_AREA_CELLS_PER_GRID_LIKE_CPP, MAP_AREA_HEADER_FLAG_NO_AREA_LIKE_CPP,
-    MAP_AREA_HEADER_SIZE_LIKE_CPP, MAP_AREA_MAGIC_LIKE_CPP, MAP_FILE_HEADER_SIZE_LIKE_CPP, MAP_MAGIC_LIKE_CPP,
-    MAP_VERSION_MAGIC_LIKE_CPP, MapInstance, MapManager, PendingRespawn, PersistedRespawnRowLikeCpp, RecipientRule,
-    RuntimeOutput, TERRAIN_GRID_COUNT_LIKE_CPP,
+pub use crate::map::MapWorldObjectEnvironment;
+pub use crate::map_manager::{
+    BASE_ATTACK_TIME_LIKE_CPP, ChaseTargetSnapshotLikeCpp, ChaseTickOutcomeLikeCpp,
+    CreatureAnimKitSlotLikeCpp, GRID_SIZE, Grid, LiveTerrainHeights,
+    MAP_AREA_CELLS_PER_GRID_LIKE_CPP, MAP_AREA_HEADER_FLAG_NO_AREA_LIKE_CPP,
+    MAP_AREA_HEADER_SIZE_LIKE_CPP, MAP_AREA_MAGIC_LIKE_CPP, MAP_FILE_HEADER_SIZE_LIKE_CPP,
+    MAP_MAGIC_LIKE_CPP, MAP_VERSION_MAGIC_LIKE_CPP, MapInstance, MapManager, PendingRespawn,
+    PersistedRespawnRowLikeCpp, RecipientRule, RuntimeOutput, TERRAIN_GRID_COUNT_LIKE_CPP,
     TerrainGridFileIndexLikeCpp, TerrainGridFilesLikeCpp, VISIBILITY_RADIUS, WorldCreature,
     WorldMMapPathRequestLikeCpp, WorldMMapPathfinderLikeCpp, WorldMMapPathfinderWorkerLikeCpp,
     calculate_creature_detour_path_like_cpp, detour_path_without_navmesh_like_cpp, grid_to_world,
-    instant_from_respawn_time_like_cpp, path_generator_from_detour_like_cpp, path_type_from_detour_like_cpp,
-    pending_respawn_from_world_creature_like_cpp, random_path_result_from_path_type_like_cpp,
-    snap_respawn_creature_to_ground_like_cpp, terrain_grid_area_id_for_position_like_cpp,
-    terrain_grid_bitset_index_like_cpp, terrain_grid_coords_for_wow_position_like_cpp,
-    terrain_map_id_for_phase_shift_like_cpp, world_creature_from_pending_respawn_like_cpp, world_to_grid_coords,
-    world_to_grid_x, zone_and_area_for_position_like_cpp,
+    instant_from_respawn_time_like_cpp, path_generator_from_detour_like_cpp,
+    path_type_from_detour_like_cpp, pending_respawn_from_world_creature_like_cpp,
+    random_path_result_from_path_type_like_cpp, snap_respawn_creature_to_ground_like_cpp,
+    terrain_grid_area_id_for_position_like_cpp, terrain_grid_bitset_index_like_cpp,
+    terrain_grid_coords_for_wow_position_like_cpp, terrain_map_id_for_phase_shift_like_cpp,
+    world_creature_from_pending_respawn_like_cpp, world_to_grid_coords, world_to_grid_x,
+    zone_and_area_for_position_like_cpp,
 };
-use rand::{Rng, RngCore, SeedableRng, rngs::StdRng};
-use std::collections::{HashMap, HashSet};
-use std::fs;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use wow_constants::movement::MovementFlag;
-use wow_constants::{Class, CreatureFlagsExtra, DeathState, PowerType, UnitStandStateType, UnitState, WeaponAttackType};
-use wow_core::guid::HighGuid;
-use wow_core::{ObjectGuid, Position};
-use wow_entities::{
+pub use crate::{SharedStaticVMapLineOfSightProvider, SpawnObjectType};
+pub use rand::{Rng, RngCore, SeedableRng, rngs::StdRng};
+pub use std::collections::{HashMap, HashSet};
+pub use std::fs;
+pub use std::path::PathBuf;
+pub use std::sync::Arc;
+pub use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+pub use wow_constants::movement::MovementFlag;
+pub use wow_constants::{
+    Class, CreatureFlagsExtra, DeathState, PowerType, UnitStandStateType, UnitState,
+    WeaponAttackType,
+};
+pub use wow_core::guid::HighGuid;
+pub use wow_core::{ObjectGuid, Position};
+pub use wow_entities::{
     Creature, CreatureAddonLifecycleRecordLikeCpp, CreatureAiState, CreatureCombatLogStatsLikeCpp,
-    DistractMovementAction, EVENT_CHARGE_PREPATH, GenericMovementInform, INVALID_HEIGHT, MovementGeneratorKind,
-    MovementGeneratorType, PhaseShift, PointMovementAction, PointMovementInform, Z_OFFSET_FIND_HEIGHT,
+    DistractMovementAction, EVENT_CHARGE_PREPATH, GenericMovementInform, INVALID_HEIGHT,
+    MovementGeneratorKind, MovementGeneratorType, PhaseShift, PointMovementAction,
+    PointMovementInform, Z_OFFSET_FIND_HEIGHT,
 };
-use wow_map::map::MapWorldObjectEnvironment;
-use wow_map::{SharedStaticVMapLineOfSightProvider, SpawnObjectType};
-use wow_movement::{
+pub use wow_movement::{
     MoveSpline, MoveSplineFlag, MovementGenerator as RuntimeMovementGenerator,
     MovementGeneratorFlags as RuntimeMovementGeneratorFlags,
-    MovementGeneratorType as RuntimeMovementGeneratorType, PathType, RandomPathResult, WaypointMovementAction,
-    WaypointMovementGenerator, WaypointPath, WaypointRandomAtPathEnd,
+    MovementGeneratorType as RuntimeMovementGeneratorType, PathType, RandomPathResult,
+    WaypointMovementAction, WaypointMovementGenerator, WaypointPath, WaypointRandomAtPathEnd,
 };
-use wow_persistence::{RespawnPersistenceKeyLikeCpp, RespawnPersistenceMutationLikeCpp};
-use wow_recastdetour::{
-    DetourOwnerCapabilitiesLikeCpp, DetourPathType, DetourPointPath, DetourPolyPath, MAX_POINT_PATH_LENGTH_LIKE_CPP,
-    MMapData, PathQueryFilterContext, SIZE_OF_GRIDS_LIKE_CPP, create_path_query_filter_like_cpp,
+pub use wow_persistence::{RespawnPersistenceKeyLikeCpp, RespawnPersistenceMutationLikeCpp};
+pub use wow_recastdetour::{
+    DetourOwnerCapabilitiesLikeCpp, DetourPathType, DetourPointPath, DetourPolyPath,
+    MAX_POINT_PATH_LENGTH_LIKE_CPP, MMapData, PathQueryFilterContext, SIZE_OF_GRIDS_LIKE_CPP,
+    create_path_query_filter_like_cpp,
 };
 
-fn unique_temp_data_dir(test_name: &str) -> PathBuf {
+pub fn unique_temp_data_dir(test_name: &str) -> PathBuf {
     let unique = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("system clock before unix epoch")
@@ -63,7 +67,7 @@ fn unique_temp_data_dir(test_name: &str) -> PathBuf {
     data_dir
 }
 
-fn map_file_header_like_cpp() -> Vec<u8> {
+pub fn map_file_header_like_cpp() -> Vec<u8> {
     let mut header = Vec::new();
     header.extend_from_slice(MAP_MAGIC_LIKE_CPP);
     header.extend_from_slice(&MAP_VERSION_MAGIC_LIKE_CPP.to_le_bytes());
@@ -80,14 +84,14 @@ fn map_file_header_like_cpp() -> Vec<u8> {
     header
 }
 
-fn map_file_header_with_area_like_cpp(area_offset: u32, area_size: u32) -> Vec<u8> {
+pub fn map_file_header_with_area_like_cpp(area_offset: u32, area_size: u32) -> Vec<u8> {
     let mut header = map_file_header_like_cpp();
     header[12..16].copy_from_slice(&area_offset.to_le_bytes());
     header[16..20].copy_from_slice(&area_size.to_le_bytes());
     header
 }
 
-fn test_area_entry(id: u32, parent_area_id: u16, flags: u32) -> wow_data::AreaTableEntry {
+pub fn test_area_entry(id: u32, parent_area_id: u16, flags: u32) -> wow_data::AreaTableEntry {
     wow_data::AreaTableEntry {
         id,
         continent_id: 571,
@@ -99,7 +103,7 @@ fn test_area_entry(id: u32, parent_area_id: u16, flags: u32) -> wow_data::AreaTa
     }
 }
 
-fn test_creature(guid: ObjectGuid) -> WorldCreature {
+pub fn test_creature(guid: ObjectGuid) -> WorldCreature {
     WorldCreature::new(
         guid,
         1,
@@ -116,7 +120,7 @@ fn test_creature(guid: ObjectGuid) -> WorldCreature {
     )
 }
 
-fn test_chase_target(victim: ObjectGuid, x: f32) -> ChaseTargetSnapshotLikeCpp {
+pub fn test_chase_target(victim: ObjectGuid, x: f32) -> ChaseTargetSnapshotLikeCpp {
     ChaseTargetSnapshotLikeCpp {
         guid: victim,
         position: Position::new(x, 10.0, 0.0, 0.0),
@@ -126,7 +130,7 @@ fn test_chase_target(victim: ObjectGuid, x: f32) -> ChaseTargetSnapshotLikeCpp {
     }
 }
 
-fn test_chase_corridor(poly_refs: Vec<u64>, end_x: f32) -> DetourPolyPath {
+pub fn test_chase_corridor(poly_refs: Vec<u64>, end_x: f32) -> DetourPolyPath {
     let points = vec![
         [10.0, 10.0, 0.0],
         [(10.0 + end_x) * 0.5, 10.0, 0.0],
@@ -145,13 +149,13 @@ fn test_chase_corridor(poly_refs: Vec<u64>, end_x: f32) -> DetourPolyPath {
 }
 
 #[derive(Debug)]
-struct RecordingLiveStaticVMapLos {
-    result: bool,
-    calls: std::sync::Mutex<Vec<wow_map::VMapLineOfSightQuery>>,
+pub struct RecordingLiveStaticVMapLos {
+    pub result: bool,
+    pub calls: std::sync::Mutex<Vec<crate::VMapLineOfSightQuery>>,
 }
 
 impl RecordingLiveStaticVMapLos {
-    fn new(result: bool) -> Self {
+    pub fn new(result: bool) -> Self {
         Self {
             result,
             calls: std::sync::Mutex::new(Vec::new()),
@@ -159,8 +163,8 @@ impl RecordingLiveStaticVMapLos {
     }
 }
 
-impl wow_map::StaticVMapLineOfSightProvider for RecordingLiveStaticVMapLos {
-    fn is_in_line_of_sight(&self, query: wow_map::VMapLineOfSightQuery) -> bool {
+impl crate::StaticVMapLineOfSightProvider for RecordingLiveStaticVMapLos {
+    fn is_in_line_of_sight(&self, query: crate::VMapLineOfSightQuery) -> bool {
         self.calls
             .lock()
             .expect("recording live vmap LOS calls poisoned")
@@ -169,7 +173,7 @@ impl wow_map::StaticVMapLineOfSightProvider for RecordingLiveStaticVMapLos {
     }
 }
 
-fn tilelist_like_cpp(grid_indices: impl IntoIterator<Item = usize>) -> Vec<u8> {
+pub fn tilelist_like_cpp(grid_indices: impl IntoIterator<Item = usize>) -> Vec<u8> {
     let mut bitset_string = vec![b'0'; TERRAIN_GRID_COUNT_LIKE_CPP];
     for grid_idx in grid_indices {
         bitset_string[TERRAIN_GRID_COUNT_LIKE_CPP - 1 - grid_idx] = b'1';
@@ -183,7 +187,7 @@ fn tilelist_like_cpp(grid_indices: impl IntoIterator<Item = usize>) -> Vec<u8> {
     tilelist
 }
 
-fn unique_test_dir(name: &str) -> std::path::PathBuf {
+pub fn unique_test_dir(name: &str) -> std::path::PathBuf {
     std::env::temp_dir().join(format!(
         "rustycore-{name}-{}-{:?}",
         std::process::id(),
@@ -195,7 +199,7 @@ fn unique_test_dir(name: &str) -> std::path::PathBuf {
 
 // ── Slice 4A.2a: respawn queue tests ──────────────────────────────────────
 
-fn make_pending_respawn(respawn_at: Instant) -> PendingRespawn {
+pub fn make_pending_respawn(respawn_at: Instant) -> PendingRespawn {
     use wow_packet::packets::update::CreatureCreateData;
     static NEXT_TEST_SPAWN_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
     let spawn_id = NEXT_TEST_SPAWN_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -310,7 +314,7 @@ fn make_pending_respawn(respawn_at: Instant) -> PendingRespawn {
 }
 
 /// Unique temp `maps/` dir holding one synthetic constant-height tile.
-fn temp_dir_with_constant_tile(map_id: u32, gx: i32, gy: i32, height: f32) -> PathBuf {
+pub fn temp_dir_with_constant_tile(map_id: u32, gx: i32, gy: i32, height: f32) -> PathBuf {
     use std::sync::atomic::{AtomicU32, Ordering};
     static COUNTER: AtomicU32 = AtomicU32::new(0);
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
@@ -346,32 +350,3 @@ fn temp_dir_with_constant_tile(map_id: u32, gx: i32, gy: i32, height: f32) -> Pa
     .expect("write tile");
     dir
 }
-
-#[path = "map_manager_tests/combat.rs"]
-mod combat;
-#[path = "map_manager_tests/creature_1.rs"]
-mod creature_1;
-#[path = "map_manager_tests/creature_2.rs"]
-mod creature_2;
-#[path = "map_manager_tests/creature_3.rs"]
-mod creature_3;
-#[path = "map_manager_tests/creature_4.rs"]
-mod creature_4;
-#[path = "map_manager_tests/creature_5.rs"]
-mod creature_5;
-#[path = "map_manager_tests/gameobject.rs"]
-mod gameobject;
-#[path = "map_manager_tests/instance.rs"]
-mod instance;
-#[path = "map_manager_tests/misc.rs"]
-mod misc;
-#[path = "map_manager_tests/movement.rs"]
-mod movement;
-#[path = "map_manager_tests/persistence.rs"]
-mod persistence;
-#[path = "map_manager_tests/spawn.rs"]
-mod spawn;
-#[path = "map_manager_tests/spell.rs"]
-mod spell;
-#[path = "map_manager_tests/visibility.rs"]
-mod visibility;

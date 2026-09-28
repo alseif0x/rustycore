@@ -36,6 +36,7 @@ wow-map = { workspace = true }
 wow-social = { workspace = true }
 
 [dev-dependencies]
+wow-map = { workspace = true, features = ["test-fixtures"] }
 wow-world = { workspace = true, features = ["test-fixtures"] }
 
 [lints]

@@ -214,6 +214,13 @@
       "kind": "normal",
       "tracking_issue": 584,
       "reason": "The creature CREATE projection lives in the domain crate so the map manager can hold it without depending on the wire crate; the wire crate consumes it to encode, which is the correct direction of the dependency and removes the last domain-runtime -> adapter-platform edge of the B6 map_manager extraction. The alternative is a duplicated mirror of the struct, which the structure standard forbids."
+    },
+    {
+      "from": "wow-map",
+      "to": "wow-data",
+      "kind": "normal",
+      "tracking_issue": 584,
+      "reason": "The map manager still resolves its area table through the concrete static-data store and reads one spell-aura constant. Replacing both with a map-owned lookup view is part of the remaining 584:C4 semantic separation."
     }
   ],
   "external_dependencies": {
@@ -300,7 +307,8 @@
       },
       "wow-map": {
         "normal": [
-          "rand"
+          "rand",
+          "tracing"
         ],
         "build": []
       },

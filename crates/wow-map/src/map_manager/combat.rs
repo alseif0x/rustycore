@@ -313,11 +313,11 @@ impl WorldCreature {
             )
     }
 
-    pub(crate) fn creature_spell_schedule_initialized_like_cpp(&self) -> bool {
+    pub fn creature_spell_schedule_initialized_like_cpp(&self) -> bool {
         self.creature_spell_schedule_initialized_like_cpp
     }
 
-    pub(crate) fn mark_creature_spell_schedule_initialized_like_cpp(&mut self) {
+    pub fn mark_creature_spell_schedule_initialized_like_cpp(&mut self) {
         self.creature_spell_schedule_initialized_like_cpp = true;
     }
 
@@ -329,28 +329,24 @@ impl WorldCreature {
             .wrapping_add(1);
     }
 
-    pub(crate) fn creature_spell_engagement_epoch_like_cpp(&self) -> u64 {
+    pub fn creature_spell_engagement_epoch_like_cpp(&self) -> u64 {
         self.creature_spell_engagement_epoch_like_cpp
     }
 
-    pub(crate) fn schedule_creature_spell_slot_after_like_cpp(
-        &mut self,
-        slot: usize,
-        delay_ms: u64,
-    ) {
+    pub fn schedule_creature_spell_slot_after_like_cpp(&mut self, slot: usize, delay_ms: u64) {
         let due_at_ms = self.runtime_elapsed_ms_like_cpp().saturating_add(delay_ms);
         if let Some(due_at) = self.creature_spell_due_at_ms_like_cpp.get_mut(slot) {
             *due_at = Some(due_at_ms);
         }
     }
 
-    pub(crate) fn clear_creature_spell_slot_like_cpp(&mut self, slot: usize) {
+    pub fn clear_creature_spell_slot_like_cpp(&mut self, slot: usize) {
         if let Some(due_at) = self.creature_spell_due_at_ms_like_cpp.get_mut(slot) {
             *due_at = None;
         }
     }
 
-    pub(crate) fn first_due_creature_spell_slot_like_cpp(&self) -> Option<usize> {
+    pub fn first_due_creature_spell_slot_like_cpp(&self) -> Option<usize> {
         let now_ms = self.runtime_elapsed_ms_like_cpp();
         self.creature_spell_due_at_ms_like_cpp
             .iter()
@@ -363,8 +359,8 @@ impl WorldCreature {
             .map(|(slot, _)| slot)
     }
 
-    #[cfg(test)]
-    pub(crate) fn creature_spell_due_in_ms_for_test(&self, slot: usize) -> Option<u64> {
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn creature_spell_due_in_ms_for_test(&self, slot: usize) -> Option<u64> {
         self.creature_spell_due_at_ms_like_cpp
             .get(slot)
             .copied()
@@ -372,7 +368,7 @@ impl WorldCreature {
             .map(|due_at| due_at.saturating_sub(self.runtime_elapsed_ms_like_cpp()))
     }
 
-    pub(crate) fn random_creature_spell_delay_like_cpp(
+    pub fn random_creature_spell_delay_like_cpp(
         &mut self,
         minimum_ms: u64,
         maximum_ms: u64,
@@ -394,7 +390,7 @@ impl WorldCreature {
         Some(self.runtime_rng_like_cpp.gen_range(minimum_ms..=maximum_ms))
     }
 
-    pub(crate) fn random_creature_spell_hit_roll_like_cpp(&mut self) -> Option<u32> {
+    pub fn random_creature_spell_hit_roll_like_cpp(&mut self) -> Option<u32> {
         self.runtime_rng_authority_complete_like_cpp
             .then(|| self.runtime_rng_like_cpp.gen_range(0..=9_999))
     }

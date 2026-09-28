@@ -118,7 +118,7 @@ impl WorldCreature {
         )
     }
 
-    pub(crate) fn update_default_random_movement_after_spline_like_cpp(
+    pub fn update_default_random_movement_after_spline_like_cpp(
         &mut self,
         diff_ms: u32,
         should_try_pathfinding: bool,
@@ -279,7 +279,7 @@ impl WorldCreature {
         )
     }
 
-    pub(crate) fn update_default_waypoint_movement_after_spline_like_cpp(
+    pub fn update_default_waypoint_movement_after_spline_like_cpp(
         &mut self,
         diff_ms: u32,
         should_try_pathfinding: bool,

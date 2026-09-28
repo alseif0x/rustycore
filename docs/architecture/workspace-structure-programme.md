@@ -1356,3 +1356,41 @@ sus comentarios de procedencia al sub-estado, (2) repuntar solo accesos con `car
 entre pasos, (3) regenerar census y ledger de runtime con delta revisado -- incluida la entrada de
 crecimiento del hotspot y los nombres de familia --, (4) `check_architecture.py check` + `self-test`,
 (5) commit.
+
+### B6 `map_manager`: trasvase completado a `wow-map` (2026-09-27)
+
+Ejecutado el plan determinista de la seccion anterior, sin tocar comportamiento. La secuencia real
+fue: (1) preparar el test, (2) mover, (3) ensanchar solo lo que el compilador pide, (4) cerrar los
+dos items de politica.
+
+1. **Preparacion del test, dentro de wow-world** (`3303dba8`). El raiz de la suite y sus catorce
+   submodulos heredaban **129 nombres** por el glob del padre y sus re-exports. Con el glob quitado
+   el compilador da 832 errores de una sola pasada; el raiz los importa ahora de su dueno real
+   (std, rand, `wow-constants`, `wow-core`, `wow-entities`, `wow-movement`, `wow-persistence`,
+   `wow-recastdetour`) y solo `crate::map_manager` para lo propio del modulo. `puede compilar en
+   cualquiera de las dos cajas`.
+2. **Trasvase**: `map_manager/` (6.701 lineas) y `map_manager_tests.rs` + `map_manager_tests/`
+   (5.894 lineas) pasan a `crates/wow-map/src/`. `wow-world` cambia `pub mod map_manager;` por
+   `pub use wow_map::map_manager;`, de modo que sus **382 accesos** `crate::map_manager::...`
+   siguen resolviendo y no se tocan; el modulo sigue siendo dueno de su propia suite (montaje
+   `#[path = "../map_manager_tests.rs"]`), que es lo que conserva el acceso a los campos privados
+   de `WorldCreature` que los escenarios afirman.
+3. **Ensanchado guiado por el compilador**, en dos ciclos y solo sobre lo que cruza la frontera:
+   17 items `pub(crate)`/`pub(super)` que pasan a `pub`, y dos helpers `#[cfg(test)]`
+   (`backdate_runtime_clock_for_test`, `creature_spell_due_in_ms_for_test`) que pasan a
+   `#[cfg(any(test, feature = "test-fixtures"))]` con `wow-map/test-fixtures` habilitado desde
+   `wow-world`, el mismo patron que ya usaba `seed_runtime_rng_like_cpp`. Los usos
+   `wow_map::` de los ficheros movidos pasan a `crate::`.
+4. **Politica**: `tracing` se declara en la superficie externa de `wow-map`, y la arista
+   `wow-map -> wow-data` queda como excepcion revisada con issue 584 (el gestor resuelve su area
+   table por el store concreto y lee una constante de aura; sustituirlo por una vista propia es
+   trabajo de 584:C4).
+5. **Ratchet fisico**: tres filas reapuntadas a su nueva ruta. Las dos heredadas conservan su
+   tamano (`mod.rs` 251, `movement.rs` 112). La suite de tests baja de 339 a 43 porque sus
+   imports y fixtures compartidos se separan a `map_manager_tests/fixtures.rs` (352 lineas), que
+   es ademas la forma de que el raiz no crezca al hacerse explicito.
+6. **Evidencia**: `cargo check --workspace --all-targets` 0 errores; `cargo test -p wow-map`
+   897 pasan / 0 fallan / 1 ignorado; `check_architecture.py check` PASS con el ratchet fisico
+   intacto. El trasvase saca **12.595 lineas** del arbol de la aplicacion sin mover una sola
+   invariante de comportamiento.
+
