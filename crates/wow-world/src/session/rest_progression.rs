@@ -7,12 +7,14 @@
 use super::{Arc, AreaTriggerDb2Store, PLAYER_FLAGS_RESTING_LIKE_CPP};
 use super::{PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP, REST_FLAG_IN_TAVERN_LIKE_CPP};
 #[cfg(test)]
-use super::{REST_BONUS_MAX_NEXT_LEVEL_XP_FACTOR_LIKE_CPP, REST_STATE_NORMAL_LIKE_CPP};
+use super::REST_BONUS_MAX_NEXT_LEVEL_XP_FACTOR_LIKE_CPP;
+#[cfg(any(test, feature = "test-fixtures"))]
+use super::REST_STATE_NORMAL_LIKE_CPP;
 use super::{RepresentedAuraEffectLikeCpp, WorldSession, max_level_for_expansion_like_cpp};
 
 /// Handle-less test fixture for RestMgr state and test-only rate configuration.
 /// Production rest authority remains on the canonical `Player`.
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) struct RestMgrTestFixtureLikeCpp {
     /// C++ `RestMgr::_restBonus[REST_TYPE_XP]`.
     pub(in crate::session) represented_rest_bonus_xp_like_cpp: f32,
@@ -38,7 +40,7 @@ pub(in crate::session) struct RestMgrTestFixtureLikeCpp {
     pub(in crate::session) rest_ingame_rate_like_cpp: f32,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl Default for RestMgrTestFixtureLikeCpp {
     fn default() -> Self {
         Self {

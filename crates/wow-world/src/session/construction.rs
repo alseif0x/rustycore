@@ -19,7 +19,7 @@ use crate::session::state::SessionSpellState;
 use crate::session::state::SessionTransport;
 use crate::session::state::SessionWorldView;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::BattlePetTestFixtureLikeCpp;
 use super::DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP;
 use super::PlayerInteractionDataLikeCpp;
@@ -35,7 +35,7 @@ use super::player_items::test_fixtures::PlayerItemTestFixtureLikeCpp;
 use super::progression::PlayerSkillTestFixtureLikeCpp;
 #[cfg(test)]
 use super::quest::test_fixtures::QuestTestFixtureLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::rest_progression::RestMgrTestFixtureLikeCpp;
 #[cfg(test)]
 use super::social::test_fixtures::CalendarTestFixtureLikeCpp;
@@ -47,9 +47,9 @@ use super::social::test_fixtures::GuildTestFixtureLikeCpp;
 use super::social::test_fixtures::TradeTestFixtureLikeCpp;
 #[cfg(test)]
 use super::spell_state::PlayerSpellAndTraitTestFixtureLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::support_features::test_fixtures::SupportFeatureTestFixtureLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::test_support::test_fixtures::PlayerBootstrapCatalogTestFixtureLikeCpp;
 use super::time_synchronization::TimeSynchronizationStateLikeCpp;
 #[cfg(test)]
@@ -112,16 +112,16 @@ impl WorldSession {
             expansion,
             account_expansion,
 
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             characters_per_realm_like_cpp: 60,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             declined_names_used_like_cpp: false,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             feature_system_bpay_store_enabled_like_cpp: false,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             feature_system_character_undelete_enabled_like_cpp: false,
 
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             player_bootstrap_catalog_test_fixture_like_cpp:
                 PlayerBootstrapCatalogTestFixtureLikeCpp::default(),
             build,
@@ -141,18 +141,18 @@ impl WorldSession {
             legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp::default(),
 
             trainer_store_like_cpp: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             bank_bag_slot_prices_store: None,
             currency_types_store: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             import_price_stores: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             emotes_store: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             emotes_text_store: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             item_class_store: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             item_currency_cost_store: None,
             trinity_string_store: None,
             heirloom_store: None,
@@ -163,7 +163,7 @@ impl WorldSession {
             represented_creature_auras_like_cpp: Vec::new(),
 
             transmog_set_item_store: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             item_price_base_store: None,
             player_stats: None,
             #[cfg(test)]
@@ -174,12 +174,12 @@ impl WorldSession {
             durability_quality_store: None,
             item_template_addon_quest_log_item_ids_like_cpp: HashMap::new(),
             rand_prop_points_store: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             item_disenchant_loot_store: None,
             loot_stores: None,
             condition_store: None,
             player_condition_store: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             adventure_map_poi_store: None,
             content_tuning_store: None,
             curve_store: None,
@@ -190,7 +190,7 @@ impl WorldSession {
             difficulty_store: None,
             lock_store: None,
             gem_properties_store: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             tact_key_store: None,
             skill_store: None,
             trait_definition_store: None,
@@ -199,28 +199,28 @@ impl WorldSession {
             skill_tiers_store: None,
             area_table_store: None,
             fishing_base_skill_store: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             area_trigger_db2_store: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             area_trigger_store: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             area_trigger_script_store: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             area_trigger_script_dispatcher_like_cpp: None,
             #[cfg(test)]
             give_player_xp_script_dispatcher_like_cpp: None,
             #[cfg(test)]
             driver_phase_trace_like_cpp: Vec::new(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             tavern_area_trigger_store: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             graveyard_store: None,
             world_safe_loc_store_like_cpp: None,
             access_requirement_store: None,
             lfg_dungeons_store: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             lfg_dungeon_store_like_cpp: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             battlemaster_list_store: None,
             #[cfg(test)]
             instance_test_fixture_like_cpp: InstanceTestFixtureLikeCpp::default(),
@@ -230,15 +230,15 @@ impl WorldSession {
             reputation_spillover_template_store: None,
             #[cfg(test)]
             championing_faction_like_cpp: 0,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             creature_equipment_store_like_cpp: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             creature_addon_store_like_cpp: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             creature_difficulty_store_like_cpp: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             creature_base_stats_store_like_cpp: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             creature_health_rates_like_cpp: CreatureClassificationHealthRatesLikeCpp::default(),
             mount_store: None,
             mount_definition_store_like_cpp: None,
@@ -383,19 +383,19 @@ impl WorldSession {
             represented_gray_level_script_overrides_like_cpp: HashMap::new(),
             realm_id: 1,
 
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             guid_generator: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             item_guid_generator_like_cpp: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             equipment_set_guid_generator_like_cpp: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             void_storage_item_id_generator_like_cpp: None,
 
             max_player_level_config_like_cpp: 80,
             max_primary_trade_skills_like_cpp:
                 crate::profession::DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             rest_mgr_test_fixture_like_cpp: RestMgrTestFixtureLikeCpp::default(),
             #[cfg(test)]
             player_flags_test_fixture_like_cpp: LoadedPlayerFlagsTestFixtureLikeCpp::default(),
@@ -441,14 +441,14 @@ impl WorldSession {
             player_xp: 0,
             #[cfg(test)]
             player_next_level_xp: 400,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             player_xp_table: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             exploration_base_xp_store: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             exploration_xp_rate_like_cpp: 1.0,
 
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             min_discovered_scaled_xp_ratio_like_cpp: 0,
             #[cfg(test)]
             selection_guid: None,
@@ -832,10 +832,10 @@ impl WorldSession {
             #[cfg(test)]
             #[cfg(test)]
             represented_movie_complete_events_like_cpp: Vec::new(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             support_feature_test_fixture_like_cpp: SupportFeatureTestFixtureLikeCpp::default(),
             script_name_interner: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             object_mgr_catalogs_like_cpp: None,
             gameobject_template_lifecycle_store_like_cpp: None,
             quest_poi_store_like_cpp: None,
@@ -856,7 +856,7 @@ impl WorldSession {
             represented_favorite_item_appearances_like_cpp: HashMap::new(),
             #[cfg(test)]
             represented_transmog_illusions_like_cpp: HashSet::new(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             battle_pet_test_fixture_like_cpp: BattlePetTestFixtureLikeCpp::default(),
 
             #[cfg(test)]
@@ -907,7 +907,7 @@ impl WorldSession {
             active_loot_view_generations_like_cpp: std::collections::HashMap::new(),
             active_loot_view_authorities_like_cpp: std::collections::HashMap::new(),
 
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             module_registry_like_cpp: None,
             represented_loot_rolls: std::collections::HashMap::new(),
             #[cfg(test)]
@@ -940,11 +940,11 @@ impl WorldSession {
             #[cfg(test)]
             watched_faction_index_like_cpp: -1,
             enable_ae_loot_like_cpp: false,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             addon_channel_like_cpp: true,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             chat_fake_message_preventing_like_cpp: false,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             party_raid_warnings_like_cpp: false,
             #[cfg(any(test, feature = "test-fixtures"))]
             allow_gm_group_like_cpp: false,
@@ -952,13 +952,13 @@ impl WorldSession {
             allow_two_side_interaction_group_like_cpp: false,
             #[cfg(any(test, feature = "test-fixtures"))]
             party_level_req_like_cpp: 1,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             chat_strict_link_checking_kick_like_cpp: false,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             chat_level_requirements_like_cpp: ChatLevelRequirementsLikeCpp::default(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             chat_listen_ranges_like_cpp: ChatListenRangesLikeCpp::default(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             chat_flood_config_like_cpp: ChatFloodConfigLikeCpp::default(),
             mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp::default(),
             waypoint_path_resolver_like_cpp: None,

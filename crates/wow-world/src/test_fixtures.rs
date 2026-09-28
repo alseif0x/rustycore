@@ -168,6 +168,14 @@ pub fn represented_silence_party_talker_like_cpp(
         .collect()
 }
 
+pub async fn process_represented_session_commands_like_cpp(
+    session: &mut crate::session::WorldSession,
+) {
+    session
+        .process_represented_session_commands_like_cpp()
+        .await;
+}
+
 pub const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP;
 pub const PLAYER_FLAGS_AFK_LIKE_CPP: u32 = crate::session::PLAYER_FLAGS_AFK_LIKE_CPP;
 pub const PLAYER_FLAGS_DND_LIKE_CPP: u32 = crate::session::PLAYER_FLAGS_DND_LIKE_CPP;

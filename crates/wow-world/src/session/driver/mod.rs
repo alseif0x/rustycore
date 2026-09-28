@@ -30,7 +30,7 @@ mod phase_pass;
 
 use phases::SessionDriverPhaseLikeCpp;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -348,7 +348,7 @@ impl WorldSession {
         self.process_pending_with_catalogs_like_cpp(&catalogs).await;
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn session_handler_catalogs_for_test_like_cpp(
         &self,
     ) -> SessionHandlerCatalogsLikeCpp {

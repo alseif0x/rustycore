@@ -43,7 +43,7 @@ impl WorldSession {
         self.battle_pet_test_fixture_like_cpp
             .battle_pet_selection_store_like_cpp = Some(store);
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn battle_pet_selection_store_like_cpp(
         &self,
     ) -> Option<&Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>> {

@@ -32,7 +32,7 @@ impl WorldSession {
         self.player_identity_bootstrap_like_cpp = None;
         self.with_owned_player_like_cpp(Player::guid) == Some(guid)
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn id_generators_for_test_like_cpp(&self) -> SessionIdGeneratorsLikeCpp {
         let defaults = SessionIdGeneratorsLikeCpp::default();
         SessionIdGeneratorsLikeCpp {
@@ -59,7 +59,7 @@ impl WorldSession {
     pub(crate) fn emotes_text_store_for_test_like_cpp(&self) -> Option<&Arc<EmotesTextStore>> {
         self.emotes_text_store.as_ref()
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn player_bootstrap_catalogs_for_test_like_cpp(
         &self,
     ) -> PlayerBootstrapCatalogsLikeCpp {
@@ -93,7 +93,7 @@ impl WorldSession {
             .start_all_reputation_like_cpp;
         catalogs
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn player_rest_rate_policy_for_test_like_cpp(&self) -> PlayerRestRatePolicyLikeCpp {
         PlayerRestRatePolicyLikeCpp {
             offline_wilderness: self
@@ -107,7 +107,7 @@ impl WorldSession {
                 .rest_ingame_rate_like_cpp,
         }
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn chat_policy_catalogs_for_test_like_cpp(&self) -> ChatPolicyCatalogsLikeCpp {
         ChatPolicyCatalogsLikeCpp {
             addon_channel: self.addon_channel_like_cpp,
@@ -123,7 +123,7 @@ impl WorldSession {
     pub(crate) fn tact_key_store_for_test_like_cpp(&self) -> Option<&Arc<TactKeyStore>> {
         self.tact_key_store.as_ref()
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn area_trigger_catalogs_for_test_like_cpp(&self) -> AreaTriggerCatalogsLikeCpp {
         AreaTriggerCatalogsLikeCpp {
             db2: self
@@ -168,7 +168,7 @@ impl WorldSession {
         let _ =
             self.with_player_cinematic_state_like_cpp(|state| state.set_movie_like_cpp(movie_id));
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn support_feature_policy_for_test_like_cpp(&self) -> SupportFeaturePolicyLikeCpp {
         SupportFeaturePolicyLikeCpp {
             support_enabled: self
@@ -368,7 +368,7 @@ impl WorldSession {
             self.set_represented_xp_rest_bonus_like_cpp(current_rest_bonus - rested_loss as f32);
         (rested_bonus, nested_mask)
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn progression_catalogs_for_test_like_cpp(&self) -> ProgressionCatalogsLikeCpp {
         let mut catalogs = ProgressionCatalogsLikeCpp::default();
         if let Some(table) = &self.player_xp_table {

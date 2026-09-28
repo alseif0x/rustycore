@@ -45,7 +45,7 @@ impl WorldSession {
         }
         Vec::new()
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn creature_spawn_catalogs_for_test_like_cpp(&self) -> CreatureSpawnCatalogsLikeCpp {
         CreatureSpawnCatalogsLikeCpp {
             difficulty: self

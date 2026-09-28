@@ -93,7 +93,7 @@ impl WorldSession {
         .await;
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) async fn process_represented_session_commands_like_cpp(&mut self) {
         let catalogs = self.session_handler_catalogs_for_test_like_cpp();
         self.process_represented_session_commands_with_catalogs_like_cpp(&catalogs)

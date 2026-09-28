@@ -47,7 +47,7 @@ pub(crate) use object_updates::represented_dynamic_object_values_update_delivery
 pub(crate) use object_updates::represented_gameobject_dynamic_flags_update_like_cpp;
 mod persistence;
 mod pets;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use pets::test_fixtures::BattlePetTestFixtureLikeCpp;
 mod player_cast;
 mod player_items;
@@ -89,7 +89,7 @@ use aura_effect_values::unit_owned_apply_aura_effect_mask_like_cpp;
 mod battle_pet_adapter;
 #[cfg(test)]
 pub(crate) use battle_pet_adapter::NEXT_REPRESENTED_BATTLE_PET_COUNTER_LIKE_CPP;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use battle_pet_adapter::RepresentedBattlePetCageItemLikeCpp;
 #[cfg(test)]
 pub(crate) use battle_pet_adapter::RepresentedBattlePetCageOutcomeLikeCpp;
@@ -688,11 +688,13 @@ use wow_data::{
     },
     spell_duration_ms_like_cpp, spell_effect_radius_like_cpp,
 };
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use wow_data::{
     BattlePetBreedQualityStore, BattlePetBreedStateStore, BattlePetSpeciesStateStore,
-    BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp, calculate_battle_pet_stats_like_cpp,
+    BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp,
 };
+#[cfg(test)]
+use wow_data::calculate_battle_pet_stats_like_cpp;
 #[cfg(test)]
 use wow_data::{
     PetDefaultSpellStoreLikeCpp, PetDefaultSpellsEntryLikeCpp, PetFamilySpellStoreLikeCpp,

@@ -47,7 +47,7 @@ pub(crate) enum RepresentedBattlePetSaveInfoLikeCpp {
     Removed,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedBattlePetCageItemLikeCpp {
     pub(crate) item_id: u32,

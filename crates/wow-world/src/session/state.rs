@@ -6,7 +6,7 @@
 
 #[cfg(test)]
 use super::AtomicUsize;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::BattlePetTestFixtureLikeCpp;
 use super::PlayerConditionStore;
 use super::PlayerCurrency;
@@ -41,7 +41,7 @@ use super::player_items::test_fixtures::PlayerItemTestFixtureLikeCpp;
 use super::progression::PlayerSkillTestFixtureLikeCpp;
 #[cfg(test)]
 use super::quest::test_fixtures::QuestTestFixtureLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::rest_progression::RestMgrTestFixtureLikeCpp;
 #[cfg(test)]
 use super::social::test_fixtures::CalendarTestFixtureLikeCpp;
@@ -53,9 +53,9 @@ use super::social::test_fixtures::GuildTestFixtureLikeCpp;
 use super::social::test_fixtures::TradeTestFixtureLikeCpp;
 #[cfg(test)]
 use super::spell_state::PlayerSpellAndTraitTestFixtureLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::support_features::test_fixtures::SupportFeatureTestFixtureLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::test_support::test_fixtures::PlayerBootstrapCatalogTestFixtureLikeCpp;
 use super::time_synchronization::TimeSynchronizationStateLikeCpp;
 #[cfg(test)]
@@ -404,17 +404,17 @@ pub struct WorldSession {
     pub expansion: u8,
     pub account_expansion: u8,
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) characters_per_realm_like_cpp: u32,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) declined_names_used_like_cpp: bool,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) feature_system_bpay_store_enabled_like_cpp: bool,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) feature_system_character_undelete_enabled_like_cpp: bool,
 
     /// Detached Player bootstrap-catalog inputs used only by tests.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_bootstrap_catalog_test_fixture_like_cpp:
         PlayerBootstrapCatalogTestFixtureLikeCpp,
     pub build: u32,
@@ -448,28 +448,28 @@ pub struct WorldSession {
     pub(in crate::session) trainer_store_like_cpp: Option<Arc<TrainerStoreLikeCpp>>,
 
     // BankBagSlotPrices.db2 store used by C++ HandleBuyBankSlotOpcode.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) bank_bag_slot_prices_store: Option<Arc<BankBagSlotPricesStore>>,
 
     // Currency types store (CurrencyTypes.db2 data)
     pub(in crate::session) currency_types_store: Option<Arc<CurrencyTypesStore>>,
 
     // Import price stores (ImportPrice*.db2 data)
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) import_price_stores: Option<Arc<ImportPriceStores>>,
 
     // Emotes.db2 / EmotesText.db2 stores used by C++ chat text-emote handling.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) emotes_store: Option<Arc<EmotesStore>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) emotes_text_store: Option<Arc<EmotesTextStore>>,
 
     // Item class store (ItemClass.db2 data)
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) item_class_store: Option<Arc<ItemClassStore>>,
 
     // Item currency cost store (ItemCurrencyCost.db2 data)
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) item_currency_cost_store: Option<Arc<ItemCurrencyCostStore>>,
 
     /// Item template and item-data catalogs a session reads. Owned by one type (#670).
@@ -508,7 +508,7 @@ pub struct WorldSession {
     pub(in crate::session) transmog_set_item_store: Option<Arc<TransmogSetItemStore>>,
 
     // Item price base store (ItemPriceBase.db2 data)
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) item_price_base_store: Option<Arc<ItemPriceBaseStore>>,
 
     // Player level stats store (race/class/level → base stats)
@@ -529,7 +529,7 @@ pub struct WorldSession {
     pub(in crate::session) rand_prop_points_store: Option<Arc<RandPropPointsStore>>,
 
     // ItemDisenchantLoot store (ItemDisenchantLoot.db2 data)
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) item_disenchant_loot_store: Option<Arc<ItemDisenchantLootStore>>,
 
     // C++ LootTemplates_* store foundation.
@@ -542,7 +542,7 @@ pub struct WorldSession {
     pub(in crate::session) player_condition_store: Option<Arc<PlayerConditionStore>>,
 
     // C++ AdventureMapPOI.db2 store used by Adventure Map quest starts.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) adventure_map_poi_store: Option<Arc<AdventureMapPoiStore>>,
 
     // C++ ContentTuning.db2 store used by level gates such as Meeting Stone.
@@ -564,7 +564,7 @@ pub struct WorldSession {
 
     pub(in crate::session) gem_properties_store: Option<Arc<GemPropertiesStore>>,
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) tact_key_store: Option<Arc<TactKeyStore>>,
 
     // Skill store (auto-learned spells from SkillLineAbility.db2 + SkillRaceClassInfo.db2)
@@ -591,13 +591,13 @@ pub struct WorldSession {
 
     // Area-trigger catalogs are process-owned and borrowed for each
     // production session pass. These retained fields are test fixtures only.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) area_trigger_db2_store: Option<Arc<AreaTriggerDb2Store>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) area_trigger_store: Option<Arc<AreaTriggerStore>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) area_trigger_script_store: Option<Arc<AreaTriggerScriptStoreLikeCpp>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) area_trigger_script_dispatcher_like_cpp:
         Option<AreaTriggerScriptDispatcherLikeCpp>,
     #[cfg(test)]
@@ -609,11 +609,11 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(in crate::session) driver_phase_trace_like_cpp:
         Vec<crate::session::driver::phases::SessionDriverPhaseLikeCpp>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) tavern_area_trigger_store: Option<Arc<TavernAreaTriggerStoreLikeCpp>>,
 
     // C++ ObjectMgr::GraveyardStore loaded from graveyard_zone plus attached conditions.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) graveyard_store: Option<Arc<GraveyardStore>>,
 
     /// Character race/class catalogs a session reads. Owned by one type (#670).
@@ -627,9 +627,9 @@ pub struct WorldSession {
     pub(in crate::session) world_safe_loc_store_like_cpp: Option<Arc<WorldSafeLocStore>>,
     pub(in crate::session) access_requirement_store: Option<Arc<AccessRequirementStoreLikeCpp>>,
     pub(in crate::session) lfg_dungeons_store: Option<Arc<LfgDungeonsStore>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) lfg_dungeon_store_like_cpp: Option<Arc<LfgDungeonStoreLikeCpp>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) battlemaster_list_store: Option<Arc<BattlemasterListStore>>,
     /// Detached instance inputs used only by Session tests.
     #[cfg(test)]
@@ -646,20 +646,20 @@ pub struct WorldSession {
         Option<Arc<RepSpilloverTemplateStoreLikeCpp>>,
     #[cfg(test)]
     pub(in crate::session) championing_faction_like_cpp: u32,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) creature_equipment_store_like_cpp:
         Option<Arc<CreatureEquipmentStoreLikeCpp>>,
     /// GameObject template catalogs a session reads. Owned by one type (#670).
     pub(crate) gameobjects: crate::catalogs::gameobject::GameObjectCatalogsLikeCpp,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) creature_addon_store_like_cpp: Option<Arc<CreatureAddonStoreLikeCpp>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) creature_difficulty_store_like_cpp:
         Option<Arc<CreatureDifficultyStoreLikeCpp>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) creature_base_stats_store_like_cpp:
         Option<Arc<CreatureBaseStatsStoreLikeCpp>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) creature_health_rates_like_cpp: CreatureClassificationHealthRatesLikeCpp,
     pub(in crate::session) mount_store: Option<Arc<MountStore>>,
     pub(in crate::session) mount_definition_store_like_cpp:
@@ -745,17 +745,17 @@ pub struct WorldSession {
     pub(in crate::session) realm_id: u16,
 
     // Process-owned GUID generators retained only as test fixtures.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) guid_generator: Option<Arc<ObjectGuidGenerator>>,
     // Process-wide C++ ObjectMgr generator retained only as a test fixture.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) item_guid_generator_like_cpp: Option<Arc<ObjectGuidGenerator>>,
     // Process-wide C++ ObjectMgr generator shared by equipment and transmog sets.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) equipment_set_guid_generator_like_cpp:
         Option<Arc<EquipmentSetGuidGeneratorLikeCpp>>,
     // Process-wide C++ ObjectMgr generator for character_void_storage.itemId.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) void_storage_item_id_generator_like_cpp:
         Option<Arc<VoidStorageItemIdGeneratorLikeCpp>>,
 
@@ -773,7 +773,7 @@ pub struct WorldSession {
     /// `CharacterPoints` and from the two physical profession associations.
     pub(in crate::session) max_primary_trade_skills_like_cpp: u8,
     /// Handle-less RestMgr and rate-policy fixture; production state belongs to Player.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) rest_mgr_test_fixture_like_cpp: RestMgrTestFixtureLikeCpp,
     /// Detached loaded Player flag values used only by persistence tests.
     #[cfg(test)]
@@ -1503,10 +1503,10 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(in crate::session) represented_movie_complete_events_like_cpp: Vec<u32>,
     /// Detached support feature configuration used only by tests.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) support_feature_test_fixture_like_cpp: SupportFeatureTestFixtureLikeCpp,
     pub(in crate::session) script_name_interner: Option<Arc<ScriptNameInternerLikeCpp>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) object_mgr_catalogs_like_cpp: Option<Arc<ObjectMgrCatalogsLikeCpp>>,
     pub(in crate::session) gameobject_template_lifecycle_store_like_cpp:
         Option<Arc<GameObjectTemplateLifecycleStoreLikeCpp>>,
@@ -1557,13 +1557,13 @@ pub struct WorldSession {
     /// C++ `ObjectMgr::_questPOIStore`, loaded from `quest_poi` / `quest_poi_points`.
     pub(crate) quest_poi_store_like_cpp:
         Option<Arc<HashMap<i32, wow_packet::packets::query::QuestPoiData>>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) player_xp_table: Option<Arc<Vec<u32>>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) exploration_base_xp_store: Option<Arc<ExplorationBaseXpStoreLikeCpp>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) exploration_xp_rate_like_cpp: f32,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) min_discovered_scaled_xp_ratio_like_cpp: u32,
     #[cfg(test)]
     pub(crate) quest_test_fixture_like_cpp: QuestTestFixtureLikeCpp,
@@ -1593,7 +1593,7 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(crate) represented_transmog_illusions_like_cpp: HashSet<u32>,
     /// Handle-less battle-pet state used only by isolated Session tests.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) battle_pet_test_fixture_like_cpp: BattlePetTestFixtureLikeCpp,
 
     /// C++ `Player::HasAchieved`, represented per-session until character achievements are fully loaded.
@@ -1641,7 +1641,7 @@ pub struct WorldSession {
 
     /// Test fixture for the process-owned linked-module registry. Production
     /// borrows the required registry from the session driver.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) module_registry_like_cpp: Option<Arc<wow_module_api::ModuleRegistry>>,
     /// Represented pending group/NBG loot rolls keyed by `(LootObj, LootListID)`.
     pub(crate) represented_loot_rolls:
@@ -1698,13 +1698,13 @@ pub struct WorldSession {
     /// C++ `CONFIG_ENABLE_AE_LOOT` represented switch.
     pub(in crate::session) enable_ae_loot_like_cpp: bool,
     /// C++ `CONFIG_ADDON_CHANNEL` represented switch.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) addon_channel_like_cpp: bool,
     /// C++ `CONFIG_CHAT_FAKE_MESSAGE_PREVENTING` represented switch for chat validation.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) chat_fake_message_preventing_like_cpp: bool,
     /// C++ `CONFIG_CHAT_PARTY_RAID_WARNINGS` represented switch.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) party_raid_warnings_like_cpp: bool,
     /// C++ `CONFIG_ALLOW_GM_GROUP` represented switch.
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -1716,16 +1716,16 @@ pub struct WorldSession {
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) party_level_req_like_cpp: u32,
     /// C++ `CONFIG_CHAT_STRICT_LINK_CHECKING_KICK` represented switch.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) chat_strict_link_checking_kick_like_cpp: bool,
     /// C++ `CONFIG_CHAT_*_LEVEL_REQ` represented chat level gates.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) chat_level_requirements_like_cpp: ChatLevelRequirementsLikeCpp,
     /// C++ `CONFIG_LISTEN_RANGE_*` represented nearby-chat ranges.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) chat_listen_ranges_like_cpp: ChatListenRangesLikeCpp,
     /// C++ `CONFIG_CHATFLOOD_*` represented chat spam protection.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) chat_flood_config_like_cpp: ChatFloodConfigLikeCpp,
     /// C++ `CONFIG_ENABLE_MMAPS` + `DataDir` represented until map lifecycle owns real mmaps.
     pub(in crate::session) mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp,
