@@ -11,5 +11,5 @@ mod publication;
 mod reset;
 mod rewards;
 pub(in crate::session) mod state;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) mod test_fixtures;

@@ -33,7 +33,7 @@ use super::persistence::test_fixtures::LoadedPlayerFlagsTestFixtureLikeCpp;
 use super::player_items::test_fixtures::PlayerItemTestFixtureLikeCpp;
 #[cfg(test)]
 use super::progression::PlayerSkillTestFixtureLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::quest::test_fixtures::QuestTestFixtureLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::rest_progression::RestMgrTestFixtureLikeCpp;
@@ -840,7 +840,7 @@ impl WorldSession {
             gameobject_template_lifecycle_store_like_cpp: None,
             quest_poi_store_like_cpp: None,
 
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             quest_test_fixture_like_cpp: QuestTestFixtureLikeCpp::default(),
             #[cfg(test)]
             represented_account_heirlooms_like_cpp: BTreeMap::new(),

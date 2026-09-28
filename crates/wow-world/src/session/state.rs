@@ -39,7 +39,7 @@ use super::persistence::test_fixtures::LoadedPlayerFlagsTestFixtureLikeCpp;
 use super::player_items::test_fixtures::PlayerItemTestFixtureLikeCpp;
 #[cfg(test)]
 use super::progression::PlayerSkillTestFixtureLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::quest::test_fixtures::QuestTestFixtureLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::rest_progression::RestMgrTestFixtureLikeCpp;
@@ -1565,7 +1565,7 @@ pub struct WorldSession {
     pub(crate) exploration_xp_rate_like_cpp: f32,
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) min_discovered_scaled_xp_ratio_like_cpp: u32,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) quest_test_fixture_like_cpp: QuestTestFixtureLikeCpp,
 
     /// C++ `CollectionMgr::_heirlooms`, represented until account collection runtime is complete.

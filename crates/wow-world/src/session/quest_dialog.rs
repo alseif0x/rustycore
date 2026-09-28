@@ -314,14 +314,14 @@ pub(crate) struct RepresentedQuestCompleteStatusUpdateLikeCpp {
     pub script_status_change_unrepresented: bool,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedQuestRewardSpellKindLikeCpp {
     RewardSpell,
     RewardDisplaySpell { index: u8 },
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedQuestRewardSpellCastLikeCpp {
     pub quest_id: u32,
@@ -344,7 +344,7 @@ pub(crate) struct RepresentedForceDeselectLikeCpp {
     pub attacker_pet_attack_stop_unrepresented: bool,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedQuestRewardTitleLikeCpp {
     pub quest_id: u32,
@@ -353,7 +353,7 @@ pub(crate) struct RepresentedQuestRewardTitleLikeCpp {
     pub set_title_runtime_unrepresented: bool,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedQuestRewardTalentPointsLikeCpp {
     pub quest_id: u32,
@@ -361,7 +361,7 @@ pub(crate) struct RepresentedQuestRewardTalentPointsLikeCpp {
     pub init_talent_for_level_unrepresented: bool,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedQuestRewardMailLikeCpp {
     pub quest_id: u32,
@@ -383,7 +383,7 @@ pub(crate) enum RepresentedQuestRewardReputationSourceLikeCpp {
     RepeatableQuest,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedQuestRewardReputationLikeCpp {
     pub quest_id: u32,

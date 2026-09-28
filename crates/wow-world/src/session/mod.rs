@@ -454,16 +454,16 @@ pub(crate) use quest_dialog::RepresentedQuestCompleteStatusUpdateLikeCpp;
 pub(crate) use quest_dialog::RepresentedQuestConfirmAcceptLikeCpp;
 pub(crate) use quest_dialog::RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp;
 pub(crate) use quest_dialog::RepresentedQuestPushResultResponseLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::RepresentedQuestRewardMailLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::RepresentedQuestRewardReputationLikeCpp;
 pub(crate) use quest_dialog::RepresentedQuestRewardReputationSourceLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::RepresentedQuestRewardSpellCastLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::RepresentedQuestRewardSpellKindLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::RepresentedQuestRewardTalentPointsLikeCpp;
 pub(crate) use quest_dialog::ResetSeasonalQuestStatusOutcomeLikeCpp;
 pub(crate) use quest_dialog::ResetSeasonalQuestStatusReasonLikeCpp;
@@ -471,9 +471,9 @@ pub(crate) use quest_dialog::SeasonalQuestStatusDbRowLikeCpp;
 #[cfg(test)]
 use quest_dialog::primary_power_type_for_player_class_like_cpp;
 #[cfg(test)]
-pub(crate) use quest_dialog::{
-    RepresentedForceDeselectLikeCpp, RepresentedQuestRewardTitleLikeCpp,
-};
+pub(crate) use quest_dialog::RepresentedForceDeselectLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(crate) use quest_dialog::RepresentedQuestRewardTitleLikeCpp;
 use quest_dialog::{RepresentedPreparedQuestMenuItemLikeCpp, sheath_state_from_u8_like_cpp};
 use quest_dialog::{active_state_from_db_like_cpp, pet_type_from_db_like_cpp};
 use quest_dialog::{power_type_from_u8_like_cpp, unit_stand_state_from_u8_like_cpp};
