@@ -268,6 +268,11 @@ se adaptaron sin cambiar receptores. `45f86919` habilitó el helper original
 de recompensa para la feature externa. El diagnóstico posterior cuenta
 **427 errores** (`target/b3-quest-reward-helper-consumer-check.log`), sin
 errores de sintaxis ni de tipos en esas adaptaciones. La suite aún no compila.
+`d4aba14d` conservó el fallback de oro sin `Player` canónico; el siguiente
+diagnóstico, tras adaptar 34 llamadas de oro y 17 de identidad/nombre, cuenta
+**376 errores** (`target/b3-quest-gold-consumer-check.log`). Predominan ahora
+los tipos y observaciones de confirmación de quest, inventario y recompensas.
+La suite sigue sin compilar y no tiene aceptación de test.
 
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
