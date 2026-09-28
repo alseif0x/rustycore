@@ -5,6 +5,16 @@ use wow_persistence::{
     SocialPersistencePortLikeCpp, SocialRelationshipKindLikeCpp, SocialRelationshipStateLikeCpp,
 };
 
+pub async fn persist_group_intents_like_cpp(
+    session: &super::WorldSession,
+    group_guid: u64,
+    intents: Vec<super::GroupPersistenceIntentLikeCpp>,
+) {
+    session
+        .persist_group_intents_like_cpp(group_guid, intents)
+        .await;
+}
+
 pub struct PartyInviteSocialPortLikeCpp {
     ignore: SocialPartyInviteLookupOutcomeLikeCpp,
     friend: SocialPartyInviteLookupOutcomeLikeCpp,

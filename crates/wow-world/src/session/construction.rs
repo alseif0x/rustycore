@@ -946,11 +946,11 @@ impl WorldSession {
             chat_fake_message_preventing_like_cpp: false,
             #[cfg(test)]
             party_raid_warnings_like_cpp: false,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             allow_gm_group_like_cpp: false,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             allow_two_side_interaction_group_like_cpp: false,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             party_level_req_like_cpp: 1,
             #[cfg(test)]
             chat_strict_link_checking_kick_like_cpp: false,

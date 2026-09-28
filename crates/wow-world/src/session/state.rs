@@ -1707,13 +1707,13 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(in crate::session) party_raid_warnings_like_cpp: bool,
     /// C++ `CONFIG_ALLOW_GM_GROUP` represented switch.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) allow_gm_group_like_cpp: bool,
     /// C++ `CONFIG_ALLOW_TWO_SIDE_INTERACTION_GROUP` represented switch.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) allow_two_side_interaction_group_like_cpp: bool,
     /// C++ `CONFIG_PARTY_LEVEL_REQ` represented gate.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) party_level_req_like_cpp: u32,
     /// C++ `CONFIG_CHAT_STRICT_LINK_CHECKING_KICK` represented switch.
     #[cfg(test)]

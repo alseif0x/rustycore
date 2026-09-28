@@ -13,7 +13,19 @@ pub use crate::handlers::group::state::send_group_new_leader_like_cpp;
 pub use crate::handlers::group::state::send_party_update;
 pub use crate::handlers::group::state::send_ready_check_events_like_cpp;
 pub use crate::handlers::group::state::sender_can_start_ready_check_like_cpp;
-pub use crate::handlers::group::test_support::PartyInviteSocialPortLikeCpp;
+pub use crate::handlers::group::test_support::{
+    PartyInviteSocialPortLikeCpp, persist_group_intents_like_cpp,
+};
+
+pub async fn handle_party_invite_with_policy_like_cpp(
+    session: &mut crate::session::WorldSession,
+    pkt: wow_packet::WorldPacket,
+    policy: &crate::session::GroupInvitePolicyLikeCpp,
+) {
+    session
+        .handle_party_invite_with_policy_like_cpp(pkt, policy)
+        .await;
+}
 
 pub fn set_group_guid_for_test_like_cpp(
     session: &mut crate::session::WorldSession,

@@ -314,7 +314,7 @@ impl WorldSession {
             result_guid: ObjectGuid::EMPTY,
         });
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub async fn handle_party_invite(&mut self, pkt: wow_packet::WorldPacket) {
         let policy = self.group_invite_policy_for_test_like_cpp();
         self.handle_party_invite_with_policy_like_cpp(pkt, &policy)
