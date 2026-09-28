@@ -8,12 +8,50 @@
 
 #![cfg(test)]
 
-use super::*;
+use crate::map_manager::{
+    BASE_ATTACK_TIME_LIKE_CPP, ChaseTargetSnapshotLikeCpp, ChaseTickOutcomeLikeCpp, CreatureAnimKitSlotLikeCpp,
+    GRID_SIZE, Grid, LiveTerrainHeights, MAP_AREA_CELLS_PER_GRID_LIKE_CPP, MAP_AREA_HEADER_FLAG_NO_AREA_LIKE_CPP,
+    MAP_AREA_HEADER_SIZE_LIKE_CPP, MAP_AREA_MAGIC_LIKE_CPP, MAP_FILE_HEADER_SIZE_LIKE_CPP, MAP_MAGIC_LIKE_CPP,
+    MAP_VERSION_MAGIC_LIKE_CPP, MapInstance, MapManager, PendingRespawn, PersistedRespawnRowLikeCpp, RecipientRule,
+    RuntimeOutput, TERRAIN_GRID_COUNT_LIKE_CPP,
+    TerrainGridFileIndexLikeCpp, TerrainGridFilesLikeCpp, VISIBILITY_RADIUS, WorldCreature,
+    WorldMMapPathRequestLikeCpp, WorldMMapPathfinderLikeCpp, WorldMMapPathfinderWorkerLikeCpp,
+    calculate_creature_detour_path_like_cpp, detour_path_without_navmesh_like_cpp, grid_to_world,
+    instant_from_respawn_time_like_cpp, path_generator_from_detour_like_cpp, path_type_from_detour_like_cpp,
+    pending_respawn_from_world_creature_like_cpp, random_path_result_from_path_type_like_cpp,
+    snap_respawn_creature_to_ground_like_cpp, terrain_grid_area_id_for_position_like_cpp,
+    terrain_grid_bitset_index_like_cpp, terrain_grid_coords_for_wow_position_like_cpp,
+    terrain_map_id_for_phase_shift_like_cpp, world_creature_from_pending_respawn_like_cpp, world_to_grid_coords,
+    world_to_grid_x, zone_and_area_for_position_like_cpp,
+};
+use rand::{Rng, RngCore, SeedableRng, rngs::StdRng};
+use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::time::{SystemTime, UNIX_EPOCH};
-use wow_constants::{Class, CreatureFlagsExtra, DeathState, PowerType};
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use wow_constants::movement::MovementFlag;
+use wow_constants::{Class, CreatureFlagsExtra, DeathState, PowerType, UnitStandStateType, UnitState, WeaponAttackType};
 use wow_core::guid::HighGuid;
+use wow_core::{ObjectGuid, Position};
+use wow_entities::{
+    Creature, CreatureAddonLifecycleRecordLikeCpp, CreatureAiState, CreatureCombatLogStatsLikeCpp,
+    DistractMovementAction, EVENT_CHARGE_PREPATH, GenericMovementInform, INVALID_HEIGHT, MovementGeneratorKind,
+    MovementGeneratorType, PhaseShift, PointMovementAction, PointMovementInform, Z_OFFSET_FIND_HEIGHT,
+};
 use wow_map::map::MapWorldObjectEnvironment;
+use wow_map::{SharedStaticVMapLineOfSightProvider, SpawnObjectType};
+use wow_movement::{
+    MoveSpline, MoveSplineFlag, MovementGenerator as RuntimeMovementGenerator,
+    MovementGeneratorFlags as RuntimeMovementGeneratorFlags,
+    MovementGeneratorType as RuntimeMovementGeneratorType, PathType, RandomPathResult, WaypointMovementAction,
+    WaypointMovementGenerator, WaypointPath, WaypointRandomAtPathEnd,
+};
+use wow_persistence::{RespawnPersistenceKeyLikeCpp, RespawnPersistenceMutationLikeCpp};
+use wow_recastdetour::{
+    DetourOwnerCapabilitiesLikeCpp, DetourPathType, DetourPointPath, DetourPolyPath, MAX_POINT_PATH_LENGTH_LIKE_CPP,
+    MMapData, PathQueryFilterContext, SIZE_OF_GRIDS_LIKE_CPP, create_path_query_filter_like_cpp,
+};
 
 fn unique_temp_data_dir(test_name: &str) -> PathBuf {
     let unique = SystemTime::now()
