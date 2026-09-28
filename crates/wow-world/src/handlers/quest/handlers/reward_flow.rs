@@ -302,7 +302,7 @@ impl WorldSession {
     /// CMSG_QUEST_GIVER_CHOOSE_REWARD — player clicks "Complete Quest" in reward dialog.
     /// Gives XP, gold, items. Removes quest from active log.
     /// Legacy non-canonical note: QuestHandler.HandleQuestGiverChooseReward
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub async fn handle_quest_giver_choose_reward(&mut self, pkt: wow_packet::WorldPacket) {
         let generators = self.id_generators_for_test_like_cpp();
         self.handle_quest_giver_choose_reward_with_generator_like_cpp(
