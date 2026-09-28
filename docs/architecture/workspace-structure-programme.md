@@ -1228,6 +1228,28 @@ Resumen del trasvase (6 intentos, todos revertidos con el arbol limpio y verde):
 re-exports de hijos, seis dependencias, **15 visibilidades** (incluido el `pub(crate) const fn` que
 rompia el patron) y cuatro ficheros ensanchados a `pub`. La distancia que queda es **una feature**.
 
+### B6 `map_manager`: el trasvase llega al workspace desde la base limpia (2026-09-27)
+
+Reanudado desde la base unica `350d01bc` (rama `584-map-manager-domain`). Con el cableado de features que
+faltaba — `wow-map` gana `[features] test-fixtures` y `wow-world` propaga
+`test-fixtures = ["wow-map/test-fixtures"]` — el movimiento compila **`wow-map` y `wow-world` limpios** y
+solo falla en el **workspace**, en `wow-world/src/map_manager_tests.rs`: la suite vivia dentro del modulo
+movido y heredaba por `use super::*` siete nombres que ya no estan en su ambito.
+
+Proveedores exactos, ya localizados:
+
+| nombre | de donde debe importarlo el test |
+|---|---|
+| `PathBuf` | `std::path::PathBuf` |
+| `ObjectGuid` | `wow_core::ObjectGuid` |
+| `DetourPolyPath` | `wow_recastdetour::DetourPolyPath` |
+| `MAP_MAGIC_LIKE_CPP`, `MAP_VERSION_MAGIC_LIKE_CPP`, `MAP_FILE_HEADER_SIZE_LIKE_CPP` | definidas `pub(super)` en `map_manager/terrain.rs`: hay que **ensancharlas a `pub`** (como el resto de visibilidades del modulo movido) e importarlas desde `wow_map::map_manager::terrain::...` |
+
+Es decir: el trasvase de las **6 721 lineas** queda a **3 `pub(super)` -> `pub` + 4 lineas de import**.
+Todo lo demas (montaje de tests con su `#[cfg(test)]` colgante, autoreferencias `wow_map::` -> `crate::`,
+re-exports de hijos, seis dependencias, 15 visibilidades, el `pub(crate) const fn` y el gate
+`test-fixtures`) esta resuelto y verificado.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
