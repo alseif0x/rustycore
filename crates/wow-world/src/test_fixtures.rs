@@ -216,6 +216,37 @@ pub fn insert_inventory_item_for_test(
     session.insert_inventory_item_like_cpp(slot, item)
 }
 
+pub fn drain_session_commands_for_test(
+    session: &crate::session::WorldSession,
+) -> Vec<crate::session::mailbox::SessionCommand> {
+    session.drain_session_commands()
+}
+
+pub async fn quest_source_item_quest_log_item_id_for_test(
+    session: &mut crate::session::WorldSession,
+    entry_id: u32,
+) -> u32 {
+    session
+        .quest_source_item_quest_log_item_id_like_cpp(entry_id)
+        .await
+}
+
+pub fn cache_item_template_addon_quest_log_item_id_for_test(
+    session: &mut crate::session::WorldSession,
+    item_id: u32,
+    quest_log_item_id: u32,
+) {
+    session.cache_item_template_addon_quest_log_item_id_like_cpp(item_id, quest_log_item_id);
+}
+
+pub fn set_represented_daily_quest_completed_for_test(
+    session: &mut crate::session::WorldSession,
+    quest_id: u32,
+    completed: bool,
+) {
+    session.set_represented_daily_quest_completed_like_cpp_for_test(quest_id, completed);
+}
+
 pub fn adopt_registered_canonical_player_fixture_like_cpp(
     session: &mut crate::session::WorldSession,
 ) -> bool {
