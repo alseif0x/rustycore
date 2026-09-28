@@ -282,6 +282,10 @@ raíz de la suite se corrigió después de ese check; el recuento no se relabela
 adaptaron y el siguiente check contó **305 errores**
 (`target/b3-quest-inventory-consumer-check.log`), ninguno de préstamos o
 tipos en los nuevos accesos. El target todavía no compila ni ha ejecutado tests.
+`4ac4df54` publicó bajo la feature los 26 códigos canónicos de resultado de
+compartir quest mediante aliases; el siguiente check de `quest_tests` bajó a
+**251 errores** (`target/b3-quest-push-reason-consumer-check.log`). No quedan
+diagnósticos de esa familia. B3 sigue abierto y la suite sin ejecutar.
 
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
