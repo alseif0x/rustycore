@@ -261,7 +261,7 @@ pub(crate) struct RepresentedAdventureMapStartQuestLikeCpp {
 
 /// Represented outcome for the bounded post-template `HandleQuestConfirmAccept` gates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp {
+pub enum RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp {
     OriginalPlayerMissing,
     NotInSameRaid,
     OriginalPlayerNotActiveQuest,
@@ -280,7 +280,7 @@ pub(crate) enum RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp {
 
 /// Evidence that `HandleQuestConfirmAccept` reached the post-clear/template-present seam.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedQuestConfirmAcceptLikeCpp {
+pub struct RepresentedQuestConfirmAcceptLikeCpp {
     pub receiver_guid: Option<ObjectGuid>,
     pub sender_guid_before_clear: ObjectGuid,
     pub quest_id: u32,

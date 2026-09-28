@@ -884,7 +884,7 @@ impl WorldSession {
                 .saturating_add(1);
         }
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_quest_confirm_accepts_like_cpp(
         &self,
     ) -> &[RepresentedQuestConfirmAcceptLikeCpp] {
@@ -896,11 +896,11 @@ impl WorldSession {
         &mut self,
         evidence: RepresentedQuestConfirmAcceptLikeCpp,
     ) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.quest_test_fixture_like_cpp
             .represented_quest_confirm_accepts_like_cpp
             .push(evidence);
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let _ = evidence;
     }
     #[cfg(any(test, feature = "test-fixtures"))]

@@ -8,6 +8,8 @@ pub use crate::session::quest_dialog::{
     RepresentedPendingQuestSharingLikeCpp,
     RepresentedPushQuestToPartyOutcomeLikeCpp,
     RepresentedPushQuestToPartyOutcomeReasonLikeCpp,
+    RepresentedQuestConfirmAcceptLikeCpp,
+    RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,
 };
 
 pub use crate::handlers::group::state::PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP;
@@ -395,6 +397,12 @@ pub fn represented_push_quest_to_party_outcomes_for_test(
     session
         .represented_push_quest_to_party_outcomes_like_cpp()
         .to_vec()
+}
+
+pub fn represented_quest_confirm_accepts_for_test(
+    session: &crate::session::WorldSession,
+) -> Vec<RepresentedQuestConfirmAcceptLikeCpp> {
+    session.represented_quest_confirm_accepts_like_cpp().to_vec()
 }
 
 pub fn set_represented_pending_quest_sharing_for_test(
