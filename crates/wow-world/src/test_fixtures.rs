@@ -110,6 +110,14 @@ pub fn adopt_registered_canonical_player_fixture_like_cpp(
     session.adopt_registered_canonical_player_fixture_like_cpp()
 }
 
+pub fn sync_player_registry_state_for_test(session: &crate::session::WorldSession) {
+    session.sync_player_registry_state_like_cpp();
+}
+
+pub fn register_in_player_registry_for_test(session: &crate::session::WorldSession) {
+    session.register_in_player_registry();
+}
+
 pub fn set_represented_dungeon_difficulty_id_for_test_like_cpp(
     session: &mut crate::session::WorldSession,
     difficulty_id: u32,
