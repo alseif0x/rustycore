@@ -182,9 +182,9 @@ prueba; sin la feature, la ruta normal mantiene sus ramas de producción.
 (log `target/b3-group-dispatcher-parallel.log`); la ejecución en serie también
 pasó 130/130 (`target/b3-group-uninvite-serialized-final.log`). Son checks de
 desarrollo del worker en aarch64 sobre el árbol que se comprometió como
-`a0df47b3`, no manifiesto final ni aceptación de la macro. Las otras suites
-`quest_tests`, `character_tests` y `loot_tests` aún viven en la lib; B7 y los
-consumidores pendientes no están cerrados.
+`a0df47b3`, no manifiesto final ni aceptación de la macro. `character_tests`
+y `loot_tests` aún viven en la lib; el movimiento diagnóstico de `quest_tests`
+se detalla abajo. B7 y los consumidores pendientes no están cerrados.
 
 **Hallazgos abiertos antes de aceptar B5/B6:**
 
@@ -239,6 +239,20 @@ Al retomar, leer esta entrada, inspeccionar el diff local y procesos activos y a
 el estado real, evidencia y siguiente paso. No crear otro plan o handoff paralelo. El piloto B3
 está comprometido y verde en feedback local; las demás suites, B7, la macro y su aceptación
 siguen pendientes.
+
+**Migración de quest en curso, aún sin compilar:** `b3ba48e5` preparó la fixture
+original de sesión bajo `test-fixtures`; `17aa0272` añadió operaciones estrechas
+para el estado de quests activas y recompensadas, y `b82d7881` para los conjuntos
+de cadencia y lecturas auxiliares. El traslado de `quest_tests`
+al target externo está en el árbol de trabajo, sin commit ni ejecución de la
+suite. El inventario estático conserva 225 funciones de test; tras adaptar
+los 23 accesos directos restantes al fixture privado y las rutas externas,
+`cargo check -p wow-world --test quest_tests` terminó con 893 diagnósticos,
+principalmente por visibilidad de métodos, tipos y constantes. El aumento
+respecto de los 850 anteriores se debe a que el compilador alcanzó más cuerpos.
+El diagnóstico de compilación es feedback de desarrollo, no prueba verde ni
+aceptación. Quedan fixtures privadas de sesión, métodos y constantes de quest
+por adaptar sin ampliar indiscriminadamente la API de producción.
 
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
