@@ -775,7 +775,7 @@ impl WorldSession {
         self.drain_represented_quest_objective_progress_with_generator_like_cpp(generator.as_ref())
             .await;
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_quest_push_result_sender_mismatch_count_like_cpp(&self) -> u32 {
         self.quest_test_fixture_like_cpp
             .represented_quest_push_result_sender_mismatch_count_like_cpp

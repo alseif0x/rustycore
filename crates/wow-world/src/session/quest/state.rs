@@ -855,7 +855,7 @@ impl WorldSession {
             .quest_test_fixture_like_cpp
             .represented_timed_quest_removals_like_cpp
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_quest_push_result_responses_like_cpp(
         &self,
     ) -> &[RepresentedQuestPushResultResponseLikeCpp] {
@@ -867,15 +867,15 @@ impl WorldSession {
         &mut self,
         response: RepresentedQuestPushResultResponseLikeCpp,
     ) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.quest_test_fixture_like_cpp
             .represented_quest_push_result_responses_like_cpp
             .push(response);
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let _ = response;
     }
     pub(crate) fn record_represented_quest_push_result_sender_mismatch_like_cpp(&mut self) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             self.quest_test_fixture_like_cpp
                 .represented_quest_push_result_sender_mismatch_count_like_cpp = self

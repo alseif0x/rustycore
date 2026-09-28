@@ -199,7 +199,7 @@ pub struct RepresentedPendingQuestSharingLikeCpp {
 
 /// Evidence for the bounded `HandleQuestPushResult` sender-match seam.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedQuestPushResultResponseLikeCpp {
+pub struct RepresentedQuestPushResultResponseLikeCpp {
     pub receiver_guid: ObjectGuid,
     pub sender_guid: ObjectGuid,
     pub parsed_quest_id: u32,

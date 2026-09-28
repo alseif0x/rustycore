@@ -10,9 +10,24 @@ pub use crate::session::quest_dialog::{
     RepresentedPushQuestToPartyOutcomeReasonLikeCpp,
     RepresentedQuestConfirmAcceptLikeCpp,
     RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,
+    RepresentedQuestPushResultResponseLikeCpp,
     RepresentedQuestRewardReputationLikeCpp,
     RepresentedQuestRewardReputationSourceLikeCpp,
 };
+
+pub fn represented_quest_push_result_responses_for_test(
+    session: &crate::session::WorldSession,
+) -> Vec<RepresentedQuestPushResultResponseLikeCpp> {
+    session
+        .represented_quest_push_result_responses_like_cpp()
+        .to_vec()
+}
+
+pub fn represented_quest_push_result_sender_mismatch_count_for_test(
+    session: &crate::session::WorldSession,
+) -> u32 {
+    session.represented_quest_push_result_sender_mismatch_count_like_cpp()
+}
 
 pub fn read_quest_choice_item_for_test(
     pkt: &mut wow_packet::WorldPacket,
