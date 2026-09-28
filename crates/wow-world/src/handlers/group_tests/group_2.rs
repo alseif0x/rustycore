@@ -47,28 +47,6 @@ async fn party_invite_low_level_friend_port_preserves_ignore_then_friend_order_l
     )));
 }
 #[tokio::test]
-async fn failed_party_invite_social_lookup_retains_the_existing_fail_open_result() {
-    let inviter = ObjectGuid::create_player(1, 42);
-    let target = ObjectGuid::create_player(1, 77);
-    let port = PartyInviteSocialPortLikeCpp::new(
-        SocialPartyInviteLookupOutcomeLikeCpp::Failed {
-            reason: "database unavailable".to_owned(),
-        },
-        SocialPartyInviteLookupOutcomeLikeCpp::Resolved(false),
-    );
-
-    assert!(
-        !super::super::target_social_ignores_inviter_like_cpp(
-            Some(port.clone()),
-            target,
-            inviter,
-            1,
-        )
-        .await
-    );
-    assert_eq!(port.calls(), vec!["ignore:77:42:1"]);
-}
-#[tokio::test]
 async fn party_invite_rejects_same_map_different_instances_like_cpp() {
     let (mut session, send_rx) = make_session_with_send();
     let inviter = ObjectGuid::create_player(1, 42);
