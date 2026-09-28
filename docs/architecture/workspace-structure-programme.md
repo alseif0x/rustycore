@@ -286,6 +286,11 @@ tipos en los nuevos accesos. El target todavía no compila ni ha ejecutado tests
 compartir quest mediante aliases; el siguiente check de `quest_tests` bajó a
 **251 errores** (`target/b3-quest-push-reason-consumer-check.log`). No quedan
 diagnósticos de esa familia. B3 sigue abierto y la suite sin ejecutar.
+`985eebf9` conservó la evidencia original de reputación de recompensa con
+sus tipos, escritura y lectura bajo `test-fixtures`; tras adaptar nueve lecturas,
+el siguiente check bajó a **230 errores**
+(`target/b3-quest-reward-reputation-consumer-check.log`). Aún hay fallbacks
+internos de sesión, métodos privados y constantes de test por trasladar.
 
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
