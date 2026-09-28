@@ -1291,6 +1291,28 @@ crates/wow-entities`), ensanchando a `pub` lo que proceda; (3) declarar `tracing
 `wow-data`; (5) `cargo fmt --all`, puerta y PR. El trasvase son 6 721 lineas y cada paso esta acotado; el
 arbol queda verde y la base intacta.
 
+### B6 `map_manager`: el metodo correcto es preparar el test ANTES de mover (2026-09-27)
+
+Los intentos automatizados tropiezan siempre en lo mismo: `map_manager_tests.rs` (y sus submodulos)
+heredan del padre movido una **superficie implicita grande** (`use super::*` les daba tipos, constantes
+y helpers del modulo). Al mover, cada pasada revela 2-4 nombres nuevos — `PendingRespawn`, `Position`,
+`Instant`, `TERRAIN_GRID_COUNT_LIKE_CPP`, `BASE_ATTACK_TIME_LIKE_CPP` — y el script revierte al no
+reconocer esos errores como parte de su bucle de visibilidades.
+
+Metodo correcto, deterministico y de una sola pasada:
+
+1. **Antes de mover nada**, hacer autocontenido el fichero de tests *dentro de wow-world*: sustituir el
+   `use super::*` implicito por los imports explicitos de todo lo que usa (el compilador los pide uno a
+   uno), comprobando que sigue compilando. Es trabajo acotado y verificable, y de paso es exactamente el
+   patron de B3 ("cada hijo importa lo que usa").
+2. Despues, mover el modulo con el script actual (que ya resuelve montaje de tests, autoreferencias,
+   re-exports, dependencias, gate `test-fixtures` y visibilidades de metodos).
+3. Completar con los dos items de politica medidos: declarar `tracing` en `wow-map` y decidir la arista
+   `wow-data` (contrato o excepcion).
+
+El arbol queda verde y la base intacta; el trasvase sigue siendo el trabajo que mas valor anade (saca
+6 721 lineas del arbol de la aplicacion) y esta a un paso preparatorio + el movimiento mecanico.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
