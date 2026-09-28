@@ -551,3 +551,28 @@ impl WorldSession {
         })
     }
 }
+
+#[cfg(feature = "test-fixtures")]
+pub(crate) fn read_quest_choice_item_tuple_for_test(
+    pkt: &mut wow_packet::WorldPacket,
+) -> Result<(u8, u32, i32), wow_packet::PacketError> {
+    WorldSession::read_quest_choice_item_like_cpp(pkt)
+        .map(|choice| (choice.loot_item_type, choice.item_id, choice.quantity))
+}
+
+#[cfg(feature = "test-fixtures")]
+pub(crate) fn represented_reward_choice_matches_loaded_type_tuple_for_test(
+    quest: &wow_data::quest::QuestTemplate,
+    loot_item_type: u8,
+    item_id: u32,
+    quantity: i32,
+) -> bool {
+    WorldSession::represented_reward_choice_matches_loaded_type_like_cpp(
+        quest,
+        QuestChoiceItemLikeCpp {
+            loot_item_type,
+            item_id,
+            quantity,
+        },
+    )
+}

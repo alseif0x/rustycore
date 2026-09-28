@@ -14,6 +14,26 @@ pub use crate::session::quest_dialog::{
     RepresentedQuestRewardReputationSourceLikeCpp,
 };
 
+pub fn read_quest_choice_item_for_test(
+    pkt: &mut wow_packet::WorldPacket,
+) -> Result<(u8, u32, i32), wow_packet::PacketError> {
+    crate::handlers::quest::read_quest_choice_item_tuple_for_test(pkt)
+}
+
+pub fn represented_reward_choice_matches_loaded_type_for_test(
+    quest: &wow_data::quest::QuestTemplate,
+    loot_item_type: u8,
+    item_id: u32,
+    quantity: i32,
+) -> bool {
+    crate::handlers::quest::represented_reward_choice_matches_loaded_type_tuple_for_test(
+        quest,
+        loot_item_type,
+        item_id,
+        quantity,
+    )
+}
+
 pub use crate::handlers::group::state::PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP;
 pub use crate::handlers::group::state::current_group_guid_like_cpp;
 pub use crate::handlers::group::state::first_connected_group_member_like_cpp;
