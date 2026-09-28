@@ -1,0 +1,3351 @@
+diff --git a/crates/world-server/src/app.rs b/crates/world-server/src/app.rs
+index 5c79f966..d18dfa58 100644
+--- a/crates/world-server/src/app.rs
++++ b/crates/world-server/src/app.rs
+@@ -4691,6 +4691,11 @@ async fn run_inner(
+                         0,
+                     ),
+                 }),
++                talents: Arc::new(wow_world::session::TalentCatalogsLikeCpp {
++                    talents: Arc::clone(&talent_store),
++                    tabs: Arc::clone(&talent_tab_store),
++                    points_by_level: Arc::clone(&num_talents_at_level_store),
++                }),
+                 battle_pet_trainer_selection: Arc::clone(&battle_pet_selection_store),
+                 chat_policy: Arc::new(wow_world::session::ChatPolicyCatalogsLikeCpp {
+                     addon_channel: world_config_bool(&world_configs, "CONFIG_ADDON_CHANNEL", true),
+@@ -4897,9 +4902,6 @@ async fn run_inner(
+             trait_node_entry_store: Arc::clone(&trait_node_entry_store),
+             skill_line_store: Arc::clone(&skill_line_store),
+             skill_tiers_store: Arc::clone(&skill_tiers_store),
+-            talent_store: Arc::clone(&talent_store),
+-            talent_tab_store: Arc::clone(&talent_tab_store),
+-            num_talents_at_level_store: Arc::clone(&num_talents_at_level_store),
+             glyph_properties_store: Arc::clone(&glyph_properties_store),
+             chr_races_store: Arc::clone(&chr_races_store),
+             chr_classes_store: Arc::clone(&chr_classes_store),
+diff --git a/crates/world-server/src/session_resources.rs b/crates/world-server/src/session_resources.rs
+index fca5d836..be5d152e 100644
+--- a/crates/world-server/src/session_resources.rs
++++ b/crates/world-server/src/session_resources.rs
+@@ -148,10 +148,6 @@ pub(super) struct SessionPlayerCatalogCapabilitiesLikeCpp {
+     pub(super) trait_node_entry_store: Arc<wow_data::trait_tree::TraitNodeEntryStore>,
+     pub(super) skill_line_store: Arc<wow_data::SkillLineStore>,
+     pub(super) skill_tiers_store: Arc<wow_data::SkillTiersStoreLikeCpp>,
+-    pub(super) talent_store: Arc<wow_data::TalentStore>,
+-    pub(super) talent_tab_store: Arc<wow_data::TalentTabStore>,
+-    pub(super) num_talents_at_level_store:
+-        Arc<wow_data::progression_rewards::NumTalentsAtLevelStore>,
+     pub(super) glyph_properties_store: Arc<wow_data::GlyphPropertiesStore>,
+     pub(super) chr_races_store: Arc<wow_data::character_progression::ChrRacesStore>,
+     pub(super) chr_classes_store: Arc<wow_data::character_progression::ChrClassesStore>,
+@@ -360,9 +356,6 @@ impl SessionPlayerCatalogCapabilitiesLikeCpp {
+         session.set_trait_node_entry_store(Arc::clone(&self.trait_node_entry_store));
+         session.set_skill_line_store(Arc::clone(&self.skill_line_store));
+         session.set_skill_tiers_store(Arc::clone(&self.skill_tiers_store));
+-        session.set_talent_store(Arc::clone(&self.talent_store));
+-        session.set_talent_tab_store(Arc::clone(&self.talent_tab_store));
+-        session.set_num_talents_at_level_store(Arc::clone(&self.num_talents_at_level_store));
+         session.set_glyph_properties_store(Arc::clone(&self.glyph_properties_store));
+         session.set_chr_races_store(Arc::clone(&self.chr_races_store));
+         session.set_chr_classes_store(Arc::clone(&self.chr_classes_store));
+diff --git a/crates/wow-world/src/battle_pet_purchase.rs b/crates/wow-world/src/battle_pet_purchase.rs
+index b78dcb43..a19a299a 100644
+--- a/crates/wow-world/src/battle_pet_purchase.rs
++++ b/crates/wow-world/src/battle_pet_purchase.rs
+@@ -398,6 +398,7 @@ impl WorldSession {
+         drop(money_persistence);
+         self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+         )
+         .await;
+ 
+@@ -1141,6 +1142,7 @@ impl WorldSession {
+                 drop(refund_guard);
+                 self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                     item_guid_generator,
++                    talent_catalogs,
+                 )
+                 .await;
+                 BattlePetPurchaseExecutionLikeCpp::Compensated
+diff --git a/crates/wow-world/src/handlers/character/account.rs b/crates/wow-world/src/handlers/character/account.rs
+index 840682b1..dfea70c0 100644
+--- a/crates/wow-world/src/handlers/character/account.rs
++++ b/crates/wow-world/src/handlers/character/account.rs
+@@ -935,6 +935,7 @@ inventory::submit! {
+                             .handle_binder_activate_with_generator_like_cpp(
+                                 catalogs.id_generators.item.as_ref(),
+                                 catalogs.creature_spawns.as_ref(),
++                                catalogs.talents.as_ref(),
+                                 hello,
+                             )
+                             .await
+@@ -1080,6 +1081,7 @@ inventory::submit! {
+                             .handle_swap_inv_item_with_generator_like_cpp(
+                                 catalogs.id_generators.item.as_ref(),
+                                 catalogs.creature_spawns.as_ref(),
++                                catalogs.talents.as_ref(),
+                                 swap,
+                             )
+                             .await
+@@ -1105,6 +1107,7 @@ inventory::submit! {
+                             .handle_auto_equip_item_with_generator_like_cpp(
+                                 catalogs.id_generators.item.as_ref(),
+                                 catalogs.creature_spawns.as_ref(),
++                                catalogs.talents.as_ref(),
+                                 equip,
+                             )
+                             .await
+@@ -1130,6 +1133,7 @@ inventory::submit! {
+                             .handle_auto_equip_item_slot_with_generator_like_cpp(
+                                 catalogs.id_generators.item.as_ref(),
+                                 catalogs.creature_spawns.as_ref(),
++                                catalogs.talents.as_ref(),
+                                 equip,
+                             )
+                             .await
+@@ -1155,6 +1159,7 @@ inventory::submit! {
+                             .handle_swap_item_with_generator_like_cpp(
+                                 catalogs.id_generators.item.as_ref(),
+                                 catalogs.creature_spawns.as_ref(),
++                                catalogs.talents.as_ref(),
+                                 swap,
+                             )
+                             .await
+@@ -1180,6 +1185,7 @@ inventory::submit! {
+                             .handle_auto_store_bag_item_with_generator_like_cpp(
+                                 catalogs.id_generators.item.as_ref(),
+                                 catalogs.creature_spawns.as_ref(),
++                                catalogs.talents.as_ref(),
+                                 store,
+                             )
+                             .await
+diff --git a/crates/wow-world/src/handlers/character/bank.rs b/crates/wow-world/src/handlers/character/bank.rs
+index ced123ed..92caf6cf 100644
+--- a/crates/wow-world/src/handlers/character/bank.rs
++++ b/crates/wow-world/src/handlers/character/bank.rs
+@@ -287,6 +287,7 @@ impl WorldSession {
+         ));
+         self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+         )
+         .await;
+     }
+diff --git a/crates/wow-world/src/handlers/character/items.rs b/crates/wow-world/src/handlers/character/items.rs
+index 51d9fa8f..939d789b 100644
+--- a/crates/wow-world/src/handlers/character/items.rs
++++ b/crates/wow-world/src/handlers/character/items.rs
+@@ -35,9 +35,11 @@ impl WorldSession {
+     pub async fn handle_swap_inv_item(&mut self, swap: SwapInvItem) {
+         let generators = self.id_generators_for_test_like_cpp();
+         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.handle_swap_inv_item_with_generator_like_cpp(
+             generators.item.as_ref(),
+             &catalogs,
++            &talent_catalogs,
+             swap,
+         )
+         .await;
+@@ -47,9 +49,11 @@ impl WorldSession {
+     pub async fn handle_auto_equip_item(&mut self, equip: AutoEquipItem) {
+         let generators = self.id_generators_for_test_like_cpp();
+         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.handle_auto_equip_item_with_generator_like_cpp(
+             generators.item.as_ref(),
+             &catalogs,
++            &talent_catalogs,
+             equip,
+         )
+         .await;
+@@ -59,9 +63,11 @@ impl WorldSession {
+     pub async fn handle_auto_equip_item_slot(&mut self, equip: AutoEquipItemSlot) {
+         let generators = self.id_generators_for_test_like_cpp();
+         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.handle_auto_equip_item_slot_with_generator_like_cpp(
+             generators.item.as_ref(),
+             &catalogs,
++            &talent_catalogs,
+             equip,
+         )
+         .await;
+@@ -71,8 +77,14 @@ impl WorldSession {
+     pub async fn handle_swap_item(&mut self, swap: wow_packet::packets::item::SwapItem) {
+         let generators = self.id_generators_for_test_like_cpp();
+         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+-        self.handle_swap_item_with_generator_like_cpp(generators.item.as_ref(), &catalogs, swap)
+-            .await;
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
++        self.handle_swap_item_with_generator_like_cpp(
++            generators.item.as_ref(),
++            &catalogs,
++            &talent_catalogs,
++            swap,
++        )
++        .await;
+     }
+ 
+     #[cfg(test)]
+@@ -82,9 +94,11 @@ impl WorldSession {
+     ) {
+         let generators = self.id_generators_for_test_like_cpp();
+         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.handle_auto_store_bag_item_with_generator_like_cpp(
+             generators.item.as_ref(),
+             &catalogs,
++            &talent_catalogs,
+             store,
+         )
+         .await;
+@@ -391,6 +405,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         source_bag: u8,
+         source_slot: u8,
+         destination_bag: u8,
+@@ -812,6 +827,7 @@ impl WorldSession {
+                 .apply_inventory_item_obtain_spells_with_generator_like_cpp(
+                     item_guid_generator,
+                     creature_spawn_catalogs,
++                    talent_catalogs,
+                     plan.source.entry_id,
+                 )
+                 .await;
+@@ -1348,6 +1364,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         src: u16,
+         dst: u16,
+     ) {
+@@ -1363,6 +1380,7 @@ impl WorldSession {
+                 .execute_inventory_swap_step_like_cpp(
+                     item_guid_generator,
+                     creature_spawn_catalogs,
++                    talent_catalogs,
+                     step_src,
+                     step_dst,
+                 )
+@@ -1536,6 +1554,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         child_bag: u8,
+         child_slot: u8,
+         child_guid: ObjectGuid,
+@@ -1548,6 +1567,7 @@ impl WorldSession {
+         self.execute_inventory_storage_move_like_cpp(
+             item_guid_generator,
+             creature_spawn_catalogs,
++            talent_catalogs,
+             child_bag,
+             child_slot,
+             INVENTORY_SLOT_BAG_0,
+@@ -1687,6 +1707,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         plan: InventoryEquipChildPlanLikeCpp,
+     ) -> bool {
+         if self
+@@ -1702,6 +1723,7 @@ impl WorldSession {
+             self.execute_inventory_storage_move_like_cpp(
+                 item_guid_generator,
+                 creature_spawn_catalogs,
++                talent_catalogs,
+                 INVENTORY_SLOT_BAG_0,
+                 plan.destination_slot,
+                 bag,
+@@ -1740,6 +1762,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         src: u16,
+         dst: u16,
+     ) -> InventorySwapStepLikeCpp {
+@@ -1799,6 +1822,7 @@ impl WorldSession {
+                     .execute_inventory_auto_unequip_child_item_like_cpp(
+                         item_guid_generator,
+                         creature_spawn_catalogs,
++                        talent_catalogs,
+                         child_bag,
+                         child_slot,
+                         child_guid,
+@@ -1844,6 +1868,7 @@ impl WorldSession {
+                     self.execute_inventory_storage_move_like_cpp(
+                         item_guid_generator,
+                         creature_spawn_catalogs,
++                        talent_catalogs,
+                         src_bag,
+                         src_slot,
+                         dst_bag,
+@@ -1858,6 +1883,7 @@ impl WorldSession {
+                     self.execute_inventory_storage_move_like_cpp(
+                         item_guid_generator,
+                         creature_spawn_catalogs,
++                        talent_catalogs,
+                         src_bag,
+                         src_slot,
+                         dst_bag,
+@@ -1872,6 +1898,7 @@ impl WorldSession {
+                     self.execute_inventory_equip_to_empty_like_cpp(
+                         item_guid_generator,
+                         creature_spawn_catalogs,
++                        talent_catalogs,
+                         src_bag,
+                         src_slot,
+                         dest,
+@@ -1900,6 +1927,7 @@ impl WorldSession {
+                 self.execute_inventory_stack_merge_like_cpp(
+                     item_guid_generator,
+                     creature_spawn_catalogs,
++                    talent_catalogs,
+                     src_bag,
+                     src_slot,
+                     dst_bag,
+@@ -1951,6 +1979,7 @@ impl WorldSession {
+         self.execute_inventory_real_swap_like_cpp(
+             item_guid_generator,
+             creature_spawn_catalogs,
++            talent_catalogs,
+             src_bag,
+             src_slot,
+             dst_bag,
+@@ -1968,6 +1997,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         source_bag: u8,
+         source_slot: u8,
+         destination: u16,
+@@ -1998,6 +2028,7 @@ impl WorldSession {
+                 .execute_inventory_equip_child_like_cpp(
+                     item_guid_generator,
+                     creature_spawn_catalogs,
++                    talent_catalogs,
+                     plan,
+                 )
+                 .await;
+@@ -2005,6 +2036,7 @@ impl WorldSession {
+         self.execute_inventory_auto_unequip_offhand_if_need_like_cpp(
+             item_guid_generator,
+             creature_spawn_catalogs,
++            talent_catalogs,
+         )
+         .await;
+     }
+@@ -2150,6 +2182,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+     ) {
+         let Some(reason) = self.represented_auto_unequip_offhand_reason_like_cpp(false) else {
+             return;
+@@ -2165,6 +2198,7 @@ impl WorldSession {
+         self.execute_inventory_storage_move_like_cpp(
+             item_guid_generator,
+             creature_spawn_catalogs,
++            talent_catalogs,
+             INVENTORY_SLOT_BAG_0,
+             wow_entities::EQUIPMENT_SLOT_OFFHAND,
+             NULL_BAG,
+@@ -2199,6 +2233,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         source_bag: u8,
+         source_slot: u8,
+         destination_bag: u8,
+@@ -2353,6 +2388,7 @@ impl WorldSession {
+             self.execute_inventory_auto_unequip_offhand_if_need_like_cpp(
+                 item_guid_generator,
+                 creature_spawn_catalogs,
++                talent_catalogs,
+             )
+             .await;
+         }
+@@ -2393,6 +2429,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         source_bag: u8,
+         source_slot: u8,
+         destination_bag: u8,
+@@ -2748,6 +2785,7 @@ impl WorldSession {
+                 .execute_inventory_equip_child_like_cpp(
+                     item_guid_generator,
+                     creature_spawn_catalogs,
++                    talent_catalogs,
+                     plan,
+                 )
+                 .await;
+@@ -2755,6 +2793,7 @@ impl WorldSession {
+         self.execute_inventory_auto_unequip_offhand_if_need_like_cpp(
+             item_guid_generator,
+             creature_spawn_catalogs,
++            talent_catalogs,
+         )
+         .await;
+     }
+@@ -2815,6 +2854,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         swap: SwapInvItem,
+     ) {
+         if swap.inv_update.items.len() != 2 {
+@@ -2845,6 +2885,7 @@ impl WorldSession {
+         self.execute_inventory_swap_positions_like_cpp(
+             item_guid_generator,
+             creature_spawn_catalogs,
++            talent_catalogs,
+             wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, swap.src_slot),
+             wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, swap.dst_slot),
+         )
+@@ -2856,6 +2897,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         equip: AutoEquipItem,
+     ) {
+         if equip.inv_update.items.len() != 1 {
+@@ -2906,6 +2948,7 @@ impl WorldSession {
+             self.execute_inventory_swap_positions_like_cpp(
+                 item_guid_generator,
+                 creature_spawn_catalogs,
++                talent_catalogs,
+                 source_pos,
+                 destination,
+             )
+@@ -2919,6 +2962,7 @@ impl WorldSession {
+             self.execute_inventory_swap_positions_like_cpp(
+                 item_guid_generator,
+                 creature_spawn_catalogs,
++                talent_catalogs,
+                 source_pos,
+                 destination,
+             )
+@@ -2936,6 +2980,7 @@ impl WorldSession {
+                 self.execute_inventory_swap_positions_like_cpp(
+                     item_guid_generator,
+                     creature_spawn_catalogs,
++                    talent_catalogs,
+                     source_pos,
+                     destination,
+                 )
+@@ -2963,6 +3008,7 @@ impl WorldSession {
+             self.execute_inventory_swap_positions_like_cpp(
+                 item_guid_generator,
+                 creature_spawn_catalogs,
++                talent_catalogs,
+                 source_pos,
+                 destination,
+             )
+@@ -3026,6 +3072,7 @@ impl WorldSession {
+         self.execute_inventory_storage_move_like_cpp(
+             item_guid_generator,
+             creature_spawn_catalogs,
++            talent_catalogs,
+             destination_bag,
+             destination_slot,
+             fallback_bag,
+@@ -3044,6 +3091,7 @@ impl WorldSession {
+         self.execute_inventory_equip_to_empty_like_cpp(
+             item_guid_generator,
+             creature_spawn_catalogs,
++            talent_catalogs,
+             equip.pack_slot,
+             equip.slot,
+             destination,
+@@ -3061,6 +3109,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         equip: AutoEquipItemSlot,
+     ) {
+         if self.player_guid().is_none() {
+@@ -3092,6 +3141,7 @@ impl WorldSession {
+         self.execute_inventory_swap_positions_like_cpp(
+             item_guid_generator,
+             creature_spawn_catalogs,
++            talent_catalogs,
+             source,
+             destination,
+         )
+@@ -3105,6 +3155,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         swap: wow_packet::packets::item::SwapItem,
+     ) {
+         if swap.inv_update.items.len() != 2 {
+@@ -3140,6 +3191,7 @@ impl WorldSession {
+         self.execute_inventory_swap_positions_like_cpp(
+             item_guid_generator,
+             creature_spawn_catalogs,
++            talent_catalogs,
+             source,
+             destination,
+         )
+@@ -3154,6 +3206,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         store: wow_packet::packets::item::AutoStoreBagItem,
+     ) {
+         let player_guid = match self.player_guid() {
+@@ -3210,6 +3263,7 @@ impl WorldSession {
+         self.execute_inventory_storage_move_like_cpp(
+             item_guid_generator,
+             creature_spawn_catalogs,
++            talent_catalogs,
+             store.container_slot_a,
+             store.slot_a,
+             store.container_slot_b,
+diff --git a/crates/wow-world/src/handlers/character/session_state.rs b/crates/wow-world/src/handlers/character/session_state.rs
+index 86c90111..2545552e 100644
+--- a/crates/wow-world/src/handlers/character/session_state.rs
++++ b/crates/wow-world/src/handlers/character/session_state.rs
+@@ -831,6 +831,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         hello: Hello,
+     ) {
+         info!(
+@@ -882,6 +883,7 @@ impl WorldSession {
+                 .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+                     item_guid_generator,
+                     creature_spawn_catalogs,
++                    talent_catalogs,
+                     BIND_SPELL_ID_LIKE_CPP,
+                     player_guid,
+                     cast_id,
+@@ -1325,9 +1327,11 @@ impl WorldSession {
+     pub async fn handle_binder_activate(&mut self, hello: Hello) {
+         let generators = self.id_generators_for_test_like_cpp();
+         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.handle_binder_activate_with_generator_like_cpp(
+             generators.item.as_ref(),
+             &creature_spawn_catalogs,
++            &talent_catalogs,
+             hello,
+         )
+         .await;
+@@ -1707,6 +1711,7 @@ impl WorldSession {
+     #[allow(clippy::too_many_arguments)]
+     pub(super) async fn send_initial_packets_before_add_to_map(
+         &mut self,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         guid: ObjectGuid,
+         _position: &Position,
+         _map_id: i32,
+@@ -1754,7 +1759,9 @@ impl WorldSession {
+         self.send_packet(&login_bind_point_update_like_cpp(homebind));
+ 
+         // 9. UpdateTalentData — C++ `Player::SendTalentsInfoData`.
+-        let Some(talent_data) = self.resolved_update_talent_data_packet_like_cpp() else {
++        let Some(talent_data) =
++            self.resolved_update_talent_data_packet_with_catalogs_like_cpp(talent_catalogs)
++        else {
+             return false;
+         };
+         self.send_packet(&talent_data);
+@@ -2185,6 +2192,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         feature_policy: &SupportFeaturePolicyLikeCpp,
+         guid: ObjectGuid,
+         race: u8,
+@@ -2281,6 +2289,7 @@ impl WorldSession {
+         // ── Phase 2: SendInitialPacketsBeforeAddToMap ──
+         if !self
+             .send_initial_packets_before_add_to_map(
++                talent_catalogs,
+                 guid,
+                 position,
+                 map_id,
+diff --git a/crates/wow-world/src/handlers/character/vendor.rs b/crates/wow-world/src/handlers/character/vendor.rs
+index 689f0d8b..5602212f 100644
+--- a/crates/wow-world/src/handlers/character/vendor.rs
++++ b/crates/wow-world/src/handlers/character/vendor.rs
+@@ -1260,6 +1260,7 @@ impl WorldSession {
+ 
+         self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+         )
+         .await;
+         for &(currency_id, amount) in &extended_cost_currency_costs {
+@@ -1589,6 +1590,7 @@ impl WorldSession {
+ 
+         self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+         )
+         .await;
+ 
+@@ -1932,6 +1934,7 @@ impl WorldSession {
+ 
+         self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+         )
+         .await;
+ 
+@@ -2445,6 +2448,7 @@ impl WorldSession {
+ 
+         self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+         )
+         .await;
+         if money_overflow {
+diff --git a/crates/wow-world/src/handlers/character/world_entry.rs b/crates/wow-world/src/handlers/character/world_entry.rs
+index d791ba2c..3dfe07fb 100644
+--- a/crates/wow-world/src/handlers/character/world_entry.rs
++++ b/crates/wow-world/src/handlers/character/world_entry.rs
+@@ -185,6 +185,7 @@ impl WorldSession {
+         player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
+         player_rest_rates: &crate::session::PlayerRestRatePolicyLikeCpp,
+         progression: &crate::session::ProgressionCatalogsLikeCpp,
++        talents: &crate::session::TalentCatalogsLikeCpp,
+         feature_policy: &SupportFeaturePolicyLikeCpp,
+     ) {
+         let guid: ObjectGuid = match self.player_loading() {
+@@ -1862,6 +1863,7 @@ impl WorldSession {
+                 let mut skipped = 0usize;
+                 for row in rows {
+                     if self.load_represented_talent_row_with_spell_side_effects_like_cpp(
++                        talents,
+                         row.talent_id,
+                         row.rank,
+                         row.talent_group,
+@@ -1873,7 +1875,7 @@ impl WorldSession {
+                         skipped += 1;
+                     }
+                 }
+-                self.mark_represented_talents_loaded_like_cpp();
++                self.mark_represented_talents_loaded_with_catalogs_like_cpp(talents);
+                 talent_rows_complete_like_cpp = true;
+                 info!(
+                     loaded,
+@@ -2572,6 +2574,7 @@ impl WorldSession {
+             .send_login_sequence(
+                 item_guid_generator,
+                 creature_spawn_catalogs,
++                talents,
+                 feature_policy,
+                 guid,
+                 race,
+@@ -2607,13 +2610,14 @@ impl WorldSession {
+         self.send_item_enchant_time_update_plans(guid, &loaded_non_equipped_enchantment_updates);
+         self.send_loaded_equipped_item_enchantment_updates_like_cpp(&loaded_enchantment_updates);
+         self.apply_represented_login_spell_reset_if_needed_like_cpp();
+-        self.apply_represented_login_talent_reset_if_needed_like_cpp();
++        self.apply_represented_login_talent_reset_with_catalogs_if_needed_like_cpp(talents);
+         let applied_first_login_like_cpp =
+             self.apply_represented_first_login_flag_if_needed_like_cpp();
+         if applied_first_login_like_cpp {
+             self.apply_represented_first_login_cast_spells_with_catalogs_like_cpp(
+                 item_guid_generator,
+                 creature_spawn_catalogs,
++                talents,
+                 player_bootstrap,
+             )
+             .await;
+diff --git a/crates/wow-world/src/handlers/character_tests.rs b/crates/wow-world/src/handlers/character_tests.rs
+index 866850dc..2f1bd492 100644
+--- a/crates/wow-world/src/handlers/character_tests.rs
++++ b/crates/wow-world/src/handlers/character_tests.rs
+@@ -2452,10 +2452,12 @@ async fn before_add_spell_packets_keep_cpp_order_without_name_query_injection()
+     let (mut session, send_rx) = make_session_with_send_capacity(64);
+     let guid = ObjectGuid::create_player(1, 42);
+     session.set_player_guid(Some(guid));
++    let talent_catalogs = session.talent_catalogs_for_test_like_cpp();
+ 
+     assert!(
+         session
+             .send_initial_packets_before_add_to_map(
++                &talent_catalogs,
+                 guid,
+                 &Position::ZERO,
+                 571,
+@@ -3571,6 +3573,7 @@ async fn unavailable_login_grid_aborts_before_success_login_packets_like_cpp() {
+     }));
+     let generators = session.id_generators_for_test_like_cpp();
+     let creature_spawn_catalogs = session.creature_spawn_catalogs_for_test_like_cpp();
++    let talent_catalogs = session.talent_catalogs_for_test_like_cpp();
+     let feature_policy = session.support_feature_policy_for_test_like_cpp();
+ 
+     assert!(
+@@ -3578,6 +3581,7 @@ async fn unavailable_login_grid_aborts_before_success_login_packets_like_cpp() {
+             .send_login_sequence(
+                 generators.item.as_ref(),
+                 &creature_spawn_catalogs,
++                &talent_catalogs,
+                 &feature_policy,
+                 guid,
+                 1,
+diff --git a/crates/wow-world/src/handlers/loot/handlers.rs b/crates/wow-world/src/handlers/loot/handlers.rs
+index ac2526a1..82e7aa17 100644
+--- a/crates/wow-world/src/handlers/loot/handlers.rs
++++ b/crates/wow-world/src/handlers/loot/handlers.rs
+@@ -993,6 +993,7 @@ impl WorldSession {
+                 if apply_balance || publish {
+                     self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                         item_guid_generator,
++                        talent_catalogs,
+                     )
+                     .await;
+                 }
+@@ -1076,6 +1077,7 @@ impl WorldSession {
+             }
+             self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                 item_guid_generator,
++                talent_catalogs,
+             )
+             .await;
+         }
+diff --git a/crates/wow-world/src/handlers/loot/money.rs b/crates/wow-world/src/handlers/loot/money.rs
+index ce4f0d25..41d2b73e 100644
+--- a/crates/wow-world/src/handlers/loot/money.rs
++++ b/crates/wow-world/src/handlers/loot/money.rs
+@@ -188,6 +188,7 @@ impl WorldSession {
+         if apply_money || publish {
+             self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                 item_guid_generator,
++                talent_catalogs,
+             )
+             .await;
+         }
+diff --git a/crates/wow-world/src/handlers/loot/persistence.rs b/crates/wow-world/src/handlers/loot/persistence.rs
+index e8ee8605..2384fd40 100644
+--- a/crates/wow-world/src/handlers/loot/persistence.rs
++++ b/crates/wow-world/src/handlers/loot/persistence.rs
+@@ -458,6 +458,7 @@ impl WorldSession {
+                 if drain_money_objectives && (apply_balance || publish) {
+                     self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                         item_guid_generator,
++                        talent_catalogs,
+                     )
+                     .await;
+                 }
+diff --git a/crates/wow-world/src/handlers/loot/sources.rs b/crates/wow-world/src/handlers/loot/sources.rs
+index 552a6854..fe3f26ac 100644
+--- a/crates/wow-world/src/handlers/loot/sources.rs
++++ b/crates/wow-world/src/handlers/loot/sources.rs
+@@ -351,6 +351,7 @@ impl WorldSession {
+     pub(crate) async fn open_represented_gathering_node_with_catalogs_like_cpp(
+         &mut self,
+         item_valuation: &ItemValuationCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         gameobject_guid: ObjectGuid,
+         gameobject_entry: u32,
+         source: GatheringNodeUseSource,
+@@ -388,7 +389,8 @@ impl WorldSession {
+         if is_first_represented_use {
+             let xp = self.represented_gathering_node_xp_like_cpp(source.xp_difficulty);
+             if xp != 0 {
+-                self.give_xp(xp, ObjectGuid::EMPTY, 1.0).await;
++                self.give_xp_with_catalogs_like_cpp(talent_catalogs, xp, ObjectGuid::EMPTY, 1.0)
++                    .await;
+             }
+             self.record_represented_gameobject_use_effects_like_cpp(
+                 gameobject_guid,
+@@ -757,8 +759,10 @@ impl WorldSession {
+         source: GatheringNodeUseSource,
+     ) {
+         let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.open_represented_gathering_node_with_catalogs_like_cpp(
+             &item_valuation,
++            &talent_catalogs,
+             gameobject_guid,
+             gameobject_entry,
+             source,
+diff --git a/crates/wow-world/src/handlers/misc/collections.rs b/crates/wow-world/src/handlers/misc/collections.rs
+index 4de358ab..2c8d62b2 100644
+--- a/crates/wow-world/src/handlers/misc/collections.rs
++++ b/crates/wow-world/src/handlers/misc/collections.rs
+@@ -105,6 +105,7 @@ inventory::submit! {
+                     .handle_use_toy_with_generator_like_cpp(
+                         catalogs.id_generators.item.as_ref(),
+                         catalogs.creature_spawns.as_ref(),
++                        catalogs.talents.as_ref(),
+                         pkt,
+                     )
+                     .await
+@@ -302,6 +303,7 @@ impl crate::session::WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         mut pkt: wow_packet::WorldPacket,
+     ) {
+         let request = match UseToy::read(&mut pkt) {
+@@ -433,6 +435,7 @@ impl crate::session::WorldSession {
+             .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+                 item_guid_generator,
+                 creature_spawn_catalogs,
++                talent_catalogs,
+                 request.cast.spell_id,
+                 target_guid,
+                 server_cast_id,
+@@ -534,9 +537,11 @@ impl crate::session::WorldSession {
+     pub async fn handle_use_toy(&mut self, pkt: wow_packet::WorldPacket) {
+         let generators = self.id_generators_for_test_like_cpp();
+         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.handle_use_toy_with_generator_like_cpp(
+             generators.item.as_ref(),
+             &creature_spawn_catalogs,
++            &talent_catalogs,
+             pkt,
+         )
+         .await;
+diff --git a/crates/wow-world/src/handlers/misc/gameobject.rs b/crates/wow-world/src/handlers/misc/gameobject.rs
+index f717f0c1..eaf43e16 100644
+--- a/crates/wow-world/src/handlers/misc/gameobject.rs
++++ b/crates/wow-world/src/handlers/misc/gameobject.rs
+@@ -52,6 +52,7 @@ inventory::submit! {
+                         catalogs.object_mgr.as_ref(),
+                         catalogs.id_generators.item.as_ref(),
+                         catalogs.item_valuation.as_ref(),
++                        catalogs.talents.as_ref(),
+                         pkt,
+                     )
+                     .await
+@@ -82,6 +83,7 @@ impl crate::session::WorldSession {
+         catalogs: &crate::session::ObjectMgrCatalogsLikeCpp,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         item_valuation: &crate::session::ItemValuationCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         mut pkt: wow_packet::WorldPacket,
+     ) {
+         let gameobject_guid = match pkt.read_packed_guid() {
+@@ -479,6 +481,7 @@ impl crate::session::WorldSession {
+                 if let Some(source) = template.gathering_node_use_source_like_cpp() {
+                     self.open_represented_gathering_node_with_catalogs_like_cpp(
+                         item_valuation,
++                        talent_catalogs,
+                         gameobject_guid,
+                         gameobject_access.entry,
+                         source,
+@@ -507,10 +510,12 @@ impl crate::session::WorldSession {
+             return;
+         };
+         let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.handle_game_obj_use_with_catalogs_like_cpp(
+             &catalogs,
+             generator.as_ref(),
+             &item_valuation,
++            &talent_catalogs,
+             pkt,
+         )
+         .await;
+diff --git a/crates/wow-world/src/handlers/movement.rs b/crates/wow-world/src/handlers/movement.rs
+index 66a144a7..912a4eb2 100644
+--- a/crates/wow-world/src/handlers/movement.rs
++++ b/crates/wow-world/src/handlers/movement.rs
+@@ -94,6 +94,7 @@ macro_rules! register_move {
+                                 catalogs.area_triggers.as_ref(),
+                                 catalogs.creature_spawns.as_ref(),
+                                 catalogs.progression.as_ref(),
++                                catalogs.talents.as_ref(),
+                                 pkt,
+                             )
+                             .await
+@@ -145,6 +146,7 @@ impl WorldSession {
+         area_trigger_catalogs: &AreaTriggerCatalogsLikeCpp,
+         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+         progression: &ProgressionCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         mut pkt: wow_packet::WorldPacket,
+     ) {
+         let opcode = pkt.client_opcode();
+@@ -163,6 +165,7 @@ impl WorldSession {
+             area_trigger_catalogs,
+             creature_spawn_catalogs,
+             progression,
++            talent_catalogs,
+             opcode,
+             info.info,
+         )
+@@ -174,6 +177,7 @@ impl WorldSession {
+         area_trigger_catalogs: &AreaTriggerCatalogsLikeCpp,
+         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+         progression: &ProgressionCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         opcode: Option<ClientOpcodes>,
+         mut info: MovementInfo,
+     ) {
+@@ -464,6 +468,7 @@ impl WorldSession {
+             };
+             self.check_area_explore_and_outdoor_represented_with_catalogs_like_cpp(
+                 progression,
++                talent_catalogs,
+                 area_id,
+             )
+             .await;
+@@ -568,10 +573,12 @@ impl WorldSession {
+         let area_trigger_catalogs = self.area_trigger_catalogs_for_test_like_cpp();
+         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+         let progression = self.progression_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.handle_movement_with_catalogs_like_cpp(
+             &area_trigger_catalogs,
+             &creature_spawn_catalogs,
+             &progression,
++            &talent_catalogs,
+             pkt,
+         )
+         .await;
+diff --git a/crates/wow-world/src/handlers/quest/handlers.rs b/crates/wow-world/src/handlers/quest/handlers.rs
+index d9d7b10f..34d98de9 100644
+--- a/crates/wow-world/src/handlers/quest/handlers.rs
++++ b/crates/wow-world/src/handlers/quest/handlers.rs
+@@ -74,6 +74,7 @@ inventory::submit! {
+                 session
+                     .handle_quest_giver_accept_quest_with_generator_like_cpp(
+                         catalogs.id_generators.item.as_ref(),
++                        catalogs.talents.as_ref(),
+                         pkt,
+                     )
+                     .await
+@@ -149,6 +150,7 @@ inventory::submit! {
+                 session
+                     .handle_quest_giver_request_reward_with_generator_like_cpp(
+                         catalogs.id_generators.item.as_ref(),
++                        catalogs.talents.as_ref(),
+                         pkt,
+                     )
+                     .await
+@@ -180,6 +182,7 @@ inventory::submit! {
+                 session
+                     .handle_quest_giver_choose_reward_with_generator_like_cpp(
+                         catalogs.id_generators.item.as_ref(),
++                        catalogs.talents.as_ref(),
+                         pkt,
+                     )
+                     .await
+@@ -223,6 +226,7 @@ inventory::submit! {
+                 session
+                     .handle_quest_confirm_accept_with_generator_like_cpp(
+                         catalogs.id_generators.item.as_ref(),
++                        catalogs.talents.as_ref(),
+                         pkt,
+                     )
+                     .await
+@@ -452,13 +456,19 @@ impl WorldSession {
+     #[cfg(test)]
+     pub async fn handle_quest_giver_accept_quest(&mut self, pkt: wow_packet::WorldPacket) {
+         let generators = self.id_generators_for_test_like_cpp();
+-        self.handle_quest_giver_accept_quest_with_generator_like_cpp(generators.item.as_ref(), pkt)
+-            .await;
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
++        self.handle_quest_giver_accept_quest_with_generator_like_cpp(
++            generators.item.as_ref(),
++            &talent_catalogs,
++            pkt,
++        )
++        .await;
+     }
+ 
+     pub async fn handle_quest_giver_accept_quest_with_generator_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         mut pkt: wow_packet::WorldPacket,
+     ) {
+         let (guid, quest_id, start_cheat) = match read_quest_giver_accept_quest_like_cpp(&mut pkt) {
+@@ -553,6 +563,7 @@ impl WorldSession {
+ 
+         self.complete_represented_quest_after_add_with_generator_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+             quest,
+         )
+         .await;
+@@ -621,13 +632,19 @@ impl WorldSession {
+     #[cfg(test)]
+     pub async fn handle_quest_confirm_accept(&mut self, pkt: wow_packet::WorldPacket) {
+         let generators = self.id_generators_for_test_like_cpp();
+-        self.handle_quest_confirm_accept_with_generator_like_cpp(generators.item.as_ref(), pkt)
+-            .await;
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
++        self.handle_quest_confirm_accept_with_generator_like_cpp(
++            generators.item.as_ref(),
++            &talent_catalogs,
++            pkt,
++        )
++        .await;
+     }
+ 
+     pub async fn handle_quest_confirm_accept_with_generator_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         mut pkt: wow_packet::WorldPacket,
+     ) {
+         let packet = match QuestConfirmAccept::read(&mut pkt) {
+@@ -893,7 +910,11 @@ impl WorldSession {
+ 
+             if let Some(source_item_no_grant_reason) = source_item_no_grant_reason {
+                 if !self
+-                    .add_quest_confirm_accept_local_state_like_cpp(item_guid_generator, &quest)
++                    .add_quest_confirm_accept_local_state_like_cpp(
++                        item_guid_generator,
++                        talent_catalogs,
++                        &quest,
++                    )
+                     .await
+                 {
+                     record(
+@@ -926,7 +947,11 @@ impl WorldSession {
+             }
+ 
+             if !self
+-                .add_quest_confirm_accept_local_state_like_cpp(item_guid_generator, &quest)
++                .add_quest_confirm_accept_local_state_like_cpp(
++                    item_guid_generator,
++                    talent_catalogs,
++                    &quest,
++                )
+                 .await
+             {
+                 record(
+@@ -989,7 +1014,11 @@ impl WorldSession {
+         }
+ 
+         if !self
+-            .add_quest_confirm_accept_local_state_like_cpp(item_guid_generator, &quest)
++            .add_quest_confirm_accept_local_state_like_cpp(
++                item_guid_generator,
++                talent_catalogs,
++                &quest,
++            )
+             .await
+         {
+             record(
+@@ -2231,8 +2260,10 @@ impl WorldSession {
+     #[cfg(test)]
+     pub async fn handle_quest_giver_request_reward(&mut self, pkt: wow_packet::WorldPacket) {
+         let generators = self.id_generators_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.handle_quest_giver_request_reward_with_generator_like_cpp(
+             generators.item.as_ref(),
++            &talent_catalogs,
+             pkt,
+         )
+         .await;
+@@ -2241,6 +2272,7 @@ impl WorldSession {
+     pub async fn handle_quest_giver_request_reward_with_generator_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         mut pkt: wow_packet::WorldPacket,
+     ) {
+         let guid = match pkt.read_packed_guid() {
+@@ -2316,6 +2348,7 @@ impl WorldSession {
+                 .len();
+             self.complete_represented_quest_after_add_with_generator_like_cpp(
+                 item_guid_generator,
++                talent_catalogs,
+                 &quest,
+             )
+             .await;
+@@ -2522,8 +2555,10 @@ impl WorldSession {
+     #[cfg(test)]
+     pub async fn handle_quest_giver_choose_reward(&mut self, pkt: wow_packet::WorldPacket) {
+         let generators = self.id_generators_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.handle_quest_giver_choose_reward_with_generator_like_cpp(
+             generators.item.as_ref(),
++            &talent_catalogs,
+             pkt,
+         )
+         .await;
+@@ -2532,6 +2567,7 @@ impl WorldSession {
+     pub async fn handle_quest_giver_choose_reward_with_generator_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         mut pkt: wow_packet::WorldPacket,
+     ) {
+         let guid = match pkt.read_packed_guid() {
+@@ -2682,6 +2718,7 @@ impl WorldSession {
+         let rewarded = self
+             .reward_represented_quest_with_generator_like_cpp(
+                 item_guid_generator,
++                talent_catalogs,
+                 &quest,
+                 guid,
+                 choice,
+@@ -2691,6 +2728,8 @@ impl WorldSession {
+             Box::pin(
+                 self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                     item_guid_generator,
++                    talent_catalogs,
++                    talent_catalogs,
+                 ),
+             )
+             .await;
+diff --git a/crates/wow-world/src/handlers/quest/objectives.rs b/crates/wow-world/src/handlers/quest/objectives.rs
+index 4ebeb9fd..0ca25823 100644
+--- a/crates/wow-world/src/handlers/quest/objectives.rs
++++ b/crates/wow-world/src/handlers/quest/objectives.rs
+@@ -256,12 +256,14 @@ impl WorldSession {
+     pub(crate) async fn apply_quest_source_item_added_non_bound_objective_progress_with_generator_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         entry_id: u32,
+         quest_log_item_id: u32,
+         count: u32,
+     ) -> Vec<u32> {
+         self.apply_quest_item_added_objective_progress_filtered_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+             entry_id,
+             quest_log_item_id,
+             count,
+@@ -278,8 +280,10 @@ impl WorldSession {
+         count: u32,
+     ) -> Vec<u32> {
+         let generators = self.id_generators_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.apply_quest_source_item_added_non_bound_objective_progress_with_generator_like_cpp(
+             generators.item.as_ref(),
++            &talent_catalogs,
+             entry_id,
+             quest_log_item_id,
+             count,
+@@ -292,12 +296,14 @@ impl WorldSession {
+     pub(crate) async fn apply_quest_item_added_objective_progress_with_generator_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         entry_id: u32,
+         quest_log_item_id: u32,
+         count: u32,
+     ) -> Vec<u32> {
+         self.apply_quest_item_added_objective_progress_filtered_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+             entry_id,
+             quest_log_item_id,
+             count,
+@@ -314,8 +320,10 @@ impl WorldSession {
+         count: u32,
+     ) -> Vec<u32> {
+         let generators = self.id_generators_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.apply_quest_item_added_objective_progress_with_generator_like_cpp(
+             generators.item.as_ref(),
++            &talent_catalogs,
+             entry_id,
+             quest_log_item_id,
+             count,
+@@ -326,6 +334,7 @@ impl WorldSession {
+     async fn apply_quest_item_added_objective_progress_filtered_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         entry_id: u32,
+         quest_log_item_id: u32,
+         count: u32,
+@@ -472,6 +481,7 @@ impl WorldSession {
+                 let completed = self
+                     .complete_represented_quest_after_add_with_generator_like_cpp(
+                         item_guid_generator,
++                        talent_catalogs,
+                         &quest,
+                     )
+                     .await;
+@@ -904,6 +914,7 @@ impl WorldSession {
+     pub(super) async fn apply_quest_source_item_bound_objective_progress_for_object_with_generator_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         quest_store: &QuestStore,
+         object_id: i32,
+         count_i32: i32,
+@@ -988,6 +999,7 @@ impl WorldSession {
+             if let Some(quest) = quest_store.get(quest_id).cloned() {
+                 self.complete_represented_quest_after_add_with_generator_like_cpp(
+                     item_guid_generator,
++                    talent_catalogs,
+                     &quest,
+                 )
+                 .await;
+@@ -1005,8 +1017,10 @@ impl WorldSession {
+         count_i32: i32,
+     ) -> Vec<(u32, i32)> {
+         let generators = self.id_generators_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.apply_quest_source_item_bound_objective_progress_for_object_with_generator_like_cpp(
+             generators.item.as_ref(),
++            &talent_catalogs,
+             quest_store,
+             object_id,
+             count_i32,
+@@ -1017,6 +1031,7 @@ impl WorldSession {
+     pub(crate) async fn apply_quest_source_item_bound_objective_preflight_with_generator_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         entry_id: u32,
+         quest_log_item_id: u32,
+         count: u32,
+@@ -1032,6 +1047,7 @@ impl WorldSession {
+         let mut updated_counts = self
+             .apply_quest_source_item_bound_objective_progress_for_object_with_generator_like_cpp(
+                 item_guid_generator,
++                talent_catalogs,
+                 quest_store.as_ref(),
+                 entry_object_id,
+                 count_i32,
+@@ -1043,6 +1059,7 @@ impl WorldSession {
+             updated_counts.extend(
+                 self.apply_quest_source_item_bound_objective_progress_for_object_with_generator_like_cpp(
+                     item_guid_generator,
++                    talent_catalogs,
+                     quest_store.as_ref(),
+                     quest_log_object_id,
+                     count_i32,
+diff --git a/crates/wow-world/src/handlers/quest/rewards.rs b/crates/wow-world/src/handlers/quest/rewards.rs
+index a92446a9..c4ff0f3e 100644
+--- a/crates/wow-world/src/handlers/quest/rewards.rs
++++ b/crates/wow-world/src/handlers/quest/rewards.rs
+@@ -2024,8 +2024,10 @@ impl WorldSession {
+         let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+             return false;
+         };
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.reward_represented_quest_with_generator_like_cpp(
+             generator.as_ref(),
++            &talent_catalogs,
+             quest,
+             quest_giver_guid,
+             choice,
+@@ -2036,6 +2038,7 @@ impl WorldSession {
+     pub(super) async fn reward_represented_quest_with_generator_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         quest: &wow_data::quest::QuestTemplate,
+         quest_giver_guid: ObjectGuid,
+         choice: QuestChoiceItemLikeCpp,
+@@ -2222,7 +2225,8 @@ impl WorldSession {
+             // C++ `Player::RewardQuest` calls `GiveXP(XP, nullptr)`: quest XP
+             // does not consume rested XP. RAF remains mutually exclusive with
+             // rested XP and may still apply inside `GiveXP`.
+-            self.give_xp(xp, ObjectGuid::EMPTY, 1.0).await;
++            self.give_xp_with_catalogs_like_cpp(talent_catalogs, xp, ObjectGuid::EMPTY, 1.0)
++                .await;
+         }
+ 
+         self.set_represented_can_delay_teleport_like_cpp(false);
+diff --git a/crates/wow-world/src/handlers/quest/state.rs b/crates/wow-world/src/handlers/quest/state.rs
+index 976be142..cbce4391 100644
+--- a/crates/wow-world/src/handlers/quest/state.rs
++++ b/crates/wow-world/src/handlers/quest/state.rs
+@@ -72,10 +72,12 @@ impl WorldSession {
+     pub(crate) async fn complete_represented_quest_after_add_with_generator_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         quest: &wow_data::quest::QuestTemplate,
+     ) -> bool {
+         self.complete_represented_quest_after_objective_with_generator_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+             quest,
+             0,
+         )
+@@ -91,8 +93,10 @@ impl WorldSession {
+         let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+             return false;
+         };
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.complete_represented_quest_after_objective_with_generator_like_cpp(
+             generator.as_ref(),
++            &talent_catalogs,
+             quest,
+             ignored_objective_id,
+         )
+@@ -102,6 +106,7 @@ impl WorldSession {
+     pub(crate) async fn complete_represented_quest_after_objective_with_generator_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         quest: &wow_data::quest::QuestTemplate,
+         ignored_objective_id: u32,
+     ) -> bool {
+@@ -137,6 +142,7 @@ impl WorldSession {
+             let rewarded = self
+                 .reward_represented_quest_with_generator_like_cpp(
+                     item_guid_generator,
++                    talent_catalogs,
+                     quest,
+                     quest_giver_guid,
+                     choice,
+@@ -154,6 +160,7 @@ impl WorldSession {
+                 Box::pin(
+                     self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                         item_guid_generator,
++                        talent_catalogs,
+                     ),
+                 )
+                 .await;
+@@ -247,6 +254,7 @@ impl WorldSession {
+     pub(super) async fn add_quest_confirm_accept_local_state_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         quest: &wow_data::quest::QuestTemplate,
+     ) -> bool {
+         let Some(slot) = self.first_free_quest_slot_like_cpp() else {
+@@ -276,6 +284,7 @@ impl WorldSession {
+         }
+         self.complete_represented_quest_after_add_with_generator_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+             quest,
+         )
+         .await;
+diff --git a/crates/wow-world/src/handlers/spell.rs b/crates/wow-world/src/handlers/spell.rs
+index 40b07b66..1e7d20b2 100644
+--- a/crates/wow-world/src/handlers/spell.rs
++++ b/crates/wow-world/src/handlers/spell.rs
+@@ -107,6 +107,7 @@ inventory::submit! {
+                         catalogs.area_triggers.as_ref(),
+                         catalogs.creature_spawns.as_ref(),
+                         catalogs.progression.as_ref(),
++                        catalogs.talents.as_ref(),
+                         catalogs.id_generators.item.as_ref(),
+                         pkt,
+                     )
+@@ -218,6 +219,7 @@ inventory::submit! {
+                     .handle_self_res_with_generator_like_cpp(
+                         catalogs.id_generators.item.as_ref(),
+                         catalogs.creature_spawns.as_ref(),
++                        catalogs.talents.as_ref(),
+                         pkt,
+                     )
+                     .await
+@@ -258,6 +260,7 @@ inventory::submit! {
+                     .handle_spell_click_with_generator_like_cpp(
+                         catalogs.id_generators.item.as_ref(),
+                         catalogs.creature_spawns.as_ref(),
++                        catalogs.talents.as_ref(),
+                         pkt,
+                     )
+                     .await
+@@ -517,6 +520,7 @@ impl WorldSession {
+         area_trigger_catalogs: &AreaTriggerCatalogsLikeCpp,
+         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
+         progression: &crate::session::ProgressionCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         mut pkt: wow_packet::WorldPacket,
+     ) {
+@@ -594,6 +598,7 @@ impl WorldSession {
+                 area_trigger_catalogs,
+                 creature_spawn_catalogs,
+                 progression,
++                talent_catalogs,
+                 Some(ClientOpcodes::MoveStop),
+                 move_update,
+             )
+@@ -805,6 +810,7 @@ impl WorldSession {
+                 .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+                     item_guid_generator,
+                     creature_spawn_catalogs,
++                    talent_catalogs,
+                     spell_id,
+                     target_guid,
+                     cast_id,
+@@ -842,11 +848,13 @@ impl WorldSession {
+         let area_trigger_catalogs = self.area_trigger_catalogs_for_test_like_cpp();
+         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+         let progression = self.progression_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         let generators = self.id_generators_for_test_like_cpp();
+         self.handle_cast_spell_with_catalogs_like_cpp(
+             &area_trigger_catalogs,
+             &creature_spawn_catalogs,
+             &progression,
++            &talent_catalogs,
+             generators.item.as_ref(),
+             pkt,
+         )
+@@ -2127,6 +2135,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         mut pkt: wow_packet::WorldPacket,
+     ) {
+         let spell_click = match SpellClick::read(&mut pkt) {
+@@ -2160,6 +2169,7 @@ impl WorldSession {
+             .execute_represented_spell_click_plan_with_generator_like_cpp(
+                 item_guid_generator,
+                 creature_spawn_catalogs,
++                talent_catalogs,
+                 spell_click.unit_guid,
+                 &plan,
+             )
+@@ -2181,9 +2191,11 @@ impl WorldSession {
+     pub async fn handle_spell_click(&mut self, pkt: wow_packet::WorldPacket) {
+         let generators = self.id_generators_for_test_like_cpp();
+         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.handle_spell_click_with_generator_like_cpp(
+             generators.item.as_ref(),
+             &creature_spawn_catalogs,
++            &talent_catalogs,
+             pkt,
+         )
+         .await;
+@@ -2368,6 +2380,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &crate::session::TalentCatalogsLikeCpp,
+         mut pkt: wow_packet::WorldPacket,
+     ) {
+         let request = match SelfRes::read(&mut pkt) {
+@@ -2393,6 +2406,7 @@ impl WorldSession {
+             .execute_spell_with_generator_like_cpp(
+                 item_guid_generator,
+                 creature_spawn_catalogs,
++                talent_catalogs,
+                 request.spell_id,
+                 player_guid,
+             )
+@@ -2407,9 +2421,11 @@ impl WorldSession {
+     pub async fn handle_self_res(&mut self, pkt: wow_packet::WorldPacket) {
+         let generators = self.id_generators_for_test_like_cpp();
+         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.handle_self_res_with_generator_like_cpp(
+             generators.item.as_ref(),
+             &creature_spawn_catalogs,
++            &talent_catalogs,
+             pkt,
+         )
+         .await;
+diff --git a/crates/wow-world/src/handlers/talent.rs b/crates/wow-world/src/handlers/talent.rs
+index 0dad8392..8f768b89 100644
+--- a/crates/wow-world/src/handlers/talent.rs
++++ b/crates/wow-world/src/handlers/talent.rs
+@@ -39,6 +39,7 @@ inventory::submit! {
+                 session
+                     .handle_confirm_respec_wipe_with_generator_like_cpp(
+                         catalogs.id_generators.item.as_ref(),
++                        catalogs.talents.as_ref(),
+                         pkt,
+                     )
+                     .await
+@@ -53,7 +54,13 @@ inventory::submit! {
+         status: SessionStatus::LoggedIn,
+         processing: PacketProcessing::ThreadUnsafe,
+         handler_name: "handle_learn_talent",
+-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_learn_talent(pkt).await }),
++        handler: |session, catalogs, pkt| {
++            Box::pin(async move {
++                session
++                    .handle_learn_talent_with_catalogs_like_cpp(catalogs.talents.as_ref(), pkt)
++                    .await
++            })
++        },
+     }
+ }
+ 
+@@ -64,7 +71,11 @@ impl WorldSession {
+     /// `SendTalentsInfoData()` only on success. Rust currently has the
+     /// represented talent snapshot plus DB2 spell-rank and talent-tab class
+     /// validation, but not the complete C++ point/prerequisite/tier runtime.
+-    pub async fn handle_learn_talent(&mut self, mut packet: WorldPacket) {
++    pub async fn handle_learn_talent_with_catalogs_like_cpp(
++        &mut self,
++        catalogs: &crate::session::TalentCatalogsLikeCpp,
++        mut packet: WorldPacket,
++    ) {
+         let request = match LearnTalent::read(&mut packet) {
+             Ok(request) => request,
+             Err(error) => {
+@@ -77,13 +88,24 @@ impl WorldSession {
+             return;
+         }
+ 
+-        if self.learn_represented_talent_like_cpp(request.talent_id as u32, request.requested_rank)
+-            && let Some(talent_data) = self.resolved_update_talent_data_packet_like_cpp()
++        if self.learn_represented_talent_with_catalogs_like_cpp(
++            catalogs,
++            request.talent_id as u32,
++            request.requested_rank,
++        ) && let Some(talent_data) =
++            self.resolved_update_talent_data_packet_with_catalogs_like_cpp(catalogs)
+         {
+             self.send_packet(&talent_data);
+         }
+     }
+ 
++    #[cfg(test)]
++    pub async fn handle_learn_talent(&mut self, packet: WorldPacket) {
++        let catalogs = self.talent_catalogs_for_test_like_cpp();
++        self.handle_learn_talent_with_catalogs_like_cpp(&catalogs, packet)
++            .await;
++    }
++
+     /// Parse the unresolved-placeholder CMSG_LEARN_TALENTS payload.
+     ///
+     /// C++ expands each `uint16` talent id into a `LearnTalent` request with
+@@ -91,7 +113,11 @@ impl WorldSession {
+     /// The inspected C++ opcode table still uses the shared `0xBADD`
+     /// placeholder, so this handler is deliberately not registered for live
+     /// dispatch until the real client opcode is resolved.
+-    pub async fn handle_learn_talents(&mut self, mut packet: WorldPacket) {
++    pub async fn handle_learn_talents_with_catalogs_like_cpp(
++        &mut self,
++        catalogs: &crate::session::TalentCatalogsLikeCpp,
++        mut packet: WorldPacket,
++    ) {
+         let request = match LearnTalents::read(&mut packet) {
+             Ok(request) => request,
+             Err(error) => {
+@@ -101,14 +127,27 @@ impl WorldSession {
+         };
+ 
+         for talent_id in request.talent_ids {
+-            if self.learn_represented_talent_like_cpp(u32::from(talent_id), 0) {
+-                if let Some(talent_data) = self.resolved_update_talent_data_packet_like_cpp() {
++            if self.learn_represented_talent_with_catalogs_like_cpp(
++                catalogs,
++                u32::from(talent_id),
++                0,
++            ) {
++                if let Some(talent_data) =
++                    self.resolved_update_talent_data_packet_with_catalogs_like_cpp(catalogs)
++                {
+                     self.send_packet(&talent_data);
+                 }
+             }
+         }
+     }
+ 
++    #[cfg(test)]
++    pub async fn handle_learn_talents(&mut self, packet: WorldPacket) {
++        let catalogs = self.talent_catalogs_for_test_like_cpp();
++        self.handle_learn_talents_with_catalogs_like_cpp(&catalogs, packet)
++            .await;
++    }
++
+     /// Handle CMSG_CONFIRM_RESPEC_WIPE.
+     ///
+     /// C++ resolves `GetNPCIfCanInteractWith(..., UNIT_NPC_FLAG_TRAINER)`,
+@@ -119,6 +158,7 @@ impl WorldSession {
+     pub async fn handle_confirm_respec_wipe_with_generator_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        catalogs: &crate::session::TalentCatalogsLikeCpp,
+         mut packet: WorldPacket,
+     ) {
+         let request = match ConfirmRespecWipe::read(&mut packet) {
+@@ -151,12 +191,16 @@ impl WorldSession {
+         self.record_represented_talent_reset_script_hook_like_cpp(false);
+         self.remove_represented_at_login_flag_like_cpp(AT_LOGIN_RESET_TALENTS_LIKE_CPP, true);
+ 
+-        let Some(committed) = self.commit_represented_talent_reset_like_cpp().await else {
++        let Some(committed) = self
++            .commit_represented_talent_reset_with_catalogs_like_cpp(catalogs)
++            .await
++        else {
+             return;
+         };
+ 
+         self.publish_committed_represented_talent_reset_like_cpp(
+             item_guid_generator,
++            catalogs,
+             committed,
+             RepresentedConfirmRespecWipeLikeCpp {
+                 respec_master: request.respec_master,
+@@ -170,8 +214,13 @@ impl WorldSession {
+     #[cfg(test)]
+     pub async fn handle_confirm_respec_wipe(&mut self, packet: WorldPacket) {
+         let generators = self.id_generators_for_test_like_cpp();
+-        self.handle_confirm_respec_wipe_with_generator_like_cpp(generators.item.as_ref(), packet)
+-            .await;
++        let catalogs = self.talent_catalogs_for_test_like_cpp();
++        self.handle_confirm_respec_wipe_with_generator_like_cpp(
++            generators.item.as_ref(),
++            &catalogs,
++            packet,
++        )
++        .await;
+     }
+ 
+     fn represented_can_confirm_respec_wipe_like_cpp(
+diff --git a/crates/wow-world/src/handlers/trainer.rs b/crates/wow-world/src/handlers/trainer.rs
+index efa2c75c..426157d3 100644
+--- a/crates/wow-world/src/handlers/trainer.rs
++++ b/crates/wow-world/src/handlers/trainer.rs
+@@ -927,6 +927,7 @@ impl WorldSession {
+         drop(money_persistence);
+         self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+         )
+         .await;
+ 
+diff --git a/crates/wow-world/src/handlers/void_storage.rs b/crates/wow-world/src/handlers/void_storage.rs
+index 98c45b6a..af9db367 100644
+--- a/crates/wow-world/src/handlers/void_storage.rs
++++ b/crates/wow-world/src/handlers/void_storage.rs
+@@ -675,6 +675,7 @@ impl WorldSession {
+ 
+         self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+         )
+         .await;
+         if old_money != new_money {
+diff --git a/crates/wow-world/src/session/connection.rs b/crates/wow-world/src/session/connection.rs
+index b3aeba30..154faac7 100644
+--- a/crates/wow-world/src/session/connection.rs
++++ b/crates/wow-world/src/session/connection.rs
+@@ -145,6 +145,7 @@ impl WorldSession {
+         player_bootstrap: &super::PlayerBootstrapCatalogsLikeCpp,
+         player_rest_rates: &super::PlayerRestRatePolicyLikeCpp,
+         progression: &super::ProgressionCatalogsLikeCpp,
++        talents: &super::TalentCatalogsLikeCpp,
+         feature_policy: &super::SupportFeaturePolicyLikeCpp,
+     ) {
+         match self.connection.poll_instance_link(self.account_id) {
+@@ -158,6 +159,7 @@ impl WorldSession {
+                     player_bootstrap,
+                     player_rest_rates,
+                     progression,
++                    talents,
+                     feature_policy,
+                 )
+                 .await;
+@@ -180,6 +182,7 @@ impl WorldSession {
+         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+         let player_rest_rates = self.player_rest_rate_policy_for_test_like_cpp();
+         let progression = self.progression_catalogs_for_test_like_cpp();
++        let talents = self.talent_catalogs_for_test_like_cpp();
+         let feature_policy = self.support_feature_policy_for_test_like_cpp();
+         self.poll_instance_link_with_module_registry_like_cpp(
+             generators.item.as_ref(),
+@@ -188,6 +191,7 @@ impl WorldSession {
+             &player_bootstrap,
+             &player_rest_rates,
+             &progression,
++            &talents,
+             &feature_policy,
+         )
+         .await;
+diff --git a/crates/wow-world/src/session/driver/mod.rs b/crates/wow-world/src/session/driver/mod.rs
+index 2d574c55..bacb158f 100644
+--- a/crates/wow-world/src/session/driver/mod.rs
++++ b/crates/wow-world/src/session/driver/mod.rs
+@@ -218,6 +218,7 @@ impl WorldSession {
+         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::CreatureKills);
+         self.process_pending_creature_kills_with_generator_like_cpp(
+             catalogs.id_generators.item.as_ref(),
++            catalogs.talents.as_ref(),
+         )
+         .await;
+ 
+@@ -240,11 +241,13 @@ impl WorldSession {
+             self.tick_active_spell_cast_with_generator_like_cpp(
+                 catalogs.id_generators.item.as_ref(),
+                 catalogs.creature_spawns.as_ref(),
++                catalogs.talents.as_ref(),
+             )
+             .await;
+             self.tick_pending_spell_cast_request_with_generator_like_cpp(
+                 catalogs.id_generators.item.as_ref(),
+                 catalogs.creature_spawns.as_ref(),
++                catalogs.talents.as_ref(),
+             )
+             .await;
+             self.sync_represented_farsight_clear_from_canonical_like_cpp();
+@@ -260,6 +263,7 @@ impl WorldSession {
+             catalogs.player_bootstrap.as_ref(),
+             catalogs.player_rest_rates.as_ref(),
+             catalogs.progression.as_ref(),
++            catalogs.talents.as_ref(),
+             catalogs.support_feature_policy.as_ref(),
+         )
+         .await;
+@@ -324,6 +328,7 @@ impl WorldSession {
+             player_rest_rates: Arc::new(self.player_rest_rate_policy_for_test_like_cpp()),
+             creature_spawns: Arc::new(self.creature_spawn_catalogs_for_test_like_cpp()),
+             progression: Arc::new(self.progression_catalogs_for_test_like_cpp()),
++            talents: Arc::new(self.talent_catalogs_for_test_like_cpp()),
+             battle_pet_trainer_selection: self
+                 .battle_pet_selection_store_like_cpp()
+                 .cloned()
+diff --git a/crates/wow-world/src/session/lifecycle/persistence.rs b/crates/wow-world/src/session/lifecycle/persistence.rs
+index d1422024..97adb8d0 100644
+--- a/crates/wow-world/src/session/lifecycle/persistence.rs
++++ b/crates/wow-world/src/session/lifecycle/persistence.rs
+@@ -297,16 +297,13 @@ impl WorldSession {
+                 .enumerate()
+             {
+                 for (talent_id, rank) in talents {
+-                    if self
+-                        .represented_talent_info_like_cpp(*talent_id, *rank)
+-                        .is_some()
+-                    {
+-                        rows.push(PlayerTalentSaveLikeCpp {
+-                            talent_id: *talent_id,
+-                            rank: *rank,
+-                            talent_group: talent_group as u8,
+-                        });
+-                    }
++                    // C++ `Player::_SaveTalents` persists every non-removed
++                    // PlayerTalentMap entry without a second DB2 lookup.
++                    rows.push(PlayerTalentSaveLikeCpp {
++                        talent_id: *talent_id,
++                        rank: *rank,
++                        talent_group: talent_group as u8,
++                    });
+                 }
+             }
+             Some(rows)
+@@ -731,6 +728,7 @@ impl WorldSession {
+             drop(money_save_fence);
+             self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                 item_guid_generator,
++                talent_catalogs,
+             )
+             .await;
+             return;
+@@ -748,6 +746,7 @@ impl WorldSession {
+             drop(money_save_fence);
+             self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                 item_guid_generator,
++                talent_catalogs,
+             )
+             .await;
+             return;
+@@ -765,6 +764,7 @@ impl WorldSession {
+             drop(money_save_fence);
+             self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                 item_guid_generator,
++                talent_catalogs,
+             )
+             .await;
+             return;
+@@ -780,6 +780,7 @@ impl WorldSession {
+             drop(money_save_fence);
+             self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                 item_guid_generator,
++                talent_catalogs,
+             )
+             .await;
+             return;
+@@ -795,6 +796,7 @@ impl WorldSession {
+             drop(money_save_fence);
+             self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                 item_guid_generator,
++                talent_catalogs,
+             )
+             .await;
+             return;
+@@ -844,6 +846,7 @@ impl WorldSession {
+         drop(money_save_fence);
+         self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+         )
+         .await;
+     }
+diff --git a/crates/wow-world/src/session/mod.rs b/crates/wow-world/src/session/mod.rs
+index aa88d07b..ab61a43c 100644
+--- a/crates/wow-world/src/session/mod.rs
++++ b/crates/wow-world/src/session/mod.rs
+@@ -375,6 +375,19 @@ pub struct ProgressionCatalogsLikeCpp {
+     pub min_discovered_scaled_xp_ratio: u32,
+ }
+ 
++/// Process-owned talent definitions borrowed by Player talent transitions.
++///
++/// C++ resolves these through the global DB2 manager while `Player` owns the
++/// mutable talent groups and points. A session routes the request but owns
++/// neither the definitions nor a private copy of them.
++#[derive(Clone)]
++#[cfg_attr(test, derive(Default))]
++pub struct TalentCatalogsLikeCpp {
++    pub talents: Arc<TalentStore>,
++    pub tabs: Arc<TalentTabStore>,
++    pub points_by_level: Arc<NumTalentsAtLevelStore>,
++}
++
+ #[cfg(test)]
+ impl Default for CreatureSpawnCatalogsLikeCpp {
+     fn default() -> Self {
+@@ -605,6 +618,7 @@ pub struct SessionHandlerCatalogsLikeCpp {
+     pub player_rest_rates: Arc<PlayerRestRatePolicyLikeCpp>,
+     pub creature_spawns: Arc<CreatureSpawnCatalogsLikeCpp>,
+     pub progression: Arc<ProgressionCatalogsLikeCpp>,
++    pub talents: Arc<TalentCatalogsLikeCpp>,
+     pub battle_pet_trainer_selection:
+         Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>,
+     pub chat_policy: Arc<ChatPolicyCatalogsLikeCpp>,
+@@ -633,6 +647,7 @@ impl Default for SessionHandlerCatalogsLikeCpp {
+             player_rest_rates: Arc::new(PlayerRestRatePolicyLikeCpp::default()),
+             creature_spawns: Arc::new(CreatureSpawnCatalogsLikeCpp::default()),
+             progression: Arc::new(ProgressionCatalogsLikeCpp::default()),
++            talents: Arc::new(TalentCatalogsLikeCpp::default()),
+             battle_pet_trainer_selection: Arc::new(
+                 wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp::default(),
+             ),
+@@ -7002,8 +7017,11 @@ pub struct WorldSession {
+     legacy_spell_script_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
+     spell_linked_rejected_trigger_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
+     spell_levels_store: Option<Arc<SpellLevelsStore>>,
++    #[cfg(test)]
+     talent_store: Option<Arc<TalentStore>>,
++    #[cfg(test)]
+     talent_tab_store: Option<Arc<TalentTabStore>>,
++    #[cfg(test)]
+     num_talents_at_level_store: Option<Arc<NumTalentsAtLevelStore>>,
+     glyph_properties_store: Option<Arc<GlyphPropertiesStore>>,
+     spell_chain_store: Option<Arc<SpellChainStoreLikeCpp>>,
+@@ -9011,8 +9029,11 @@ impl WorldSession {
+             legacy_spell_script_spell_ids_like_cpp: None,
+             spell_linked_rejected_trigger_spell_ids_like_cpp: None,
+             spell_levels_store: None,
++            #[cfg(test)]
+             talent_store: None,
++            #[cfg(test)]
+             talent_tab_store: None,
++            #[cfg(test)]
+             num_talents_at_level_store: None,
+             glyph_properties_store: None,
+             spell_chain_store: None,
+@@ -15407,6 +15428,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         creature_guid: ObjectGuid,
+         plan: &RepresentedSpellClickPlanLikeCpp,
+     ) -> RepresentedSpellClickExecutionOutcomeLikeCpp {
+@@ -15491,6 +15513,7 @@ impl WorldSession {
+                 .execute_spell_with_visual_and_target_data_and_generator_like_cpp(
+                     item_guid_generator,
+                     creature_spawn_catalogs,
++                    talent_catalogs,
+                     spell_id,
+                     target_guid,
+                     cast_id,
+@@ -15550,9 +15573,11 @@ impl WorldSession {
+     ) -> RepresentedSpellClickExecutionOutcomeLikeCpp {
+         let generators = self.id_generators_for_test_like_cpp();
+         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.execute_represented_spell_click_plan_with_generator_like_cpp(
+             generators.item.as_ref(),
+             &creature_spawn_catalogs,
++            &talent_catalogs,
+             creature_guid,
+             plan,
+         )
+@@ -23923,6 +23948,7 @@ impl WorldSession {
+             drop(money_persistence);
+             self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                 item_guid_generator,
++                talent_catalogs,
+             )
+             .await;
+             return repaired;
+@@ -24126,6 +24152,7 @@ impl WorldSession {
+         drop(money_persistence);
+         self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+         )
+         .await;
+         repaired_any
+@@ -29175,27 +29202,33 @@ impl WorldSession {
+         self.spell_levels_store.as_ref()
+     }
+ 
++    #[cfg(test)]
+     pub fn set_talent_store(&mut self, store: Arc<TalentStore>) {
+         self.talent_store = Some(store);
+     }
+ 
++    #[cfg(test)]
+     pub(crate) fn talent_store(&self) -> Option<&Arc<TalentStore>> {
+         self.talent_store.as_ref()
+     }
+ 
++    #[cfg(test)]
+     pub fn set_talent_tab_store(&mut self, store: Arc<TalentTabStore>) {
+         self.talent_tab_store = Some(store);
+     }
+ 
++    #[cfg(test)]
+     pub(crate) fn talent_tab_store(&self) -> Option<&Arc<TalentTabStore>> {
+         self.talent_tab_store.as_ref()
+     }
+ 
++    #[cfg(test)]
+     pub fn set_num_talents_at_level_store(&mut self, store: Arc<NumTalentsAtLevelStore>) {
+         self.num_talents_at_level_store = Some(store);
+         self.refresh_represented_talent_points_like_cpp();
+     }
+ 
++    #[cfg(test)]
+     pub(crate) fn num_talents_at_level_store(&self) -> Option<&Arc<NumTalentsAtLevelStore>> {
+         self.num_talents_at_level_store.as_ref()
+     }
+@@ -33257,7 +33290,10 @@ impl WorldSession {
+         self.invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp();
+     }
+ 
+-    pub(crate) fn reset_represented_active_talents_like_cpp(&mut self) -> bool {
++    pub(crate) fn reset_represented_active_talents_with_catalogs_like_cpp(
++        &mut self,
++        catalogs: &TalentCatalogsLikeCpp,
++    ) -> bool {
+         let Some(talent_group) = self.represented_active_talent_group_like_cpp() else {
+             return false;
+         };
+@@ -33277,13 +33313,22 @@ impl WorldSession {
+             return false;
+         };
+         for (talent_id, rank) in active_talents {
+-            self.remove_represented_active_talent_side_effects_like_cpp(talent_id, rank);
++            self.remove_represented_active_talent_side_effects_like_cpp(catalogs, talent_id, rank);
+         }
+-        self.refresh_represented_talent_points_like_cpp();
++        self.refresh_represented_talent_points_with_catalogs_like_cpp(catalogs);
+         true
+     }
+ 
+-    pub(crate) fn apply_represented_login_talent_reset_if_needed_like_cpp(&mut self) -> bool {
++    #[cfg(test)]
++    pub(crate) fn reset_represented_active_talents_like_cpp(&mut self) -> bool {
++        let catalogs = self.talent_catalogs_for_test_like_cpp();
++        self.reset_represented_active_talents_with_catalogs_like_cpp(&catalogs)
++    }
++
++    pub(crate) fn apply_represented_login_talent_reset_with_catalogs_if_needed_like_cpp(
++        &mut self,
++        catalogs: &TalentCatalogsLikeCpp,
++    ) -> bool {
+         const AT_LOGIN_RESET_TALENTS_LIKE_CPP: u16 = 0x004;
+ 
+         if !self
+@@ -33297,8 +33342,10 @@ impl WorldSession {
+         self.remove_represented_at_login_flag_like_cpp(AT_LOGIN_RESET_TALENTS_LIKE_CPP, true);
+         self.remove_represented_pet_not_in_slot_like_cpp();
+ 
+-        if self.reset_represented_active_talents_like_cpp() {
+-            let Some(talent_data) = self.resolved_update_talent_data_packet_like_cpp() else {
++        if self.reset_represented_active_talents_with_catalogs_like_cpp(catalogs) {
++            let Some(talent_data) =
++                self.resolved_update_talent_data_packet_with_catalogs_like_cpp(catalogs)
++            else {
+                 return false;
+             };
+             self.send_packet(&talent_data);
+@@ -33309,6 +33356,12 @@ impl WorldSession {
+         false
+     }
+ 
++    #[cfg(test)]
++    pub(crate) fn apply_represented_login_talent_reset_if_needed_like_cpp(&mut self) -> bool {
++        let catalogs = self.talent_catalogs_for_test_like_cpp();
++        self.apply_represented_login_talent_reset_with_catalogs_if_needed_like_cpp(&catalogs)
++    }
++
+     pub(crate) fn apply_represented_login_spell_reset_if_needed_like_cpp(&mut self) -> bool {
+         const AT_LOGIN_RESET_SPELLS_LIKE_CPP: u16 = 0x002;
+ 
+@@ -33609,6 +33662,7 @@ impl WorldSession {
+     pub(crate) async fn check_area_explore_and_outdoor_represented_with_catalogs_like_cpp(
+         &mut self,
+         progression: &ProgressionCatalogsLikeCpp,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         area_id: u32,
+     ) -> bool {
+         if self.resolved_player_is_alive_like_cpp() != Some(true) {
+@@ -33676,7 +33730,8 @@ impl WorldSession {
+             };
+ 
+             if xp != 0 {
+-                self.give_xp(xp, ObjectGuid::EMPTY, 1.0).await;
++                self.give_xp_with_catalogs_like_cpp(talent_catalogs, xp, ObjectGuid::EMPTY, 1.0)
++                    .await;
+             }
+             self.send_packet(&ExplorationExperience {
+                 area_id: area_id as i32,
+@@ -33693,8 +33748,10 @@ impl WorldSession {
+         area_id: u32,
+     ) -> bool {
+         let progression = self.progression_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.check_area_explore_and_outdoor_represented_with_catalogs_like_cpp(
+             &progression,
++            &talent_catalogs,
+             area_id,
+         )
+         .await
+@@ -33742,6 +33799,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
+     ) -> usize {
+         let Some(player_guid) = self.player_guid() else {
+@@ -33765,6 +33823,7 @@ impl WorldSession {
+                 .execute_spell_with_generator_like_cpp(
+                     item_guid_generator,
+                     creature_spawn_catalogs,
++                    talent_catalogs,
+                     spell_id as i32,
+                     player_guid,
+                 )
+@@ -33782,10 +33841,12 @@ impl WorldSession {
+     pub(crate) async fn apply_represented_first_login_cast_spells_like_cpp(&mut self) -> usize {
+         let generators = self.id_generators_for_test_like_cpp();
+         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         let player_bootstrap = self.player_bootstrap_catalogs_for_test_like_cpp();
+         self.apply_represented_first_login_cast_spells_with_catalogs_like_cpp(
+             generators.item.as_ref(),
+             &creature_spawn_catalogs,
++            &talent_catalogs,
+             &player_bootstrap,
+         )
+         .await
+@@ -34063,11 +34124,20 @@ impl WorldSession {
+         self.apply_represented_first_login_explored_zones_with_catalogs_like_cpp(&player_bootstrap)
+     }
+ 
+-    pub(crate) fn mark_represented_talents_loaded_like_cpp(&mut self) {
++    pub(crate) fn mark_represented_talents_loaded_with_catalogs_like_cpp(
++        &mut self,
++        catalogs: &TalentCatalogsLikeCpp,
++    ) {
+         let _ = self.mutate_player_talent_runtime_like_cpp(|runtime| {
+             runtime.talents_loaded = true;
+         });
+-        self.refresh_represented_talent_points_like_cpp();
++        self.refresh_represented_talent_points_with_catalogs_like_cpp(catalogs);
++    }
++
++    #[cfg(test)]
++    pub(crate) fn mark_represented_talents_loaded_like_cpp(&mut self) {
++        let catalogs = self.talent_catalogs_for_test_like_cpp();
++        self.mark_represented_talents_loaded_with_catalogs_like_cpp(&catalogs);
+     }
+ 
+     pub(crate) fn represented_talents_loaded_like_cpp(&self) -> bool {
+@@ -34075,8 +34145,9 @@ impl WorldSession {
+             .is_some_and(|runtime| runtime.talents_loaded)
+     }
+ 
+-    pub(crate) fn learn_represented_talent_like_cpp(
++    pub(crate) fn learn_represented_talent_with_catalogs_like_cpp(
+         &mut self,
++        catalogs: &TalentCatalogsLikeCpp,
+         talent_id: u32,
+         requested_rank: u16,
+     ) -> bool {
+@@ -34088,7 +34159,7 @@ impl WorldSession {
+             return false;
+         };
+ 
+-        if !self.validate_represented_talent_learn_like_cpp(talent_id, rank) {
++        if !self.validate_represented_talent_learn_like_cpp(catalogs, talent_id, rank) {
+             return false;
+         }
+ 
+@@ -34100,20 +34171,41 @@ impl WorldSession {
+             .talent_groups
+             .get(usize::from(talent_group))
+             .and_then(|talents| talents.get(&talent_id).copied());
+-        let learned = self.load_represented_talent_row_like_cpp(talent_id, rank, talent_group);
++        let learned = self.load_represented_talent_row_with_catalogs_like_cpp(
++            catalogs,
++            talent_id,
++            rank,
++            talent_group,
++        );
+         if learned {
+             self.apply_represented_active_talent_spell_side_effects_like_cpp(
++                catalogs,
+                 talent_id,
+                 previous_rank,
+                 rank,
+                 talent_group,
+             );
+-            self.refresh_represented_talent_points_like_cpp();
++            self.refresh_represented_talent_points_with_catalogs_like_cpp(catalogs);
+         }
+         learned
+     }
+ 
+-    fn validate_represented_talent_learn_like_cpp(&self, talent_id: u32, rank: u8) -> bool {
++    #[cfg(test)]
++    pub(crate) fn learn_represented_talent_like_cpp(
++        &mut self,
++        talent_id: u32,
++        requested_rank: u16,
++    ) -> bool {
++        let catalogs = self.talent_catalogs_for_test_like_cpp();
++        self.learn_represented_talent_with_catalogs_like_cpp(&catalogs, talent_id, requested_rank)
++    }
++
++    fn validate_represented_talent_learn_like_cpp(
++        &self,
++        catalogs: &TalentCatalogsLikeCpp,
++        talent_id: u32,
++        rank: u8,
++    ) -> bool {
+         let Some(available_points) = self.resolved_player_character_points_like_cpp() else {
+             return false;
+         };
+@@ -34130,7 +34222,7 @@ impl WorldSession {
+             return false;
+         }
+ 
+-        let Some(talent) = self.talent_store().and_then(|store| store.get(talent_id)) else {
++        let Some(talent) = catalogs.talents.get(talent_id) else {
+             return false;
+         };
+ 
+@@ -34167,10 +34259,8 @@ impl WorldSession {
+         }
+ 
+         if talent.tier_id > 0 {
+-            let Some(talent_store) = self.talent_store() else {
+-                return false;
+-            };
+-            let spent_points = talent_store
++            let spent_points = catalogs
++                .talents
+                 .iter()
+                 .filter(|entry| entry.tab_id == talent.tab_id)
+                 .filter_map(|entry| {
+@@ -34211,7 +34301,10 @@ impl WorldSession {
+         }
+     }
+ 
+-    fn represented_spent_talent_points_count_like_cpp(&self) -> Option<u32> {
++    fn represented_spent_talent_points_count_like_cpp(
++        &self,
++        catalogs: &TalentCatalogsLikeCpp,
++    ) -> Option<u32> {
+         let runtime = self.player_talent_runtime_snapshot_like_cpp()?;
+         let talent_group_index = usize::from(runtime.active_group);
+         Some(
+@@ -34221,7 +34314,7 @@ impl WorldSession {
+                 .into_iter()
+                 .flat_map(|talents| talents.iter())
+                 .filter(|(talent_id, rank)| {
+-                    self.represented_talent_info_like_cpp(**talent_id, **rank)
++                    self.represented_talent_info_like_cpp(catalogs, **talent_id, **rank)
+                         .is_some()
+                 })
+                 .map(|(_, rank)| u32::from(*rank) + 1)
+@@ -34245,25 +34338,26 @@ impl WorldSession {
+         canonical
+     }
+ 
+-    fn represented_calculate_talents_points_like_cpp(&self) -> Option<u32> {
+-        let base_points = self
+-            .num_talents_at_level_store()
+-            .map(|store| {
+-                store.num_talents_at_level_like_cpp(
+-                    u32::from(self.player_level_like_cpp()),
+-                    self.player_class_like_cpp(),
+-                )
+-            })
+-            .unwrap_or(0);
++    fn represented_calculate_talents_points_like_cpp(
++        &self,
++        catalogs: &TalentCatalogsLikeCpp,
++    ) -> Option<u32> {
++        let base_points = catalogs.points_by_level.num_talents_at_level_like_cpp(
++            u32::from(self.player_level_like_cpp()),
++            self.player_class_like_cpp(),
++        );
+         Some(base_points + self.represented_quest_rewarded_talent_points_like_cpp()?)
+     }
+ 
+-    pub(crate) fn refresh_represented_talent_points_like_cpp(&mut self) {
+-        let Some(spent) = self.represented_spent_talent_points_count_like_cpp() else {
++    pub(crate) fn refresh_represented_talent_points_with_catalogs_like_cpp(
++        &mut self,
++        catalogs: &TalentCatalogsLikeCpp,
++    ) {
++        let Some(spent) = self.represented_spent_talent_points_count_like_cpp(catalogs) else {
+             return;
+         };
+         let Some(available) = self
+-            .represented_calculate_talents_points_like_cpp()
++            .represented_calculate_talents_points_like_cpp(catalogs)
+             .map(|points| points.saturating_sub(spent))
+         else {
+             return;
+@@ -34271,6 +34365,12 @@ impl WorldSession {
+         self.set_player_character_points_like_cpp(available.min(i32::MAX as u32) as i32);
+     }
+ 
++    #[cfg(test)]
++    pub(crate) fn refresh_represented_talent_points_like_cpp(&mut self) {
++        let catalogs = self.talent_catalogs_for_test_like_cpp();
++        self.refresh_represented_talent_points_with_catalogs_like_cpp(&catalogs);
++    }
++
+     pub(crate) fn add_represented_quest_reward_talent_points_like_cpp(
+         &mut self,
+         quest_id: u32,
+@@ -34300,8 +34400,9 @@ impl WorldSession {
+         false
+     }
+ 
+-    pub(crate) fn load_represented_talent_row_like_cpp(
++    pub(crate) fn load_represented_talent_row_with_catalogs_like_cpp(
+         &mut self,
++        catalogs: &TalentCatalogsLikeCpp,
+         talent_id: u32,
+         rank: u8,
+         talent_group: u8,
+@@ -34311,18 +34412,11 @@ impl WorldSession {
+             return false;
+         }
+ 
+-        let Some(talent) = self
+-            .talent_store()
+-            .and_then(|store| store.get(talent_id))
+-            .cloned()
+-        else {
++        let Some(talent) = catalogs.talents.get(talent_id).cloned() else {
+             return false;
+         };
+ 
+-        let Some(talent_tab) = self
+-            .talent_tab_store()
+-            .and_then(|store| store.get(u32::from(talent.tab_id)))
+-        else {
++        let Some(talent_tab) = catalogs.tabs.get(u32::from(talent.tab_id)) else {
+             return false;
+         };
+ 
+@@ -34356,8 +34450,25 @@ impl WorldSession {
+         .is_some()
+     }
+ 
++    #[cfg(test)]
++    pub(crate) fn load_represented_talent_row_like_cpp(
++        &mut self,
++        talent_id: u32,
++        rank: u8,
++        talent_group: u8,
++    ) -> bool {
++        let catalogs = self.talent_catalogs_for_test_like_cpp();
++        self.load_represented_talent_row_with_catalogs_like_cpp(
++            &catalogs,
++            talent_id,
++            rank,
++            talent_group,
++        )
++    }
++
+     pub(crate) fn load_represented_talent_row_with_spell_side_effects_like_cpp(
+         &mut self,
++        catalogs: &TalentCatalogsLikeCpp,
+         talent_id: u32,
+         rank: u8,
+         talent_group: u8,
+@@ -34373,7 +34484,12 @@ impl WorldSession {
+                     .and_then(|talents| talents.get(&talent_id).copied())
+             });
+ 
+-        if !self.load_represented_talent_row_like_cpp(talent_id, rank, talent_group) {
++        if !self.load_represented_talent_row_with_catalogs_like_cpp(
++            catalogs,
++            talent_id,
++            rank,
++            talent_group,
++        ) {
+             return false;
+         }
+ 
+@@ -34383,7 +34499,7 @@ impl WorldSession {
+ 
+         if let Some(previous_rank) = previous_rank {
+             if let Some(previous_spell_id) =
+-                self.represented_talent_spell_id_like_cpp(talent_id, previous_rank)
++                self.represented_talent_spell_id_like_cpp(catalogs, talent_id, previous_rank)
+             {
+                 known_spells.retain(|known_spell| *known_spell != previous_spell_id);
+                 dependent_spells.remove(&previous_spell_id);
+@@ -34396,7 +34512,8 @@ impl WorldSession {
+             }
+         }
+ 
+-        if let Some(spell_id) = self.represented_talent_spell_id_like_cpp(talent_id, rank) {
++        if let Some(spell_id) = self.represented_talent_spell_id_like_cpp(catalogs, talent_id, rank)
++        {
+             if !known_spells.contains(&spell_id) {
+                 known_spells.push(spell_id);
+             }
+@@ -34410,7 +34527,7 @@ impl WorldSession {
+         }
+ 
+         if let Some((overriden_spell_id, new_spell_id)) =
+-            self.represented_talent_override_spell_pair_like_cpp(talent_id)
++            self.represented_talent_override_spell_pair_like_cpp(catalogs, talent_id)
+         {
+             self.add_represented_override_spell_like_cpp(overriden_spell_id, new_spell_id);
+         }
+@@ -34420,10 +34537,11 @@ impl WorldSession {
+ 
+     fn represented_talent_info_like_cpp(
+         &self,
++        catalogs: &TalentCatalogsLikeCpp,
+         talent_id: u32,
+         rank: u8,
+     ) -> Option<wow_packet::packets::misc::TalentInfoLikeCpp> {
+-        let talent = self.talent_store()?.get(talent_id)?;
++        let talent = catalogs.talents.get(talent_id)?;
+         let spell_id = talent.spell_rank.get(usize::from(rank)).copied()?;
+         if spell_id <= 0 {
+             return None;
+@@ -34479,6 +34597,7 @@ impl WorldSession {
+ 
+     fn apply_represented_active_talent_spell_side_effects_like_cpp(
+         &mut self,
++        catalogs: &TalentCatalogsLikeCpp,
+         talent_id: u32,
+         previous_rank: Option<u8>,
+         rank: u8,
+@@ -34490,7 +34609,7 @@ impl WorldSession {
+ 
+         if let Some(previous_rank) = previous_rank {
+             if let Some(previous_spell_id) =
+-                self.represented_talent_spell_id_like_cpp(talent_id, previous_rank)
++                self.represented_talent_spell_id_like_cpp(catalogs, talent_id, previous_rank)
+             {
+                 self.remove_known_spell_like_cpp(previous_spell_id);
+                 for trigger_spell in
+@@ -34501,7 +34620,8 @@ impl WorldSession {
+             }
+         }
+ 
+-        if let Some(spell_id) = self.represented_talent_spell_id_like_cpp(talent_id, rank) {
++        if let Some(spell_id) = self.represented_talent_spell_id_like_cpp(catalogs, talent_id, rank)
++        {
+             self.learn_known_spell_like_cpp(spell_id);
+             for trigger_spell in self.represented_direct_learn_spell_triggers_like_cpp(spell_id) {
+                 self.learn_known_spell_like_cpp(trigger_spell);
+@@ -34509,7 +34629,7 @@ impl WorldSession {
+         }
+ 
+         if let Some((overriden_spell_id, new_spell_id)) =
+-            self.represented_talent_override_spell_pair_like_cpp(talent_id)
++            self.represented_talent_override_spell_pair_like_cpp(catalogs, talent_id)
+         {
+             self.add_represented_override_spell_like_cpp(overriden_spell_id, new_spell_id);
+         }
+@@ -34520,8 +34640,14 @@ impl WorldSession {
+         );
+     }
+ 
+-    fn remove_represented_active_talent_side_effects_like_cpp(&mut self, talent_id: u32, rank: u8) {
+-        if let Some(spell_id) = self.represented_talent_spell_id_like_cpp(talent_id, rank) {
++    fn remove_represented_active_talent_side_effects_like_cpp(
++        &mut self,
++        catalogs: &TalentCatalogsLikeCpp,
++        talent_id: u32,
++        rank: u8,
++    ) {
++        if let Some(spell_id) = self.represented_talent_spell_id_like_cpp(catalogs, talent_id, rank)
++        {
+             self.remove_known_spell_like_cpp(spell_id);
+             for trigger_spell in self.represented_direct_learn_spell_triggers_like_cpp(spell_id) {
+                 self.remove_known_spell_like_cpp(trigger_spell);
+@@ -34529,14 +34655,20 @@ impl WorldSession {
+         }
+ 
+         if let Some((overriden_spell_id, new_spell_id)) =
+-            self.represented_talent_override_spell_pair_like_cpp(talent_id)
++            self.represented_talent_override_spell_pair_like_cpp(catalogs, talent_id)
+         {
+             self.remove_represented_override_spell_like_cpp(overriden_spell_id, new_spell_id);
+         }
+     }
+ 
+-    fn represented_talent_spell_id_like_cpp(&self, talent_id: u32, rank: u8) -> Option<i32> {
+-        self.talent_store()?
++    fn represented_talent_spell_id_like_cpp(
++        &self,
++        catalogs: &TalentCatalogsLikeCpp,
++        talent_id: u32,
++        rank: u8,
++    ) -> Option<i32> {
++        catalogs
++            .talents
+             .get(talent_id)?
+             .spell_rank
+             .get(usize::from(rank))
+@@ -34546,9 +34678,10 @@ impl WorldSession {
+ 
+     fn represented_talent_override_spell_pair_like_cpp(
+         &self,
++        catalogs: &TalentCatalogsLikeCpp,
+         talent_id: u32,
+     ) -> Option<(i32, i32)> {
+-        let talent = self.talent_store()?.get(talent_id)?;
++        let talent = catalogs.talents.get(talent_id)?;
+         (talent.overrides_spell_id > 0 && talent.spell_id > 0)
+             .then_some((talent.overrides_spell_id, talent.spell_id))
+     }
+@@ -34611,12 +34744,8 @@ impl WorldSession {
+ 
+         for (talent_group, talents) in state_plan.post_talents.iter().enumerate() {
+             for (talent_id, rank) in talents {
+-                if self
+-                    .represented_talent_info_like_cpp(*talent_id, *rank)
+-                    .is_none()
+-                {
+-                    continue;
+-                }
++                // C++ `_SaveTalents` persists every non-removed entry already
++                // admitted to Player's talent map; it does not re-query DB2.
+                 retained_talents.push(wow_persistence::PlayerTalentResetSaveRowLikeCpp {
+                     talent_id: *talent_id,
+                     rank: *rank,
+@@ -34675,16 +34804,27 @@ impl WorldSession {
+         .is_some()
+     }
+ 
+-    pub(crate) fn resolved_update_talent_data_packet_like_cpp(
++    pub(crate) fn resolved_update_talent_data_packet_with_catalogs_like_cpp(
+         &self,
++        catalogs: &TalentCatalogsLikeCpp,
+     ) -> Option<wow_packet::packets::misc::UpdateTalentData> {
+         self.build_update_talent_data_packet_like_cpp(
++            catalogs,
+             self.resolved_player_character_points_like_cpp()?,
+         )
+     }
+ 
++    #[cfg(test)]
++    pub(crate) fn resolved_update_talent_data_packet_like_cpp(
++        &self,
++    ) -> Option<wow_packet::packets::misc::UpdateTalentData> {
++        let catalogs = self.talent_catalogs_for_test_like_cpp();
++        self.resolved_update_talent_data_packet_with_catalogs_like_cpp(&catalogs)
++    }
++
+     fn build_update_talent_data_packet_like_cpp(
+         &self,
++        catalogs: &TalentCatalogsLikeCpp,
+         character_points: i32,
+     ) -> Option<wow_packet::packets::misc::UpdateTalentData> {
+         let runtime = self.player_talent_runtime_snapshot_like_cpp()?;
+@@ -34700,7 +34840,7 @@ impl WorldSession {
+             let talents = runtime.talent_groups[group_index]
+                 .iter()
+                 .filter_map(|(talent_id, rank)| {
+-                    self.represented_talent_info_like_cpp(*talent_id, *rank)
++                    self.represented_talent_info_like_cpp(catalogs, *talent_id, *rank)
+                 })
+                 .collect();
+             groups.push(wow_packet::packets::misc::TalentGroupInfoLikeCpp {
+@@ -34722,8 +34862,12 @@ impl WorldSession {
+     pub(crate) fn represented_update_talent_data_packet_like_cpp(
+         &self,
+     ) -> wow_packet::packets::misc::UpdateTalentData {
+-        self.build_update_talent_data_packet_like_cpp(self.player_character_points_like_cpp())
+-            .expect("test Player talent owner must resolve")
++        let catalogs = self.talent_catalogs_for_test_like_cpp();
++        self.build_update_talent_data_packet_like_cpp(
++            &catalogs,
++            self.player_character_points_like_cpp(),
++        )
++        .expect("test Player talent owner must resolve")
+     }
+ 
+     pub(crate) fn represented_active_glyphs_packet_like_cpp(
+@@ -34764,8 +34908,9 @@ impl WorldSession {
+     /// C++ `Player::GiveXP` visible side effects; persistence is handled by async wrappers.
+     /// `group_rate` is packet metadata only: C++ `KillRewarder::_RewardXP`
+     /// scales `xp` before calling this method and passes `_groupRate` separately.
+-    pub(crate) fn give_xp_runtime_like_cpp(
++    pub(crate) fn give_xp_runtime_with_catalogs_like_cpp(
+         &mut self,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         mut xp: u32,
+         victim: wow_core::ObjectGuid,
+         group_rate: f32,
+@@ -34889,6 +35034,7 @@ impl WorldSession {
+             });
+ 
+             self.set_player_level_like_cpp(new_level);
++            self.refresh_represented_talent_points_with_catalogs_like_cpp(talent_catalogs);
+             self.set_player_next_level_xp_like_cpp(next_level_xp);
+             self.send_level_up_stat_update_like_cpp();
+         }
+@@ -34901,6 +35047,17 @@ impl WorldSession {
+         true
+     }
+ 
++    #[cfg(test)]
++    pub(crate) fn give_xp_runtime_like_cpp(
++        &mut self,
++        xp: u32,
++        victim: wow_core::ObjectGuid,
++        group_rate: f32,
++    ) -> bool {
++        let catalogs = self.talent_catalogs_for_test_like_cpp();
++        self.give_xp_runtime_with_catalogs_like_cpp(&catalogs, xp, victim, group_rate)
++    }
++
+     /// Mirror C++ update-field side effects from `SetXP` / `GiveLevel` until
+     /// canonical map-owned `SendObjectUpdates` has complete session fanout.
+     fn sync_represented_xp_level_to_canonical_and_client_like_cpp(
+@@ -34976,7 +35133,13 @@ impl WorldSession {
+ 
+     /// Give XP to the player, leveling up if threshold reached.
+     /// C++ `Player::GiveXP(xp, victim, group_rate)`.
+-    pub(crate) async fn give_xp(&mut self, xp: u32, victim: wow_core::ObjectGuid, group_rate: f32) {
++    pub(crate) async fn give_xp_with_catalogs_like_cpp(
++        &mut self,
++        talent_catalogs: &TalentCatalogsLikeCpp,
++        xp: u32,
++        victim: wow_core::ObjectGuid,
++        group_rate: f32,
++    ) {
+         let old_level = self.player_level_like_cpp();
+         let (Some(old_rest_bonus), Some(old_rest_state)) = (
+             self.resolved_xp_rest_bonus_like_cpp(),
+@@ -34984,7 +35147,7 @@ impl WorldSession {
+         ) else {
+             return;
+         };
+-        if !self.give_xp_runtime_like_cpp(xp, victim, group_rate) {
++        if !self.give_xp_runtime_with_catalogs_like_cpp(talent_catalogs, xp, victim, group_rate) {
+             return;
+         }
+ 
+@@ -35013,6 +35176,13 @@ impl WorldSession {
+         }
+     }
+ 
++    #[cfg(test)]
++    pub(crate) async fn give_xp(&mut self, xp: u32, victim: wow_core::ObjectGuid, group_rate: f32) {
++        let catalogs = self.talent_catalogs_for_test_like_cpp();
++        self.give_xp_with_catalogs_like_cpp(&catalogs, xp, victim, group_rate)
++            .await;
++    }
++
+     /// XP reward for killing a creature.
+     /// C++ `Trinity::XP::Gain` / `Trinity::XP::BaseGain`.
+     pub(crate) fn creature_kill_xp(&self, mob_level: u8) -> u32 {
+@@ -35631,6 +35801,7 @@ impl WorldSession {
+     async fn update_represented_storing_value_quest_objective_progress_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         objective_type: u8,
+         object_id: i32,
+         add_count: i32,
+@@ -35763,6 +35934,7 @@ impl WorldSession {
+             let completed = self
+                 .complete_represented_quest_after_add_with_generator_like_cpp(
+                     item_guid_generator,
++                    talent_catalogs,
+                     &quest,
+                 )
+                 .await;
+@@ -35786,6 +35958,7 @@ impl WorldSession {
+     async fn update_represented_storing_flag_quest_objective_progress_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         objective_type: u8,
+         object_id: i32,
+         add_count: i32,
+@@ -35878,6 +36051,7 @@ impl WorldSession {
+             let completed = self
+                 .complete_represented_quest_after_objective_with_generator_like_cpp(
+                     item_guid_generator,
++                    talent_catalogs,
+                     &quest,
+                     objective_id,
+                 )
+@@ -35902,6 +36076,7 @@ impl WorldSession {
+     async fn update_represented_money_quest_objective_progress_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         old_money: u64,
+         new_money: u64,
+     ) {
+@@ -36008,6 +36183,7 @@ impl WorldSession {
+             let completed = self
+                 .complete_represented_quest_after_objective_with_generator_like_cpp(
+                     item_guid_generator,
++                    talent_catalogs,
+                     &quest,
+                     objective_id,
+                 )
+@@ -36033,6 +36209,7 @@ impl WorldSession {
+     async fn update_represented_currency_quest_objective_progress_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         currency_id: u32,
+         change: i32,
+     ) {
+@@ -36145,6 +36322,7 @@ impl WorldSession {
+             let completed = self
+                 .complete_represented_quest_after_objective_with_generator_like_cpp(
+                     item_guid_generator,
++                    talent_catalogs,
+                     &quest,
+                     objective_id,
+                 )
+@@ -36170,6 +36348,7 @@ impl WorldSession {
+     async fn update_represented_reputation_quest_objective_progress_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         objective_type: u8,
+         faction_id: u32,
+         change: i32,
+@@ -36299,6 +36478,7 @@ impl WorldSession {
+             let completed = self
+                 .complete_represented_quest_after_objective_with_generator_like_cpp(
+                     item_guid_generator,
++                    talent_catalogs,
+                     &quest,
+                     objective_id,
+                 )
+@@ -36326,12 +36506,14 @@ impl WorldSession {
+     pub(crate) async fn on_creature_killed_with_generator_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         creature_entry: u32,
+         creature_guid: wow_core::ObjectGuid,
+     ) {
+         // C++ QUEST_OBJECTIVE_MONSTER.
+         self.update_represented_storing_value_quest_objective_progress_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+             0,
+             creature_entry as i32,
+             1,
+@@ -36349,8 +36531,10 @@ impl WorldSession {
+         let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+             return;
+         };
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.on_creature_killed_with_generator_like_cpp(
+             generator.as_ref(),
++            &talent_catalogs,
+             creature_entry,
+             creature_guid,
+         )
+@@ -36360,12 +36544,14 @@ impl WorldSession {
+     pub(crate) async fn kill_credit_gameobject_with_generator_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         gameobject_entry: u32,
+         gameobject_guid: wow_core::ObjectGuid,
+     ) {
+         // C++ QUEST_OBJECTIVE_GAMEOBJECT.
+         self.update_represented_storing_value_quest_objective_progress_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+             2,
+             gameobject_entry as i32,
+             1,
+@@ -36383,8 +36569,10 @@ impl WorldSession {
+         let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+             return;
+         };
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.kill_credit_gameobject_with_generator_like_cpp(
+             generator.as_ref(),
++            &talent_catalogs,
+             gameobject_entry,
+             gameobject_guid,
+         )
+@@ -36394,11 +36582,13 @@ impl WorldSession {
+     pub(crate) async fn killed_player_credit_with_generator_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         victim_guid: wow_core::ObjectGuid,
+     ) {
+         // C++ QUEST_OBJECTIVE_PLAYERKILLS with ObjectID 0.
+         self.update_represented_storing_value_quest_objective_progress_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+             QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP,
+             0,
+             1,
+@@ -36415,19 +36605,26 @@ impl WorldSession {
+         let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+             return;
+         };
+-        self.killed_player_credit_with_generator_like_cpp(generator.as_ref(), victim_guid)
+-            .await;
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
++        self.killed_player_credit_with_generator_like_cpp(
++            generator.as_ref(),
++            &talent_catalogs,
++            victim_guid,
++        )
++        .await;
+     }
+ 
+     pub(crate) async fn talked_to_creature_with_generator_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         creature_entry: u32,
+         creature_guid: wow_core::ObjectGuid,
+     ) {
+         // C++ QUEST_OBJECTIVE_TALKTO.
+         self.update_represented_storing_value_quest_objective_progress_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+             3,
+             creature_entry as i32,
+             1,
+@@ -36445,8 +36642,10 @@ impl WorldSession {
+         let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+             return;
+         };
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.talked_to_creature_with_generator_like_cpp(
+             generator.as_ref(),
++            &talent_catalogs,
+             creature_entry,
+             creature_guid,
+         )
+@@ -36456,11 +36655,13 @@ impl WorldSession {
+     pub(crate) async fn kill_credit_criteria_tree_objective_with_generator_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         criteria_tree_id: u32,
+     ) {
+         // C++ QUEST_OBJECTIVE_CRITERIA_TREE.
+         self.update_represented_storing_flag_quest_objective_progress_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+             14,
+             criteria_tree_id as i32,
+             1,
+@@ -36476,8 +36677,10 @@ impl WorldSession {
+         let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+             return;
+         };
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.kill_credit_criteria_tree_objective_with_generator_like_cpp(
+             generator.as_ref(),
++            &talent_catalogs,
+             criteria_tree_id,
+         )
+         .await;
+@@ -36494,6 +36697,7 @@ impl WorldSession {
+     pub(crate) async fn drain_represented_quest_objective_progress_with_generator_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+     ) {
+         if self.represented_quest_objective_progress_draining_like_cpp {
+             return;
+@@ -36511,6 +36715,7 @@ impl WorldSession {
+                 } => {
+                     self.update_represented_money_quest_objective_progress_like_cpp(
+                         item_guid_generator,
++                        talent_catalogs,
+                         old_money,
+                         new_money,
+                     )
+@@ -36523,12 +36728,14 @@ impl WorldSession {
+                     let object_id = i32::try_from(currency_id).unwrap_or(i32::MAX);
+                     self.update_represented_currency_quest_objective_progress_like_cpp(
+                         item_guid_generator,
++                        talent_catalogs,
+                         currency_id,
+                         change,
+                     )
+                     .await;
+                     self.update_represented_storing_value_quest_objective_progress_like_cpp(
+                         item_guid_generator,
++                        talent_catalogs,
+                         QUEST_OBJECTIVE_HAVE_CURRENCY_LIKE_CPP,
+                         object_id,
+                         change,
+@@ -36537,6 +36744,7 @@ impl WorldSession {
+                     .await;
+                     self.update_represented_storing_value_quest_objective_progress_like_cpp(
+                         item_guid_generator,
++                        talent_catalogs,
+                         QUEST_OBJECTIVE_OBTAIN_CURRENCY_LIKE_CPP,
+                         object_id,
+                         change,
+@@ -36551,6 +36759,7 @@ impl WorldSession {
+                     let object_id = i32::try_from(faction_id).unwrap_or(i32::MAX);
+                     self.update_represented_reputation_quest_objective_progress_like_cpp(
+                         item_guid_generator,
++                        talent_catalogs,
+                         QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP,
+                         faction_id,
+                         change,
+@@ -36558,6 +36767,7 @@ impl WorldSession {
+                     .await;
+                     self.update_represented_reputation_quest_objective_progress_like_cpp(
+                         item_guid_generator,
++                        talent_catalogs,
+                         QUEST_OBJECTIVE_MAX_REPUTATION_LIKE_CPP,
+                         faction_id,
+                         change,
+@@ -36565,6 +36775,7 @@ impl WorldSession {
+                     .await;
+                     self.update_represented_storing_value_quest_objective_progress_like_cpp(
+                         item_guid_generator,
++                        talent_catalogs,
+                         QUEST_OBJECTIVE_INCREASE_REPUTATION_LIKE_CPP,
+                         object_id,
+                         change,
+@@ -36582,8 +36793,12 @@ impl WorldSession {
+         let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
+             return;
+         };
+-        self.drain_represented_quest_objective_progress_with_generator_like_cpp(generator.as_ref())
+-            .await;
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
++        self.drain_represented_quest_objective_progress_with_generator_like_cpp(
++            generator.as_ref(),
++            &talent_catalogs,
++        )
++        .await;
+     }
+ 
+     #[cfg(test)]
+@@ -36648,19 +36863,30 @@ impl WorldSession {
+         ))
+     }
+ 
+-    pub(crate) async fn commit_represented_talent_reset_like_cpp(
++    pub(crate) async fn commit_represented_talent_reset_with_catalogs_like_cpp(
+         &mut self,
++        catalogs: &TalentCatalogsLikeCpp,
+     ) -> Option<CommittedRepresentedTalentResetLikeCpp> {
+         let now_secs = SystemTime::now()
+             .duration_since(UNIX_EPOCH)
+             .unwrap_or_default()
+             .as_secs();
+-        self.commit_represented_talent_reset_at_like_cpp(now_secs)
++        self.commit_represented_talent_reset_at_with_catalogs_like_cpp(catalogs, now_secs)
++            .await
++    }
++
++    #[cfg(test)]
++    pub(crate) async fn commit_represented_talent_reset_like_cpp(
++        &mut self,
++    ) -> Option<CommittedRepresentedTalentResetLikeCpp> {
++        let catalogs = self.talent_catalogs_for_test_like_cpp();
++        self.commit_represented_talent_reset_with_catalogs_like_cpp(&catalogs)
+             .await
+     }
+ 
+-    async fn commit_represented_talent_reset_at_like_cpp(
++    async fn commit_represented_talent_reset_at_with_catalogs_like_cpp(
+         &mut self,
++        catalogs: &TalentCatalogsLikeCpp,
+         now_secs: u64,
+     ) -> Option<CommittedRepresentedTalentResetLikeCpp> {
+         let cost = if self.no_reset_talent_cost_like_cpp {
+@@ -36757,6 +36983,7 @@ impl WorldSession {
+     pub(crate) async fn publish_committed_represented_talent_reset_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        catalogs: &TalentCatalogsLikeCpp,
+         committed: CommittedRepresentedTalentResetLikeCpp,
+         request: RepresentedConfirmRespecWipeLikeCpp,
+         visual_spell_id: u32,
+@@ -36778,7 +37005,9 @@ impl WorldSession {
+             Some(state_plan.active_group)
+         );
+         for (talent_id, rank) in &state_plan.active_talents {
+-            self.remove_represented_active_talent_side_effects_like_cpp(*talent_id, *rank);
++            self.remove_represented_active_talent_side_effects_like_cpp(
++                catalogs, *talent_id, *rank,
++            );
+         }
+         if self
+             .mutate_player_talent_runtime_like_cpp(|runtime| {
+@@ -36789,7 +37018,7 @@ impl WorldSession {
+             self.kick("canonical Player talent owner became unavailable after talent-reset COMMIT");
+             return;
+         }
+-        self.refresh_represented_talent_points_like_cpp();
++        self.refresh_represented_talent_points_with_catalogs_like_cpp(catalogs);
+ 
+         if !self.stage_player_money_change_like_cpp(old_money, new_money) {
+             self.kick("canonical Player money owner became unavailable after talent-reset COMMIT");
+@@ -36807,7 +37036,9 @@ impl WorldSession {
+         }
+         self.record_represented_talent_respec_criteria_like_cpp(cost);
+ 
+-        if let Some(talent_data) = self.resolved_update_talent_data_packet_like_cpp() {
++        if let Some(talent_data) =
++            self.resolved_update_talent_data_packet_with_catalogs_like_cpp(catalogs)
++        {
+             self.send_packet(&talent_data);
+         }
+         if let Some(player_guid) = self.player_guid() {
+@@ -36825,6 +37056,7 @@ impl WorldSession {
+         drop(money_persistence);
+         self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+         )
+         .await;
+     }
+@@ -37038,6 +37270,24 @@ impl WorldSession {
+         catalogs
+     }
+ 
++    #[cfg(test)]
++    pub(crate) fn talent_catalogs_for_test_like_cpp(&self) -> TalentCatalogsLikeCpp {
++        TalentCatalogsLikeCpp {
++            talents: self
++                .talent_store
++                .clone()
++                .unwrap_or_else(|| Arc::new(TalentStore::default())),
++            tabs: self
++                .talent_tab_store
++                .clone()
++                .unwrap_or_else(|| Arc::new(TalentTabStore::default())),
++            points_by_level: self
++                .num_talents_at_level_store
++                .clone()
++                .unwrap_or_else(|| Arc::new(NumTalentsAtLevelStore::default())),
++        }
++    }
++
+     /// Update player_next_level_xp from the table based on current level.
+     pub(crate) fn refresh_next_level_xp_with_catalogs_like_cpp(
+         &mut self,
+@@ -40160,6 +40410,7 @@ impl WorldSession {
+     async fn process_pending_creature_kills_with_generator_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+     ) {
+         let mut pending = std::mem::take(&mut self.pending_creature_kill_loot_like_cpp);
+         pending.sort_by_key(|guid| (guid.high_value(), guid.low_value()));
+@@ -40190,7 +40441,8 @@ impl WorldSession {
+                 // The represented reward queue is still solo-session only.
+                 // Full C++ KillRewarder group fanout must pre-scale XP per
+                 // member before passing its separate `_groupRate` here.
+-                self.give_xp(xp, reward.creature_guid, 1.0).await;
++                self.give_xp_with_catalogs_like_cpp(talent_catalogs, xp, reward.creature_guid, 1.0)
++                    .await;
+             }
+             let reputation_rate = self.represented_creature_kill_reputation_rate_like_cpp(
+                 reward.killer_guid,
+@@ -41982,6 +42234,7 @@ impl WorldSession {
+         self.player_gender = gender;
+         self.set_player_faction_for_race_like_cpp(race);
+         self.initialize_reputation_mgr_like_cpp();
++        #[cfg(test)]
+         self.refresh_represented_talent_points_like_cpp();
+     }
+ 
+@@ -42350,6 +42603,7 @@ impl WorldSession {
+         self.player_level = level;
+         let gray_level = self.gray_level(level);
+         crate::canonical_player_sync::sync_player_level_like_cpp(self, level, gray_level);
++        #[cfg(test)]
+         self.refresh_represented_talent_points_like_cpp();
+     }
+ 
+@@ -45284,6 +45538,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         item_entry: u32,
+     ) -> Vec<i32> {
+         if self
+@@ -45322,6 +45577,7 @@ impl WorldSession {
+                 .execute_spell_with_generator_like_cpp(
+                     item_guid_generator,
+                     creature_spawn_catalogs,
++                    talent_catalogs,
+                     spell_id,
+                     player_guid,
+                 )
+@@ -45341,9 +45597,11 @@ impl WorldSession {
+     ) -> Vec<i32> {
+         let generators = self.id_generators_for_test_like_cpp();
+         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.apply_inventory_item_obtain_spells_with_generator_like_cpp(
+             generators.item.as_ref(),
+             &creature_spawn_catalogs,
++            &talent_catalogs,
+             item_entry,
+         )
+         .await
+@@ -61138,6 +61396,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+     ) {
+         let Some(request) = self.represented_pending_spell_cast_request_like_cpp.clone() else {
+             return;
+@@ -61167,6 +61426,7 @@ impl WorldSession {
+             .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+                 item_guid_generator,
+                 creature_spawn_catalogs,
++                talent_catalogs,
+                 request.spell_id,
+                 request.target_guid,
+                 request.cast_id,
+@@ -61196,9 +61456,11 @@ impl WorldSession {
+     pub(crate) async fn tick_pending_spell_cast_request_like_cpp(&mut self) {
+         let generators = self.id_generators_for_test_like_cpp();
+         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.tick_pending_spell_cast_request_with_generator_like_cpp(
+             generators.item.as_ref(),
+             &creature_spawn_catalogs,
++            &talent_catalogs,
+         )
+         .await;
+     }
+@@ -69532,6 +69794,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+     ) {
+         let Some(ref cast_state) = self.active_spell_cast.clone() else {
+             return;
+@@ -69558,6 +69821,7 @@ impl WorldSession {
+                 .execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+                     item_guid_generator,
+                     creature_spawn_catalogs,
++                    talent_catalogs,
+                     spell_id,
+                     target,
+                     cast_id,
+@@ -69586,9 +69850,11 @@ impl WorldSession {
+     pub(crate) async fn tick_active_spell_cast(&mut self) {
+         let generators = self.id_generators_for_test_like_cpp();
+         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.tick_active_spell_cast_with_generator_like_cpp(
+             generators.item.as_ref(),
+             &creature_spawn_catalogs,
++            &talent_catalogs,
+         )
+         .await;
+     }
+@@ -70086,6 +70352,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         spell_id: i32,
+         target_guid: ObjectGuid,
+     ) -> Result<(), &'static str> {
+@@ -70094,6 +70361,7 @@ impl WorldSession {
+         self.execute_spell_with_visual_and_generator_like_cpp(
+             item_guid_generator,
+             creature_spawn_catalogs,
++            talent_catalogs,
+             spell_id,
+             target_guid,
+             ObjectGuid::EMPTY,
+@@ -70113,9 +70381,11 @@ impl WorldSession {
+     ) -> Result<(), &'static str> {
+         let generators = self.id_generators_for_test_like_cpp();
+         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.execute_spell_with_generator_like_cpp(
+             generators.item.as_ref(),
+             &creature_spawn_catalogs,
++            &talent_catalogs,
+             spell_id,
+             target_guid,
+         )
+@@ -70126,6 +70396,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         spell_id: i32,
+         target_guid: ObjectGuid,
+         target_data: SpellTargetData,
+@@ -70135,6 +70406,7 @@ impl WorldSession {
+         self.execute_spell_with_visual_and_target_data_and_generator_like_cpp(
+             item_guid_generator,
+             creature_spawn_catalogs,
++            talent_catalogs,
+             spell_id,
+             target_guid,
+             ObjectGuid::EMPTY,
+@@ -70156,9 +70428,11 @@ impl WorldSession {
+     ) -> Result<(), &'static str> {
+         let generators = self.id_generators_for_test_like_cpp();
+         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.execute_spell_with_target_data_and_generator_like_cpp(
+             generators.item.as_ref(),
+             &creature_spawn_catalogs,
++            &talent_catalogs,
+             spell_id,
+             target_guid,
+             target_data,
+@@ -70174,6 +70448,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         spell_id: i32,
+         target_guid: ObjectGuid,
+         cast_id: ObjectGuid,
+@@ -70182,6 +70457,7 @@ impl WorldSession {
+         self.execute_spell_with_visual_and_target_data_and_generator_like_cpp(
+             item_guid_generator,
+             creature_spawn_catalogs,
++            talent_catalogs,
+             spell_id,
+             target_guid,
+             cast_id,
+@@ -70206,9 +70482,11 @@ impl WorldSession {
+     ) -> Result<(), &'static str> {
+         let generators = self.id_generators_for_test_like_cpp();
+         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.execute_spell_with_visual_and_generator_like_cpp(
+             generators.item.as_ref(),
+             &creature_spawn_catalogs,
++            &talent_catalogs,
+             spell_id,
+             target_guid,
+             cast_id,
+@@ -70235,6 +70513,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         spell_id: i32,
+         target_guid: ObjectGuid,
+         cast_id: ObjectGuid,
+@@ -70244,6 +70523,7 @@ impl WorldSession {
+         self.execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+             item_guid_generator,
+             creature_spawn_catalogs,
++            talent_catalogs,
+             spell_id,
+             target_guid,
+             cast_id,
+@@ -70265,9 +70545,11 @@ impl WorldSession {
+     ) -> Result<(), &'static str> {
+         let generators = self.id_generators_for_test_like_cpp();
+         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.execute_spell_with_visual_and_target_data_and_generator_like_cpp(
+             generators.item.as_ref(),
+             &creature_spawn_catalogs,
++            &talent_catalogs,
+             spell_id,
+             target_guid,
+             cast_id,
+@@ -70306,6 +70588,7 @@ impl WorldSession {
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
+         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         spell_id: i32,
+         target_guid: ObjectGuid,
+         cast_id: ObjectGuid,
+@@ -70704,7 +70987,12 @@ impl WorldSession {
+             match direct_effect_type {
+                 x if wow_data::spell::spell_effect_types::is_cpp_null_or_unused_noop(x) => {}
+                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_INSTAKILL => {
+-                    self.apply_instakill_like_cpp(item_guid_generator, spell_id, target_guid)
++                    self.apply_instakill_like_cpp(
++                        item_guid_generator,
++                        talent_catalogs,
++                        spell_id,
++                        target_guid,
++                    )
+                         .await?;
+                 }
+                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL => {
+@@ -70814,6 +71102,7 @@ impl WorldSession {
+                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEALTH_LEECH => {
+                     self.apply_health_leech_like_cpp(
+                         item_guid_generator,
++                        talent_catalogs,
+                         spell_id,
+                         direct_effect_base_points,
+                         target_guid,
+@@ -70955,6 +71244,7 @@ impl WorldSession {
+                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE => {
+                     self.apply_quest_complete_effect_like_cpp(
+                         item_guid_generator,
++                        talent_catalogs,
+                         target_guid,
+                         direct_effect_misc_value_1,
+                     )
+@@ -70982,6 +71272,7 @@ impl WorldSession {
+                     if let Ok(damage_amount) = u32::try_from(direct_effect_base_points) {
+                         self.apply_damage_from_caster_like_cpp(
+                             item_guid_generator,
++                            talent_catalogs,
+                             Some(spell_id),
+                             caster_guid,
+                             target_guid,
+@@ -74556,6 +74847,7 @@ impl WorldSession {
+     async fn apply_health_leech_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         spell_id: i32,
+         damage: i32,
+         target_guid: ObjectGuid,
+@@ -74585,6 +74877,7 @@ impl WorldSession {
+         if damage_amount > 0 {
+             self.apply_damage_with_generator_like_cpp(
+                 item_guid_generator,
++                talent_catalogs,
+                 Some(spell_id),
+                 target_guid,
+                 damage_amount,
+@@ -75552,6 +75845,7 @@ impl WorldSession {
+     async fn apply_quest_complete_effect_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         target_guid: ObjectGuid,
+         quest_id: i32,
+     ) -> Result<(), &'static str> {
+@@ -75605,6 +75899,7 @@ impl WorldSession {
+             }
+             self.complete_represented_quest_after_add_with_generator_like_cpp(
+                 item_guid_generator,
++                talent_catalogs,
+                 &quest,
+             )
+             .await;
+@@ -75673,6 +75968,7 @@ impl WorldSession {
+     async fn apply_instakill_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         spell_id: i32,
+         target_guid: ObjectGuid,
+     ) -> Result<(), &'static str> {
+@@ -75693,6 +75989,7 @@ impl WorldSession {
+         });
+         self.apply_damage_with_generator_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+             Some(spell_id),
+             target_guid,
+             current_hp,
+@@ -75704,6 +76001,7 @@ impl WorldSession {
+     async fn apply_damage_with_generator_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         spell_id: Option<i32>,
+         target_guid: ObjectGuid,
+         damage_amount: u32,
+@@ -75711,6 +76009,7 @@ impl WorldSession {
+         let player_guid = self.player_guid().ok_or("No player GUID")?;
+         self.apply_damage_from_caster_like_cpp(
+             item_guid_generator,
++            talent_catalogs,
+             spell_id,
+             player_guid,
+             target_guid,
+@@ -75727,8 +76026,10 @@ impl WorldSession {
+         damage_amount: u32,
+     ) -> Result<(), &'static str> {
+         let generators = self.id_generators_for_test_like_cpp();
++        let talent_catalogs = self.talent_catalogs_for_test_like_cpp();
+         self.apply_damage_with_generator_like_cpp(
+             generators.item.as_ref(),
++            &talent_catalogs,
+             spell_id,
+             target_guid,
+             damage_amount,
+@@ -75739,6 +76040,7 @@ impl WorldSession {
+     async fn apply_damage_from_caster_like_cpp(
+         &mut self,
+         item_guid_generator: &wow_core::ObjectGuidGenerator,
++        talent_catalogs: &TalentCatalogsLikeCpp,
+         spell_id: Option<i32>,
+         caster_guid: ObjectGuid,
+         target_guid: ObjectGuid,
+@@ -75950,7 +76252,8 @@ impl WorldSession {
+                 // This direct spell-damage kill path has no represented
+                 // KillRewarder group fanout yet; do not advertise a group
+                 // rate until the XP amount is scaled per member like C++.
+-                self.give_xp(xp, guid, 1.0).await;
++                self.give_xp_with_catalogs_like_cpp(talent_catalogs, xp, guid, 1.0)
++                    .await;
+             }
+             if caster_rewards_session_player {
+                 let reputation_rate =
