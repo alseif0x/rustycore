@@ -1394,3 +1394,22 @@ dos items de politica.
    intacto. El trasvase saca **12.595 lineas** del arbol de la aplicacion sin mover una sola
    invariante de comportamiento.
 
+### Trabajo recuperado: la vista de catalogos de talentos del #578 (2026-09-27)
+
+La limpieza de ramas e historial habia dejado fuera del almacen de objetos un stash del
+2026-09-04 ("wip: preserve incomplete talent catalog propagation before #133 ECS architecture
+spike", 683+/128- en 29 ficheros) de la rama `578-archcloseowner-...`, cuya linea aterrizo como
+el squash #579. El parche se conservo antes de soltar el stash y hoy vive en git, no en /tmp:
+rama `recover/578-talent-catalog` (commit `0845f5b3`, base `f746060f`, ancestro de la 3.4.3),
+con el parche completo en `docs/migration/recovered/578-talent-catalog-2026-09-04.patch`.
+
+Que contiene: la **vista de capacidad `TalentCatalogsLikeCpp`** (stores de talentos, pestanas y
+puntos por nivel) enhebrada por la composicion de `world-server` y por los puntos de entrada de
+sesion y handlers (character, quest, loot, trainer, talent, spell, movement, void storage),
+sustituyendo lecturas directas del store. No esta integrado.
+
+Aplicabilidad medida con `git apply --check`: 17 de 29 ficheros aplican en la base del squash
+#579 y 6 en la punta actual de la 3.4.3. Un forward-port es un paso de diseno, no un rebase
+mecanico: las olas A y B repartieron de nuevo el material de sesion que el parche edita, y la
+vista pertenece al trabajo de capability views de 584.
+
