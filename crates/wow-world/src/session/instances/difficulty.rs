@@ -193,7 +193,7 @@ impl WorldSession {
         self.resolved_dungeon_difficulty_id_like_cpp()
             .expect("test Player difficulty owner must resolve")
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_represented_dungeon_difficulty_id_for_test_like_cpp(
         &mut self,
         difficulty_id: u32,

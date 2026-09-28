@@ -13,7 +13,7 @@ impl WorldSession {
             None,
         )
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn adopt_registered_canonical_player_fixture_like_cpp(&mut self) -> bool {
         let Some(guid) = self.player_guid() else {
             return false;

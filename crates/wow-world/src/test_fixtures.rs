@@ -42,6 +42,36 @@ pub fn set_loaded_player_identity_like_cpp(
     session.set_loaded_player_identity_like_cpp(map_id, race, class, level, gender);
 }
 
+pub fn adopt_registered_canonical_player_fixture_like_cpp(
+    session: &mut crate::session::WorldSession,
+) -> bool {
+    session.adopt_registered_canonical_player_fixture_like_cpp()
+}
+
+pub fn set_represented_dungeon_difficulty_id_for_test_like_cpp(
+    session: &mut crate::session::WorldSession,
+    difficulty_id: u32,
+) {
+    session.set_represented_dungeon_difficulty_id_for_test_like_cpp(difficulty_id);
+}
+
+pub fn set_owned_player_group_like_cpp(
+    session: &mut crate::session::WorldSession,
+    membership: Option<(u64, u8)>,
+) -> bool {
+    session.set_owned_player_group_like_cpp(membership)
+}
+
+pub fn resolved_group_guid_like_cpp(
+    session: &crate::session::WorldSession,
+) -> Option<u64> {
+    session.resolved_group_guid_like_cpp()
+}
+
+pub fn reconcile_group_state_like_cpp(session: &mut crate::session::WorldSession) -> bool {
+    session.reconcile_group_state_like_cpp()
+}
+
 pub const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP;
 pub const PLAYER_FLAGS_AFK_LIKE_CPP: u32 = crate::session::PLAYER_FLAGS_AFK_LIKE_CPP;
 pub const PLAYER_FLAGS_DND_LIKE_CPP: u32 = crate::session::PLAYER_FLAGS_DND_LIKE_CPP;
