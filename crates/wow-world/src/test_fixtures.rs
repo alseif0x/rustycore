@@ -104,6 +104,17 @@ pub fn set_loaded_player_name_like_cpp(
     session.set_loaded_player_name_like_cpp(name);
 }
 
+pub fn set_player_gold_for_test(
+    session: &mut crate::session::WorldSession,
+    gold: u64,
+) -> bool {
+    session.set_player_gold_like_cpp(gold)
+}
+
+pub fn player_gold_for_test(session: &crate::session::WorldSession) -> u64 {
+    session.player_gold_like_cpp()
+}
+
 pub fn adopt_registered_canonical_player_fixture_like_cpp(
     session: &mut crate::session::WorldSession,
 ) -> bool {

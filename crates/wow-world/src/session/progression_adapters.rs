@@ -288,7 +288,7 @@ impl WorldSession {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn player_gold_like_cpp(&self) -> u64 {
         self.resolved_player_money_like_cpp()
             .or_else(|| {

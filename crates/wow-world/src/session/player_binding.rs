@@ -452,11 +452,13 @@ impl WorldSession {
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| player.set_money(gold))
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical || self.player_handle_like_cpp.is_none() {
             self.player_gold = gold;
         }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+        canonical
+            || (cfg!(any(test, feature = "test-fixtures"))
+                && self.player_handle_like_cpp.is_none())
     }
 
     #[cfg(test)]
