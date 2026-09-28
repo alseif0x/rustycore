@@ -1442,3 +1442,27 @@ Evidencia: `cargo check -p wow-world --all-targets` 0 errores; `cargo test -p wo
 los cuatro. Queda `handlers/character/mod.rs` (980 lineas) como siguiente slice con el mismo
 metodo; `handlers/quest/mod.rs` (551) ya cumple el presupuesto.
 
+### B5, segundo slice: `handlers/character/mod.rs` de 980 a 244 lineas (2026-09-27)
+
+Mismo metodo que el slice de loot, ahora sobre el adaptador mayor del arbol. Seis hijos por
+familia, cada uno con `use super::*` y reexportado con `pub use self::X::*;`:
+
+| hijo | lineas | items |
+|---|---|---|
+| `corpse_loading.rs` | 149 | carga y materializacion de cadaveres de mapa |
+| `inventory_plan.rs` | 271 | decisiones de inventario y banco: swaps, autostore, cache de equipo, vistas de persistencia |
+| `trainer_gossip.rs` | 75 | gossip de entrenador y los hechos de clase que lo describen |
+| `login_context.rs` | 31 | MOTD, contexto de void storage y estado de descanso inicial |
+| `creature_spawn.rs` | 196 | materializacion de spawn: normalizacion de plantilla, flags, addon, equipo y hechos de creacion |
+| `item_actions.rs` | 69 | turn-in, destroy y cargas de item, con los helpers de clase/equipo |
+
+El raiz baja de **980 a 244 lineas** (documentacion, veintidos `mod`, imports, constantes y dos
+helpers) y el unico ensanchado pedido por el compilador fueron **76 campos** de los structs
+movidos: ningun metodo, ningun cambio de texto ni de orden. Los items `#[cfg(test)]` siguen
+intercalados donde estaban; su reclasificacion es B3.
+
+Evidencia: `cargo check -p wow-world --all-targets` 0 errores; `cargo test -p wow-world character`
+**pasan / 0 fallan**; `cargo fmt --all --check` limpio; `check_architecture.py check` PASS en los
+cuatro informes. Con esto los tres adaptadores de handler mayores estan dentro del presupuesto de
+600 lineas.
+
