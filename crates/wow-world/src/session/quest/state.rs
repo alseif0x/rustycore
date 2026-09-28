@@ -903,7 +903,7 @@ impl WorldSession {
         #[cfg(not(test))]
         let _ = evidence;
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_push_quest_to_party_outcomes_like_cpp(
         &self,
     ) -> &[RepresentedPushQuestToPartyOutcomeLikeCpp] {
@@ -915,11 +915,11 @@ impl WorldSession {
         &mut self,
         outcome: RepresentedPushQuestToPartyOutcomeLikeCpp,
     ) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.quest_test_fixture_like_cpp
             .represented_push_quest_to_party_outcomes_like_cpp
             .push(outcome);
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let _ = outcome;
     }
 }
