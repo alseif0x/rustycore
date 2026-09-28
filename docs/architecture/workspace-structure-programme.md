@@ -295,6 +295,10 @@ internos de sesión, métodos privados y constantes de test por trasladar.
 nivel para los tests externos; tras adaptar siete lecturas de slot, seis
 setters de nivel y seis asignaciones de grupo, el diagnóstico bajó a
 **211 errores** (`target/b3-quest-slot-level-group-consumer-check.log`).
+`cbd2251e` mantuvo privado el tipo de elección de recompensa y expuso solo
+sus tres valores de prueba mediante un puente al parser/validador originales;
+tras adaptar esas aserciones, el target bajó a **200 errores**
+(`target/b3-quest-choice-consumer-check.log`). Sigue sin compilar.
 
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
