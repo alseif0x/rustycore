@@ -444,6 +444,9 @@ use player_spell_records::represented_skill_records_from_values_like_cpp;
 use player_spell_records::represented_skill_values_from_records_like_cpp;
 mod player_vitals_adapter;
 mod progression_adapters;
+#[cfg(feature = "test-fixtures")]
+pub(crate) mod quest_dialog;
+#[cfg(not(feature = "test-fixtures"))]
 mod quest_dialog;
 pub(crate) use quest_dialog::LoadSeasonalQuestStatusOutcomeLikeCpp;
 pub(crate) use quest_dialog::RepresentedAdventureMapStartQuestLikeCpp;

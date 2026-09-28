@@ -208,7 +208,7 @@ pub(crate) struct RepresentedQuestPushResultResponseLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedPushQuestToPartyOutcomeReasonLikeCpp {
+pub enum RepresentedPushQuestToPartyOutcomeReasonLikeCpp {
     NotAllowed,
     NotDaily,
     QuestPoolActiveCheckUnrepresented,
@@ -242,7 +242,7 @@ pub(crate) enum RepresentedPushQuestToPartyOutcomeReasonLikeCpp {
 
 /// Session-local evidence for the bounded sender-side `HandlePushQuestToParty` preflight.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedPushQuestToPartyOutcomeLikeCpp {
+pub struct RepresentedPushQuestToPartyOutcomeLikeCpp {
     pub sender_guid: Option<ObjectGuid>,
     pub quest_id: u32,
     pub target_guid: Option<ObjectGuid>,

@@ -4,6 +4,11 @@
 //! reach crate-level fixtures. The suite migration is still pending; this module is
 //! available only in the `test-fixtures` build.
 
+pub use crate::session::quest_dialog::{
+    RepresentedPushQuestToPartyOutcomeLikeCpp,
+    RepresentedPushQuestToPartyOutcomeReasonLikeCpp,
+};
+
 pub use crate::handlers::group::state::PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP;
 pub use crate::handlers::group::state::current_group_guid_like_cpp;
 pub use crate::handlers::group::state::first_connected_group_member_like_cpp;
@@ -362,6 +367,14 @@ pub fn represented_auto_accept_acknowledged_quests_for_test(
         .quest_test_fixture_like_cpp
         .represented_auto_accept_acknowledged_quests_like_cpp
         .clone()
+}
+
+pub fn represented_push_quest_to_party_outcomes_for_test(
+    session: &crate::session::WorldSession,
+) -> Vec<RepresentedPushQuestToPartyOutcomeLikeCpp> {
+    session
+        .represented_push_quest_to_party_outcomes_like_cpp()
+        .to_vec()
 }
 
 pub const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP;
