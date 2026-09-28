@@ -1250,6 +1250,27 @@ Todo lo demas (montaje de tests con su `#[cfg(test)]` colgante, autoreferencias 
 re-exports de hijos, seis dependencias, 15 visibilidades, el `pub(crate) const fn` y el gate
 `test-fixtures`) esta resuelto y verificado.
 
+### B6 `map_manager`: el movimiento compila; quedan dos items de politica y un sintoma (2026-09-27)
+
+Con el cableado de features y los imports/visibilidades resueltos, el modulo movido **compila**:
+`cargo check -p wow-map --features test-fixtures` da **0 errores**, y en la pasada en que la feature no
+estaba activa el workspace tambien compilaba. Al reactivarla, `check_architecture` y el workspace
+destapan tres cosas concretas, que son el trabajo real que queda:
+
+1. **`wow-map -> tracing`** sin declarar: es una externa y `wow-map` tiene superficie externa explicita,
+   asi que hay que anadir `tracing` a `external_dependencies.allowed["wow-map"]` (una linea de politica).
+2. **`wow-map -> wow-data` es una arista prohibida** (`domain-runtime -> adapter-platform`): el modulo usa
+   tipos de `wow-data`. Necesita contrato (porta/vista inmutable) o una excepcion revisada con issue,
+   igual que se hizo con `wow-packet`.
+3. **Sintoma a diagnosticar**: activar `wow-map/test-fixtures` **en todo el workspace**
+   (`cargo check --workspace --all-targets`) produce **581 errores**, mientras que
+   `-p wow-map --features test-fixtures` esta limpio. Apunta a la unificacion de features del workspace
+   (la feature se propaga a crates que no la esperan), no al codigo movido.
+
+El arbol quedo revertido y verde (workspace 0 errores) en la rama `584-map-manager-domain`, con el
+movimiento y su diagnostico documentados. La distancia restante es **una linea de politica de externas**,
+**una decision de contrato o excepcion para `wow-data`** y **un diagnostico de feature unification**.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
