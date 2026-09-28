@@ -250,7 +250,13 @@ los 23 accesos directos restantes al fixture privado y las rutas externas,
 `cargo check -p wow-world --test quest_tests` terminó con 893 diagnósticos,
 principalmente por visibilidad de métodos, tipos y constantes. El aumento
 respecto de los 850 anteriores se debe a que el compilador alcanzó más cuerpos.
-El diagnóstico de compilación es feedback de desarrollo, no prueba verde ni
+Los commits `018e6682` y `c2d68f8b` añadieron aliases bajo la feature para
+constantes canónicas, y `eedf6988`/`55a13a1f` preservaron el registro y la
+lectura de los 70 resultados de compartir quests desde el target externo.
+El último diagnóstico (`target/b3-quest-push-outcome-consumer-check.log`) bajó
+a **581 errores**: predominan métodos privados de registro, pending-share,
+recompensa, inventario y los tipos de confirmación de quests. No hubo errores
+de sintaxis en esa compilación. Es feedback de desarrollo, no prueba verde ni
 aceptación. Quedan fixtures privadas de sesión, métodos y constantes de quest
 por adaptar sin ampliar indiscriminadamente la API de producción.
 
