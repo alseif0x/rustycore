@@ -1313,6 +1313,37 @@ Metodo correcto, deterministico y de una sola pasada:
 El arbol queda verde y la base intacta; el trasvase sigue siendo el trabajo que mas valor anade (saca
 6 721 lineas del arbol de la aplicacion) y esta a un paso preparatorio + el movimiento mecanico.
 
+### B6 `map_manager`: la superficie implicita del test, medida (2026-09-27)
+
+Ejecutada la simulacion registrada (montar `map_manager_tests.rs` en la raiz de `wow-world` y quitar el
+montaje del padre, sin mover el modulo), el compilador da **de una sola pasada** la lista completa de lo
+que la suite heredaba: **mas de 40 nombres** repartidos por sus submodulos — `Position`, `ObjectGuid`,
+`WaypointMovementAction`, `MovementGeneratorKind`, `RuntimeMovementGeneratorType`, `ChaseTickOutcomeLikeCpp`,
+`Instant`, `Duration`, `SpawnObjectType`, `PhaseShift`, `DetourPathType`, `MovementFlag`,
+`CreatureAnimKitSlotLikeCpp`, `WaypointPath`, `world_to_grid_x`, `map_manager::WorldCreature`, etc.
+
+Eso explica los tropiezos: no son 2-4 nombres, son decenas, y por eso cada pasada descubria unos pocos mas.
+Comando que reproduce la lista completa en un paso (desde la base):
+
+```
+# quitar el montaje del padre y montar el fichero en la raiz de wow-world
+cargo check -q -p wow-world --tests --message-format short 2>&1 | grep ': error' \
+  | sed -E 's/:[0-9]+:[0-9]+: error.*`([^`]+)`.*/\1/' | sort | uniq -c | sort -rn
+```
+
+Plan determinista, ya sin incognitas:
+
+1. **Ensanchar a `pub`** los tipos y constantes de `map_manager` que la suite usa (los `pub(super)` que
+   el bucle de visibilidades no cubre) y asegurar que `mod.rs` los reexporta con `pub use self::X::*;`.
+2. Anadir en la **raiz** del fichero de tests (`map_manager_tests.rs`, cuyo `use super::*` lo heredan sus
+   submodulos) los imports de std y de los crates de terceros que falten: `std::time::{Duration, Instant}`,
+   `std::path::PathBuf`, `wow_core::{ObjectGuid, Position}`, mas los de `wow_constants`, `wow_movement`,
+   `wow_entities` y `wow_recastdetour` que pida el compilador.
+3. Verificar `-p wow-world --tests` limpio **sin** el montaje del padre (prueba de autosuficiencia).
+4. Mover el modulo con el script y cerrar los dos items de politica (`tracing`, `wow-data`).
+
+El arbol queda verde y la base intacta.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
