@@ -165,6 +165,27 @@ con código 0, sin ejecutar los tests. Siguen pendientes la revisión de sus
 exports propios, la composición final y la aceptación de toda la macro.
 Estos checks son feedback del worker, no campaña final ni evidencia de publicación.
 
+**Piloto B3 localmente verde, B3 todavía abierto:** `a0df47b3` mueve
+`group_tests` a `crates/wow-world/tests/` como target de integración: 130 tests
+externos y el test de regla privada conservado en `handlers/group/state.rs`.
+La comparación de nombres de funciones antes/después conserva los 172 del árbol
+de la suite; no sustituye su ejecución. Los commits locales `f54a98e3` a
+`746b2616` preparan wrappers estrechos bajo `test-fixtures`, incluido el
+bombeo con el **constructor original** de catálogos de sesión. El primer
+diagnóstico del target tuvo 124 errores; los siguientes aislaron campos,
+invitaciones, registro de silencio y bombeo. No se usaron catálogos por
+defecto para reemplazar los de la sesión. La feature conserva también las
+rutas de fixture para grupo, loot y el envío bloqueante al despachador de
+prueba; sin la feature, la ruta normal mantiene sus ramas de producción.
+`cargo check -p wow-world` sin feature salió 0 y
+`cargo test -p wow-world --test group_tests` ejecutó **130/130** en paralelo
+(log `target/b3-group-dispatcher-parallel.log`); la ejecución en serie también
+pasó 130/130 (`target/b3-group-uninvite-serialized-final.log`). Son checks de
+desarrollo del worker en aarch64 sobre el árbol que se comprometió como
+`a0df47b3`, no manifiesto final ni aceptación de la macro. Las otras suites
+`quest_tests`, `character_tests` y `loot_tests` aún viven en la lib; B7 y los
+consumidores pendientes no están cerrados.
+
 **Hallazgos abiertos antes de aceptar B5/B6:**
 
 1. La feature de fixtures de `wow-map` y `wow-recastdetour` estaba activada en dependencias
@@ -184,10 +205,10 @@ Estos checks son feedback del worker, no campaña final ni evidencia de publicac
    excepciones; no elevar el baseline ni retirar una arista legítima para obtener verde.
 
 **Evidencia disponible:** revisión de código, Git, manifiestos y sesión DeepSeek
-`51439d45-bfa1-4f1a-8538-38729d3f7c0d`; no se ejecutó aceptación durante esta revisión.
+`51439d45-bfa1-4f1a-8538-38729d3f7c0d`, más los checks de desarrollo indicados arriba.
 El último manifiesto final encontrado, `20260927T140832.222423Z-3887452-final.json`, pasó
 en 423.853 s sobre `ee49c8ea`, anterior a este incremento. No existe aceptación final
-acreditada de `bfeb33e8`. Los recuentos y verdes de las notas históricas no la sustituyen.
+acreditada de `a0df47b3`. Los recuentos y verdes de las notas históricas no la sustituyen.
 El rollback del piloto borró temporalmente tests preexistentes; se restauraron y están presentes.
 
 **Secuencia propuesta para la próxima ejecución:**
@@ -198,13 +219,13 @@ no cierra la macro ni justifica una PR parcial.
 
 1. Revisar los exports propios restantes de `map_manager`, la composición de features y el
    contrato entre los dos checkers de capas. Integrar la pauta del worker. Mantener movimiento
-   y comportamiento separados, sin presentar la preparación de B3 como migración terminada.
-2. Completar primero el piloto B3 de `group_tests`: inventario de consumidores privados,
-   fixtures mínimas y conservación de escenarios. `validation-v2 final` usa `cargo test --lib`;
-   ejecutar los nuevos targets de integración explícitamente o adaptar su cobertura
-   en el runner. Medir antes/después y extender el patrón solo tras comprobar el piloto.
-   Las cuatro suites suman ahora 48429 líneas y 925 anotaciones de test incluyendo raíces
-   (inventario estático, no resultado ejecutado); los 44665 históricos no son el total actual.
+   y comportamiento separados; el piloto verde todavía no cierra B3.
+2. Extender B3 desde el piloto verde a `quest_tests`, `character_tests` y `loot_tests`, una
+   suite por responsabilidad comprobada, con fixtures mínimas, consumidores y recuentos
+   conservados. `validation-v2 final` usa `cargo test --lib`; ejecutar los nuevos targets
+   de integración explícitamente o adaptar su cobertura en el runner. Medir antes/después.
+   El inventario de partida de las cuatro suites era 48429 líneas y 925 anotaciones de test
+   incluyendo raíces; los 44665 históricos no eran el total actual.
 3. Terminar B7 y las demás responsabilidades de `wow-world` de #1233, incluidos consumidores,
    ownership, módulos y tests; comprobar ambos criterios semántico y físico. La arquitectura
    restante de #584 y C/D/E sigue su orden por dependencias; mantener #584 → #583 → #153.
@@ -215,8 +236,9 @@ no cierra la macro ni justifica una PR parcial.
    el objetivo ordinario. PR/publicación/merge conservan sus autoridades.
 
 Al retomar, leer esta entrada, inspeccionar el diff local y procesos activos y actualizar aquí
-el estado real, evidencia y siguiente paso. No crear otro plan o handoff paralelo. La revisión,
-la configuración y esta documentación están hechas; los arreglos y la aceptación siguen pendientes.
+el estado real, evidencia y siguiente paso. No crear otro plan o handoff paralelo. El piloto B3
+está comprometido y verde en feedback local; las demás suites, B7, la macro y su aceptación
+siguen pendientes.
 
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
