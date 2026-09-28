@@ -346,7 +346,3 @@ inventory::submit! {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 // ── Handler implementations ───────────────────────────────────────────────────
-
-#[cfg(test)]
-#[path = "group_tests.rs"]
-mod tests;

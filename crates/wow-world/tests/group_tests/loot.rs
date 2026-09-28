@@ -51,7 +51,7 @@ async fn party_invite_closed_command_channel_rolls_back_pending_like_cpp() {
     let target = ObjectGuid::create_player(1, 77);
     let target_name = format!("Player{}", target.low_value());
     session.set_player_guid(Some(inviter));
-    session.set_loaded_player_name_like_cpp("Leader".to_string());
+    set_loaded_player_name_like_cpp(&mut session, "Leader".to_string());
 
     let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let (target_send_tx, target_send_rx) = bounded(8);
@@ -90,7 +90,7 @@ async fn lfg_uninvite_target_loot_rolls_returns_code_without_removal_like_cpp() 
     let (target_tx, _target_rx) = flume::bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
     target_info.active_loot_rolls.push(
-        crate::session::mailbox::LootRollCommandIdentityLikeCpp::new_like_cpp(
+        wow_world::session::mailbox::LootRollCommandIdentityLikeCpp::new_like_cpp(
             ObjectGuid::create_item(1, 9001),
             1,
             wow_loot::OwnedLootAuthority::default(),
@@ -128,7 +128,7 @@ async fn set_loot_method_is_represented_noop_like_this_cpp_branch() {
     group.master_looter_guid = original_master;
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
     session
@@ -144,20 +144,20 @@ async fn set_loot_method_is_represented_noop_like_this_cpp_branch() {
 async fn opt_out_of_loot_sets_pass_on_group_loot_like_cpp() {
     let (mut session, send_rx) = make_session_with_send();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
-    assert!(!session.pass_on_group_loot);
+    assert!(!pass_on_group_loot_for_test_like_cpp(&session));
 
     session
         .handle_opt_out_of_loot(opt_out_of_loot_packet(true))
         .await;
 
-    assert!(session.pass_on_group_loot);
+    assert!(pass_on_group_loot_for_test_like_cpp(&session));
     assert!(send_rx.try_recv().is_err());
 
     session
         .handle_opt_out_of_loot(opt_out_of_loot_packet(false))
         .await;
 
-    assert!(!session.pass_on_group_loot);
+    assert!(!pass_on_group_loot_for_test_like_cpp(&session));
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]
@@ -168,7 +168,7 @@ async fn opt_out_of_loot_without_loaded_player_is_ignored_like_cpp() {
         .handle_opt_out_of_loot(opt_out_of_loot_packet(true))
         .await;
 
-    assert!(!session.pass_on_group_loot);
+    assert!(!pass_on_group_loot_for_test_like_cpp(&session));
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]
@@ -208,7 +208,7 @@ async fn random_roll_ignores_party_index_for_home_group_lookup_like_cpp() {
     player_registry.register_or_replace(other, broadcast_info(other, other_tx), Default::default());
 
     session.set_player_guid(Some(sender));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 

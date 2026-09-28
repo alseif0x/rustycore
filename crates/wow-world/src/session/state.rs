@@ -725,9 +725,9 @@ pub struct WorldSession {
     // membership and Player-owned update sequences live on canonical Player.
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) group_guid: Option<u64>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_subgroup_like_cpp: Option<u8>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_group_update_sequences_like_cpp:
         [wow_entities::PlayerGroupUpdateSequenceLikeCpp;
             wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP as usize],

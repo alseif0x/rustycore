@@ -26,7 +26,7 @@ async fn party_invite_low_level_friend_port_preserves_ignore_then_friend_order_l
     );
 
     session.set_player_guid(Some(inviter));
-    session.set_loaded_player_identity_like_cpp(0, 1, 1, 1, 0);
+    set_loaded_player_identity_like_cpp(&mut session, 0, 1, 1, 1, 0);
     session.set_party_level_req_like_cpp(2);
     session.set_player_registry(player_registry);
     session.set_group_registry(
@@ -67,7 +67,7 @@ async fn party_invite_rejects_same_map_different_instances_like_cpp() {
     let pending_invites = Arc::new(PendingInvites::default());
 
     session.set_player_guid(Some(inviter));
-    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    set_loaded_player_identity_like_cpp(&mut session, 571, 1, 1, 80, 0);
     session.set_player_registry(player_registry);
     session.set_group_registry(
         Arc::new(GroupRegistry::default()),
@@ -127,8 +127,8 @@ async fn party_invite_rejects_instance_difficulty_mismatch_like_cpp() {
     let pending_invites = Arc::new(PendingInvites::default());
 
     session.set_player_guid(Some(inviter));
-    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
-    session.set_represented_dungeon_difficulty_id_for_test_like_cpp(1);
+    set_loaded_player_identity_like_cpp(&mut session, 571, 1, 1, 80, 0);
+    set_represented_dungeon_difficulty_id_for_test_like_cpp(&mut session, 1);
     session.set_player_registry(player_registry);
     session.set_group_registry(
         Arc::new(GroupRegistry::default()),
@@ -193,7 +193,7 @@ async fn party_invite_response_party_index_mismatch_keeps_invite_pending_like_cp
         "PartyIndex INSTANCE must not add the invitee to the HOME group"
     );
     assert!(send_rx.try_recv().is_err());
-    assert!(session.group_guid.is_none());
+    assert!(group_guid_for_test_like_cpp(&session).is_none());
 }
 #[tokio::test]
 async fn party_invite_response_reports_group_full_without_adding_member_like_cpp() {
@@ -241,7 +241,7 @@ async fn party_invite_response_reports_group_full_without_adding_member_like_cpp
         wow_social::group::MAX_GROUP_SIZE_LIKE_CPP
     );
     assert!(!group.members.contains(&target));
-    assert!(session.group_guid.is_none());
+    assert!(group_guid_for_test_like_cpp(&session).is_none());
 }
 #[tokio::test]
 async fn party_invite_response_add_member_failure_returns_silently_like_cpp() {
@@ -285,7 +285,7 @@ async fn party_invite_response_add_member_failure_returns_silently_like_cpp() {
         .expect("group remains registered");
     assert_eq!(group.members, vec![leader]);
     assert!(!group.members.contains(&target));
-    assert!(session.group_guid.is_none());
+    assert!(group_guid_for_test_like_cpp(&session).is_none());
 }
 #[tokio::test]
 async fn leave_group_party_index_instance_does_not_leave_home_group_like_cpp() {
@@ -301,7 +301,7 @@ async fn leave_group_party_index_instance_does_not_leave_home_group_like_cpp() {
     group_registry.register_group_like_cpp(home_group_guid, home_group);
 
     session.set_player_guid(Some(leaving_guid));
-    session.group_guid = Some(home_group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(home_group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -319,7 +319,7 @@ async fn leave_group_party_index_instance_does_not_leave_home_group_like_cpp() {
             .contains(&leaving_guid),
         "PartyIndex INSTANCE must not resolve and leave the HOME group"
     );
-    assert_eq!(session.group_guid, Some(home_group_guid));
+    assert_eq!(group_guid_for_test_like_cpp(&session), Some(home_group_guid));
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]
@@ -333,7 +333,7 @@ async fn normal_group_uninvite_in_battleground_returns_invite_restricted_like_cp
     assert!(group.add_member(target));
     let (mut session, send_rx, group_registry, group_guid) =
         lfg_uninvite_session_like_cpp(group, leader);
-    session.set_player_battleground_type_id_like_cpp(1);
+    set_player_battleground_type_id_like_cpp(&mut session, 1);
 
     session
         .handle_party_uninvite(party_uninvite_packet(target, None, "bye"))
@@ -377,7 +377,7 @@ async fn party_uninvite_disband_sends_destroyed_party_update_like_cpp() {
     group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(leader));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(
         Arc::clone(&group_registry),
@@ -391,7 +391,7 @@ async fn party_uninvite_disband_sends_destroyed_party_update_like_cpp() {
     // C++ `Group::RemoveMember` disbands a two-member group instead of
     // keeping it alive (`Group.cpp:660-663`).
     assert!(group_registry.get(&group_guid).is_none());
-    assert_eq!(session.group_guid, None);
+    assert_eq!(group_guid_for_test_like_cpp(&session), None);
 
     let command = target_command_rx.try_recv().unwrap();
     let SessionCommand::ApplyGroupRemovalLikeCpp(command) = command else {
@@ -406,7 +406,18 @@ async fn party_uninvite_disband_sends_destroyed_party_update_like_cpp() {
     let mut update_index = None;
     let mut destroyed_update = None;
     let mut index = 0usize;
-    while let Ok(bytes) = send_rx.try_recv() {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
+    while destroyed_index.is_none() || update_index.is_none() {
+        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+        let bytes = send_rx.recv_timeout(remaining).unwrap_or_else(|error| {
+            let missing = match (destroyed_index.is_none(), update_index.is_none()) {
+                (true, true) => "GroupDestroyed and PartyUpdate",
+                (true, false) => "GroupDestroyed",
+                (false, true) => "PartyUpdate",
+                (false, false) => unreachable!(),
+            };
+            panic!("timed out waiting for leader {missing}: {error}");
+        });
         let opcode = WorldPacket::from_bytes(&bytes).server_opcode();
         if opcode == Some(ServerOpcodes::GroupDestroyed) {
             destroyed_index = Some(index);
@@ -459,7 +470,7 @@ async fn party_uninvite_non_leader_rejects_with_cpp_result() {
     group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(sender));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -506,7 +517,7 @@ async fn party_uninvite_removes_pending_group_invite_like_cpp() {
     );
 
     session.set_player_guid(Some(leader));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(Arc::clone(&group_registry), Arc::clone(&pending_invites));
 
@@ -547,7 +558,7 @@ fn party_member_full_state_carries_phase_states_like_cpp() {
     );
     let canonical = bind_canonical_party_players_like_cpp(&registry, [leader, member]);
     assert!(
-        crate::canonical_player_access::with_canonical_player_at_mut_like_cpp(
+        with_canonical_player_at_mut_like_cpp(
             &canonical,
             member,
             0,
@@ -666,7 +677,7 @@ async fn raid_target_symbol_out_of_range_does_not_mutate_or_fanout_like_cpp() {
     );
 
     session.set_player_guid(Some(leader));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -712,7 +723,7 @@ async fn raid_target_non_raid_regular_member_can_set_icon_like_cpp() {
     );
 
     session.set_player_guid(Some(member));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -770,7 +781,7 @@ async fn raid_target_raid_regular_member_rejected_but_assistant_allowed_like_cpp
     );
 
     session.set_player_guid(Some(assistant));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -829,7 +840,7 @@ async fn raid_target_duplicate_target_clears_old_icon_before_final_update_like_c
     );
 
     session.set_player_guid(Some(leader));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 

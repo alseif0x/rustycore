@@ -104,20 +104,20 @@ async fn represented_group_persistence_seam_preserves_intent_order_and_sequentia
     );
     session.set_represented_group_persistence_port_like_cpp(port.clone());
 
-    session
-        .persist_group_intents_like_cpp(
-            99,
-            vec![
-                wow_social::group::GroupPersistenceIntentLikeCpp::DeleteMember {
-                    member_guid: ObjectGuid::create_player(1, 42),
-                },
-                wow_social::group::GroupPersistenceIntentLikeCpp::UpdateLeader {
-                    db_store_id: 99,
-                    leader_guid: ObjectGuid::create_player(1, 77),
-                },
-            ],
-        )
-        .await;
+    persist_group_intents_like_cpp(
+        &session,
+        99,
+        vec![
+            wow_social::group::GroupPersistenceIntentLikeCpp::DeleteMember {
+                member_guid: ObjectGuid::create_player(1, 42),
+            },
+            wow_social::group::GroupPersistenceIntentLikeCpp::UpdateLeader {
+                db_store_id: 99,
+                leader_guid: ObjectGuid::create_player(1, 77),
+            },
+        ],
+    )
+    .await;
 
     assert_eq!(
         port.requests.lock().unwrap().as_slice(),
@@ -146,12 +146,12 @@ async fn represented_group_persistence_seam_accepts_typed_prefix_failure_without
     );
     session.set_represented_group_persistence_port_like_cpp(port.clone());
 
-    session
-        .persist_group_intents_like_cpp(
-            99,
-            vec![wow_social::group::GroupPersistenceIntentLikeCpp::DeleteGroup { db_store_id: 99 }],
-        )
-        .await;
+    persist_group_intents_like_cpp(
+        &session,
+        99,
+        vec![wow_social::group::GroupPersistenceIntentLikeCpp::DeleteGroup { db_store_id: 99 }],
+    )
+    .await;
 
     assert_eq!(port.requests.lock().unwrap().len(), 1);
 }
@@ -194,7 +194,7 @@ async fn leave_group_disband_queues_remote_group_removal_like_cpp() {
     group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(leaving_guid));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -243,7 +243,7 @@ async fn party_invite_party_index_instance_does_not_use_full_home_group_like_cpp
 
     let pending_invites = Arc::new(PendingInvites::default());
     session.set_player_guid(Some(inviter));
-    session.group_guid = Some(home_group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(home_group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(Arc::clone(&group_registry), Arc::clone(&pending_invites));
 
@@ -275,7 +275,7 @@ async fn party_invite_server_uses_cpp_inviter_values_like_cpp() {
     let inviter_name = "Leader";
 
     session.set_player_guid(Some(inviter));
-    session.set_loaded_player_name_like_cpp(inviter_name.to_string());
+    set_loaded_player_name_like_cpp(&mut session, inviter_name.to_string());
     session.set_realm_handle_like_cpp(5, 6, 9);
     session.set_realm_names_like_cpp([(
         0x0506_0009,
@@ -347,12 +347,12 @@ async fn party_invite_server_uses_cpp_inviter_values_like_cpp() {
 async fn party_invite_and_result_route_through_realm_like_cpp() {
     let (mut session, instance_rx) = make_session_with_send();
     let (realm_tx, realm_rx) = bounded(8);
-    session.install_realm_send_channel_for_test(realm_tx);
+    install_realm_send_channel_for_test(&mut session, realm_tx);
     let inviter = ObjectGuid::create_player(1, 42);
     let target = ObjectGuid::create_player(1, 77);
     let target_name = format!("Player{}", target.low_value());
     session.set_player_guid(Some(inviter));
-    session.set_loaded_player_name_like_cpp("Leader".to_string());
+    set_loaded_player_name_like_cpp(&mut session, "Leader".to_string());
 
     let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let (target_instance_tx, target_instance_rx) = bounded(8);
@@ -398,7 +398,7 @@ async fn party_invite_waits_through_command_backpressure_like_cpp() {
     let target = ObjectGuid::create_player(1, 77);
     let target_name = format!("Player{}", target.low_value());
     session.set_player_guid(Some(inviter));
-    session.set_loaded_player_name_like_cpp("Leader".to_string());
+    set_loaded_player_name_like_cpp(&mut session, "Leader".to_string());
 
     let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let (target_send_tx, target_send_rx) = bounded(8);
@@ -531,7 +531,7 @@ async fn party_invite_non_leader_rejects_not_leader_like_cpp() {
     group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(inviter));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(
         Arc::clone(&group_registry),
@@ -614,7 +614,7 @@ async fn party_invite_raid_with_five_members_is_not_full_like_cpp() {
     let pending_invites = Arc::new(PendingInvites::default());
 
     session.set_player_guid(Some(inviter));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(Arc::clone(&group_registry), Arc::clone(&pending_invites));
 
@@ -640,7 +640,7 @@ async fn party_invite_rejects_gm_target_like_cpp_default_config() {
     let mut target_info = broadcast_info(target, target_tx);
     player_registry.register_or_replace(target, target_info, Default::default());
     let canonical = bind_canonical_party_players_like_cpp(&player_registry, [target]);
-    crate::canonical_player_access::with_canonical_player_at_mut_like_cpp(
+    with_canonical_player_at_mut_like_cpp(
         &canonical,
         target,
         0,
@@ -651,7 +651,7 @@ async fn party_invite_rejects_gm_target_like_cpp_default_config() {
     let pending_invites = Arc::new(PendingInvites::default());
 
     session.set_player_guid(Some(inviter));
-    session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
+    set_loaded_player_identity_like_cpp(&mut session, 0, 1, 1, 80, 0);
     session.set_player_registry(player_registry);
     session.set_group_registry(
         Arc::new(GroupRegistry::default()),
@@ -684,7 +684,7 @@ async fn party_invite_rejects_cross_faction_like_cpp_default_config() {
     let pending_invites = Arc::new(PendingInvites::default());
 
     session.set_player_guid(Some(inviter));
-    session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
+    set_loaded_player_identity_like_cpp(&mut session, 0, 1, 1, 80, 0);
     session.set_player_registry(player_registry);
     session.set_group_registry(
         Arc::new(GroupRegistry::default()),
@@ -714,7 +714,7 @@ async fn party_invite_allows_gm_target_when_cpp_config_enabled() {
     let mut target_info = broadcast_info(target, target_tx);
     player_registry.register_or_replace(target, target_info, Default::default());
     let canonical = bind_canonical_party_players_like_cpp(&player_registry, [target]);
-    crate::canonical_player_access::with_canonical_player_at_mut_like_cpp(
+    with_canonical_player_at_mut_like_cpp(
         &canonical,
         target,
         0,
@@ -725,7 +725,7 @@ async fn party_invite_allows_gm_target_when_cpp_config_enabled() {
     let pending_invites = Arc::new(PendingInvites::default());
 
     session.set_player_guid(Some(inviter));
-    session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
+    set_loaded_player_identity_like_cpp(&mut session, 0, 1, 1, 80, 0);
     session.set_allow_gm_group_like_cpp(true);
     session.set_player_registry(player_registry);
     session.set_group_registry(
@@ -758,7 +758,7 @@ async fn party_invite_allows_cross_faction_when_cpp_config_enabled() {
     let pending_invites = Arc::new(PendingInvites::default());
 
     session.set_player_guid(Some(inviter));
-    session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
+    set_loaded_player_identity_like_cpp(&mut session, 0, 1, 1, 80, 0);
     let policy = GroupInvitePolicyLikeCpp {
         allow_two_side_interaction: true,
         ..GroupInvitePolicyLikeCpp::default()
@@ -769,12 +769,12 @@ async fn party_invite_allows_cross_faction_when_cpp_config_enabled() {
         Arc::clone(&pending_invites),
     );
 
-    session
-        .handle_party_invite_with_policy_like_cpp(
-            party_invite_packet(target, &target_name, None, 0),
-            &policy,
-        )
-        .await;
+    handle_party_invite_with_policy_like_cpp(
+        &mut session,
+        party_invite_packet(target, &target_name, None, 0),
+        &policy,
+    )
+    .await;
 
     assert!(pending_invites.get(&target).is_some());
     assert!(party_invite_can_accept(&recv_dispatched_packet(
@@ -799,7 +799,7 @@ async fn party_invite_rejects_low_level_non_friend_like_cpp() {
     let pending_invites = Arc::new(PendingInvites::default());
 
     session.set_player_guid(Some(inviter));
-    session.set_loaded_player_identity_like_cpp(0, 1, 1, 1, 0);
+    set_loaded_player_identity_like_cpp(&mut session, 0, 1, 1, 1, 0);
     let policy = GroupInvitePolicyLikeCpp {
         minimum_level: 2,
         ..GroupInvitePolicyLikeCpp::default()
@@ -810,12 +810,12 @@ async fn party_invite_rejects_low_level_non_friend_like_cpp() {
         Arc::clone(&pending_invites),
     );
 
-    session
-        .handle_party_invite_with_policy_like_cpp(
-            party_invite_packet(target, &target_name, None, 0),
-            &policy,
-        )
-        .await;
+    handle_party_invite_with_policy_like_cpp(
+        &mut session,
+        party_invite_packet(target, &target_name, None, 0),
+        &policy,
+    )
+    .await;
 
     assert_eq!(
         party_command_result_code(&send_rx.try_recv().expect("party command result")),
@@ -845,7 +845,7 @@ async fn party_invite_ignore_port_short_circuits_friend_lookup_like_cpp() {
     );
 
     session.set_player_guid(Some(inviter));
-    session.set_loaded_player_identity_like_cpp(0, 1, 1, 1, 0);
+    set_loaded_player_identity_like_cpp(&mut session, 0, 1, 1, 1, 0);
     session.set_party_level_req_like_cpp(2);
     session.set_player_registry(player_registry);
     session.set_group_registry(

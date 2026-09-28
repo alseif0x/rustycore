@@ -493,7 +493,7 @@ impl WorldSession {
     pub(crate) fn resolved_pass_on_group_loot_like_cpp(&self) -> Option<bool> {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.pass_on_group_loot_like_cpp());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(self.pass_on_group_loot);
         }
@@ -503,7 +503,7 @@ impl WorldSession {
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| player.set_pass_on_group_loot_like_cpp(value))
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none() {
             self.pass_on_group_loot = value;
             return true;

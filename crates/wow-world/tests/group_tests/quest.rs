@@ -18,7 +18,7 @@ async fn raid_target_list_request_sends_all_icons_to_caller_without_mutation_lik
     group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(leader));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
     session
@@ -104,7 +104,7 @@ async fn request_party_member_stats_offline_replies_only_to_requester_like_cpp()
 async fn request_party_member_stats_routes_reply_through_realm_like_cpp() {
     let (mut session, instance_rx) = make_session_with_send();
     let (realm_tx, realm_rx) = bounded(4);
-    session.install_realm_send_channel_for_test(realm_tx);
+    install_realm_send_channel_for_test(&mut session, realm_tx);
     let target = ObjectGuid::create_player(1, 77);
     session.set_player_registry(Arc::new(
         PlayerRegistry::with_canonical_player_fixtures_like_cpp(),
@@ -148,9 +148,9 @@ async fn request_party_member_stats_online_replies_snapshot_without_fanout_like_
     player.unit_mut().replace_all_pvp_flags_like_cpp(
         wow_constants::UnitPvpFlags::PVP | wow_constants::UnitPvpFlags::FFA_PVP,
     );
-    player.set_player_flag(crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP);
-    player.set_player_flag(crate::session::PLAYER_FLAGS_AFK_LIKE_CPP);
-    player.set_player_flag(crate::session::PLAYER_FLAGS_DND_LIKE_CPP);
+    player.set_player_flag(wow_world::test_fixtures::PLAYER_FLAGS_GHOST_LIKE_CPP);
+    player.set_player_flag(wow_world::test_fixtures::PLAYER_FLAGS_AFK_LIKE_CPP);
+    player.set_player_flag(wow_world::test_fixtures::PLAYER_FLAGS_DND_LIKE_CPP);
     player.set_primary_specialization(260);
     let pet_guid =
         ObjectGuid::create_world_object(wow_core::guid::HighGuid::Pet, 0, 1, 571, 0, 42_000, 100);
@@ -303,7 +303,7 @@ async fn silence_party_talker_leader_records_request_before_cpp_todo_boundary() 
     group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(leader));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     session
@@ -311,10 +311,13 @@ async fn silence_party_talker_leader_records_request_before_cpp_todo_boundary() 
         .await;
 
     assert!(send_rx.try_recv().is_err());
-    assert_eq!(session.represented_silence_party_talker_like_cpp().len(), 1);
     assert_eq!(
-        session.represented_silence_party_talker_like_cpp()[0].target,
+        wow_world::test_fixtures::represented_silence_party_talker_like_cpp(&session).len(),
+        1
+    );
+    assert_eq!(
+        wow_world::test_fixtures::represented_silence_party_talker_like_cpp(&session)[0].0,
         target
     );
-    assert!(session.represented_silence_party_talker_like_cpp()[0].silent);
+    assert!(wow_world::test_fixtures::represented_silence_party_talker_like_cpp(&session)[0].1);
 }

@@ -239,7 +239,7 @@ async fn initiate_role_poll_rejects_regular_member_without_fanout_like_cpp() {
     );
 
     session.set_player_guid(Some(member));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -280,7 +280,7 @@ async fn initiate_role_poll_allows_leader_and_assistant_and_sends_connected_memb
     );
 
     session.set_player_guid(Some(assistant));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -327,7 +327,7 @@ async fn set_everyone_is_assistant_leader_applies_to_all_members_and_fans_out_li
     );
 
     session.set_player_guid(Some(leader));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -386,7 +386,7 @@ async fn set_everyone_is_assistant_leader_clears_all_members_and_fans_out_like_c
     );
 
     session.set_player_guid(Some(leader));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -435,7 +435,7 @@ async fn set_everyone_is_assistant_rejects_non_leader_without_mutation_or_fanout
     );
 
     session.set_player_guid(Some(member));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -484,7 +484,7 @@ async fn set_everyone_is_assistant_idempotent_still_fans_out_like_cpp() {
     );
 
     session.set_player_guid(Some(leader));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -526,7 +526,7 @@ async fn set_assistant_leader_rejects_non_leader_even_if_assistant_like_cpp() {
     );
 
     session.set_player_guid(Some(assistant));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 

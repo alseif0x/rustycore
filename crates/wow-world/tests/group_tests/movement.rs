@@ -39,7 +39,7 @@ async fn party_uninvite_leader_queues_remote_remove_member_cleanup_like_cpp() {
     group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(leader));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(
         Arc::clone(&group_registry),

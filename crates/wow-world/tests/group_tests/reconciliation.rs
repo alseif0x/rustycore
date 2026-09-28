@@ -14,8 +14,8 @@
 
 use super::*;
 
-use crate::session::SessionState;
-use crate::session::mailbox::{ApplyGroupRemovalLikeCppCommand, ApplyGroupSubgroupLikeCppCommand};
+use wow_world::session::SessionState;
+use wow_world::session::mailbox::{ApplyGroupRemovalLikeCppCommand, ApplyGroupSubgroupLikeCppCommand};
 
 /// One kick/disband scenario: a leader that acts and a target whose mailbox
 /// is already saturated by the time the group authority reaches it.
@@ -97,7 +97,7 @@ fn group_reconciliation_fixture_like_cpp(
 
     let (mut leader_session, _leader_send_rx) = make_session_with_send();
     leader_session.set_player_guid(Some(leader));
-    leader_session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut leader_session, Some(group_guid));
     leader_session.set_player_registry(Arc::clone(&player_registry));
     leader_session.set_group_registry(
         Arc::clone(&group_registry),
@@ -119,7 +119,7 @@ fn group_reconciliation_fixture_like_cpp(
         target_pkt_rx,
         target_socket_tx,
     );
-    target_session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
+    set_loaded_player_identity_like_cpp(&mut target_session, 0, 1, 1, 80, 0);
     target_session.set_player_guid(Some(target));
     target_session.set_canonical_map_manager(canonical);
     target_session.set_player_registry(Arc::clone(&player_registry));
@@ -129,15 +129,15 @@ fn group_reconciliation_fixture_like_cpp(
     );
     target_session.set_state(SessionState::LoggedIn);
     assert!(
-        target_session.adopt_registered_canonical_player_fixture_like_cpp(),
+        adopt_registered_canonical_player_fixture_like_cpp(&mut target_session),
         "target session must own its canonical Player"
     );
     assert!(
-        target_session.set_owned_player_group_like_cpp(Some((group_guid, 0))),
+        set_owned_player_group_like_cpp(&mut target_session, Some((group_guid, 0))),
         "target must start inside the group like C++ `Player::SetGroup`"
     );
     assert_eq!(
-        target_session.resolved_group_guid_like_cpp(),
+        resolved_group_guid_like_cpp(&target_session),
         Some(group_guid)
     );
 
@@ -194,13 +194,13 @@ async fn saturated_kick_reconciles_the_target_group_state_like_cpp() {
     );
     // Not yet applied: this is exactly the state C++ never reaches.
     assert_eq!(
-        fixture.target_session.resolved_group_guid_like_cpp(),
+        resolved_group_guid_like_cpp(&fixture.target_session),
         Some(fixture.group_guid)
     );
 
-    assert!(fixture.target_session.reconcile_group_state_like_cpp());
+    assert!(reconcile_group_state_like_cpp(&mut fixture.target_session));
 
-    assert_eq!(fixture.target_session.resolved_group_guid_like_cpp(), None);
+    assert_eq!(resolved_group_guid_like_cpp(&fixture.target_session), None);
     assert!(
         !fixture
             .player_registry
@@ -226,10 +226,10 @@ async fn reconciliation_runs_once_per_recorded_obligation_like_cpp() {
         .leader_session
         .handle_party_uninvite(party_uninvite_packet(fixture.target, None, "bye"))
         .await;
-    assert!(fixture.target_session.reconcile_group_state_like_cpp());
+    assert!(reconcile_group_state_like_cpp(&mut fixture.target_session));
     let _ = drain_opcodes(&fixture.target_send_rx);
 
-    assert!(!fixture.target_session.reconcile_group_state_like_cpp());
+    assert!(!reconcile_group_state_like_cpp(&mut fixture.target_session));
     assert!(drain_opcodes(&fixture.target_send_rx).is_empty());
 }
 
@@ -242,7 +242,7 @@ async fn delivered_removal_after_reconciliation_does_not_publish_twice_like_cpp(
         .leader_session
         .handle_party_uninvite(party_uninvite_packet(fixture.target, None, "bye"))
         .await;
-    assert!(fixture.target_session.reconcile_group_state_like_cpp());
+    assert!(reconcile_group_state_like_cpp(&mut fixture.target_session));
     let _ = drain_opcodes(&fixture.target_send_rx);
 
     fixture
@@ -259,12 +259,12 @@ async fn delivered_removal_after_reconciliation_does_not_publish_twice_like_cpp(
             },
         ))
         .expect("own mailbox accepts the late command");
-    fixture
-        .target_session
-        .process_represented_session_commands_like_cpp()
+    wow_world::test_fixtures::process_represented_session_commands_like_cpp(
+        &mut fixture.target_session,
+    )
         .await;
 
-    assert_eq!(fixture.target_session.resolved_group_guid_like_cpp(), None);
+    assert_eq!(resolved_group_guid_like_cpp(&fixture.target_session), None);
     assert!(
         drain_opcodes(&fixture.target_send_rx).is_empty(),
         "the late command finds the snapshot converged and publishes nothing"
@@ -290,9 +290,9 @@ async fn saturated_disband_reconciles_the_remaining_member_like_cpp() {
             .group_state_reconciliation_pending_like_cpp(fixture.target)
     );
 
-    assert!(fixture.target_session.reconcile_group_state_like_cpp());
+    assert!(reconcile_group_state_like_cpp(&mut fixture.target_session));
 
-    assert_eq!(fixture.target_session.resolved_group_guid_like_cpp(), None);
+    assert_eq!(resolved_group_guid_like_cpp(&fixture.target_session), None);
     let opcodes = drain_opcodes(&fixture.target_send_rx);
     assert!(
         opcodes.contains(&(ServerOpcodes::GroupDestroyed as u16)),
@@ -326,13 +326,13 @@ async fn obsolete_removal_after_rejoining_the_same_group_is_ignored_like_cpp() {
             },
         ))
         .expect("own mailbox");
-    fixture
-        .target_session
-        .process_represented_session_commands_like_cpp()
+    wow_world::test_fixtures::process_represented_session_commands_like_cpp(
+        &mut fixture.target_session,
+    )
         .await;
 
     assert_eq!(
-        fixture.target_session.resolved_group_guid_like_cpp(),
+        resolved_group_guid_like_cpp(&fixture.target_session),
         Some(group_guid),
         "an obsolete removal must not revoke a membership the authority holds"
     );
@@ -358,13 +358,13 @@ async fn removal_for_another_group_leaves_current_membership_alone_like_cpp() {
             },
         ))
         .expect("own mailbox");
-    fixture
-        .target_session
-        .process_represented_session_commands_like_cpp()
+    wow_world::test_fixtures::process_represented_session_commands_like_cpp(
+        &mut fixture.target_session,
+    )
         .await;
 
     assert_eq!(
-        fixture.target_session.resolved_group_guid_like_cpp(),
+        resolved_group_guid_like_cpp(&fixture.target_session),
         Some(fixture.group_guid)
     );
 }
@@ -424,8 +424,8 @@ async fn replaced_session_incarnation_reconciles_group_state_like_cpp() {
         )
         .expect("authority removal");
 
-    assert!(fixture.target_session.reconcile_group_state_like_cpp());
-    assert_eq!(fixture.target_session.resolved_group_guid_like_cpp(), None);
+    assert!(reconcile_group_state_like_cpp(&mut fixture.target_session));
+    assert_eq!(resolved_group_guid_like_cpp(&fixture.target_session), None);
     // The successor publishes the teardown on its own socket; the retired
     // incarnation's address received nothing.
     let opcodes = drain_opcodes(&fixture.target_send_rx);
@@ -515,9 +515,9 @@ async fn group_command_dropped_before_login_defers_reconciliation_like_cpp() {
             },
         ))
         .expect("own mailbox");
-    fixture
-        .target_session
-        .process_represented_session_commands_like_cpp()
+    wow_world::test_fixtures::process_represented_session_commands_like_cpp(
+        &mut fixture.target_session,
+    )
         .await;
 
     assert!(
@@ -527,7 +527,7 @@ async fn group_command_dropped_before_login_defers_reconciliation_like_cpp() {
         "an ineligible phase must defer the change, not discard it"
     );
     // The mark survives a reconciliation attempt that is still ineligible.
-    assert!(!fixture.target_session.reconcile_group_state_like_cpp());
+    assert!(!reconcile_group_state_like_cpp(&mut fixture.target_session));
     assert!(
         fixture
             .player_registry
@@ -544,8 +544,8 @@ async fn group_command_dropped_before_login_defers_reconciliation_like_cpp() {
             &[],
         )
         .expect("authority removal");
-    assert!(fixture.target_session.reconcile_group_state_like_cpp());
-    assert_eq!(fixture.target_session.resolved_group_guid_like_cpp(), None);
+    assert!(reconcile_group_state_like_cpp(&mut fixture.target_session));
+    assert_eq!(resolved_group_guid_like_cpp(&fixture.target_session), None);
 }
 
 /// A saturated subgroup change converges on the authority's subgroup.
@@ -566,14 +566,14 @@ async fn saturated_subgroup_change_reconciles_like_cpp() {
         .player_registry
         .mark_group_state_reconciliation_like_cpp(fixture.target);
 
-    assert!(fixture.target_session.reconcile_group_state_like_cpp());
+    assert!(reconcile_group_state_like_cpp(&mut fixture.target_session));
 
     assert_eq!(
-        fixture.target_session.resolved_group_guid_like_cpp(),
+        resolved_group_guid_like_cpp(&fixture.target_session),
         Some(group_guid)
     );
     assert_eq!(
-        fixture.target_session.represented_subgroup_like_cpp(),
+        represented_subgroup_like_cpp(&fixture.target_session),
         Some(3)
     );
 }
@@ -594,13 +594,13 @@ async fn subgroup_command_for_another_group_defers_reconciliation_like_cpp() {
             },
         ))
         .expect("own mailbox");
-    fixture
-        .target_session
-        .process_represented_session_commands_like_cpp()
+    wow_world::test_fixtures::process_represented_session_commands_like_cpp(
+        &mut fixture.target_session,
+    )
         .await;
 
     assert_eq!(
-        fixture.target_session.represented_subgroup_like_cpp(),
+        represented_subgroup_like_cpp(&fixture.target_session),
         Some(0)
     );
     assert!(
@@ -628,11 +628,9 @@ async fn reconciliation_converges_group_difficulty_like_cpp() {
         .player_registry
         .mark_group_state_reconciliation_like_cpp(fixture.target);
 
-    assert!(fixture.target_session.reconcile_group_state_like_cpp());
+    assert!(reconcile_group_state_like_cpp(&mut fixture.target_session));
     assert_eq!(
-        fixture
-            .target_session
-            .resolved_dungeon_difficulty_id_like_cpp(),
+        resolved_dungeon_difficulty_id_like_cpp(&fixture.target_session),
         Some(2)
     );
     let opcodes = drain_opcodes(&fixture.target_send_rx);

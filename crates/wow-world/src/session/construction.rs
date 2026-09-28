@@ -367,9 +367,9 @@ impl WorldSession {
             directory: SessionDirectory::default(),
             #[cfg(any(test, feature = "test-fixtures"))]
             group_guid: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             represented_subgroup_like_cpp: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             represented_group_update_sequences_like_cpp: std::array::from_fn(|_| {
                 Default::default()
             }),

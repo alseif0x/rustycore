@@ -7,17 +7,30 @@
 //! drops their trailing commas; that is the only difference from the original text.
 #![cfg(test)]
 
-use super::{
+use wow_world::test_fixtures::{
     PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP, current_group_guid_like_cpp,
     first_connected_group_member_like_cpp, group_persistence_command_like_cpp,
-    party_player_info_like_cpp, send_group_new_leader_like_cpp, send_party_update,
+    install_realm_send_channel_for_test, party_player_info_like_cpp,
+    resolved_dungeon_difficulty_id_like_cpp, represented_subgroup_like_cpp,
+    send_group_new_leader_like_cpp, send_party_update,
     send_ready_check_events_like_cpp, sender_can_start_ready_check_like_cpp,
+    group_guid_for_test_like_cpp, in_combat_for_test_like_cpp,
+    pass_on_group_loot_for_test_like_cpp, set_group_guid_for_test_like_cpp,
+    set_in_combat_for_test_like_cpp, set_in_combat_like_cpp,
+    set_loaded_player_identity_like_cpp, set_loaded_player_name_like_cpp,
+    set_represented_dungeon_difficulty_id_for_test_like_cpp,
+    set_player_battleground_type_id_like_cpp, set_pass_on_group_loot_for_test_like_cpp,
+    with_canonical_player_at_mut_like_cpp,
+    adopt_registered_canonical_player_fixture_like_cpp,
+    set_owned_player_group_like_cpp, resolved_group_guid_like_cpp,
+    reconcile_group_state_like_cpp, PartyInviteSocialPortLikeCpp,
+    persist_group_intents_like_cpp, handle_party_invite_with_policy_like_cpp,
 };
-use crate::session::directory::{
+use wow_world::session::directory::{
     PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp, PlayerRegistry,
     PlayerSessionRegistrationLikeCpp,
 };
-use crate::session::mailbox::{SendRealmPacketLikeCppCommand, SessionCommand};
+use wow_world::session::mailbox::{SendRealmPacketLikeCppCommand, SessionCommand};
 use flume::bounded;
 use std::{
     sync::{Arc, Mutex},
@@ -27,21 +40,20 @@ use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
 use wow_handler::{PacketProcessing, SessionStatus};
 
-use crate::session::registry::PacketHandlerEntry;
+use wow_world::session::registry::PacketHandlerEntry;
 use wow_packet::{ServerPacket, WorldPacket, packets::party::party_result};
 use wow_persistence::{
     PersistenceFutureLikeCpp, RepresentedGroupPersistenceOutcomeLikeCpp,
     RepresentedGroupPersistencePortLikeCpp, RepresentedGroupPersistenceRequestLikeCpp,
     SocialPartyInviteLookupOutcomeLikeCpp,
 };
-use crate::handlers::group::test_support::PartyInviteSocialPortLikeCpp;
 use wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP;
 use wow_social::group::{
     GroupInfo, GroupMemberCharacterLikeCpp, GroupRegistry, PendingInviteLikeCpp, PendingInvites,
     ReadyCheckEventLikeCpp,
 };
 
-use crate::session::{GroupInvitePolicyLikeCpp, WorldSession};
+use wow_world::session::{GroupInvitePolicyLikeCpp, WorldSession};
 
 struct RecordingGroupPersistencePortLikeCpp {
     outcome: RepresentedGroupPersistenceOutcomeLikeCpp,
@@ -147,7 +159,7 @@ fn broadcast_info_with_command_tx(
         realm_send_tx: send_tx.clone(),
         send_tx,
         command_tx,
-        session_phase_tx: crate::session::directory::detached_session_phase_rail_like_cpp(),
+        session_phase_tx: wow_world::session::directory::detached_session_phase_rail_like_cpp(),
         durable_creature_runtime_commands_like_cpp: Default::default(),
         client_visible_guids_like_cpp: Default::default(),
         client_visible_transports_like_cpp: Default::default(),
@@ -159,7 +171,7 @@ fn broadcast_info_with_command_tx(
 fn bind_canonical_party_players_like_cpp(
     registry: &PlayerRegistry,
     players: impl IntoIterator<Item = ObjectGuid>,
-) -> crate::session::SharedCanonicalMapManager {
+) -> wow_world::session::SharedCanonicalMapManager {
     let canonical = registry
         .fixture_canonical_map_manager_like_cpp()
         .expect("canonical player fixture manager");
@@ -554,7 +566,7 @@ fn make_session_with_send() -> (WorldSession, flume::Receiver<Vec<u8>>) {
         pkt_rx,
         send_tx,
     );
-    session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
+    set_loaded_player_identity_like_cpp(&mut session, 0, 1, 1, 80, 0);
     (session, send_rx)
 }
 
@@ -582,7 +594,7 @@ fn lfg_uninvite_session_like_cpp(
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
     session.set_player_guid(Some(sender_guid));
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_player_registry(Arc::new(
         PlayerRegistry::with_canonical_player_fixtures_like_cpp(),
     ));

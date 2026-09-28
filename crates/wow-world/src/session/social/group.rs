@@ -182,7 +182,7 @@ impl WorldSession {
                 .as_ref()
                 .map(|group| group.group_guid.counter() as u64)
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return self.group_guid;
         }
@@ -196,7 +196,7 @@ impl WorldSession {
                 .as_ref()
                 .map(|group| group.subgroup)
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return self.represented_subgroup_like_cpp;
         }
@@ -208,7 +208,7 @@ impl WorldSession {
         &mut self,
         membership: Option<(u64, u8)>,
     ) -> bool {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none() {
             self.group_guid = membership.map(|(group_guid, _)| group_guid);
             self.represented_subgroup_like_cpp = membership.map(|(_, subgroup)| subgroup);
@@ -447,7 +447,7 @@ impl WorldSession {
         let canonical = self.with_owned_player_mut_like_cpp(|player| {
             player.reset_group_update_sequence_if_needed_like_cpp(usize::from(category), group_guid)
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             let sequence =
                 &mut self.represented_group_update_sequences_like_cpp[usize::from(category)];
@@ -473,7 +473,7 @@ impl WorldSession {
         let canonical = self.with_owned_player_mut_like_cpp(|player| {
             player.next_group_update_sequence_number_like_cpp(usize::from(category))
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             let sequence =
                 &mut self.represented_group_update_sequences_like_cpp[usize::from(category)];

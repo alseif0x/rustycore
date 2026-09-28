@@ -226,7 +226,7 @@ pub fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _vra: u32
             party_update: update,
             member_full_state_packets,
         };
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         if registry
             .try_send_current_command(
                 member_entry.registration(),
@@ -236,7 +236,7 @@ pub fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _vra: u32
         {
             warn!(member = %member_guid, "failed to queue party update for remote session");
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             registry
                 .send_current_command_blocking_timeout(
@@ -481,7 +481,7 @@ pub(super) async fn send_realm_packet_to_player_like_cpp(
             // Yielding here lets that receiver perform the same session-local
             // routing before packet assertions without adding a wrong-socket
             // production fallback.
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             tokio::task::yield_now().await;
             true
         }
@@ -520,7 +520,7 @@ pub(super) async fn send_realm_party_invite_to_player_like_cpp(
     });
     match registry.send_current_command(registration, command).await {
         Ok(()) => {
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             tokio::task::yield_now().await;
             true
         }
