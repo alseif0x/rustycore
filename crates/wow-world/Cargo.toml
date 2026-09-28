@@ -45,6 +45,8 @@ wow-social = { workspace = true }
 wow-spell-acquisition = { workspace = true }
 
 [dev-dependencies]
+# Integration tests enable the crate's own fixture surface (B3).
+wow-world = { path = ".", features = ["test-fixtures"] }
 wow-progression = { workspace = true, features = ["test-fixtures"] }
 wow-spell-acquisition = { workspace = true, features = ["test-fixtures"] }
 wow-session = { workspace = true, features = ["test-support"] }

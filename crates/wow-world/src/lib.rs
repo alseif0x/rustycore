@@ -59,3 +59,7 @@ pub use session_policy::{
 };
 
 pub use battle_pet_account::{BattlePetAccountAttachmentLikeCpp, BattlePetAccountRegistryLikeCpp};
+
+/// Fixture re-exports for the crate's integration tests (#584 B3).
+#[cfg(feature = "test-fixtures")]
+pub mod test_fixtures;

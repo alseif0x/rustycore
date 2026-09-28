@@ -50,7 +50,7 @@ mod commands;
 mod ops_1;
 mod ops_2;
 mod ops_3;
-mod state;
+pub(crate) mod state;
 #[allow(unused_imports)]
 pub use ops_1::*;
 #[allow(unused_imports)]

@@ -4,7 +4,7 @@
 
 use super::*;
 
-pub(super) const PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP: Duration = Duration::from_millis(250);
+pub const PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP: Duration = Duration::from_millis(250);
 
 /// Canonical represented group lookup matching C++ `Player::GetGroup` semantics.
 ///
@@ -23,7 +23,7 @@ pub(super) const PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP: Duration = Duration::from
 /// Boundary: RustyCore currently represents HOME groups only by default.
 /// `PartyIndex=Some(1)` / INSTANCE, original-group, BG and BF group ownership do
 /// not fall back to HOME and remain unsupported until real state exists.
-pub(super) fn current_group_guid_like_cpp(
+pub fn current_group_guid_like_cpp(
     group_reg: &GroupRegistry,
     cached_group_guid: Option<u64>,
     sender_guid: ObjectGuid,
@@ -130,7 +130,7 @@ pub(super) fn party_member_full_state_like_cpp(
     }
 }
 
-pub(super) fn party_player_info_like_cpp(
+pub fn party_player_info_like_cpp(
     group: &GroupInfo,
     registry: &PlayerRegistry,
     guid: ObjectGuid,
@@ -168,7 +168,7 @@ pub(super) fn party_player_info_like_cpp(
 /// Each member gets a `PartyUpdate` where their own `my_index` reflects their
 /// position in the member list.  A `PartyMemberFullState` is then sent for
 /// every *other* member.
-pub(super) fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _vra: u32) {
+pub fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _vra: u32) {
     // Pre-build the full PlayerList (ALL members including each receiver)
     let all_players: Vec<PartyPlayerInfo> = group
         .members
@@ -249,7 +249,7 @@ pub(super) fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _v
     }
 }
 
-pub(super) async fn send_group_new_leader_like_cpp(
+pub async fn send_group_new_leader_like_cpp(
     group: &GroupInfo,
     registry: &PlayerRegistry,
     new_leader_name: &str,
@@ -272,7 +272,7 @@ pub(super) async fn send_group_new_leader_like_cpp(
     }
 }
 
-pub(super) fn first_connected_group_member_like_cpp(
+pub fn first_connected_group_member_like_cpp(
     group: &GroupInfo,
     registry: &PlayerRegistry,
 ) -> Option<ObjectGuid> {
@@ -283,7 +283,7 @@ pub(super) fn first_connected_group_member_like_cpp(
         .find(|member_guid| registry.group_presence(*member_guid).is_some())
 }
 
-pub(super) fn sender_can_start_ready_check_like_cpp(
+pub fn sender_can_start_ready_check_like_cpp(
     group: &GroupInfo,
     sender_guid: ObjectGuid,
 ) -> bool {
@@ -377,7 +377,7 @@ pub(super) fn connected_group_members_like_cpp(
         .collect()
 }
 
-pub(super) fn send_ready_check_events_like_cpp(
+pub fn send_ready_check_events_like_cpp(
     events: &[ReadyCheckEventLikeCpp],
     group: &GroupInfo,
     registry: &PlayerRegistry,
@@ -626,7 +626,7 @@ pub(super) async fn queue_visible_gameobjects_or_spellclicks_refresh_like_cpp(
 /// `GroupRegistry` to the SQLx-free persistence vocabulary. The vector order
 /// remains the order selected by the aggregate and no registry guard survives
 /// into adapter execution.
-pub(crate) fn group_persistence_command_like_cpp(
+pub fn group_persistence_command_like_cpp(
     intent: GroupPersistenceIntentLikeCpp,
 ) -> RepresentedGroupPersistenceCommandLikeCpp {
     match intent {
