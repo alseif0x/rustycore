@@ -1413,3 +1413,32 @@ Aplicabilidad medida con `git apply --check`: 17 de 29 ficheros aplican en la ba
 mecanico: las olas A y B repartieron de nuevo el material de sesion que el parche edita, y la
 vista pertenece al trabajo de capability views de 584.
 
+### B5, primer slice ejecutado: `handlers/loot/mod.rs` de 977 a 246 lineas (2026-09-27)
+
+La nota de B5 dejo claro que la costura "extrae el modulo de test" no existia: lo que hay son items
+`#[cfg(test)]` sueltos intercalados con produccion. Este slice no toca esa cuestion: parte el
+adaptador por **familias de items**, que es lo que el presupuesto de 600 lineas exige para un
+adaptador, y deja los items gated donde estan.
+
+Seis hijos por familia, cada uno con `use super::*` (el raiz es quien expone la superficie) y
+`pub use self::X::*;` en el raiz para que ninguna ruta externa cambie:
+
+| hijo | lineas | items |
+|---|---|---|
+| `player_view.rs` | 145 | vista representada del jugador (clase, raza, equipo, quest status, faction, encantamiento) |
+| `object_state.rs` | 201 | estado de objeto de criatura y gameobject, release, conversion de items generados, decaimiento |
+| `release_and_rolls.rs` | 136 | comandos de release y ciclo de roll |
+| `reply_items.rs` | 106 | montaje de items de respuesta |
+| `disenchant.rs` | 61 | plantillas de disenchant y su elegibilidad |
+| `persistence_workers.rs` | 139 | workers de persistencia de loot |
+
+El raiz baja de **977 a 246 lineas** y conserva documentacion, imports, constantes y los helpers
+compartidos. El ensanchado que el compilador pidio fue exactamente el de la frontera de modulo: 45
+campos y 5 metodos de los structs movidos pasan a `pub`, porque un modulo hermano ya no ve lo
+privado del raiz. Ningun item cambio de texto ni de orden.
+
+Evidencia: `cargo check -p wow-world --all-targets` 0 errores; `cargo test -p wow-world loot`
+**326 pasan / 0 fallan**; `cargo fmt --all --check` limpio; `check_architecture.py check` PASS en
+los cuatro. Queda `handlers/character/mod.rs` (980 lineas) como siguiente slice con el mismo
+metodo; `handlers/quest/mod.rs` (551) ya cumple el presupuesto.
+
