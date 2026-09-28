@@ -13,6 +13,7 @@ pub use crate::handlers::group::state::send_group_new_leader_like_cpp;
 pub use crate::handlers::group::state::send_party_update;
 pub use crate::handlers::group::state::send_ready_check_events_like_cpp;
 pub use crate::handlers::group::state::sender_can_start_ready_check_like_cpp;
+pub use crate::handlers::group::test_support::PartyInviteSocialPortLikeCpp;
 
 pub fn with_canonical_player_at_mut_like_cpp<R>(
     manager: &crate::session::SharedCanonicalMapManager,

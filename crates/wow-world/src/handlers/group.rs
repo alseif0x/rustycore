@@ -51,6 +51,8 @@ mod ops_1;
 mod ops_2;
 mod ops_3;
 pub(crate) mod state;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub mod test_support;
 #[allow(unused_imports)]
 pub use ops_1::*;
 #[allow(unused_imports)]
