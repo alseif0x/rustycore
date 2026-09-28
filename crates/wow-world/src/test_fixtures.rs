@@ -49,6 +49,20 @@ pub fn represented_reward_choice_matches_loaded_type_for_test(
     )
 }
 
+pub async fn quest_poi_store_for_test(
+    session: &mut crate::session::WorldSession,
+) -> std::sync::Arc<
+    std::collections::HashMap<i32, wow_packet::packets::query::QuestPoiData>,
+> {
+    crate::handlers::quest::quest_poi_store_for_test(session).await
+}
+
+pub fn quest_log_create_entries_for_test(
+    session: &crate::session::WorldSession,
+) -> Vec<(u32, u32, i64, [u16; 24])> {
+    session.quest_log_create_entries_like_cpp()
+}
+
 pub use crate::handlers::group::state::PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP;
 pub use crate::handlers::group::state::current_group_guid_like_cpp;
 pub use crate::handlers::group::state::first_connected_group_member_like_cpp;

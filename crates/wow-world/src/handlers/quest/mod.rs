@@ -576,3 +576,10 @@ pub(crate) fn represented_reward_choice_matches_loaded_type_tuple_for_test(
         },
     )
 }
+
+#[cfg(feature = "test-fixtures")]
+pub(crate) async fn quest_poi_store_for_test(
+    session: &mut WorldSession,
+) -> Arc<HashMap<i32, QuestPoiData>> {
+    session.quest_poi_store_like_cpp().await
+}
