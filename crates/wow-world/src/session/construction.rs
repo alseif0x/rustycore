@@ -496,7 +496,7 @@ impl WorldSession {
             player_race: 0,
             #[cfg(test)]
             player_class: 0,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             player_level: 0,
             #[cfg(test)]
             player_gender: 0,

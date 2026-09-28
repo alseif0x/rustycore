@@ -408,7 +408,7 @@ impl WorldSession {
             self.player_identity_bootstrap_like_cpp
                 .get_or_insert_default()
                 .level = level;
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             {
                 self.player_level = level;
             }

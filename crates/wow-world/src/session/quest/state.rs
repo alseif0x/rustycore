@@ -30,7 +30,7 @@ impl WorldSession {
     pub(crate) fn player_quest_gameplay_snapshot_like_cpp(
         &self,
     ) -> Option<PlayerQuestGameplayState> {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none() {
             return Some(self.player_quest_gameplay_fixture_like_cpp());
         }
@@ -277,7 +277,7 @@ impl WorldSession {
         }
         None
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     fn player_quest_gameplay_fixture_like_cpp(&self) -> PlayerQuestGameplayState {
         let objective_counts_by_quest = self
             .quest_test_fixture_like_cpp

@@ -922,7 +922,7 @@ pub struct WorldSession {
     pub(in crate::session) player_race: u8,
     #[cfg(test)]
     pub(in crate::session) player_class: u8,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_level: u8,
     #[cfg(test)]
     pub(in crate::session) player_gender: u8,

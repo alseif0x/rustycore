@@ -292,6 +292,17 @@ pub fn contains_rewarded_quest_for_test(
         .contains(&id)
 }
 
+pub fn get_quest_slot_quest_id_for_test(
+    session: &crate::session::WorldSession,
+    slot: u8,
+) -> Option<u32> {
+    session.get_quest_slot_quest_id_like_cpp(slot)
+}
+
+pub fn set_player_level_for_test(session: &mut crate::session::WorldSession, level: u8) {
+    session.set_player_level_like_cpp(level);
+}
+
 pub fn insert_daily_quest_completed_for_test(
     session: &mut crate::session::WorldSession,
     id: u32,
