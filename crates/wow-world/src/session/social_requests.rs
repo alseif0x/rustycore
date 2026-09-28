@@ -67,7 +67,7 @@ pub(crate) struct RepresentedQueryPetitionLikeCpp {
     pub item_guid: ObjectGuid,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedSilencePartyTalkerLikeCpp {
     pub target: ObjectGuid,

@@ -629,13 +629,13 @@ impl WorldSession {
         target: ObjectGuid,
         silent: bool,
     ) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.represented_silence_party_talker_like_cpp
             .push(RepresentedSilencePartyTalkerLikeCpp { target, silent });
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let _ = (target, silent);
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_silence_party_talker_like_cpp(
         &self,
     ) -> &[RepresentedSilencePartyTalkerLikeCpp] {

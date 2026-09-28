@@ -27,7 +27,7 @@ use super::RepresentedQueryPetitionLikeCpp;
 use super::RepresentedQuestCompleteStatusUpdateLikeCpp;
 use super::RepresentedQuestObjectiveProgressEventLikeCpp;
 use super::RepresentedSignPetitionLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::RepresentedSilencePartyTalkerLikeCpp;
 #[cfg(test)]
 use super::RepresentedVehicleSeatSpellClickRequestLikeCpp;
@@ -889,7 +889,7 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(in crate::session) represented_query_petitions_like_cpp:
         Vec<RepresentedQueryPetitionLikeCpp>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_silence_party_talker_like_cpp:
         Vec<RepresentedSilencePartyTalkerLikeCpp>,
     /// Detached duel state and evidence used only by tests.

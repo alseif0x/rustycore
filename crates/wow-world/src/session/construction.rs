@@ -478,7 +478,7 @@ impl WorldSession {
             represented_decline_petitions_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_query_petitions_like_cpp: Vec::new(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             represented_silence_party_talker_like_cpp: Vec::new(),
             #[cfg(test)]
             duel_test_fixture_like_cpp: DuelTestFixtureLikeCpp::default(),

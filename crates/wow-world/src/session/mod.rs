@@ -492,7 +492,7 @@ pub(crate) use social_requests::RepresentedCalendarRemoveEventLikeCpp;
 pub(crate) use social_requests::RepresentedDeclinePetitionLikeCpp;
 pub(crate) use social_requests::RepresentedQueryPetitionLikeCpp;
 pub(crate) use social_requests::RepresentedSignPetitionLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use social_requests::RepresentedSilencePartyTalkerLikeCpp;
 pub(crate) use social_requests::RepresentedWargameInviteAcceptanceLikeCpp;
 use social_requests::party_member_power_kind_from_u8_like_cpp;

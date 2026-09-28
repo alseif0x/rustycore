@@ -158,6 +158,16 @@ pub fn reconcile_group_state_like_cpp(session: &mut crate::session::WorldSession
     session.reconcile_group_state_like_cpp()
 }
 
+pub fn represented_silence_party_talker_like_cpp(
+    session: &crate::session::WorldSession,
+) -> Vec<(wow_core::ObjectGuid, bool)> {
+    session
+        .represented_silence_party_talker_like_cpp()
+        .iter()
+        .map(|record| (record.target.clone(), record.silent))
+        .collect()
+}
+
 pub const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP;
 pub const PLAYER_FLAGS_AFK_LIKE_CPP: u32 = crate::session::PLAYER_FLAGS_AFK_LIKE_CPP;
 pub const PLAYER_FLAGS_DND_LIKE_CPP: u32 = crate::session::PLAYER_FLAGS_DND_LIKE_CPP;
