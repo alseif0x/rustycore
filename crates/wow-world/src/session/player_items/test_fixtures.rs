@@ -14,6 +14,7 @@ pub(crate) struct PlayerItemTestFixtureLikeCpp {
     pub(in crate::session) buyback_price: [u32; BUYBACK_SLOT_COUNT],
     pub(in crate::session) buyback_timestamp: [i64; BUYBACK_SLOT_COUNT],
     pub(in crate::session) current_buyback_slot: u8,
+    #[cfg(test)]
     pub(in crate::session) represented_item_mod_reapply_events_like_cpp:
         Vec<RepresentedItemModsReapplyEventLikeCpp>,
     pub(in crate::session) represented_item_bonus_actions_like_cpp:
@@ -24,8 +25,10 @@ pub(crate) struct PlayerItemTestFixtureLikeCpp {
         Vec<RepresentedItemSetSpellEventLikeCpp>,
     pub(in crate::session) represented_item_set_aura_refresh_events_like_cpp:
         Vec<RepresentedItemSetAuraRefreshEventLikeCpp>,
+    #[cfg(test)]
     pub(in crate::session) represented_combat_stat_recalculations_like_cpp:
         Vec<RepresentedCombatStatRecalculationLikeCpp>,
+    #[cfg(test)]
     pub(in crate::session) represented_titan_grip_penalty_actions_like_cpp:
         Vec<TitanGripPenaltyAction>,
     pub(in crate::session) represented_avg_equipped_item_level_updates_like_cpp: Vec<f32>,
@@ -41,13 +44,16 @@ impl Default for PlayerItemTestFixtureLikeCpp {
             buyback_price: [0; BUYBACK_SLOT_COUNT],
             buyback_timestamp: [0; BUYBACK_SLOT_COUNT],
             current_buyback_slot: BUYBACK_SLOT_START,
+            #[cfg(test)]
             represented_item_mod_reapply_events_like_cpp: Vec::new(),
             represented_item_bonus_actions_like_cpp: Vec::new(),
             represented_item_modifier_runtime_like_cpp:
                 wow_entities::PlayerItemModifierRuntimeStateLikeCpp::default(),
             represented_item_set_spell_events_like_cpp: Vec::new(),
             represented_item_set_aura_refresh_events_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_combat_stat_recalculations_like_cpp: Vec::new(),
+            #[cfg(test)]
             represented_titan_grip_penalty_actions_like_cpp: Vec::new(),
             represented_avg_equipped_item_level_updates_like_cpp: Vec::new(),
         }

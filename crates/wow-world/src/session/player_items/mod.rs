@@ -22,6 +22,6 @@ pub(crate) use publication::item_push_result_from_send_new_item_plan;
 mod storage;
 mod storage_bags;
 mod storage_slots;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) mod test_fixtures;
 mod valuation;

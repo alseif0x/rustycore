@@ -29,7 +29,7 @@ use super::empty_character_power_snapshot_like_cpp;
 use super::instances::test_fixtures::InstanceTestFixtureLikeCpp;
 #[cfg(test)]
 use super::persistence::test_fixtures::LoadedPlayerFlagsTestFixtureLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::player_items::test_fixtures::PlayerItemTestFixtureLikeCpp;
 #[cfg(test)]
 use super::progression::PlayerSkillTestFixtureLikeCpp;
@@ -399,13 +399,13 @@ impl WorldSession {
             rest_mgr_test_fixture_like_cpp: RestMgrTestFixtureLikeCpp::default(),
             #[cfg(test)]
             player_flags_test_fixture_like_cpp: LoadedPlayerFlagsTestFixtureLikeCpp::default(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             player_gold: 0,
             #[cfg(test)]
             represented_talent_reset_cost_like_cpp: 0,
             #[cfg(test)]
             represented_talent_reset_time_secs_like_cpp: 0,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             player_item_test_fixture_like_cpp: PlayerItemTestFixtureLikeCpp::default(),
             #[cfg(test)]
             player_character_points_like_cpp: 0,
@@ -488,7 +488,7 @@ impl WorldSession {
             #[cfg(test)]
             player_currencies: HashMap::new(),
 
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             inventory_item_objects: HashMap::new(),
             current_map_id: 0,
             player_identity_bootstrap_like_cpp: None,

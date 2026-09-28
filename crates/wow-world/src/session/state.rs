@@ -35,7 +35,7 @@ use super::RepresentedVehicleSeatSpellClickRequestLikeCpp;
 use super::instances::test_fixtures::InstanceTestFixtureLikeCpp;
 #[cfg(test)]
 use super::persistence::test_fixtures::LoadedPlayerFlagsTestFixtureLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::player_items::test_fixtures::PlayerItemTestFixtureLikeCpp;
 #[cfg(test)]
 use super::progression::PlayerSkillTestFixtureLikeCpp;
@@ -780,7 +780,7 @@ pub struct WorldSession {
     pub(in crate::session) player_flags_test_fixture_like_cpp: LoadedPlayerFlagsTestFixtureLikeCpp,
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
     /// Production money lives exclusively in `Player::ActivePlayerData::Coinage`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_gold: u64,
     /// Handle-less test fallback for C++ `Player::_specializationInfo.ResetTalentsCost`.
     #[cfg(test)]
@@ -788,7 +788,7 @@ pub struct WorldSession {
     /// Handle-less test fallback for C++ `Player::_specializationInfo.ResetTalentsTime`.
     #[cfg(test)]
     pub(in crate::session) represented_talent_reset_time_secs_like_cpp: u64,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_item_test_fixture_like_cpp: PlayerItemTestFixtureLikeCpp,
     /// C++ `UF::ActivePlayerData::CharacterPoints`, recalculated by InitTalentForLevel/LearnTalent.
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
@@ -906,7 +906,7 @@ pub struct WorldSession {
     pub(in crate::session) player_currencies: HashMap<u32, PlayerCurrency>,
 
     /// In-memory item objects keyed by item GUID, mirroring C++ `Player::m_items` ownership.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) inventory_item_objects: HashMap<ObjectGuid, Item>,
 
     /// Current map ID for VALUES update packets.

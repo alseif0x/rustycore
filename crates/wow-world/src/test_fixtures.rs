@@ -117,6 +117,18 @@ pub fn player_gold_for_test(session: &crate::session::WorldSession) -> u64 {
     session.player_gold_like_cpp()
 }
 
+pub fn inventory_items_for_test(
+    session: &crate::session::WorldSession,
+) -> &std::collections::HashMap<u8, crate::session::InventoryItem> {
+    session.inventory_items_like_cpp()
+}
+
+pub fn inventory_item_objects_for_test(
+    session: &crate::session::WorldSession,
+) -> &std::collections::HashMap<wow_core::ObjectGuid, wow_entities::Item> {
+    session.inventory_item_objects_like_cpp()
+}
+
 pub fn adopt_registered_canonical_player_fixture_like_cpp(
     session: &mut crate::session::WorldSession,
 ) -> bool {

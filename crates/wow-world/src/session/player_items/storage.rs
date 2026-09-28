@@ -793,11 +793,11 @@ impl WorldSession {
             .get(&guid)
             .cloned()
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn inventory_items_like_cpp(&self) -> &HashMap<u8, InventoryItem> {
         &self.player_item_test_fixture_like_cpp.inventory_items
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn inventory_item_objects_like_cpp(&self) -> &HashMap<ObjectGuid, Item> {
         &self.inventory_item_objects
     }
