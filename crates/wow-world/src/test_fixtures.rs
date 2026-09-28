@@ -176,6 +176,81 @@ pub async fn process_represented_session_commands_like_cpp(
         .await;
 }
 
+pub fn insert_player_quest_status_for_test(
+    session: &mut crate::session::WorldSession,
+    quest_id: u32,
+    status: crate::handlers::quest::PlayerQuestStatus,
+) -> Option<crate::handlers::quest::PlayerQuestStatus> {
+    session
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(quest_id, status)
+}
+
+pub fn contains_player_quest_status_for_test(
+    session: &crate::session::WorldSession,
+    quest_id: u32,
+) -> bool {
+    session
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .contains_key(&quest_id)
+}
+
+pub fn player_quest_status_for_test(
+    session: &crate::session::WorldSession,
+    quest_id: u32,
+) -> Option<crate::handlers::quest::PlayerQuestStatus> {
+    session
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .get(&quest_id)
+        .cloned()
+}
+
+pub fn with_player_quest_status_mut_for_test<R>(
+    session: &mut crate::session::WorldSession,
+    id: u32,
+    f: impl FnOnce(&mut crate::handlers::quest::PlayerQuestStatus) -> R,
+) -> Option<R> {
+    session
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .get_mut(&id)
+        .map(f)
+}
+
+pub fn player_quest_statuses_for_test(
+    session: &crate::session::WorldSession,
+) -> Vec<crate::handlers::quest::PlayerQuestStatus> {
+    session
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .values()
+        .cloned()
+        .collect()
+}
+
+pub fn insert_rewarded_quest_for_test(
+    session: &mut crate::session::WorldSession,
+    id: u32,
+) -> bool {
+    session
+        .quest_test_fixture_like_cpp
+        .rewarded_quests
+        .insert(id)
+}
+
+pub fn contains_rewarded_quest_for_test(
+    session: &crate::session::WorldSession,
+    id: u32,
+) -> bool {
+    session
+        .quest_test_fixture_like_cpp
+        .rewarded_quests
+        .contains(&id)
+}
+
 pub const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP;
 pub const PLAYER_FLAGS_AFK_LIKE_CPP: u32 = crate::session::PLAYER_FLAGS_AFK_LIKE_CPP;
 pub const PLAYER_FLAGS_DND_LIKE_CPP: u32 = crate::session::PLAYER_FLAGS_DND_LIKE_CPP;
