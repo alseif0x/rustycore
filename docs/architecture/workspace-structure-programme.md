@@ -4,6 +4,10 @@
 workspace. No duplica detalle: fija qué va antes de qué, qué evidencia cierra cada fase y en qué
 estado está cada una, para que cualquier agente pueda retomar sin perderse.
 
+**Para retomar:** leer primero el [estado de continuación](#31-estado-de-continuacion-2026-09-28).
+Las notas fechadas posteriores conservan el historial de intentos y resultados; no acreditan por
+sí solas aceptación de la punta actual.
+
 **Autoridades (no compiten entre sí):**
 
 | documento | gobierna |
@@ -74,11 +78,11 @@ que hay que justificar con números.
 |---|---|---|
 | B1 | F5 ✅ `misc` desmontado en 13 dominios (commit `e719ac38`) | — |
 | B2 | F6 dominios cohesivos a su crate (`reputation`, `planner`, `profession`/`trainer`, `entity_update_bridge`, `battle_pet_*`) | B1 |
-| B3 | F10a tests por dominio: `loot_tests`, `quest_tests`, `character_tests`, `group_tests` a sus crates | B2 |
+| B3 | F10a: suites de aplicación a targets de integración de `wow-world`, con fixtures mínimas; pruebas de reglas en su dominio (reformulación del 2026-09-25) | B2 |
 | B4 | F7 sub-estados dueños dentro de `WorldSession` (**diseño**) | B2 |
 | B5 | F8 handlers grandes → adaptadores ≤600 líneas (**diseño**) | B4 |
 | B6 | F9 `map_manager` + `map_manager_tests` → `wow-map` con contrato (**diseño**) | B4 |
-| B7 | F10b resto de tests; F13 warnings y política de ownership regenerada con delta revisado | B5, B6 |
+| B7 | F10b resto de tests; F13 warnings y política de ownership con delta revisado; consumidores de fixtures pendientes de B3 | B3 (residual), B5, B6 |
 
 ### Ola C — inversiones de capa (cada una es un movimiento pequeño)
 | id | objetivo | depende de |
@@ -114,11 +118,79 @@ curso, `[x]` cerrada con commit.
 ```
 A0.1 [x]  A0.2 [x]  A0.3 [x]  A0.4 [~]  A0.5 [x]  A0.6 [x]  A0.7 [x]   <- ola A: PUERTA VERDE
 A1 [x]  A2 [x]  A3 [x]
-B1 [x] e719ac38   B2 [x] 98c5b14a   B3 [ ]  B4 [~]  B5 [ ]  B6 [ ]  B7 [ ]
+B1 [x] e719ac38   B2 [x] 98c5b14a   B3 [~]  B4 [~]  B5 [~]  B6 [~]  B7 [~]
 C1 [ ]  C2 [ ]  C3 [ ]  C4 [ ]
 D1 [ ]  D2 [ ]  D3 [ ]  D4 [ ]  D5 [ ]
 E1 [ ]  E2 [ ]  E3 [ ]  E4 [ ]
 ```
+
+### 3.1 Estado de continuacion (2026-09-28)
+
+Esta entrada se mantiene al avanzar; sustituye las conclusiones contradictorias de las notas
+históricas para seleccionar el siguiente trabajo. Los SHA antiguos se conservan como evidencia
+histórica: la reescritura de mensajes cambió los identificadores, no autoriza a relabelar pruebas.
+
+**Punto de partida comprobado:** worktree `/home/server/rustycore-world-refactor`, rama
+`584-map-manager-domain`, punta `bfeb33e829334b4172dbddd73ec0d53a25f0e104`; base
+`3.4.3` en `e786ece1a554724351307bfd4e05e63a89962b60`. Local y remoto coincidían:
+15 commits por delante, 64 archivos, +2130/-1692, sin PR abierta. Dos worktrees registrados,
+sin entradas eliminables ni stashes. Reconsultar Git al retomar; estos son datos fechados.
+
+| pieza | estado comprobado y límite |
+|---|---|
+| B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Pendientes correcciones de features/visibilidad y aceptación del candidato. |
+| B5 | Raíces de loot y character partidas; quest sigue dentro del presupuesto. Pendiente restringir la API expuesta por la extracción y aceptar el incremento. |
+| B3 | Superficie inicial `test-fixtures` y self dev-dependency añadidas. El piloto falló y fue revertido: las cuatro suites siguen dentro de la lib. |
+| B7 | Hay limpieza parcial integrada; los consumidores restantes de fixtures dependen de B3. No está cerrado. |
+| Talentos #578 | La rama `recover/578-talent-catalog`, `0845f5b3`, conserva `docs/migration/recovered/578-talent-catalog-2026-09-04.patch`; el archivo solo existe en esa rama, no en este checkout. No está aplicado; preservar la rama y adaptar por consumidores actuales cuando corresponda. |
+| Orquestación | Sol medium / Luna max copiado a este worktree. Cambios compartidos aún locales, y `.codex/config.toml` ignorado. Iniciar sesión nueva y comprobar runtime efectivo; preservar estos cambios al continuar. |
+
+**Hallazgos abiertos antes de aceptar B5/B6:**
+
+1. `crates/wow-world/Cargo.toml` activa `wow-map/test-fixtures` en dependencias normales;
+   `crates/wow-map/Cargo.toml` hace lo mismo con `wow-recastdetour/test-fixtures`. Separar
+   producción y pruebas, comprobando ambas configuraciones sin que la unificación de features
+   oculte una dependencia accidental.
+2. Los `pub use self::<hijo>::*` de loot/character y los `pub` añadidos a items/campos amplían
+   la API para trasladar código. Revisar consumidores y restringirla; revisar también exports
+   de `map_manager`. El movimiento por sí solo no justifica visibilidad pública.
+3. La sesión DeepSeek ocultó al menos un fallo de arquitectura con `grep | head; echo $?`;
+   `845cc02d` corrigió aquella afirmación. Corregir también la pauta de filtrado del worker:
+   conservar salida completa y código real del comando antes de resumirlos.
+4. El baseline de `tools/xtask/layer-baseline.txt` contiene 11 aristas; el recuento estático
+   con su regla actual encuentra 13 en esta rama, incluyendo `wow-packet -> wow-entities` y
+   `wow-map -> wow-movement`. Reconciliar su contrato con `dependency-policy.json` y sus
+   excepciones; no elevar el baseline ni retirar una arista legítima para obtener verde.
+
+**Evidencia disponible:** revisión de código, Git, manifiestos y sesión DeepSeek
+`51439d45-bfa1-4f1a-8538-38729d3f7c0d`; no se ejecutó aceptación durante esta revisión.
+El último manifiesto final encontrado, `20260927T140832.222423Z-3887452-final.json`, pasó
+en 423.853 s sobre `ee49c8ea`, anterior a este incremento. No existe aceptación final
+acreditada de `bfeb33e8`. Los recuentos y verdes de las notas históricas no la sustituyen.
+El rollback del piloto borró temporalmente tests preexistentes; se restauraron y están presentes.
+
+**Secuencia propuesta para la próxima ejecución:**
+
+1. Resolver los cuatro hallazgos y revisar el diff y consumidores. Mantener movimiento y
+   comportamiento separados. Primera entrega acotada: B5/B6 corregido y aceptado; no cerrar
+   toda la ola B ni #584, ni presentar la preparación de B3 como migración terminada.
+2. En la aceptación del candidato comprometido: `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`, más la integración aplicable no cubierta. Un
+   ejecutor, `VALIDATION_V2_CARGO_JOBS=1`, target propio y `PROTOC` según AGENTS.md. Registrar
+   SHA, comandos, salidas y tiempo completo; superar 600 s incumple el objetivo ordinario.
+   PR/publicación/merge conservan sus autoridades; documentar el alcance de la entrega sin
+   inventar micro-PRs ni cerrar un macro-issue incompleto.
+3. Completar primero el piloto B3 de `group_tests`: inventario de consumidores privados,
+   fixtures mínimas y conservación de escenarios. `validation-v2 final` usa `cargo test --lib`;
+   ejecutar los nuevos targets de integración explícitamente o adaptar su cobertura
+   en el runner. Medir antes/después y extender el patrón solo tras comprobar el piloto.
+   Las cuatro suites suman ahora 48429 líneas y 925 anotaciones de test incluyendo raíces
+   (inventario estático, no resultado ejecutado); los 44665 históricos no son el total actual.
+4. Continuar B7 y C/D/E por dependencias reales; mantener #584 → #583 → #153. La auditoría
+   actual no sustituye el trabajo C0–C4 ni el producto obligatorio nativo/Wasm/C.
+
+Al retomar, leer esta entrada, inspeccionar el diff local y procesos activos y actualizar aquí
+el estado real, evidencia y siguiente paso. No crear otro plan o handoff paralelo. La revisión,
+la configuración y esta documentación están hechas; los arreglos y la aceptación siguen pendientes.
 
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
@@ -1467,4 +1539,3 @@ cuatro informes. El owner logico crece **+31 lineas** (los encabezados de los se
 el ledger de hotspots lleva la entrada de revision de crecimiento correspondiente: es la unica
 forma sancionada de crecer y no se toca ningun techo sin ella. Con esto los tres adaptadores de
 handler mayores estan dentro del presupuesto de 600 lineas.
-

@@ -1,5 +1,9 @@
 # RustyCore — Honest Current State (single source of truth)
 
+**Continuación del trabajo estructural:** el [estado vigente del programa de workspace](../architecture/workspace-structure-programme.md#31-estado-de-continuacion-2026-09-28)
+registra la rama de trabajo, revisión B5/B6, límites de evidencia y siguiente paso. Consultarlo
+antes de retomar; las entradas fechadas de integración siguientes conservan su alcance histórico.
+
 **Integration head — 2026-09-19:** the current integration head on `3.4.3` is
 `a82f4b2f` (PR #1226, following PR #1225's #29 creature-victim damage-immunity
 slice and PR #1224's school-absorb slice). The older #31
