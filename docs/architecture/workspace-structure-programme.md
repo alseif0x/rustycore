@@ -1271,6 +1271,26 @@ El arbol quedo revertido y verde (workspace 0 errores) en la rama `584-map-manag
 movimiento y su diagnostico documentados. La distancia restante es **una linea de politica de externas**,
 **una decision de contrato o excepcion para `wow-data`** y **un diagnostico de feature unification**.
 
+### B6 `map_manager`: estado exacto del trasvase al cerrar esta sesion (2026-09-27)
+
+Tras varias iteraciones automatizadas, el movimiento queda a **tres nombres** de compilar el workspace:
+`PendingRespawn` y `Position` (tipos) y `BASE_ATTACK_TIME_LIKE_CPP` (constante) que el test
+`map_manager_tests.rs` y su submodulo `combat.rs` heredaban del padre movido y que ya no encuentran en su
+ambito. Todo lo demas esta resuelto y verificado en los intentos: montaje de tests con su `#[cfg(test)]`
+colgante, autoreferencias `wow_map::` -> `crate::`, re-exports de hijos, seis dependencias, el gate
+`test-fixtures` (con el cableado `wow-map`/`wow-world`/`world-server`), 15 visibilidades de metodos y las
+tres constantes `MAP_*`, y el fichero de tests vuelve a caber en su techo (337/333 <= 339).
+
+Ademas quedan dos items de politica ya medidos: declarar `tracing` en la superficie externa de `wow-map`,
+y la decision sobre la arista `wow-map -> wow-data` (contrato o excepcion revisada).
+
+Metodo recomendado para el siguiente intento, en este orden: (1) mover el modulo con el script y **no**
+tocar el fichero de tests despues; (2) dejar que el compilador diga los nombres que faltan y anadirlos
+**uno a uno** al test con su ruta real (`grep -rn "struct NAME\|const NAME" crates/wow-map crates/wow-core
+crates/wow-entities`), ensanchando a `pub` lo que proceda; (3) declarar `tracing`; (4) decidir
+`wow-data`; (5) `cargo fmt --all`, puerta y PR. El trasvase son 6 721 lineas y cada paso esta acotado; el
+arbol queda verde y la base intacta.
+
 **Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
 capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
 superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
