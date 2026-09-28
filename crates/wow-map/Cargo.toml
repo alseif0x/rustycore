@@ -7,7 +7,7 @@ license.workspace = true
 
 [features]
 # Runtime test helpers a sibling crate may use in its own tests.
-test-fixtures = []
+test-fixtures = ["wow-recastdetour/test-fixtures"]
 
 [dependencies]
 wow-core = { workspace = true }
@@ -18,12 +18,13 @@ wow-constants = { workspace = true }
 wow-data = { workspace = true }
 wow-movement = { workspace = true }
 wow-persistence = { workspace = true }
-wow-recastdetour = { workspace = true, features = ["test-fixtures"] }
+wow-recastdetour = { workspace = true }
 
 [dev-dependencies]
 wow-constants = { workspace = true }
 wow-loot = { workspace = true }
 wow-packet = { workspace = true }
+wow-recastdetour = { workspace = true, features = ["test-fixtures"] }
 
 [lints]
 workspace = true
