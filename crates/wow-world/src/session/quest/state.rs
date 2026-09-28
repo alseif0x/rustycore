@@ -788,7 +788,7 @@ impl WorldSession {
         sender_guid: ObjectGuid,
         quest_id: u32,
     ) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none() {
             self.quest_test_fixture_like_cpp
                 .represented_pending_quest_sharing_like_cpp =
@@ -805,7 +805,7 @@ impl WorldSession {
         self.sync_player_registry_state_like_cpp();
     }
     pub(crate) fn clear_represented_pending_quest_sharing_like_cpp(&mut self) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none() {
             self.quest_test_fixture_like_cpp
                 .represented_pending_quest_sharing_like_cpp = None;
@@ -820,7 +820,7 @@ impl WorldSession {
     pub(crate) fn represented_pending_quest_sharing_like_cpp(
         &self,
     ) -> Option<RepresentedPendingQuestSharingLikeCpp> {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none() {
             return self
                 .quest_test_fixture_like_cpp

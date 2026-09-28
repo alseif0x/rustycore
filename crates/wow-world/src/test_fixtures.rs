@@ -5,6 +5,7 @@
 //! available only in the `test-fixtures` build.
 
 pub use crate::session::quest_dialog::{
+    RepresentedPendingQuestSharingLikeCpp,
     RepresentedPushQuestToPartyOutcomeLikeCpp,
     RepresentedPushQuestToPartyOutcomeReasonLikeCpp,
 };
@@ -375,6 +376,20 @@ pub fn represented_push_quest_to_party_outcomes_for_test(
     session
         .represented_push_quest_to_party_outcomes_like_cpp()
         .to_vec()
+}
+
+pub fn set_represented_pending_quest_sharing_for_test(
+    session: &mut crate::session::WorldSession,
+    sender_guid: wow_core::ObjectGuid,
+    quest_id: u32,
+) {
+    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+}
+
+pub fn represented_pending_quest_sharing_for_test(
+    session: &crate::session::WorldSession,
+) -> Option<RepresentedPendingQuestSharingLikeCpp> {
+    session.represented_pending_quest_sharing_like_cpp()
 }
 
 pub const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP;

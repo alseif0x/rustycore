@@ -192,7 +192,7 @@ pub(crate) struct SeasonalQuestStatusDbRowLikeCpp {
 /// Session-local representation of C++ `Player::GetPlayerSharingQuest()` state
 /// until full party/ObjectAccessor quest sharing runtime owns it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedPendingQuestSharingLikeCpp {
+pub struct RepresentedPendingQuestSharingLikeCpp {
     pub sender_guid: ObjectGuid,
     pub quest_id: u32,
 }
