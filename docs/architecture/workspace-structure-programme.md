@@ -253,12 +253,21 @@ respecto de los 850 anteriores se debe a que el compilador alcanzó más cuerpos
 Los commits `018e6682` y `c2d68f8b` añadieron aliases bajo la feature para
 constantes canónicas, y `eedf6988`/`55a13a1f` preservaron el registro y la
 lectura de los 70 resultados de compartir quests desde el target externo.
-El último diagnóstico (`target/b3-quest-push-outcome-consumer-check.log`) bajó
+Ese diagnóstico (`target/b3-quest-push-outcome-consumer-check.log`) bajó
 a **581 errores**: predominan métodos privados de registro, pending-share,
 recompensa, inventario y los tipos de confirmación de quests. No hubo errores
 de sintaxis en esa compilación. Es feedback de desarrollo, no prueba verde ni
 aceptación. Quedan fixtures privadas de sesión, métodos y constantes de quest
 por adaptar sin ampliar indiscriminadamente la API de producción.
+`77e13488` preservó el estado original de pending-share bajo `test-fixtures`;
+la adaptación de sus 36 setters y 26 getters en el árbol de trabajo bajó el
+siguiente diagnóstico a **515 errores**
+(`target/b3-pending-share-consumer-check.log`), todavía sin ejecutar tests.
+`34a5de75` añadió wrappers del registro de jugadores y sus 51 consumidores
+se adaptaron sin cambiar receptores. `45f86919` habilitó el helper original
+de recompensa para la feature externa. El diagnóstico posterior cuenta
+**427 errores** (`target/b3-quest-reward-helper-consumer-check.log`), sin
+errores de sintaxis ni de tipos en esas adaptaciones. La suite aún no compila.
 
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
