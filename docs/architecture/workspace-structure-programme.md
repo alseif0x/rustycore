@@ -145,18 +145,39 @@ sin entradas eliminables ni stashes. Reconsultar Git al retomar; estos son datos
 | Talentos #578 | La rama `recover/578-talent-catalog`, `0845f5b3`, conserva `docs/migration/recovered/578-talent-catalog-2026-09-04.patch`; el archivo solo existe en esa rama, no en este checkout. No está aplicado; preservar la rama y adaptar por consumidores actuales cuando corresponda. |
 | Orquestación | Sol medium / Luna max copiado a este worktree. Cambios compartidos aún locales, y `.codex/config.toml` ignorado. Iniciar sesión nueva y comprobar runtime efectivo; preservar estos cambios al continuar. |
 
+**Avance local posterior, pendiente de aceptación:** commits locales `8f162870`,
+`9df13460` y `dc73db43`. La feature de fixtures de `wow-map`
+ya no se activa en la dependencia de producción de `wow-world`, ni la de
+`wow-recastdetour` en la dependencia de producción de `wow-map`; las features
+explícitas y las dependencias de desarrollo conservan el acceso de tests. El worker
+obtuvo `cargo check -p wow-map`, `cargo check -p wow-world` y un test focalizado de
+pathfinder con salida 0. En loot se restringieron los exports de los seis hijos
+extraídos al módulo dueño, salvo la ruta `pub(crate)` preexistente de la distancia
+de interacción; `cargo check -p wow-world --tests` y el filtro `loot` pasaron
+(326 tests). En character se restringieron tres hijos y se conservó la ruta
+`pub(crate)` de `ExtendedCostItemTurninChange`; `cargo check -p wow-world --tests`
+pasó; los otros tres hijos de character también quedaron restringidos y el filtro
+`character` ejecutó 381 tests (379 unitarios y 2 de integración) sin fallos. Se
+conservó la ruta `pub(crate)` de `CreatureAddonCreateFieldsLikeCpp`.
+`dc73db43` devuelve a visibilidad privada los imports de implementación de
+`map_manager`; los checks de targets de test de `wow-map` y `wow-world` salieron
+con código 0, sin ejecutar los tests. Siguen pendientes la revisión de sus
+exports propios, la composición final y la aceptación de toda la macro.
+Estos checks son feedback del worker, no campaña final ni evidencia de publicación.
+
 **Hallazgos abiertos antes de aceptar B5/B6:**
 
-1. `crates/wow-world/Cargo.toml` activa `wow-map/test-fixtures` en dependencias normales;
-   `crates/wow-map/Cargo.toml` hace lo mismo con `wow-recastdetour/test-fixtures`. Separar
-   producción y pruebas, comprobando ambas configuraciones sin que la unificación de features
-   oculte una dependencia accidental.
-2. Los `pub use self::<hijo>::*` de loot/character y los `pub` añadidos a items/campos amplían
-   la API para trasladar código. Revisar consumidores y restringirla; revisar también exports
-   de `map_manager`. El movimiento por sí solo no justifica visibilidad pública.
+1. La feature de fixtures de `wow-map` y `wow-recastdetour` estaba activada en dependencias
+   normales. `9df13460` separa producción y pruebas; comprobar la composición final sin que
+   la unificación de features oculte otra dependencia accidental.
+2. Los `pub use self::<hijo>::*` y los `pub` añadidos en loot/character ampliaban la API.
+   `8f162870` los restringe preservando las rutas `pub(crate)` originales. `dc73db43`
+   restringe imports de implementación de `map_manager`; revisar todavía sus exports de
+   submódulos y consumidores de toda la macro. El movimiento por sí solo no justifica
+   visibilidad pública.
 3. La sesión DeepSeek ocultó al menos un fallo de arquitectura con `grep | head; echo $?`;
-   `845cc02d` corrigió aquella afirmación. Corregir también la pauta de filtrado del worker:
-   conservar salida completa y código real del comando antes de resumirlos.
+   `845cc02d` corrigió aquella afirmación. La pauta del worker ya está corregida localmente
+   para conservar salida completa y código real del comando; falta integrar esa configuración.
 4. El baseline de `tools/xtask/layer-baseline.txt` contiene 11 aristas; el recuento estático
    con su regla actual encuentra 13 en esta rama, incluyendo `wow-packet -> wow-entities` y
    `wow-map -> wow-movement`. Reconciliar su contrato con `dependency-policy.json` y sus
@@ -171,22 +192,27 @@ El rollback del piloto borró temporalmente tests preexistentes; se restauraron 
 
 **Secuencia propuesta para la próxima ejecución:**
 
-1. Resolver los cuatro hallazgos y revisar el diff y consumidores. Mantener movimiento y
-   comportamiento separados. Primera entrega acotada: B5/B6 corregido y aceptado; no cerrar
-   toda la ola B ni #584, ni presentar la preparación de B3 como migración terminada.
-2. En la aceptación del candidato comprometido: `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`, más la integración aplicable no cubierta. Un
-   ejecutor, `VALIDATION_V2_CARGO_JOBS=1`, target propio y `PROTOC` según AGENTS.md. Registrar
-   SHA, comandos, salidas y tiempo completo; superar 600 s incumple el objetivo ordinario.
-   PR/publicación/merge conservan sus autoridades; documentar el alcance de la entrega sin
-   inventar micro-PRs ni cerrar un macro-issue incompleto.
-3. Completar primero el piloto B3 de `group_tests`: inventario de consumidores privados,
+El objetivo vigente es completar la macro de modularización de `wow-world` de #1233 en esta
+rama, con sus consumidores y evidencia. B5/B6 son un bloque interno; su corrección por sí sola
+no cierra la macro ni justifica una PR parcial.
+
+1. Revisar los exports propios restantes de `map_manager`, la composición de features y el
+   contrato entre los dos checkers de capas. Integrar la pauta del worker. Mantener movimiento
+   y comportamiento separados, sin presentar la preparación de B3 como migración terminada.
+2. Completar primero el piloto B3 de `group_tests`: inventario de consumidores privados,
    fixtures mínimas y conservación de escenarios. `validation-v2 final` usa `cargo test --lib`;
    ejecutar los nuevos targets de integración explícitamente o adaptar su cobertura
    en el runner. Medir antes/después y extender el patrón solo tras comprobar el piloto.
    Las cuatro suites suman ahora 48429 líneas y 925 anotaciones de test incluyendo raíces
    (inventario estático, no resultado ejecutado); los 44665 históricos no son el total actual.
-4. Continuar B7 y C/D/E por dependencias reales; mantener #584 → #583 → #153. La auditoría
-   actual no sustituye el trabajo C0–C4 ni el producto obligatorio nativo/Wasm/C.
+3. Terminar B7 y las demás responsabilidades de `wow-world` de #1233, incluidos consumidores,
+   ownership, módulos y tests; comprobar ambos criterios semántico y físico. La arquitectura
+   restante de #584 y C/D/E sigue su orden por dependencias; mantener #584 → #583 → #153.
+4. Al completar la macro, ejecutar la aceptación del candidato comprometido:
+   `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`, más la integración
+   aplicable no cubierta. Un ejecutor, `VALIDATION_V2_CARGO_JOBS=1`, target propio y `PROTOC`
+   según AGENTS.md. Registrar SHA, comandos, salidas y tiempo completo; superar 600 s incumple
+   el objetivo ordinario. PR/publicación/merge conservan sus autoridades.
 
 Al retomar, leer esta entrada, inspeccionar el diff local y procesos activos y actualizar aquí
 el estado real, evidencia y siguiente paso. No crear otro plan o handoff paralelo. La revisión,
@@ -217,7 +243,10 @@ Ninguna fase se declara cerrada con el nivel 1; la tabla de estado registra el n
 Estado: **aprobadas** el 2026-09-24 salvo donde se indique. Cada una se implementa dentro de la
 fase que la referencia.
 
-**ADR-001 — Entrega por olas (aprobada).** Una PR por ola; la ola es auto-contenida (nunca se
+**ADR-001 — Entrega por olas (aprobada).** Una PR por ola en el programa general;
+la macro de modularización de `wow-world` se entrega completa bajo #1233 en una
+sola rama/PR conforme al alcance vigente, aunque atraviese varias fases B. Cada entrega es
+auto-contenida (nunca se
 cierra con el árbol rojo) y revertible como un merge. Al abrir cada ola: rebase sobre
 `origin/3.4.3` y comprobación de que nadie más tiene trabajo abierto en los mismos paths. La
 campaña `final --architecture` se corre **una vez por ola**, no por fase; dentro de la ola solo
