@@ -51,7 +51,7 @@ pub(crate) struct RepresentedBattlemasterJoinSkirmishLikeCpp {
     pub queue_type_id: RepresentedBattlegroundQueueTypeIdLikeCpp,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) type RepresentedBattlegroundQueueSlotLikeCpp =
     wow_entities::PlayerBattlegroundQueueSlotLikeCpp;
 
@@ -99,7 +99,7 @@ impl WorldSession {
     ) -> Option<wow_entities::PlayerBattlegroundState> {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.battleground_state_like_cpp());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(
                 wow_entities::PlayerBattlegroundState::from_represented_parts_like_cpp(
@@ -114,7 +114,7 @@ impl WorldSession {
         canonical
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_player_battleground_type_id_like_cpp(&mut self, bg_type_id: u32) -> bool {
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| {

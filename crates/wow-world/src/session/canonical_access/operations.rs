@@ -648,7 +648,7 @@ impl WorldSession {
         }
         canonical
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn mutate_player_battleground_state_like_cpp<R>(
         &mut self,
         mutate: impl FnOnce(&mut wow_entities::PlayerBattlegroundState) -> R,

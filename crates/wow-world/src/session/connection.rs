@@ -241,7 +241,7 @@ impl WorldSession {
         self.lifecycle.player_loading = None;
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn install_realm_send_channel_for_test(&mut self, tx: flume::Sender<Vec<u8>>) {
         self.transport.connection.install_realm_send_channel(tx);
     }

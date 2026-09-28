@@ -501,7 +501,7 @@ impl WorldSession {
     pub(crate) fn resolved_in_combat_like_cpp(&self) -> Option<bool> {
         let canonical = self
             .with_owned_player_like_cpp(|player| player.unit().subsystems().combat.has_combat());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(self.in_combat);
         }
@@ -511,7 +511,7 @@ impl WorldSession {
     /// bounded directory view. The argument remains only for pre-owner tests;
     /// production never manufactures combat state outside `CombatSubsystem`.
     pub(crate) fn set_in_combat_like_cpp(&mut self, in_combat: bool) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none() {
             self.in_combat = in_combat;
             if let (Some(guid), Some(registry)) = (self.player_guid(), &self.player_registry) {
@@ -524,7 +524,7 @@ impl WorldSession {
             return;
         }
         let canonical = self.resolved_in_combat_like_cpp();
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let _ = in_combat;
         let Some(in_combat) = canonical else {
             return;

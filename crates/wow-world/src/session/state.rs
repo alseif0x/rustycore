@@ -12,8 +12,8 @@ use super::PlayerConditionStore;
 use super::PlayerCurrency;
 use super::RepresentedBankItemMoveLikeCpp;
 use super::RepresentedBattlefieldListLikeCpp;
-#[cfg(test)]
-use super::RepresentedBattlegroundQueueSlotLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+use super::battleground_adapter::RepresentedBattlegroundQueueSlotLikeCpp;
 use super::RepresentedBattlemasterJoinSkirmishLikeCpp;
 #[cfg(test)]
 use super::RepresentedCreatureKillEventLikeCpp;
@@ -873,7 +873,7 @@ pub struct WorldSession {
     /// Calendar request evidence used only by detached Session tests.
     #[cfg(test)]
     pub(in crate::session) calendar_test_fixture_like_cpp: CalendarTestFixtureLikeCpp,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_arena_team_id_invited_like_cpp: u32,
     #[cfg(test)]
     pub(in crate::session) represented_wargame_invite_acceptances_like_cpp:
@@ -1231,13 +1231,13 @@ pub struct WorldSession {
     pub(in crate::session) represented_vehicle_base_movements_like_cpp:
         Vec<RepresentedVehicleBaseMovementLikeCpp>,
     /// Represented `Player::GetBattleground()->GetTypeID()` for C++ battleground object use.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_battleground_type_id_like_cpp: Option<u32>,
     /// Represented `Player::GetBattleground()->GetMapId()` until live Battleground ownership exists.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_battleground_map_id_like_cpp: Option<u32>,
     /// Represented `Battleground::GetStatus()` until live Battleground ownership exists.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_battleground_status_like_cpp: Option<u8>,
     /// Count of represented `Player::LeaveBattleground()` requests.
     #[cfg(test)]
@@ -1263,7 +1263,7 @@ pub struct WorldSession {
     pub(in crate::session) represented_battlemaster_join_skirmishes_like_cpp:
         Vec<RepresentedBattlemasterJoinSkirmishLikeCpp>,
     /// Represented `Player::m_bgBattlegroundQueueID[PLAYER_MAX_BATTLEGROUND_QUEUES]`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_battleground_queue_slots_like_cpp:
         Vec<RepresentedBattlegroundQueueSlotLikeCpp>,
     /// Represented accepted/leave requests from CMSG_BATTLEFIELD_PORT before live BattlegroundMgr.

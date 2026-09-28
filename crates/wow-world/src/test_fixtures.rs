@@ -91,6 +91,13 @@ pub fn set_loaded_player_identity_like_cpp(
     session.set_loaded_player_identity_like_cpp(map_id, race, class, level, gender);
 }
 
+pub fn set_loaded_player_name_like_cpp(
+    session: &mut crate::session::WorldSession,
+    name: String,
+) {
+    session.set_loaded_player_name_like_cpp(name);
+}
+
 pub fn adopt_registered_canonical_player_fixture_like_cpp(
     session: &mut crate::session::WorldSession,
 ) -> bool {
@@ -102,6 +109,36 @@ pub fn set_represented_dungeon_difficulty_id_for_test_like_cpp(
     difficulty_id: u32,
 ) {
     session.set_represented_dungeon_difficulty_id_for_test_like_cpp(difficulty_id);
+}
+
+pub fn resolved_dungeon_difficulty_id_like_cpp(
+    session: &crate::session::WorldSession,
+) -> Option<u32> {
+    session.resolved_dungeon_difficulty_id_like_cpp()
+}
+
+pub fn set_player_battleground_type_id_like_cpp(
+    session: &mut crate::session::WorldSession,
+    bg_type_id: u32,
+) -> bool {
+    session.set_player_battleground_type_id_like_cpp(bg_type_id)
+}
+
+pub fn represented_subgroup_like_cpp(
+    session: &crate::session::WorldSession,
+) -> Option<u8> {
+    session.represented_subgroup_like_cpp()
+}
+
+pub fn install_realm_send_channel_for_test(
+    session: &mut crate::session::WorldSession,
+    tx: flume::Sender<Vec<u8>>,
+) {
+    session.install_realm_send_channel_for_test(tx);
+}
+
+pub fn set_in_combat_like_cpp(session: &mut crate::session::WorldSession, in_combat: bool) {
+    session.set_in_combat_like_cpp(in_combat);
 }
 
 pub fn set_owned_player_group_like_cpp(

@@ -422,7 +422,7 @@ impl WorldSession {
     pub(crate) fn clear_represented_group_subgroup_like_cpp(&mut self) {
         let _ = self.set_owned_player_group_like_cpp(None);
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_subgroup_like_cpp(&self) -> Option<u8> {
         self.resolved_group_subgroup_like_cpp()
     }

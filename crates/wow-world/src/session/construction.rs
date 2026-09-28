@@ -466,7 +466,7 @@ impl WorldSession {
             guild_test_fixture_like_cpp: GuildTestFixtureLikeCpp::default(),
             #[cfg(test)]
             calendar_test_fixture_like_cpp: CalendarTestFixtureLikeCpp::default(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             represented_arena_team_id_invited_like_cpp: 0,
             #[cfg(test)]
             represented_wargame_invite_acceptances_like_cpp: Vec::new(),
@@ -662,11 +662,11 @@ impl WorldSession {
             represented_vehicle_dismiss_movements_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_vehicle_base_movements_like_cpp: Vec::new(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             player_battleground_type_id_like_cpp: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             player_battleground_map_id_like_cpp: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             represented_battleground_status_like_cpp: None,
             #[cfg(test)]
             represented_battleground_leave_requests_like_cpp: 0,
@@ -680,7 +680,7 @@ impl WorldSession {
             represented_battlemaster_join_arenas_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_battlemaster_join_skirmishes_like_cpp: Vec::new(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             represented_battleground_queue_slots_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_battlefield_ports_like_cpp: Vec::new(),
