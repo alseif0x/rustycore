@@ -504,7 +504,7 @@ impl WorldSession {
                     true
                 };
 
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             {
                 self.quest_test_fixture_like_cpp
                     .represented_quest_reward_reputations_like_cpp

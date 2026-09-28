@@ -375,7 +375,7 @@ pub(crate) struct RepresentedQuestRewardMailLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedQuestRewardReputationSourceLikeCpp {
+pub enum RepresentedQuestRewardReputationSourceLikeCpp {
     Quest,
     DailyQuest,
     WeeklyQuest,
@@ -385,7 +385,7 @@ pub(crate) enum RepresentedQuestRewardReputationSourceLikeCpp {
 
 #[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedQuestRewardReputationLikeCpp {
+pub struct RepresentedQuestRewardReputationLikeCpp {
     pub quest_id: u32,
     pub slot: u8,
     pub faction_id: u32,

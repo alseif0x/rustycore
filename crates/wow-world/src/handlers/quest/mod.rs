@@ -82,10 +82,12 @@ use crate::session::{
 };
 #[cfg(test)]
 use crate::session::{
-    RepresentedQuestRewardMailLikeCpp, RepresentedQuestRewardReputationLikeCpp,
-    RepresentedQuestRewardSpellCastLikeCpp, RepresentedQuestRewardSpellKindLikeCpp,
-    RepresentedQuestRewardTalentPointsLikeCpp, RepresentedQuestRewardTitleLikeCpp,
+    RepresentedQuestRewardMailLikeCpp, RepresentedQuestRewardSpellCastLikeCpp,
+    RepresentedQuestRewardSpellKindLikeCpp, RepresentedQuestRewardTalentPointsLikeCpp,
+    RepresentedQuestRewardTitleLikeCpp,
 };
+#[cfg(any(test, feature = "test-fixtures"))]
+use crate::session::RepresentedQuestRewardReputationLikeCpp;
 use wow_conditions::{
     QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP,
     QUEST_STATUS_NONE_LIKE_CPP, QUEST_STATUS_REWARDED_LIKE_CPP,
