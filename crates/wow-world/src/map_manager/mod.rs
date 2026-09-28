@@ -14,24 +14,24 @@ mod movement;
 mod respawn;
 mod runtime;
 
-use std::collections::{HashMap, HashSet};
-use std::fs::File;
-use std::io::{self, Read, Seek, SeekFrom};
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, RwLock, mpsc};
-use std::thread;
-use std::time::{Duration, Instant};
+pub use std::collections::{HashMap, HashSet};
+pub use std::fs::File;
+pub use std::io::{self, Read, Seek, SeekFrom};
+pub use std::path::{Path, PathBuf};
+pub use std::sync::{Arc, Mutex, RwLock, mpsc};
+pub use std::thread;
+pub use std::time::{Duration, Instant};
 
-use rand::{Rng, RngCore, SeedableRng, rngs::StdRng};
-use tracing::{debug, info, warn};
-use wow_constants::movement::MovementFlag;
-use wow_constants::{
+pub use rand::{Rng, RngCore, SeedableRng, rngs::StdRng};
+pub use tracing::{debug, info, warn};
+pub use wow_constants::movement::MovementFlag;
+pub use wow_constants::{
     CreatureRandomMovementType as ConstantsCreatureRandomMovementType, PowerType, UnitDynFlags,
     UnitFlags2, UnitMoveType, UnitStandStateType, UnitState, WeaponAttackType,
 };
-use wow_core::{ObjectGuid, Position};
-use wow_entities::creature_create::CreatureCreateData;
-use wow_entities::{
+pub use wow_core::{ObjectGuid, Position};
+pub use wow_entities::creature_create::CreatureCreateData;
+pub use wow_entities::{
     AllowedPositionZCaps, Creature, CreatureAddonLifecycleRecordLikeCpp, CreatureAiState,
     CreatureCombatLogStatsLikeCpp, DEFAULT_HEIGHT_SEARCH, DistractMovementAction,
     EVENT_CHARGE_PREPATH, GenericMovementInform, INVALID_HEIGHT, MotionMasterUpdateContext,
@@ -39,10 +39,10 @@ use wow_entities::{
     MovementSlot, PhaseShift, PointMovementAction, PointMovementInform, RotateMovementUpdate,
     Z_OFFSET_FIND_HEIGHT, allowed_position_z_from_ground_like_cpp, game_time_secs_like_cpp,
 };
-use wow_map::map::MapWorldObjectEnvironment;
-use wow_map::{GridMapTerrain, SharedStaticVMapLineOfSightProvider, SpawnObjectType};
-use wow_movement::generators::CreatureRandomMovementType as MovementCreatureRandomMovementType;
-use wow_movement::{
+pub use wow_map::map::MapWorldObjectEnvironment;
+pub use wow_map::{GridMapTerrain, SharedStaticVMapLineOfSightProvider, SpawnObjectType};
+pub use wow_movement::generators::CreatureRandomMovementType as MovementCreatureRandomMovementType;
+pub use wow_movement::{
     ChaseMovementGenerator, HomeMovementGenerator, IdleMovementGenerator, MotionMaster, MoveSpline,
     MoveSplineFlag, MoveSplineInit, MoveSplineLaunchInput, MoveSplineStopInput,
     MoveSplineStopResult, MovementGenerator as RuntimeMovementGenerator,
@@ -56,8 +56,8 @@ use wow_movement::{
     WaypointLaunchPlan, WaypointMovementAction, WaypointMovementGenerator, WaypointPath,
     WaypointRandomAtPathEnd, WaypointUnitSnapshot, compute_random_destination_like_cpp,
 };
-use wow_persistence::{RespawnPersistenceKeyLikeCpp, RespawnPersistenceMutationLikeCpp};
-use wow_recastdetour::{
+pub use wow_persistence::{RespawnPersistenceKeyLikeCpp, RespawnPersistenceMutationLikeCpp};
+pub use wow_recastdetour::{
     CENTER_GRID_ID_LIKE_CPP, DetourNavMeshQueryError, DetourOwnerCapabilitiesLikeCpp,
     DetourPathOptions, DetourPathType, DetourPointPath, DetourPolyPath, DetourQueryFilterError,
     MAX_NUMBER_OF_GRIDS_LIKE_CPP, MAX_POINT_PATH_LENGTH_LIKE_CPP, MMapData,
@@ -238,13 +238,13 @@ pub use pending_respawn::*;
 pub use runtime_state::*;
 pub use terrain::*;
 
-use grid::{
+pub use grid::{
     calculate_cell_area_like_cpp, cell_area_contains_position_like_cpp, position_to_i32_tuple,
 };
 
-use pending_respawn::spawn_object_type_raw_like_cpp;
+pub use pending_respawn::spawn_object_type_raw_like_cpp;
 
-use runtime_state::{
+pub use runtime_state::{
     ActiveTauntLikeCpp, BASE_ATTACK_TIME_LIKE_CPP, NOMINAL_MELEE_RANGE_LIKE_CPP,
     RuntimeRepresentedActiveGeneratorLikeCpp, RuntimeRepresentedActiveKeyLikeCpp,
     absolute_angle_like_cpp, power_type_from_u8_like_cpp,

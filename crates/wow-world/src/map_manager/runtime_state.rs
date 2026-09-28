@@ -8,9 +8,9 @@ use super::*;
 /// C++ `BASE_ATTACK_TIME` (`UnitDefines.h:30`). Creature base/ranged attack time
 /// is clamped to this when the template value is 0 (`ObjectMgr.cpp:1100-1104`); a
 /// 0 attack time crashes the 3.4.3 client's swing-timer math on the first tick.
-pub(super) const BASE_ATTACK_TIME_LIKE_CPP: u32 = 2_000;
+pub const BASE_ATTACK_TIME_LIKE_CPP: u32 = 2_000;
 
-pub(super) const fn power_type_from_u8_like_cpp(power: u8) -> PowerType {
+pub const fn power_type_from_u8_like_cpp(power: u8) -> PowerType {
     match power {
         1 => PowerType::Rage,
         2 => PowerType::Focus,
@@ -62,10 +62,10 @@ pub struct ChaseTargetSnapshotLikeCpp {
 }
 
 /// C++ `NOMINAL_MELEE_RANGE` (`ObjectDefines.h:44`).
-pub(super) const NOMINAL_MELEE_RANGE_LIKE_CPP: f32 = 5.0;
+pub const NOMINAL_MELEE_RANGE_LIKE_CPP: f32 = 5.0;
 
 /// C++ `Position::GetAbsoluteAngle`: the world bearing from `from` to `to`.
-pub(super) fn absolute_angle_like_cpp(from: Position, to: Position) -> f32 {
+pub fn absolute_angle_like_cpp(from: Position, to: Position) -> f32 {
     wow_movement::normalize_orientation_like_cpp((to.y - from.y).atan2(to.x - from.x))
 }
 
@@ -83,21 +83,21 @@ pub enum ChaseTickOutcomeLikeCpp {
 /// Runtime selector proxy for an active generator whose concrete lifecycle
 /// still lives in `wow_entities::MotionSubsystem`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct RuntimeRepresentedActiveKeyLikeCpp {
-    pub(super) kind: RuntimeMovementGeneratorType,
+pub struct RuntimeRepresentedActiveKeyLikeCpp {
+    pub kind: RuntimeMovementGeneratorType,
     mode: RuntimeMovementGeneratorMode,
     priority: RuntimeMovementGeneratorPriority,
     base_unit_state: u32,
 }
 
 #[derive(Debug)]
-pub(super) struct RuntimeRepresentedActiveGeneratorLikeCpp {
+pub struct RuntimeRepresentedActiveGeneratorLikeCpp {
     state: RuntimeMovementGeneratorState,
     kind: RuntimeMovementGeneratorType,
 }
 
 impl RuntimeRepresentedActiveGeneratorLikeCpp {
-    pub(super) fn from_represented(generator: MovementGeneratorRef) -> Option<Self> {
+    pub fn from_represented(generator: MovementGeneratorRef) -> Option<Self> {
         let kind = RuntimeMovementGeneratorType::from_trinity_id(generator.kind.trinity_id())?;
         let mode = match generator.mode {
             wow_entities::MovementGeneratorMode::Default => RuntimeMovementGeneratorMode::Default,
@@ -123,7 +123,7 @@ impl RuntimeRepresentedActiveGeneratorLikeCpp {
         })
     }
 
-    pub(super) const fn key(&self) -> RuntimeRepresentedActiveKeyLikeCpp {
+    pub const fn key(&self) -> RuntimeRepresentedActiveKeyLikeCpp {
         RuntimeRepresentedActiveKeyLikeCpp {
             kind: self.kind,
             mode: self.state.mode,
@@ -181,13 +181,13 @@ impl RuntimeMovementGenerator for RuntimeRepresentedActiveGeneratorLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(super) struct ActiveTauntLikeCpp {
-    pub(super) caster: ObjectGuid,
+pub struct ActiveTauntLikeCpp {
+    pub caster: ObjectGuid,
     /// `None` represents C++/DB2's permanent duration sentinel `-1`.
-    pub(super) due_at_ms: Option<u64>,
-    pub(super) spell_id: u32,
-    pub(super) effect_mask: u32,
-    pub(super) slot: u8,
+    pub due_at_ms: Option<u64>,
+    pub spell_id: u32,
+    pub effect_mask: u32,
+    pub slot: u8,
 }
 
 /// Who owns the creature/combat tick for a given map at runtime.

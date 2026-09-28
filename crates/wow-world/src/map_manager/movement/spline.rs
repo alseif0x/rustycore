@@ -73,7 +73,7 @@ impl WorldCreature {
         ai.spline_id = ai.spline_id.saturating_add(1);
     }
 
-    pub(super) fn launch_move_spline_init_like_cpp(
+    pub fn launch_move_spline_init_like_cpp(
         &mut self,
         init: &mut MoveSplineInit,
         dst: Position,

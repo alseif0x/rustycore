@@ -5,9 +5,9 @@
 
 use super::*;
 
-pub(super) const SMOOTH_PATH_STEP_SIZE_LIKE_CPP: f32 = 4.0;
+pub const SMOOTH_PATH_STEP_SIZE_LIKE_CPP: f32 = 4.0;
 
-pub(super) fn point_path_limit_for_distance_like_cpp(distance: f32) -> usize {
+pub fn point_path_limit_for_distance_like_cpp(distance: f32) -> usize {
     let point_limit = if distance.is_sign_negative() {
         0
     } else {
@@ -16,11 +16,11 @@ pub(super) fn point_path_limit_for_distance_like_cpp(distance: f32) -> usize {
     point_limit.min(MAX_POINT_PATH_LENGTH_LIKE_CPP)
 }
 
-pub(super) fn position_from_detour_point_like_cpp(point: [f32; 3]) -> Position {
+pub fn position_from_detour_point_like_cpp(point: [f32; 3]) -> Position {
     Position::new(point[0], point[1], point[2], 0.0)
 }
 
-pub(super) fn position_to_wow_point_like_cpp(position: Position) -> [f32; 3] {
+pub fn position_to_wow_point_like_cpp(position: Position) -> [f32; 3] {
     [position.x, position.y, position.z]
 }
 
@@ -261,7 +261,7 @@ pub struct WorldMMapPathfinderWorkerLikeCpp {
 }
 
 #[derive(Debug)]
-pub(super) struct WorldMMapPathfinderMessageLikeCpp {
+pub struct WorldMMapPathfinderMessageLikeCpp {
     request: WorldMMapPathRequestLikeCpp,
     response_tx: mpsc::Sender<Result<Option<DetourPolyPath>, WorldDetourPathError>>,
 }
@@ -338,7 +338,7 @@ pub fn path_type_from_detour_like_cpp(path_type: DetourPathType) -> PathType {
     PathType::from_bits_retain(path_type.bits())
 }
 
-pub(super) fn random_path_result_from_path_type_like_cpp(path_type: PathType) -> RandomPathResult {
+pub fn random_path_result_from_path_type_like_cpp(path_type: PathType) -> RandomPathResult {
     if path_type.contains(PathType::NOPATH) {
         RandomPathResult::NoPath
     } else if path_type.contains(PathType::SHORTCUT) {

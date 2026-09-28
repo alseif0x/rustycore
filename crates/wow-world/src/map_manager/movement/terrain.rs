@@ -101,7 +101,7 @@ impl WorldCreature {
         Position::new(point.x, point.y, z, point.orientation)
     }
 
-    pub(super) fn path_generator_from_detour_for_creature_like_cpp(
+    pub fn path_generator_from_detour_for_creature_like_cpp(
         &self,
         destination: Position,
         detour_path: &DetourPolyPath,
