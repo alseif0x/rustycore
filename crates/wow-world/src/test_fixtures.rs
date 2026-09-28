@@ -367,3 +367,11 @@ pub fn represented_auto_accept_acknowledged_quests_for_test(
 pub const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP;
 pub const PLAYER_FLAGS_AFK_LIKE_CPP: u32 = crate::session::PLAYER_FLAGS_AFK_LIKE_CPP;
 pub const PLAYER_FLAGS_DND_LIKE_CPP: u32 = crate::session::PLAYER_FLAGS_DND_LIKE_CPP;
+
+pub const QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP: u32 =
+    crate::handlers::quest::QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP;
+pub const QUEST_FLAGS_SHARABLE_LIKE_CPP: u32 = crate::handlers::quest::QUEST_FLAGS_SHARABLE_LIKE_CPP;
+pub const QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP: u8 =
+    crate::handlers::quest::QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP;
+pub const QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP: u8 =
+    crate::handlers::quest::QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP;
