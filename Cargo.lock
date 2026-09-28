@@ -3469,6 +3469,7 @@ dependencies = [
  "wow-session",
  "wow-social",
  "wow-spell-acquisition",
+ "wow-world",
 ]
 
 [[package]]
