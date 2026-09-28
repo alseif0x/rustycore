@@ -1462,7 +1462,9 @@ movidos: ningun metodo, ningun cambio de texto ni de orden. Los items `#[cfg(tes
 intercalados donde estaban; su reclasificacion es B3.
 
 Evidencia: `cargo check -p wow-world --all-targets` 0 errores; `cargo test -p wow-world character`
-**pasan / 0 fallan**; `cargo fmt --all --check` limpio; `check_architecture.py check` PASS en los
-cuatro informes. Con esto los tres adaptadores de handler mayores estan dentro del presupuesto de
-600 lineas.
+**381 pasan / 0 fallan**; `cargo fmt --all --check` limpio; `check_architecture.py check` PASS en los
+cuatro informes. El owner logico crece **+31 lineas** (los encabezados de los seis hijos), asi que
+el ledger de hotspots lleva la entrada de revision de crecimiento correspondiente: es la unica
+forma sancionada de crecer y no se toca ningun techo sin ella. Con esto los tres adaptadores de
+handler mayores estan dentro del presupuesto de 600 lineas.
 
