@@ -251,6 +251,119 @@ pub fn contains_rewarded_quest_for_test(
         .contains(&id)
 }
 
+pub fn insert_daily_quest_completed_for_test(
+    session: &mut crate::session::WorldSession,
+    id: u32,
+) -> bool {
+    session
+        .quest_test_fixture_like_cpp
+        .daily_quests_completed_like_cpp
+        .insert(id)
+}
+
+pub fn contains_daily_quest_completed_for_test(
+    session: &crate::session::WorldSession,
+    id: u32,
+) -> bool {
+    session
+        .quest_test_fixture_like_cpp
+        .daily_quests_completed_like_cpp
+        .contains(&id)
+}
+
+pub fn insert_df_quest_for_test(
+    session: &mut crate::session::WorldSession,
+    id: u32,
+) -> bool {
+    session
+        .quest_test_fixture_like_cpp
+        .df_quests_like_cpp
+        .insert(id)
+}
+
+pub fn contains_df_quest_for_test(
+    session: &crate::session::WorldSession,
+    id: u32,
+) -> bool {
+    session
+        .quest_test_fixture_like_cpp
+        .df_quests_like_cpp
+        .contains(&id)
+}
+
+pub fn insert_weekly_quest_completed_for_test(
+    session: &mut crate::session::WorldSession,
+    id: u32,
+) -> bool {
+    session
+        .quest_test_fixture_like_cpp
+        .weekly_quests_completed_like_cpp
+        .insert(id)
+}
+
+pub fn contains_weekly_quest_completed_for_test(
+    session: &crate::session::WorldSession,
+    id: u32,
+) -> bool {
+    session
+        .quest_test_fixture_like_cpp
+        .weekly_quests_completed_like_cpp
+        .contains(&id)
+}
+
+pub fn insert_monthly_quest_completed_for_test(
+    session: &mut crate::session::WorldSession,
+    id: u32,
+) -> bool {
+    session
+        .quest_test_fixture_like_cpp
+        .monthly_quests_completed_like_cpp
+        .insert(id)
+}
+
+pub fn contains_monthly_quest_completed_for_test(
+    session: &crate::session::WorldSession,
+    id: u32,
+) -> bool {
+    session
+        .quest_test_fixture_like_cpp
+        .monthly_quests_completed_like_cpp
+        .contains(&id)
+}
+
+pub fn last_daily_quest_time_for_test(session: &crate::session::WorldSession) -> i64 {
+    session
+        .quest_test_fixture_like_cpp
+        .last_daily_quest_time_like_cpp
+}
+
+pub fn contains_seasonal_quest_for_test(
+    session: &crate::session::WorldSession,
+    event_id: u16,
+    quest_id: u32,
+) -> bool {
+    session
+        .quest_test_fixture_like_cpp
+        .seasonal_quests_like_cpp
+        .get(&event_id)
+        .is_some_and(|quests| quests.contains_key(&quest_id))
+}
+
+pub fn seasonal_quest_changed_for_test(session: &crate::session::WorldSession) -> bool {
+    session
+        .quest_test_fixture_like_cpp
+        .seasonal_quest_changed_like_cpp
+}
+
+pub fn represented_auto_accept_acknowledged_quests_for_test(
+    session: &crate::session::WorldSession,
+) -> Vec<u32> {
+    session
+        .quest_test_fixture_like_cpp
+        .represented_auto_accept_acknowledged_quests_like_cpp
+        .clone()
+}
+
 pub const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP;
 pub const PLAYER_FLAGS_AFK_LIKE_CPP: u32 = crate::session::PLAYER_FLAGS_AFK_LIKE_CPP;
 pub const PLAYER_FLAGS_DND_LIKE_CPP: u32 = crate::session::PLAYER_FLAGS_DND_LIKE_CPP;
