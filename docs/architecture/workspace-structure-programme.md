@@ -273,6 +273,15 @@ diagnóstico, tras adaptar 34 llamadas de oro y 17 de identidad/nombre, cuenta
 **376 errores** (`target/b3-quest-gold-consumer-check.log`). Predominan ahora
 los tipos y observaciones de confirmación de quest, inventario y recompensas.
 La suite sigue sin compilar y no tiene aceptación de test.
+`d318d97e` conservó los tipos y el registro originales de confirmación;
+tras adaptar sus lectores, el diagnóstico contó **330 errores**
+(`target/b3-quest-confirm-consumer-check.log`). Una llamada restante en la
+raíz de la suite se corrigió después de ese check; el recuento no se relabela.
+`7f66f57d` abrió solo lectura de los mapas de inventario originales bajo
+`test-fixtures`, sin clonar ni añadir mutadores; sus 24 lecturas externas se
+adaptaron y el siguiente check contó **305 errores**
+(`target/b3-quest-inventory-consumer-check.log`), ninguno de préstamos o
+tipos en los nuevos accesos. El target todavía no compila ni ha ejecutado tests.
 
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
