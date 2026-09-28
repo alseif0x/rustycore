@@ -15,6 +15,43 @@ pub use crate::handlers::group::state::send_ready_check_events_like_cpp;
 pub use crate::handlers::group::state::sender_can_start_ready_check_like_cpp;
 pub use crate::handlers::group::test_support::PartyInviteSocialPortLikeCpp;
 
+pub fn set_group_guid_for_test_like_cpp(
+    session: &mut crate::session::WorldSession,
+    group_guid: Option<u64>,
+) {
+    session.group_guid = group_guid;
+}
+
+pub fn group_guid_for_test_like_cpp(
+    session: &crate::session::WorldSession,
+) -> Option<u64> {
+    session.group_guid
+}
+
+pub fn set_pass_on_group_loot_for_test_like_cpp(
+    session: &mut crate::session::WorldSession,
+    pass_on_group_loot: bool,
+) {
+    session.pass_on_group_loot = pass_on_group_loot;
+}
+
+pub fn pass_on_group_loot_for_test_like_cpp(
+    session: &crate::session::WorldSession,
+) -> bool {
+    session.pass_on_group_loot
+}
+
+pub fn set_in_combat_for_test_like_cpp(
+    session: &mut crate::session::WorldSession,
+    in_combat: bool,
+) {
+    session.in_combat = in_combat;
+}
+
+pub fn in_combat_for_test_like_cpp(session: &crate::session::WorldSession) -> bool {
+    session.in_combat
+}
+
 pub fn with_canonical_player_at_mut_like_cpp<R>(
     manager: &crate::session::SharedCanonicalMapManager,
     guid: wow_core::ObjectGuid,

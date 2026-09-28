@@ -723,7 +723,7 @@ pub struct WorldSession {
 
     // Test-only compatibility for pre-#578 fixtures. Production group
     // membership and Player-owned update sequences live on canonical Player.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) group_guid: Option<u64>,
     #[cfg(test)]
     pub(in crate::session) represented_subgroup_like_cpp: Option<u8>,
@@ -731,7 +731,7 @@ pub struct WorldSession {
     pub(in crate::session) represented_group_update_sequences_like_cpp:
         [wow_entities::PlayerGroupUpdateSequenceLikeCpp;
             wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP as usize],
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) pass_on_group_loot: bool,
     #[cfg(test)]
     pub(crate) represented_enchanting_skill: u16,
@@ -1034,7 +1034,7 @@ pub struct WorldSession {
     pub(crate) combat_target: Option<wow_core::ObjectGuid>,
     /// True when the player is engaged in combat.
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) in_combat: bool,
     /// Test-only legacy fixture for sessions without an installed Player owner.
     #[cfg(test)]

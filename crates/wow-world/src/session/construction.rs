@@ -365,7 +365,7 @@ impl WorldSession {
                 chat_flood_data_like_cpp: [ChatFloodThrottleDataLikeCpp::default(); 2],
             },
             directory: SessionDirectory::default(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             group_guid: None,
             #[cfg(test)]
             represented_subgroup_like_cpp: None,
@@ -373,7 +373,7 @@ impl WorldSession {
             represented_group_update_sequences_like_cpp: std::array::from_fn(|_| {
                 Default::default()
             }),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             pass_on_group_loot: false,
             #[cfg(test)]
             represented_enchanting_skill: 0,
@@ -545,7 +545,7 @@ impl WorldSession {
             mmap_pathfinder_like_cpp: None,
             #[cfg(test)]
             combat_target: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             in_combat: false,
             #[cfg(test)]
             player_alive_like_cpp: true,
