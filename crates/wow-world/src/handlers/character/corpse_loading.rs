@@ -5,34 +5,34 @@
 use super::*;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct LoadedMapCorpseRowLikeCpp {
-    pub position: Position,
-    pub map_id: u16,
-    pub display_id: u32,
-    pub items: [u32; wow_entities::CORPSE_ITEMS],
-    pub race: u8,
-    pub class: u8,
-    pub sex: u8,
-    pub flags: u32,
-    pub dynamic_flags: u32,
-    pub ghost_time: i64,
-    pub corpse_type: CorpseType,
-    pub instance_id: u32,
-    pub owner_db_guid: u64,
+pub(in crate::handlers::character) struct LoadedMapCorpseRowLikeCpp {
+    pub(in crate::handlers::character) position: Position,
+    pub(in crate::handlers::character) map_id: u16,
+    pub(in crate::handlers::character) display_id: u32,
+    pub(in crate::handlers::character) items: [u32; wow_entities::CORPSE_ITEMS],
+    pub(in crate::handlers::character) race: u8,
+    pub(in crate::handlers::character) class: u8,
+    pub(in crate::handlers::character) sex: u8,
+    pub(in crate::handlers::character) flags: u32,
+    pub(in crate::handlers::character) dynamic_flags: u32,
+    pub(in crate::handlers::character) ghost_time: i64,
+    pub(in crate::handlers::character) corpse_type: CorpseType,
+    pub(in crate::handlers::character) instance_id: u32,
+    pub(in crate::handlers::character) owner_db_guid: u64,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct MapCorpseLoadOutcomeLikeCpp {
-    pub already_loaded: bool,
-    pub rows_seen: u32,
-    pub corpses_added: u32,
-    pub invalid_type_rows: u32,
-    pub invalid_race_rows: u32,
-    pub invalid_position_rows: u32,
-    pub add_to_map_errors: u32,
+pub(in crate::handlers::character) struct MapCorpseLoadOutcomeLikeCpp {
+    pub(in crate::handlers::character) already_loaded: bool,
+    pub(in crate::handlers::character) rows_seen: u32,
+    pub(in crate::handlers::character) corpses_added: u32,
+    pub(in crate::handlers::character) invalid_type_rows: u32,
+    pub(in crate::handlers::character) invalid_race_rows: u32,
+    pub(in crate::handlers::character) invalid_position_rows: u32,
+    pub(in crate::handlers::character) add_to_map_errors: u32,
 }
 
-pub fn parse_corpse_items_like_cpp(item_cache: &str) -> [u32; wow_entities::CORPSE_ITEMS] {
+pub(in crate::handlers::character) fn parse_corpse_items_like_cpp(item_cache: &str) -> [u32; wow_entities::CORPSE_ITEMS] {
     let mut items = [0; wow_entities::CORPSE_ITEMS];
     let tokens = item_cache.split_whitespace().collect::<Vec<_>>();
     if tokens.len() == items.len() {
@@ -43,7 +43,7 @@ pub fn parse_corpse_items_like_cpp(item_cache: &str) -> [u32; wow_entities::CORP
     items
 }
 
-pub fn materialize_loaded_map_corpses_like_cpp(
+pub(in crate::handlers::character) fn materialize_loaded_map_corpses_like_cpp(
     map: &mut wow_map::Map,
     realm_id: u16,
     rows: Vec<LoadedMapCorpseRowLikeCpp>,

@@ -6,18 +6,18 @@
 use super::*;
 
 #[derive(Clone)]
-pub struct AuthoritativeLootReleaseLikeCpp {
-    pub authority: OwnedLootAuthority,
-    pub selected_generation: u64,
-    pub loot: CreatureLoot,
-    pub whole_object_fully_looted: bool,
-    pub whole_object_fully_skinned: bool,
-    pub object_generation: u64,
-    pub lifecycle_revision: u64,
-    pub require_no_viewers: bool,
+pub(in crate::handlers::loot) struct AuthoritativeLootReleaseLikeCpp {
+    pub(in crate::handlers::loot) authority: OwnedLootAuthority,
+    pub(in crate::handlers::loot) selected_generation: u64,
+    pub(in crate::handlers::loot) loot: CreatureLoot,
+    pub(in crate::handlers::loot) whole_object_fully_looted: bool,
+    pub(in crate::handlers::loot) whole_object_fully_skinned: bool,
+    pub(in crate::handlers::loot) object_generation: u64,
+    pub(in crate::handlers::loot) lifecycle_revision: u64,
+    pub(in crate::handlers::loot) require_no_viewers: bool,
 }
 
-pub fn generated_creature_loot_item_to_entry_like_cpp(
+pub(in crate::handlers::loot) fn generated_creature_loot_item_to_entry_like_cpp(
     item: GeneratedLootItem,
     addon_metadata: ItemTemplateAddonLootMetadataLikeCpp,
 ) -> LootEntry {
@@ -43,7 +43,7 @@ pub fn generated_creature_loot_item_to_entry_like_cpp(
     }
 }
 
-pub fn generated_shared_gameobject_loot_item_to_entry_like_cpp<FAllowed>(
+pub(in crate::handlers::loot) fn generated_shared_gameobject_loot_item_to_entry_like_cpp<FAllowed>(
     item: GeneratedLootItem,
     addon_metadata: ItemTemplateAddonLootMetadataLikeCpp,
     allowed_looters: &[ObjectGuid],
@@ -63,36 +63,36 @@ where
 }
 
 #[derive(Debug, Clone)]
-pub struct RepresentedCreatureLootStateLikeCpp {
-    pub is_alive: bool,
-    pub position: wow_core::Position,
-    pub level: u8,
-    pub entry: u32,
-    pub loot_id: u32,
-    pub gold_min: u32,
-    pub gold_max: u32,
-    pub dungeon_encounter_id: u32,
-    pub tappers: Vec<ObjectGuid>,
-    pub loot_lifecycle_revision: u64,
+pub(in crate::handlers::loot) struct RepresentedCreatureLootStateLikeCpp {
+    pub(in crate::handlers::loot) is_alive: bool,
+    pub(in crate::handlers::loot) position: wow_core::Position,
+    pub(in crate::handlers::loot) level: u8,
+    pub(in crate::handlers::loot) entry: u32,
+    pub(in crate::handlers::loot) loot_id: u32,
+    pub(in crate::handlers::loot) gold_min: u32,
+    pub(in crate::handlers::loot) gold_max: u32,
+    pub(in crate::handlers::loot) dungeon_encounter_id: u32,
+    pub(in crate::handlers::loot) tappers: Vec<ObjectGuid>,
+    pub(in crate::handlers::loot) loot_lifecycle_revision: u64,
 }
 
 #[derive(Debug, Clone)]
-pub struct RepresentedGameObjectLootInstallObservationLikeCpp {
-    pub authority: OwnedLootAuthority,
-    pub object_generation: u64,
-    pub loot_lifecycle_revision: u64,
+pub(in crate::handlers::loot) struct RepresentedGameObjectLootInstallObservationLikeCpp {
+    pub(in crate::handlers::loot) authority: OwnedLootAuthority,
+    pub(in crate::handlers::loot) object_generation: u64,
+    pub(in crate::handlers::loot) loot_lifecycle_revision: u64,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct RepresentedGameObjectLootStateLikeCpp {
-    pub position: Option<wow_core::Position>,
-    pub display_id: Option<u32>,
-    pub scale: f32,
-    pub rotation: [f32; 4],
-    pub go_type: Option<u8>,
-    pub interact_radius_override: Option<u32>,
-    pub lock_id: Option<u32>,
-    pub owner_guid: Option<ObjectGuid>,
+pub(in crate::handlers::loot) struct RepresentedGameObjectLootStateLikeCpp {
+    pub(in crate::handlers::loot) position: Option<wow_core::Position>,
+    pub(in crate::handlers::loot) display_id: Option<u32>,
+    pub(in crate::handlers::loot) scale: f32,
+    pub(in crate::handlers::loot) rotation: [f32; 4],
+    pub(in crate::handlers::loot) go_type: Option<u8>,
+    pub(in crate::handlers::loot) interact_radius_override: Option<u32>,
+    pub(in crate::handlers::loot) lock_id: Option<u32>,
+    pub(in crate::handlers::loot) owner_guid: Option<ObjectGuid>,
 }
 
 pub(crate) fn represented_gameobject_interaction_distance_like_cpp(
@@ -126,7 +126,7 @@ pub(crate) fn represented_gameobject_interaction_distance_like_cpp(
     }
 }
 
-pub fn represented_gameobject_display_box_contains_like_cpp(
+pub(in crate::handlers::loot) fn represented_gameobject_display_box_contains_like_cpp(
     go_position: wow_core::Position,
     player_position: wow_core::Position,
     display_info: &wow_data::GameObjectDisplayInfoEntry,
@@ -165,7 +165,9 @@ pub fn represented_gameobject_display_box_contains_like_cpp(
 }
 
 #[cfg(test)]
-pub fn represented_loot_object_guid_like_cpp(owner: ObjectGuid) -> ObjectGuid {
+pub(in crate::handlers::loot) fn represented_loot_object_guid_like_cpp(
+    owner: ObjectGuid,
+) -> ObjectGuid {
     if owner.is_empty() {
         return ObjectGuid::EMPTY;
     }
@@ -181,7 +183,7 @@ pub fn represented_loot_object_guid_like_cpp(owner: ObjectGuid) -> ObjectGuid {
     )
 }
 
-pub fn looted_corpse_decay_secs_like_cpp(
+pub(in crate::handlers::loot) fn looted_corpse_decay_secs_like_cpp(
     is_fully_skinned: bool,
     corpse_delay_secs: u32,
     ignore_decay_ratio: bool,

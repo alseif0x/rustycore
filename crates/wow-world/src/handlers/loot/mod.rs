@@ -55,12 +55,13 @@ mod sources;
 mod storage_plans;
 mod visibility_commands;
 
-pub use self::disenchant::*;
-pub use self::object_state::*;
-pub use self::persistence_workers::*;
-pub use self::player_view::*;
-pub use self::release_and_rolls::*;
-pub use self::reply_items::*;
+use self::disenchant::*;
+use self::object_state::*;
+pub(crate) use self::object_state::represented_gameobject_interaction_distance_like_cpp;
+use self::persistence_workers::*;
+use self::player_view::*;
+use self::release_and_rolls::*;
+use self::reply_items::*;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{

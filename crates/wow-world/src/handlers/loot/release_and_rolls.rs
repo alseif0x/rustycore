@@ -7,14 +7,14 @@ use super::*;
 
 #[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CreatureLootReleaseCommandQueueOutcomeLikeCpp {
+pub(in crate::handlers::loot) enum CreatureLootReleaseCommandQueueOutcomeLikeCpp {
     Queued,
     Retrying,
     Disconnected,
 }
 
 #[cfg(test)]
-pub fn queue_creature_loot_release_command_reliably_like_cpp(
+pub(in crate::handlers::loot) fn queue_creature_loot_release_command_reliably_like_cpp(
     command_tx: &flume::Sender<SessionCommand>,
     command: SessionCommand,
 ) -> CreatureLootReleaseCommandQueueOutcomeLikeCpp {
@@ -42,7 +42,7 @@ pub fn queue_creature_loot_release_command_reliably_like_cpp(
     }
 }
 
-pub fn connected_roll_looters_like_cpp(
+pub(in crate::handlers::loot) fn connected_roll_looters_like_cpp(
     entry: &LootEntry,
     player_guid: ObjectGuid,
     current_map_id: u16,
@@ -73,7 +73,7 @@ pub fn connected_roll_looters_like_cpp(
     looters
 }
 
-pub fn start_loot_roll_packet_like_cpp(
+pub(in crate::handlers::loot) fn start_loot_roll_packet_like_cpp(
     loot_obj: ObjectGuid,
     map_id: u16,
     loot_method: u8,
@@ -106,7 +106,7 @@ pub fn start_loot_roll_packet_like_cpp(
     }
 }
 
-pub fn loot_roll_broadcast_item_like_cpp(entry: &LootEntry, ui_type: u8) -> LootItemData {
+pub(in crate::handlers::loot) fn loot_roll_broadcast_item_like_cpp(entry: &LootEntry, ui_type: u8) -> LootItemData {
     LootItemData {
         item_type: 0,
         ui_type,
@@ -123,7 +123,7 @@ pub fn loot_roll_broadcast_item_like_cpp(entry: &LootEntry, ui_type: u8) -> Loot
     }
 }
 
-pub fn roll_chance_with_rate_like_cpp<R: Rng + ?Sized>(
+pub(in crate::handlers::loot) fn roll_chance_with_rate_like_cpp<R: Rng + ?Sized>(
     chance: f32,
     rate: f32,
     rng: &mut R,
@@ -134,6 +134,6 @@ pub fn roll_chance_with_rate_like_cpp<R: Rng + ?Sized>(
     rng.gen_range(0.0f32..100.0f32) < chance * rate
 }
 
-pub fn referenced_loot_max_count_like_cpp(max_count: u8, rate: f32) -> u32 {
+pub(in crate::handlers::loot) fn referenced_loot_max_count_like_cpp(max_count: u8, rate: f32) -> u32 {
     ((max_count as f32) * rate) as u32
 }

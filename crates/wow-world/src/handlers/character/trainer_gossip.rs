@@ -4,11 +4,11 @@
 
 use super::*;
 
-pub fn creature_has_trainer_flag_like_cpp(npc_flags: u32) -> bool {
+pub(in crate::handlers::character) fn creature_has_trainer_flag_like_cpp(npc_flags: u32) -> bool {
     (npc_flags & TRAINER_NPC_FLAGS_MASK_LIKE_CPP) != 0
 }
 
-pub fn represented_trainer_gossip_option_like_cpp()
+pub(in crate::handlers::character) fn represented_trainer_gossip_option_like_cpp()
 -> wow_packet::packets::gossip::ClientGossipOption {
     wow_packet::packets::gossip::ClientGossipOption {
         gossip_option_id: GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP,
@@ -26,7 +26,7 @@ pub fn represented_trainer_gossip_option_like_cpp()
     }
 }
 
-pub fn represented_trainer_gossip_option_info_like_cpp() -> crate::session::GossipOptionInfo {
+pub(in crate::handlers::character) fn represented_trainer_gossip_option_info_like_cpp() -> crate::session::GossipOptionInfo {
     crate::session::GossipOptionInfo {
         gossip_option_id: GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP,
         menu_id: 0,
@@ -36,7 +36,7 @@ pub fn represented_trainer_gossip_option_info_like_cpp() -> crate::session::Goss
     }
 }
 
-pub fn add_represented_trainer_gossip_option_if_missing_like_cpp(
+pub(in crate::handlers::character) fn add_represented_trainer_gossip_option_if_missing_like_cpp(
     gossip_options: &mut Vec<wow_packet::packets::gossip::ClientGossipOption>,
     stored_options: &mut Vec<crate::session::GossipOptionInfo>,
     npc_flags: u32,
@@ -57,7 +57,7 @@ pub fn add_represented_trainer_gossip_option_if_missing_like_cpp(
     true
 }
 
-pub fn primary_power_type_for_class_like_cpp(class_id: u8) -> PowerType {
+pub(in crate::handlers::character) fn primary_power_type_for_class_like_cpp(class_id: u8) -> PowerType {
     match class_id {
         1 => PowerType::Rage,
         4 => PowerType::Energy,
@@ -66,7 +66,7 @@ pub fn primary_power_type_for_class_like_cpp(class_id: u8) -> PowerType {
     }
 }
 
-pub fn primary_max_power_for_class_like_cpp(class_id: u8, max_mana: i64) -> i32 {
+pub(in crate::handlers::character) fn primary_max_power_for_class_like_cpp(class_id: u8, max_mana: i64) -> i32 {
     match class_id {
         1 | 6 => 1_000,
         4 => 100,

@@ -40,12 +40,14 @@ mod vendor_admission;
 mod visibility;
 mod world_entry;
 
-pub use self::corpse_loading::*;
-pub use self::creature_spawn::*;
-pub use self::inventory_plan::*;
-pub use self::item_actions::*;
-pub use self::login_context::*;
-pub use self::trainer_gossip::*;
+use self::corpse_loading::*;
+use self::creature_spawn::*;
+pub(crate) use self::creature_spawn::CreatureAddonCreateFieldsLikeCpp;
+use self::inventory_plan::*;
+use self::item_actions::*;
+pub(crate) use self::item_actions::ExtendedCostItemTurninChange;
+use self::login_context::*;
+use self::trainer_gossip::*;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::f32::consts::PI;

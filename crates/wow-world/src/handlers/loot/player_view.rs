@@ -6,27 +6,27 @@
 use super::*;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct ItemTemplateAddonLootMetadataLikeCpp {
-    pub flags_cu: u32,
-    pub quest_log_item_id: i32,
+pub(in crate::handlers::loot) struct ItemTemplateAddonLootMetadataLikeCpp {
+    pub(in crate::handlers::loot) flags_cu: u32,
+    pub(in crate::handlers::loot) quest_log_item_id: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RepresentedLootPlayerContext {
-    pub race: u8,
-    pub class: u8,
-    pub gender: u8,
-    pub level: u8,
-    pub known_spells: Vec<i32>,
-    pub active_quest_statuses: HashMap<u32, u8>,
-    pub active_quest_objective_counts: HashMap<u32, Vec<i32>>,
-    pub rewarded_quests: HashSet<u32>,
-    pub inventory_item_counts: HashMap<u32, u32>,
-    pub is_current: bool,
+pub(in crate::handlers::loot) struct RepresentedLootPlayerContext {
+    pub(in crate::handlers::loot) race: u8,
+    pub(in crate::handlers::loot) class: u8,
+    pub(in crate::handlers::loot) gender: u8,
+    pub(in crate::handlers::loot) level: u8,
+    pub(in crate::handlers::loot) known_spells: Vec<i32>,
+    pub(in crate::handlers::loot) active_quest_statuses: HashMap<u32, u8>,
+    pub(in crate::handlers::loot) active_quest_objective_counts: HashMap<u32, Vec<i32>>,
+    pub(in crate::handlers::loot) rewarded_quests: HashSet<u32>,
+    pub(in crate::handlers::loot) inventory_item_counts: HashMap<u32, u32>,
+    pub(in crate::handlers::loot) is_current: bool,
 }
 
 impl RepresentedLootPlayerContext {
-    pub fn quest_status(&self, quest_id: u32) -> u8 {
+    pub(in crate::handlers::loot) fn quest_status(&self, quest_id: u32) -> u8 {
         self.active_quest_statuses
             .get(&quest_id)
             .copied()
@@ -38,7 +38,7 @@ impl RepresentedLootPlayerContext {
             .unwrap_or(QUEST_STATUS_NONE_LIKE_CPP)
     }
 
-    pub fn inventory_item_count(&self, item_id: u32) -> u32 {
+    pub(in crate::handlers::loot) fn inventory_item_count(&self, item_id: u32) -> u32 {
         self.inventory_item_counts
             .get(&item_id)
             .copied()
@@ -47,16 +47,16 @@ impl RepresentedLootPlayerContext {
 }
 
 impl ItemTemplateAddonLootMetadataLikeCpp {
-    pub fn ignores_quest_status(self) -> bool {
+    pub(in crate::handlers::loot) fn ignores_quest_status(self) -> bool {
         self.flags_cu & ITEM_FLAGS_CU_IGNORE_QUEST_STATUS_LIKE_CPP != 0
     }
 
-    pub fn follows_loot_rules(self) -> bool {
+    pub(in crate::handlers::loot) fn follows_loot_rules(self) -> bool {
         self.flags_cu & ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP != 0
     }
 }
 
-pub fn player_class_mask_like_cpp(class_id: u8) -> Option<u32> {
+pub(in crate::handlers::loot) fn player_class_mask_like_cpp(class_id: u8) -> Option<u32> {
     if (1..=13).contains(&class_id) {
         Some(1_u32 << (class_id - 1))
     } else {
@@ -64,7 +64,7 @@ pub fn player_class_mask_like_cpp(class_id: u8) -> Option<u32> {
     }
 }
 
-pub fn player_race_mask_like_cpp(race_id: u8) -> Option<u32> {
+pub(in crate::handlers::loot) fn player_race_mask_like_cpp(race_id: u8) -> Option<u32> {
     let bit = match race_id {
         1..=11 => race_id - 1,
         22 => 21,
@@ -80,14 +80,14 @@ pub fn player_race_mask_like_cpp(race_id: u8) -> Option<u32> {
     Some(1_u32 << bit)
 }
 
-pub fn player_team_for_race_cpp_representable(race: u8) -> u32 {
+pub(in crate::handlers::loot) fn player_team_for_race_cpp_representable(race: u8) -> u32 {
     match race {
         2 | 5 | 6 | 8 | 9 | 10 | 26 | 27 | 28 | 31 | 35 | 36 | 70 => 67,
         _ => 469,
     }
 }
 
-pub fn represented_item_faction_flags_block_player_like_cpp(flags2: Option<u32>, race: u8) -> bool {
+pub(in crate::handlers::loot) fn represented_item_faction_flags_block_player_like_cpp(flags2: Option<u32>, race: u8) -> bool {
     let Some(flags2) = flags2 else {
         return false;
     };
@@ -97,7 +97,7 @@ pub fn represented_item_faction_flags_block_player_like_cpp(flags2: Option<u32>,
         || ((flags2 & ItemFlags2::FactionAlliance as u32) != 0 && team != 469)
 }
 
-pub fn player_quest_status_mask_like_cpp(status: Option<u8>, rewarded: bool) -> u32 {
+pub(in crate::handlers::loot) fn player_quest_status_mask_like_cpp(status: Option<u8>, rewarded: bool) -> u32 {
     if rewarded {
         return 0x40;
     }
@@ -111,7 +111,7 @@ pub fn player_quest_status_mask_like_cpp(status: Option<u8>, rewarded: bool) -> 
     }
 }
 
-pub fn loot_type_for_client_like_cpp(loot_type: u8) -> u8 {
+pub(in crate::handlers::loot) fn loot_type_for_client_like_cpp(loot_type: u8) -> u8 {
     match loot_type {
         LOOT_TYPE_PROSPECTING_LIKE_CPP | LOOT_TYPE_MILLING_LIKE_CPP => {
             LOOT_TYPE_DISENCHANTING_LIKE_CPP
@@ -124,7 +124,7 @@ pub fn loot_type_for_client_like_cpp(loot_type: u8) -> u8 {
     }
 }
 
-pub fn represented_max_enchanting_skill_like_cpp(
+pub(in crate::handlers::loot) fn represented_max_enchanting_skill_like_cpp(
     looters: &[ObjectGuid],
     current_player_guid: ObjectGuid,
     current_player_enchanting_skill: Option<u16>,

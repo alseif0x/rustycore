@@ -8,12 +8,12 @@ use super::*;
 /// persistence boundary.  Tokio does not cancel a spawned task when the
 /// caller drops its `JoinHandle`, so packet/session cancellation cannot turn a
 /// successful SQL commit back into an available object-owned claim.
-pub enum LootClaimPersistenceWorkerError<E> {
+pub(in crate::handlers::loot) enum LootClaimPersistenceWorkerError<E> {
     Persistence(E),
     Claim(LootClaimCommitError),
 }
 
-pub fn queue_stored_item_money_indeterminate_kick_like_cpp(
+pub(in crate::handlers::loot) fn queue_stored_item_money_indeterminate_kick_like_cpp(
     command_tx: &flume::Sender<SessionCommand>,
 ) {
     let kick = SessionCommand::KickLikeCpp(KickLikeCppCommand {
@@ -28,7 +28,7 @@ pub fn queue_stored_item_money_indeterminate_kick_like_cpp(
     }
 }
 
-pub fn spawn_loot_claim_persistence_worker_like_cpp<F, E>(
+pub(in crate::handlers::loot) fn spawn_loot_claim_persistence_worker_like_cpp<F, E>(
     persistence: F,
     claim: Option<LootClaimLease>,
     durable_item_completion: Option<(
@@ -78,7 +78,7 @@ where
 /// An unknown COMMIT cannot be treated as rollback: the old object allocation
 /// is quarantined permanently and the player is kicked to reload whichever
 /// durable state the concrete adapter ultimately kept.
-pub fn spawn_loot_item_persistence_worker_like_cpp<F>(
+pub(in crate::handlers::loot) fn spawn_loot_item_persistence_worker_like_cpp<F>(
     persistence: F,
     claim: Option<LootClaimLease>,
     durable_item_completion: Option<(

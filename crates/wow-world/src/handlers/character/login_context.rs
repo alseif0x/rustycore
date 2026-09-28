@@ -4,13 +4,13 @@
 
 use super::*;
 
-pub fn motd_lines_like_cpp(motd: &str) -> Vec<String> {
+pub(in crate::handlers::character) fn motd_lines_like_cpp(motd: &str) -> Vec<String> {
     // C++ `World::SetMotd` uses `boost::split` on `@` with token compression
     // disabled, so empty and trailing lines remain part of the login burst.
     motd.split('@').map(ToOwned::to_owned).collect()
 }
 
-pub fn void_storage_login_context_like_cpp(
+pub(in crate::handlers::character) fn void_storage_login_context_like_cpp(
     random_properties_id: i32,
     _selected_context_column: u8,
 ) -> u8 {
@@ -21,7 +21,7 @@ pub fn void_storage_login_context_like_cpp(
     random_properties_id as u8
 }
 
-pub fn initial_character_rest_state_like_cpp(is_a_recruiter: bool, recruiter_id: u32) -> u8 {
+pub(in crate::handlers::character) fn initial_character_rest_state_like_cpp(is_a_recruiter: bool, recruiter_id: u32) -> u8 {
     if is_a_recruiter || recruiter_id != 0 {
         REST_STATE_RAF_LINKED_LIKE_CPP
     } else {

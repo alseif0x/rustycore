@@ -7,13 +7,13 @@ use super::*;
 
 #[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DirectInventoryPositionUpdateLikeCpp {
-    pub slot: u8,
-    pub item_db_guid: u64,
+pub(in crate::handlers::character) struct DirectInventoryPositionUpdateLikeCpp {
+    pub(in crate::handlers::character) slot: u8,
+    pub(in crate::handlers::character) item_db_guid: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InventorySwapTargetLikeCpp {
+pub(in crate::handlers::character) enum InventorySwapTargetLikeCpp {
     Inventory,
     Bank,
     Equipment { dest: u16 },
@@ -21,19 +21,19 @@ pub enum InventorySwapTargetLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InventoryStorageTargetLikeCpp {
+pub(in crate::handlers::character) enum InventoryStorageTargetLikeCpp {
     Inventory,
     Bank,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InventoryStorageQuestChecksLikeCpp {
+pub(in crate::handlers::character) enum InventoryStorageQuestChecksLikeCpp {
     None,
     AutoBankItemRemoved,
     AutoStoreBankItemAdded,
 }
 
-pub fn autostore_bank_target_like_cpp(
+pub(in crate::handlers::character) fn autostore_bank_target_like_cpp(
     source_bag: u8,
     source_slot: u8,
 ) -> InventoryStorageTargetLikeCpp {
@@ -44,7 +44,7 @@ pub fn autostore_bank_target_like_cpp(
     }
 }
 
-pub fn autostore_bank_quest_checks_like_cpp(
+pub(in crate::handlers::character) fn autostore_bank_quest_checks_like_cpp(
     target: InventoryStorageTargetLikeCpp,
 ) -> InventoryStorageQuestChecksLikeCpp {
     if target == InventoryStorageTargetLikeCpp::Inventory {
@@ -57,14 +57,14 @@ pub fn autostore_bank_quest_checks_like_cpp(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InventoryEquipChildPlanLikeCpp {
-    pub child_guid: ObjectGuid,
-    pub destination_slot: u8,
-    pub displaced_storage: Option<(u8, u8, InventoryStorageTargetLikeCpp)>,
+pub(in crate::handlers::character) struct InventoryEquipChildPlanLikeCpp {
+    pub(in crate::handlers::character) child_guid: ObjectGuid,
+    pub(in crate::handlers::character) destination_slot: u8,
+    pub(in crate::handlers::character) displaced_storage: Option<(u8, u8, InventoryStorageTargetLikeCpp)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InventorySwapStepLikeCpp {
+pub(in crate::handlers::character) enum InventorySwapStepLikeCpp {
     Done,
     ChildRedirect {
         first_src: u16,
@@ -75,7 +75,7 @@ pub enum InventorySwapStepLikeCpp {
 }
 
 #[cfg(test)]
-pub fn plan_direct_inventory_swap_persistence_like_cpp(
+pub(in crate::handlers::character) fn plan_direct_inventory_swap_persistence_like_cpp(
     src: u8,
     dst: u8,
     src_item: Option<&InventoryItem>,
@@ -97,7 +97,7 @@ pub fn plan_direct_inventory_swap_persistence_like_cpp(
     updates
 }
 
-pub fn loaded_inventory_slot_count_with_legacy_rust_compat(saved_slots: u8) -> u8 {
+pub(in crate::handlers::character) fn loaded_inventory_slot_count_with_legacy_rust_compat(saved_slots: u8) -> u8 {
     // C++ loads the saved value directly, but TrinityCore's schema defaults
     // inventorySlots to the base backpack size. Older RustyCore builds
     // explicitly inserted zero before this field was wired; keep those
@@ -110,12 +110,12 @@ pub fn loaded_inventory_slot_count_with_legacy_rust_compat(saved_slots: u8) -> u
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LoadedItemRandomPropertiesLikeCpp {
-    pub id: i32,
-    pub seed: i32,
+pub(in crate::handlers::character) struct LoadedItemRandomPropertiesLikeCpp {
+    pub(in crate::handlers::character) id: i32,
+    pub(in crate::handlers::character) seed: i32,
 }
 
-pub fn bank_store_item_added_quest_count_like_cpp(plan: &InventoryStorageMovePlanLikeCpp) -> u32 {
+pub(in crate::handlers::character) fn bank_store_item_added_quest_count_like_cpp(plan: &InventoryStorageMovePlanLikeCpp) -> u32 {
     // C++ HandleAutoStoreBankItemOpcode passes storedItem->GetCount() after
     // StoreItem. _StoreItem returns the last destination item, so a full merge
     // reports that destination stack's total and a merge+remainder reports the
@@ -126,7 +126,7 @@ pub fn bank_store_item_added_quest_count_like_cpp(plan: &InventoryStorageMovePla
         .unwrap_or(0)
 }
 
-pub fn bank_store_destination_applies_obtain_spells_like_cpp(bag: u8) -> bool {
+pub(in crate::handlers::character) fn bank_store_destination_applies_obtain_spells_like_cpp(bag: u8) -> bool {
     // C++ Player::_StoreItem checks only the bag value. INVENTORY_SLOT_BAG_0
     // therefore includes top-level personal-bank slots as well as carried
     // top-level slots; bank-bag containers remain excluded.
@@ -135,7 +135,7 @@ pub fn bank_store_destination_applies_obtain_spells_like_cpp(bag: u8) -> bool {
             .contains(&bag)
 }
 
-pub fn inventory_storage_move_quest_directions_like_cpp(
+pub(in crate::handlers::character) fn inventory_storage_move_quest_directions_like_cpp(
     source_bag: u8,
     source_slot: u8,
     target: InventoryStorageTargetLikeCpp,
@@ -145,13 +145,13 @@ pub fn inventory_storage_move_quest_directions_like_cpp(
     (moving_to_bank, moving_from_bank)
 }
 
-pub type ItemStorageMutablePersistenceLikeCpp =
+pub(in crate::handlers::character) type ItemStorageMutablePersistenceLikeCpp =
     wow_persistence::InventoryItemMutablePersistenceLikeCpp;
 
 /// Reverse-map an equipment slot (0-18) to its InventoryType.
 ///
 /// Used as a fallback when Item.db2 store is not available.
-pub fn slot_to_inventory_type(slot: u8) -> Option<u8> {
+pub(in crate::handlers::character) fn slot_to_inventory_type(slot: u8) -> Option<u8> {
     match slot {
         0 => Some(1),        // Head
         1 => Some(2),        // Neck
@@ -179,7 +179,7 @@ pub fn slot_to_inventory_type(slot: u8) -> Option<u8> {
 /// C++ `EnumCharactersResult::CharacterInfo` parses `equipmentCache` as five
 /// fields per slot: InvType, DisplayID, DisplayEnchantID, Subclass, and
 /// SecondaryItemModifiedAppearanceID.
-pub fn parse_equipment_cache(cache: &str) -> [VisualItemInfo; 34] {
+pub(in crate::handlers::character) fn parse_equipment_cache(cache: &str) -> [VisualItemInfo; 34] {
     let mut equipment = [VisualItemInfo::default(); 34];
     if cache.is_empty() {
         return equipment;
@@ -205,7 +205,7 @@ pub fn parse_equipment_cache(cache: &str) -> [VisualItemInfo; 34] {
     equipment
 }
 
-pub fn bind_inventory_item_for_destination_like_cpp(
+pub(in crate::handlers::character) fn bind_inventory_item_for_destination_like_cpp(
     item: &mut wow_entities::Item,
     destination: u16,
 ) {
@@ -221,14 +221,14 @@ pub fn bind_inventory_item_for_destination_like_cpp(
     }
 }
 
-pub fn item_dynamic_flags_changed_like_cpp(
+pub(in crate::handlers::character) fn item_dynamic_flags_changed_like_cpp(
     before: &wow_entities::Item,
     after: &wow_entities::Item,
 ) -> bool {
     before.item_flags_bits() != after.item_flags_bits()
 }
 
-pub fn player_money_gain_like_cpp(current_money: u64, amount: u64) -> Option<u64> {
+pub(in crate::handlers::character) fn player_money_gain_like_cpp(current_money: u64, amount: u64) -> Option<u64> {
     if amount == 0 {
         return Some(current_money);
     }
@@ -241,7 +241,7 @@ pub fn player_money_gain_like_cpp(current_money: u64, amount: u64) -> Option<u64
     }
 }
 
-pub fn item_storage_mutable_persistence_like_cpp(
+pub(in crate::handlers::character) fn item_storage_mutable_persistence_like_cpp(
     db_guid: u64,
     item: &wow_entities::Item,
     count: u32,
@@ -262,11 +262,11 @@ pub fn item_storage_mutable_persistence_like_cpp(
     }
 }
 
-pub fn item_is_currently_looted_like_cpp(item: &wow_entities::Item) -> bool {
+pub(in crate::handlers::character) fn item_is_currently_looted_like_cpp(item: &wow_entities::Item) -> bool {
     item.loot_generated()
 }
 
-pub fn item_is_not_empty_bag_like_cpp(
+pub(in crate::handlers::character) fn item_is_not_empty_bag_like_cpp(
     inventory_type: Option<InventoryType>,
     contains_items: bool,
 ) -> bool {

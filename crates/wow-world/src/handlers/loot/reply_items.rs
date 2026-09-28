@@ -5,7 +5,7 @@
 
 use super::*;
 
-pub fn direct_item_count_after_loot_release_like_cpp(
+pub(in crate::handlers::loot) fn direct_item_count_after_loot_release_like_cpp(
     current_count: u32,
     maximum_destroy_count: Option<u32>,
 ) -> u32 {
@@ -16,7 +16,7 @@ pub fn direct_item_count_after_loot_release_like_cpp(
 }
 
 #[cfg(test)]
-pub fn assign_represented_personal_loot_items_like_cpp<R: Rng + ?Sized>(
+pub(in crate::handlers::loot) fn assign_represented_personal_loot_items_like_cpp<R: Rng + ?Sized>(
     loot: &mut CreatureLoot,
     tappers: &[ObjectGuid],
     rng: &mut R,
@@ -39,7 +39,7 @@ pub fn assign_represented_personal_loot_items_like_cpp<R: Rng + ?Sized>(
     rebuild_represented_personal_loot_counts_like_cpp(loot);
 }
 
-pub fn represented_loot_response_items_like_cpp(
+pub(in crate::handlers::loot) fn represented_loot_response_items_like_cpp(
     loot: &CreatureLoot,
     player_guid: ObjectGuid,
 ) -> Vec<LootItemData> {
@@ -78,7 +78,7 @@ pub fn represented_loot_response_items_like_cpp(
         .collect()
 }
 
-pub fn add_loot_item_stacks_like_cpp(
+pub(in crate::handlers::loot) fn add_loot_item_stacks_like_cpp(
     loot_items: &mut Vec<LootEntry>,
     item_id: u32,
     mut count: u32,
