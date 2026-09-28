@@ -180,6 +180,42 @@ pub fn inventory_item_objects_for_test(
     session.inventory_item_objects_like_cpp()
 }
 
+pub fn make_inventory_item_object_for_test(
+    session: &crate::session::WorldSession,
+    item_guid: wow_core::ObjectGuid,
+    entry_id: u32,
+    owner_guid: wow_core::ObjectGuid,
+    count: u32,
+    durability: u32,
+    context: wow_constants::ItemContext,
+    slot: u8,
+) -> wow_entities::Item {
+    session.make_inventory_item_object(
+        item_guid,
+        entry_id,
+        owner_guid,
+        count,
+        durability,
+        context,
+        slot,
+    )
+}
+
+pub fn insert_inventory_item_object_for_test(
+    session: &mut crate::session::WorldSession,
+    item: wow_entities::Item,
+) -> Option<wow_entities::Item> {
+    session.insert_inventory_item_object(item)
+}
+
+pub fn insert_inventory_item_for_test(
+    session: &mut crate::session::WorldSession,
+    slot: u8,
+    item: crate::session::InventoryItem,
+) -> Option<crate::session::InventoryItem> {
+    session.insert_inventory_item_like_cpp(slot, item)
+}
+
 pub fn adopt_registered_canonical_player_fixture_like_cpp(
     session: &mut crate::session::WorldSession,
 ) -> bool {
