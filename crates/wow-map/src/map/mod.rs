@@ -12,9 +12,13 @@
 
 mod entity_world;
 mod game_object;
+mod move_list;
 mod object_update_selection;
+mod other_object_updates;
+mod pool_data;
 mod relocation;
 mod respawn;
+mod respawn_scaling;
 mod runtime;
 mod scripts_weather;
 mod send_object_updates;
@@ -24,8 +28,8 @@ mod update;
 mod visibility;
 
 use crate::map_rules::{
-    decrement_pool_counter_like_cpp, map_record_unit_mut_like_cpp,
-    player_set_viewpoint_outcome_like_cpp, remove_spawn_id_index_entry_like_cpp,
+    map_record_unit_mut_like_cpp, player_set_viewpoint_outcome_like_cpp,
+    remove_spawn_id_index_entry_like_cpp,
 };
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
@@ -38,6 +42,12 @@ pub use self::runtime::{
 pub(crate) use self::runtime::{
     MapRuntime, MapRuntimePlayerAttachErrorLikeCpp, MapRuntimePlayerDetachErrorLikeCpp,
     MapRuntimePlayerRelocationErrorLikeCpp,
+};
+pub use self::pool_data::{SpawnedPoolDataErrorLikeCpp, SpawnedPoolDataLikeCpp};
+pub use self::respawn_scaling::{
+    DynamicRespawnScalingConfig, DynamicRespawnScalingContext,
+    DynamicRespawnScalingNoopReason, DynamicRespawnScalingOutcome,
+    apply_dynamic_mode_respawn_scaling_like_cpp,
 };
 pub use self::send_object_updates::{
     RepresentedAreaTriggerValuesUpdateLikeCpp, RepresentedConversationValuesUpdateLikeCpp,
@@ -291,49 +301,6 @@ impl MapGuidSequenceGeneratorLikeCpp {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct DynamicRespawnScalingConfig {
-    pub creature_rate: f64,
-    pub creature_minimum_secs: u32,
-    pub gameobject_rate: f64,
-    pub gameobject_minimum_secs: u32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DynamicRespawnScalingNoopReason {
-    DynamicModeDisabled,
-    UnsupportedMode,
-    BattlegroundOrArena,
-    UnsupportedSpawnType,
-    MissingSpawnMetadata,
-    MissingDynamicSpawnRateFlag,
-    MissingZonePlayerCount,
-    ZeroZonePlayers,
-    AdjustFactorAtLeastOne,
-    DelayAtOrBelowMinimum,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SpawnedPoolDataErrorLikeCpp {
-    /// C++ `SpawnedPoolData::IsSpawnedObject(SpawnObjectType, ...)` aborts for
-    /// non Creature/GameObject types (`PoolMgr.cpp:66-77`). Rust returns a typed
-    /// error at the seam instead of treating AreaTrigger as pooled/spawned.
-    UnsupportedSpawnObjectType(SpawnObjectType),
-}
-
-/// Map-owned parity seam for C++ `SpawnedPoolData` (`PoolMgr.h:51-83`).
-///
-/// This is only the map-local state shape and helpers used by C++
-/// `Map::_poolData` / `Map::GetPoolData()`. It does not implement real
-/// `PoolMgr::SpawnPool`, `DespawnPool`, RNG/chance, entity creation,
-/// AddToMap/RemoveFromMap, DB persistence/delete, or grid/session fanout.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct SpawnedPoolDataLikeCpp {
-    spawned_creatures: HashSet<SpawnId>,
-    spawned_gameobjects: HashSet<SpawnId>,
-    spawned_pools: HashMap<u32, u32>,
-}
-
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct MapUpdateMetricsSummaryLikeCpp {
     pub creature_count: usize,
@@ -571,152 +538,6 @@ pub struct DynamicMapTreeUpdateSummaryLikeCpp {
     pub unbalanced_before: u32,
     pub balanced: bool,
     pub unbalanced_after: u32,
-}
-
-impl SpawnedPoolDataLikeCpp {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn get_spawned_objects_like_cpp(&self, pool_id: u32) -> u32 {
-        self.spawned_pools.get(&pool_id).copied().unwrap_or(0)
-    }
-
-    pub fn is_spawned_creature_like_cpp(&self, spawn_id: SpawnId) -> bool {
-        self.spawned_creatures.contains(&spawn_id)
-    }
-
-    pub fn is_spawned_gameobject_like_cpp(&self, spawn_id: SpawnId) -> bool {
-        self.spawned_gameobjects.contains(&spawn_id)
-    }
-
-    pub fn is_spawned_pool_like_cpp(&self, sub_pool_id: u32) -> bool {
-        self.spawned_pools.contains_key(&sub_pool_id)
-    }
-
-    pub fn is_spawned_object_like_cpp(
-        &self,
-        object_type: SpawnObjectType,
-        spawn_id: SpawnId,
-    ) -> Result<bool, SpawnedPoolDataErrorLikeCpp> {
-        match object_type {
-            SpawnObjectType::Creature => Ok(self.is_spawned_creature_like_cpp(spawn_id)),
-            SpawnObjectType::GameObject => Ok(self.is_spawned_gameobject_like_cpp(spawn_id)),
-            SpawnObjectType::AreaTrigger => Err(
-                SpawnedPoolDataErrorLikeCpp::UnsupportedSpawnObjectType(object_type),
-            ),
-        }
-    }
-
-    pub fn add_spawn_like_cpp(
-        &mut self,
-        object_type: SpawnObjectType,
-        spawn_id: SpawnId,
-        pool_id: u32,
-    ) -> Result<(), SpawnedPoolDataErrorLikeCpp> {
-        match object_type {
-            SpawnObjectType::Creature => {
-                self.spawned_creatures.insert(spawn_id);
-                *self.spawned_pools.entry(pool_id).or_insert(0) += 1;
-                Ok(())
-            }
-            SpawnObjectType::GameObject => {
-                self.spawned_gameobjects.insert(spawn_id);
-                *self.spawned_pools.entry(pool_id).or_insert(0) += 1;
-                Ok(())
-            }
-            SpawnObjectType::AreaTrigger => Err(
-                SpawnedPoolDataErrorLikeCpp::UnsupportedSpawnObjectType(object_type),
-            ),
-        }
-    }
-
-    pub fn remove_spawn_like_cpp(
-        &mut self,
-        object_type: SpawnObjectType,
-        spawn_id: SpawnId,
-        pool_id: u32,
-    ) -> Result<(), SpawnedPoolDataErrorLikeCpp> {
-        match object_type {
-            SpawnObjectType::Creature => {
-                self.spawned_creatures.remove(&spawn_id);
-                decrement_pool_counter_like_cpp(&mut self.spawned_pools, pool_id);
-                Ok(())
-            }
-            SpawnObjectType::GameObject => {
-                self.spawned_gameobjects.remove(&spawn_id);
-                decrement_pool_counter_like_cpp(&mut self.spawned_pools, pool_id);
-                Ok(())
-            }
-            SpawnObjectType::AreaTrigger => Err(
-                SpawnedPoolDataErrorLikeCpp::UnsupportedSpawnObjectType(object_type),
-            ),
-        }
-    }
-
-    pub fn add_pool_spawn_like_cpp(&mut self, sub_pool_id: u32, pool_id: u32) {
-        self.spawned_pools.insert(sub_pool_id, 0);
-        *self.spawned_pools.entry(pool_id).or_insert(0) += 1;
-    }
-
-    pub fn remove_pool_spawn_like_cpp(&mut self, sub_pool_id: u32, pool_id: u32) {
-        self.spawned_pools.remove(&sub_pool_id);
-        decrement_pool_counter_like_cpp(&mut self.spawned_pools, pool_id);
-    }
-
-    pub fn spawned_objects_like_cpp(&self) -> Vec<(SpawnObjectType, SpawnId)> {
-        let mut spawned = self
-            .spawned_creatures
-            .iter()
-            .copied()
-            .map(|spawn_id| (SpawnObjectType::Creature, spawn_id))
-            .chain(
-                self.spawned_gameobjects
-                    .iter()
-                    .copied()
-                    .map(|spawn_id| (SpawnObjectType::GameObject, spawn_id)),
-            )
-            .collect::<Vec<_>>();
-        spawned.sort_unstable();
-        spawned
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DynamicRespawnScalingOutcome {
-    pub delay_secs: u32,
-    pub noop_reason: Option<DynamicRespawnScalingNoopReason>,
-}
-
-impl DynamicRespawnScalingOutcome {
-    pub const fn unchanged(delay_secs: u32, reason: DynamicRespawnScalingNoopReason) -> Self {
-        Self {
-            delay_secs,
-            noop_reason: Some(reason),
-        }
-    }
-
-    pub const fn scaled(delay_secs: u32) -> Self {
-        Self {
-            delay_secs,
-            noop_reason: None,
-        }
-    }
-
-    pub const fn was_scaled(self) -> bool {
-        self.noop_reason.is_none()
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct DynamicRespawnScalingContext {
-    pub mode: u32,
-    pub spawn_type: Option<SpawnObjectType>,
-    pub spawn_metadata_present: bool,
-    pub spawn_group_flags: Option<SpawnGroupFlags>,
-    pub is_battleground_or_arena: bool,
-    pub zone_player_count: Option<u32>,
-    pub config: DynamicRespawnScalingConfig,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1791,130 +1612,6 @@ impl SpawnGroupConditionActionLikeCpp {
             delete_respawn_times: true,
         }
     }
-}
-
-/// Rust equivalent of C++ `Map::ApplyDynamicModeRespawnScaling`.
-///
-/// C++ anchors:
-/// - `GameObject.cpp:1665-1672` calls this before persisting GO respawn time.
-/// - `Map.cpp:2242-2284` contains the dynamic respawn guards and formula.
-/// - `Map.h:657-660` declares the map helper.
-///
-/// This helper is pure because RustyCore does not yet own the canonical map
-/// spawn-metadata and zone-player-count stores needed by a `Map` method. Future
-/// GameObject runtime wiring must pass canonical metadata/counts into this
-/// function; this function must not read or mutate session-local fallback state.
-pub fn apply_dynamic_mode_respawn_scaling_like_cpp(
-    respawn_delay_secs: u32,
-    context: DynamicRespawnScalingContext,
-) -> DynamicRespawnScalingOutcome {
-    if context.mode == 0 {
-        return DynamicRespawnScalingOutcome::unchanged(
-            respawn_delay_secs,
-            DynamicRespawnScalingNoopReason::DynamicModeDisabled,
-        );
-    }
-
-    if context.mode != 1 {
-        return DynamicRespawnScalingOutcome::unchanged(
-            respawn_delay_secs,
-            DynamicRespawnScalingNoopReason::UnsupportedMode,
-        );
-    }
-
-    if context.is_battleground_or_arena {
-        return DynamicRespawnScalingOutcome::unchanged(
-            respawn_delay_secs,
-            DynamicRespawnScalingNoopReason::BattlegroundOrArena,
-        );
-    }
-
-    let Some(spawn_type) = context.spawn_type else {
-        return DynamicRespawnScalingOutcome::unchanged(
-            respawn_delay_secs,
-            DynamicRespawnScalingNoopReason::UnsupportedSpawnType,
-        );
-    };
-
-    if !matches!(
-        spawn_type,
-        SpawnObjectType::Creature | SpawnObjectType::GameObject
-    ) {
-        return DynamicRespawnScalingOutcome::unchanged(
-            respawn_delay_secs,
-            DynamicRespawnScalingNoopReason::UnsupportedSpawnType,
-        );
-    }
-
-    if !context.spawn_metadata_present {
-        return DynamicRespawnScalingOutcome::unchanged(
-            respawn_delay_secs,
-            DynamicRespawnScalingNoopReason::MissingSpawnMetadata,
-        );
-    }
-
-    let Some(spawn_group_flags) = context.spawn_group_flags else {
-        return DynamicRespawnScalingOutcome::unchanged(
-            respawn_delay_secs,
-            DynamicRespawnScalingNoopReason::MissingSpawnMetadata,
-        );
-    };
-
-    if !spawn_group_flags.contains(SpawnGroupFlags::DYNAMIC_SPAWN_RATE) {
-        return DynamicRespawnScalingOutcome::unchanged(
-            respawn_delay_secs,
-            DynamicRespawnScalingNoopReason::MissingDynamicSpawnRateFlag,
-        );
-    }
-
-    let Some(player_count) = context.zone_player_count else {
-        return DynamicRespawnScalingOutcome::unchanged(
-            respawn_delay_secs,
-            DynamicRespawnScalingNoopReason::MissingZonePlayerCount,
-        );
-    };
-
-    if player_count == 0 {
-        return DynamicRespawnScalingOutcome::unchanged(
-            respawn_delay_secs,
-            DynamicRespawnScalingNoopReason::ZeroZonePlayers,
-        );
-    }
-
-    let (rate, time_minimum) = match spawn_type {
-        SpawnObjectType::Creature => (
-            context.config.creature_rate,
-            context.config.creature_minimum_secs,
-        ),
-        SpawnObjectType::GameObject => (
-            context.config.gameobject_rate,
-            context.config.gameobject_minimum_secs,
-        ),
-        SpawnObjectType::AreaTrigger => {
-            return DynamicRespawnScalingOutcome::unchanged(
-                respawn_delay_secs,
-                DynamicRespawnScalingNoopReason::UnsupportedSpawnType,
-            );
-        }
-    };
-
-    let adjust_factor = rate / f64::from(player_count);
-    if adjust_factor >= 1.0 {
-        return DynamicRespawnScalingOutcome::unchanged(
-            respawn_delay_secs,
-            DynamicRespawnScalingNoopReason::AdjustFactorAtLeastOne,
-        );
-    }
-
-    if respawn_delay_secs <= time_minimum {
-        return DynamicRespawnScalingOutcome::unchanged(
-            respawn_delay_secs,
-            DynamicRespawnScalingNoopReason::DelayAtOrBelowMinimum,
-        );
-    }
-
-    let scaled = (f64::from(respawn_delay_secs) * adjust_factor).ceil() as u32;
-    DynamicRespawnScalingOutcome::scaled(scaled.max(time_minimum))
 }
 
 pub trait TerrainGridLoader {

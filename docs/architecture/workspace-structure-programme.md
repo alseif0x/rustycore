@@ -3334,3 +3334,54 @@ tiene 5 133 líneas, `map/spawn_groups.rs` 2 384,
 `wow-map/src` suma 66 312. La raíz de `Map` ya mide 5 133 en la base
 `origin/3.4.3`. D3 se adelanta con el contrato B6 fijado: el movimiento de
 `map_manager` no retira estos monolitos y su aceptación física sigue abierta.
+El inventario completo de archivos Rust de `wow-map/src` por encima de 1 000
+incluye además `map/storage.rs` (1 578), `manager/state_2.rs` (1 308),
+`manager/state_1.rs` (1 126), `map_tests/creature_1.rs` (1 084) y
+`map_tests/visibility.rs` (1 072): **nueve archivos** en total. La salida de D3
+requiere revisar cada uno contra el presupuesto de la guía de módulos, con
+contrato público, autoridad, lectores/escritores y tests preservados; una caída
+del máximo sin retirar los otros ocho no lo cierra. Los primeros cortes
+cohesivos seleccionados son el estado map-local de pools y el cálculo puro de
+respawn desde `map/mod.rs`, y las actualizaciones de Transport, AreaTrigger,
+Conversation y SceneObject desde `map/game_object.rs`. Son trabajo en curso,
+no aceptación de D3 todavía.
+
+**Primer corte D3 aplicado, feedback local:** `map/mod.rs` 5 133 → 4 830
+(pool map-local y escala pura de respawn en `pool_data.rs` 134 y
+`respawn_scaling.rs` 184); `map/game_object.rs` 2 311 → 1 567
+(updates de otros tipos en `other_object_updates.rs` 758);
+`map/relocation.rs` 2 176 → 1 732 (colas de movimiento en `move_list.rs`
+458). Los cuerpos de los métodos extraídos de `game_object.rs` y
+`relocation.rs` se compararon con la versión anterior; el único delta de
+texto fuera del cuerpo son sus cierres de `impl`. `Map` conserva el único campo
+de pools y las colas/locks. `Map.cpp:1163-1416` fija la familia y orden de las
+colas; el movimiento físico no cambia esa secuencia. Pasaron
+`cargo check -p wow-map` y filtros `--lib` de `spawned_pool_data` (3),
+`dynamic_respawn` (9), `move_list` (27) y `area_trigger_update` (5), con
+`PROTOC` local, un job y target del worktree. Logs bajo
+`target/d3-map-feedback/`. No hay aceptación final ni check downstream del
+candidato; los tres ficheros de origen siguen por encima de 1 000 y D3 sigue
+abierto.
+
+Para responder al tamaño del destino con una base comparable, se contaron líneas
+físicas de todos los `.rs` bajo `src/` y `tests/` mediante
+`git archive` en `origin/3.4.3` y en `f32ca7d7`, sin incluir el WIP externo
+sin montar. `wow-world` pasa de 411 872 líneas en `src` + 3 016 en `tests`
+(414 888) a 390 864 + 21 400 (412 264): la caída combinada comprometida es
+2 624 líneas, mientras la mayor reducción de `src` refleja en parte tests
+trasladados. `wow-map` pasa de 53 264 + 252 (53 516) a 66 312 + 252
+(66 564). Estas cifras son tamaño físico por crate, no prueba de retiro de
+autoridad ni de menor coste de compilación; el árbol provisional de character
+todavía necesita compilar y ejecutar sus targets.
+
+El límite semántico también sigue abierto. `world-server/app.rs:4126-4170`
+construye un manager legacy (`wow_map::map_manager::MapManager`) y otro canónico
+(`wow_map::manager::MapManager`), y
+`runtime/map/update_loop.rs:28-31` recibe ambos en el productor de ticks.
+La [traza de relojes](runtime-clock-phase-trace.md) fija que la configuración
+normal selecciona el tick legacy global de criaturas mientras la visita
+canónica no ejecuta su AI/combat; también advierte que los puentes de
+spawn/respawn y sincronización no quedan probados por esa división. Por tanto
+D3 reduce archivos y B6 debe seguir retirando/justificando cada puente según
+su dueño y contrato: no llamar a un `Map` repartido en archivos una autoridad
+única demostrada para todas las transiciones.
