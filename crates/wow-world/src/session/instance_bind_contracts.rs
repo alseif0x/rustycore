@@ -4,7 +4,7 @@
 //! Instance bind contracts: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{Arc, GameObject};
+use super::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedGameObjectSpellCaster {

@@ -5,7 +5,7 @@
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
 use super::WorldSession;
-use super::{RepresentedVoidStorageItemLikeCpp, Rng, VoidStorageItemIdGeneratorLikeCpp};
+use super::{RepresentedVoidStorageItemLikeCpp, VoidStorageItemIdGeneratorLikeCpp};
 
 impl WorldSession {
     pub(in crate::session) fn with_owned_void_storage_like_cpp<R>(

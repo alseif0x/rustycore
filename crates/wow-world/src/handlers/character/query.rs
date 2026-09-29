@@ -793,3 +793,7 @@ mod quest_status_tests;
 #[cfg(test)]
 #[path = "query_gameobject_tests.rs"]
 mod gameobject_tests;
+
+#[cfg(test)]
+#[path = "query_area_healer_tests.rs"]
+mod area_healer_tests;

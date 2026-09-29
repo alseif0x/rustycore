@@ -5,7 +5,7 @@
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
 use super::{HashSet, ObjectGuid, OwnedLootAuthority, OwnedLootAuthorityLifecycle};
-use super::{OwnedLootAuthorityStamp, Position, SharedCanonicalMapManager, info};
+use super::{OwnedLootAuthorityStamp, Position, SharedCanonicalMapManager};
 
 pub(crate) fn relocate_canonical_creature_map_object_on_map_like_cpp(
     manager: &SharedCanonicalMapManager,

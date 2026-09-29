@@ -250,7 +250,16 @@ use self::pathfinder::{
     path_generator_from_detour_with_normalizer_like_cpp, point_path_limit_for_distance_like_cpp,
     random_path_result_from_path_type_like_cpp,
 };
-pub use self::pending_respawn::*;
+pub use self::pending_respawn::{
+    LegacyRespawnQueueReloadReportLikeCpp, LegacyRespawnTimeAddOutcomeLikeCpp, PendingRespawn,
+    PersistedRespawnRowLikeCpp, pending_respawn_create_position_like_cpp,
+    pending_respawn_from_world_creature_like_cpp, respawn_time_from_instant_like_cpp,
+    snap_respawn_creature_to_ground_like_cpp, world_creature_from_pending_respawn_like_cpp,
+};
+use self::pending_respawn::{
+    instant_from_respawn_time_like_cpp, respawn_delete_mutation_like_cpp,
+    spawn_object_type_raw_like_cpp,
+};
 pub use self::runtime_state::*;
 pub use self::terrain::*;
 

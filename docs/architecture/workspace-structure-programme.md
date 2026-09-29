@@ -138,10 +138,10 @@ sin entradas eliminables ni stashes. Reconsultar Git al retomar; estos son datos
 
 | pieza | estado comprobado y límite |
 |---|---|
-| B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Se estrecharon exports internos revisados de terrain, grid y pathfinder; el manager legado sigue requerido por `wow-world`/`world-server`. Faltan los demás exports, features/composición y aceptación del candidato. |
+| B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Se estrecharon exports internos revisados de terrain, grid, pathfinder y respawn; el manager legado sigue requerido por `wow-world`/`world-server`. Faltan los demás exports, features/composición y aceptación del candidato. |
 | B5 | Raíces de loot y character miden 243/239 líneas y todos sus hijos extraídos menos de 600. Se estrecharon rutas heredadas de visibilidad de ambos adaptadores, incluido el plan de inventario test-only tras mover sus dos tests privados. Faltan el resto de exports y la aceptación del candidato. |
-| B3 | `group_tests` ya es target de integración. `quest_tests` existe como target provisional; `character_tests` se distribuye por owners, con **303** nombres originales conservados y **119** aún montados en la raíz provisional del árbol local. La suite externa de character aún no compila completa; la migración de quest y loot tampoco está aceptada. |
-| B7 | Hay limpieza parcial integrada; la revisión del 2026-09-29 detecta avisos e imports independientes para un próximo corte, pero los consumidores restantes de fixtures dependen de B3. No está cerrado. |
+| B3 | `group_tests` ya es target de integración. `quest_tests` existe como target provisional; `character_tests` se distribuye por owners, con **303** nombres originales conservados y **116** aún montados en la raíz provisional del árbol local. La suite externa de character aún no compila completa; la migración de quest y loot tampoco está aceptada. |
+| B7 | Hay limpieza parcial integrada, incluidos cuatro imports sin uso retirados el 2026-09-29; los consumidores restantes de fixtures dependen de B3. No está cerrado. |
 | Talentos #578 | La rama `recover/578-talent-catalog`, `0845f5b3`, conserva `docs/migration/recovered/578-talent-catalog-2026-09-04.patch`; el archivo solo existe en esa rama, no en este checkout. No está aplicado; preservar la rama y adaptar por consumidores actuales cuando corresponda. |
 | Orquestación | Sol medium / Luna max copiado a este worktree. Cambios compartidos aún locales, y `.codex/config.toml` ignorado. Iniciar sesión nueva y comprobar runtime efectivo; preservar estos cambios al continuar. |
 
@@ -3258,3 +3258,37 @@ worktree. Logs `target/b3-stored-money-persistence-test.log`,
 `target/b3-creation-support-focused-test.log` y
 `target/b3-stored-money-worker-focused-test.log`. B3/B5 y aceptacion global
 siguen pendientes.
+
+### B3 sanador de area, B6 respawn y B7 imports (2026-09-29)
+
+Tres tests de consulta/cola de sanador de area y sus fixtures exclusivos
+pasaron de `character_tests/misc_2.rs` al hijo privado
+`character/query_area_healer_tests.rs` (**145 lineas**); `query.rs` queda en
+**799**. Se conservaron nombres, datos, respuestas y comprobaciones. El censo
+de character mantiene **303** nombres sin ausencias ni duplicados, con
+**116** en la raiz provisional. `BattleGroundHandler.cpp:658-700` y
+`Player.cpp:28984-29014` son los anclajes: Rust responde con tiempo cero y
+registra el sanador sin el aura `SPELL_WAITING_FOR_RESURRECT`, por lo que
+estos tests no acreditan temporizacion ni resurreccion completa.
+
+En `wow-map`, el glob de `pending_respawn` se sustituyo por nueve reexports
+publicos explicitos, preservando DTOs y helpers usados entre crates.
+`instant_from_respawn_time_like_cpp` y `respawn_delete_mutation_like_cpp`
+quedaron en `pub(super)` para los consumidores internos. El primer check
+detecto que `spawn_object_type_raw_like_cpp` dependia tambien del glob; se
+añadio su import privado. El primer test detecto que el fixture reexportaba
+`instant_from_respawn_time_like_cpp` con alcance excesivo; se limito al padre
+de tests y se hizo privado su glob. No cambiaron cuerpos ni formatos.
+
+B7 retiro tres imports sin uso de
+`session/creature_canonical_adapter.rs`, `instance_bind_contracts.rs` y
+`void_storage_adapter.rs`, conservando el parametro `info`, la variante
+`GameObject` y los helpers de test. Tras corregir las dos importaciones B6,
+pasaron `cargo check -p wow-map`, `cargo test -p wow-map --lib respawn`
+(**104/104**), `cargo check -p wow-world` y el filtro privado del sanador
+(**3/3**). Un job y target del worktree; logs
+`target/b6-respawn-check-wow-map-final.log`,
+`target/b6-respawn-focused-test-final.log`,
+`target/b3-area-healer-b7-imports-b6-respawn-check-wow-world.log` y
+`target/b3-area-healer-focused-test.log`. El check de `wow-world` informa
+**267** avisos (270 antes). B3/B6/B7 y aceptacion global siguen pendientes.

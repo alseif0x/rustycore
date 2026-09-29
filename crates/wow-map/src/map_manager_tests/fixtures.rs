@@ -13,7 +13,7 @@ pub(crate) use crate::map_manager::{
     TerrainGridFileIndexLikeCpp, TerrainGridFilesLikeCpp, VISIBILITY_RADIUS, WorldCreature,
     WorldMMapPathRequestLikeCpp, WorldMMapPathfinderLikeCpp, WorldMMapPathfinderWorkerLikeCpp,
     calculate_creature_detour_path_like_cpp, detour_path_without_navmesh_like_cpp, grid_to_world,
-    instant_from_respawn_time_like_cpp, path_generator_from_detour_like_cpp,
+    path_generator_from_detour_like_cpp,
     path_type_from_detour_like_cpp, pending_respawn_from_world_creature_like_cpp,
     snap_respawn_creature_to_ground_like_cpp,
     terrain_grid_area_id_for_position_like_cpp, terrain_grid_coords_for_wow_position_like_cpp,
@@ -21,6 +21,7 @@ pub(crate) use crate::map_manager::{
     world_creature_from_pending_respawn_like_cpp, world_to_grid_coords, world_to_grid_x,
     zone_and_area_for_position_like_cpp,
 };
+pub(super) use crate::map_manager::pending_respawn::instant_from_respawn_time_like_cpp;
 pub(crate) use crate::map_manager::{
     MAP_AREA_CELLS_PER_GRID_LIKE_CPP, MAP_AREA_HEADER_FLAG_NO_AREA_LIKE_CPP,
     MAP_AREA_HEADER_SIZE_LIKE_CPP, MAP_AREA_MAGIC_LIKE_CPP, MAP_FILE_HEADER_SIZE_LIKE_CPP,

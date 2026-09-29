@@ -47,7 +47,7 @@ pub fn respawn_time_from_instant_like_cpp(respawn_at: Instant, now: Instant, now
     now_secs.saturating_add(delay_secs)
 }
 
-pub fn instant_from_respawn_time_like_cpp(
+pub(super) fn instant_from_respawn_time_like_cpp(
     respawn_time: i64,
     now: Instant,
     now_secs: i64,
@@ -79,7 +79,7 @@ pub fn instant_from_respawn_time_like_cpp(
     now.checked_add(Duration::from_secs(low)).unwrap_or(now)
 }
 
-pub fn respawn_delete_mutation_like_cpp(
+pub(super) fn respawn_delete_mutation_like_cpp(
     object_type: SpawnObjectType,
     spawn_id: u64,
     map_id: u16,
