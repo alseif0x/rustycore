@@ -2558,3 +2558,23 @@ queda pendiente de analisis separado, fuera de este movimiento estructural.
 `target/b3-misc4-character-enumeration-test.log`. Censo **303/303** nombres
 unicos, **177** montados por la raiz provisional; `character_tests` externa,
 el resto de B3 y la aceptacion global siguen pendientes.
+
+### B3: carga de cadaveres de mapa junto a `lifecycle` (2026-09-29)
+
+Los tres `typed_map_corpse_*` de los hijos provisionales `instance.rs` y
+`persistence.rs`, junto con su port, constructor de sesion y fila de prueba
+compartidos, se reunieron en `handlers/character/lifecycle_map_corpse_tests.rs`.
+Sus nombres y aserciones permanecen; no hay cambio de produccion ni de
+visibilidad. En el C++ fijado `Map::LoadCorpseData`
+(`src/server/game/Maps/Map.cpp:3623-3712`) retorna cuando no hay resultado de
+la consulta base y tolera resultados auxiliares vacios. Los outcomes `Failed`
+del port y la marca Rust `corpse_data_loaded_like_cpp` del caso vacio son
+comportamientos internos del adaptador; estos tests no acreditan por si solos
+paridad de fallo DB ni una marca C++ equivalente.
+
+`cargo check -p wow-world` paso y el filtro
+`handlers::character::lifecycle::map_corpse_tests::` ejecuto **3/3** con un
+job y el target del worktree. Logs `target/b3-character-map-corpse-check.log`
+y `target/b3-character-map-corpse-tests.log`. El censo mantiene **303/303**
+nombres unicos, **174** montados por la raiz provisional. Sigue pendiente la
+suite externa completa, el resto de B3 y la aceptacion global.

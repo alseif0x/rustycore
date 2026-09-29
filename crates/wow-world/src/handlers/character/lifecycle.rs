@@ -849,3 +849,7 @@ impl WorldSession {
         outcome
     }
 }
+
+#[cfg(test)]
+#[path = "lifecycle_map_corpse_tests.rs"]
+mod map_corpse_tests;
