@@ -76,6 +76,15 @@ pub async fn quest_poi_store_for_test(
     crate::handlers::quest::quest_poi_store_for_test(session).await
 }
 
+pub fn set_quest_poi_store_for_test(
+    session: &mut crate::session::WorldSession,
+    store: std::sync::Arc<
+        std::collections::HashMap<i32, wow_packet::packets::query::QuestPoiData>,
+    >,
+) {
+    session.quest_poi_store_like_cpp = Some(store);
+}
+
 pub fn quest_log_create_entries_for_test(
     session: &crate::session::WorldSession,
 ) -> Vec<(u32, u32, i64, [u16; 24])> {
