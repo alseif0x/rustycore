@@ -2916,3 +2916,25 @@ ejecuto **2/2** con un job y target del worktree. Logs
 paralelas, el censo del arbol es **303/303** nombres originales sin duplicados
 y **139** montados por la raiz provisional. La suite externa completa,
 B3 restante y aceptacion global siguen pendientes.
+
+### B3 `misc_1`: personalizacion junto a `lifecycle` (2026-09-29)
+
+`char_customize_without_character_db_sends_cpp_failure` y
+`char_customize_non_owned_guid_kicks_like_cpp` pasaron al hijo privado
+`handlers/character/lifecycle_customize_tests.rs`. Se conservaron nombre,
+GUID, bytes esperados y aserciones; el constructor de sesion es local. El
+resto de `misc_1` permanece provisional. `HandleCharCustomizeOpcode`
+(`CharacterHandler.cpp:1737-1755`) rechaza un personaje ajeno antes de la
+consulta; el fallo sin puerto DB ejercita la ruta defensiva Rust, no demuestra
+un fallo de DB equivalente en C++.
+
+El primer build focal fallo por importar la constante de error desde el
+modulo equivocado; se corrigio hacia el owner del handler. Tras la correccion,
+`cargo check -p wow-world` paso y `cargo test -p wow-world --lib
+handlers::character::lifecycle::customize_tests::` ejecuto **2/2** con un
+job y target del worktree. Logs finales
+`target/b3-character-customize-check-fix.log` y
+`target/b3-character-customize-test-fix.log`; los logs sin `-fix` conservan
+el primer intento fallido. Censo **303/303** nombres originales sin
+duplicados, **137** montados por la raiz provisional. La suite externa
+completa, B3 restante y aceptacion global siguen pendientes.

@@ -15,6 +15,10 @@ mod corpse_tests;
 #[path = "lifecycle_rename_tests.rs"]
 mod rename_tests;
 
+#[cfg(test)]
+#[path = "lifecycle_customize_tests.rs"]
+mod customize_tests;
+
 impl WorldSession {
     /// Update the realmcharacters count in the login database.
     ///
