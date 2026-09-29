@@ -251,13 +251,14 @@ retirar aserciones; los checks de biblioteca con y sin feature son feedback de
 compilación, no aceptación del target ni de la macro.
 
 El diagnóstico inicial del target tuvo 1 497 errores. El último check
-`cargo check -p wow-world --test quest_tests` cuenta **132 errores**
-(`target/b3-quest-canonical-map-reader-consumer-check.log`), sin errores de
-sintaxis, de préstamos temporales ni de tipos en las llamadas recién migradas.
-Quedan imports/tipos/constantes de test, métodos y campos privados, y después
-la ejecución de las 225 pruebas. No atribuir a esta punta una suite verde ni
-aceptación final. `character_tests`, `loot_tests`, B7 y el resto de la macro
-siguen pendientes.
+`cargo check -p wow-world --test quest_tests` cuenta **88 errores**
+(`target/b3-quest-root-public-imports-check.log`), sin errores de sintaxis ni
+de tipos en los imports nuevos. Los commits hasta `1017d19d` recuperan también
+las rutas originales de persistencia de dinero y evidencia de recompensas bajo
+la feature; el modo normal sigue compilando. Quedan fixtures de persistencia,
+tipos y métodos privados, y después la ejecución de las 225 pruebas. No
+atribuir a esta punta una suite verde ni aceptación final. `character_tests`,
+`loot_tests`, B7 y el resto de la macro siguen pendientes.
 
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
