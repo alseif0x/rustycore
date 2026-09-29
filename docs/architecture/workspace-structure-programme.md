@@ -3121,3 +3121,12 @@ del worktree); logs `target/b3-login-transport-final-check.log` y
 `target/b3-login-transport-final-test.log`. El censo conserva **303** nombres
 sin ausencias ni duplicados y deja **128** en la raiz provisional. B3 y la
 aceptacion global siguen pendientes.
+
+### B7: import sin uso en el driver de sesion (2026-09-29)
+
+Se retiro `use wow_packet::WorldPacket` de `session/driver/mod.rs` tras
+confirmar que ese archivo usa nombres plenamente cualificados y no consume
+el import. `cargo check -p wow-world` paso (un job, target del worktree),
+log `target/b7-driver-import-check.log`. El resumen del crate bajo este
+arbol bajo de 273 a 272 avisos; sigue pendiente la limpieza B7 restante y
+la aceptacion global.
