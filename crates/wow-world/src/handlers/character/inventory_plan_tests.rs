@@ -98,3 +98,37 @@ fn equip_destination_uses_visualize_binding_rule_like_cpp() {
     );
     assert!(equipped_bag.is_soul_bound());
 }
+
+#[test]
+fn parse_equipment_cache_empty() {
+    let eq = parse_equipment_cache("");
+    for slot in &eq {
+        assert_eq!(slot.display_id, 0);
+        assert_eq!(slot.inv_type, 0);
+    }
+}
+
+#[test]
+fn item_currently_looted_guard_uses_runtime_loot_generated_state() {
+    let mut item = wow_entities::Item::default();
+    assert!(!item_is_currently_looted_like_cpp(&item));
+
+    item.set_loot_generated(true);
+    assert!(item_is_currently_looted_like_cpp(&item));
+}
+
+#[test]
+fn parse_equipment_cache_real_data() {
+    // Real data from DB: first slot has inv_type=0, next few slots have gear
+    let cache = "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4 2470 0 0 0 20 33257 0 1 0";
+    let eq = parse_equipment_cache(cache);
+    // Slot 0: all zeros
+    assert_eq!(eq[0].display_id, 0);
+    // Slot 3: inv_type=4, display_id=2470
+    assert_eq!(eq[3].inv_type, 4);
+    assert_eq!(eq[3].display_id, 2470);
+    // Slot 4: inv_type=20, display_id=33257, subclass=1
+    assert_eq!(eq[4].inv_type, 20);
+    assert_eq!(eq[4].display_id, 33257);
+    assert_eq!(eq[4].subclass, 1);
+}

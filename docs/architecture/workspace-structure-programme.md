@@ -2157,3 +2157,18 @@ use_equipment_set_` ejecuto **2/2**; logs
 original sigue **303/303** sin duplicados. En `item_1` provisional solo queda
 el caso de fallo parcial al cargar apariencias de cuenta; la suite externa
 grande todavia no compila.
+
+### B3 `item_4`: parser de equipo y guard de loot (2026-09-29)
+
+Tres pruebas puras (`parse_equipment_cache_empty`,
+`parse_equipment_cache_real_data` y
+`item_currently_looted_guard_uses_runtime_loot_generated_state`) pasaron del
+`item_4` provisional a `handlers/character/inventory_plan_tests.rs`, hijo ya
+montado junto a las reglas que ejercen. Los cuerpos y aserciones permanecen
+iguales; no hubo cambio productivo ni de visibilidad. `cargo check -p
+wow-world` paso; los filtros unitarios ejecutaron **2/2** y **1/1**.
+Logs: `target/b3-inventory-plan-pure-rehome-check.log`,
+`target/b3-inventory-plan-equipment-cache-test.log` y
+`target/b3-inventory-plan-looted-guard-test.log`. Censo de la suite original:
+**303/303** sin duplicados; los demas escenarios de `item_4` siguen
+provisionales.
