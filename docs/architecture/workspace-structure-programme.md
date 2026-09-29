@@ -251,12 +251,15 @@ retirar aserciones; los checks de biblioteca con y sin feature son feedback de
 compilación, no aceptación del target ni de la macro.
 
 El diagnóstico inicial del target tuvo 1 497 errores. El último check
-`cargo check -p wow-world --test quest_tests` cuenta **88 errores**
-(`target/b3-quest-root-public-imports-check.log`), sin errores de sintaxis ni
-de tipos en los imports nuevos. Los commits hasta `1017d19d` recuperan también
-las rutas originales de persistencia de dinero y evidencia de recompensas bajo
-la feature; el modo normal sigue compilando. Quedan fixtures de persistencia,
-tipos y métodos privados, y después la ejecución de las 225 pruebas. No
+`cargo check -p wow-world --test quest_tests` cuenta **70 errores**
+(`target/b3-quest-fixture-split-check.log`), sin errores de sintaxis ni
+de módulo tras extraer los puentes de persistencia de quest a
+`test_fixtures/quest.rs` (`8c12c184`). Los commits hasta `20c929a4`
+recuperan las rutas originales de persistencia de dinero y quest y su evidencia
+de carga y guardado bajo la feature. Los imports canónicos del target externo
+redujeron siete errores más; el modo normal se comprobó antes de los últimos
+puentes, por lo que necesita revalidación. Quedan tipos y métodos privados,
+y después la ejecución de las 225 pruebas. No
 atribuir a esta punta una suite verde ni aceptación final. `character_tests`,
 `loot_tests`, B7 y el resto de la macro siguen pendientes.
 
