@@ -1704,3 +1704,23 @@ cuatro informes. El owner logico crece **+31 lineas** (los encabezados de los se
 el ledger de hotspots lleva la entrada de revision de crecimiento correspondiente: es la unica
 forma sancionada de crecer y no se toca ningun techo sin ella. Con esto los tres adaptadores de
 handler mayores estan dentro del presupuesto de 600 lineas.
+
+### B6 `wow-map`: visibilidad minima del indice de bitset de terreno (2026-09-29)
+
+En este slice se redujo solo la superficie del indice de bitset y su parser:
+`terrain_grid_bitset_index_like_cpp` pasa de `pub` a `pub(super)`, que cubre sus llamadas internas
+y cinco usos de pruebas descendientes de `map_manager` (movement: 1, instance: 2, visibility: 2).
+La suite lo importa ahora desde el raiz de pruebas y deja de reexportarlo por
+`map_manager_tests/fixtures.rs`. `terrain_grid_bitset_from_cpp_string_like_cpp` pasa a privado de
+`terrain.rs`, donde tiene un unico llamador (`discover_grid_map_files_like_cpp`). No cambiaron
+implementaciones ni aserciones; ambos helpers conservan los mismos datos y orden.
+
+Evidencia secuencial con `CARGO_BUILD_JOBS=1`, `PROTOC=/home/ubuntu/.local/protoc/bin/protoc` y
+`CARGO_TARGET_DIR=/home/server/rustycore-world-refactor/target`: `cargo check -p wow-map` y
+`cargo check -p wow-world` terminaron con exit 0; `cargo test -p wow-map terrain` dio 28 aprobadas,
+0 fallidas y 1 ignorada (862 filtradas). Logs completos: `target/b6-terrain-bitset-map-check.log`,
+`target/b6-terrain-bitset-world-check.log` y `target/b6-terrain-bitset-focused-test.log`.
+
+Este delta no completa B6: `discover_grid_map_files_like_cpp`, `exist_map_like_cpp` y
+`LiveTerrainHeights::terrain_for_map` quedan fuera de este slice, junto con la aceptacion final del
+trasvase.

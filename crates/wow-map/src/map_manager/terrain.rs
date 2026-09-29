@@ -244,7 +244,7 @@ pub fn discover_grid_map_files_like_cpp(data_dir: &Path, map_id: u32) -> io::Res
     Ok(grid_file_exists)
 }
 
-pub fn terrain_grid_bitset_index_like_cpp(gx: i32, gy: i32) -> Option<usize> {
+pub(super) fn terrain_grid_bitset_index_like_cpp(gx: i32, gy: i32) -> Option<usize> {
     if !(0..MAX_NUMBER_OF_GRIDS_LIKE_CPP).contains(&gx)
         || !(0..MAX_NUMBER_OF_GRIDS_LIKE_CPP).contains(&gy)
     {
@@ -254,7 +254,7 @@ pub fn terrain_grid_bitset_index_like_cpp(gx: i32, gy: i32) -> Option<usize> {
     Some(gx as usize * MAX_NUMBER_OF_GRIDS_LIKE_CPP as usize + gy as usize)
 }
 
-pub fn terrain_grid_bitset_from_cpp_string_like_cpp(tiles_data: &[u8]) -> Vec<bool> {
+fn terrain_grid_bitset_from_cpp_string_like_cpp(tiles_data: &[u8]) -> Vec<bool> {
     let mut grid_file_exists = vec![false; TERRAIN_GRID_COUNT_LIKE_CPP];
     for (idx, exists) in grid_file_exists.iter_mut().enumerate() {
         let string_idx = TERRAIN_GRID_COUNT_LIKE_CPP - 1 - idx;

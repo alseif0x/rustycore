@@ -8,6 +8,8 @@
 
 #![cfg(test)]
 
+use crate::map_manager::terrain::terrain_grid_bitset_index_like_cpp;
+
 #[path = "map_manager_tests/fixtures.rs"]
 mod fixtures;
 
