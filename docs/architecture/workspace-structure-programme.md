@@ -412,6 +412,15 @@ continúa con exit 101, ahora **555 errores**
 filtrados (`target/b3-character-login-controller-focused-test.log`). Sigue
 pendiente compilar y ejecutar los 268 casos externos y la aceptación de B3.
 
+Un corte posterior añadió en los consumidores externos el import público
+`wow_packet::packets::query::NameCacheLookupResult` (seis usos) y
+`std::collections::HashMap` (cinco usos), sin cambiar cuerpos de test ni APIs de
+producción. El único check externo del corte terminó con exit 101 y **544
+errores** (`target/b3-character-namecache-hashmap-import-check.log`): E0422 bajó
+de 30 a 24 y E0433 de 30 a 25; las demás categorías no cambiaron. Son once
+errores de nombres resueltos, no aceptación de la suite. Los consumidores
+siguen sin commit.
+
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
 1. **Compila**: `cargo check -p <crate>` (y sus consumidores). Es el bucle de trabajo, no evidencia
