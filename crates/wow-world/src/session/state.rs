@@ -37,7 +37,7 @@ use super::instances::test_fixtures::InstanceTestFixtureLikeCpp;
 use super::persistence::test_fixtures::LoadedPlayerFlagsTestFixtureLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::player_items::test_fixtures::PlayerItemTestFixtureLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::progression::PlayerSkillTestFixtureLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::quest::test_fixtures::QuestTestFixtureLikeCpp;
@@ -733,10 +733,10 @@ pub struct WorldSession {
             wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP as usize],
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) pass_on_group_loot: bool,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) represented_enchanting_skill: u16,
     /// Handle-less test fixture for Player-owned skill values and persistence rows.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_skill_test_fixture_like_cpp: PlayerSkillTestFixtureLikeCpp,
     #[cfg(test)]
     pub(in crate::session) represented_gray_level_script_overrides_like_cpp: HashMap<u8, u8>,
@@ -902,7 +902,7 @@ pub struct WorldSession {
         Vec<RepresentedGuildRepairBankWithdrawLikeCpp>,
 
     /// Legacy handle-less test fixture for C++ `Player::_currencyStorage`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_currencies: HashMap<u32, PlayerCurrency>,
 
     /// In-memory item objects keyed by item GUID, mirroring C++ `Player::m_items` ownership.

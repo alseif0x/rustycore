@@ -245,7 +245,7 @@ impl WorldSession {
         let canonical = self.with_owned_player_like_cpp(|player| {
             player.non_durable_skill_tombstones_like_cpp().clone()
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(
                 self.player_skill_test_fixture_like_cpp

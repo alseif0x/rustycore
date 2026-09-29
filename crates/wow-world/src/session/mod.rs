@@ -435,7 +435,7 @@ use player_spell_records::canonical_player_skill_record_like_cpp;
 use player_spell_records::canonical_player_spell_record_like_cpp;
 #[cfg(test)]
 use player_spell_records::canonical_player_spell_runtime_like_cpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use player_spell_records::is_non_durable_skill_tombstone_like_cpp;
 use player_spell_records::represented_player_skill_record_like_cpp;
 use player_spell_records::represented_player_spell_record_like_cpp;

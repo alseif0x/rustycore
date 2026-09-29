@@ -152,7 +152,7 @@ impl WorldSession {
         complete: bool,
     ) -> bool {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none() {
             return self.fixture_replace_player_skill_records_like_cpp(
                 skill_records,
@@ -169,7 +169,7 @@ impl WorldSession {
         })
         .is_some()
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn fixture_replace_player_skill_records_like_cpp(
         &mut self,
         skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
@@ -216,7 +216,7 @@ impl WorldSession {
                 );
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none() {
             self.player_skill_test_fixture_like_cpp
                 .player_skill_values_like_cpp =
@@ -525,7 +525,7 @@ impl WorldSession {
                 .map(|skill| (skill.skill_id, skill))
                 .collect()
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(
                 self.player_skill_test_fixture_like_cpp

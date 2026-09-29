@@ -105,6 +105,30 @@ pub fn set_player_quest_gameplay_rewarded_for_test(
         .expect("test Player quest owner");
 }
 
+pub fn faction_store_for_test(
+    session: &crate::session::WorldSession,
+) -> Option<std::sync::Arc<wow_data::progression_rewards::FactionStore>> {
+    session.faction_store().cloned()
+}
+
+pub fn add_currency_quest_reward_for_test(
+    session: &mut crate::session::WorldSession,
+    currency_id: u32,
+    amount: u32,
+    gain_source: wow_constants::currency::CurrencyGainSourceLikeCpp,
+) -> Result<Option<()>, ()> {
+    session
+        .add_currency_quest_reward_like_cpp(currency_id, amount, gain_source)
+        .map(|delta| delta.map(|_| ()))
+}
+
+pub fn set_player_skill_values_for_test(
+    session: &mut crate::session::WorldSession,
+    skill_values: std::collections::HashMap<u16, u16>,
+) -> bool {
+    session.set_player_skill_values_like_cpp(skill_values)
+}
+
 pub fn set_represented_df_quest_for_test(
     session: &mut crate::session::WorldSession,
     quest_id: u32,

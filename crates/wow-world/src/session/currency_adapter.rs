@@ -69,7 +69,7 @@ impl WorldSession {
                 player.install_currencies_like_cpp(currencies.clone());
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical || self.player_handle_like_cpp.is_none() {
             self.player_currencies = currencies;
             return true;
@@ -84,7 +84,7 @@ impl WorldSession {
     pub(crate) fn player_currencies_like_cpp(&self) -> Option<HashMap<u32, PlayerCurrency>> {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.gameplay_state().currencies.clone());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(self.player_currencies.clone());
         }

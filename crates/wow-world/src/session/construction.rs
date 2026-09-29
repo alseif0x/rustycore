@@ -31,7 +31,7 @@ use super::instances::test_fixtures::InstanceTestFixtureLikeCpp;
 use super::persistence::test_fixtures::LoadedPlayerFlagsTestFixtureLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::player_items::test_fixtures::PlayerItemTestFixtureLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::progression::PlayerSkillTestFixtureLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::quest::test_fixtures::QuestTestFixtureLikeCpp;
@@ -375,9 +375,9 @@ impl WorldSession {
             }),
             #[cfg(any(test, feature = "test-fixtures"))]
             pass_on_group_loot: false,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             represented_enchanting_skill: 0,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             player_skill_test_fixture_like_cpp: PlayerSkillTestFixtureLikeCpp::default(),
             #[cfg(test)]
             represented_gray_level_script_overrides_like_cpp: HashMap::new(),
@@ -485,7 +485,7 @@ impl WorldSession {
             represented_guild_repair_bank_state_like_cpp: None,
             #[cfg(test)]
             represented_guild_repair_bank_withdraws_like_cpp: Vec::new(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             player_currencies: HashMap::new(),
 
             #[cfg(any(test, feature = "test-fixtures"))]
