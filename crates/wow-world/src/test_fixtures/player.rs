@@ -73,6 +73,16 @@ pub fn install_canonical_player_owner_for_test(
     )
 }
 
+pub fn tick_player_regeneration_for_test(
+    session: &mut crate::session::WorldSession,
+    diff_ms: u32,
+    power_types: &wow_data::character_progression::PowerTypeStore,
+    regen_game_tables: Option<&wow_data::RegenGameTablesLikeCpp>,
+    rates: &crate::PlayerRegenerationRatesLikeCpp,
+) {
+    session.tick_player_regeneration_like_cpp(diff_ms, power_types, regen_game_tables, rates);
+}
+
 pub fn get_inventory_item_by_pos_for_test(
     session: &crate::session::WorldSession,
     bag: u8,
