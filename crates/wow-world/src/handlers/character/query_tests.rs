@@ -7,14 +7,16 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::guid::HighGuid;
-use wow_core::{ObjectGuid, Position};
+use wow_core::{EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position};
 use wow_data::{
+    CreatureQueryCatalogLikeCpp, CreatureQueryDisplayLikeCpp, CreatureQueryTemplateLikeCpp,
     HotfixBlobCache, PageTextCatalogLikeCpp, PageTextLikeCpp, TACTKEY_SIZE, TactKeyEntry,
     TactKeyStore,
 };
 use wow_packet::packets::misc::DbQueryBulk;
 use wow_packet::packets::query::{
-    NameCacheLookupResult, PageTextInfo, PlayerGuidLookupData, QueryPageText,
+    CreatureDisplayStats, CreatureStats, CreatureXDisplay, NameCacheLookupResult, PageTextInfo,
+    PlayerGuidLookupData, QueryCreature, QueryCreatureResponse, QueryPageText,
     QueryPageTextResponse, QueryPlayerNames, QueryPlayerNamesResponse,
 };
 use wow_packet::{ServerPacket, WorldPacket};
@@ -31,6 +33,41 @@ fn install_page_text_catalog_like_cpp(
         page_text: Arc::new(PageTextCatalogLikeCpp::from_rows_like_cpp(pages, [])),
         ..Default::default()
     }));
+}
+
+fn install_creature_query_catalog_like_cpp(
+    session: &mut WorldSession,
+    creatures: impl IntoIterator<Item = CreatureQueryTemplateLikeCpp>,
+) {
+    session.set_object_mgr_catalogs_like_cpp(Arc::new(ObjectMgrCatalogsLikeCpp {
+        creature: Arc::new(CreatureQueryCatalogLikeCpp::from_rows_like_cpp(
+            creatures,
+            [],
+        )),
+        ..Default::default()
+    }));
+}
+
+fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Receiver<Vec<u8>>) {
+    let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);
+    let (send_tx, send_rx) = flume::bounded::<Vec<u8>>(capacity);
+    let mut session = WorldSession::new(
+        1,
+        "TestAccount".into(),
+        0,
+        2,
+        9,
+        54261,
+        vec![0u8; 40],
+        "esES".into(),
+        pkt_rx,
+        send_tx,
+    );
+    session.set_item_guid_generator_like_cpp(Arc::new(ObjectGuidGenerator::new(HighGuid::Item, 1)));
+    session.set_equipment_set_guid_generator_like_cpp(Arc::new(
+        EquipmentSetGuidGeneratorLikeCpp::new(1),
+    ));
+    (session, send_rx)
 }
 
 struct PlayerNameQueryPortFixtureLikeCpp {
@@ -447,6 +484,132 @@ async fn query_page_text_preserves_partial_chain_and_empty_failure_shapes_like_c
                         text: page.text,
                     })
                     .collect(),
+            }
+            .to_bytes()
+        );
+    }
+}
+
+fn creature_query_catalog_row_like_cpp() -> CreatureQueryTemplateLikeCpp {
+    CreatureQueryTemplateLikeCpp {
+        entry: 42,
+        name: "Localized creature".to_owned(),
+        subname: "Localized title".to_owned(),
+        title_alt: "Localized alternate".to_owned(),
+        icon_name: "Directions".to_owned(),
+        creature_type: 7,
+        creature_family: 8,
+        classification: 9,
+        kill_credits: [10, 11],
+        civilian: true,
+        racial_leader: false,
+        movement_id: 12,
+        required_expansion: 3,
+        vignette_id: 13,
+        unit_class: 1,
+        widget_set_id: 14,
+        widget_set_unit_condition_id: 15,
+        hp_multi: 1.5,
+        energy_multi: 2.5,
+        creature_difficulty_id: 16,
+        type_flags: [17, 18],
+        displays: vec![CreatureQueryDisplayLikeCpp {
+            display_id: 19,
+            scale: 0.75,
+            probability: 0.25,
+        }],
+    }
+}
+
+#[tokio::test]
+async fn creature_query_uses_typed_catalog_and_preserves_packet_projection_like_cpp() {
+    let row = creature_query_catalog_row_like_cpp();
+    let (mut session, send_rx) = make_session_with_send_capacity(1);
+    install_creature_query_catalog_like_cpp(&mut session, [row.clone()]);
+
+    session
+        .handle_query_creature(QueryCreature { creature_id: 42 })
+        .await;
+
+    let mut names: [String; 4] = Default::default();
+    names[0] = row.name;
+    let expected = QueryCreatureResponse {
+        creature_id: 42,
+        allow: true,
+        stats: Some(CreatureStats {
+            title: row.subname,
+            title_alt: row.title_alt,
+            cursor_name: row.icon_name,
+            civilian: row.civilian,
+            leader: row.racial_leader,
+            names,
+            name_alts: Default::default(),
+            flags: row.type_flags,
+            creature_type: row.creature_type,
+            creature_family: row.creature_family,
+            classification: row.classification,
+            proxy_creature_ids: row.kill_credits,
+            display: CreatureDisplayStats {
+                displays: vec![CreatureXDisplay {
+                    creature_display_id: 19,
+                    scale: 0.75,
+                    probability: 0.25,
+                }],
+                total_probability: 0.25,
+            },
+            hp_multi: row.hp_multi,
+            energy_multi: row.energy_multi,
+            quest_items: Vec::new(),
+            creature_movement_info_id: row.movement_id,
+            health_scaling_expansion: 0,
+            required_expansion: row.required_expansion,
+            vignette_id: row.vignette_id,
+            unit_class: row.unit_class,
+            creature_difficulty_id: row.creature_difficulty_id,
+            widget_set_id: row.widget_set_id,
+            widget_set_unit_condition_id: row.widget_set_unit_condition_id,
+        }),
+    };
+    assert_eq!(send_rx.try_recv().unwrap(), expected.to_bytes());
+}
+
+#[tokio::test]
+async fn creature_query_repeats_response_like_cpp() {
+    let row = creature_query_catalog_row_like_cpp();
+    let (mut session, send_rx) = make_session_with_send_capacity(2);
+    install_creature_query_catalog_like_cpp(&mut session, [row]);
+
+    session
+        .handle_query_creature(QueryCreature { creature_id: 42 })
+        .await;
+    session
+        .handle_query_creature(QueryCreature { creature_id: 42 })
+        .await;
+
+    assert!(send_rx.try_recv().is_ok());
+    assert!(send_rx.try_recv().is_ok());
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn creature_query_missing_or_failed_catalog_emits_disallowed_response_like_cpp() {
+    // An absent Rust catalog capability is synthetic; the empty lookup models C++'s missing template.
+    for with_empty_capability in [false, true] {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        if with_empty_capability {
+            install_creature_query_catalog_like_cpp(&mut session, []);
+        }
+
+        session
+            .handle_query_creature(QueryCreature { creature_id: 43 })
+            .await;
+
+        assert_eq!(
+            send_rx.try_recv().unwrap(),
+            QueryCreatureResponse {
+                creature_id: 43,
+                allow: false,
+                stats: None,
             }
             .to_bytes()
         );

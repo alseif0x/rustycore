@@ -2678,3 +2678,24 @@ trasladados y tres previos), con un job y target del worktree. Logs
 `target/b3-character-creature-rules-test.log`. Censo **303/303** nombres
 unicos, **160** montados por la raiz provisional. Siguen pendientes la
 suite externa completa, el resto de B3 y la aceptacion global.
+
+### B3 `creature`: consultas tipadas junto a `query` (2026-09-29)
+
+Los tres `creature_query_*` pasaron del hijo provisional `creature.rs` a
+`handlers/character/query_tests.rs` con su fila de catalogo exclusiva y un
+instalador privado minimo. Se conservaron nombres, aserciones y capacidades
+de envio 1/2/1; el helper general de catalogos sigue en el provisional para
+los consumidores de `GameObject`. Queda en `creature.rs` el caso de estado de
+quest. No hay cambio productivo ni de visibilidad. C++
+`WorldSession::HandleCreatureQuery` (`QueryHandler.cpp:71-100`) envia la
+proyeccion del template o una respuesta disallowed si falta; la variante
+sin capacidad de catalogo es defensiva de Rust y no demuestra fallo de DB
+equivalente en C++.
+
+`cargo check -p wow-world` paso; el filtro
+`handlers::character::query::tests::creature_query_` ejecuto **3/3** con un
+job y target del worktree. Logs
+`target/b3-character-creature-query-check.log` y
+`target/b3-character-creature-query-test.log`. Censo **303/303** nombres
+unicos, **157** montados por la raiz provisional. Siguen pendientes la suite
+externa completa, B3 restante y la aceptacion global.
