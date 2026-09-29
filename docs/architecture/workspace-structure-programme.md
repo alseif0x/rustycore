@@ -43,8 +43,9 @@ laterales `ai→instances`, `conditions→loot`, `scripts→script`.
 ## 2. Secuencia maestra
 
 Orden por **dependencias reales**: primero lo que quita ruido, después lo que quita tamaño, después
-lo que cambia contratos, y al final la aceptación. Nada de una fase empieza si su predecesora no
-está verde (ver §4).
+lo que cambia contratos, y al final la aceptación. Una fase espera a las dependencias de su fila,
+no al cierre de todas las fases de una ola anterior (ver §4). Los trabajos con propietarios y
+archivos distintos pueden avanzar en paralelo; la aceptación pesada conserva un solo ejecutor.
 
 ### Ola A0 — endurecer el estándar antes de tocar crates
 Contraste con proyectos grandes de Rust (`rustc`, `rust-analyzer`, `bevy`, `polars`, `tokio`,
@@ -97,7 +98,7 @@ que hay que justificar con números.
 |---|---|---|---|
 | D1 | **`wow-entities`**: fichero mayor 4 726 → ≤1 000; separar modelo canónico de estado de gameplay | alta | C2 |
 | D2 | **`world-server`**: `app.rs` 5 675 → módulos por fase; composición delgada | alta | B7 |
-| D3 | **`wow-map`**: ficheros 5 133 → ≤1 000; separar runtime de grillas de la fachada | media | B6 |
+| D3 | **`wow-map`**: ficheros 5 133 → ≤1 000; separar runtime de grillas de la fachada | alta; adelantar con B6 | dueño y contrato de B6 fijados; cierre en paralelo |
 | D4 | **`wow-data`** y **`wow-database`**: techos de fichero y organización por catálogo/tabla | media | C1 |
 | D5 | **`wow-packet`** y **`wow-social`**: techos de fichero; packet solo wire | media | C3 |
 | D6 | **Ecosistema de módulos (ADR-002)**: contrato de datos versionado en `wow-module-api`, adaptador nativo in-process y adaptador Wasm (host) sobre el mismo contrato, `wasm-runtime` como feature opcional apagada por defecto, con versión de contrato, lista blanca de host functions, límite de ejecución (fuel) y aislamiento de fallos | media | A0.1 |
@@ -138,10 +139,10 @@ sin entradas eliminables ni stashes. Reconsultar Git al retomar; estos son datos
 
 | pieza | estado comprobado y límite |
 |---|---|
-| B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Se estrecharon exports internos revisados de terrain, grid, pathfinder y respawn; el manager legado sigue requerido por `wow-world`/`world-server`. Faltan los demás exports, features/composición y aceptación del candidato. |
+| B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Se estrecharon exports internos revisados de terrain, grid, pathfinder, respawn y runtime_state; el manager legado sigue requerido por `wow-world`/`world-server`. `map/mod.rs` ya medía 5 133 líneas en la base y sigue así: D3 se adelanta para no confundir traslado de crate con retiro de monolitos. Faltan los demás exports, features/composición y aceptación del candidato. |
 | B5 | Raíces de loot y character miden 243/239 líneas y todos sus hijos extraídos menos de 600. Se estrecharon rutas heredadas de visibilidad de ambos adaptadores, incluido el plan de inventario test-only tras mover sus dos tests privados. Faltan el resto de exports y la aceptación del candidato. |
-| B3 | `group_tests` ya es target de integración. `quest_tests` existe como target provisional; `character_tests` se distribuye por owners, con **303** nombres originales conservados y **116** aún montados en la raíz provisional del árbol local. La suite externa de character aún no compila completa; la migración de quest y loot tampoco está aceptada. |
-| B7 | Hay limpieza parcial integrada, incluidos cuatro imports sin uso retirados el 2026-09-29; los consumidores restantes de fixtures dependen de B3. No está cerrado. |
+| B3 | `group_tests` ya es target de integración. `quest_tests` existe como target provisional; `character_tests` se distribuye por owners, con **303** nombres originales presentes sin duplicados y **111** aún montados en la raíz provisional del árbol local. La suite externa de character aún no compila completa; la migración de quest y loot tampoco está aceptada. |
+| B7 | Hay limpieza parcial local, incluidos siete imports sin uso retirados el 2026-09-29; los consumidores restantes de fixtures dependen de B3. No está cerrado. |
 | Talentos #578 | La rama `recover/578-talent-catalog`, `0845f5b3`, conserva `docs/migration/recovered/578-talent-catalog-2026-09-04.patch`; el archivo solo existe en esa rama, no en este checkout. No está aplicado; preservar la rama y adaptar por consumidores actuales cuando corresponda. |
 | Orquestación | Sol medium / Luna max copiado a este worktree. Cambios compartidos aún locales, y `.codex/config.toml` ignorado. Iniciar sesión nueva y comprobar runtime efectivo; preservar estos cambios al continuar. |
 
@@ -318,8 +319,12 @@ rama, con sus consumidores y evidencia. B5/B6 son un bloque interno; su correcci
 no cierra la macro ni justifica una PR parcial.
 
 1. Revisar los exports propios restantes de `map_manager`, la composición de features y el
-   contrato entre los dos checkers de capas. Integrar la pauta del worker. Mantener movimiento
-   y comportamiento separados; el piloto verde todavía no cierra B3.
+   contrato entre los dos checkers de capas. Adelantar D3 en paralelo con los propietarios B3
+   distintos: `map/mod.rs` sigue en 5 133 líneas, mientras el subárbol de producción
+   `map_manager/` suma 6 811 con un máximo de 675 por archivo. Cortar `Map` por
+   responsabilidades, sin segunda autoridad ni estado espejo, y registrar el descenso real de
+   los ficheros mayores antes de cerrar el destino B6. Mantener movimiento y comportamiento
+   separados; el piloto verde todavía no cierra B3.
 2. Extender B3 desde el piloto verde a `quest_tests`, `character_tests` y `loot_tests`, una
    suite por responsabilidad comprobada, con fixtures mínimas, consumidores y recuentos
    conservados. `validation-v2 final` usa `cargo test --lib`; ejecutar los nuevos targets
@@ -3292,3 +3297,40 @@ pasaron `cargo check -p wow-map`, `cargo test -p wow-map --lib respawn`
 `target/b3-area-healer-b7-imports-b6-respawn-check-wow-world.log` y
 `target/b3-area-healer-focused-test.log`. El check de `wow-world` informa
 **267** avisos (270 antes). B3/B6/B7 y aceptacion global siguen pendientes.
+
+### B3 banco y catálogo gossip; B6 runtime; B7 imports (2026-09-29)
+
+Dos pruebas de banco y tres de catálogo gossip pasaron de la suite provisional de
+`character_tests` a módulos privados de sus handlers. El censo estático compara
+los 303 nombres originales de `character_tests` con todo el árbol actual y no
+encuentra ausencias ni duplicados; 111 permanecen montados en la raíz provisional
+del target externo. Siete archivos externos ya montados por targets propios no
+entran en esa cifra. El test de banco sin apertura comprueba un caso sin item
+origen: no demuestra por sí solo el guard `CanUseBank`. El catálogo conserva orden
+de lecturas, locale y fallbacks del puerto Rust; no acredita SQL ni igualdad
+completa con `ObjectMgr::LoadGossipMenu`, `LoadGossipMenuItems` y
+`LoadGossipMenuItemsLocales` de C++. Para los handlers,
+contrastar `BankHandler.cpp:27-39,78-90`, `ItemHandler.cpp` (`CanUseBank`) y
+`NPCHandler.cpp:204-329` antes de afirmar más paridad.
+
+El glob de `map_manager/runtime_state` se cambió por nueve reexports públicos
+explícitos y siete imports internos; no se quitaron DTOs públicos ni se
+modificaron cuerpos. B7 retiró tres imports sin uso en los adaptadores de
+colecciones, interacción NPC y registro de jugador. Pasaron `cargo check -p
+wow-map`, dos tests de `into_owning_session_plan`, `cargo check -p wow-world`
+(264 avisos, frente a 267), seis tests privados de banco y tres de catálogo
+gossip, con un job, `PROTOC` local y target del worktree. El primer filtro de
+`runtime_state` seleccionó cero tests; se corrigió y solo el filtro de dos
+casos cuenta como evidencia. Logs `target/batch-gossip-bank-runtime-map-check.log`,
+`target/batch-runtime-state-focused-test.log`,
+`target/batch-gossip-bank-runtime-world-check.log`,
+`target/batch-bank-focused-test.log` y
+`target/batch-gossip-catalog-focused-test.log`. Es feedback local de implementación,
+no aceptación de B3/B6/B7 ni del candidato final.
+
+La objeción de tamaño se midió en el mismo árbol: `wow-map/src/map/mod.rs`
+tiene 5 133 líneas, `map/spawn_groups.rs` 2 384,
+`map/game_object.rs` 2 311 y `map/relocation.rs` 2 176;
+`wow-map/src` suma 66 312. La raíz de `Map` ya mide 5 133 en la base
+`origin/3.4.3`. D3 se adelanta con el contrato B6 fijado: el movimiento de
+`map_manager` no retira estos monolitos y su aceptación física sigue abierta.

@@ -5,7 +5,7 @@
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
 use super::{Arc, PendingInvites, PlayerRegistry, PlayerSessionRegistrationLikeCpp, UnitState};
-use super::{WorldSession, debug, registry};
+use super::{WorldSession, debug};
 
 impl WorldSession {
     /// Set the shared player registry (used for broadcast).

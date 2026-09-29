@@ -5,7 +5,7 @@
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
 use super::{AccountMount, AccountMountUpdate, HeirloomEntry, TOY_FLAG_FAVORITE_LIKE_CPP};
-use super::{TOY_FLAG_HAS_FANFARE_LIKE_CPP, WorldSession, collections};
+use super::{TOY_FLAG_HAS_FANFARE_LIKE_CPP, WorldSession};
 
 #[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

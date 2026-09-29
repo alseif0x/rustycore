@@ -764,3 +764,7 @@ impl WorldSession {
 #[cfg(test)]
 #[path = "gossip_tests.rs"]
 mod gossip_tests;
+
+#[cfg(test)]
+#[path = "gossip_catalog_tests.rs"]
+mod catalog_tests;

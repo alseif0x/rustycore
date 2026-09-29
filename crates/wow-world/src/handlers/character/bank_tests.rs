@@ -5,7 +5,9 @@ use crate::test_fixtures::{player_gold_for_test, CollectionLoadPortLikeCpp};
 use wow_constants::unit::NPCFlags1;
 use wow_core::guid::HighGuid;
 use wow_core::ObjectGuid;
-use wow_packet::packets::misc::BuyBankSlot;
+use wow_packet::packets::gossip::Hello;
+use wow_packet::packets::item::InvUpdate;
+use wow_packet::packets::misc::{AutoBankItem, AutoStoreBankItem, BuyBankSlot};
 
 #[tokio::test]
 async fn buy_bank_slot_buys_next_slot_and_spends_money_like_cpp() {
@@ -103,5 +105,57 @@ async fn buy_bank_slot_rejects_missing_price_like_cpp() {
 
     assert_eq!(session.player_bank_bag_slot_count_like_cpp(), 2);
     assert_eq!(player_gold_for_test(&session), 150);
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn autostore_missing_bank_item_does_not_record_unapplied_move_like_cpp() {
+    let (mut session, send_rx, canonical) = make_bank_slot_session(4);
+    let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 41);
+    insert_binder_creature(&canonical, banker, NPCFlags1::BANKER.bits());
+
+    session.handle_banker_activate(Hello { unit: banker }).await;
+    assert!(send_rx.try_recv().is_ok(), "bank open should be sent");
+
+    session
+        .handle_autostore_bank_item(AutoStoreBankItem {
+            inv_update: InvUpdate {
+                items: vec![(255, 39)],
+            },
+            bag: 255,
+            slot: 39,
+        })
+        .await;
+
+    assert!(session.represented_bank_item_moves_like_cpp().is_empty());
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn auto_bank_item_rejects_without_current_bank_like_cpp() {
+    let (mut session, send_rx, _canonical) = make_bank_slot_session(1);
+
+    // Both positions have no source item, so this preserves the no-op scenario but does not
+    // independently prove the preceding CanUseBank guard.
+    session
+        .handle_autobank_item(AutoBankItem {
+            inv_update: InvUpdate {
+                items: vec![(255, 19)],
+            },
+            bag: 255,
+            slot: 19,
+        })
+        .await;
+    session
+        .handle_autostore_bank_item(AutoStoreBankItem {
+            inv_update: InvUpdate {
+                items: vec![(255, 39)],
+            },
+            bag: 255,
+            slot: 39,
+        })
+        .await;
+
+    assert!(session.represented_bank_item_moves_like_cpp().is_empty());
     assert!(send_rx.try_recv().is_err());
 }

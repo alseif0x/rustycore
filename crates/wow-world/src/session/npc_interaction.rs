@@ -6,7 +6,7 @@
 
 use super::{CreatureTypeFlags, ObjectGuid, PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP};
 use super::{PlayerInteractionDataLikeCpp, Position, RepresentedCreatureAccessLikeCpp};
-use super::{RepresentedGetReactionInputLikeCpp, UnitFlags2, WorldSession, canonical_access};
+use super::{RepresentedGetReactionInputLikeCpp, UnitFlags2, WorldSession};
 
 impl WorldSession {
     pub(crate) fn represented_npc_can_interact_with_like_cpp(
