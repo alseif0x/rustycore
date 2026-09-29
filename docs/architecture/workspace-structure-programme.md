@@ -2020,3 +2020,20 @@ y el montaje del target provisional. `cargo check -p wow-world` paso y
 `cargo test -p wow-world --test character_publication_order` ejecuto **1/1**.
 Logs: `target/b3-character-publication-default-check.log` y
 `target/b3-character-publication-focused-test.log`.
+
+### B3 `character_tests`: fuente y trade skill en target independiente (2026-09-29)
+
+`tests/character_group.rs` monta los dos escenarios de `group.rs`: el guardia
+de referencias de admision de login y la respuesta vacia de `ShowTradeSkill`.
+El primer test conserva sus `include_str!` relativos; el segundo recibe el mismo
+builder de Session, ahora local al target. Ambos cuerpos y nombres permanecen
+iguales y dejaron de montarse en el target provisional. `cargo check -p
+wow-world` paso; `cargo test -p wow-world --test character_group` ejecuto
+**2/2**. Logs: `target/b3-character-group-default-check.log` y
+`target/b3-character-group-focused-test.log`.
+
+Un censo por atributos `#[test]` y `#[tokio::test]` contra los 33 ficheros de
+la suite original en `HEAD` encontro los **303 nombres** una sola vez cada uno
+en el arbol de trabajo actual (tests privados y targets externos combinados):
+0 perdidos, 0 duplicados. Esto comprueba el montaje provisional, no sustituye
+la compilacion/ejecucion completa de los 303 escenarios.

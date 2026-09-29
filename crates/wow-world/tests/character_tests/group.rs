@@ -1,0 +1,37 @@
+//! Group source and application scenarios.
+//!
+//! Mounted by `character_group.rs`; `include_str!` paths remain relative to this file.
+//! The application scenario uses the builder provided by that target.
+
+use super::*;
+
+#[test]
+fn continue_login_no_longer_names_location_or_guild_statements() {
+    let handler = concat!(
+        include_str!("../../src/handlers/character/world_entry/login.rs"),
+        include_str!("../../src/handlers/character/world_entry/login/admission.rs"),
+    );
+    assert!(handler.contains("load_login_admission_like_cpp"));
+    assert!(handler.contains("PlayerLoginAdmissionLoadedLikeCpp::BattlegroundLocation"));
+    assert!(handler.contains("PlayerLoginAdmissionLoadedLikeCpp::HomebindLocation"));
+    assert!(handler.contains("PlayerLoginAdmissionLoadedLikeCpp::GuildMembership"));
+    for statement in [
+        "CharStatements::SEL_CHARACTER_BGDATA",
+        "CharStatements::SEL_CHARACTER_HOMEBIND",
+        "CharStatements::SEL_GUILD_MEMBER",
+    ] {
+        assert!(
+            !handler.contains(statement),
+            "handler still names {statement}"
+        );
+    }
+}
+#[tokio::test]
+async fn show_trade_skill_is_noop_null_like_cpp() {
+    let (mut session, send_rx) = make_session_with_send_capacity(1);
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+
+    session.handle_show_trade_skill().await;
+
+    assert!(send_rx.try_recv().is_err());
+}
