@@ -1344,7 +1344,7 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(in crate::session) player_unit_flags_like_cpp: UnitFlags,
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_faction_template_like_cpp: Option<u32>,
     /// Handle-less fixture for C++ `UNIT_FLAG_MOUNT`.
     #[cfg(test)]

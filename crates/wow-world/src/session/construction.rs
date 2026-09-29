@@ -731,7 +731,7 @@ impl WorldSession {
             player_scale_duration_like_cpp: 0,
             #[cfg(test)]
             player_unit_flags_like_cpp: UnitFlags::PLAYER_CONTROLLED,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             player_faction_template_like_cpp: None,
             #[cfg(test)]
             player_mounted_like_cpp: false,

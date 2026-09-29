@@ -499,7 +499,7 @@ impl WorldSession {
                 .ok()
                 .filter(|faction| *faction != 0)
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return self.player_faction_template_like_cpp;
         }
@@ -622,7 +622,7 @@ impl WorldSession {
             .unwrap_or_default()
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_player_faction_template_like_cpp(&mut self, faction_template: u32) {
         self.player_faction_template_like_cpp = (faction_template != 0).then_some(faction_template);
         let _ = self.mutate_canonical_player_like_cpp(|player| {

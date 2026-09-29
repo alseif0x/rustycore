@@ -11,6 +11,13 @@ pub fn canonical_player_power_snapshot_for_test(
     session.canonical_player_power_snapshot_like_cpp(power_type)
 }
 
+pub fn set_player_faction_template_for_test(
+    session: &mut crate::session::WorldSession,
+    faction_template: u32,
+) {
+    session.set_player_faction_template_like_cpp(faction_template);
+}
+
 pub fn player_interaction_source_guid_for_test(
     session: &crate::session::WorldSession,
 ) -> Option<wow_core::ObjectGuid> {
