@@ -168,7 +168,7 @@ impl PlayerQuestPersistencePortLikeCpp for PlayerQuestPersistencePortFixtureLike
 /// The operation reaches the database exactly once, so a fixture that
 /// collected a list would hide the contract it is meant to prove: the vector
 /// below must never hold more than one entry for one reward.
-pub(crate) struct PlayerQuestRewardPersistencePortFixtureLikeCpp {
+pub struct PlayerQuestRewardPersistencePortFixtureLikeCpp {
     pub(crate) requests: Arc<Mutex<Vec<PlayerQuestRewardDurableRequestLikeCpp>>>,
     pub(crate) outcome: Mutex<PlayerQuestRewardCommitOutcomeLikeCpp>,
 }

@@ -1,6 +1,19 @@
 pub use crate::player::quest_persistence_test_fixture::{
     PlayerQuestLoadStageFixtureLikeCpp, PlayerQuestPersistencePortFixtureLikeCpp,
+    PlayerQuestRewardPersistencePortFixtureLikeCpp,
 };
+
+pub fn player_quest_reward_persistence_fixture_with_outcome_for_test(
+    outcome: wow_persistence::PlayerQuestRewardCommitOutcomeLikeCpp,
+) -> PlayerQuestRewardPersistencePortFixtureLikeCpp {
+    PlayerQuestRewardPersistencePortFixtureLikeCpp::with_outcome(outcome)
+}
+
+pub fn player_quest_reward_requests_for_test(
+    fixture: &PlayerQuestRewardPersistencePortFixtureLikeCpp,
+) -> Vec<wow_persistence::PlayerQuestRewardDurableRequestLikeCpp> {
+    fixture.requests.lock().unwrap().clone()
+}
 
 pub fn player_quest_persistence_port_with_load_rows_for_test(
     active: Vec<wow_persistence::PlayerQuestActivePersistenceRowLikeCpp>,
