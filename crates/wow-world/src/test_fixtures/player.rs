@@ -104,6 +104,71 @@ pub fn get_inventory_item_by_pos_for_test(
     session.get_inventory_item_by_pos(bag, slot)
 }
 
+pub fn mark_inventory_child_for_test(
+    session: &mut crate::session::WorldSession,
+    child_guid: wow_core::ObjectGuid,
+    parent_guid: wow_core::ObjectGuid,
+) -> bool {
+    session.update_inventory_item_object_like_cpp(child_guid, |child| {
+        child.set_item_flag(wow_constants::ItemFieldFlags::CHILD);
+        child.set_creator(parent_guid);
+    })
+}
+
+pub fn set_inventory_item_expiration_and_temporary_enchantment_for_test(
+    session: &mut crate::session::WorldSession,
+    item_guid: wow_core::ObjectGuid,
+    expiration: u32,
+    enchantment: (i32, u32, i16),
+) -> bool {
+    session.update_inventory_item_object_like_cpp(item_guid, |item| {
+        item.set_expiration(expiration);
+        item.set_enchantment(
+            wow_constants::EnchantmentSlot::EnhancementTemporary,
+            enchantment.0,
+            enchantment.1,
+            enchantment.2,
+        );
+    })
+}
+
+pub fn set_equipped_inventory_item_enchantments_for_test(
+    session: &mut crate::session::WorldSession,
+    item_guid: wow_core::ObjectGuid,
+    enhancement_permanent: (i32, u32, i16),
+    enhancement_temporary: (i32, u32, i16),
+    property0: (i32, u32, i16),
+    property1: (i32, u32, i16),
+) -> bool {
+    session.update_inventory_item_object_like_cpp(item_guid, |item| {
+        item.set_item_flag2(wow_constants::ItemFieldFlags2::EQUIPPED);
+        item.set_enchantment(
+            wow_constants::EnchantmentSlot::EnhancementPermanent,
+            enhancement_permanent.0,
+            enhancement_permanent.1,
+            enhancement_permanent.2,
+        );
+        item.set_enchantment(
+            wow_constants::EnchantmentSlot::EnhancementTemporary,
+            enhancement_temporary.0,
+            enhancement_temporary.1,
+            enhancement_temporary.2,
+        );
+        item.set_enchantment(
+            wow_constants::EnchantmentSlot::Property0,
+            property0.0,
+            property0.1,
+            property0.2,
+        );
+        item.set_enchantment(
+            wow_constants::EnchantmentSlot::Property1,
+            property1.0,
+            property1.1,
+            property1.2,
+        );
+    })
+}
+
 pub fn set_player_position_for_test(
     session: &mut crate::session::WorldSession,
     position: wow_core::Position,

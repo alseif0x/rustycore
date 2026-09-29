@@ -267,7 +267,7 @@ impl WorldSession {
         })
         .flatten()
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn update_inventory_item_object_like_cpp(
         &mut self,
         item_guid: ObjectGuid,
@@ -680,7 +680,7 @@ impl WorldSession {
             }
         }
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     fn mirror_player_inventory_runtime_to_legacy_like_cpp(
         &mut self,
         inventory: &PlayerInventoryRuntime,
@@ -700,7 +700,7 @@ impl WorldSession {
     ) -> Option<R> {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         let mut update = Some(update);
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none() {
             let mut inventory = PlayerInventoryRuntime::default();
             inventory.inventory_items_mut().extend(
@@ -730,7 +730,7 @@ impl WorldSession {
                 player.inventory_runtime_mut_like_cpp(),
             )
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if result.is_some()
             && let Some(inventory) = self
                 .with_owned_player_like_cpp(|player| player.inventory_runtime_like_cpp().clone())
