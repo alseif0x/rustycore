@@ -124,7 +124,7 @@ D1 [ ]  D2 [ ]  D3 [ ]  D4 [ ]  D5 [ ]
 E1 [ ]  E2 [ ]  E3 [ ]  E4 [ ]
 ```
 
-### 3.1 Estado de continuacion (2026-09-28)
+### 3.1 Estado de continuacion (actualizado 2026-09-29)
 
 Esta entrada se mantiene al avanzar; sustituye las conclusiones contradictorias de las notas
 históricas para seleccionar el siguiente trabajo. Los SHA antiguos se conservan como evidencia
@@ -138,10 +138,10 @@ sin entradas eliminables ni stashes. Reconsultar Git al retomar; estos son datos
 
 | pieza | estado comprobado y límite |
 |---|---|
-| B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Auditoría de consumidores del 2026-09-29: el manager legado sigue requerido por `wow-world`/`world-server`, pero su almacenamiento grid/instance y varios helpers siguen expuestos sin consumidor externo identificado. Quedan estrechar esa API, verificar features/composición y aceptar el candidato. |
-| B5 | Raíces de loot y character miden 243/239 líneas y todos sus hijos extraídos menos de 600. Las tres rutas heredadas de visibilidad revisadas el 2026-09-29 se estrecharon; queda el consumidor externo de planificación de inventario dependiente de B3 y la aceptación del candidato. |
-| B3 | `group_tests` ya es target de integración; `character_tests` se distribuye por owners con censo de nombres en las notas finales de esta sección. La suite externa provisional aún no compila completa; `quest_tests` y `loot_tests` siguen pendientes. |
-| B7 | Hay limpieza parcial integrada; los consumidores restantes de fixtures dependen de B3. No está cerrado. |
+| B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Los exports de terrain y grid revisados se estrecharon donde había consumidores internos demostrados. El manager legado sigue requerido por `wow-world`/`world-server`; faltan los demas exports, features/composición y aceptación del candidato. |
+| B5 | Raíces de loot y character miden 243/239 líneas y todos sus hijos extraídos menos de 600. Se estrecharon las rutas heredadas de visibilidad revisadas, incluido el plan de inventario test-only tras mover sus dos tests privados. Faltan el resto de exports y la aceptación del candidato. |
+| B3 | `group_tests` ya es target de integración. `quest_tests` existe como target provisional; `character_tests` se distribuye por owners, con **303** nombres originales conservados y **128** aún montados en la raíz provisional tras `d3c5b7a0`. La suite externa de character aún no compila completa; la migración de quest y loot tampoco está aceptada. |
+| B7 | Hay limpieza parcial integrada; la revisión del 2026-09-29 detecta avisos e imports independientes para un próximo corte, pero los consumidores restantes de fixtures dependen de B3. No está cerrado. |
 | Talentos #578 | La rama `recover/578-talent-catalog`, `0845f5b3`, conserva `docs/migration/recovered/578-talent-catalog-2026-09-04.patch`; el archivo solo existe en esa rama, no en este checkout. No está aplicado; preservar la rama y adaptar por consumidores actuales cuando corresponda. |
 | Orquestación | Sol medium / Luna max copiado a este worktree. Cambios compartidos aún locales, y `.codex/config.toml` ignorado. Iniciar sesión nueva y comprobar runtime efectivo; preservar estos cambios al continuar. |
 
