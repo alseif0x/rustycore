@@ -1865,3 +1865,18 @@ cambios en cuerpos ni aserciones. Con un solo job y el target de este worktree,
 `target/b6-runtime-primitives-wow-world-check.log` y
 `target/b6-runtime-primitives-wow-map-test-combat.log`. Quedan los tipos y campos
 de `runtime_state`, otros reexports de B6 y la aceptacion final.
+
+### B3 `character_tests`: frontera del fixture de taxi (2026-09-29)
+
+La suite externa aun no compila; el ultimo inventario de diagnosticos despues del
+puente de persistencia tiene 534 errores. Dos pruebas invocan
+`WorldSession::set_taxi_flight_state_like_cpp` con un nodo representado. Un intento
+de exponer ese setter bajo `test-fixtures` dejo `cargo check -p wow-world` por defecto
+verde, pero `cargo check -p wow-world --features test-fixtures --test character_tests`
+fallo antes de compilar la suite: el setter depende de
+`mutate_player_taxi_state_like_cpp`, exclusivo de `cfg(test)`. Ese helper tiene una
+rama de respaldo para sesiones sin `Player` canonico y campos tambien exclusivos
+de `cfg(test)`. Se retiro el intento parcial; no hay fixture de taxi aceptado ni
+tests externos ejecutados. El siguiente corte requiere demostrar la instalacion
+del dueno canonico en ambas pruebas y fijar un puente que preserve la rama interna
+existente sin exportar el nodo representado.
