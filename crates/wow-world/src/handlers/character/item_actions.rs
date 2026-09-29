@@ -5,7 +5,7 @@
 use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ExtendedCostItemTurninChange {
+pub(in crate::handlers) enum ExtendedCostItemTurninChange {
     Update {
         slot: u8,
         item_guid: ObjectGuid,

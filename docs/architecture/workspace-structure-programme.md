@@ -139,7 +139,7 @@ sin entradas eliminables ni stashes. Reconsultar Git al retomar; estos son datos
 | pieza | estado comprobado y límite |
 |---|---|
 | B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Auditoría de consumidores del 2026-09-29: el manager legado sigue requerido por `wow-world`/`world-server`, pero su almacenamiento grid/instance y varios helpers siguen expuestos sin consumidor externo identificado. Quedan estrechar esa API, verificar features/composición y aceptar el candidato. |
-| B5 | Raíces de loot y character miden 243/239 líneas y todos sus hijos extraídos menos de 600. Auditoría de consumidores del 2026-09-29: la ruta de distancia de loot ya se estrechó; quedan dos rutas heredadas `pub(crate)` de character y el test externo de planificación de inventario dependiente de B3. Pendientes esos cortes y la aceptación. |
+| B5 | Raíces de loot y character miden 243/239 líneas y todos sus hijos extraídos menos de 600. Las tres rutas heredadas de visibilidad revisadas el 2026-09-29 se estrecharon; queda el consumidor externo de planificación de inventario dependiente de B3 y la aceptación del candidato. |
 | B3 | `group_tests` ya es target de integración; `character_tests` se distribuye por owners con censo de nombres en las notas finales de esta sección. La suite externa provisional aún no compila completa; `quest_tests` y `loot_tests` siguen pendientes. |
 | B7 | Hay limpieza parcial integrada; los consumidores restantes de fixtures dependen de B3. No está cerrado. |
 | Talentos #578 | La rama `recover/578-talent-catalog`, `0845f5b3`, conserva `docs/migration/recovered/578-talent-catalog-2026-09-04.patch`; el archivo solo existe en esa rama, no en este checkout. No está aplicado; preservar la rama y adaptar por consumidores actuales cuando corresponda. |
@@ -3008,3 +3008,23 @@ ejecuto **1/1** con un job y target del worktree. Logs
 `target/b5-loot-distance-check.log` y `target/b5-loot-distance-test.log`.
 Quedan las otras rutas B5, el consumidor B3 de inventario y la aceptacion
 del candidato; este check focal no cierra B5 ni demuestra composicion final.
+
+### B5: contratos internos de character estrechados (2026-09-29)
+
+`ExtendedCostItemTurninChange` y su reexport se limitaron a
+`crate::handlers`: los consumidores de item y quest estan bajo ese ancestro.
+`CreatureAddonCreateFieldsLikeCpp` y su reexport se limitaron a
+`crate::handlers::character`, donde esta su consumidor de visibilidad.
+Ambas rutas ya eran `pub(crate)` antes de la extraccion; solo cambia su
+alcance, sin alterar plan, addon ni publicacion. La retirada provisional del
+montaje `character_tests` al final de `character/mod.rs` pertenece a B3 y
+permanece fuera de este commit mediante staging de hunk.
+
+`cargo check -p wow-world` paso. Los filtros de
+`turnin_plan_tests::` y `creature_create_hover_offset_matches_cpp_after_addon`
+ejecutaron **1/1** cada uno con un job y target del worktree. Logs
+`target/b5-character-visibility-check.log`,
+`target/b5-character-visibility-turnin.log` y
+`target/b5-character-visibility-creature.log`. El segundo caso es cobertura
+adyacente, no prueba directa del DTO. La suite externa de inventario aun
+consume rutas de test privadas; B3 y la aceptacion global siguen pendientes.

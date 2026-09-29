@@ -108,7 +108,7 @@ pub(in crate::handlers::character) fn represented_go_state_from_i8_like_cpp(stat
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) struct CreatureAddonCreateFieldsLikeCpp {
+pub(in crate::handlers::character) struct CreatureAddonCreateFieldsLikeCpp {
     pub(in crate::handlers::character) has_addon: bool,
     pub(in crate::handlers::character) mount_display_id: i32,
     pub(in crate::handlers::character) stand_state: u8,

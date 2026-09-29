@@ -42,10 +42,10 @@ mod world_entry;
 
 use self::corpse_loading::*;
 use self::creature_spawn::*;
-pub(crate) use self::creature_spawn::CreatureAddonCreateFieldsLikeCpp;
+pub(in crate::handlers::character) use self::creature_spawn::CreatureAddonCreateFieldsLikeCpp;
 use self::inventory_plan::*;
 use self::item_actions::*;
-pub(crate) use self::item_actions::ExtendedCostItemTurninChange;
+pub(in crate::handlers) use self::item_actions::ExtendedCostItemTurninChange;
 use self::login_context::*;
 use self::trainer_gossip::*;
 
