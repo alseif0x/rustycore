@@ -7,7 +7,7 @@ impl WorldSession {
     /// Legacy non-canonical note: QuestHandler.HandleQuestgiverRequestReward
     /// Sent when player right-clicks a quest-ender NPC and has the quest in Complete status.
     /// Server responds with SMSG_QUEST_GIVER_OFFER_REWARD_MESSAGE (reward selection dialog).
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub async fn handle_quest_giver_request_reward(&mut self, pkt: wow_packet::WorldPacket) {
         let generators = self.id_generators_for_test_like_cpp();
         self.handle_quest_giver_request_reward_with_generator_like_cpp(

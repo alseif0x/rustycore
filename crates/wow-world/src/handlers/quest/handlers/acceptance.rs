@@ -6,7 +6,7 @@ impl WorldSession {
     /// CMSG_QUEST_GIVER_ACCEPT_QUEST — player clicks "Accept" in the quest details dialog.
     /// Saves quest to characters DB and confirms to the client.
     /// Legacy non-canonical note: QuestHandler.HandleQuestGiverAcceptQuest
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub async fn handle_quest_giver_accept_quest(&mut self, pkt: wow_packet::WorldPacket) {
         let generators = self.id_generators_for_test_like_cpp();
         self.handle_quest_giver_accept_quest_with_generator_like_cpp(generators.item.as_ref(), pkt)
@@ -147,7 +147,7 @@ impl WorldSession {
     /// + Character DB status save + PlayerRegistry snapshot sync from `Player::AddQuest`. Real
     /// `StoreNewItem`/`SendNewItem`, criteria/completion, timed/PvP, scripts, and `SendQuestUpdate`
     /// packet fanout remain explicit no-mutation boundaries.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub async fn handle_quest_confirm_accept(&mut self, pkt: wow_packet::WorldPacket) {
         let generators = self.id_generators_for_test_like_cpp();
         self.handle_quest_confirm_accept_with_generator_like_cpp(generators.item.as_ref(), pkt)

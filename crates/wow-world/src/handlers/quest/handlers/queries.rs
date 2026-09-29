@@ -3,7 +3,7 @@
 use super::*;
 
 impl WorldSession {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub async fn handle_quest_giver_status_query(&mut self, pkt: wow_packet::WorldPacket) {
         let catalogs = self.session_handler_catalogs_for_test_like_cpp();
         self.handle_quest_giver_status_query_with_catalog_like_cpp(
