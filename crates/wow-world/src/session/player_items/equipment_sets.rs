@@ -19,7 +19,7 @@ impl WorldSession {
         if canonical.is_some() {
             return canonical;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none() {
             return Some(f(&self.represented_equipment_sets_like_cpp));
         }
@@ -35,13 +35,13 @@ impl WorldSession {
         if canonical.is_some() {
             return canonical;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none() {
             return Some(f(&mut self.represented_equipment_sets_like_cpp));
         }
         None
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn insert_represented_equipment_set_like_cpp(
         &mut self,
         guid: u64,
@@ -130,7 +130,7 @@ impl WorldSession {
             wow_packet::packets::misc::LoadEquipmentSet { sets }
         })
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_equipment_set_like_cpp(
         &self,
         guid: u64,
@@ -331,14 +331,14 @@ impl WorldSession {
     }
     /// Install the process-wide C++ `sObjectMgr->GenerateEquipmentSetGuid()`
     /// mirror shared by equipment sets and transmog outfits for every player.
-    #[cfg(test)]
-    pub fn set_equipment_set_guid_generator_like_cpp(
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub(crate) fn set_equipment_set_guid_generator_like_cpp(
         &mut self,
         generator: Arc<EquipmentSetGuidGeneratorLikeCpp>,
     ) {
         self.equipment_set_guid_generator_like_cpp = Some(generator);
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn equipment_set_guid_generator_for_test_like_cpp(
         &self,
     ) -> Option<Arc<EquipmentSetGuidGeneratorLikeCpp>> {

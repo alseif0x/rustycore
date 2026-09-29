@@ -6,10 +6,12 @@
 
 mod quest;
 mod player;
+mod equipment_sets;
 mod gameobject;
 mod reputation;
 pub use quest::*;
 pub use player::*;
+pub use equipment_sets::*;
 pub use gameobject::*;
 pub use reputation::*;
 

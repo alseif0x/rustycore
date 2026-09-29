@@ -621,7 +621,7 @@ impl WorldSession {
             represented_talent_respec_visual_spell_casts_like_cpp: Vec::new(),
             #[cfg(test)]
             represented_talent_respec_criteria_events_like_cpp: Vec::new(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             represented_equipment_sets_like_cpp: wow_entities::PlayerEquipmentSetsLikeCpp::default(
             ),
             #[cfg(test)]

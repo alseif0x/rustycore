@@ -40,8 +40,8 @@ impl WorldSession {
         }
     }
 
-    #[cfg(test)]
-    pub async fn handle_save_equipment_set(&mut self, pkt: WorldPacket) {
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub(crate) async fn handle_save_equipment_set(&mut self, pkt: WorldPacket) {
         let Some(generator) = self.equipment_set_guid_generator_for_test_like_cpp() else {
             return;
         };

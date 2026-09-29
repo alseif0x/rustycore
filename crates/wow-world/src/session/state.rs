@@ -1163,7 +1163,7 @@ pub struct WorldSession {
     pub(in crate::session) represented_talent_respec_criteria_events_like_cpp:
         Vec<RepresentedTalentRespecCriteriaEventLikeCpp>,
     /// Handle-less test fallback; production C++ `Player::_equipmentSets` lives on canonical Player.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_equipment_sets_like_cpp:
         wow_entities::PlayerEquipmentSetsLikeCpp,
     /// Handle-less test fallback; production C++ `Player::_voidStorageItems` lives on canonical Player.
