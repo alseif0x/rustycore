@@ -318,41 +318,22 @@ las 219 pruebas externas completas ni se revalidó el modo sin feature tras los
 `1a5ea280` ni de la macro. `character_tests`, `loot_tests`, B7 y el resto de
 `wow-world` siguen pendientes.
 
-**Diagnóstico de character en curso:** se copió la suite de `character_tests`
-(303 tests, 13 280 líneas con sus fixtures) a un target externo y se retiró su
-montaje antiguo en el árbol de trabajo. El check anterior a mover los casos de transportes,
-`cargo check -p wow-world --test character_tests`, aún falla con 647 errores
-(`target/b3-character-creation-context-external-check.log`, exit 101): E0277=10,
-E0422=35, E0425=63, E0432=2, E0433=30, E0599=148, E0603=55, E0609=11,
-E0616=14 y E0624=279. Frente al check inmediatamente anterior de 656 errores
-(`target/b3-character-login-support-external-check.log`, exit 101), mover tres
-pruebas puras de defaults/salud a `creation_support_tests.rs` y una prueba pura
-de rest-state a `login_context_tests.rs` reduce E0425 en nueve; las demás
-categorías no cambian. Antes, el check de 681 errores
-(`target/b3-character-enumeration-support-external-check.log`, exit 101) bajó
-25 al mover dos pruebas puras de selección de homebind/graveyard y fallback de
-battleground a `login_support_tests.rs` (E0422 en ocho y E0425 en 17). Los
-filtros `cargo test -p wow-world --lib
-handlers::character::creation_support::rule_tests` y
-`cargo test -p wow-world --lib handlers::character::login_context::rule_tests`
-pasaron 3/3 y 1/1, respectivamente, en
-`target/b3-character-creation-support-focused-test.log` y
-`target/b3-character-login-context-focused-test.log`. La suite original contiene 303
-nombres; antes del último movimiento estaban distribuidos como 271 pruebas externas
-y 32 privadas de módulos dueños, sin nombres ausentes, añadidos ni duplicados. No se ha
-ejecutado la suite completa de character. La prueba
-`default_homebind_reads_primary_then_neutral_pandaren_from_startup_store_like_cpp`
-permanece externa porque configura una `WorldSession`; los casos con puertos o
-sesión tampoco se trasladan. Las pruebas puras de validación de transport se trasladaron
-al submódulo de su dueño. La suite externa no compila y su traslado/adaptaciones
-siguen sin commit; los módulos privados de login-support, enumeration,
-creation-support y login-context sí quedaron comprometidos por separado. Los
-puentes de interaction source, trainer, gossip, canonical owner y regeneración
-constan en checkpoints previos; el de regeneración es `81e40c51`. Quedan
-externos ocho accesos a planners dependientes de sesión:
-siete `plan_inventory_storage_move_like_cpp` y uno
-`plan_destroy_item_count_direct_inventory`. Esta evidencia es de desarrollo,
-no aceptación final del target ni de la macro.
+**Historial de cortes internos de character:** la suite original de 303 tests
+(13 280 líneas con fixtures) se copió a un target externo y se retiró su montaje
+antiguo en el árbol de trabajo. Antes de mover las pruebas de transport, el check
+de 647 errores (`target/b3-character-creation-context-external-check.log`, exit
+101) había bajado desde 656 al trasladar pruebas puras de defaults/salud a
+`creation_support_tests.rs` y de rest-state a `login_context_tests.rs`. Un corte
+anterior de 681 errores (`target/b3-character-enumeration-support-external-check.log`)
+bajó 25 al trasladar reglas puras de homebind/graveyard y battleground a
+`login_support_tests.rs`. Los filtros de creation-support y login-context pasaron
+3/3 y 1/1 en sus logs focalizados. `default_homebind_reads_primary_then_neutral_pandaren_from_startup_store_like_cpp`
+permanece externa porque configura una `WorldSession`; los casos dependientes de
+sesión o puertos tampoco se trasladan. Los módulos privados de login-support,
+enumeration, creation-support y login-context quedaron comprometidos por separado;
+los puentes de interaction source, trainer, gossip, canonical owner y regeneración
+constan en checkpoints anteriores. Estos registros son históricos y el corte vigente
+se describe a continuación.
 
 En este slice se trasladaron, sin cambiar cuerpo ni nombre, las tres pruebas
 `persisted_transport_login_*` de offsets válidos/corruptos y ruta de mapa desde
@@ -364,14 +345,29 @@ coordenadas y límite ±250); no se cambió esa regla. El módulo dueño quedó 
 en `d5b53874`, mientras el target externo sigue sin commit.
 
 Evidencia posterior: `cargo test -p wow-world --lib persisted_transport_login` pasó
-3/3 (`target/b3-character-transport-focused-test.log`). El último
-`cargo check -p wow-world --test character_tests` aún falla, con exit 101 y 637 errores
-codificados (`target/b3-character-transport-external-check.log`): E0277=10, E0422=30,
-E0425=58, E0432=2, E0433=30, E0599=148, E0603=55, E0609=11, E0616=14 y E0624=279.
-Respecto del check anterior de 647 errores, E0422 baja de 35 a 30 y E0425 de 63 a 58;
-las demás familias quedan iguales. El censo vuelve a 303 nombres exactos: 268 externos
-y 35 privados, sin ausentes, añadidos ni duplicados. No se ejecutó la suite externa
-completa ni aceptación final.
+3/3 (`target/b3-character-transport-focused-test.log`). El check externo vigente,
+`CARGO_BUILD_JOBS=1 PROTOC=/home/ubuntu/.local/protoc/bin/protoc
+CARGO_TARGET_DIR=/home/server/rustycore-world-refactor/target cargo check -p wow-world
+--features test-fixtures --test character_tests`, terminó con exit 101 y **589 errores**
+(`target/b3-character-equipment-set-external-check.log`): E0277=10, E0422=30,
+E0425=58, E0432=2, E0433=30, E0599=120, E0603=35, E0609=11, E0616=14 y E0624=279.
+Frente al corte anterior de 637 (`target/b3-character-transport-external-check.log`),
+el puente de equipment sets de `822774c3` y sus adaptaciones consumidoras reducen
+28 E0599 y 20 E0603. Los wrappers feature-gated delegan a la colección canónica del
+`Player` o conservan el fallback de sesiones sin `Player`; los consumidores usan los
+tipos públicos `wow_entities::PlayerEquipmentSet*`, sin publicar los aliases privados
+de `session`. El check default `cargo check -p wow-world` pasó con exit 0
+(`target/b3-character-equipment-set-default-check.log`). Los filtros focalizados
+`cargo test -p wow-world --lib equipment_set` y
+`cargo test -p wow-world --lib canonical_player_saved_equipment_and_void_storage_follow_handle_generation_like_cpp`
+pasaron 1/1 cada uno (`target/b3-character-equipment-set-focused-test.log` y
+`target/b3-character-equipment-set-canonical-test.log`), cubriendo fallback sin
+`Player` y propiedad canónica. El censo conserva exactamente los 303 nombres
+originales: 268 externos y 35 privados en sus módulos dueños, sin ausentes,
+añadidos ni duplicados. El target externo aún no compila; no se ejecutaron sus 268
+tests completos ni aceptación final. El traslado y las adaptaciones consumidoras
+siguen sin commit; esta evidencia es de desarrollo, no aceptación de la suite ni
+de la macro.
 
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
