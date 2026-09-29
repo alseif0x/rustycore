@@ -6,7 +6,6 @@
 
 use super::*;
 
-use crate::player::quest_persistence_test_fixture::PlayerQuestRewardPersistencePortFixtureLikeCpp;
 use wow_persistence::{
     PlayerQuestRewardCommitOutcomeLikeCpp, PlayerQuestRewardCommitWitnessLikeCpp,
     PlayerQuestStatusPersistenceRequestLikeCpp,
@@ -26,7 +25,7 @@ fn complete_quest_session_like_cpp(
     quest.flags = QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP;
     quest.special_flags |= special_flags;
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
+    insert_player_quest_status_for_test(&mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -57,20 +56,16 @@ async fn choose_reward_like_cpp(session: &mut WorldSession, quest_id: u32) {
 async fn quest_reward_reaches_the_database_once_with_its_status_row_like_cpp() {
     let quest_id = 7101;
     let (mut session, _send_rx) = complete_quest_session_like_cpp(quest_id, 0);
-    let fixture = PlayerQuestRewardPersistencePortFixtureLikeCpp::default();
-    let requests = Arc::clone(&fixture.requests);
-    session.set_player_quest_reward_persistence_port_like_cpp(Arc::new(fixture));
+    let fixture = Arc::new(PlayerQuestRewardPersistencePortFixtureLikeCpp::default());
+    session.set_player_quest_reward_persistence_port_like_cpp(fixture.clone());
 
     choose_reward_like_cpp(&mut session, quest_id).await;
 
     assert!(
-        !session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id),
+        !contains_player_quest_status_for_test(&session, quest_id),
         "the operation must have run to completion before it commits"
     );
-    let requests = requests.lock().unwrap();
+    let requests = player_quest_reward_requests_for_test(&fixture);
     assert_eq!(
         requests.len(),
         1,
@@ -91,23 +86,22 @@ async fn quest_reward_reaches_the_database_once_with_its_status_row_like_cpp() {
 async fn a_rolled_back_quest_reward_transaction_is_not_reported_as_rewarded_like_cpp() {
     let quest_id = 7102;
     let (mut session, _send_rx) = complete_quest_session_like_cpp(quest_id, 0);
-    let fixture = PlayerQuestRewardPersistencePortFixtureLikeCpp::with_outcome(
+    let fixture = Arc::new(player_quest_reward_persistence_fixture_with_outcome_for_test(
         PlayerQuestRewardCommitOutcomeLikeCpp::DefinitelyRolledBack {
             reason: "deadlock".to_string(),
         },
-    );
-    let requests = Arc::clone(&fixture.requests);
-    session.set_player_quest_reward_persistence_port_like_cpp(Arc::new(fixture));
+    ));
+    session.set_player_quest_reward_persistence_port_like_cpp(fixture.clone());
 
     choose_reward_like_cpp(&mut session, quest_id).await;
 
     assert_eq!(
-        requests.lock().unwrap().len(),
+        player_quest_reward_requests_for_test(&fixture).len(),
         1,
         "the operation still attempts exactly one transaction"
     );
     assert!(
-        !session.represented_can_delay_teleport_like_cpp(),
+        !represented_can_delay_teleport_for_test(&session),
         "the aborted reward must clear the delayed-teleport guard it took"
     );
 }
@@ -118,20 +112,20 @@ async fn a_lost_commit_reply_is_settled_by_the_durable_quest_status_like_cpp() {
     {
         let quest_id = 7103;
         let (mut session, _send_rx) = complete_quest_session_like_cpp(quest_id, 0);
-        let fixture = PlayerQuestRewardPersistencePortFixtureLikeCpp::with_outcome(
+        let fixture = Arc::new(player_quest_reward_persistence_fixture_with_outcome_for_test(
             PlayerQuestRewardCommitOutcomeLikeCpp::CommitOutcomeUnknown {
                 reason: "connection reset".to_string(),
                 witness: PlayerQuestRewardCommitWitnessLikeCpp::QuestStatus {
                     observed_matches_request: observed,
                 },
             },
-        );
-        session.set_player_quest_reward_persistence_port_like_cpp(Arc::new(fixture));
+        ));
+        session.set_player_quest_reward_persistence_port_like_cpp(fixture);
 
         choose_reward_like_cpp(&mut session, quest_id).await;
 
         assert_eq!(
-            session.state() != crate::session::SessionState::Disconnecting,
+            session.state() != wow_world::session::SessionState::Disconnecting,
             expect_session_open,
             "an unobservable reward COMMIT must quarantine the session, observed = {observed:?}"
         );
@@ -143,13 +137,12 @@ async fn a_repeatable_quest_reward_deletes_its_status_row_in_the_same_transactio
     let quest_id = 7104;
     let (mut session, _send_rx) =
         complete_quest_session_like_cpp(quest_id, REPEATABLE_SPECIAL_FLAG_LIKE_CPP);
-    let fixture = PlayerQuestRewardPersistencePortFixtureLikeCpp::default();
-    let requests = Arc::clone(&fixture.requests);
-    session.set_player_quest_reward_persistence_port_like_cpp(Arc::new(fixture));
+    let fixture = Arc::new(PlayerQuestRewardPersistencePortFixtureLikeCpp::default());
+    session.set_player_quest_reward_persistence_port_like_cpp(fixture.clone());
 
     choose_reward_like_cpp(&mut session, quest_id).await;
 
-    let requests = requests.lock().unwrap();
+    let requests = player_quest_reward_requests_for_test(&fixture);
     assert_eq!(requests.len(), 1);
     assert_eq!(
         requests[0].quest_status,

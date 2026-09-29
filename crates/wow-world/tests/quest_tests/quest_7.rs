@@ -50,7 +50,7 @@ fn quest_status_projection_persists_only_nonzero_storage_objectives_like_cpp() {
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
+    insert_player_quest_status_for_test(&mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -63,12 +63,9 @@ fn quest_status_projection_persists_only_nonzero_storage_objectives_like_cpp() {
         },
     );
 
-    let projected = session.represented_quest_status_persistence_like_cpp(
-        session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .get(&quest_id)
-            .unwrap(),
+    let projected = represented_quest_status_persistence_for_test(
+        &session,
+        &player_quest_status_for_test(&session, quest_id).unwrap(),
     );
     assert_eq!(projected.quest_id, quest_id);
     assert_eq!(projected.status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
@@ -102,7 +99,7 @@ async fn quest_status_save_uses_the_sqlx_free_player_quest_port_like_cpp() {
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
+    insert_player_quest_status_for_test(&mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -114,16 +111,13 @@ async fn quest_status_save_uses_the_sqlx_free_player_quest_port_like_cpp() {
             slot: 0,
         },
     );
-    let fixture = PlayerQuestPersistencePortFixtureLikeCpp::default();
-    let requests = Arc::clone(&fixture.status_requests);
-    session.set_player_quest_persistence_port_like_cpp(Arc::new(fixture));
+    let fixture = Arc::new(PlayerQuestPersistencePortFixtureLikeCpp::default());
+    session.set_player_quest_persistence_port_like_cpp(fixture.clone());
 
-    session
-        .save_quest_to_db(quest_id, QUEST_STATUS_COMPLETE_LIKE_CPP)
-        .await;
+    save_quest_to_db_for_test(&session, quest_id, QUEST_STATUS_COMPLETE_LIKE_CPP).await;
 
     assert_eq!(
-        requests.lock().unwrap().as_slice(),
+        player_quest_status_requests_for_test(&fixture).as_slice(),
         &[PlayerQuestStatusPersistenceRequestLikeCpp::Save {
             owner_guid: 42,
             status: wow_persistence::QuestStatusPersistenceLikeCpp {
@@ -173,41 +167,39 @@ async fn quest_load_keeps_the_seven_stage_order_behind_the_typed_port_like_cpp()
         active, rewarded, daily, weekly, monthly,
     ])));
 
-    let fixture = PlayerQuestPersistencePortFixtureLikeCpp {
-        active: vec![PlayerQuestActivePersistenceRowLikeCpp {
+    let fixture = player_quest_persistence_port_with_load_rows_for_test(
+        vec![PlayerQuestActivePersistenceRowLikeCpp {
             quest_id: Some(active_id),
             status: Some(QUEST_STATUS_INCOMPLETE_LIKE_CPP),
             explored: Some(1),
             accept_time_secs: Some(12),
             end_time_secs: Some(34),
         }],
-        objectives: vec![PlayerQuestObjectivePersistenceRowLikeCpp {
+        vec![PlayerQuestObjectivePersistenceRowLikeCpp {
             quest_id: Some(active_id),
             storage_index: Some(0),
             count: Some(3),
         }],
-        rewarded: vec![PlayerQuestIdPersistenceRowLikeCpp {
+        vec![PlayerQuestIdPersistenceRowLikeCpp {
             quest_id: Some(rewarded_id),
         }],
-        daily: vec![PlayerQuestDailyPersistenceRowLikeCpp {
+        vec![PlayerQuestDailyPersistenceRowLikeCpp {
             quest_id: Some(daily_id),
             completed_time: Some(45),
         }],
-        weekly: vec![PlayerQuestIdPersistenceRowLikeCpp {
+        vec![PlayerQuestIdPersistenceRowLikeCpp {
             quest_id: Some(weekly_id),
         }],
-        monthly: vec![PlayerQuestIdPersistenceRowLikeCpp {
+        vec![PlayerQuestIdPersistenceRowLikeCpp {
             quest_id: Some(monthly_id),
         }],
-        ..Default::default()
-    };
-    let stages = Arc::clone(&fixture.stages);
-    session.set_player_quest_persistence_port_like_cpp(Arc::new(fixture));
+    );
+    session.set_player_quest_persistence_port_like_cpp(fixture.clone());
 
-    session.load_player_quests().await;
+    load_player_quests_for_test(&mut session).await;
 
     assert_eq!(
-        stages.lock().unwrap().as_slice(),
+        player_quest_load_stages_for_test(&fixture).as_slice(),
         &[
             PlayerQuestLoadStageFixtureLikeCpp::Active,
             PlayerQuestLoadStageFixtureLikeCpp::Objectives,
@@ -219,32 +211,22 @@ async fn quest_load_keeps_the_seven_stage_order_behind_the_typed_port_like_cpp()
         ]
     );
     assert_eq!(
-        session.quest_test_fixture_like_cpp.player_quests[&active_id].objective_counts,
+        player_quest_status_for_test(&session, active_id)
+            .expect("active quest status should exist")
+            .objective_counts,
         vec![3]
     );
     assert!(
-        session
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&rewarded_id)
+        contains_rewarded_quest_for_test(&session, rewarded_id)
     );
     assert!(
-        session
-            .quest_test_fixture_like_cpp
-            .daily_quests_completed_like_cpp
-            .contains(&daily_id)
+        contains_daily_quest_completed_for_test(&session, daily_id)
     );
     assert!(
-        session
-            .quest_test_fixture_like_cpp
-            .weekly_quests_completed_like_cpp
-            .contains(&weekly_id)
+        contains_weekly_quest_completed_for_test(&session, weekly_id)
     );
     assert!(
-        session
-            .quest_test_fixture_like_cpp
-            .monthly_quests_completed_like_cpp
-            .contains(&monthly_id)
+        contains_monthly_quest_completed_for_test(&session, monthly_id)
     );
 }
 #[test]
@@ -256,7 +238,7 @@ fn save_to_db_quest_status_list_skips_rewarded_non_repeatable_active_duplicate_l
         quest_template(active_rewarded_quest_id),
         quest_template(active_quest_id),
     ]);
-    session.quests.store = Some(Arc::new(quest_store));
+    set_quest_store_for_test(&mut session, Arc::new(quest_store));
     add_active_quest_in_slot_with_status(
         &mut session,
         active_rewarded_quest_id,
@@ -269,13 +251,10 @@ fn save_to_db_quest_status_list_skips_rewarded_non_repeatable_active_duplicate_l
         1,
         QUEST_STATUS_INCOMPLETE_LIKE_CPP,
     );
-    session
-        .quest_test_fixture_like_cpp
-        .rewarded_quests
-        .insert(active_rewarded_quest_id);
+    insert_rewarded_quest_for_test(&mut session, active_rewarded_quest_id);
 
     assert_eq!(
-        session.represented_quest_statuses_for_save_like_cpp(),
+        represented_quest_statuses_for_save_for_test(&session),
         vec![(active_quest_id, QUEST_STATUS_INCOMPLETE_LIKE_CPP)],
         "C++ reward save deletes active quest status and stores rewarded separately"
     );
@@ -289,7 +268,7 @@ fn quest_load_removes_active_rewarded_duplicate_and_compacts_slots_like_cpp() {
         quest_template(duplicate_quest_id),
         quest_template(active_quest_id),
     ]);
-    session.quests.store = Some(Arc::new(quest_store));
+    set_quest_store_for_test(&mut session, Arc::new(quest_store));
     add_active_quest_in_slot_with_status(
         &mut session,
         duplicate_quest_id,
@@ -302,26 +281,17 @@ fn quest_load_removes_active_rewarded_duplicate_and_compacts_slots_like_cpp() {
         3,
         QUEST_STATUS_INCOMPLETE_LIKE_CPP,
     );
-    session
-        .quest_test_fixture_like_cpp
-        .rewarded_quests
-        .insert(duplicate_quest_id);
+    insert_rewarded_quest_for_test(&mut session, duplicate_quest_id);
 
     assert_eq!(
-        session.remove_represented_active_rewarded_duplicates_like_cpp(),
+        remove_represented_active_rewarded_duplicates_for_test(&mut session),
         vec![duplicate_quest_id]
     );
     assert!(
-        !session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&duplicate_quest_id)
+        !contains_player_quest_status_for_test(&session, duplicate_quest_id)
     );
     assert_eq!(
-        session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .get(&active_quest_id)
+        player_quest_status_for_test(&session, active_quest_id)
             .map(|status| status.slot),
         Some(0)
     );
@@ -331,8 +301,7 @@ fn save_to_db_quest_status_list_is_empty_without_active_quests_like_cpp() {
     let (session, _send_rx) = make_session();
 
     assert!(
-        session
-            .represented_quest_statuses_for_save_like_cpp()
+        represented_quest_statuses_for_save_for_test(&session)
             .is_empty()
     );
 }
@@ -369,14 +338,12 @@ fn quest_log_create_entries_store_flag_objectives_in_state_flags_like_cpp() {
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     add_active_quest_in_slot(&mut session, quest_id, 3);
-    session
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get_mut(&quest_id)
-        .expect("active quest")
-        .objective_counts = vec![3, 1];
+    with_player_quest_status_mut_for_test(&mut session, quest_id, |status| {
+        status.objective_counts = vec![3, 1];
+    })
+    .expect("active quest");
 
-    let entries = session.quest_log_create_entries_like_cpp();
+    let entries = quest_log_create_entries_for_test(&session);
 
     assert_eq!(entries[3].1, 256 << 1);
     assert_eq!(entries[3].3[0], 3);
@@ -390,7 +357,7 @@ fn quest_log_create_entries_preserve_failed_state_flag_like_cpp() {
     let (mut session, _send_rx) = make_session();
     add_active_quest_in_slot_with_status(&mut session, 5919, 5, QUEST_STATUS_FAILED_LIKE_CPP);
 
-    let entries = session.quest_log_create_entries_like_cpp();
+    let entries = quest_log_create_entries_for_test(&session);
 
     assert_eq!(entries[5].1, 2);
 }
@@ -400,21 +367,15 @@ fn quest_log_create_entries_duplicate_slot_is_empty_fail_closed_like_cpp() {
     add_active_quest_in_slot(&mut session, 5915, 2);
     add_active_quest_in_slot(&mut session, 5916, 2);
 
-    let entries = session.quest_log_create_entries_like_cpp();
+    let entries = quest_log_create_entries_for_test(&session);
 
     assert_eq!(entries.len(), MAX_QUEST_LOG_SIZE_LIKE_CPP as usize);
     assert_eq!(entries[2], (0, 0, 0, [0; 24]));
     assert!(
-        session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&5915)
+        contains_player_quest_status_for_test(&session, 5915)
     );
     assert!(
-        session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&5916)
+        contains_player_quest_status_for_test(&session, 5916)
     );
 }
 #[test]
@@ -487,10 +448,7 @@ fn can_take_quest_blocks_daily_already_completed_like_cpp() {
     quest.flags = QUEST_FLAGS_DAILY_LIKE_CPP;
     let store = QuestStore::from_quests_like_cpp([quest.clone()]);
     session.set_quest_store(Arc::new(store));
-    session
-        .quest_test_fixture_like_cpp
-        .daily_quests_completed_like_cpp
-        .insert(quest.id);
+    insert_daily_quest_completed_for_test(&mut session, quest.id);
 
     assert!(!session.can_take_quest(&quest));
 }
@@ -514,10 +472,7 @@ fn can_take_quest_blocks_df_quest_already_completed_like_cpp() {
     quest.special_flags = QUEST_SPECIAL_FLAGS_DF_QUEST_LIKE_CPP;
     let store = QuestStore::from_quests_like_cpp([quest.clone()]);
     session.set_quest_store(Arc::new(store));
-    session
-        .quest_test_fixture_like_cpp
-        .df_quests_like_cpp
-        .insert(quest.id);
+    insert_df_quest_for_test(&mut session, quest.id);
 
     assert!(!session.can_take_quest(&quest));
 }
@@ -530,10 +485,7 @@ fn can_take_quest_blocks_weekly_already_completed_like_cpp() {
     quest.flags = QUEST_FLAGS_WEEKLY_LIKE_CPP;
     let store = QuestStore::from_quests_like_cpp([quest.clone()]);
     session.set_quest_store(Arc::new(store));
-    session
-        .quest_test_fixture_like_cpp
-        .weekly_quests_completed_like_cpp
-        .insert(quest.id);
+    insert_weekly_quest_completed_for_test(&mut session, quest.id);
 
     assert!(!session.can_take_quest(&quest));
 }
@@ -557,10 +509,7 @@ fn can_take_quest_blocks_monthly_already_completed_like_cpp() {
     quest.special_flags = QUEST_SPECIAL_FLAGS_MONTHLY_LIKE_CPP;
     let store = QuestStore::from_quests_like_cpp([quest.clone()]);
     session.set_quest_store(Arc::new(store));
-    session
-        .quest_test_fixture_like_cpp
-        .monthly_quests_completed_like_cpp
-        .insert(quest.id);
+    insert_monthly_quest_completed_for_test(&mut session, quest.id);
 
     assert!(!session.can_take_quest(&quest));
 }
@@ -592,10 +541,7 @@ fn can_take_quest_exclusive_group_blocks_when_peer_rewarded_non_repeatable_like_
     session.set_quest_store(Arc::new(store));
 
     // El peer ya fue recompensado (no repetible).
-    session
-        .quest_test_fixture_like_cpp
-        .rewarded_quests
-        .insert(peer.id);
+    insert_rewarded_quest_for_test(&mut session, peer.id);
 
     // La quest objetivo no está ni activa ni rewarded.
     assert!(!session.can_take_quest(&quest));
@@ -708,10 +654,7 @@ fn can_take_quest_dependent_previous_rewarded_allows_like_cpp() {
     session.set_quest_store(Arc::clone(&store));
 
     // prev en rewarded_quests → el gate no bloquea.
-    session
-        .quest_test_fixture_like_cpp
-        .rewarded_quests
-        .insert(prev_id);
+    insert_rewarded_quest_for_test(&mut session, prev_id);
     assert!(session.can_take_quest(&quest));
 }
 #[test]
@@ -727,11 +670,7 @@ fn can_take_quest_reputation_blocks_when_below_min_rep_like_cpp() {
         FactionEntry::for_test_like_cpp(faction_id, rep_list_id as i16),
     ])));
     // Jugador standing 100 — por debajo del mínimo requerido (500).
-    session
-        .reputation_mgr_like_cpp_mut()
-        .get_state_mut(rep_list_id)
-        .expect("reputation state")
-        .standing = 100;
+    set_reputation_standing_for_test(&mut session, rep_list_id, 100);
 
     let mut quest = quest_template(9920u32);
     quest.required_min_rep_faction = faction_id;
@@ -754,11 +693,7 @@ fn can_take_quest_reputation_blocks_when_at_or_above_max_rep_like_cpp() {
         FactionEntry::for_test_like_cpp(faction_id, rep_list_id as i16),
     ])));
     // Jugador standing 1000 — igual al máximo requerido (1000) → bloqueado.
-    session
-        .reputation_mgr_like_cpp_mut()
-        .get_state_mut(rep_list_id)
-        .expect("reputation state")
-        .standing = 1000;
+    set_reputation_standing_for_test(&mut session, rep_list_id, 1000);
 
     let mut quest = quest_template(9921u32);
     quest.required_max_rep_faction = faction_id;
@@ -779,11 +714,7 @@ fn can_take_quest_reputation_allows_when_in_valid_range_like_cpp() {
         FactionEntry::for_test_like_cpp(faction_id, rep_list_id as i16),
     ])));
     // Standing 500 — exactamente en el mínimo (500) y por debajo del máximo (1000).
-    session
-        .reputation_mgr_like_cpp_mut()
-        .get_state_mut(rep_list_id)
-        .expect("reputation state")
-        .standing = 500;
+    set_reputation_standing_for_test(&mut session, rep_list_id, 500);
 
     let mut quest = quest_template(9922u32);
     quest.required_min_rep_faction = faction_id;
@@ -804,8 +735,10 @@ fn can_take_quest_skill_blocks_when_skill_below_required_like_cpp() {
 
     let (mut session, _send_rx) = make_session();
     // Jugador con skill 1000 en valor 299 — por debajo del requisito.
-    session
-        .set_player_skill_values_like_cpp(std::collections::HashMap::from([(skill_id, 299_u16)]));
+    set_player_skill_values_for_test(
+        &mut session,
+        std::collections::HashMap::from([(skill_id, 299_u16)]),
+    );
 
     let mut quest = quest_template(9940u32);
     quest.required_skill_id = u32::from(skill_id);
@@ -824,8 +757,10 @@ fn can_take_quest_skill_allows_when_skill_at_or_above_required_like_cpp() {
 
     let (mut session, _send_rx) = make_session();
     // Jugador con skill 1000 exactamente en 300.
-    session
-        .set_player_skill_values_like_cpp(std::collections::HashMap::from([(skill_id, 300_u16)]));
+    set_player_skill_values_for_test(
+        &mut session,
+        std::collections::HashMap::from([(skill_id, 300_u16)]),
+    );
 
     let mut quest = quest_template(9941u32);
     quest.required_skill_id = u32::from(skill_id);

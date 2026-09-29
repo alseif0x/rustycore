@@ -4,55 +4,6 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
-
-#[test]
-fn quest_giver_creature_id_is_zero_for_gameobject_sources_like_cpp() {
-    assert_eq!(
-        quest_giver_creature_id_from_source_like_cpp(creature_guid(15513, 27)),
-        15513
-    );
-    assert_eq!(
-        quest_giver_creature_id_from_source_like_cpp(gameobject_guid(180516, 301)),
-        0
-    );
-}
-#[test]
-fn query_quest_completion_builds_creature_then_masked_go_entries_like_cpp() {
-    let mut store = store_with_quests(&[77]);
-    store.ender_quests.entry(1234).or_default().push(77);
-    store.ender_quests.entry(12).or_default().push(77);
-    store
-        .gameobject_ender_quests
-        .entry(0x5678)
-        .or_default()
-        .push(77);
-
-    let response = represented_quest_completion_npc_response_like_cpp(&store, &[77]);
-
-    assert_eq!(response.len(), 1);
-    assert_eq!(response[0].quest_id, 77);
-    assert_eq!(response[0].npcs, vec![12, 1234, 0x8000_5678u32 as i32]);
-}
-#[test]
-fn query_quest_completion_skips_negative_missing_and_oversized_creature_entries_like_cpp() {
-    let mut store = store_with_quests(&[5]);
-    store
-        .ender_quests
-        .entry(i32::MAX as u32 + 1)
-        .or_default()
-        .push(5);
-    store
-        .gameobject_ender_quests
-        .entry(u32::MAX)
-        .or_default()
-        .push(5);
-
-    let response = represented_quest_completion_npc_response_like_cpp(&store, &[-1, 999, 5]);
-
-    assert_eq!(response.len(), 1);
-    assert_eq!(response[0].quest_id, 5);
-    assert_eq!(response[0].npcs, vec![-1]);
-}
 #[tokio::test]
 async fn quest_giver_status_query_canonical_creature_starter_sends_available_like_cpp() {
     let (mut session, send_rx) = make_session();
@@ -111,7 +62,7 @@ async fn quest_giver_status_query_canonical_creature_completed_ender_sends_can_r
     let mut store = store_with_quests(&[1002]);
     store.ender_quests.entry(9002).or_default().push(1002);
     session.set_quest_store(Arc::new(store));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
+    insert_player_quest_status_for_test(&mut session,
         1002,
         PlayerQuestStatus {
             quest_id: 1002,
@@ -142,7 +93,7 @@ async fn quest_giver_status_query_gameobject_ignores_creature_relation_for_same_
     store.starter_quests.entry(9105).or_default().push(1005);
     store.ender_quests.entry(9105).or_default().push(1005);
     session.set_quest_store(Arc::new(store));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
+    insert_player_quest_status_for_test(&mut session,
         1005,
         PlayerQuestStatus {
             quest_id: 1005,

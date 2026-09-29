@@ -26,7 +26,7 @@ async fn quest_giver_status_query_canonical_gameobject_completed_ender_uses_go_r
     let mut store = store_with_quests(&[1004]);
     assert!(store.insert_gameobject_ender_relation_like_cpp(9104, 1004));
     session.set_quest_store(Arc::new(store));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
+    insert_player_quest_status_for_test(&mut session,
         1004,
         PlayerQuestStatus {
             quest_id: 1004,

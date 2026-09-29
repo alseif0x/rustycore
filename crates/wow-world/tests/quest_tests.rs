@@ -1,4 +1,4 @@
-//! Behaviour tests for [`super`].
+//! Behaviour tests for quest handlers.
 //!
 //! Extracted from `quest.rs`. Moving tests moves no invariant: the
 //! production module boundary, its visibility and its owners are untouched.
@@ -9,14 +9,31 @@
 
 #![cfg(test)]
 
-use super::*;
-use crate::player::inventory_persistence_test_fixture::PlayerInventoryPersistencePortFixtureLikeCpp;
-use crate::player::quest_persistence_test_fixture::{
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use wow_world::handlers::quest::*;
+use wow_world::session::*;
+use wow_world::test_fixtures::*;
+use wow_world::test_fixtures::{
     PlayerQuestLoadStageFixtureLikeCpp, PlayerQuestPersistencePortFixtureLikeCpp,
 };
-use crate::session::directory::PlayerRegistry;
+use wow_world::session::directory::PlayerRegistry;
+use wow_world::session::mailbox::{SessionCommand, SetQuestSharingInfoAndSendDetailsCommand};
+use wow_world::session::registry::PacketHandlerEntry;
+use wow_constants::currency::CurrencyGainSourceLikeCpp;
 use wow_constants::{
-    ComparisonType, ConditionSourceType, ConditionType, InventoryType, ItemBondingType, ItemClass,
+    ClientOpcodes, ComparisonType, ConditionSourceType, ConditionType, InventoryResult,
+    InventoryType, ItemBondingType, ItemClass, ItemContext, ItemFieldFlags, ItemFlags2, ItemFlags3,
+};
+use wow_constants::unit::NPCFlags1;
+use wow_constants::quest::{
+    QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP as QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP_LOCAL,
+    QUEST_OBJECTIVE_FLAG_PART_OF_PROGRESS_BAR_LIKE_CPP as QUEST_OBJECTIVE_FLAG_PART_OF_PROGRESS_BAR_LIKE_CPP_LOCAL,
+    QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP as QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP_LOCAL,
+    QUEST_OBJECTIVE_PROGRESS_BAR_LIKE_CPP as QUEST_OBJECTIVE_PROGRESS_BAR_LIKE_CPP_LOCAL,
+    QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP,
+    QUEST_STATUS_INCOMPLETE_LIKE_CPP, QUEST_STATUS_REWARDED_LIKE_CPP,
 };
 use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position};
@@ -32,7 +49,8 @@ use wow_data::{
     CurrencyTypesEntry, CurrencyTypesStore, ItemRecord, ItemSparseTemplateEntry, ItemStatsStore,
     ItemStore,
     progression_rewards::{
-        FactionEntry, FactionStore, QUEST_PACKAGE_FILTER_UNMATCHED_LIKE_CPP,
+        FactionEntry, FactionStore, QUEST_PACKAGE_FILTER_EVERYONE_LIKE_CPP,
+        QUEST_PACKAGE_FILTER_UNMATCHED_LIKE_CPP,
         QuestFactionRewardEntry, QuestFactionRewardStore, QuestInfoEntry, QuestInfoStore,
         QuestPackageItemEntry, QuestPackageItemStore,
     },
@@ -40,8 +58,11 @@ use wow_data::{
 };
 use wow_entities::{Player, PlayerFactionStateLikeCpp};
 use wow_packet::packets::item::InventoryChangeFailure;
-use wow_packet::packets::quest::QuestGiverQuestFailed;
-use wow_packet::{ClientPacket, WorldPacket};
+use wow_packet::packets::quest::{
+    quest_giver_status, quest_push_reason, QuestGiverQuestFailed, QuestPushResult,
+};
+use wow_packet::{ClientPacket, ServerPacket, WorldPacket};
+use wow_handler::{PacketProcessing, SessionStatus};
 use wow_persistence::{
     ItemTemplateAddonCatalogPersistencePortLikeCpp, ItemTemplateAddonCatalogRequestLikeCpp,
     ItemTemplateAddonLootMetadataOutcomeLikeCpp, ItemTemplateAddonMoneyOutcomeLikeCpp,
@@ -55,7 +76,7 @@ use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
 
 #[path = "quest_tests/source_items.rs"]
 mod source_items;
-pub(super) use source_items::{
+use source_items::{
     insert_direct_inventory_item, install_have_limit_category_like_cpp,
     install_source_item_template, install_source_item_template_with_flags3,
     install_source_item_template_with_limit_category,
@@ -66,13 +87,13 @@ pub(super) use source_items::{
 };
 #[path = "quest_tests/party.rs"]
 mod party;
-pub(super) use party::{
+use party::{
     install_confirm_accept_sender_snapshot, install_represented_party,
     set_canonical_party_reputation_like_cpp,
 };
 #[path = "quest_tests/catalog_persistence.rs"]
 mod catalog_persistence;
-pub(super) use catalog_persistence::{
+use catalog_persistence::{
     ItemTemplateAddonCatalogPortFixtureLikeCpp, QuestPoiPortFixtureLikeCpp,
     quest_poi_blob_row_like_cpp,
 };
@@ -83,7 +104,7 @@ pub(super) use catalog_persistence::{
 /// its `PacketHandlerEntry`, which now carries the call as well as the
 /// admission metadata. These tests used to assert the arm and the registration
 /// separately; there is one side left to assert.
-const QUEST_HANDLER_REGISTRATIONS: &str = include_str!("quest/handlers.rs");
+const QUEST_HANDLER_REGISTRATIONS: &str = include_str!("../src/handlers/quest/handlers.rs");
 
 fn make_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded(8);
@@ -101,13 +122,13 @@ fn make_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
         send_tx,
     );
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
-    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
-    session.set_player_position_like_cpp(Position::new(10.0, 0.0, 0.0, 0.0));
+    set_loaded_player_identity_like_cpp(&mut session, 571, 1, 1, 80, 0);
+    set_player_position_for_test(&mut session, Position::new(10.0, 0.0, 0.0, 0.0));
     session.set_item_guid_generator_like_cpp(Arc::new(ObjectGuidGenerator::new(HighGuid::Item, 1)));
     // Reward tests model successful persistence. Production composition
     // installs the typed ports; these narrow unit fixtures retain the
     // explicit no-I/O success seam for unrelated reward assertions.
-    session.set_loot_money_persistence_test_result_like_cpp(true);
+    set_loot_money_persistence_test_result_for_test(&mut session, true);
     (session, send_rx)
 }
 
@@ -354,7 +375,7 @@ async fn run_status_query(session: &mut WorldSession, guid: ObjectGuid) {
 }
 
 fn add_active_quest(session: &mut WorldSession, quest_id: u32) {
-    let slot = session.first_free_quest_slot_like_cpp().unwrap_or(0);
+    let slot = first_free_quest_slot_for_test(session).unwrap_or(0);
     add_active_quest_in_slot(session, quest_id, slot);
 }
 
@@ -368,30 +389,23 @@ fn add_active_quest_in_slot_with_status(
     slot: u8,
     status: u8,
 ) {
-    session
-        .mutate_player_quest_gameplay_like_cpp(|quests| {
-            quests.insert_status_like_cpp(
-                quest_id,
-                PlayerQuestStatus {
-                    quest_id,
-                    status,
-                    explored: false,
-                    accept_time_secs: 0,
-                    end_time_secs: 0,
-                    objective_counts: Vec::new(),
-                    slot,
-                },
-            );
-        })
-        .expect("test Player quest owner");
+    insert_player_quest_gameplay_status_for_test(
+        session,
+        quest_id,
+        PlayerQuestStatus {
+            quest_id,
+            status,
+            explored: false,
+            accept_time_secs: 0,
+            end_time_secs: 0,
+            objective_counts: Vec::new(),
+            slot,
+        },
+    );
 }
 
 fn add_rewarded_quest(session: &mut WorldSession, quest_id: u32) {
-    session
-        .mutate_player_quest_gameplay_like_cpp(|quests| {
-            quests.set_rewarded_like_cpp(quest_id, true);
-        })
-        .expect("test Player quest owner");
+    set_player_quest_gameplay_rewarded_for_test(session, quest_id);
 }
 
 async fn run_close_quest(session: &mut WorldSession, quest_id: u32) {
@@ -821,7 +835,7 @@ fn assert_success_command_queued_like_cpp(
         )
     );
     assert!(receiver_rx.try_recv().is_err());
-    let commands = receiver_session.drain_session_commands();
+    let commands = drain_session_commands_for_test(&receiver_session);
     assert_eq!(commands.len(), 1);
     match &commands[0] {
         SessionCommand::SetQuestSharingInfoAndSendDetails(command) => {
@@ -863,15 +877,15 @@ fn recv_status_multiple(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<(ObjectGuid, 
 }
 
 fn mark_visible(session: &mut WorldSession, guid: ObjectGuid) {
-    session.client_visible_guids_like_cpp.insert(guid);
+    insert_client_visible_guid_for_test(session, guid);
 }
 
 fn mark_visible_gameobject_questgiver(session: &mut WorldSession, guid: ObjectGuid) {
-    let mut state = crate::session::RepresentedGameObjectUseState::default();
-    state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8);
-    session
-        .represented_gameobject_use_states
-        .insert(guid, state);
+    set_represented_gameobject_use_type_for_test(
+        session,
+        guid,
+        wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8,
+    );
     mark_visible(session, guid);
 }
 
@@ -888,7 +902,7 @@ fn assert_confirm_accept_outcome(
         RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp::AddQuestRuntimeUnrepresented
     );
     assert_eq!(
-        session.represented_quest_confirm_accepts_like_cpp(),
+        represented_quest_confirm_accepts_for_test(session),
         &[RepresentedQuestConfirmAcceptLikeCpp {
             receiver_guid,
             sender_guid_before_clear: sender_guid,
@@ -913,7 +927,7 @@ fn assert_complete_status_update_like_cpp(
     tracking_event_auto_reward_unrepresented: bool,
 ) {
     assert_eq!(
-        session.represented_quest_complete_status_updates_like_cpp(),
+        represented_quest_complete_status_updates_for_test(session).as_slice(),
         &[RepresentedQuestCompleteStatusUpdateLikeCpp {
             quest_id,
             old_status: QUEST_STATUS_INCOMPLETE_LIKE_CPP,

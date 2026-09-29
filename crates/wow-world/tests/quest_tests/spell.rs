@@ -15,7 +15,7 @@ async fn quest_giver_choose_reward_records_reward_spell_cast_like_cpp() {
     quest.reward_spell = 12_345;
     quest.reward_display_spell = [22_001, 22_002, 0];
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
+    insert_player_quest_status_for_test(&mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -38,7 +38,7 @@ async fn quest_giver_choose_reward_records_reward_spell_cast_like_cpp() {
         .await;
 
     assert_eq!(
-        session.represented_quest_reward_spell_casts_like_cpp(),
+        represented_quest_reward_spell_casts_for_test(&session),
         &[RepresentedQuestRewardSpellCastLikeCpp {
             quest_id,
             spell_id: 12_345,
@@ -49,7 +49,7 @@ async fn quest_giver_choose_reward_records_reward_spell_cast_like_cpp() {
             cast_spell_runtime_unrepresented: true,
         }]
     );
-    assert!(!session.represented_can_delay_teleport_like_cpp());
+    assert!(!represented_can_delay_teleport_for_test(&session));
 }
 #[tokio::test]
 async fn quest_giver_choose_reward_records_display_spells_only_without_reward_spell_like_cpp() {
@@ -60,7 +60,7 @@ async fn quest_giver_choose_reward_records_display_spells_only_without_reward_sp
     quest.flags = QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP | QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP;
     quest.reward_display_spell = [22_001, 0, 22_003];
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
+    insert_player_quest_status_for_test(&mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -83,7 +83,7 @@ async fn quest_giver_choose_reward_records_display_spells_only_without_reward_sp
         .await;
 
     assert_eq!(
-        session.represented_quest_reward_spell_casts_like_cpp(),
+        represented_quest_reward_spell_casts_for_test(&session),
         &[
             RepresentedQuestRewardSpellCastLikeCpp {
                 quest_id,
@@ -105,7 +105,7 @@ async fn quest_giver_choose_reward_records_display_spells_only_without_reward_sp
             },
         ]
     );
-    assert!(!session.represented_can_delay_teleport_like_cpp());
+    assert!(!represented_can_delay_teleport_for_test(&session));
 }
 #[tokio::test]
 async fn quest_confirm_accept_source_spell_records_two_self_casts_like_cpp() {
@@ -117,7 +117,7 @@ async fn quest_confirm_accept_source_spell_records_two_self_casts_like_cpp() {
     quest.flags |= QUEST_FLAGS_SHARABLE_LIKE_CPP;
     quest.source_spell_id = 12_345;
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -128,11 +128,8 @@ async fn quest_confirm_accept_source_spell_records_two_self_casts_like_cpp() {
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
-    let status = session
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get(&quest_id)
+    assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
+    let status = player_quest_status_for_test(&session, quest_id)
         .expect("source-spell-only quest should still insert represented local AddQuest state");
     assert_eq!(status.quest_id, quest_id);
     assert_eq!(status.status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
@@ -148,7 +145,7 @@ async fn quest_confirm_accept_source_spell_records_two_self_casts_like_cpp() {
         Some(&QUEST_STATUS_INCOMPLETE_LIKE_CPP)
     );
     assert_eq!(
-        session.represented_quest_confirm_accepts_like_cpp(),
+        represented_quest_confirm_accepts_for_test(&session),
         &[RepresentedQuestConfirmAcceptLikeCpp {
             receiver_guid: Some(receiver_guid),
             sender_guid_before_clear: sender_guid,
@@ -193,33 +190,37 @@ async fn quest_confirm_accept_source_item_bound_objective_broadcasts_to_group_li
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     install_source_item_template(&mut session, source_item_id, 20, 0);
-    session.cache_item_template_addon_quest_log_item_id_like_cpp(source_item_id, quest_log_item_id);
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    cache_item_template_addon_quest_log_item_id_for_test(
+        &mut session,
+        source_item_id,
+        quest_log_item_id,
+    );
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
 
     let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     session.set_player_registry(Arc::clone(&player_registry));
-    session.set_loaded_player_name_like_cpp("Receiver".to_string());
-    session.register_in_player_registry();
+    set_loaded_player_name_like_cpp(&mut session, "Receiver".to_string());
+    register_in_player_registry_for_test(&session);
 
     let (mut sender_session, sender_rx) = make_session();
     sender_session.set_player_guid(Some(sender_guid));
-    sender_session.set_loaded_player_name_like_cpp("Sender".to_string());
+    set_loaded_player_name_like_cpp(&mut sender_session, "Sender".to_string());
     sender_session.set_player_registry(Arc::clone(&player_registry));
-    sender_session.register_in_player_registry();
-    assert!(sender_session.adopt_registered_canonical_player_fixture_like_cpp());
+    register_in_player_registry_for_test(&sender_session);
+    assert!(adopt_registered_canonical_player_fixture_like_cpp(&mut sender_session));
     add_active_quest_in_slot_with_status(
         &mut sender_session,
         quest_id,
         0,
         QUEST_STATUS_INCOMPLETE_LIKE_CPP,
     );
-    sender_session.sync_player_registry_state_like_cpp();
+    sync_player_registry_state_for_test(&sender_session);
 
     let (mut other_session, other_rx) = make_session();
     other_session.set_player_guid(Some(other_guid));
-    other_session.set_loaded_player_name_like_cpp("Other".to_string());
+    set_loaded_player_name_like_cpp(&mut other_session, "Other".to_string());
     other_session.set_player_registry(player_registry);
-    other_session.register_in_player_registry();
+    register_in_player_registry_for_test(&other_session);
 
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(sender_guid);
@@ -227,7 +228,7 @@ async fn quest_confirm_accept_source_item_bound_objective_broadcasts_to_group_li
     group.add_member(other_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;

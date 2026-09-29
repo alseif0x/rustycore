@@ -16,6 +16,8 @@ mod handlers;
 mod objectives;
 mod persistence;
 mod rewards;
+#[cfg(test)]
+mod rule_tests;
 mod sharing;
 mod source_items;
 mod state;
@@ -71,6 +73,8 @@ use wow_packet::packets::update::{
 };
 
 use crate::handlers::character::ExtendedCostItemTurninChange;
+#[cfg(any(test, feature = "test-fixtures"))]
+use crate::session::RepresentedQuestRewardReputationLikeCpp;
 use crate::session::{
     CurrencyGainSourceLikeCpp, InventoryItem, RepresentedAdventureMapStartQuestLikeCpp,
     RepresentedPushQuestToPartyOutcomeLikeCpp, RepresentedPushQuestToPartyOutcomeReasonLikeCpp,
@@ -82,16 +86,13 @@ use crate::session::{
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::{
-    RepresentedQuestRewardMailLikeCpp,
-    RepresentedQuestRewardTalentPointsLikeCpp,
+    RepresentedQuestRewardMailLikeCpp, RepresentedQuestRewardTalentPointsLikeCpp,
     RepresentedQuestRewardTitleLikeCpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::{
     RepresentedQuestRewardSpellCastLikeCpp, RepresentedQuestRewardSpellKindLikeCpp,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
-use crate::session::RepresentedQuestRewardReputationLikeCpp;
 use wow_conditions::{
     QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP,
     QUEST_STATUS_NONE_LIKE_CPP, QUEST_STATUS_REWARDED_LIKE_CPP,
@@ -464,10 +465,6 @@ impl RepresentedQuestGiverStatusSourceLikeCpp {
 
 pub(crate) const MAX_QUEST_LOG_SIZE_LIKE_CPP: u8 = 25;
 
-#[cfg(test)]
-#[path = "../quest_tests.rs"]
-mod tests;
-
 use wow_constants::quest::{
     QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP as QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL,
     QUEST_OBJECTIVE_ITEM_LIKE_CPP as QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL,
@@ -589,10 +586,6 @@ pub(crate) async fn quest_poi_store_for_test(
 }
 
 #[cfg(any(test, feature = "test-fixtures"))]
-pub(crate) async fn save_quest_to_db_for_test(
-    session: &WorldSession,
-    quest_id: u32,
-    status: u8,
-) {
+pub(crate) async fn save_quest_to_db_for_test(session: &WorldSession, quest_id: u32, status: u8) {
     session.save_quest_to_db(quest_id, status).await;
 }

@@ -17,7 +17,7 @@ async fn quest_giver_choose_reward_package_primary_inventory_failure_sends_equip
     quest.flags = QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP;
     quest.reward_money_difficulty = 37;
     quest.quest_package_id = package_id;
-    session.set_player_gold_like_cpp(5);
+    set_player_gold_for_test(&mut session, 5);
     install_source_item_template_with_limit_category(
         &mut session,
         reward_item_id,
@@ -37,7 +37,7 @@ async fn quest_giver_choose_reward_package_primary_inventory_failure_sends_equip
         },
     ])));
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
+    insert_player_quest_status_for_test(&mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -60,20 +60,14 @@ async fn quest_giver_choose_reward_package_primary_inventory_failure_sends_equip
         .await;
 
     assert_eq!(
-        session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .get(&quest_id)
+        player_quest_status_for_test(&session, quest_id)
             .map(|status| status.status),
         Some(QUEST_STATUS_COMPLETE_LIKE_CPP)
     );
     assert!(
-        !session
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+        !contains_rewarded_quest_for_test(&session, quest_id)
     );
-    assert_eq!(session.player_gold_like_cpp(), 5);
+    assert_eq!(player_gold_for_test(&session), 5);
     assert_eq!(
         send_rx.try_recv().unwrap(),
         InventoryChangeFailure::error(InventoryResult::ItemMaxLimitCategoryCountExceededIs)
@@ -94,7 +88,7 @@ async fn quest_giver_choose_reward_package_fallback_inventory_failure_sends_equi
     quest.flags = QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP;
     quest.reward_money_difficulty = 37;
     quest.quest_package_id = package_id;
-    session.set_player_gold_like_cpp(5);
+    set_player_gold_for_test(&mut session, 5);
     install_source_item_template_with_limit_category(
         &mut session,
         reward_item_id,
@@ -114,7 +108,7 @@ async fn quest_giver_choose_reward_package_fallback_inventory_failure_sends_equi
         },
     ])));
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
+    insert_player_quest_status_for_test(&mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -137,20 +131,14 @@ async fn quest_giver_choose_reward_package_fallback_inventory_failure_sends_equi
         .await;
 
     assert_eq!(
-        session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .get(&quest_id)
+        player_quest_status_for_test(&session, quest_id)
             .map(|status| status.status),
         Some(QUEST_STATUS_COMPLETE_LIKE_CPP)
     );
     assert!(
-        !session
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+        !contains_rewarded_quest_for_test(&session, quest_id)
     );
-    assert_eq!(session.player_gold_like_cpp(), 5);
+    assert_eq!(player_gold_for_test(&session), 5);
     assert_eq!(
         send_rx.try_recv().unwrap(),
         InventoryChangeFailure::error(InventoryResult::ItemMaxLimitCategoryCountExceededIs)
@@ -180,7 +168,7 @@ async fn quest_confirm_accept_source_item_start_quest_no_grant_adds_local_state_
         0,
         quest_id as i32,
     );
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -191,16 +179,12 @@ async fn quest_confirm_accept_source_item_start_quest_no_grant_adds_local_state_
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
+    assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
     assert!(
-        session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+        contains_player_quest_status_for_test(&session, quest_id)
     );
     assert_eq!(
-        session
-            .represented_inventory_item_counts_like_cpp()
+        represented_inventory_item_counts_for_test(&session)
             .expect("fixture canonical inventory owner")
             .get(&source_item_id)
             .copied()
@@ -208,7 +192,7 @@ async fn quest_confirm_accept_source_item_start_quest_no_grant_adds_local_state_
         0
     );
     assert_eq!(
-        session.represented_quest_confirm_accepts_like_cpp(),
+        represented_quest_confirm_accepts_for_test(&session),
         &[RepresentedQuestConfirmAcceptLikeCpp {
             receiver_guid: Some(receiver_guid),
             sender_guid_before_clear: sender_guid,
@@ -253,8 +237,12 @@ async fn quest_confirm_accept_source_item_with_space_stores_and_pushes_item_like
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     install_source_item_template(&mut session, source_item_id, 20, 0);
-    session.cache_item_template_addon_quest_log_item_id_like_cpp(source_item_id, quest_log_item_id);
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    cache_item_template_addon_quest_log_item_id_for_test(
+        &mut session,
+        source_item_id,
+        quest_log_item_id,
+    );
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -265,40 +253,32 @@ async fn quest_confirm_accept_source_item_with_space_stores_and_pushes_item_like
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
+    assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
     assert_eq!(
-        session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .get(&quest_id)
+        player_quest_status_for_test(&session, quest_id)
             .expect("source-item quest should still add local quest state")
             .status,
         QUEST_STATUS_COMPLETE_LIKE_CPP
     );
     assert_eq!(
-        session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .get(&quest_id)
+        player_quest_status_for_test(&session, quest_id)
             .expect("source-item quest should still add local quest state")
             .objective_counts,
         vec![2]
     );
-    let stored_source_item_count: u32 = session
-        .inventory_items_like_cpp()
+    let stored_source_item_count: u32 = inventory_items_for_test(&session)
         .values()
         .filter(|item| item.entry_id == source_item_id)
-        .filter_map(|item| session.inventory_item_objects_like_cpp().get(&item.guid))
+        .filter_map(|item| inventory_item_objects_for_test(&session).get(&item.guid))
         .map(|item| item.count())
         .sum();
-    let stored_source_item_slot = session
-        .inventory_items_like_cpp()
+    let stored_source_item_slot = inventory_items_for_test(&session)
         .iter()
         .find_map(|(&slot, item)| (item.entry_id == source_item_id).then_some(slot))
         .expect("source item should have a direct inventory slot");
     assert_eq!(stored_source_item_count, 2);
     assert_eq!(
-        session.represented_quest_confirm_accepts_like_cpp(),
+        represented_quest_confirm_accepts_for_test(&session),
         &[RepresentedQuestConfirmAcceptLikeCpp {
             receiver_guid: Some(receiver_guid),
             sender_guid_before_clear: sender_guid,
@@ -440,7 +420,8 @@ async fn quest_confirm_accept_source_item_full_backpack_stores_in_represented_ba
         (filler_item_id, sparse(InventoryType::NonEquip, 1, 0)),
     ])));
 
-    session.insert_inventory_item_like_cpp(
+    insert_inventory_item_for_test(
+        &mut session,
         wow_entities::INVENTORY_SLOT_BAG_START,
         InventoryItem {
             guid: bag_guid,
@@ -449,7 +430,8 @@ async fn quest_confirm_accept_source_item_full_backpack_stores_in_represented_ba
             inventory_type: Some(InventoryType::Bag as u8),
         },
     );
-    let bag_item = session.make_inventory_item_object(
+    let bag_item = make_inventory_item_object_for_test(
+        &session,
         bag_guid,
         bag_item_id,
         receiver_guid,
@@ -458,7 +440,7 @@ async fn quest_confirm_accept_source_item_full_backpack_stores_in_represented_ba
         ItemContext::None,
         wow_entities::INVENTORY_SLOT_BAG_START,
     );
-    session.insert_inventory_item_object(bag_item);
+    insert_inventory_item_object_for_test(&mut session, bag_item);
     for slot_offset in 0..wow_entities::INVENTORY_DEFAULT_SIZE {
         insert_direct_inventory_item(
             &mut session,
@@ -470,7 +452,7 @@ async fn quest_confirm_accept_source_item_full_backpack_stores_in_represented_ba
         );
     }
 
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -482,19 +464,14 @@ async fn quest_confirm_accept_source_item_full_backpack_stores_in_represented_ba
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
     assert!(
-        session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+        contains_player_quest_status_for_test(&session, quest_id)
     );
     assert!(
-        session
-            .inventory_items_like_cpp()
+        inventory_items_for_test(&session)
             .values()
             .all(|item| item.entry_id != source_item_id)
     );
-    let child = session
-        .inventory_item_objects_like_cpp()
+    let child = inventory_item_objects_for_test(&session)
         .values()
         .find(|item| item.object().entry() == source_item_id)
         .expect("source item should be created inside represented bag");
@@ -503,8 +480,7 @@ async fn quest_confirm_accept_source_item_full_backpack_stores_in_represented_ba
     assert_eq!(child.slot(), 0);
     assert_eq!(child.count(), 3);
     assert_eq!(
-        session
-            .represented_inventory_item_counts_like_cpp()
+        represented_inventory_item_counts_for_test(&session)
             .expect("fixture canonical inventory owner")
             .get(&source_item_id)
             .copied(),
@@ -622,7 +598,8 @@ async fn quest_confirm_accept_source_item_merges_existing_stack_inside_represent
         (filler_item_id, sparse(InventoryType::NonEquip, 1, 0)),
     ])));
 
-    session.insert_inventory_item_like_cpp(
+    insert_inventory_item_for_test(
+        &mut session,
         wow_entities::INVENTORY_SLOT_BAG_START,
         InventoryItem {
             guid: bag_guid,
@@ -631,7 +608,8 @@ async fn quest_confirm_accept_source_item_merges_existing_stack_inside_represent
             inventory_type: Some(InventoryType::Bag as u8),
         },
     );
-    let bag_item = session.make_inventory_item_object(
+    let bag_item = make_inventory_item_object_for_test(
+        &session,
         bag_guid,
         bag_item_id,
         receiver_guid,
@@ -640,8 +618,9 @@ async fn quest_confirm_accept_source_item_merges_existing_stack_inside_represent
         ItemContext::None,
         wow_entities::INVENTORY_SLOT_BAG_START,
     );
-    session.insert_inventory_item_object(bag_item);
-    let mut child = session.make_inventory_item_object(
+    insert_inventory_item_object_for_test(&mut session, bag_item);
+    let mut child = make_inventory_item_object_for_test(
+        &session,
         child_guid,
         source_item_id,
         receiver_guid,
@@ -651,7 +630,7 @@ async fn quest_confirm_accept_source_item_merges_existing_stack_inside_represent
         0,
     );
     child.set_container_guid_and_slot(bag_guid, wow_entities::INVENTORY_SLOT_BAG_START);
-    session.insert_inventory_item_object(child);
+    insert_inventory_item_object_for_test(&mut session, child);
     for slot_offset in 0..wow_entities::INVENTORY_DEFAULT_SIZE {
         insert_direct_inventory_item(
             &mut session,
@@ -663,7 +642,7 @@ async fn quest_confirm_accept_source_item_merges_existing_stack_inside_represent
         );
     }
 
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -674,8 +653,7 @@ async fn quest_confirm_accept_source_item_merges_existing_stack_inside_represent
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    let child = session
-        .inventory_item_objects_like_cpp()
+    let child = inventory_item_objects_for_test(&session)
         .get(&child_guid)
         .expect("existing represented bag stack should remain");
     assert_eq!(child.count(), 20);
@@ -683,8 +661,7 @@ async fn quest_confirm_accept_source_item_merges_existing_stack_inside_represent
     assert_eq!(child.bag_slot(), wow_entities::INVENTORY_SLOT_BAG_START);
     assert_eq!(child.slot(), 0);
     assert_eq!(
-        session
-            .represented_inventory_item_counts_like_cpp()
+        represented_inventory_item_counts_for_test(&session)
             .expect("fixture canonical inventory owner")
             .get(&source_item_id)
             .copied(),
@@ -729,7 +706,7 @@ async fn quest_confirm_accept_source_item_binds_on_acquire_like_cpp_store_item()
         0,
         ItemBondingType::OnAcquire,
     );
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -740,11 +717,10 @@ async fn quest_confirm_accept_source_item_binds_on_acquire_like_cpp_store_item()
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    let stored = session
-        .inventory_items_like_cpp()
+    let stored = inventory_items_for_test(&session)
         .values()
         .find(|item| item.entry_id == source_item_id)
-        .and_then(|item| session.inventory_item_objects_like_cpp().get(&item.guid))
+        .and_then(|item| inventory_item_objects_for_test(&session).get(&item.guid))
         .expect("source item should be stored as runtime item object");
     assert_eq!(stored.bonding(), ItemBondingType::OnAcquire);
     assert!(stored.is_soul_bound());
@@ -780,8 +756,12 @@ async fn quest_confirm_accept_source_item_bound_objective_updates_quest_without_
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     install_source_item_template(&mut session, source_item_id, 20, 0);
-    session.cache_item_template_addon_quest_log_item_id_like_cpp(source_item_id, quest_log_item_id);
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    cache_item_template_addon_quest_log_item_id_for_test(
+        &mut session,
+        source_item_id,
+        quest_log_item_id,
+    );
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -792,24 +772,20 @@ async fn quest_confirm_accept_source_item_bound_objective_updates_quest_without_
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
-    let status = session
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get(&quest_id)
+    assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
+    let status = player_quest_status_for_test(&session, quest_id)
         .expect("bound source-item quest should still add local quest state");
     assert_eq!(status.status, QUEST_STATUS_COMPLETE_LIKE_CPP);
     assert_eq!(status.objective_counts, vec![2]);
-    let stored_source_item_count: u32 = session
-        .inventory_items_like_cpp()
+    let stored_source_item_count: u32 = inventory_items_for_test(&session)
         .values()
         .filter(|item| item.entry_id == source_item_id)
-        .filter_map(|item| session.inventory_item_objects_like_cpp().get(&item.guid))
+        .filter_map(|item| inventory_item_objects_for_test(&session).get(&item.guid))
         .map(|item| item.count())
         .sum();
     assert_eq!(stored_source_item_count, 0);
     assert_eq!(
-        session.represented_quest_confirm_accepts_like_cpp(),
+        represented_quest_confirm_accepts_for_test(&session),
         &[RepresentedQuestConfirmAcceptLikeCpp {
             receiver_guid: Some(receiver_guid),
             sender_guid_before_clear: sender_guid,
@@ -878,7 +854,7 @@ async fn quest_confirm_accept_tracking_event_source_item_objective_auto_rewards_
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     install_source_item_template(&mut session, source_item_id, 20, 0);
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -890,16 +866,10 @@ async fn quest_confirm_accept_tracking_event_source_item_objective_auto_rewards_
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
     assert!(
-        !session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+        !contains_player_quest_status_for_test(&session, quest_id)
     );
     assert!(
-        session
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+        contains_rewarded_quest_for_test(&session, quest_id)
     );
     assert_complete_status_update_like_cpp(&session, quest_id, false);
 

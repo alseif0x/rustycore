@@ -1,8 +1,15 @@
 //! Canonical party and group fixtures for quest-sharing scenarios.
 
-use super::{add_active_quest_in_slot_with_status, make_session};
-use crate::session::WorldSession;
-use crate::session::directory::PlayerRegistry;
+use super::{
+    add_active_quest_in_slot_with_status, make_session, register_in_player_registry_for_test,
+    adopt_registered_canonical_player_fixture_like_cpp, set_group_guid_for_test_like_cpp,
+    player_position_for_test, set_player_position_for_test,
+    set_loaded_player_identity_like_cpp,
+    set_loaded_player_name_like_cpp,
+    sync_player_registry_state_for_test,
+};
+use wow_world::session::WorldSession;
+use wow_world::session::directory::PlayerRegistry;
 use std::sync::Arc;
 use wow_core::{ObjectGuid, Position};
 use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
@@ -16,19 +23,19 @@ pub(crate) fn install_confirm_accept_sender_snapshot(
 ) -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     session.set_player_registry(Arc::clone(&player_registry));
-    session.set_loaded_player_name_like_cpp("Receiver".to_string());
-    session.register_in_player_registry();
+    set_loaded_player_name_like_cpp(session, "Receiver".to_string());
+    register_in_player_registry_for_test(&session);
 
     let (mut sender_session, sender_rx) = make_session();
     sender_session.set_player_guid(Some(sender_guid));
-    sender_session.set_loaded_player_name_like_cpp("Sender".to_string());
+    set_loaded_player_name_like_cpp(&mut sender_session, "Sender".to_string());
     sender_session.set_player_registry(player_registry);
-    sender_session.register_in_player_registry();
-    assert!(sender_session.adopt_registered_canonical_player_fixture_like_cpp());
+    register_in_player_registry_for_test(&sender_session);
+    assert!(adopt_registered_canonical_player_fixture_like_cpp(&mut sender_session));
     if let Some(status) = sender_active_status {
         add_active_quest_in_slot_with_status(&mut sender_session, quest_id, 0, status);
     }
-    sender_session.sync_player_registry_state_like_cpp();
+    sync_player_registry_state_for_test(&sender_session);
 
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(sender_guid);
@@ -56,7 +63,7 @@ fn insert_canonical_party_player_like_cpp(
     account_id: u32,
     player_guid: ObjectGuid,
     position: Position,
-    canonical: &crate::session::SharedCanonicalMapManager,
+    canonical: &wow_world::session::SharedCanonicalMapManager,
     map_id: u32,
     instance_id: u32,
 ) {
@@ -87,7 +94,7 @@ fn insert_canonical_party_player_like_cpp(
 
 /// Set one faction standing on a party member's canonical `Player`.
 pub(crate) fn set_canonical_party_reputation_like_cpp(
-    canonical: &crate::session::SharedCanonicalMapManager,
+    canonical: &wow_world::session::SharedCanonicalMapManager,
     guid: ObjectGuid,
     faction_id: u32,
     standing: i32,
@@ -116,22 +123,23 @@ pub(crate) fn install_represented_party(
     let player_registry = Arc::new(PlayerRegistry::default());
     let (mut receiver_session, receiver_rx) = make_session();
     receiver_session.set_player_guid(Some(receiver_guid));
-    receiver_session.set_loaded_player_name_like_cpp("Receiver".to_string());
-    receiver_session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
-    receiver_session.set_player_position_like_cpp(Position::new(11.0, 0.0, 0.0, 0.0));
+    set_loaded_player_name_like_cpp(&mut receiver_session, "Receiver".to_string());
+    set_loaded_player_identity_like_cpp(&mut receiver_session, 571, 1, 1, 80, 0);
+    set_player_position_for_test(
+        &mut receiver_session,
+        Position::new(11.0, 0.0, 0.0, 0.0),
+    );
     receiver_session.set_player_registry(Arc::clone(&player_registry));
 
     // Production keeps every in-world player on the shared canonical map, and
     // #252 reads the receiver's reputation off that owner instead of a mirrored
     // copy. Install it here so the harness exercises the same path.
-    let canonical: crate::session::SharedCanonicalMapManager =
+    let canonical: wow_world::session::SharedCanonicalMapManager =
         Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
     insert_canonical_party_player_like_cpp(
         receiver_session.account_id,
         receiver_guid,
-        receiver_session
-            .player_position_like_cpp()
-            .expect("party member position"),
+        player_position_for_test(&receiver_session).expect("party member position"),
         &canonical,
         571,
         0,
@@ -139,14 +147,14 @@ pub(crate) fn install_represented_party(
     receiver_session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_canonical_map_manager(Arc::clone(&canonical));
 
-    receiver_session.register_in_player_registry();
-    assert!(receiver_session.adopt_registered_canonical_player_fixture_like_cpp());
+    register_in_player_registry_for_test(&receiver_session);
+    assert!(adopt_registered_canonical_player_fixture_like_cpp(&mut receiver_session));
     // Production `Player::LoadFromDB` builds the canonical Player with the
     // character's identity, and later registry movement publications read
     // `player_level_like_cpp`. Apply the session's loaded identity after
     // adoption so the fixture party member matches that owner instead of the
     // identity-less synthetic Player.
-    receiver_session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    set_loaded_player_identity_like_cpp(&mut receiver_session, 571, 1, 1, 80, 0);
 
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(sender_guid);
@@ -154,7 +162,7 @@ pub(crate) fn install_represented_party(
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
 
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(session, Some(group_guid));
     session.set_player_registry(player_registry.clone());
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     (player_registry, receiver_session, receiver_rx)

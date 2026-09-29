@@ -16,7 +16,7 @@ async fn quest_giver_choose_reward_accepts_quest_package_primary_everyone_like_c
     quest.flags = QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP;
     quest.reward_money_difficulty = 37;
     quest.quest_package_id = package_id;
-    session.set_player_gold_like_cpp(5);
+    set_player_gold_for_test(&mut session, 5);
     install_test_item_template_with_flags2_like_cpp(&mut session, reward_item_id, 0);
     session.set_quest_package_item_store(Arc::new(QuestPackageItemStore::from_entries([
         QuestPackageItemEntry {
@@ -28,7 +28,7 @@ async fn quest_giver_choose_reward_accepts_quest_package_primary_everyone_like_c
         },
     ])));
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
+    insert_player_quest_status_for_test(&mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -51,26 +51,18 @@ async fn quest_giver_choose_reward_accepts_quest_package_primary_everyone_like_c
         .await;
 
     assert!(
-        !session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+        !contains_player_quest_status_for_test(&session, quest_id)
     );
     assert!(
-        session
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+        contains_rewarded_quest_for_test(&session, quest_id)
     );
-    assert_eq!(session.player_gold_like_cpp(), 42);
-    let reward_item = session
-        .inventory_items_like_cpp()
+    assert_eq!(player_gold_for_test(&session), 42);
+    let reward_item = inventory_items_for_test(&session)
         .values()
         .find(|item| item.entry_id == reward_item_id)
         .expect("primary package reward item should be in direct inventory");
     assert_eq!(
-        session
-            .inventory_item_objects_like_cpp()
+        inventory_item_objects_for_test(&session)
             .get(&reward_item.guid)
             .map(|item| item.count()),
         Some(1)
@@ -114,7 +106,7 @@ async fn quest_giver_choose_reward_accepts_quest_package_fallback_like_cpp() {
     quest.flags = QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP;
     quest.reward_money_difficulty = 37;
     quest.quest_package_id = package_id;
-    session.set_player_gold_like_cpp(5);
+    set_player_gold_for_test(&mut session, 5);
     install_test_item_template_with_flags2_like_cpp(&mut session, reward_item_id, 0);
     session.set_quest_package_item_store(Arc::new(QuestPackageItemStore::from_entries([
         QuestPackageItemEntry {
@@ -126,7 +118,7 @@ async fn quest_giver_choose_reward_accepts_quest_package_fallback_like_cpp() {
         },
     ])));
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
+    insert_player_quest_status_for_test(&mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -149,26 +141,18 @@ async fn quest_giver_choose_reward_accepts_quest_package_fallback_like_cpp() {
         .await;
 
     assert!(
-        !session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+        !contains_player_quest_status_for_test(&session, quest_id)
     );
     assert!(
-        session
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+        contains_rewarded_quest_for_test(&session, quest_id)
     );
-    assert_eq!(session.player_gold_like_cpp(), 42);
-    let reward_item = session
-        .inventory_items_like_cpp()
+    assert_eq!(player_gold_for_test(&session), 42);
+    let reward_item = inventory_items_for_test(&session)
         .values()
         .find(|item| item.entry_id == reward_item_id)
         .expect("fallback package reward item should be in direct inventory");
     assert_eq!(
-        session
-            .inventory_item_objects_like_cpp()
+        inventory_item_objects_for_test(&session)
             .get(&reward_item.guid)
             .map(|item| item.count()),
         Some(1)
@@ -212,7 +196,7 @@ async fn quest_giver_choose_reward_rejects_quest_package_wrong_faction_like_cpp(
     quest.flags = QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP;
     quest.reward_money_difficulty = 37;
     quest.quest_package_id = package_id;
-    session.set_player_gold_like_cpp(5);
+    set_player_gold_for_test(&mut session, 5);
     install_test_item_template_with_flags2_like_cpp(
         &mut session,
         reward_item_id,
@@ -228,7 +212,7 @@ async fn quest_giver_choose_reward_rejects_quest_package_wrong_faction_like_cpp(
         },
     ])));
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
+    insert_player_quest_status_for_test(&mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -251,20 +235,14 @@ async fn quest_giver_choose_reward_rejects_quest_package_wrong_faction_like_cpp(
         .await;
 
     assert_eq!(
-        session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .get(&quest_id)
+        player_quest_status_for_test(&session, quest_id)
             .map(|status| status.status),
         Some(QUEST_STATUS_COMPLETE_LIKE_CPP)
     );
     assert!(
-        !session
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+        !contains_rewarded_quest_for_test(&session, quest_id)
     );
-    assert_eq!(session.player_gold_like_cpp(), 5);
+    assert_eq!(player_gold_for_test(&session), 5);
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]
@@ -285,10 +263,7 @@ async fn quest_giver_request_reward_completes_ready_quest_like_cpp() {
         .await;
 
     assert_eq!(
-        session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .get(&quest_id)
+        player_quest_status_for_test(&session, quest_id)
             .expect("quest should still be active before choose-reward")
             .status,
         QUEST_STATUS_COMPLETE_LIKE_CPP
@@ -300,22 +275,21 @@ async fn quest_giver_request_reward_completes_ready_quest_like_cpp() {
 async fn quest_confirm_accept_short_packet_does_not_clear_pending_state_like_cpp() {
     let (mut session, send_rx) = make_session();
     let sender_guid = ObjectGuid::create_player(1, 81);
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, 7001);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, 7001);
 
     session
         .handle_quest_confirm_accept(WorldPacket::from_bytes(&[0x59, 0x1B, 0x00]))
         .await;
 
     assert_eq!(
-        session.represented_pending_quest_sharing_like_cpp(),
-        Some(crate::session::RepresentedPendingQuestSharingLikeCpp {
+        represented_pending_quest_sharing_for_test(&session),
+        Some(RepresentedPendingQuestSharingLikeCpp {
             sender_guid,
             quest_id: 7001,
         })
     );
     assert!(
-        session
-            .represented_quest_confirm_accepts_like_cpp()
+        represented_quest_confirm_accepts_for_test(&session)
             .is_empty()
     );
     assert!(send_rx.try_recv().is_err());
@@ -327,10 +301,9 @@ async fn quest_confirm_accept_no_pending_valid_packet_is_noop_like_cpp() {
 
     run_quest_confirm_accept(&mut session, 7002).await;
 
-    assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
+    assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
     assert!(
-        session
-            .represented_quest_confirm_accepts_like_cpp()
+        represented_quest_confirm_accepts_for_test(&session)
             .is_empty()
     );
     assert!(send_rx.try_recv().is_err());
@@ -340,20 +313,19 @@ async fn quest_confirm_accept_mismatch_preserves_pending_state_like_cpp() {
     let (mut session, send_rx) = make_session();
     let sender_guid = ObjectGuid::create_player(1, 82);
     session.set_quest_store(Arc::new(store_with_quests(&[7003])));
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, 7003);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, 7003);
 
     run_quest_confirm_accept(&mut session, 7004).await;
 
     assert_eq!(
-        session.represented_pending_quest_sharing_like_cpp(),
-        Some(crate::session::RepresentedPendingQuestSharingLikeCpp {
+        represented_pending_quest_sharing_for_test(&session),
+        Some(RepresentedPendingQuestSharingLikeCpp {
             sender_guid,
             quest_id: 7003,
         })
     );
     assert!(
-        session
-            .represented_quest_confirm_accepts_like_cpp()
+        represented_quest_confirm_accepts_for_test(&session)
             .is_empty()
     );
     assert!(send_rx.try_recv().is_err());
@@ -363,14 +335,13 @@ async fn quest_confirm_accept_match_missing_template_clears_without_evidence_lik
     let (mut session, send_rx) = make_session();
     let sender_guid = ObjectGuid::create_player(1, 83);
     session.set_quest_store(Arc::new(store_with_quests(&[7005])));
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, 7006);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, 7006);
 
     run_quest_confirm_accept(&mut session, 7006).await;
 
-    assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
+    assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
     assert!(
-        session
-            .represented_quest_confirm_accepts_like_cpp()
+        represented_quest_confirm_accepts_for_test(&session)
             .is_empty()
     );
     assert!(send_rx.try_recv().is_err());
@@ -381,11 +352,11 @@ async fn quest_confirm_accept_match_template_records_original_player_missing_lik
     let sender_guid = ObjectGuid::create_player(1, 84);
     let receiver_guid = ObjectGuid::create_player(1, 42);
     session.set_quest_store(Arc::new(store_with_quests(&[7007])));
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, 7007);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, 7007);
 
     run_quest_confirm_accept(&mut session, 7007).await;
 
-    assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
+    assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
     assert_confirm_accept_outcome(
         &session,
         Some(receiver_guid),
@@ -402,11 +373,11 @@ async fn quest_confirm_accept_negative_raw_id_compares_as_u32_bit_pattern_like_c
     let sender_guid = ObjectGuid::create_player(1, 85);
     let quest_id = u32::MAX;
     session.set_quest_store(Arc::new(store_with_quests(&[quest_id])));
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
 
     run_quest_confirm_accept(&mut session, -1).await;
 
-    assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
+    assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
     assert_confirm_accept_outcome(
         &session,
         Some(ObjectGuid::create_player(1, 42)),
@@ -422,7 +393,7 @@ async fn quest_confirm_accept_sender_exists_not_same_group_records_not_in_same_r
     let (mut session, send_rx) = make_session();
     let sender_guid = ObjectGuid::create_player(1, 86);
     session.set_quest_store(Arc::new(store_with_quests(&[7008])));
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, 7008);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, 7008);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -433,7 +404,7 @@ async fn quest_confirm_accept_sender_exists_not_same_group_records_not_in_same_r
 
     run_quest_confirm_accept(&mut session, 7008).await;
 
-    assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
+    assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
     assert_confirm_accept_outcome(
         &session,
         Some(ObjectGuid::create_player(1, 42)),
@@ -450,13 +421,13 @@ async fn quest_confirm_accept_same_group_sender_not_active_records_original_not_
     let (mut session, send_rx) = make_session();
     let sender_guid = ObjectGuid::create_player(1, 87);
     session.set_quest_store(Arc::new(store_with_quests(&[7009])));
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, 7009);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, 7009);
     let (_sender_session, sender_rx) =
         install_confirm_accept_sender_snapshot(&mut session, sender_guid, 7009, true, None);
 
     run_quest_confirm_accept(&mut session, 7009).await;
 
-    assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
+    assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
     assert_confirm_accept_outcome(
         &session,
         Some(ObjectGuid::create_player(1, 42)),
@@ -475,11 +446,8 @@ async fn quest_confirm_accept_same_group_sender_active_can_take_failed_records_r
     let sender_guid = ObjectGuid::create_player(1, 88);
     let quest_id = 7010;
     session.set_quest_store(Arc::new(store_with_quests(&[quest_id])));
-    session
-        .quest_test_fixture_like_cpp
-        .rewarded_quests
-        .insert(quest_id);
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    insert_rewarded_quest_for_test(&mut session, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -490,7 +458,7 @@ async fn quest_confirm_accept_same_group_sender_active_can_take_failed_records_r
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
+    assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
     assert_confirm_accept_outcome(
         &session,
         Some(ObjectGuid::create_player(1, 42)),
@@ -516,7 +484,7 @@ async fn quest_confirm_accept_can_take_ok_log_full_records_can_add_log_full_like
             QUEST_STATUS_COMPLETE_LIKE_CPP,
         );
     }
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -527,7 +495,7 @@ async fn quest_confirm_accept_can_take_ok_log_full_records_can_add_log_full_like
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
+    assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
     assert_confirm_accept_outcome(
         &session,
         Some(ObjectGuid::create_player(1, 42)),
@@ -548,7 +516,7 @@ async fn quest_confirm_accept_no_source_side_effects_adds_local_quest_state_like
     session.set_quest_store(Arc::new(store_with_sharable_timed_quest_objectives(
         quest_id, 3, 600,
     )));
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -559,11 +527,8 @@ async fn quest_confirm_accept_no_source_side_effects_adds_local_quest_state_like
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
-    let status = session
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get(&quest_id)
+    assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
+    let status = player_quest_status_for_test(&session, quest_id)
         .expect("receiver quest log should receive bounded local AddQuest state");
     assert_eq!(status.quest_id, quest_id);
     assert_eq!(status.status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
@@ -609,7 +574,7 @@ async fn quest_confirm_accept_first_free_slot_skips_occupied_slot_like_cpp() {
         0,
         QUEST_STATUS_INCOMPLETE_LIKE_CPP,
     );
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -620,16 +585,10 @@ async fn quest_confirm_accept_first_free_slot_skips_occupied_slot_like_cpp() {
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    let occupied_status = session
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get(&occupied_quest_id)
+    let occupied_status = player_quest_status_for_test(&session, occupied_quest_id)
         .expect("pre-existing quest should remain in slot 0");
     assert_eq!(occupied_status.slot, 0);
-    let status = session
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get(&quest_id)
+    let status = player_quest_status_for_test(&session, quest_id)
         .expect("accepted quest should be inserted into first free slot");
     assert_eq!(status.slot, 1);
     assert_eq!(status.status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
@@ -660,7 +619,7 @@ async fn quest_confirm_accept_tracking_event_auto_rewards_like_cpp() {
     let mut quest = quest_template(quest_id);
     quest.flags |= QUEST_FLAGS_SHARABLE_LIKE_CPP | QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP;
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -680,16 +639,10 @@ async fn quest_confirm_accept_tracking_event_auto_rewards_like_cpp() {
         RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp::ReceiverAddQuestLocalStateRepresented,
     );
     assert!(
-        !session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+        !contains_player_quest_status_for_test(&session, quest_id)
     );
     assert!(
-        session
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+        contains_rewarded_quest_for_test(&session, quest_id)
     );
     assert_complete_status_update_like_cpp(&session, quest_id, false);
     let slot_update = send_rx
@@ -720,26 +673,24 @@ async fn quest_confirm_accept_tracking_event_auto_rewards_like_cpp() {
 async fn quest_push_short_packet_does_not_clear_pending_state_like_cpp() {
     let (mut session, send_rx) = make_session();
     let sender_guid = ObjectGuid::create_player(1, 77);
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, 7001);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, 7001);
 
     session
         .handle_quest_push_result(WorldPacket::from_bytes(&[0x00]))
         .await;
 
     assert_eq!(
-        session.represented_pending_quest_sharing_like_cpp(),
-        Some(crate::session::RepresentedPendingQuestSharingLikeCpp {
+        represented_pending_quest_sharing_for_test(&session),
+        Some(RepresentedPendingQuestSharingLikeCpp {
             sender_guid,
             quest_id: 7001,
         })
     );
     assert!(
-        session
-            .represented_quest_push_result_responses_like_cpp()
-            .is_empty()
+        represented_quest_push_result_responses_for_test(&session).is_empty()
     );
     assert_eq!(
-        session.represented_quest_push_result_sender_mismatch_count_like_cpp(),
+        represented_quest_push_result_sender_mismatch_count_for_test(&session),
         0
     );
     assert!(send_rx.try_recv().is_err());
@@ -751,14 +702,12 @@ async fn quest_push_no_pending_valid_packet_is_noop_like_cpp() {
 
     run_quest_push_result(&mut session, sender_guid, 7002, 3).await;
 
-    assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
+    assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
     assert!(
-        session
-            .represented_quest_push_result_responses_like_cpp()
-            .is_empty()
+        represented_quest_push_result_responses_for_test(&session).is_empty()
     );
     assert_eq!(
-        session.represented_quest_push_result_sender_mismatch_count_like_cpp(),
+        represented_quest_push_result_sender_mismatch_count_for_test(&session),
         0
     );
     assert!(send_rx.try_recv().is_err());
@@ -768,13 +717,13 @@ async fn quest_push_pending_sender_match_clears_and_records_response_evidence_li
     let (mut session, send_rx) = make_session();
     let sender_guid = ObjectGuid::create_player(1, 79);
     let receiver_guid = session.player_guid().unwrap();
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, 7003);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, 7003);
 
     run_quest_push_result(&mut session, sender_guid, 8003, 6).await;
 
-    assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
+    assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
     assert_eq!(
-        session.represented_quest_push_result_responses_like_cpp(),
+        represented_quest_push_result_responses_for_test(&session).as_slice(),
         &[RepresentedQuestPushResultResponseLikeCpp {
             receiver_guid,
             sender_guid,
@@ -784,7 +733,7 @@ async fn quest_push_pending_sender_match_clears_and_records_response_evidence_li
         }]
     );
     assert_eq!(
-        session.represented_quest_push_result_sender_mismatch_count_like_cpp(),
+        represented_quest_push_result_sender_mismatch_count_for_test(&session),
         0
     );
     assert!(send_rx.try_recv().is_err());
@@ -794,18 +743,16 @@ async fn quest_push_pending_sender_mismatch_clears_without_response_evidence_lik
     let (mut session, send_rx) = make_session();
     let pending_sender_guid = ObjectGuid::create_player(1, 80);
     let packet_sender_guid = ObjectGuid::create_player(1, 81);
-    session.set_represented_pending_quest_sharing_like_cpp(pending_sender_guid, 7004);
+    set_represented_pending_quest_sharing_for_test(&mut session,pending_sender_guid, 7004);
 
     run_quest_push_result(&mut session, packet_sender_guid, 7004, 4).await;
 
-    assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
+    assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
     assert!(
-        session
-            .represented_quest_push_result_responses_like_cpp()
-            .is_empty()
+        represented_quest_push_result_responses_for_test(&session).is_empty()
     );
     assert_eq!(
-        session.represented_quest_push_result_sender_mismatch_count_like_cpp(),
+        represented_quest_push_result_sender_mismatch_count_for_test(&session),
         1
     );
     assert!(send_rx.try_recv().is_err());
@@ -835,13 +782,11 @@ async fn push_quest_to_party_malformed_packet_records_no_evidence_like_cpp() {
         .await;
 
     assert!(
-        session
-            .represented_push_quest_to_party_outcomes_like_cpp()
+        represented_push_quest_to_party_outcomes_for_test(&session)
             .is_empty()
     );
     assert!(
-        session
-            .represented_pending_quest_sharing_like_cpp()
+        represented_pending_quest_sharing_for_test(&session)
             .is_none()
     );
     assert!(send_rx.try_recv().is_err());
@@ -854,8 +799,7 @@ async fn push_quest_to_party_missing_quest_template_returns_silently_like_cpp() 
     run_push_quest_to_party(&mut session, 7103).await;
 
     assert!(
-        session
-            .represented_push_quest_to_party_outcomes_like_cpp()
+        represented_push_quest_to_party_outcomes_for_test(&session)
             .is_empty()
     );
     assert!(send_rx.try_recv().is_err());
@@ -869,7 +813,7 @@ async fn push_quest_to_party_unshareable_or_not_in_log_records_not_allowed_like_
     run_push_quest_to_party(&mut session, 7104).await;
 
     assert_eq!(
-        session.represented_push_quest_to_party_outcomes_like_cpp(),
+        represented_push_quest_to_party_outcomes_for_test(&session),
         &[RepresentedPushQuestToPartyOutcomeLikeCpp {
             sender_guid,
             quest_id: 7104,
@@ -900,7 +844,7 @@ async fn push_quest_to_party_shareable_sender_without_pool_store_still_blocks_be
     run_push_quest_to_party(&mut session, 7105).await;
 
     assert_eq!(
-        session.represented_push_quest_to_party_outcomes_like_cpp(),
+        represented_push_quest_to_party_outcomes_for_test(&session),
         &[RepresentedPushQuestToPartyOutcomeLikeCpp {
             sender_guid,
             quest_id: 7105,
@@ -913,8 +857,7 @@ async fn push_quest_to_party_shareable_sender_without_pool_store_still_blocks_be
         }]
     );
     assert!(
-        session
-            .represented_pending_quest_sharing_like_cpp()
+        represented_pending_quest_sharing_for_test(&session)
             .is_none()
     );
     assert!(send_rx.try_recv().is_err());

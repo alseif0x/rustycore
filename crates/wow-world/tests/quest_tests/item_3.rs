@@ -38,32 +38,36 @@ async fn quest_confirm_accept_source_item_bound_objective_dont_report_flag_sends
         0,
         ItemFlags3::DontReportLootLogToParty as u32,
     );
-    session.cache_item_template_addon_quest_log_item_id_like_cpp(source_item_id, quest_log_item_id);
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    cache_item_template_addon_quest_log_item_id_for_test(
+        &mut session,
+        source_item_id,
+        quest_log_item_id,
+    );
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     session.set_player_registry(Arc::clone(&player_registry));
-    session.set_loaded_player_name_like_cpp("Receiver".to_string());
-    session.register_in_player_registry();
+    set_loaded_player_name_like_cpp(&mut session, "Receiver".to_string());
+    register_in_player_registry_for_test(&session);
 
     let (mut sender_session, sender_rx) = make_session();
     sender_session.set_player_guid(Some(sender_guid));
-    sender_session.set_loaded_player_name_like_cpp("Sender".to_string());
+    set_loaded_player_name_like_cpp(&mut sender_session, "Sender".to_string());
     sender_session.set_player_registry(Arc::clone(&player_registry));
-    sender_session.register_in_player_registry();
-    assert!(sender_session.adopt_registered_canonical_player_fixture_like_cpp());
+    register_in_player_registry_for_test(&sender_session);
+    assert!(adopt_registered_canonical_player_fixture_like_cpp(&mut sender_session));
     add_active_quest_in_slot_with_status(
         &mut sender_session,
         quest_id,
         0,
         QUEST_STATUS_INCOMPLETE_LIKE_CPP,
     );
-    sender_session.sync_player_registry_state_like_cpp();
+    sync_player_registry_state_for_test(&sender_session);
 
     let (mut other_session, other_rx) = make_session();
     other_session.set_player_guid(Some(other_guid));
-    other_session.set_loaded_player_name_like_cpp("Other".to_string());
+    set_loaded_player_name_like_cpp(&mut other_session, "Other".to_string());
     other_session.set_player_registry(player_registry);
-    other_session.register_in_player_registry();
+    register_in_player_registry_for_test(&other_session);
 
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(sender_guid);
@@ -71,7 +75,7 @@ async fn quest_confirm_accept_source_item_bound_objective_dont_report_flag_sends
     group.add_member(other_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
@@ -140,7 +144,7 @@ async fn quest_confirm_accept_source_item_multiple_bound_objectives_stops_after_
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     install_source_item_template(&mut session, source_item_id, 20, 0);
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -151,22 +155,18 @@ async fn quest_confirm_accept_source_item_multiple_bound_objectives_stops_after_
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    let status = session
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get(&quest_id)
+    let status = player_quest_status_for_test(&session, quest_id)
         .expect("source-item quest should add local quest state");
     assert_eq!(status.objective_counts, vec![2, 0]);
-    let stored_source_item_count: u32 = session
-        .inventory_items_like_cpp()
+    let stored_source_item_count: u32 = inventory_items_for_test(&session)
         .values()
         .filter(|item| item.entry_id == source_item_id)
-        .filter_map(|item| session.inventory_item_objects_like_cpp().get(&item.guid))
+        .filter_map(|item| inventory_item_objects_for_test(&session).get(&item.guid))
         .map(|item| item.count())
         .sum();
     assert_eq!(stored_source_item_count, 0);
     assert_eq!(
-        session.represented_quest_confirm_accepts_like_cpp(),
+        represented_quest_confirm_accepts_for_test(&session),
         &[RepresentedQuestConfirmAcceptLikeCpp {
             receiver_guid: Some(receiver_guid),
             sender_guid_before_clear: sender_guid,
@@ -229,7 +229,7 @@ async fn quest_confirm_accept_source_item_sequenced_objective_waits_for_previous
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     install_source_item_template(&mut session, source_item_id, 20, 0);
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -240,17 +240,13 @@ async fn quest_confirm_accept_source_item_sequenced_objective_waits_for_previous
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    let status = session
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get(&quest_id)
+    let status = player_quest_status_for_test(&session, quest_id)
         .expect("source-item quest should add local quest state");
     assert_eq!(status.objective_counts, vec![0, 0]);
-    let stored_source_item_count: u32 = session
-        .inventory_items_like_cpp()
+    let stored_source_item_count: u32 = inventory_items_for_test(&session)
         .values()
         .filter(|item| item.entry_id == source_item_id)
-        .filter_map(|item| session.inventory_item_objects_like_cpp().get(&item.guid))
+        .filter_map(|item| inventory_item_objects_for_test(&session).get(&item.guid))
         .map(|item| item.count())
         .sum();
     assert_eq!(stored_source_item_count, 2);
@@ -300,7 +296,7 @@ async fn quest_confirm_accept_source_item_optional_previous_allows_sequenced_obj
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     install_source_item_template(&mut session, source_item_id, 20, 0);
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -311,10 +307,7 @@ async fn quest_confirm_accept_source_item_optional_previous_allows_sequenced_obj
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    let status = session
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get(&quest_id)
+    let status = player_quest_status_for_test(&session, quest_id)
         .expect("source-item quest should add local quest state");
     assert_eq!(status.objective_counts, vec![0, 2]);
     assert!(sender_rx.try_recv().is_err());
@@ -354,7 +347,7 @@ async fn quest_confirm_accept_source_item_progress_bar_part_objective_progresses
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     install_source_item_template(&mut session, source_item_id, 20, 0);
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -365,10 +358,7 @@ async fn quest_confirm_accept_source_item_progress_bar_part_objective_progresses
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    let status = session
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get(&quest_id)
+    let status = player_quest_status_for_test(&session, quest_id)
         .expect("source-item quest should add local quest state");
     assert_eq!(status.objective_counts, vec![2, 0]);
     assert!(sender_rx.try_recv().is_err());
@@ -399,7 +389,7 @@ async fn quest_confirm_accept_source_item_zero_count_normalizes_to_one_and_fails
             91_000 + u64::from(slot),
         );
     }
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -410,14 +400,11 @@ async fn quest_confirm_accept_source_item_zero_count_normalizes_to_one_and_fails
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
+    assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
     assert!(
-        !session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+        !contains_player_quest_status_for_test(&session, quest_id)
     );
-    let outcomes = session.represented_quest_confirm_accepts_like_cpp();
+    let outcomes = represented_quest_confirm_accepts_for_test(&session);
     assert_eq!(outcomes.len(), 1);
     let outcome = &outcomes[0];
     assert_eq!(outcome.receiver_guid, Some(receiver_guid));
@@ -456,7 +443,7 @@ async fn quest_confirm_accept_source_item_at_max_count_allows_can_add_gate_like_
     )));
     install_source_item_template(&mut session, source_item_id, 20, 1);
     insert_direct_inventory_item(&mut session, receiver_guid, 23, source_item_id, 1, 9002);
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -468,13 +455,10 @@ async fn quest_confirm_accept_source_item_at_max_count_allows_can_add_gate_like_
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
     assert!(
-        session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+        contains_player_quest_status_for_test(&session, quest_id)
     );
     assert_eq!(
-        session.represented_quest_confirm_accepts_like_cpp(),
+        represented_quest_confirm_accepts_for_test(&session),
         &[RepresentedQuestConfirmAcceptLikeCpp {
             receiver_guid: Some(receiver_guid),
             sender_guid_before_clear: sender_guid,
@@ -507,7 +491,7 @@ async fn quest_confirm_accept_missing_source_item_proto_fails_can_add_gate_like_
         1,
         0,
     )));
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -519,7 +503,7 @@ async fn quest_confirm_accept_missing_source_item_proto_fails_can_add_gate_like_
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
     assert_eq!(
-        session.represented_quest_confirm_accepts_like_cpp(),
+        represented_quest_confirm_accepts_for_test(&session),
         &[RepresentedQuestConfirmAcceptLikeCpp {
             receiver_guid: Some(receiver_guid),
             sender_guid_before_clear: sender_guid,
@@ -558,7 +542,7 @@ async fn quest_confirm_accept_source_item_limit_category_missing_db2_entry_fails
         0,
     )));
     install_source_item_template_with_limit_category(&mut session, source_item_id, 20, 0, 44);
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -569,15 +553,12 @@ async fn quest_confirm_accept_source_item_limit_category_missing_db2_entry_fails
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
+    assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
     assert!(
-        !session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+        !contains_player_quest_status_for_test(&session, quest_id)
     );
     assert_eq!(
-        session.represented_quest_confirm_accepts_like_cpp(),
+        represented_quest_confirm_accepts_for_test(&session),
         &[RepresentedQuestConfirmAcceptLikeCpp {
             receiver_guid: Some(receiver_guid),
             sender_guid_before_clear: sender_guid,
@@ -632,7 +613,7 @@ async fn quest_confirm_accept_source_item_start_quest_still_respects_limit_categ
         },
     ])));
     insert_direct_inventory_item(&mut session, receiver_guid, 23, source_item_id, 1, 9906);
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -643,15 +624,12 @@ async fn quest_confirm_accept_source_item_start_quest_still_respects_limit_categ
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
+    assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
     assert!(
-        !session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+        !contains_player_quest_status_for_test(&session, quest_id)
     );
     assert_eq!(
-        session.represented_quest_confirm_accepts_like_cpp(),
+        represented_quest_confirm_accepts_for_test(&session),
         &[RepresentedQuestConfirmAcceptLikeCpp {
             receiver_guid: Some(receiver_guid),
             sender_guid_before_clear: sender_guid,
@@ -686,7 +664,7 @@ async fn quest_confirm_accept_without_source_item_does_not_overclaim_source_gate
     let sender_guid = ObjectGuid::create_player(1, 94);
     let quest_id = 7016;
     session.set_quest_store(Arc::new(store_with_source_item_quest(quest_id, 0, 0, 0)));
-    session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -706,16 +684,10 @@ async fn quest_confirm_accept_without_source_item_does_not_overclaim_source_gate
         RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp::ReceiverAddQuestLocalStateRepresented,
     );
     assert!(
-        session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+        contains_player_quest_status_for_test(&session, quest_id)
     );
     assert_eq!(
-        session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .get(&quest_id)
+        player_quest_status_for_test(&session, quest_id)
             .expect("no-objective shared quest should be locally tracked")
             .status,
         QUEST_STATUS_COMPLETE_LIKE_CPP
@@ -771,7 +743,7 @@ async fn push_quest_to_party_repeatable_turn_in_success_prompts_request_items_wi
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.sync_player_registry_state_like_cpp();
+    sync_player_registry_state_for_test(&receiver_session);
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -784,7 +756,7 @@ async fn push_quest_to_party_repeatable_turn_in_success_prompts_request_items_wi
         )
     );
     assert!(receiver_rx.try_recv().is_err());
-    let commands = receiver_session.drain_session_commands();
+    let commands = drain_session_commands_for_test(&receiver_session);
     assert_eq!(commands.len(), 1);
     match &commands[0] {
         SessionCommand::SendRepeatableTurnInRequestItemsLikeCpp(command) => {
@@ -797,12 +769,10 @@ async fn push_quest_to_party_repeatable_turn_in_success_prompts_request_items_wi
         .session_command_tx()
         .try_send(commands.into_iter().next().expect("command"))
         .expect("requeue command for processing");
-    receiver_session
-        .process_represented_session_commands_like_cpp()
-        .await;
+    process_represented_session_commands_like_cpp(&mut receiver_session).await;
 
     assert_eq!(
-        receiver_session.represented_pending_quest_sharing_like_cpp(),
+        represented_pending_quest_sharing_for_test(&receiver_session),
         None
     );
     let (collect, auto_launched) =
@@ -810,10 +780,12 @@ async fn push_quest_to_party_repeatable_turn_in_success_prompts_request_items_wi
     assert_eq!(collect, vec![(49211, 3, 0xA5)]);
     assert!(auto_launched);
     assert!(
-        !receiver_session
-            .can_complete_repeatable_quest_represented_bounded_like_cpp(&quest_for_assertion)
+        !can_complete_repeatable_quest_represented_bounded_for_test(
+            &receiver_session,
+            &quest_for_assertion,
+        )
     );
-    assert!(session.represented_push_quest_to_party_outcomes_like_cpp().iter().any(
+    assert!(represented_push_quest_to_party_outcomes_for_test(&session).iter().any(
         |outcome| outcome.target_guid == Some(receiver_guid)
             && matches!(
                 outcome.reason,
@@ -822,8 +794,7 @@ async fn push_quest_to_party_repeatable_turn_in_success_prompts_request_items_wi
             && !outcome.receiver_fanout_unrepresented
     ));
     assert!(
-        !session
-            .represented_push_quest_to_party_outcomes_like_cpp()
+        !represented_push_quest_to_party_outcomes_for_test(&session)
             .iter()
             .any(|outcome| outcome.target_guid == Some(receiver_guid)
                 && matches!(
@@ -879,11 +850,11 @@ async fn quest_giver_status_multiple_skips_missing_player_item_and_non_questgive
     ] {
         mark_visible(&mut session, guid);
     }
-    let mut state = crate::session::RepresentedGameObjectUseState::default();
-    state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8);
-    session
-        .represented_gameobject_use_states
-        .insert(non_questgiver_go, state);
+    set_represented_gameobject_use_type_for_test(
+        &mut session,
+        non_questgiver_go,
+        wow_entities::GAMEOBJECT_TYPE_CHEST as u8,
+    );
 
     session.handle_quest_giver_status_multiple_query().await;
 

@@ -22,27 +22,19 @@ async fn quest_source_item_addon_port_preserves_lookup_and_zero_cache_like_cpp()
     session.set_item_template_addon_catalog_persistence_port_like_cpp(port.clone());
 
     assert_eq!(
-        session
-            .quest_source_item_quest_log_item_id_like_cpp(1001)
-            .await,
+        quest_source_item_quest_log_item_id_for_test(&mut session, 1001).await,
         9101
     );
     assert_eq!(
-        session
-            .quest_source_item_quest_log_item_id_like_cpp(1001)
-            .await,
+        quest_source_item_quest_log_item_id_for_test(&mut session, 1001).await,
         9101
     );
     assert_eq!(
-        session
-            .quest_source_item_quest_log_item_id_like_cpp(1002)
-            .await,
+        quest_source_item_quest_log_item_id_for_test(&mut session, 1002).await,
         0
     );
     assert_eq!(
-        session
-            .quest_source_item_quest_log_item_id_like_cpp(1002)
-            .await,
+        quest_source_item_quest_log_item_id_for_test(&mut session, 1002).await,
         0
     );
     assert_eq!(
@@ -79,15 +71,14 @@ fn aggregate_item_removal_plan_persists_all_objectives_in_one_status() {
         .collect();
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     add_active_quest_in_slot_with_status(&mut session, quest_id, 0, QUEST_STATUS_COMPLETE_LIKE_CPP);
-    session
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get_mut(&quest_id)
-        .expect("active quest")
-        .objective_counts = vec![1, 1];
+    with_player_quest_status_mut_for_test(&mut session, quest_id, |status| {
+        status.objective_counts = vec![1, 1];
+    })
+    .expect("active quest");
 
     let removed_entries = [first_item_id as u32, second_item_id as u32];
-    let planned = session.plan_item_transfer_quest_persistence_like_cpp(
+    let planned = plan_item_transfer_quest_persistence_for_test(
+        &session,
         &removed_entries,
         &[(first_item_id as u32, 0), (second_item_id as u32, 0)],
         &[],
@@ -119,14 +110,13 @@ fn mixed_item_transfer_quest_plan_applies_withdrawal_after_deposit() {
     }];
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     add_active_quest_in_slot_with_status(&mut session, quest_id, 0, QUEST_STATUS_COMPLETE_LIKE_CPP);
-    session
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get_mut(&quest_id)
-        .expect("active quest")
-        .objective_counts = vec![1];
+    with_player_quest_status_mut_for_test(&mut session, quest_id, |status| {
+        status.objective_counts = vec![1];
+    })
+    .expect("active quest");
 
-    let planned = session.plan_item_transfer_quest_persistence_like_cpp(
+    let planned = plan_item_transfer_quest_persistence_for_test(
+        &session,
         &[item_id as u32],
         &[(item_id as u32, 0)],
         &[(item_id as u32, 0, 1)],
@@ -157,17 +147,15 @@ fn quest_bound_withdrawal_plan_consumes_credit_without_physical_item() {
     }];
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     add_active_quest_in_slot(&mut session, quest_id, 0);
-    let mut plan = session.begin_item_transfer_quest_persistence_like_cpp(&[], &[]);
-
-    assert!(
-        session.plan_item_transfer_withdrawal_quest_persistence_like_cpp(
-            &mut plan,
-            item_id as u32,
-            0,
-            1,
-        )
+    let (credited, planned) = plan_item_transfer_withdrawal_for_test(
+        &session,
+        &[],
+        &[],
+        item_id as u32,
+        0,
+        1,
     );
-    let planned = session.finish_item_transfer_quest_persistence_like_cpp(plan);
+    assert!(credited);
     assert_eq!(planned.len(), 1);
     assert_eq!(planned[0].status, QUEST_STATUS_COMPLETE_LIKE_CPP);
     assert_eq!(planned[0].objective_counts, vec![1]);
@@ -201,22 +189,30 @@ async fn bank_withdrawal_credits_only_first_matching_bound_item_objective_like_c
     add_active_quest_in_slot(&mut session, 7_401, 0);
     add_active_quest_in_slot(&mut session, 7_402, 1);
 
-    let planned = session.plan_bank_item_quest_persistence_like_cpp(item_id as u32, 0, false, 1, 1);
+    let planned = plan_bank_item_quest_persistence_for_test(
+        &session,
+        item_id as u32,
+        0,
+        false,
+        1,
+        1,
+    );
     assert_eq!(planned.len(), 1);
     assert_eq!(planned[0].objective_counts, vec![1]);
     let planned_quest_id = planned[0].quest_id;
 
-    let changed = session
-        .apply_quest_item_added_objective_progress_like_cpp(item_id as u32, 0, 1)
-        .await;
+    let changed = apply_quest_item_added_objective_progress_for_test(
+        &mut session,
+        item_id as u32,
+        0,
+        1,
+    )
+    .await;
     assert_eq!(changed, vec![planned_quest_id]);
     assert_eq!(
-        session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .values()
-            .flat_map(|status| status.objective_counts.iter())
-            .copied()
+        player_quest_statuses_for_test(&session)
+            .into_iter()
+            .flat_map(|status| status.objective_counts)
             .sum::<i32>(),
         1,
         "C++ UpdateQuestObjectiveProgress breaks after the first credited quest-bound item objective"
@@ -275,26 +271,33 @@ async fn bound_item_durable_plan_and_apply_use_the_same_quest_log_order_like_cpp
     add_active_quest_in_slot(&mut session, late_slot_quest_id, 9);
     add_active_quest_in_slot(&mut session, early_slot_quest_id, 2);
 
-    let planned = session
-        .plan_quest_source_item_bound_objective_persistence_like_cpp(item_id as u32, 0, 1)
+    let planned_statuses = plan_quest_source_item_bound_objective_statuses_for_test(
+        &session,
+        item_id as u32,
+        0,
+        1,
+    )
         .expect("one bound objective should be planned");
-    assert_eq!(planned.statuses.len(), 1);
-    assert_eq!(planned.statuses[0].quest_id, early_slot_quest_id);
+    assert_eq!(planned_statuses.len(), 1);
+    assert_eq!(planned_statuses[0].quest_id, early_slot_quest_id);
 
-    let applied = session
-        .apply_quest_source_item_bound_objective_progress_for_object_like_cpp(
-            quest_store.as_ref(),
-            item_id,
-            1,
-        )
-        .await;
+    let applied = apply_quest_source_item_bound_objective_progress_for_object_for_test(
+        &mut session,
+        quest_store.as_ref(),
+        item_id,
+        1,
+    )
+    .await;
     assert_eq!(applied, vec![(early_slot_quest_id, 1)]);
     assert_eq!(
-        session.quest_test_fixture_like_cpp.player_quests[&early_slot_quest_id].objective_counts,
+        player_quest_status_for_test(&session, early_slot_quest_id)
+            .expect("early-slot quest status should exist")
+            .objective_counts,
         vec![1]
     );
     assert!(
-        session.quest_test_fixture_like_cpp.player_quests[&late_slot_quest_id]
+        player_quest_status_for_test(&session, late_slot_quest_id)
+            .expect("late-slot quest status should exist")
             .objective_counts
             .is_empty()
     );
@@ -321,13 +324,19 @@ async fn bank_withdrawal_item_objective_never_sends_generic_credit_like_cpp() {
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     add_active_quest(&mut session, quest_id);
 
-    let changed = session
-        .apply_quest_item_added_objective_progress_like_cpp(item_id as u32, 0, 1)
-        .await;
+    let changed = apply_quest_item_added_objective_progress_for_test(
+        &mut session,
+        item_id as u32,
+        0,
+        1,
+    )
+    .await;
 
     assert_eq!(changed, vec![quest_id]);
     assert_eq!(
-        session.quest_test_fixture_like_cpp.player_quests[&quest_id].objective_counts,
+        player_quest_status_for_test(&session, quest_id)
+            .expect("quest status should exist")
+            .objective_counts,
         vec![1]
     );
     assert!(
@@ -351,12 +360,8 @@ fn quest_giver_choose_reward_choice_parser_reads_cpp_wire_item_choice() {
     assert_eq!(pkt.read_packed_guid().unwrap(), guid);
     assert_eq!(pkt.read_uint32().unwrap(), 7001);
     assert_eq!(
-        WorldSession::read_quest_choice_item_like_cpp(&mut pkt).unwrap(),
-        QuestChoiceItemLikeCpp {
-            loot_item_type: QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
-            item_id: 19019,
-            quantity: 3,
-        }
+        read_quest_choice_item_for_test(&mut pkt).unwrap(),
+        (QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP, 19019, 3)
     );
     assert!(pkt.is_empty());
 }
@@ -367,15 +372,11 @@ fn quest_giver_choose_reward_choice_parser_skips_cpp_item_mods_and_bonus() {
     write_cpp_item_instance_like_cpp(&mut pkt, 392, 11, 22, &[(7, 1), (8, 2)], Some(&[91, 92]));
     pkt.write_int32(5);
 
-    let choice = WorldSession::read_quest_choice_item_like_cpp(&mut pkt).unwrap();
+    let choice = read_quest_choice_item_for_test(&mut pkt).unwrap();
 
     assert_eq!(
         choice,
-        QuestChoiceItemLikeCpp {
-            loot_item_type: QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP,
-            item_id: 392,
-            quantity: 5,
-        }
+        (QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP, 392, 5)
     );
     assert!(pkt.is_empty());
 }
@@ -390,9 +391,9 @@ async fn quest_giver_choose_reward_rejects_missing_reward_item_template_like_cpp
     quest.reward_money_difficulty = 37;
     quest.reward_choice_items[0] = (reward_item_id, 1);
     quest.reward_choice_item_types[0] = QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP;
-    session.set_player_gold_like_cpp(5);
+    set_player_gold_for_test(&mut session, 5);
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
+    insert_player_quest_status_for_test(&mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -415,20 +416,14 @@ async fn quest_giver_choose_reward_rejects_missing_reward_item_template_like_cpp
         .await;
 
     assert_eq!(
-        session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .get(&quest_id)
+        player_quest_status_for_test(&session, quest_id)
             .map(|status| status.status),
         Some(QUEST_STATUS_COMPLETE_LIKE_CPP)
     );
     assert!(
-        !session
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+        !contains_rewarded_quest_for_test(&session, quest_id)
     );
-    assert_eq!(session.player_gold_like_cpp(), 5);
+    assert_eq!(player_gold_for_test(&session), 5);
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]
@@ -453,11 +448,11 @@ async fn quest_giver_choose_reward_removes_item_objective_before_rewards_like_cp
         progress_bar_weight: 0.0,
         description: String::new(),
     });
-    session.set_player_gold_like_cpp(5);
+    set_player_gold_for_test(&mut session, 5);
     install_source_item_template(&mut session, required_item_id, 20, 0);
     insert_direct_inventory_item(&mut session, player_guid, 23, required_item_id, 5, 9911);
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
+    insert_player_quest_status_for_test(&mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -480,26 +475,18 @@ async fn quest_giver_choose_reward_removes_item_objective_before_rewards_like_cp
         .await;
 
     assert!(
-        !session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+        !contains_player_quest_status_for_test(&session, quest_id)
     );
     assert!(
-        session
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+        contains_rewarded_quest_for_test(&session, quest_id)
     );
-    assert_eq!(session.player_gold_like_cpp(), 42);
-    let item = session
-        .inventory_items_like_cpp()
+    assert_eq!(player_gold_for_test(&session), 42);
+    let item = inventory_items_for_test(&session)
         .values()
         .find(|item| item.entry_id == required_item_id)
         .expect("partial objective item stack should remain");
     assert_eq!(
-        session
-            .inventory_item_objects_like_cpp()
+        inventory_item_objects_for_test(&session)
             .get(&item.guid)
             .map(|item| item.count()),
         Some(3)
@@ -517,7 +504,7 @@ async fn quest_giver_choose_reward_direct_choice_inventory_failure_sends_quest_f
     quest.reward_money_difficulty = 37;
     quest.reward_choice_items[0] = (reward_item_id, 1);
     quest.reward_choice_item_types[0] = QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP;
-    session.set_player_gold_like_cpp(5);
+    set_player_gold_for_test(&mut session, 5);
     install_source_item_template_with_limit_category(
         &mut session,
         reward_item_id,
@@ -528,7 +515,7 @@ async fn quest_giver_choose_reward_direct_choice_inventory_failure_sends_quest_f
     install_have_limit_category_like_cpp(&mut session, limit_category, 1);
     insert_direct_inventory_item(&mut session, player_guid, 23, reward_item_id, 1, 9907);
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
+    insert_player_quest_status_for_test(&mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -551,20 +538,14 @@ async fn quest_giver_choose_reward_direct_choice_inventory_failure_sends_quest_f
         .await;
 
     assert_eq!(
-        session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .get(&quest_id)
+        player_quest_status_for_test(&session, quest_id)
             .map(|status| status.status),
         Some(QUEST_STATUS_COMPLETE_LIKE_CPP)
     );
     assert!(
-        !session
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+        !contains_rewarded_quest_for_test(&session, quest_id)
     );
-    assert_eq!(session.player_gold_like_cpp(), 5);
+    assert_eq!(player_gold_for_test(&session), 5);
     assert_eq!(
         send_rx.try_recv().unwrap(),
         QuestGiverQuestFailed {
@@ -587,7 +568,7 @@ async fn quest_giver_choose_reward_fixed_reward_inventory_failure_sends_quest_fa
     quest.reward_money_difficulty = 37;
     quest.reward_items[0] = reward_item_id;
     quest.reward_amounts[0] = 1;
-    session.set_player_gold_like_cpp(5);
+    set_player_gold_for_test(&mut session, 5);
     install_source_item_template_with_limit_category(
         &mut session,
         reward_item_id,
@@ -598,7 +579,7 @@ async fn quest_giver_choose_reward_fixed_reward_inventory_failure_sends_quest_fa
     install_have_limit_category_like_cpp(&mut session, limit_category, 1);
     insert_direct_inventory_item(&mut session, player_guid, 23, reward_item_id, 1, 9908);
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
+    insert_player_quest_status_for_test(&mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -621,20 +602,14 @@ async fn quest_giver_choose_reward_fixed_reward_inventory_failure_sends_quest_fa
         .await;
 
     assert_eq!(
-        session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .get(&quest_id)
+        player_quest_status_for_test(&session, quest_id)
             .map(|status| status.status),
         Some(QUEST_STATUS_COMPLETE_LIKE_CPP)
     );
     assert!(
-        !session
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+        !contains_rewarded_quest_for_test(&session, quest_id)
     );
-    assert_eq!(session.player_gold_like_cpp(), 5);
+    assert_eq!(player_gold_for_test(&session), 5);
     assert_eq!(
         send_rx.try_recv().unwrap(),
         QuestGiverQuestFailed {
@@ -656,10 +631,10 @@ async fn quest_giver_choose_reward_fixed_reward_stores_and_pushes_item_like_cpp(
     quest.reward_money_difficulty = 37;
     quest.reward_items[0] = reward_item_id;
     quest.reward_amounts[0] = 2;
-    session.set_player_gold_like_cpp(5);
+    set_player_gold_for_test(&mut session, 5);
     install_source_item_template(&mut session, reward_item_id, 20, 0);
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
+    insert_player_quest_status_for_test(&mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -682,26 +657,18 @@ async fn quest_giver_choose_reward_fixed_reward_stores_and_pushes_item_like_cpp(
         .await;
 
     assert!(
-        !session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+        !contains_player_quest_status_for_test(&session, quest_id)
     );
     assert!(
-        session
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+        contains_rewarded_quest_for_test(&session, quest_id)
     );
-    assert_eq!(session.player_gold_like_cpp(), 42);
-    let reward_item = session
-        .inventory_items_like_cpp()
+    assert_eq!(player_gold_for_test(&session), 42);
+    let reward_item = inventory_items_for_test(&session)
         .values()
         .find(|item| item.entry_id == reward_item_id)
         .expect("fixed reward item should be in direct inventory");
     assert_eq!(
-        session
-            .inventory_item_objects_like_cpp()
+        inventory_item_objects_for_test(&session)
             .get(&reward_item.guid)
             .map(|item| item.count()),
         Some(2)
@@ -756,10 +723,10 @@ async fn quest_reward_item_definite_and_unknown_commit_fail_closed_before_public
         quest.reward_money_difficulty = 37;
         quest.reward_items[0] = reward_item_id;
         quest.reward_amounts[0] = 2;
-        session.set_player_gold_like_cpp(5);
+        set_player_gold_for_test(&mut session, 5);
         install_source_item_template(&mut session, reward_item_id, 20, 0);
         session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-        session.quest_test_fixture_like_cpp.player_quests.insert(
+        insert_player_quest_status_for_test(&mut session,
             quest_id,
             PlayerQuestStatus {
                 quest_id,
@@ -774,12 +741,10 @@ async fn quest_reward_item_definite_and_unknown_commit_fail_closed_before_public
         // The reward no longer commits each grant: it accumulates them and
         // closes with one character transaction, so the outcome under test is
         // that transaction's, not an individual inventory write's.
-        let fixture =
-            crate::player::quest_persistence_test_fixture::PlayerQuestRewardPersistencePortFixtureLikeCpp::with_outcome(
-                outcome,
-            );
-        let requests = Arc::clone(&fixture.requests);
-        session.set_player_quest_reward_persistence_port_like_cpp(Arc::new(fixture));
+        let fixture = Arc::new(player_quest_reward_persistence_fixture_with_outcome_for_test(
+            outcome,
+        ));
+        session.set_player_quest_reward_persistence_port_like_cpp(fixture.clone());
 
         session
             .handle_quest_giver_choose_reward(quest_giver_choose_reward_packet_like_cpp(
@@ -791,30 +756,24 @@ async fn quest_reward_item_definite_and_unknown_commit_fail_closed_before_public
             .await;
 
         assert_eq!(
-            session
-                .quest_test_fixture_like_cpp
-                .player_quests
-                .get(&quest_id)
+            player_quest_status_for_test(&session, quest_id)
                 .map(|status| status.status),
             Some(QUEST_STATUS_COMPLETE_LIKE_CPP)
         );
         assert!(
-            !session
-                .quest_test_fixture_like_cpp
-                .rewarded_quests
-                .contains(&quest_id)
+            !contains_rewarded_quest_for_test(&session, quest_id)
         );
-        assert_eq!(session.player_gold_like_cpp(), 5);
+        assert_eq!(player_gold_for_test(&session), 5);
         // The operation mutated the in-memory inventory while it planned, as
         // C++ `StoreNewItem` does before its save. Nothing durable changed, so
         // the session is quarantined instead of being left showing an item the
         // database does not have.
         assert_eq!(
             session.state(),
-            crate::session::SessionState::Disconnecting,
+            wow_world::session::SessionState::Disconnecting,
             "a reward that did not commit must quarantine the session"
         );
-        let requests = requests.lock().unwrap();
+        let requests = player_quest_reward_requests_for_test(&fixture);
         assert_eq!(
             requests.len(),
             1,
@@ -840,10 +799,10 @@ async fn quest_giver_choose_reward_chosen_item_stores_and_pushes_item_like_cpp()
     quest.reward_money_difficulty = 37;
     quest.reward_choice_items[0] = (reward_item_id, 3);
     quest.reward_choice_item_types[0] = QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP;
-    session.set_player_gold_like_cpp(5);
+    set_player_gold_for_test(&mut session, 5);
     install_source_item_template(&mut session, reward_item_id, 20, 0);
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
+    insert_player_quest_status_for_test(&mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -866,26 +825,18 @@ async fn quest_giver_choose_reward_chosen_item_stores_and_pushes_item_like_cpp()
         .await;
 
     assert!(
-        !session
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+        !contains_player_quest_status_for_test(&session, quest_id)
     );
     assert!(
-        session
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+        contains_rewarded_quest_for_test(&session, quest_id)
     );
-    assert_eq!(session.player_gold_like_cpp(), 42);
-    let reward_item = session
-        .inventory_items_like_cpp()
+    assert_eq!(player_gold_for_test(&session), 42);
+    let reward_item = inventory_items_for_test(&session)
         .values()
         .find(|item| item.entry_id == reward_item_id)
         .expect("chosen reward item should be in direct inventory");
     assert_eq!(
-        session
-            .inventory_item_objects_like_cpp()
+        inventory_item_objects_for_test(&session)
             .get(&reward_item.guid)
             .map(|item| item.count()),
         Some(3)

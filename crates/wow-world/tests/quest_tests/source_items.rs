@@ -1,7 +1,10 @@
 //! Item and inventory fixtures shared by quest source-item scenarios.
 
-use super::quest_template;
-use crate::session::{InventoryItem, WorldSession};
+use super::{
+    insert_inventory_item_for_test, insert_inventory_item_object_for_test,
+    make_inventory_item_object_for_test, quest_template,
+};
+use wow_world::session::{InventoryItem, WorldSession};
 use std::sync::Arc;
 use wow_constants::{InventoryType, ItemBondingType, ItemClass, ItemContext};
 use wow_core::ObjectGuid;
@@ -199,7 +202,8 @@ pub(crate) fn insert_direct_inventory_item(
     db_guid: u64,
 ) {
     let item_guid = ObjectGuid::create_item(1, db_guid as i64);
-    session.insert_inventory_item_like_cpp(
+    insert_inventory_item_for_test(
+        session,
         slot,
         InventoryItem {
             guid: item_guid,
@@ -208,7 +212,8 @@ pub(crate) fn insert_direct_inventory_item(
             inventory_type: None,
         },
     );
-    let item = session.make_inventory_item_object(
+    let item = make_inventory_item_object_for_test(
+        session,
         item_guid,
         entry,
         player_guid,
@@ -217,7 +222,7 @@ pub(crate) fn insert_direct_inventory_item(
         ItemContext::None,
         slot,
     );
-    session.insert_inventory_item_object(item);
+    insert_inventory_item_object_for_test(session, item);
 }
 
 pub(crate) fn install_have_limit_category_like_cpp(

@@ -15,12 +15,12 @@ async fn push_quest_to_party_inactive_pooled_quest_records_not_daily_before_grou
     session.set_quest_store(Arc::new(quest_store));
     session.set_quest_pool_store(Arc::new(quest_pool_store));
     add_active_quest(&mut session, 7106);
-    session.group_guid = Some(99);
+    set_group_guid_for_test_like_cpp(&mut session, Some(99));
 
     run_push_quest_to_party(&mut session, 7106).await;
 
     assert_eq!(
-        session.represented_push_quest_to_party_outcomes_like_cpp(),
+        represented_push_quest_to_party_outcomes_for_test(&session),
         &[RepresentedPushQuestToPartyOutcomeLikeCpp {
             sender_guid,
             quest_id: 7106,
@@ -54,7 +54,7 @@ async fn push_quest_to_party_active_pooled_quest_passes_pool_check_to_not_in_par
     run_push_quest_to_party(&mut session, 7108).await;
 
     assert_eq!(
-        session.represented_push_quest_to_party_outcomes_like_cpp(),
+        represented_push_quest_to_party_outcomes_for_test(&session),
         &[RepresentedPushQuestToPartyOutcomeLikeCpp {
             sender_guid,
             quest_id: 7108,
@@ -83,12 +83,12 @@ async fn push_quest_to_party_non_pooled_quest_passes_pool_check_to_group_boundar
     session.set_quest_store(Arc::new(quest_store));
     session.set_quest_pool_store(Arc::new(quest_pool_store));
     add_active_quest(&mut session, 7110);
-    session.group_guid = Some(99);
+    set_group_guid_for_test_like_cpp(&mut session, Some(99));
 
     run_push_quest_to_party(&mut session, 7110).await;
 
     assert_eq!(
-        session.represented_push_quest_to_party_outcomes_like_cpp(),
+        represented_push_quest_to_party_outcomes_for_test(&session),
         &[RepresentedPushQuestToPartyOutcomeLikeCpp {
             sender_guid,
             quest_id: 7110,
@@ -114,7 +114,7 @@ async fn push_quest_to_party_grouped_receiver_on_quest_emits_on_quest_pair_like_
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
     add_active_quest(&mut receiver_session, 7111);
-    receiver_session.sync_player_registry_state_like_cpp();
+    sync_player_registry_state_for_test(&receiver_session);
 
     run_push_quest_to_party(&mut session, 7111).await;
 
@@ -135,8 +135,7 @@ async fn push_quest_to_party_grouped_receiver_on_quest_emits_on_quest_pair_like_
         )
     );
     assert!(
-        !session
-            .represented_push_quest_to_party_outcomes_like_cpp()
+        !represented_push_quest_to_party_outcomes_for_test(&session)
             .iter()
             .any(|outcome| matches!(
                 outcome.reason,
@@ -157,7 +156,7 @@ async fn push_quest_to_party_grouped_receiver_rewarded_emits_already_done_pair_l
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
     add_rewarded_quest(&mut receiver_session, 7112);
-    receiver_session.sync_player_registry_state_like_cpp();
+    sync_player_registry_state_for_test(&receiver_session);
 
     run_push_quest_to_party(&mut session, 7112).await;
 
@@ -194,7 +193,7 @@ async fn push_quest_to_party_grouped_receiver_log_full_emits_log_full_pair_like_
     for slot in 0..MAX_QUEST_LOG_SIZE_LIKE_CPP {
         add_active_quest_in_slot(&mut receiver_session, 8000 + u32::from(slot), slot);
     }
-    receiver_session.sync_player_registry_state_like_cpp();
+    sync_player_registry_state_for_test(&receiver_session);
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -215,8 +214,7 @@ async fn push_quest_to_party_grouped_receiver_log_full_emits_log_full_pair_like_
         )
     );
     assert!(
-        !session
-            .represented_push_quest_to_party_outcomes_like_cpp()
+        !represented_push_quest_to_party_outcomes_for_test(&session)
             .iter()
             .any(|outcome| matches!(
                 outcome.reason,
@@ -224,8 +222,7 @@ async fn push_quest_to_party_grouped_receiver_log_full_emits_log_full_pair_like_
             ))
     );
     assert!(
-        session
-            .represented_push_quest_to_party_outcomes_like_cpp()
+        represented_push_quest_to_party_outcomes_for_test(&session)
             .iter()
             .any(|outcome| matches!(
                 outcome.reason,
@@ -246,8 +243,8 @@ async fn push_quest_to_party_grouped_receiver_daily_completed_emits_already_done
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.set_represented_daily_quest_completed_like_cpp_for_test(shared_quest_id, true);
-    receiver_session.sync_player_registry_state_like_cpp();
+    set_represented_daily_quest_completed_for_test(&mut receiver_session, shared_quest_id, true);
+    sync_player_registry_state_for_test(&receiver_session);
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -268,8 +265,7 @@ async fn push_quest_to_party_grouped_receiver_daily_completed_emits_already_done
         )
     );
     assert!(
-        session
-            .represented_push_quest_to_party_outcomes_like_cpp()
+        represented_push_quest_to_party_outcomes_for_test(&session)
             .iter()
             .any(|outcome| matches!(
                 outcome.reason,
@@ -290,8 +286,8 @@ async fn push_quest_to_party_grouped_receiver_df_completed_emits_already_done_pa
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.set_represented_df_quest_like_cpp_for_test(shared_quest_id, true);
-    receiver_session.sync_player_registry_state_like_cpp();
+    set_represented_df_quest_for_test(&mut receiver_session, shared_quest_id, true);
+    sync_player_registry_state_for_test(&receiver_session);
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -312,8 +308,7 @@ async fn push_quest_to_party_grouped_receiver_df_completed_emits_already_done_pa
         )
     );
     assert!(
-        session
-            .represented_push_quest_to_party_outcomes_like_cpp()
+        represented_push_quest_to_party_outcomes_for_test(&session)
             .iter()
             .any(|outcome| matches!(
                 outcome.reason,
@@ -334,8 +329,8 @@ async fn push_quest_to_party_non_daily_non_df_ignores_unrelated_daily_snapshot_l
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.set_represented_daily_quest_completed_like_cpp_for_test(9001, true);
-    receiver_session.sync_player_registry_state_like_cpp();
+    set_represented_daily_quest_completed_for_test(&mut receiver_session, 9001, true);
+    sync_player_registry_state_for_test(&receiver_session);
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -348,8 +343,7 @@ async fn push_quest_to_party_non_daily_non_df_ignores_unrelated_daily_snapshot_l
         shared_quest_id,
     );
     assert!(
-        session
-            .represented_push_quest_to_party_outcomes_like_cpp()
+        represented_push_quest_to_party_outcomes_for_test(&session)
             .iter()
             .any(|outcome| matches!(
             outcome.reason,
@@ -357,8 +351,7 @@ async fn push_quest_to_party_non_daily_non_df_ignores_unrelated_daily_snapshot_l
         ))
     );
     assert!(
-        !session
-            .represented_push_quest_to_party_outcomes_like_cpp()
+        !represented_push_quest_to_party_outcomes_for_test(&session)
             .iter()
             .any(|outcome| matches!(
                 outcome.reason,
@@ -379,8 +372,8 @@ async fn push_quest_to_party_grouped_receiver_low_level_emits_low_level_pair_lik
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.set_player_level_like_cpp(4);
-    receiver_session.sync_player_registry_state_like_cpp();
+    set_player_level_for_test(&mut receiver_session, 4);
+    sync_player_registry_state_for_test(&receiver_session);
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -401,8 +394,7 @@ async fn push_quest_to_party_grouped_receiver_low_level_emits_low_level_pair_lik
         )
     );
     assert!(
-        session
-            .represented_push_quest_to_party_outcomes_like_cpp()
+        represented_push_quest_to_party_outcomes_for_test(&session)
             .iter()
             .any(|outcome| matches!(
                 outcome.reason,
@@ -410,8 +402,7 @@ async fn push_quest_to_party_grouped_receiver_low_level_emits_low_level_pair_lik
             ))
     );
     assert!(
-        !session
-            .represented_push_quest_to_party_outcomes_like_cpp()
+        !represented_push_quest_to_party_outcomes_for_test(&session)
             .iter()
             .any(|outcome| matches!(
                 outcome.reason,
@@ -432,8 +423,8 @@ async fn push_quest_to_party_grouped_receiver_high_level_emits_high_level_pair_l
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.set_player_level_like_cpp(80);
-    receiver_session.sync_player_registry_state_like_cpp();
+    set_player_level_for_test(&mut receiver_session, 80);
+    sync_player_registry_state_for_test(&receiver_session);
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -454,8 +445,7 @@ async fn push_quest_to_party_grouped_receiver_high_level_emits_high_level_pair_l
         )
     );
     assert!(
-        session
-            .represented_push_quest_to_party_outcomes_like_cpp()
+        represented_push_quest_to_party_outcomes_for_test(&session)
             .iter()
             .any(|outcome| matches!(
                 outcome.reason,
@@ -463,8 +453,7 @@ async fn push_quest_to_party_grouped_receiver_high_level_emits_high_level_pair_l
             ))
     );
     assert!(
-        !session
-            .represented_push_quest_to_party_outcomes_like_cpp()
+        !represented_push_quest_to_party_outcomes_for_test(&session)
             .iter()
             .any(|outcome| matches!(
                 outcome.reason,
@@ -485,8 +474,8 @@ async fn push_quest_to_party_receiver_max_level_zero_does_not_block_high_level_l
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.set_player_level_like_cpp(80);
-    receiver_session.sync_player_registry_state_like_cpp();
+    set_player_level_for_test(&mut receiver_session, 80);
+    sync_player_registry_state_for_test(&receiver_session);
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -499,8 +488,7 @@ async fn push_quest_to_party_receiver_max_level_zero_does_not_block_high_level_l
         shared_quest_id,
     );
     assert!(
-        session
-            .represented_push_quest_to_party_outcomes_like_cpp()
+        represented_push_quest_to_party_outcomes_for_test(&session)
             .iter()
             .any(|outcome| matches!(
                 outcome.reason,
@@ -508,8 +496,7 @@ async fn push_quest_to_party_receiver_max_level_zero_does_not_block_high_level_l
             ))
     );
     assert!(
-        !session
-            .represented_push_quest_to_party_outcomes_like_cpp()
+        !represented_push_quest_to_party_outcomes_for_test(&session)
             .iter()
             .any(|outcome| matches!(
                 outcome.reason,
@@ -530,8 +517,8 @@ async fn push_quest_to_party_grouped_receiver_wrong_class_emits_class_pair_like_
     add_active_quest(&mut session, shared_quest_id);
     let (player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
-    receiver_session.sync_player_registry_state_like_cpp();
+    set_loaded_player_identity_like_cpp(&mut receiver_session, 571, 1, 1, 80, 0);
+    sync_player_registry_state_for_test(&receiver_session);
     assert_eq!(
         player_registry
             .quest_sharing_snapshot(receiver_guid, None)
@@ -559,8 +546,7 @@ async fn push_quest_to_party_grouped_receiver_wrong_class_emits_class_pair_like_
         )
     );
     assert!(
-        session
-            .represented_push_quest_to_party_outcomes_like_cpp()
+        represented_push_quest_to_party_outcomes_for_test(&session)
             .iter()
             .any(|outcome| matches!(
                 outcome.reason,
@@ -581,8 +567,8 @@ async fn push_quest_to_party_grouped_receiver_wrong_race_emits_race_pair_like_cp
     add_active_quest(&mut session, shared_quest_id);
     let (player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
-    receiver_session.sync_player_registry_state_like_cpp();
+    set_loaded_player_identity_like_cpp(&mut receiver_session, 571, 1, 1, 80, 0);
+    sync_player_registry_state_for_test(&receiver_session);
     assert_eq!(
         player_registry
             .quest_sharing_snapshot(receiver_guid, None)
@@ -610,8 +596,7 @@ async fn push_quest_to_party_grouped_receiver_wrong_race_emits_race_pair_like_cp
         )
     );
     assert!(
-        session
-            .represented_push_quest_to_party_outcomes_like_cpp()
+        represented_push_quest_to_party_outcomes_for_test(&session)
             .iter()
             .any(|outcome| matches!(
                 outcome.reason,
@@ -633,8 +618,8 @@ async fn push_quest_to_party_receiver_class_precedes_race_like_cpp() {
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
-    receiver_session.sync_player_registry_state_like_cpp();
+    set_loaded_player_identity_like_cpp(&mut receiver_session, 571, 1, 1, 80, 0);
+    sync_player_registry_state_for_test(&receiver_session);
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -655,8 +640,7 @@ async fn push_quest_to_party_receiver_class_precedes_race_like_cpp() {
         )
     );
     assert!(
-        !session
-            .represented_push_quest_to_party_outcomes_like_cpp()
+        !represented_push_quest_to_party_outcomes_for_test(&session)
             .iter()
             .any(|outcome| matches!(
                 outcome.reason,
@@ -677,8 +661,8 @@ async fn push_quest_to_party_zero_class_and_race_masks_do_not_block_like_cpp() {
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
-    receiver_session.sync_player_registry_state_like_cpp();
+    set_loaded_player_identity_like_cpp(&mut receiver_session, 571, 1, 1, 80, 0);
+    sync_player_registry_state_for_test(&receiver_session);
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -691,8 +675,7 @@ async fn push_quest_to_party_zero_class_and_race_masks_do_not_block_like_cpp() {
         shared_quest_id,
     );
     assert!(
-        session
-            .represented_push_quest_to_party_outcomes_like_cpp()
+        represented_push_quest_to_party_outcomes_for_test(&session)
             .iter()
             .any(|outcome| matches!(
                 outcome.reason,
@@ -700,8 +683,7 @@ async fn push_quest_to_party_zero_class_and_race_masks_do_not_block_like_cpp() {
             ))
     );
     assert!(
-        !session
-            .represented_push_quest_to_party_outcomes_like_cpp()
+        !represented_push_quest_to_party_outcomes_for_test(&session)
             .iter()
             .any(|outcome| matches!(
                 outcome.reason,
@@ -723,12 +705,9 @@ async fn push_quest_to_party_grouped_receiver_low_min_reputation_emits_low_facti
     add_active_quest(&mut session, shared_quest_id);
     let (player_registry, receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.sync_player_registry_state_like_cpp();
+    sync_player_registry_state_for_test(&receiver_session);
     set_canonical_party_reputation_like_cpp(
-        receiver_session
-            .canonical_map_manager
-            .as_ref()
-            .expect("canonical map manager"),
+        canonical_map_manager_for_test(&receiver_session).expect("canonical map manager"),
         receiver_guid,
         72,
         99,
@@ -752,7 +731,7 @@ async fn push_quest_to_party_grouped_receiver_low_min_reputation_emits_low_facti
             "Quest 7128".to_string()
         )
     );
-    assert!(session.represented_push_quest_to_party_outcomes_like_cpp().iter().any(|outcome| matches!(outcome.reason, RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverSatisfyQuestReputationLowFaction)));
+    assert!(represented_push_quest_to_party_outcomes_for_test(&session).iter().any(|outcome| matches!(outcome.reason, RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverSatisfyQuestReputationLowFaction)));
 }
 #[tokio::test]
 async fn push_quest_to_party_grouped_receiver_equal_max_reputation_emits_low_faction_pair_like_cpp()
@@ -768,12 +747,9 @@ async fn push_quest_to_party_grouped_receiver_equal_max_reputation_emits_low_fac
     add_active_quest(&mut session, shared_quest_id);
     let (player_registry, receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.sync_player_registry_state_like_cpp();
+    sync_player_registry_state_for_test(&receiver_session);
     set_canonical_party_reputation_like_cpp(
-        receiver_session
-            .canonical_map_manager
-            .as_ref()
-            .expect("canonical map manager"),
+        canonical_map_manager_for_test(&receiver_session).expect("canonical map manager"),
         receiver_guid,
         72,
         100,
@@ -797,7 +773,7 @@ async fn push_quest_to_party_grouped_receiver_equal_max_reputation_emits_low_fac
             "Quest 7129".to_string()
         )
     );
-    assert!(session.represented_push_quest_to_party_outcomes_like_cpp().iter().any(|outcome| matches!(outcome.reason, RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverSatisfyQuestReputationHighFaction)));
+    assert!(represented_push_quest_to_party_outcomes_for_test(&session).iter().any(|outcome| matches!(outcome.reason, RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverSatisfyQuestReputationHighFaction)));
 }
 #[tokio::test]
 async fn push_quest_to_party_zero_reputation_factions_do_not_block_with_missing_snapshot_like_cpp()
@@ -813,7 +789,7 @@ async fn push_quest_to_party_zero_reputation_factions_do_not_block_with_missing_
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.sync_player_registry_state_like_cpp();
+    sync_player_registry_state_for_test(&receiver_session);
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -825,8 +801,8 @@ async fn push_quest_to_party_zero_reputation_factions_do_not_block_with_missing_
         sender_guid,
         shared_quest_id,
     );
-    assert!(session.represented_push_quest_to_party_outcomes_like_cpp().iter().any(|outcome| matches!(outcome.reason, RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverSuccessQuestDetailsPrompted)));
-    assert!(!session.represented_push_quest_to_party_outcomes_like_cpp().iter().any(|outcome| matches!(outcome.reason, RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverSatisfyQuestReputationLowFaction | RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverSatisfyQuestReputationHighFaction)));
+    assert!(represented_push_quest_to_party_outcomes_for_test(&session).iter().any(|outcome| matches!(outcome.reason, RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverSuccessQuestDetailsPrompted)));
+    assert!(!represented_push_quest_to_party_outcomes_for_test(&session).iter().any(|outcome| matches!(outcome.reason, RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverSatisfyQuestReputationLowFaction | RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverSatisfyQuestReputationHighFaction)));
 }
 #[tokio::test]
 async fn push_quest_to_party_positive_prev_missing_rewarded_emits_prerequisite_pair_like_cpp() {
@@ -841,7 +817,7 @@ async fn push_quest_to_party_positive_prev_missing_rewarded_emits_prerequisite_p
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.sync_player_registry_state_like_cpp();
+    sync_player_registry_state_for_test(&receiver_session);
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -861,6 +837,6 @@ async fn push_quest_to_party_positive_prev_missing_rewarded_emits_prerequisite_p
             "Quest 7132".to_string()
         )
     );
-    assert!(session.represented_push_quest_to_party_outcomes_like_cpp().iter().any(|outcome| matches!(outcome.reason, RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverSatisfyQuestPreviousQuestPrerequisite)));
-    assert!(!session.represented_push_quest_to_party_outcomes_like_cpp().iter().any(|outcome| matches!(outcome.reason, RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverSuccessQuestDetailsPrompted)));
+    assert!(represented_push_quest_to_party_outcomes_for_test(&session).iter().any(|outcome| matches!(outcome.reason, RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverSatisfyQuestPreviousQuestPrerequisite)));
+    assert!(!represented_push_quest_to_party_outcomes_for_test(&session).iter().any(|outcome| matches!(outcome.reason, RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverSuccessQuestDetailsPrompted)));
 }
