@@ -3490,3 +3490,13 @@ completa tenga un único dueño probado. C++ 3.4.3 usa un solo allocator:
 el orden y las entradas de inicialización Rust siguen requiriendo contraste de
 paridad. Las pruebas locales verifican el contrato de la composición actual,
 no esa paridad completa ni los posibles usuarios externos de `wow-map`.
+
+**D3, planes de reubicación (2026-09-29):** los tipos y cálculos puros de
+visibilidad/avisos AI tras una reubicación viven ahora en
+`wow-map/src/map/relocation_plans.rs`; `Map` conserva su estado y el módulo de
+ejecución `relocation.rs` mantiene la transición. La raíz `map/mod.rs` baja de
+4 136 a 3 887 líneas, pero la masa de `wow-map` crece por el cableado y este
+corte no retira ningún escritor, reloj ni puente. `cargo test -p wow-map
+relocation` pasó con 28 tests seleccionados (y los targets de integración
+filtrados a cero no cuentan). Log `target/d3-relocation-plan-test.log`. Es
+feedback del corte local, no aceptación final de D3 ni de B6.
