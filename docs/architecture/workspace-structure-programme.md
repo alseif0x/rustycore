@@ -2809,3 +2809,22 @@ un job y target del worktree. Logs
 Censo **303/303** nombres originales sin duplicados, **150** montados por
 la raiz provisional. La suite externa completa, B3 restante y aceptacion
 global siguen pendientes.
+
+### B3 `instance`: constructor de estados iniciales en `login_support` (2026-09-29)
+
+`init_world_states_builder_orders_realm_then_map_and_filters_area_like_cpp`
+paso de `tests/character_tests/instance.rs` al hijo privado existente
+`handlers/character/login_support_tests.rs`, junto a la funcion que prueba.
+El caso de `binder_activate` permanece provisional. Se preservaron templates,
+valores guardados, area y orden esperado; no cambio produccion ni visibilidad.
+`WorldStateMgr::FillInitialWorldStates` (`WorldStateMgr.cpp:259-278`) emite
+primero valores de reino y luego los de mapa aplicando el filtro de area;
+`Player::SendInitWorldStates` (`Player.cpp:8789-8800`) le pasa el area actual.
+
+`cargo check -p wow-world` paso y el filtro exacto de `cargo test -p
+wow-world --lib` ejecuto **1/1** con un job y target del worktree. Logs
+`target/584-map-manager-domain-b3-world-state-check-1984f7e8.log` y
+`target/584-map-manager-domain-b3-world-state-test-1984f7e8.log`. Censo
+**303/303** nombres originales sin duplicados, **149** montados por la raiz
+provisional. La suite externa completa, B3 restante y aceptacion global
+siguen pendientes.

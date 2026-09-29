@@ -240,3 +240,70 @@ fn pvp_season_world_states_match_cpp_world_state_mgr() {
     apply_pvp_season_world_states_like_cpp(&mut states, 10, true);
     assert_eq!(states, vec![(3191, 10), (3901, 9)]);
 }
+
+#[test]
+fn init_world_states_builder_orders_realm_then_map_and_filters_area_like_cpp() {
+    let area_store = wow_data::AreaTableStore::from_entries([
+        wow_data::AreaTableEntry {
+            id: 4395,
+            continent_id: 571,
+            parent_area_id: 0,
+            area_bit: -1,
+            exploration_level: 0,
+            mount_flags: 0,
+            flags: 0,
+        },
+        wow_data::AreaTableEntry {
+            id: 4613,
+            continent_id: 571,
+            parent_area_id: 4395,
+            area_bit: -1,
+            exploration_level: 0,
+            mount_flags: 0,
+            flags: 0,
+        },
+    ]);
+    let templates = [
+        LoginWorldStateTemplateLikeCpp {
+            id: 10,
+            default_value: 1,
+            map_ids: BTreeSet::new(),
+            area_ids: BTreeSet::new(),
+        },
+        LoginWorldStateTemplateLikeCpp {
+            id: 20,
+            default_value: 2,
+            map_ids: BTreeSet::from([571]),
+            area_ids: BTreeSet::new(),
+        },
+        LoginWorldStateTemplateLikeCpp {
+            id: 30,
+            default_value: 3,
+            map_ids: BTreeSet::from([571]),
+            area_ids: BTreeSet::from([4395]),
+        },
+        LoginWorldStateTemplateLikeCpp {
+            id: 40,
+            default_value: 4,
+            map_ids: BTreeSet::from([571]),
+            area_ids: BTreeSet::from([9999]),
+        },
+        LoginWorldStateTemplateLikeCpp {
+            id: 50,
+            default_value: 5,
+            map_ids: BTreeSet::from([WORLDSTATE_ANY_MAP_LIKE_CPP]),
+            area_ids: BTreeSet::new(),
+        },
+    ];
+
+    assert_eq!(
+        build_initial_world_states_like_cpp(
+            templates,
+            [(20, 22), (999, 999)],
+            571,
+            4613,
+            Some(&area_store),
+        ),
+        vec![(10, 1), (50, 5), (20, 22), (30, 3)]
+    );
+}
