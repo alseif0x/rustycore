@@ -238,6 +238,13 @@ pub use self::pending_respawn::*;
 pub use self::runtime_state::*;
 pub use self::terrain::*;
 
+#[cfg(test)]
+pub(crate) use self::terrain::{
+    MAP_AREA_CELLS_PER_GRID_LIKE_CPP, MAP_AREA_HEADER_FLAG_NO_AREA_LIKE_CPP,
+    MAP_AREA_HEADER_SIZE_LIKE_CPP, MAP_AREA_MAGIC_LIKE_CPP, MAP_FILE_HEADER_SIZE_LIKE_CPP,
+    MAP_MAGIC_LIKE_CPP, MAP_VERSION_MAGIC_LIKE_CPP, TERRAIN_GRID_COUNT_LIKE_CPP,
+};
+
 pub use self::grid::{
     calculate_cell_area_like_cpp, cell_area_contains_position_like_cpp, position_to_i32_tuple,
 };

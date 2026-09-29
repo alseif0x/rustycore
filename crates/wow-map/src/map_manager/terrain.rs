@@ -12,21 +12,21 @@ use super::*;
 /// inventing terrain values.
 pub const DEFAULT_MIN_HEIGHT_LIKE_CPP: f32 = -500.0;
 
-pub const MAP_MAGIC_LIKE_CPP: &[u8; 4] = b"MAPS";
+pub(crate) const MAP_MAGIC_LIKE_CPP: &[u8; 4] = b"MAPS";
 
-pub const MAP_AREA_MAGIC_LIKE_CPP: &[u8; 4] = b"AREA";
+pub(crate) const MAP_AREA_MAGIC_LIKE_CPP: &[u8; 4] = b"AREA";
 
-pub const MAP_VERSION_MAGIC_LIKE_CPP: u32 = 10;
+pub(crate) const MAP_VERSION_MAGIC_LIKE_CPP: u32 = 10;
 
-pub const MAP_FILE_HEADER_SIZE_LIKE_CPP: usize = 44;
+pub(crate) const MAP_FILE_HEADER_SIZE_LIKE_CPP: usize = 44;
 
-pub const MAP_AREA_HEADER_SIZE_LIKE_CPP: usize = 8;
+pub(crate) const MAP_AREA_HEADER_SIZE_LIKE_CPP: usize = 8;
 
-pub const MAP_AREA_HEADER_FLAG_NO_AREA_LIKE_CPP: u16 = 0x0001;
+pub(crate) const MAP_AREA_HEADER_FLAG_NO_AREA_LIKE_CPP: u16 = 0x0001;
 
-pub const MAP_AREA_CELLS_PER_GRID_LIKE_CPP: usize = 16;
+pub(crate) const MAP_AREA_CELLS_PER_GRID_LIKE_CPP: usize = 16;
 
-pub const TERRAIN_GRID_COUNT_LIKE_CPP: usize =
+pub(crate) const TERRAIN_GRID_COUNT_LIKE_CPP: usize =
     MAX_NUMBER_OF_GRIDS_LIKE_CPP as usize * MAX_NUMBER_OF_GRIDS_LIKE_CPP as usize;
 
 pub fn terrain_grid_coords_for_wow_position_like_cpp(x: f32, y: f32) -> (i32, i32) {

@@ -9,10 +9,8 @@ pub use crate::map::MapWorldObjectEnvironment;
 pub use crate::map_manager::{
     BASE_ATTACK_TIME_LIKE_CPP, ChaseTargetSnapshotLikeCpp, ChaseTickOutcomeLikeCpp,
     CreatureAnimKitSlotLikeCpp, GRID_SIZE, Grid, LiveTerrainHeights,
-    MAP_AREA_CELLS_PER_GRID_LIKE_CPP, MAP_AREA_HEADER_FLAG_NO_AREA_LIKE_CPP,
-    MAP_AREA_HEADER_SIZE_LIKE_CPP, MAP_AREA_MAGIC_LIKE_CPP, MAP_FILE_HEADER_SIZE_LIKE_CPP,
-    MAP_MAGIC_LIKE_CPP, MAP_VERSION_MAGIC_LIKE_CPP, MapInstance, MapManager, PendingRespawn,
-    PersistedRespawnRowLikeCpp, RecipientRule, RuntimeOutput, TERRAIN_GRID_COUNT_LIKE_CPP,
+    MapInstance, MapManager, PendingRespawn, PersistedRespawnRowLikeCpp, RecipientRule,
+    RuntimeOutput,
     TerrainGridFileIndexLikeCpp, TerrainGridFilesLikeCpp, VISIBILITY_RADIUS, WorldCreature,
     WorldMMapPathRequestLikeCpp, WorldMMapPathfinderLikeCpp, WorldMMapPathfinderWorkerLikeCpp,
     calculate_creature_detour_path_like_cpp, detour_path_without_navmesh_like_cpp, grid_to_world,
@@ -23,6 +21,11 @@ pub use crate::map_manager::{
     terrain_grid_coords_for_wow_position_like_cpp, terrain_map_id_for_phase_shift_like_cpp,
     world_creature_from_pending_respawn_like_cpp, world_to_grid_coords, world_to_grid_x,
     zone_and_area_for_position_like_cpp,
+};
+pub(crate) use crate::map_manager::{
+    MAP_AREA_CELLS_PER_GRID_LIKE_CPP, MAP_AREA_HEADER_FLAG_NO_AREA_LIKE_CPP,
+    MAP_AREA_HEADER_SIZE_LIKE_CPP, MAP_AREA_MAGIC_LIKE_CPP, MAP_FILE_HEADER_SIZE_LIKE_CPP,
+    MAP_MAGIC_LIKE_CPP, MAP_VERSION_MAGIC_LIKE_CPP, TERRAIN_GRID_COUNT_LIKE_CPP,
 };
 pub use crate::{SharedStaticVMapLineOfSightProvider, SpawnObjectType};
 pub use rand::{Rng, RngCore, SeedableRng, rngs::StdRng};
