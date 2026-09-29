@@ -8,9 +8,9 @@ use super::*;
 /// C++ `BASE_ATTACK_TIME` (`UnitDefines.h:30`). Creature base/ranged attack time
 /// is clamped to this when the template value is 0 (`ObjectMgr.cpp:1100-1104`); a
 /// 0 attack time crashes the 3.4.3 client's swing-timer math on the first tick.
-pub const BASE_ATTACK_TIME_LIKE_CPP: u32 = 2_000;
+pub(super) const BASE_ATTACK_TIME_LIKE_CPP: u32 = 2_000;
 
-pub const fn power_type_from_u8_like_cpp(power: u8) -> PowerType {
+pub(super) const fn power_type_from_u8_like_cpp(power: u8) -> PowerType {
     match power {
         1 => PowerType::Rage,
         2 => PowerType::Focus,
@@ -62,10 +62,10 @@ pub struct ChaseTargetSnapshotLikeCpp {
 }
 
 /// C++ `NOMINAL_MELEE_RANGE` (`ObjectDefines.h:44`).
-pub const NOMINAL_MELEE_RANGE_LIKE_CPP: f32 = 5.0;
+pub(super) const NOMINAL_MELEE_RANGE_LIKE_CPP: f32 = 5.0;
 
 /// C++ `Position::GetAbsoluteAngle`: the world bearing from `from` to `to`.
-pub fn absolute_angle_like_cpp(from: Position, to: Position) -> f32 {
+pub(super) fn absolute_angle_like_cpp(from: Position, to: Position) -> f32 {
     wow_movement::normalize_orientation_like_cpp((to.y - from.y).atan2(to.x - from.x))
 }
 

@@ -7,8 +7,8 @@
 
 pub use crate::map::MapWorldObjectEnvironment;
 pub use crate::map_manager::{
-    BASE_ATTACK_TIME_LIKE_CPP, ChaseTargetSnapshotLikeCpp, ChaseTickOutcomeLikeCpp,
-    CreatureAnimKitSlotLikeCpp, GRID_SIZE, Grid, LiveTerrainHeights,
+    ChaseTargetSnapshotLikeCpp, ChaseTickOutcomeLikeCpp, CreatureAnimKitSlotLikeCpp, GRID_SIZE,
+    Grid, LiveTerrainHeights,
     MapInstance, MapManager, PendingRespawn, PersistedRespawnRowLikeCpp, RecipientRule,
     RuntimeOutput,
     TerrainGridFileIndexLikeCpp, TerrainGridFilesLikeCpp, VISIBILITY_RADIUS, WorldCreature,

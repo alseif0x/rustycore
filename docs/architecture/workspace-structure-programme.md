@@ -1846,3 +1846,22 @@ Evidencia secuencial con `CARGO_BUILD_JOBS=1`, `PROTOC=/home/ubuntu/.local/proto
 Este delta no completa B6: `discover_grid_map_files_like_cpp`, `exist_map_like_cpp` y
 `LiveTerrainHeights::terrain_for_map` quedan fuera de este slice, junto con la aceptacion final del
 trasvase.
+
+### B6 `wow-map`: superficie interna del pathfinder y del estado runtime (2026-09-29)
+
+Cuatro helpers exclusivos del pathfinder quedaron en su modulo o con visibilidad
+`pub(super)`; se retiro su reexport de `map_manager` y las pruebas importan el helper
+privado por su ruta. `cargo check -p wow-map`, `cargo check -p wow-world` y
+`cargo test -p wow-map --lib path` pasaron (37/37); commit `7d836140`.
+
+En `runtime_state.rs`, `BASE_ATTACK_TIME_LIKE_CPP`, `NOMINAL_MELEE_RANGE_LIKE_CPP`,
+`absolute_angle_like_cpp` y `power_type_from_u8_like_cpp` vuelven de `pub` a
+`pub(super)`. Sus usos estan dentro de `map_manager`; se retiraron los reexports
+publicos y el test de combate importa la constante desde el modulo privado. Sin
+cambios en cuerpos ni aserciones. Con un solo job y el target de este worktree,
+`cargo check -p wow-map` y `cargo check -p wow-world` pasaron; el test focal
+`cargo test -p wow-map --lib combat` dio 7/7. Logs:
+`target/b6-runtime-primitives-wow-map-check.log`,
+`target/b6-runtime-primitives-wow-world-check.log` y
+`target/b6-runtime-primitives-wow-map-test-combat.log`. Quedan los tipos y campos
+de `runtime_state`, otros reexports de B6 y la aceptacion final.

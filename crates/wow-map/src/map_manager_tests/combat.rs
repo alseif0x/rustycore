@@ -4,6 +4,7 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use crate::map_manager::runtime_state::BASE_ATTACK_TIME_LIKE_CPP;
 
 #[test]
 fn create_data_from_canonical_clamps_zero_base_attack_time_like_cpp() {
