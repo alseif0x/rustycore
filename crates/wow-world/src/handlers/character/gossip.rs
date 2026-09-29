@@ -760,3 +760,7 @@ impl WorldSession {
         self.send_packet(&QueryNpcTextResponse::with_text(query.text_id, 0));
     }
 }
+
+#[cfg(test)]
+#[path = "gossip_gameobject_tests.rs"]
+mod gossip_gameobject_tests;

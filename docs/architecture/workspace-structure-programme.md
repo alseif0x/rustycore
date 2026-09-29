@@ -2759,3 +2759,30 @@ job y target del worktree. Logs
 `target/b3-character-quest-status-gameobject-test.log`. Censo **303/303**
 nombres unicos, **153** montados por la raiz provisional; suite externa,
 B3 restante y aceptacion global siguen pendientes.
+
+### B3 `gameobject`: primer caso de gossip junto al handler (2026-09-29)
+
+`gossip_select_accepts_represented_goober_menu_and_removes_feign_like_cpp`
+paso del hijo provisional `gameobject.rs` al hijo privado
+`handlers/character/gossip_gameobject_tests.rs`. El setup necesario se copio
+localmente sin ampliar visibilidad ni modificar el handler productivo. Los dos
+casos de rechazo de GameObject siguen provisionales; los helpers de feign
+death permanecen alli porque tambien sirven a `item_3` y `misc_2`.
+`WorldSession::HandleGossipSelectOptionOpcode` (`NPCHandler.cpp:250-330`)
+comprueba opcion, fuente y `GetGameObjectIfCanInteractWith` antes de retirar
+fake death; `Player::GetGameObjectIfCanInteractWith` (`Player.cpp:1983-2007`)
+exige un objeto del mapa, interaccion permitida y distancia. Las aserciones
+del caso movido no cambiaron; el estado representado sigue siendo un fixture
+Rust, no evidencia de ejecucion de C++.
+
+`cargo check -p wow-world` paso y `cargo test -p wow-world --lib
+gossip_select_accepts_represented_goober_menu_and_removes_feign_like_cpp`
+ejecuto **1/1** con un job y target del worktree. Logs
+`target/584-map-manager-domain-b3-gossip-check-69fff1f8.log` y
+`target/584-map-manager-domain-b3-gossip-lib-test-69fff1f8.log`. La primera
+invocacion sin `--lib` no midio este caso: el target de integracion provisional
+`character_tests` fallo al compilar con 371 errores de la migracion B3;
+`target/584-map-manager-domain-b3-gossip-test-69fff1f8.log` conserva ese
+resultado. Censo de nombres originales **303/303** sin duplicados, **152**
+montados por la raiz provisional. La suite externa completa, B3 restante y
+la aceptacion global siguen pendientes.
