@@ -2637,3 +2637,24 @@ y target del worktree. Logs `target/b3-character-level-up-check.log`,
 `target/b3-character-level-up-refill-test.log`. Censo **303/303** nombres
 unicos, **165** montados por la raiz provisional; la suite externa, B3
 restante y la aceptacion global siguen pendientes.
+
+### B3 `skill`: cinematica inicial y retirada del hijo (2026-09-29)
+
+El ultimo caso de `skill.rs`,
+`opening_cinematic_requires_zero_xp_and_prefers_class_like_cpp`, se movio
+con su constructor exclusivo de bytes a
+`handlers/character/world_entry_cinematic_tests.rs`; se retiraron el hijo
+provisional y su montaje. Los helpers de raza/clase que usan otros casos
+siguen en `fixtures_3.rs`. No cambia logica productiva ni visibilidad. El C++
+fijado `WorldSession::HandleOpeningCinematic`
+(`CharacterHandler.cpp:2597-2609`) retorna con XP distinto de cero y prefiere
+la secuencia de clase antes de la de raza, como comprueban las aserciones.
+
+`cargo check -p wow-world` paso. El primer intento del filtro fallo al
+compilar por un campo omitido en el fixture local (exit 101); corregido,
+el reintento ejecuto **1/1**. Logs
+`target/b3-character-opening-cinematic-check.log`,
+`target/b3-character-opening-cinematic-test.log` y
+`target/b3-character-opening-cinematic-test-retry.log`. Censo **303/303**
+nombres unicos, **164** montados por la raiz provisional. Sigue pendiente
+la suite externa completa, B3 restante y la aceptacion global.

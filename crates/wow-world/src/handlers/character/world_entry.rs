@@ -7,6 +7,10 @@
 
 use super::*;
 
+#[cfg(test)]
+#[path = "world_entry_cinematic_tests.rs"]
+mod cinematic_tests;
+
 mod initial_packets;
 mod login;
 mod login_recovery;
