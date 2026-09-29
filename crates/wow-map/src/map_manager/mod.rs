@@ -239,7 +239,17 @@ pub use self::grid::{
 pub(crate) use self::grid::DEFAULT_GRID_UNLOAD_TIME;
 #[cfg(test)]
 pub(crate) use self::grid::GRID_SIZE;
-pub use self::pathfinder::*;
+pub use self::pathfinder::{
+    CreaturePathQueryLikeCpp, WorldDetourPathError, WorldMMapPathRequestLikeCpp,
+    WorldMMapPathfinderLikeCpp, WorldMMapPathfinderWorkerLikeCpp,
+    calculate_creature_detour_path_like_cpp, detour_path_without_navmesh_like_cpp,
+    path_generator_from_detour_like_cpp,
+};
+pub(crate) use self::pathfinder::path_type_from_detour_like_cpp;
+use self::pathfinder::{
+    path_generator_from_detour_with_normalizer_like_cpp, point_path_limit_for_distance_like_cpp,
+    random_path_result_from_path_type_like_cpp,
+};
 pub use self::pending_respawn::*;
 pub use self::runtime_state::*;
 pub use self::terrain::*;

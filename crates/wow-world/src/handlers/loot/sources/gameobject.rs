@@ -787,7 +787,7 @@ impl WorldSession {
         queued
     }
 
-    pub(crate) fn represented_creature_is_dead_for_loot_visibility_like_cpp(
+    pub(in crate::handlers::loot) fn represented_creature_is_dead_for_loot_visibility_like_cpp(
         &self,
         creature_guid: ObjectGuid,
     ) -> bool {

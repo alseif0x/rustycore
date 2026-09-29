@@ -138,9 +138,9 @@ sin entradas eliminables ni stashes. Reconsultar Git al retomar; estos son datos
 
 | pieza | estado comprobado y límite |
 |---|---|
-| B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Los exports de terrain y grid revisados se estrecharon donde había consumidores internos demostrados. El manager legado sigue requerido por `wow-world`/`world-server`; faltan los demas exports, features/composición y aceptación del candidato. |
-| B5 | Raíces de loot y character miden 243/239 líneas y todos sus hijos extraídos menos de 600. Se estrecharon las rutas heredadas de visibilidad revisadas, incluido el plan de inventario test-only tras mover sus dos tests privados. Faltan el resto de exports y la aceptación del candidato. |
-| B3 | `group_tests` ya es target de integración. `quest_tests` existe como target provisional; `character_tests` se distribuye por owners, con **303** nombres originales conservados y **124** aún montados en la raíz provisional del árbol local. La suite externa de character aún no compila completa; la migración de quest y loot tampoco está aceptada. |
+| B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Se estrecharon exports internos revisados de terrain, grid y pathfinder; el manager legado sigue requerido por `wow-world`/`world-server`. Faltan los demás exports, features/composición y aceptación del candidato. |
+| B5 | Raíces de loot y character miden 243/239 líneas y todos sus hijos extraídos menos de 600. Se estrecharon rutas heredadas de visibilidad de ambos adaptadores, incluido el plan de inventario test-only tras mover sus dos tests privados. Faltan el resto de exports y la aceptación del candidato. |
+| B3 | `group_tests` ya es target de integración. `quest_tests` existe como target provisional; `character_tests` se distribuye por owners, con **303** nombres originales conservados y **121** aún montados en la raíz provisional del árbol local. La suite externa de character aún no compila completa; la migración de quest y loot tampoco está aceptada. |
 | B7 | Hay limpieza parcial integrada; la revisión del 2026-09-29 detecta avisos e imports independientes para un próximo corte, pero los consumidores restantes de fixtures dependen de B3. No está cerrado. |
 | Talentos #578 | La rama `recover/578-talent-catalog`, `0845f5b3`, conserva `docs/migration/recovered/578-talent-catalog-2026-09-04.patch`; el archivo solo existe en esa rama, no en este checkout. No está aplicado; preservar la rama y adaptar por consumidores actuales cuando corresponda. |
 | Orquestación | Sol medium / Luna max copiado a este worktree. Cambios compartidos aún locales, y `.codex/config.toml` ignorado. Iniciar sesión nueva y comprobar runtime efectivo; preservar estos cambios al continuar. |
@@ -3192,3 +3192,37 @@ worktree. Logs `target/b3-cargo-check-wow-world.log`,
 `target/b3-cargo-test-loot-reply-items.log` y
 `target/b3-cargo-check-quest-tests.log`. El check productivo informa 270
 avisos; este feedback local no cierra B3/B5 ni la aceptacion global.
+
+### B3 hearth, B5 loot y B6 pathfinder: cortes internos (2026-09-29)
+
+Tres tests de hearth/resurrect y su fixture exclusivo pasaron de la raiz
+provisional de `character_tests` al hijo privado
+`character/lifecycle_hearth_tests.rs` (**120 lineas**). Se mantuvieron mapa,
+area, flags, taxi y canal de envio. `BattleGroundHandler.cpp:703-720`
+delega primero al campo de batalla; estos tests cubren solo la rama
+representada de area/homebind y el rechazo en vuelo. El censo de character
+conserva **303** nombres sin ausencias ni duplicados y deja **121** montados
+en la raiz provisional.
+
+En loot, `open_represented_gameobject_chest_like_cpp` (solo de test) se limito
+a `crate::handlers`; sus llamadas siguen en `handlers::loot_tests`.
+`represented_creature_is_dead_for_loot_visibility_like_cpp` se limito a
+`crate::handlers::loot`, que contiene su consumidor productivo `claims.rs`.
+No cambio ningun cuerpo. En `wow-map`, el glob de `pathfinder` se reemplazo
+por reexports explicitos, conservando los demas `pub` anteriores. Solo
+`path_type_from_detour_like_cpp` y
+`path_generator_from_detour_with_normalizer_like_cpp` quedaron en
+`pub(super)` para sus consumidores internos de movimiento. No cambian datos
+ni calculos de rutas.
+
+Pasaron `cargo check -p wow-map`, el filtro `cargo test -p wow-map --lib
+pathfinder` (**5/5**), `cargo check -p wow-world`, el filtro privado de
+hearth (**3/3**) y `cargo check -p world-server` como consumidor B6. Un job,
+`PROTOC` local y target del worktree; logs
+`target/b6-pathfinder-check-wow-map.log`,
+`target/b6-pathfinder-test.log`,
+`target/b3-hearth-b5-loot-b6-pathfinder-check-wow-world.log`,
+`target/b3-hearth-focused-test.log` y
+`target/b6-pathfinder-check-world-server.log`. El ultimo check tardo **4m56s**
+y el test de hearth **2m40s**; son costes de feedback local, no una campaña
+final medida. B3/B5/B6 y aceptacion global siguen pendientes.

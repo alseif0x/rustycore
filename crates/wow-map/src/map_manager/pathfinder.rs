@@ -334,7 +334,7 @@ impl WorldMMapPathfinderWorkerLikeCpp {
     }
 }
 
-pub fn path_type_from_detour_like_cpp(path_type: DetourPathType) -> PathType {
+pub(crate) fn path_type_from_detour_like_cpp(path_type: DetourPathType) -> PathType {
     PathType::from_bits_retain(path_type.bits())
 }
 
@@ -397,7 +397,7 @@ pub fn path_generator_from_detour_like_cpp(
     )
 }
 
-pub fn path_generator_from_detour_with_normalizer_like_cpp(
+pub(super) fn path_generator_from_detour_with_normalizer_like_cpp(
     start: Position,
     destination: Position,
     detour_path: &DetourPolyPath,

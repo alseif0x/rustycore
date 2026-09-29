@@ -494,7 +494,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub(crate) async fn open_represented_gameobject_chest_like_cpp(
+    pub(in crate::handlers) async fn open_represented_gameobject_chest_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,
         source: GameObjectLootSource,
