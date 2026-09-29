@@ -1,3 +1,11 @@
+pub fn get_inventory_item_by_pos_for_test(
+    session: &crate::session::WorldSession,
+    bag: u8,
+    slot: u8,
+) -> Option<crate::session::InventoryItem> {
+    session.get_inventory_item_by_pos(bag, slot)
+}
+
 pub fn set_player_position_for_test(
     session: &mut crate::session::WorldSession,
     position: wow_core::Position,

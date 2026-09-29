@@ -747,7 +747,7 @@ impl WorldSession {
         {
             return Some(inventory);
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none() {
             let mut inventory = PlayerInventoryRuntime::default();
             inventory.inventory_items_mut().extend(
