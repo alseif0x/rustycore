@@ -129,6 +129,32 @@ pub fn set_player_skill_values_for_test(
     session.set_player_skill_values_like_cpp(skill_values)
 }
 
+pub async fn apply_quest_item_added_objective_progress_for_test(
+    session: &mut crate::session::WorldSession,
+    entry_id: u32,
+    quest_log_item_id: u32,
+    count: u32,
+) -> Vec<u32> {
+    session
+        .apply_quest_item_added_objective_progress_like_cpp(entry_id, quest_log_item_id, count)
+        .await
+}
+
+pub async fn apply_quest_source_item_bound_objective_progress_for_object_for_test(
+    session: &mut crate::session::WorldSession,
+    quest_store: &wow_data::quest::QuestStore,
+    object_id: i32,
+    count_i32: i32,
+) -> Vec<(u32, i32)> {
+    session
+        .apply_quest_source_item_bound_objective_progress_for_object_for_test(
+            quest_store,
+            object_id,
+            count_i32,
+        )
+        .await
+}
+
 pub fn set_represented_df_quest_for_test(
     session: &mut crate::session::WorldSession,
     quest_id: u32,

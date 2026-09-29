@@ -101,7 +101,7 @@ impl WorldSession {
         .await
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) async fn apply_quest_item_added_objective_progress_like_cpp(
         &mut self,
         entry_id: u32,
@@ -522,6 +522,23 @@ impl WorldSession {
         }
 
         updated_counts
+    }
+
+    #[cfg(feature = "test-fixtures")]
+    pub(crate) async fn apply_quest_source_item_bound_objective_progress_for_object_for_test(
+        &mut self,
+        quest_store: &QuestStore,
+        object_id: i32,
+        count_i32: i32,
+    ) -> Vec<(u32, i32)> {
+        let generators = self.id_generators_for_test_like_cpp();
+        self.apply_quest_source_item_bound_objective_progress_for_object_with_generator_like_cpp(
+            generators.item.as_ref(),
+            quest_store,
+            object_id,
+            count_i32,
+        )
+        .await
     }
 
     #[cfg(test)]
