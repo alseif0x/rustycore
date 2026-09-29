@@ -1892,3 +1892,15 @@ de este worktree y un job, `cargo check -p wow-map`, `cargo check -p wow-world` 
 `target/b6-runtime-types-wow-map-check.log`,
 `target/b6-runtime-types-wow-world-check.log` y
 `target/b6-runtime-types-wow-map-test-combat.log`. No es aceptacion final de B6.
+
+### B3 `character_tests`: acceso canonico para la regeneracion (2026-09-29)
+
+`test_fixtures::mutate_canonical_player_for_test` delega sin otra rama ni estado a
+`WorldSession::mutate_canonical_player_like_cpp`. Diez llamadas de
+`health_and_power_regeneration.rs` en la suite externa usan ese puente; sus
+closures y aserciones permanecen iguales. `cargo check -p wow-world` paso;
+`cargo check -p wow-world --features test-fixtures --test character_tests`
+termino con los otros errores aun pendientes y bajo de **534 a 524** diagnosticos.
+Logs: `target/b3-character-canonical-access-default-check.log` y
+`target/b3-character-canonical-access-external-check.log`. El fichero de prueba
+sigue dentro del traslado B3 provisional; este resultado no es suite verde.

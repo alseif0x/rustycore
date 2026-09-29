@@ -1,5 +1,12 @@
 use crate::player::inventory_persistence_test_fixture as inventory_port_fixture;
 
+pub fn mutate_canonical_player_for_test<R>(
+    session: &crate::session::WorldSession,
+    f: impl FnOnce(&mut wow_entities::Player) -> R,
+) -> Option<R> {
+    session.mutate_canonical_player_like_cpp(f)
+}
+
 pub fn canonical_player_health_snapshot_for_test(
     session: &crate::session::WorldSession,
 ) -> Option<(u32, u32)> {
