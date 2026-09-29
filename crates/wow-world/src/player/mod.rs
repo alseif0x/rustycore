@@ -6,7 +6,7 @@
 pub mod directory_canonical_queries;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub mod directory_test_fixtures;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub mod inventory_persistence_test_fixture;
 #[cfg(test)]
 pub mod lifecycle_contract;

@@ -1,3 +1,5 @@
+use crate::player::inventory_persistence_test_fixture as inventory_port_fixture;
+
 pub fn canonical_player_health_snapshot_for_test(
     session: &crate::session::WorldSession,
 ) -> Option<(u32, u32)> {
@@ -106,6 +108,14 @@ pub fn get_inventory_item_by_pos_for_test(
     slot: u8,
 ) -> Option<crate::session::InventoryItem> {
     session.get_inventory_item_by_pos(bag, slot)
+}
+
+pub fn set_failing_player_inventory_persistence_port_for_test(
+    session: &mut crate::session::WorldSession,
+) {
+    session.set_player_inventory_persistence_port_like_cpp(
+        inventory_port_fixture::PlayerInventoryPersistencePortFixtureLikeCpp::failed(),
+    );
 }
 
 pub fn ensure_login_player_controller_for_test(

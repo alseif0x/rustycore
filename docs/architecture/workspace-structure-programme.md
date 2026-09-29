@@ -463,6 +463,19 @@ usar la rama de producción en el target externo para reducir errores de
 compilación si altera la prueba. Este grupo permanece sin implementación ni
 evidencia de ejecución.
 
+El puerto fallido de persistencia de inventario permanece como tipo privado:
+su módulo de fixture admite `test-fixtures` y una operación pública de fixture
+instala el mismo `failed()` mediante el setter existente. Cuatro consumidores
+externos de item llaman a esa operación. El check default pasó
+(`target/b3-character-inventory-port-wow-world-check.log`); el target externo
+terminó con exit 101 y **534 errores**
+(`target/b3-character-inventory-port-external-check.log`): E0432 bajó de 2 a
+1 y E0603 de 27 a 26, sin cambios en las demás categorías. Un test unitario
+del mismo puerto fallido,
+`failed_existing_stack_store_publishes_neither_count_nor_binding`, pasó 1/1
+con 3145 filtrados (`target/b3-character-inventory-port-lib-test.log`). Los
+cuatro escenarios externos aún no se han ejecutado y siguen sin commit.
+
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
 1. **Compila**: `cargo check -p <crate>` (y sus consumidores). Es el bucle de trabajo, no evidencia
