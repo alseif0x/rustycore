@@ -2197,7 +2197,7 @@ tras 120 segundos y retirada del contador completo. Referencias 3.4.3:
 de visibilidad, `cargo check -p wow-world` paso y el filtro unitario ejecuto
 **1/1**. Logs `target/b3-vendor-admission-check.log` y
 `target/b3-vendor-admission-current-count-test.log`. Censo **303/303** sin
-duplicados; quedan **253** pruebas en los hijos provisionales de
+duplicados; quedan **234** pruebas montadas por la raiz provisional de
 `character_tests` al cierre de este corte.
 
 ### B3 `login`: guardias de fuente de las fases (2026-09-29)
@@ -2212,5 +2212,7 @@ restantes de login conservan su montaje provisional. `cargo check -p
 wow-world` paso y el target ejecuto **15/15**. Logs:
 `target/b3-character-login-source-check.log` y
 `target/b3-character-login-source-test.log`. El censo global sigue
-**303/303** sin duplicados; **238** pruebas permanecen en los hijos
-provisionales de `character_tests`.
+**303/303** sin duplicados; **219** pruebas permanecen montadas por la raiz
+provisional de `character_tests`. El recuento excluye 19 pruebas que ya se
+ejecutan desde targets independientes aunque sus hijos fisicos sigan bajo
+`tests/character_tests/`.
