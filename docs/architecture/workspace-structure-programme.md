@@ -2786,3 +2786,26 @@ invocacion sin `--lib` no midio este caso: el target de integracion provisional
 resultado. Censo de nombres originales **303/303** sin duplicados, **152**
 montados por la raiz provisional. La suite externa completa, B3 restante y
 la aceptacion global siguen pendientes.
+
+### B3 `gameobject`: gossip completo en el owner (2026-09-29)
+
+Los dos casos restantes, `gossip_select_gameobject_revalidates_cpp_interaction_boundaries`
+y `gossip_select_gameobject_rejects_npc_service_option_after_feign_like_cpp`,
+se movieron al hijo privado `handlers/character/gossip_gameobject_tests.rs`.
+Se reutilizaron los fixtures locales del primer caso y se retiraron el fichero
+y montaje provisionales `tests/character_tests/gameobject.rs`. El modulo privado
+tiene 445 lineas y `gossip.rs` 766. Nombres, GUIDs, filas y aserciones se
+conservaron; no cambia produccion ni visibilidad. `NPCHandler.cpp:250-330`
+valida fuente/objeto antes de quitar feign death y `Player.cpp:1983-2007`
+ancla los rechazos por estado de mundo, vuelo, icono y distancia. Los casos
+de ausencia de evidencia representada de icono/tipo son defensas propias de
+Rust, sin rama equivalente de cache ausente en C++.
+
+`cargo check -p wow-world` paso y `cargo test -p wow-world --lib
+handlers::character::gossip::gossip_gameobject_tests::` ejecuto **3/3** con
+un job y target del worktree. Logs
+`target/584-map-manager-domain-b3-gossip-gameobject-check-b253f0df.log` y
+`target/584-map-manager-domain-b3-gossip-gameobject-test-b253f0df.log`.
+Censo **303/303** nombres originales sin duplicados, **150** montados por
+la raiz provisional. La suite externa completa, B3 restante y aceptacion
+global siguen pendientes.
