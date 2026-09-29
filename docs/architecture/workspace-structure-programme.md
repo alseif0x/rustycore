@@ -2658,3 +2658,23 @@ el reintento ejecuto **1/1**. Logs
 `target/b3-character-opening-cinematic-test-retry.log`. Censo **303/303**
 nombres unicos, **164** montados por la raiz provisional. Sigue pendiente
 la suite externa completa, B3 restante y la aceptacion global.
+
+### B3 `creature`: reglas de spawn junto a su owner (2026-09-29)
+
+Los cuatro casos iniciales de `tests/character_tests/creature.rs` (hover,
+root, flags y movimiento random/wander) se movieron sin cambiar aserciones a
+`handlers/character/creature_spawn_tests.rs`. Los cuatro escenarios de
+handler/query restantes siguen en el hijo provisional. No hay cambio de
+produccion ni de visibilidad. El C++ fijado confirma normalizacion de
+movimiento random sin distancia (`Creature.cpp:559`, `ObjectMgr.cpp:2296-2314`),
+flags de spawn (`ObjectMgr.cpp:1683+`) y el offset hover despues del addon
+(`Creature.cpp:1140-1144`). La suite privada prueba las proyecciones Rust de
+esas reglas, no toda la creacion de criaturas en runtime.
+
+`cargo check -p wow-world` paso; el filtro
+`handlers::character::creature_spawn::rule_tests::` ejecuto **7/7** (cuatro
+trasladados y tres previos), con un job y target del worktree. Logs
+`target/b3-character-creature-rules-check.log` y
+`target/b3-character-creature-rules-test.log`. Censo **303/303** nombres
+unicos, **160** montados por la raiz provisional. Siguen pendientes la
+suite externa completa, el resto de B3 y la aceptacion global.
