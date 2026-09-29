@@ -5,7 +5,9 @@
 //! available only in the `test-fixtures` build.
 
 mod quest;
+mod player;
 pub use quest::*;
+pub use player::*;
 
 pub use crate::session::quest_dialog::{
     RepresentedPendingQuestSharingLikeCpp,

@@ -524,7 +524,7 @@ impl WorldSession {
             cuf_profiles_like_cpp: vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP],
             #[cfg(test)]
             cuf_profiles_loaded_like_cpp: false,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             player_position: None,
             #[cfg(test)]
             player_movement_flags_like_cpp: MovementFlag::NONE,
@@ -547,7 +547,7 @@ impl WorldSession {
             combat_target: None,
             #[cfg(any(test, feature = "test-fixtures"))]
             in_combat: false,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             player_alive_like_cpp: true,
             #[cfg(test)]
             player_game_master_like_cpp: false,
@@ -557,9 +557,9 @@ impl WorldSession {
             player_normal_damage_immune_like_cpp: false,
             #[cfg(test)]
             player_environmental_damage_immune_like_cpp: false,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             player_health_like_cpp: 100,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             player_max_health_like_cpp: 100,
             #[cfg(test)]
             player_movement_time_like_cpp: 0,

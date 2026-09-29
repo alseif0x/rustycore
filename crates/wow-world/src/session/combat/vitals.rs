@@ -141,7 +141,7 @@ impl WorldSession {
                 player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
             )
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         let result = canonical.or_else(|| {
             if self.player_handle_like_cpp.is_some() {
                 return None;
@@ -160,9 +160,9 @@ impl WorldSession {
                 )
             })
         });
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let result = canonical;
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             let (current, max) = result.unwrap_or((health, max_health));
             self.player_health_like_cpp = current;

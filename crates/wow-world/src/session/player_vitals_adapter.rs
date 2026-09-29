@@ -33,7 +33,7 @@ impl WorldSession {
                 player.unit().is_alive(),
             )
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             let (health, max_health, is_alive) = resolved.unwrap_or_else(|| {
                 let max_health = self.player_max_health_like_cpp.max(1);
@@ -48,7 +48,10 @@ impl WorldSession {
             self.player_max_health_like_cpp = max_health;
             self.player_alive_like_cpp = is_alive;
         }
-        if resolved.is_some() || cfg!(test) && self.player_handle_like_cpp.is_none() {
+        if resolved.is_some()
+            || cfg!(any(test, feature = "test-fixtures"))
+                && self.player_handle_like_cpp.is_none()
+        {
             self.sync_player_registry_state_like_cpp();
         }
     }
@@ -63,7 +66,7 @@ impl WorldSession {
             let health = player.unit().data().health.min(u64::from(max_health)) as u32;
             (health, max_health, player.unit().is_alive() && health > 0)
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some((
                 self.player_health_like_cpp,
@@ -79,7 +82,7 @@ impl WorldSession {
             .map(|(_, _, alive)| alive)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn player_is_alive_like_cpp(&self) -> bool {
         self.resolved_player_is_alive_like_cpp().unwrap()
     }

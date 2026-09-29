@@ -980,7 +980,7 @@ pub struct WorldSession {
     // ── Movement & World position ─────────────────────────────────
     /// Server-side position of the player (updated from CMSG_MOVE_*).
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_position: Option<wow_core::Position>,
     /// Last accepted player movement flags, mirroring C++ `Unit::m_movementInfo`.
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
@@ -1037,7 +1037,7 @@ pub struct WorldSession {
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) in_combat: bool,
     /// Test-only legacy fixture for sessions without an installed Player owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_alive_like_cpp: bool,
     /// Handle-less fixture for C++ `Player::IsGameMaster()`.
     #[cfg(test)]
@@ -1052,10 +1052,10 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(in crate::session) player_environmental_damage_immune_like_cpp: bool,
     /// Test-only legacy health fixture for sessions without a Player handle.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_health_like_cpp: u32,
     /// Test-only legacy max-health fixture for sessions without a Player handle.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_max_health_like_cpp: u32,
     /// Represented `Unit::m_movementInfo.time` for client movement ACK side effects.
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.

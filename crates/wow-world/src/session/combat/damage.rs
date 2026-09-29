@@ -212,7 +212,7 @@ impl WorldSession {
             player.unit_mut().set_health(u64::from(after));
             (before, after, max_health, applied, killed)
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             let max_health = self.player_max_health_like_cpp.max(1);
             let before = self.player_health_like_cpp.min(max_health);

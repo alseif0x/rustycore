@@ -239,7 +239,7 @@ impl WorldSession {
         }
         self.current_map_id = map_id;
         self.sync_canonical_player_position_if_same_or_detached_like_cpp(map_id, position);
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none()
             || self.player_position_like_cpp() == Some(position)
         {
@@ -385,7 +385,7 @@ impl WorldSession {
 
     pub(crate) fn player_position_like_cpp(&self) -> Option<wow_core::Position> {
         let canonical = self.with_owned_player_like_cpp(|player| player.unit().world().position());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return self.player_position;
         }
