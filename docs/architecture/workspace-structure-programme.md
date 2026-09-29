@@ -1941,3 +1941,38 @@ pasaron `cargo check -p wow-map`, `cargo check -p wow-world` y
 `target/b6-terrain-visibility-wow-world-check.log` y
 `target/b6-terrain-visibility-instance-test.log`. Sigue pendiente la aceptacion
 final de la ola.
+
+### B3 `character_tests`: revision de la costura de integracion (2026-09-29)
+
+La migracion provisional de toda la suite a `tests/character_tests.rs` no es aun
+una entrega: con la feature `test-fixtures`, el diagnostico externo sobre el
+worktree anterior al commit `d8bef3dc` (incluido su diff de fixture)
+acaba con **524 errores** en 29 hijos, pese a haber retirado las primeras llamadas
+privadas. De ellos, 256 son E0624 (123 nombres distintos), 99 son E0599 (43
+nombres), 58 son E0425 y el resto incluye tipos/campos privados. La suite se
+compone de 13.205 lineas en los hijos trasladados; el fichero mayor tiene
+1.064. Comando y log: `cargo check -p wow-world --features test-fixtures --test
+character_tests`, `target/b3-character-canonical-access-external-check.log`.
+
+La clasificacion de 2026-09-25 como una unica suite de integracion de app era
+demasiado amplia. `item_3.rs` mezcla planes privados de banco/inventario con
+respuestas de handlers; `visibility.rs` comprueba directamente el materializador
+de cadaveres y sus detalles de mapa; `pet.rs` comprueba bytes de respuesta y el
+registro del handler. Mover todos por igual exigiria exponer centenares de
+metodos, tipos y campos internos solo para compilar pruebas, contra la regla de
+modulos de no publicar internals para reubicar tests. El setter de taxi confirma
+otro riesgo: su ruta `cfg(test)` incluye un respaldo de sesion representada que
+no existe en la compilacion de una suite externa.
+
+**Corte corregido para B3:** clasificar por escenario, no por fichero heredado.
+Conservar las pruebas de reglas/planes y estado privado como unitarias junto a
+su owner, en ficheros fisicos pequenos; llevar a `tests/` solo escenarios que
+ejercen un contrato publico de aplicacion, dispatch o composicion y darles
+builders de fixture por operacion. Si un escenario de handler requiere acceso
+privado, primero decidir si debe probar el dispatch publico o seguir siendo
+unitario. Preservar todos los nombres/registraciones mientras se reclasifica,
+retirar los puentes temporales que dejen de tener consumidores, y medir B7
+despues de cada familia consolidada. El traslado provisional no se publica ni
+se usa como evidencia de suite verde. Esta revision no reduce el objetivo de
+eliminar la deuda fisica y de imports de B3/B7; cambia la costura tecnica con
+la que se alcanzara sin ensanchar la API de produccion.
