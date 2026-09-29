@@ -193,3 +193,7 @@ pub(in crate::handlers::character) fn creature_create_position_after_hover_offse
     }
     position
 }
+
+#[cfg(test)]
+#[path = "creature_spawn_tests.rs"]
+mod rule_tests;
