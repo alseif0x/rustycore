@@ -615,3 +615,15 @@ async fn creature_query_missing_or_failed_catalog_emits_disallowed_response_like
         );
     }
 }
+
+#[tokio::test]
+async fn spirit_healer_activate_without_interactable_healer_is_silent_like_cpp() {
+    let (mut session, send_rx) = make_session_with_send_capacity(1);
+    let healer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9, 1);
+    let mut request = WorldPacket::new_empty();
+    request.write_packed_guid(&healer);
+
+    session.handle_spirit_healer_activate(request).await;
+
+    assert!(send_rx.try_recv().is_err());
+}

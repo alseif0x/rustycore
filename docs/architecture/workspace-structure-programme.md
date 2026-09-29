@@ -3028,3 +3028,20 @@ ejecutaron **1/1** cada uno con un job y target del worktree. Logs
 `target/b5-character-visibility-creature.log`. El segundo caso es cobertura
 adyacente, no prueba directa del DTO. La suite externa de inventario aun
 consume rutas de test privadas; B3 y la aceptacion global siguen pendientes.
+
+### B3 `misc_1`: rechazo de sanador espiritual junto a `query` (2026-09-29)
+
+El caso `spirit_healer_activate_without_interactable_healer_is_silent_like_cpp`
+paso del provisional `misc_1.rs` al modulo privado `query_tests.rs`, sin
+cambiar produccion ni visibilidad. `NPCHandler.cpp:331-344` retorna sin
+respuesta si no hay sanador interactuable; el test conserva el GUID y comprueba
+que no se emite paquete. No demuestra la resurreccion satisfactoria.
+
+`cargo check -p wow-world` y el filtro exacto
+`handlers::character::query::tests::spirit_healer_activate_without_interactable_healer_is_silent_like_cpp`
+con `--lib` pasaron (1/1, un job, target del worktree). Logs
+`target/b3-spirit-healer-negative-check-28134119.log` y
+`target/b3-spirit-healer-negative-test-28134119.log`. El censo conserva los
+**303** nombres originales sin ausencias ni duplicados, con **132** montados
+por la raiz provisional. La suite externa completa y la aceptacion global
+siguen pendientes.
