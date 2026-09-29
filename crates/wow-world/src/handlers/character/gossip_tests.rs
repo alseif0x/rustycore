@@ -7,11 +7,12 @@ use crate::test_fixtures::{
     set_player_faction_template_for_test, set_player_interaction_source_for_test,
 };
 use std::sync::{Arc, Mutex};
+use wow_constants::unit::NPCFlags1;
 use wow_constants::ServerOpcodes;
 use wow_core::guid::HighGuid;
 use wow_core::{EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position};
 use wow_data::{BankBagSlotPricesEntry, BankBagSlotPricesStore};
-use wow_entities::{GAMEOBJECT_TYPE_GOOBER, GameObject, MapObjectRecord, Player};
+use wow_entities::{Creature, GAMEOBJECT_TYPE_GOOBER, GameObject, MapObjectRecord, Player};
 use wow_packet::WorldPacket;
 
 #[tokio::test]
@@ -442,4 +443,116 @@ fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes
         }
     }
     opcodes
+}
+
+fn insert_binder_innkeeper(
+    manager: &Arc<Mutex<wow_map::MapManager>>,
+    guid: ObjectGuid,
+) {
+    let mut creature = Creature::new(false);
+    creature.unit_mut().world_mut().object_mut().create(guid);
+    creature.unit_mut().world_mut().object_mut().set_entry(2456);
+    creature.unit_mut().world_mut().set_map(571, 0).unwrap();
+    creature
+        .unit_mut()
+        .world_mut()
+        .relocate(Position::new(5.0, 0.0, 0.0, 0.0));
+    creature.unit_mut().world_mut().set_combat_reach(1.0);
+    creature.unit_mut().set_level(80);
+    creature.unit_mut().set_max_health(100);
+    creature.unit_mut().set_health(100);
+    creature.set_ai_identity_runtime(1, 35, NPCFlags1::INNKEEPER.bits(), 0);
+    creature.unit_mut().world_mut().object_mut().add_to_world();
+
+    manager
+        .lock()
+        .unwrap()
+        .create_world_map(571, 0)
+        .map_mut()
+        .insert_map_object_record(MapObjectRecord::new_creature(creature).unwrap())
+        .unwrap();
+}
+
+#[tokio::test]
+async fn binder_activate_rejects_instanceable_map_like_cpp() {
+    let (mut session, send_rx, canonical) = make_bank_slot_session(2);
+    let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 31);
+    insert_binder_innkeeper(&canonical, innkeeper);
+    let player_guid = session.player_guid().expect("player guid");
+    let mut player = Player::new(Some(1), false);
+    player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    player.unit_mut().world_mut().set_map(571, 0).unwrap();
+    player
+        .unit_mut()
+        .world_mut()
+        .relocate(Position::new(0.0, 0.0, 0.0, 0.0));
+    player.unit_mut().world_mut().object_mut().add_to_world();
+    player
+        .unit_mut()
+        .add_unit_state(wow_constants::unit::UnitState::DIED.bits());
+    canonical
+        .lock()
+        .unwrap()
+        .create_world_map(571, 0)
+        .map_mut()
+        .insert_map_object_record(MapObjectRecord::new_player(player).unwrap())
+        .unwrap();
+    const FEIGN_DEATH_SLOT: u8 = 7;
+    session.visible_auras.insert(
+        FEIGN_DEATH_SLOT,
+        AuraApplication {
+            spell_id: 5384,
+            difficulty_id: 0,
+            caster_guid: player_guid,
+            slot: FEIGN_DEATH_SLOT,
+            duration_total: 0,
+            duration_remaining: 0,
+            stack_count: 1,
+            aura_flags: 0,
+            effect_mask: 1,
+            aura_interrupt_flags: 0,
+            aura_interrupt_flags2: 0,
+            represented_effect: Some(RepresentedAuraEffectLikeCpp::FeignDeath),
+            represented_amount: 0,
+            represented_effect_amounts: Vec::new(),
+            represented_misc_value: None,
+            represented_multiplier: 1.0,
+            applied_at: std::time::Instant::now(),
+        },
+    );
+    session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+        wow_data::MapEntry {
+            id: 571,
+            instance_type: wow_data::map::MAP_INSTANCE,
+            expansion_id: 2,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        },
+    ])));
+
+    session
+        .handle_binder_activate(wow_packet::packets::gossip::Hello { unit: innkeeper })
+        .await;
+
+    assert!(session.represented_homebind_like_cpp().is_none());
+    assert_eq!(
+        drain_server_opcodes(&send_rx),
+        vec![ServerOpcodes::AuraUpdate],
+        "C++ removes feign death before SendBindPoint rejects an instanceable map"
+    );
+    assert!(!session.visible_auras.contains_key(&FEIGN_DEATH_SLOT));
+    assert_eq!(
+        session
+            .mutate_canonical_player_like_cpp(|player| player
+                .unit()
+                .has_unit_state(wow_constants::unit::UnitState::DIED.bits()))
+            .expect("canonical player"),
+        false
+    );
 }

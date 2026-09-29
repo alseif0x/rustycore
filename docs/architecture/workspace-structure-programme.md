@@ -2828,3 +2828,24 @@ wow-world --lib` ejecuto **1/1** con un job y target del worktree. Logs
 **303/303** nombres originales sin duplicados, **149** montados por la raiz
 provisional. La suite externa completa, B3 restante y aceptacion global
 siguen pendientes.
+
+### B3 `instance`: rechazo de binder junto a `gossip` (2026-09-29)
+
+El ultimo caso `binder_activate_rejects_instanceable_map_like_cpp` salio de
+`tests/character_tests/instance.rs`, que quedo sin montaje. El hijo privado
+de `gossip.rs` se renombro de `gossip_gameobject_tests.rs` a `gossip_tests.rs`
+para alojar este caso junto a los tres de GameObject; ahora mide 558 lineas.
+El fixture local de innkeeper conserva la criatura canonica del caso antiguo;
+el fixture provisional compartido sigue para otros consumidores. No cambia
+produccion ni visibilidad. `HandleBinderActivateOpcode` y `SendBindPoint`
+(`NPCHandler.cpp:373-404`) retiran feign death despues de validar al
+innkeeper y antes de rechazar un mapa instanciable.
+
+`cargo check -p wow-world` paso y el filtro
+`cargo test -p wow-world --lib handlers::character::gossip::` ejecuto **4/4**
+con un job y target del worktree. Logs
+`target/584-map-manager-domain-b3-binder-check-57ef290d.log` y
+`target/584-map-manager-domain-b3-binder-test-57ef290d.log`. Censo
+**303/303** nombres originales sin duplicados, **148** montados por la raiz
+provisional. La suite externa completa, B3 restante y aceptacion global
+siguen pendientes.

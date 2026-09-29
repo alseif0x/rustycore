@@ -762,5 +762,5 @@ impl WorldSession {
 }
 
 #[cfg(test)]
-#[path = "gossip_gameobject_tests.rs"]
-mod gossip_gameobject_tests;
+#[path = "gossip_tests.rs"]
+mod gossip_tests;
