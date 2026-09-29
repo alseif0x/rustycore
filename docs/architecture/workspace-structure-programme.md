@@ -2216,3 +2216,16 @@ wow-world` paso y el target ejecuto **15/15**. Logs:
 provisional de `character_tests`. El recuento excluye 19 pruebas que ya se
 ejecutan desde targets independientes aunque sus hijos fisicos sigan bajo
 `tests/character_tests/`.
+
+### B3 `item_4`: cancelacion de encantamiento temporal (2026-09-29)
+
+Los dos escenarios de `CancelTempEnchantment` viven en el hijo privado
+`handlers/character/items/handlers_tests.rs`, con fixture de item local y
+los mismos slots, IDs, aserciones de encantamiento y ausencia de packet. La
+fuente 3.4.3 `ItemHandler.cpp::HandleCancelTempEnchantmentOpcode` (1100)
+confirma la admision solo para equipo y el borrado del encantamiento temporal.
+No se cambio produccion ni visibilidad. `cargo check -p wow-world` paso y el
+filtro unitario ejecuto **2/2**; logs
+`target/b3-cancel-temp-enchantment-check.log` y
+`target/b3-cancel-temp-enchantment-test.log`. Censo **303/303**, sin
+duplicados; quedan **217** tests montados por la raiz provisional.
