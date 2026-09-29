@@ -2599,3 +2599,21 @@ ejecuto **6/6** con un job y target del worktree. Logs
 `target/b3-character-post-add-scaling-tests-retry.log`. Censo **303/303**
 nombres unicos, **168** montados por la raiz provisional. Siguen pendientes
 la suite externa completa, el resto de B3 y la aceptacion global.
+
+### B3: descanso aplazado tras cancelar post-add (2026-09-29)
+
+`cancelled_post_add_retains_rest_update_through_reentry` se movio al hijo
+privado `handlers/character/world_entry/initial_packets_post_add_rest_tests.rs`
+con el mismo montaje `cfg(test)`, nombre, aserciones y limpieza del directorio
+temporal. Se retiro el hijo provisional. No cambia logica productiva ni
+visibilidad. En el C++ fijado, `Player::SendInitialPacketsAfterAddToMap`
+llama a `UpdateZone` (`Player.cpp:23568-23575`) y `UpdateZone` ajusta descanso
+y envia estados al cambiar de zona (`Player.cpp:7356-7430`). La cancelacion,
+reentrada y marca diferida verificadas son defensas Rust, sin contrato C++ de
+cancelacion acreditado por este caso.
+
+`cargo check -p wow-world` paso; el filtro focal ejecuto **1/1** con un job y
+target del worktree. Logs `target/b3-character-post-add-rest-check.log` y
+`target/b3-character-post-add-rest-test.log`. Censo **303/303** nombres unicos,
+**167** montados por la raiz provisional. La suite externa completa, el resto
+de B3 y la aceptacion global siguen pendientes.

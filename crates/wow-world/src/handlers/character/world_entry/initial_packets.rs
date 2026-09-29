@@ -393,3 +393,7 @@ mod tests;
 #[cfg(test)]
 #[path = "initial_packets_post_add_scaling_tests.rs"]
 mod post_add_scaling_tests;
+
+#[cfg(test)]
+#[path = "initial_packets_post_add_rest_tests.rs"]
+mod post_add_rest_tests;
