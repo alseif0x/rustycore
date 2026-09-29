@@ -272,6 +272,24 @@ local, no aceptación de B6: siguen pendientes las visibilidades ensanchadas de
 funciones en `terrain.rs`, la revisión de features, la composición y la
 aceptación final.
 
+**B6 feedback acotado de pathfinder (2026-09-29):** seis declaraciones de
+`map_manager/pathfinder.rs` se habían ampliado de `pub(super)` a `pub` al mover
+el módulo. `SMOOTH_PATH_STEP_SIZE_LIKE_CPP`, las dos conversiones de posición y
+`WorldMMapPathfinderMessageLikeCpp` solo se usan en el archivo y ahora son
+privadas. `point_path_limit_for_distance_like_cpp` y
+`random_path_result_from_path_type_like_cpp` los usa también el módulo hermano
+de movimiento y quedan `pub(super)`. El test de movimiento importa el último
+por su ruta anidada privada, sin reexport público; se retiró su import del
+fixture común. No se cambiaron reglas ni datos.
+
+Los checks secuenciales con un job, `PROTOC` local y target del worktree
+pasaron: `cargo check -p wow-map`, `cargo test -p wow-map --lib path` (37/37,
+854 filtrados) y `cargo check -p wow-world`; logs
+`target/b6-pathfinder-wow-map-check.log`,
+`target/b6-pathfinder-wow-map-test-path.log` y
+`target/b6-pathfinder-wow-world-check.log`. También pasó `git diff --check`.
+Es feedback de desarrollo, no aceptación final de B6 ni de la macro.
+
 **Evidencia disponible:** revisión de código, Git, manifiestos y sesión DeepSeek
 `51439d45-bfa1-4f1a-8538-38729d3f7c0d`, más los checks de desarrollo indicados arriba.
 El último manifiesto final encontrado, `20260927T140832.222423Z-3887452-final.json`, pasó

@@ -4,6 +4,7 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use crate::map_manager::pathfinder::random_path_result_from_path_type_like_cpp;
 
 #[test]
 fn world_mmap_pathfinder_resolves_mesh_map_from_phase_shift_like_cpp() {

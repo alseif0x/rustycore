@@ -16,7 +16,7 @@ pub use crate::map_manager::{
     calculate_creature_detour_path_like_cpp, detour_path_without_navmesh_like_cpp, grid_to_world,
     instant_from_respawn_time_like_cpp, path_generator_from_detour_like_cpp,
     path_type_from_detour_like_cpp, pending_respawn_from_world_creature_like_cpp,
-    random_path_result_from_path_type_like_cpp, snap_respawn_creature_to_ground_like_cpp,
+    snap_respawn_creature_to_ground_like_cpp,
     terrain_grid_area_id_for_position_like_cpp, terrain_grid_coords_for_wow_position_like_cpp,
     terrain_map_id_for_phase_shift_like_cpp,
     world_creature_from_pending_respawn_like_cpp, world_to_grid_coords, world_to_grid_x,
