@@ -2094,3 +2094,23 @@ aserciones; el builder y el codificador local siguen los de `fixtures_2.rs`.
 `cargo check -p wow-world` paso y el target ejecuto **3/3**. Logs:
 `target/b3-character-equipment-delete-check.log` y
 `target/b3-character-equipment-delete-test.log`. No hubo API nueva.
+
+### B3 `item_1`: `UseEquipmentSet` revela frontera `cfg(test)` (2026-09-29)
+
+El escenario que mueve un item directo paso como test externo independiente
+en `tests/character_tests/equipment_set_use.rs`, montado por
+`tests/character_equipment_set_use.rs` (**1/1** tras el corte); su cuerpo y
+aserciones permanecen iguales. El intento inicial de mover juntos los tres
+escenarios compilo pero dio **1 aprobado / 2 fallidos**: el caso de ranura vacia
+conservo el item en la ranura y el de mods obtuvo 0 en vez de 11. No se
+modificaron aserciones ni gameplay para ocultarlo. Los dos escenarios volvieron
+al `item_1` provisional para reubicarse como unitarios o reconstruirse con un
+fixture de `Player` canonico demostrado.
+
+Frontera encontrada por lectura: `resolved_player_inventory_slot_count_like_cpp`
+(`session/player_items/storage_slots.rs`) solo ofrece su respaldo representado
+bajo `cfg(test)`; varios mutadores de `session/player_items/modifiers.rs` tienen
+la misma puerta. La compilacion externa con `test-fixtures` no prueba el mismo
+estado representado de esos escenarios. Logs del intento y del corte validado:
+`target/b3-character-equipment-use-test.log` y
+`target/b3-character-equipment-use-reduced-test.log`.
