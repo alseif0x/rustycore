@@ -2872,3 +2872,24 @@ ejecuto **7/7** con un job y target del worktree. Logs
 La suite externa completa, B3 restante y aceptacion global siguen
 pendientes; el censo global se recontara tras integrar las ediciones B3
 paralelas en sus archivos disjuntos.
+
+### B3 `quest`: cuatro estados tracked junto a `query` (2026-09-29)
+
+Los cuatro casos `quest_giver_status_tracked_*` sobre GUID duplicado, cuenta
+superior al maximo, payload corto y GUID ausente/no soportado se movieron de
+`tests/character_tests/quest.rs` al hijo privado
+`handlers/character/query_quest_status_tests.rs`. Reutilizan la sesion,
+criatura y decodificador del hijo existente; conservan nombres, bytes y
+aserciones, sin modificar produccion ni visibilidad. `QuestHandler.cpp:775-778`
+entrega los GUIDs a `Player::SendQuestGiverStatusMultiple`
+(`Player.cpp:16803-16829`), que consulta los objetos del mapa y deduplica
+mediante el conjunto C++. Los tests de limite/payload truncado son defensas
+de admision Rust; no se atribuyen a una rama C++ no demostrada.
+
+`cargo check -p wow-world` paso y el filtro
+`cargo test -p wow-world --lib handlers::character::query::quest_status_tests::`
+ejecuto **6/6** con un job y target del worktree; los logs
+`target/b3-quest-status-extra-check.log` y
+`target/b3-quest-status-extra-test.log` registran `CARGO_EXIT_CODE=0`.
+La suite externa completa, B3 restante y aceptacion global siguen
+pendientes.

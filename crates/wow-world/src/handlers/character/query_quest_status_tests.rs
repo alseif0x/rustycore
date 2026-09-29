@@ -1,3 +1,4 @@
+use super::super::QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP;
 use crate::handlers::test_support::world::quest_template;
 use crate::session::WorldSession;
 use std::sync::{Arc, Mutex};
@@ -172,4 +173,70 @@ async fn quest_giver_status_tracked_supplied_gameobject_uses_uint64_status_like_
         recv_status_multiple(&send_rx),
         vec![(guid, quest_giver_status::TRIVIAL)]
     );
+}
+
+#[tokio::test]
+async fn quest_giver_status_tracked_duplicate_guid_emits_single_status_like_cpp_set() {
+    let (mut session, send_rx) = make_quest_status_session();
+    let mut store = store_with_quests(&[3003]);
+    store.starter_quests.entry(9303).or_default().push(3003);
+    session.set_quest_store(Arc::new(store));
+    let guid = creature_guid(9303, 303);
+    let mut manager = wow_map::MapManager::default();
+    insert_creature(&mut manager, guid, 9303);
+    attach_map_manager(&mut session, manager);
+
+    session
+        .handle_quest_giver_status_tracked_query(tracked_query_packet(&[guid, guid]))
+        .await;
+
+    assert_eq!(recv_status_multiple(&send_rx).len(), 1);
+}
+
+#[tokio::test]
+async fn quest_giver_status_tracked_count_over_cpp_max_sends_no_packet() {
+    let (mut session, send_rx) = make_quest_status_session();
+    let mut pkt = WorldPacket::new_empty();
+    pkt.write_uint32(QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP + 1);
+
+    session.handle_quest_giver_status_tracked_query(pkt).await;
+
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn quest_giver_status_tracked_short_payload_sends_no_packet() {
+    let (mut session, send_rx) = make_quest_status_session();
+    let guid = creature_guid(9304, 304);
+    let mut pkt = WorldPacket::new_empty();
+    pkt.write_uint32(1);
+    pkt.write_packed_guid(&guid);
+    let mut bytes = pkt.into_data();
+    bytes.pop();
+
+    session
+        .handle_quest_giver_status_tracked_query(WorldPacket::from_bytes(&bytes))
+        .await;
+
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn quest_giver_status_tracked_unsupported_missing_guid_sends_empty_multiple_like_cpp() {
+    let (mut session, send_rx) = make_quest_status_session();
+    attach_map_manager(&mut session, wow_map::MapManager::default());
+    session.set_quest_store(Arc::new(store_with_quests(&[3005])));
+    let missing_guid = creature_guid(9305, 305);
+    let player_guid = ObjectGuid::create_player(1, 305);
+    let item_guid = ObjectGuid::create_item(1, 305);
+
+    session
+        .handle_quest_giver_status_tracked_query(tracked_query_packet(&[
+            missing_guid,
+            player_guid,
+            item_guid,
+        ]))
+        .await;
+
+    assert!(recv_status_multiple(&send_rx).is_empty());
 }
