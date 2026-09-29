@@ -2278,3 +2278,17 @@ SHA y limites de evidencia estan en
 `docs/migration/EXISTING-CODE-DEFECTS.md`. Esta es una discrepancia previa,
 no un resultado del traslado B3; no se cambia gameplay dentro del movimiento
 estructural. Los otros escenarios de `item_4` y las demas suites pueden seguir.
+
+### B3 `item_4`: plan de consumo de items de coste extendido (2026-09-29)
+
+`extended_cost_item_turnin_plan_matches_cpp_destroy_order` vive en
+`handlers/character/items/turnin_plan_tests.rs`, montado por `items.rs` sin
+pasar de **797 lineas**. El fixture privado conserva dos stacks en slots
+35/36, sus cuentas y las aserciones de borrar el primero y reducir el
+segundo. La referencia 3.4.3 `Player.cpp::DestroyItemCount` (11784) recorre
+inventario directo en orden; el vendedor lo invoca en `Player.cpp:22136`.
+Sin cambio productivo ni de visibilidad, `cargo check -p wow-world` paso y el
+filtro unitario ejecuto **1/1**; logs `target/b3-extended-cost-turnin-check.log`
+y `target/b3-extended-cost-turnin-test.log`. Censo **303/303** sin duplicados;
+**215** pruebas siguen montadas por la raiz provisional. En `item_4` quedan
+gossip bancario y las tres pruebas del opcode con discrepancia registrada.

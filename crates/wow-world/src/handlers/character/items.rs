@@ -791,3 +791,7 @@ impl WorldSession {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "items/turnin_plan_tests.rs"]
+mod turnin_plan_tests;
