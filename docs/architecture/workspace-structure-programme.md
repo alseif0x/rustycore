@@ -430,6 +430,21 @@ terminó con exit 101 y **536 errores**
 27, sin cambio en las otras categorías. La suite sigue sin compilar ni ser
 aceptada; sus consumidores permanecen sin commit.
 
+El siguiente grupo de cuatro llamadas externas a
+`SessionPlayerController::new`/`attach_player_controller_like_cpp` **no admite
+un mero wrapper**: `session/player_binding.rs` escribe bootstrap y seer solo
+bajo `cfg(test)`, pero bajo `cfg(not(test))` instala inmediatamente el Player
+desacoplado. Los cuatro consumidores son fixtures de área/banco/observador y
+la consulta de nombre conectado. `session/state.rs` y
+`session/construction.rs` conservan nombre, raza/clase/género, marca de
+bootstrap y visibilidad con gates de test; posición y nivel ya admiten
+`test-fixtures`. Antes de mover estas llamadas, trazar qué campos y lectores
+necesita cada escenario y extender únicamente el contrato de fixture que
+reproduzca la ruta unitaria, incluido el momento de instalación y seer. No
+usar la rama de producción en el target externo para reducir errores de
+compilación si altera la prueba. Este grupo permanece sin implementación ni
+evidencia de ejecución.
+
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
 1. **Compila**: `cargo check -p <crate>` (y sus consumidores). Es el bucle de trabajo, no evidencia
