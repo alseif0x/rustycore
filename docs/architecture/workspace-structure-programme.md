@@ -261,6 +261,17 @@ las 219 pruebas externas completas ni se revalidó el modo sin feature tras los
 `1a5ea280` ni de la macro. `character_tests`, `loot_tests`, B7 y el resto de
 `wow-world` siguen pendientes.
 
+**Diagnóstico de character en curso, sin commit:** se copió la suite de
+`character_tests` (303 tests, 13 280 líneas con sus fixtures) a un target externo
+y se retiró su montaje antiguo solo en el árbol de trabajo. El primer
+`cargo check -p wow-world --test character_tests` arrojó 1 131 errores
+(`target/b3-character-initial-check.log`), principalmente visibilidad y nombres
+que el viejo `super::*` aportaba. Reusar el fixture ya existente de identidad
+cargada eliminó 42 errores: el último diagnóstico tiene 1 089
+(`target/b3-character-identity-fixture-check.log`). No se han ejecutado sus
+tests ni se ha comprometido el traslado. Conservar los 303 nombres y separar
+las reglas privadas del target de aplicación antes de aceptarlo.
+
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
 1. **Compila**: `cargo check -p <crate>` (y sus consumidores). Es el bucle de trabajo, no evidencia
