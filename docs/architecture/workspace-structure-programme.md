@@ -345,29 +345,28 @@ coordenadas y límite ±250); no se cambió esa regla. El módulo dueño quedó 
 en `d5b53874`, mientras el target externo sigue sin commit.
 
 Evidencia posterior: `cargo test -p wow-world --lib persisted_transport_login` pasó
-3/3 (`target/b3-character-transport-focused-test.log`). El check externo vigente,
+3/3 (`target/b3-character-transport-focused-test.log`). El corte de equipment sets
+de 589 errores (`target/b3-character-equipment-set-external-check.log`, exit 101)
+bajó desde los 637 previos mediante el puente comprometido en `822774c3` y las
+adaptaciones consumidoras: 28 E0599 y 20 E0603 menos. Sus wrappers bajo
+`test-fixtures` delegan a la colección canónica del `Player` o conservan el fallback
+sin `Player`; los consumidores usan los tipos públicos `wow_entities::PlayerEquipmentSet*`
+sin publicar aliases privados de `session`. Después, el puente faction de `32c01e18`
+y sus seis consumidores redujeron otros seis E0599. El último check externo,
 `CARGO_BUILD_JOBS=1 PROTOC=/home/ubuntu/.local/protoc/bin/protoc
 CARGO_TARGET_DIR=/home/server/rustycore-world-refactor/target cargo check -p wow-world
---features test-fixtures --test character_tests`, terminó con exit 101 y **589 errores**
-(`target/b3-character-equipment-set-external-check.log`): E0277=10, E0422=30,
-E0425=58, E0432=2, E0433=30, E0599=120, E0603=35, E0609=11, E0616=14 y E0624=279.
-Frente al corte anterior de 637 (`target/b3-character-transport-external-check.log`),
-el puente de equipment sets de `822774c3` y sus adaptaciones consumidoras reducen
-28 E0599 y 20 E0603. Los wrappers feature-gated delegan a la colección canónica del
-`Player` o conservan el fallback de sesiones sin `Player`; los consumidores usan los
-tipos públicos `wow_entities::PlayerEquipmentSet*`, sin publicar los aliases privados
-de `session`. El check default `cargo check -p wow-world` pasó con exit 0
-(`target/b3-character-equipment-set-default-check.log`). Los filtros focalizados
-`cargo test -p wow-world --lib equipment_set` y
-`cargo test -p wow-world --lib canonical_player_saved_equipment_and_void_storage_follow_handle_generation_like_cpp`
-pasaron 1/1 cada uno (`target/b3-character-equipment-set-focused-test.log` y
-`target/b3-character-equipment-set-canonical-test.log`), cubriendo fallback sin
-`Player` y propiedad canónica. El censo conserva exactamente los 303 nombres
-originales: 268 externos y 35 privados en sus módulos dueños, sin ausentes,
-añadidos ni duplicados. El target externo aún no compila; no se ejecutaron sus 268
-tests completos ni aceptación final. El traslado y las adaptaciones consumidoras
-siguen sin commit; esta evidencia es de desarrollo, no aceptación de la suite ni
-de la macro.
+--features test-fixtures --test character_tests`, terminó con exit 101 y **583 errores**
+(`target/b3-character-faction-template-external-check.log`): E0277=10, E0422=30,
+E0425=58, E0432=2, E0433=30, E0599=114, E0603=35, E0609=11, E0616=14 y E0624=279.
+El check default `cargo check -p wow-world` pasó con exit 0 después del slice faction
+(`target/b3-character-faction-template-default-check.log`). Los dos filtros focalizados
+de equipment sets (`equipment_set` y
+`canonical_player_saved_equipment_and_void_storage_follow_handle_generation_like_cpp`)
+pasaron 1/1 cada uno en sus logs; no se ejecutaron tests para faction. El censo conserva
+exactamente los 303 nombres originales: 268 externos y 35 privados en sus módulos dueños,
+sin ausentes, añadidos ni duplicados. El target externo aún no compila; no se ejecutaron
+sus 268 tests completos ni aceptación final. El traslado y las adaptaciones consumidoras
+siguen sin commit; esta evidencia es de desarrollo, no aceptación de la suite ni de la macro.
 
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
