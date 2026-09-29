@@ -57,7 +57,7 @@ mod visibility_commands;
 
 use self::disenchant::*;
 use self::object_state::*;
-pub(crate) use self::object_state::represented_gameobject_interaction_distance_like_cpp;
+pub(in crate::handlers) use self::object_state::represented_gameobject_interaction_distance_like_cpp;
 use self::persistence_workers::*;
 use self::player_view::*;
 use self::release_and_rolls::*;

@@ -139,7 +139,7 @@ sin entradas eliminables ni stashes. Reconsultar Git al retomar; estos son datos
 | pieza | estado comprobado y límite |
 |---|---|
 | B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Auditoría de consumidores del 2026-09-29: el manager legado sigue requerido por `wow-world`/`world-server`, pero su almacenamiento grid/instance y varios helpers siguen expuestos sin consumidor externo identificado. Quedan estrechar esa API, verificar features/composición y aceptar el candidato. |
-| B5 | Raíces de loot y character miden 243/239 líneas y todos sus hijos extraídos menos de 600. Auditoría de consumidores del 2026-09-29: tres rutas heredadas `pub(crate)` pueden estrecharse; el test externo de planificación de inventario sigue dependiendo de B3. Pendientes el corte de visibilidad y la aceptación. |
+| B5 | Raíces de loot y character miden 243/239 líneas y todos sus hijos extraídos menos de 600. Auditoría de consumidores del 2026-09-29: la ruta de distancia de loot ya se estrechó; quedan dos rutas heredadas `pub(crate)` de character y el test externo de planificación de inventario dependiente de B3. Pendientes esos cortes y la aceptación. |
 | B3 | `group_tests` ya es target de integración; `character_tests` se distribuye por owners con censo de nombres en las notas finales de esta sección. La suite externa provisional aún no compila completa; `quest_tests` y `loot_tests` siguen pendientes. |
 | B7 | Hay limpieza parcial integrada; los consumidores restantes de fixtures dependen de B3. No está cerrado. |
 | Talentos #578 | La rama `recover/578-talent-catalog`, `0845f5b3`, conserva `docs/migration/recovered/578-talent-catalog-2026-09-04.patch`; el archivo solo existe en esa rama, no en este checkout. No está aplicado; preservar la rama y adaptar por consumidores actuales cuando corresponda. |
@@ -2994,3 +2994,17 @@ ejecuto **3/3** con un job y target del worktree. Logs
 `target/b3-lifecycle-profile-test.log`. Censo **303/303** nombres originales
 sin duplicados, **133** montados por la raiz provisional. La suite externa
 completa, B3 restante y aceptacion global siguen pendientes.
+
+### B5: distancia de interaccion de loot limitada a handlers (2026-09-29)
+
+`represented_gameobject_interaction_distance_like_cpp` y su reexport en
+`loot/mod.rs` pasaron de `pub(crate)` a `pub(in crate::handlers)`. Los
+consumidores localizados estan en loot, su suite y
+`handlers/entities/gameobject.rs`; ningun consumidor localizado queda fuera
+de ese ancestro. Solo cambia visibilidad, no calculo de radio ni bytes.
+`cargo check -p wow-world` paso y
+`cargo test -p wow-world --lib gameobject_interaction_distance_uses_cpp_type_branches`
+ejecuto **1/1** con un job y target del worktree. Logs
+`target/b5-loot-distance-check.log` y `target/b5-loot-distance-test.log`.
+Quedan las otras rutas B5, el consumidor B3 de inventario y la aceptacion
+del candidato; este check focal no cierra B5 ni demuestra composicion final.

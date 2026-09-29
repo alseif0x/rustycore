@@ -95,7 +95,7 @@ pub(in crate::handlers::loot) struct RepresentedGameObjectLootStateLikeCpp {
     pub(in crate::handlers::loot) owner_guid: Option<ObjectGuid>,
 }
 
-pub(crate) fn represented_gameobject_interaction_distance_like_cpp(
+pub(in crate::handlers) fn represented_gameobject_interaction_distance_like_cpp(
     go_type: Option<u8>,
     interact_radius_override: Option<u32>,
 ) -> f32 {
