@@ -389,6 +389,18 @@ no compila y no existe uno equivalente bajo el módulo dueño. El productor de
 fixtures se conserva como checkpoint local; los consumidores externos y la
 suite completa siguen sin commit ni aceptación.
 
+La fixture `ensure_login_player_controller_for_test` reenvía sin alterar los
+ocho argumentos del método existente y cubre las 13 llamadas de
+`character_tests` en cinco archivos. El método conserva su visibilidad interna;
+el wrapper solo existe bajo `test-fixtures`. `cargo check -p wow-world` pasó
+(`target/b3-character-login-controller-default-check.log`). El target externo
+continúa con exit 101, ahora **555 errores**
+(`target/b3-character-login-controller-external-check.log`): E0624 bajó de
+279 a 266 y las demás categorías permanecieron iguales. El test unitario
+`ensure_login_player_controller_is_idempotent_like_cpp` pasó 1/1, con 3145
+filtrados (`target/b3-character-login-controller-focused-test.log`). Sigue
+pendiente compilar y ejecutar los 268 casos externos y la aceptación de B3.
+
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
 1. **Compila**: `cargo check -p <crate>` (y sus consumidores). Es el bucle de trabajo, no evidencia

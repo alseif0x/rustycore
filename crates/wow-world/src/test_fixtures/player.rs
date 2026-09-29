@@ -104,6 +104,22 @@ pub fn get_inventory_item_by_pos_for_test(
     session.get_inventory_item_by_pos(bag, slot)
 }
 
+pub fn ensure_login_player_controller_for_test(
+    session: &mut crate::session::WorldSession,
+    guid: wow_core::ObjectGuid,
+    name: String,
+    position: wow_core::Position,
+    map_id: u16,
+    race: u8,
+    class: u8,
+    level: u8,
+    gender: u8,
+) -> bool {
+    session.ensure_login_player_controller_like_cpp(
+        guid, name, position, map_id, race, class, level, gender,
+    )
+}
+
 pub fn mark_inventory_child_for_test(
     session: &mut crate::session::WorldSession,
     child_guid: wow_core::ObjectGuid,
