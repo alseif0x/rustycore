@@ -76,6 +76,27 @@ pub fn set_quest_store_for_test(
     session.quests.store = Some(store);
 }
 
+pub fn first_free_quest_slot_for_test(
+    session: &crate::session::WorldSession,
+) -> Option<u8> {
+    session.first_free_quest_slot_like_cpp()
+}
+
+pub fn set_represented_df_quest_for_test(
+    session: &mut crate::session::WorldSession,
+    quest_id: u32,
+    present: bool,
+) {
+    session.set_represented_df_quest_like_cpp_for_test(quest_id, present);
+}
+
+pub fn can_complete_repeatable_quest_represented_bounded_for_test(
+    session: &crate::session::WorldSession,
+    quest: &wow_data::quest::QuestTemplate,
+) -> bool {
+    session.can_complete_repeatable_quest_represented_bounded_like_cpp(quest)
+}
+
 pub fn represented_quest_statuses_for_save_for_test(
     session: &crate::session::WorldSession,
 ) -> Vec<(u32, u8)> {
