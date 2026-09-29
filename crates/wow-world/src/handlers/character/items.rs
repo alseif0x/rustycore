@@ -12,7 +12,7 @@ mod handlers;
 mod inventory_moves;
 pub(super) mod login_load;
 
-pub(crate) fn item_turnin_persistence_rows_like_cpp(
+pub(super) fn item_turnin_persistence_rows_like_cpp(
     player_guid: ObjectGuid,
     changes: &[ExtendedCostItemTurninChange],
 ) -> Vec<wow_persistence::VendorItemTurninPersistenceLikeCpp> {
@@ -160,7 +160,7 @@ impl WorldSession {
         ))
     }
 
-    pub(crate) fn inventory_container_db_guid_like_cpp(&self, bag: u8) -> Option<u64> {
+    pub(in crate::handlers) fn inventory_container_db_guid_like_cpp(&self, bag: u8) -> Option<u64> {
         if bag == INVENTORY_SLOT_BAG_0 {
             Some(0)
         } else {
@@ -674,7 +674,7 @@ impl WorldSession {
         false
     }
 
-    pub(crate) fn plan_destroy_item_count_direct_inventory(
+    pub(in crate::handlers) fn plan_destroy_item_count_direct_inventory(
         &self,
         item_entry: u32,
         count: u32,
@@ -734,7 +734,7 @@ impl WorldSession {
         None
     }
 
-    pub(crate) fn apply_item_turnin_changes(
+    pub(in crate::handlers) fn apply_item_turnin_changes(
         &mut self,
         _player_guid: ObjectGuid,
         map_id: u16,

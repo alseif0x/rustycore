@@ -32,7 +32,7 @@ impl WorldSession {
         Some(player)
     }
 
-    pub(crate) fn build_condition_creature_object_like_cpp(
+    pub(super) fn build_condition_creature_object_like_cpp(
         &mut self,
         npc_guid: ObjectGuid,
     ) -> Option<(WorldObject, wow_conditions::ConditionUnitSnapshot)> {

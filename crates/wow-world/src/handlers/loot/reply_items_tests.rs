@@ -1,4 +1,6 @@
-use super::represented_loot_response_items_like_cpp;
+use super::{
+    direct_item_count_after_loot_release_like_cpp, represented_loot_response_items_like_cpp,
+};
 use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_loot::{
     LOOT_METHOD_GROUP_LIKE_CPP, LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP,
@@ -137,4 +139,15 @@ fn represented_ffa_loot_uses_player_ffa_items_like_cpp() {
         represented_loot_response_items_like_cpp(&loot, other_guid).len(),
         1
     );
+}
+
+#[test]
+fn prospecting_and_milling_release_consume_at_most_five_source_items_like_cpp() {
+    assert_eq!(
+        direct_item_count_after_loot_release_like_cpp(20, Some(5)),
+        15
+    );
+    assert_eq!(direct_item_count_after_loot_release_like_cpp(5, Some(5)), 0);
+    assert_eq!(direct_item_count_after_loot_release_like_cpp(3, Some(5)), 0);
+    assert_eq!(direct_item_count_after_loot_release_like_cpp(20, None), 0);
 }

@@ -205,16 +205,6 @@ fn represented_loot_item_push_result_uses_realm_route_and_cpp_encounter_fields()
     assert_eq!(sent.read_int32().unwrap(), 25);
 }
 #[test]
-fn prospecting_and_milling_release_consume_at_most_five_source_items_like_cpp() {
-    assert_eq!(
-        direct_item_count_after_loot_release_like_cpp(20, Some(5)),
-        15
-    );
-    assert_eq!(direct_item_count_after_loot_release_like_cpp(5, Some(5)), 0);
-    assert_eq!(direct_item_count_after_loot_release_like_cpp(3, Some(5)), 0);
-    assert_eq!(direct_item_count_after_loot_release_like_cpp(20, None), 0);
-}
-#[test]
 fn durable_item_fanout_uses_precommit_union_exact_commit_cut_like_cpp() {
     let before = ObjectGuid::create_player(1, 41);
     let during = ObjectGuid::create_player(1, 42);

@@ -162,7 +162,7 @@ impl WorldSession {
     /// WDC4/DB2 record bytes, which are not the same wire format. Only typed
     /// stores implemented here may answer Valid; missing typed storage follows
     /// the C++ Invalid branch and lets the client use its local DB2 cache.
-    pub(crate) async fn handle_db_query_bulk_with_tact_keys_like_cpp(
+    pub(super) async fn handle_db_query_bulk_with_tact_keys_like_cpp(
         &mut self,
         tact_keys: &wow_data::TactKeyStore,
         query: wow_packet::packets::misc::DbQueryBulk,
@@ -223,7 +223,7 @@ impl WorldSession {
     /// The client sends this automatically after receiving an UpdateObject with
     /// unknown creature entries. Without a response, NPC names don't display
     /// and interaction menus don't work.
-    pub(crate) async fn handle_query_creature_with_catalogs_like_cpp(
+    pub(super) async fn handle_query_creature_with_catalogs_like_cpp(
         &mut self,
         catalogs: &crate::session::ObjectMgrCatalogsLikeCpp,
         query: QueryCreature,
@@ -305,7 +305,7 @@ impl WorldSession {
     }
 
     /// Handle CMSG_QUERY_GAME_OBJECT — client requests gameobject template data.
-    pub(crate) async fn handle_query_game_object_with_catalogs_like_cpp(
+    pub(super) async fn handle_query_game_object_with_catalogs_like_cpp(
         &mut self,
         catalogs: &crate::session::ObjectMgrCatalogsLikeCpp,
         query: wow_packet::packets::query::QueryGameObject,
@@ -369,7 +369,7 @@ impl WorldSession {
             .await;
     }
 
-    pub(crate) async fn handle_query_page_text_with_catalogs_like_cpp(
+    pub(super) async fn handle_query_page_text_with_catalogs_like_cpp(
         &mut self,
         catalogs: &crate::session::ObjectMgrCatalogsLikeCpp,
         query: QueryPageText,
@@ -436,7 +436,7 @@ impl WorldSession {
         self.send_packet(&response);
     }
 
-    pub(crate) fn represented_query_canonical_pet_name_like_cpp(
+    fn represented_query_canonical_pet_name_like_cpp(
         &self,
         unit_guid: ObjectGuid,
     ) -> Option<(String, u32)> {

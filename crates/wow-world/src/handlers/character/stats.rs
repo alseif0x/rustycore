@@ -619,7 +619,7 @@ impl WorldSession {
     /// times: a form with `CombatRoundTime` drives both melee attacks and
     /// leaves the ranged attack at `BASE_ATTACK_TIME`; otherwise the equipped
     /// weapon delays (`SetRegularAttackTime`) apply.
-    pub(crate) fn apply_represented_shapeshift_base_attack_time_like_cpp(&mut self) -> bool {
+    fn apply_represented_shapeshift_base_attack_time_like_cpp(&mut self) -> bool {
         let regular = self
             .represented_player_gear_stats_like_cpp(true)
             .map(|gear| gear.base_attack_time);
@@ -721,7 +721,7 @@ impl WorldSession {
     /// Player. Packet adapters may format this value, while combat systems can
     /// consume it without reaching through Session or rebuilding item input.
     /// The snapshot is derived and is intentionally not a persistence record.
-    pub(crate) fn publish_player_effective_combat_stats_like_cpp(
+    pub(super) fn publish_player_effective_combat_stats_like_cpp(
         &self,
         level: u8,
         projection: PlayerStatSystemProjectionLikeCpp,

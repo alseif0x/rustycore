@@ -3160,3 +3160,35 @@ Un job, target del worktree; logs `target/584-b3-01-cargo-check-wow-world.log`
 a `target/584-b3-06-check-quest-tests.log`. Los 272 avisos de la lib no
 aumentaron. La suite externa de character, B3 total y aceptacion global
 siguen pendientes.
+
+### B3/B5: matriz privada de elegibilidad y visibilidad character (2026-09-29)
+
+Los 16 tests `can_take_quest_*` restantes de `tests/quest_tests/quest_7.rs`
+pasaron al hijo privado de `quest/eligibility.rs`. Con los cinco anteriores,
+son **21** casos en `eligibility_tests.rs` (**599 lineas**). El target externo
+conserva sus escenarios de packet, reward y puertos. Los nombres, entradas y
+aserciones se conservaron; el par de archivos tiene **30** tests antes y
+despues, sin ausencias ni extras. `Player::CanTakeQuest` y sus gates
+`SatisfyQuest*` en `Player.cpp:14087-15446` son las referencias; la sesion
+sintetica sin Player no acredita hidratacion, resets, quests temporizadas,
+persistencia ni composicion productiva.
+
+El test de recuento de prospecting/milling paso del agregado de loot al hijo
+privado de `reply_items.rs`, conservando sus cuatro aserciones. El par de
+archivos de loot mantiene **23** tests antes y despues. `DoLootRelease` en
+`LootHandler.cpp:342-354` limita el consumo a cinco; el test cubre solo la
+aritmetica del helper, no mutacion de inventario ni dispatch de release.
+
+B5 estrecho doce firmas en `character/items.rs`, `condition_objects.rs`,
+`query.rs` y `stats.rs` a `pub(super)`, `pub(in crate::handlers)` o privado,
+segun consumidores actuales. Se conservaron las rutas que usan Session,
+quest, void storage y los tests provisionales. No cambia ningun cuerpo.
+
+En el mismo arbol, `cargo check -p wow-world`, el filtro `--lib` de
+elegibilidad (**21/21**), el de loot reply (**3/3**) y
+`cargo check -p wow-world --test quest_tests` pasaron con un job y target del
+worktree. Logs `target/b3-cargo-check-wow-world.log`,
+`target/b3-cargo-test-quest-eligibility.log`,
+`target/b3-cargo-test-loot-reply-items.log` y
+`target/b3-cargo-check-quest-tests.log`. El check productivo informa 270
+avisos; este feedback local no cierra B3/B5 ni la aceptacion global.
