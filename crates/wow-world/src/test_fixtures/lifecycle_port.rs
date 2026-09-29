@@ -16,6 +16,7 @@ pub struct CollectionLoadPortLikeCpp {
         std::sync::Mutex<std::collections::VecDeque<PlayerLoginTransportLoadOutcomeLikeCpp>>,
     bank_slot_purchase_requests:
         std::sync::Mutex<Vec<wow_persistence::PlayerBankSlotPurchaseRequestLikeCpp>>,
+    homebind_requests: std::sync::Mutex<Vec<PlayerHomebindPersistenceRequestLikeCpp>>,
     bank_slot_purchase_outcomes: std::sync::Mutex<
         std::collections::VecDeque<wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp>,
     >,
@@ -32,6 +33,7 @@ impl CollectionLoadPortLikeCpp {
             initial_world_state_outcomes: std::sync::Mutex::new(Default::default()),
             login_transport_outcomes: std::sync::Mutex::new(Default::default()),
             bank_slot_purchase_requests: std::sync::Mutex::new(Vec::new()),
+            homebind_requests: std::sync::Mutex::new(Vec::new()),
             bank_slot_purchase_outcomes: std::sync::Mutex::new(Default::default()),
         })
     }
@@ -53,6 +55,7 @@ impl CollectionLoadPortLikeCpp {
             ),
             login_transport_outcomes: std::sync::Mutex::new(Default::default()),
             bank_slot_purchase_requests: std::sync::Mutex::new(Vec::new()),
+            homebind_requests: std::sync::Mutex::new(Vec::new()),
             bank_slot_purchase_outcomes: std::sync::Mutex::new(Default::default()),
         })
     }
@@ -67,6 +70,7 @@ impl CollectionLoadPortLikeCpp {
             initial_world_state_outcomes: std::sync::Mutex::new(Default::default()),
             login_transport_outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
             bank_slot_purchase_requests: std::sync::Mutex::new(Vec::new()),
+            homebind_requests: std::sync::Mutex::new(Vec::new()),
             bank_slot_purchase_outcomes: std::sync::Mutex::new(Default::default()),
         })
     }
@@ -81,6 +85,7 @@ impl CollectionLoadPortLikeCpp {
             initial_world_state_outcomes: std::sync::Mutex::new(Default::default()),
             login_transport_outcomes: std::sync::Mutex::new(Default::default()),
             bank_slot_purchase_requests: std::sync::Mutex::new(Vec::new()),
+            homebind_requests: std::sync::Mutex::new(Vec::new()),
             bank_slot_purchase_outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
         })
     }
@@ -108,6 +113,10 @@ impl CollectionLoadPortLikeCpp {
     ) -> Vec<wow_persistence::PlayerBankSlotPurchaseRequestLikeCpp> {
         self.bank_slot_purchase_requests.lock().unwrap().clone()
     }
+
+    pub fn homebind_requests(&self) -> Vec<PlayerHomebindPersistenceRequestLikeCpp> {
+        self.homebind_requests.lock().unwrap().clone()
+    }
 }
 
 impl PlayerLifecyclePortLikeCpp for CollectionLoadPortLikeCpp {
@@ -124,8 +133,9 @@ impl PlayerLifecyclePortLikeCpp for CollectionLoadPortLikeCpp {
 
     fn persist_homebind_like_cpp<'a>(
         &'a self,
-        _request: PlayerHomebindPersistenceRequestLikeCpp,
+        request: PlayerHomebindPersistenceRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        self.homebind_requests.lock().unwrap().push(request);
         Box::pin(async {
             PersistenceOutcomeLikeCpp::Failed {
                 reason: "collection-load-only fixture".to_owned(),

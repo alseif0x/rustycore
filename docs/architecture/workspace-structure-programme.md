@@ -2938,3 +2938,27 @@ job y target del worktree. Logs finales
 el primer intento fallido. Censo **303/303** nombres originales sin
 duplicados, **137** montados por la raiz provisional. La suite externa
 completa, B3 restante y aceptacion global siguen pendientes.
+
+### B3 `misc_2`: binder positivo junto a `gossip` (2026-09-29)
+
+`binder_activate_sets_current_homebind_and_sends_bind_packets_like_cpp`
+paso del provisional `misc_2.rs` al hijo privado `gossip_tests.rs`. Conserva
+el homebind (571/34), los paquetes `SpellGo` y `BindPointUpdate` del canal
+de instancia, `PlayerBound` y `GossipComplete` del canal de realm, el caster
+innkeeper, spell 3286, flags, ventana de timestamp y la peticion `UpdateLive`.
+El fixture local compartido `CollectionLoadPortLikeCpp` ahora registra las
+solicitudes de homebind y sigue devolviendo `Failed`; el fixture original
+permanece donde tiene otros consumidores. No cambia produccion ni visibilidad.
+`HandleBinderActivateOpcode`/`SendBindPoint` (`NPCHandler.cpp:373-404`),
+efecto de bind (`SpellEffects.cpp:5213+`) y guardado de homebind
+(`Player.cpp:17023+`) anclan la secuencia. El test comprueba orden dentro
+de cada canal, no un orden total entre canales; el fallo sintetico no
+demuestra durabilidad ni recuperacion DB.
+
+`cargo check -p wow-world` paso y el filtro
+`cargo test -p wow-world --lib handlers::character::gossip::gossip_tests::`
+ejecuto **8/8** con un job y target del worktree. Logs
+`target/b3-binder-positive-check-b9d584a0.log` y
+`target/b3-binder-positive-test-b9d584a0.log`. Censo **303/303** nombres
+originales sin duplicados, **136** montados por la raiz provisional. La suite
+externa completa, B3 restante y aceptacion global siguen pendientes.

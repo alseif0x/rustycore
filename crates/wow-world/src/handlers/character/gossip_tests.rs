@@ -1,11 +1,14 @@
 use crate::session::{
     AuraApplication, RepresentedAuraEffectLikeCpp, RepresentedGameObjectUseState,
-    RepresentedTaxiFlightNodeLikeCpp, SessionPlayerController, WorldSession,
+    RepresentedHomebindLikeCpp, RepresentedTaxiFlightNodeLikeCpp, SessionPlayerController,
+    WorldSession,
 };
 use crate::test_fixtures::{
-    player_interaction_source_guid_for_test, player_is_alive_for_test,
+    game_time_ms_for_test, player_interaction_source_guid_for_test,
+    player_interaction_trainer_id_for_test, player_is_alive_for_test,
     push_player_gossip_option_for_test, set_player_faction_template_for_test,
-    set_player_interaction_source_for_test,
+    set_player_interaction_source_for_test, set_player_trainer_interaction_for_test,
+    CollectionLoadPortLikeCpp,
 };
 use std::sync::{Arc, Mutex};
 use wow_constants::unit::NPCFlags1;
@@ -15,6 +18,7 @@ use wow_core::{EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator
 use wow_data::{BankBagSlotPricesEntry, BankBagSlotPricesStore};
 use wow_entities::{Creature, GAMEOBJECT_TYPE_GOOBER, GameObject, MapObjectRecord, Player};
 use wow_packet::WorldPacket;
+use wow_packet::packets::spell::SpellCastVisual;
 
 #[tokio::test]
 async fn gossip_select_accepts_represented_goober_menu_and_removes_feign_like_cpp() {
@@ -480,6 +484,150 @@ fn insert_binder_innkeeper(
     guid: ObjectGuid,
 ) {
     insert_binder_creature(manager, guid, NPCFlags1::INNKEEPER.bits());
+}
+
+fn install_binder_spell_fixture(session: &mut WorldSession) {
+    let mut spell_store = wow_data::SpellStore::new();
+    spell_store.insert(
+        3286,
+        wow_data::SpellInfo {
+            spell_id: 3286,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_BIND,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_BIND,
+                ..Default::default()
+            }],
+        },
+    );
+    session.set_spell_store(Arc::new(spell_store));
+}
+
+#[tokio::test]
+async fn binder_activate_sets_current_homebind_and_sends_bind_packets_like_cpp() {
+    let (mut session, instance_rx, canonical) = make_bank_slot_session(16);
+    insert_bank_test_player_in_world(&session, &canonical);
+    // Login adopts the canonical Player handle and the character arrives alive
+    // with a faction. The cast identity allocator fails closed without the
+    // handle, HandleBinderActivateOpcode returns early for a caster that is not
+    // alive, and the interaction reaction check fails closed without a faction
+    // template, so this fixture installs all three like production does.
+    assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
+    assert!(
+        crate::canonical_player_access::configure_canonical_player_vitals_for_test(
+            &canonical,
+            session.player_guid().expect("loaded player"),
+            (100, 100, wow_constants::PowerType::Mana, 100, 100, 100),
+        )
+    );
+    set_player_faction_template_for_test(&mut session, 1);
+    let player_guid = session.player_guid().expect("loaded player");
+    let homebind_port = CollectionLoadPortLikeCpp::new([]);
+    session.set_player_lifecycle_port_like_cpp(homebind_port.clone());
+    let (realm_tx, realm_rx) = flume::bounded::<Vec<u8>>(16);
+    session.install_realm_send_channel_for_test(realm_tx);
+    let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 30);
+    insert_binder_innkeeper(&canonical, innkeeper);
+    session.set_player_zone_area_like_cpp(12, 34);
+    install_binder_spell_fixture(&mut session);
+    set_player_trainer_interaction_for_test(&mut session, innkeeper, 77);
+    let _ = game_time_ms_for_test();
+    std::thread::sleep(std::time::Duration::from_millis(2));
+    let cast_time_lower_bound = game_time_ms_for_test();
+
+    session
+        .handle_binder_activate(wow_packet::packets::gossip::Hello { unit: innkeeper })
+        .await;
+    let cast_time_upper_bound = game_time_ms_for_test();
+
+    assert_eq!(
+        session.represented_homebind_like_cpp(),
+        Some(RepresentedHomebindLikeCpp {
+            map_id: 571,
+            area_id: 34,
+            position: Position::new(0.0, 0.0, 0.0, 0.0),
+        })
+    );
+    let packets: Vec<Vec<u8>> = instance_rx.try_iter().collect();
+    assert_eq!(
+        packets
+            .iter()
+            .filter_map(|bytes| WorldPacket::from_bytes(bytes).server_opcode())
+            .collect::<Vec<_>>(),
+        vec![ServerOpcodes::SpellGo, ServerOpcodes::BindPointUpdate,]
+    );
+    assert_eq!(
+        realm_rx
+            .try_iter()
+            .filter_map(|bytes| WorldPacket::from_bytes(&bytes).server_opcode())
+            .collect::<Vec<_>>(),
+        vec![ServerOpcodes::PlayerBound, ServerOpcodes::GossipComplete],
+        "C++ routes PlayerBound and GossipComplete on realm"
+    );
+    assert!(
+        player_interaction_source_guid_for_test(&session).is_none(),
+        "C++ PlayerMenu::SendCloseGossip resets interaction provenance"
+    );
+    assert_eq!(player_interaction_trainer_id_for_test(&session), 0);
+    let mut spell_go = WorldPacket::from_bytes(&packets[0]);
+    assert_eq!(
+        spell_go.read_uint16().expect("SpellGo opcode"),
+        ServerOpcodes::SpellGo as u16
+    );
+    assert_eq!(
+        spell_go.read_packed_guid().expect("SpellGo caster"),
+        innkeeper,
+        "C++ creature CastSpell keeps the innkeeper as visible caster"
+    );
+    assert_eq!(
+        spell_go.read_packed_guid().expect("SpellGo caster unit"),
+        innkeeper
+    );
+    let _ = spell_go.read_packed_guid().expect("SpellGo cast id");
+    let _ = spell_go
+        .read_packed_guid()
+        .expect("SpellGo original cast id");
+    assert_eq!(spell_go.read_int32().expect("SpellGo spell id"), 3286);
+    let _ = SpellCastVisual::read(&mut spell_go).expect("SpellGo visual");
+    assert_eq!(
+        spell_go.read_uint32().expect("SpellGo cast flags"),
+        0x0004_0101,
+        "C++ bind SpellGo carries UNKNOWN_9 | PENDING | NO_GCD"
+    );
+    assert_eq!(spell_go.read_uint32().expect("SpellGo cast flags ex"), 0);
+    let cast_time_ms = spell_go.read_uint32().expect("SpellGo cast time");
+    assert!(
+        (cast_time_lower_bound..=cast_time_upper_bound).contains(&cast_time_ms),
+        "C++ SpellGo CastTime is the wrapping getMSTime() server timestamp"
+    );
+    for _ in 0..20 {
+        if !homebind_port.homebind_requests().is_empty() {
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(
+        homebind_port.homebind_requests(),
+        vec![wow_persistence::PlayerHomebindPersistenceRequestLikeCpp::UpdateLive {
+            player_guid: player_guid.counter() as u64,
+            map_id: 571,
+            area_id: 34,
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            orientation: 0.0,
+        }],
+        "detached persistence failure does not suppress the immediate C++ bind packets"
+    );
 }
 
 #[tokio::test]
