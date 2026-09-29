@@ -1,4 +1,123 @@
 use super::*;
+use wow_entities::GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT as GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP;
+use wow_packet::packets::movement::TransportInfo;
+
+#[test]
+fn init_self_orders_transport_attached_player_and_fellow_passenger_like_cpp() {
+    let player_guid = ObjectGuid::create_player(1, 42);
+    let passenger_guid = ObjectGuid::create_player(1, 43);
+    let transport_guid = ObjectGuid::create_transport(HighGuid::Transport, 7_001);
+    let mut player_update = UpdateObject::create_player(
+        player_guid,
+        1,
+        8,
+        0,
+        80,
+        49,
+        &Position::ZERO,
+        571,
+        0,
+        true,
+        [(0, 0, 0); 19],
+        [ObjectGuid::EMPTY; 141],
+        PlayerCombatStats::default(),
+        Vec::new(),
+        0,
+        Vec::new(),
+    );
+    player_update.set_player_movement_transport_like_cpp(TransportInfo {
+        guid: transport_guid,
+        x: 1.0,
+        y: 2.0,
+        z: 3.0,
+        o: 0.5,
+        seat: -1,
+        time: 0,
+        prev_time: None,
+        vehicle_id: None,
+    });
+    let transport_block = UpdateObject::create_transport_block(
+        GameObjectCreateData {
+            guid: transport_guid,
+            entry: 1,
+            dynamic_flags: 0,
+            display_id: 2,
+            go_type: GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP,
+            position: Position::ZERO,
+            rotation: [0.0, 0.0, 0.0, 1.0],
+            anim_progress: 255,
+            state: wow_entities::GoState::Ready as i8,
+            art_kit: 0,
+            created_by: ObjectGuid::EMPTY,
+            faction_template: 0,
+            gameobject_flags: 0x0010_0028,
+            world_effect_id: 0,
+            scale: 1.0,
+            level: 1_000,
+            parent_rotation: [0.0, 0.0, 0.0, 1.0],
+        },
+        0,
+    );
+    let mut passenger_update = UpdateObject::create_player(
+        passenger_guid,
+        1,
+        8,
+        0,
+        80,
+        49,
+        &Position::ZERO,
+        571,
+        0,
+        false,
+        [(0, 0, 0); 19],
+        [ObjectGuid::EMPTY; 141],
+        PlayerCombatStats::default(),
+        Vec::new(),
+        0,
+        Vec::new(),
+    );
+    let passenger_block = passenger_update
+        .blocks
+        .pop()
+        .expect("fellow passenger CREATE");
+
+    assert_eq!(
+        compose_init_self_create_blocks_like_cpp(
+            &mut player_update,
+            Vec::new(),
+            Some((transport_guid, transport_block)),
+            vec![passenger_block],
+        ),
+        Some(transport_guid)
+    );
+    assert_eq!(player_update.num_updates, 3);
+    assert!(matches!(
+        player_update.blocks.first(),
+        Some(UpdateBlock::CreateTransport { guid, .. }) if *guid == transport_guid
+    ));
+    let Some(UpdateBlock::CreateObject {
+        guid,
+        movement: Some(movement),
+        is_self: true,
+        ..
+    }) = player_update.blocks.get(1)
+    else {
+        panic!("expected attached self player after its transport");
+    };
+    assert_eq!(*guid, player_guid);
+    assert_eq!(
+        movement.transport.as_ref().map(|transport| transport.guid),
+        Some(transport_guid)
+    );
+    assert!(matches!(
+        player_update.blocks.get(2),
+        Some(UpdateBlock::CreateObject {
+            guid,
+            is_self: false,
+            ..
+        }) if *guid == passenger_guid
+    ));
+}
 
 #[test]
 fn persisted_transport_login_resolves_valid_offset_to_current_world_position_like_cpp() {

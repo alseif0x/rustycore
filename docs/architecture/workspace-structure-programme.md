@@ -3100,3 +3100,20 @@ logs `target/b6-grid-visibility-check.log`,
 `target/b6-grid-visibility-test-grid.log` y
 `target/b3-login-transport-check.log`. Persisten avisos de tests preexistentes;
 B6, consumidores completos y aceptacion global siguen pendientes.
+
+### B3 `misc_1`: orden de INIT_SELF junto a `login_transport_support` (2026-09-29)
+
+`init_self_orders_transport_attached_player_and_fellow_passenger_like_cpp`
+paso del provisional `misc_1.rs` al hijo privado de
+`login_transport_support.rs`, con datos y aserciones conservados. El orden
+corresponde a `Map::SendInitSelf` (`Map.cpp:1826-1852`): transporte,
+jugador propio y pasajeros visibles. El caso verifica el compositor de
+bloques, no el envio real del paquete ni visibilidad de cliente.
+
+El primer test focal fallo por faltar el import `TransportInfo` en el nuevo
+scope; se corrigio sin ampliar la API. Sobre el arbol corregido pasaron
+`cargo check -p wow-world` y el filtro exacto `--lib` (1/1, un job y target
+del worktree); logs `target/b3-login-transport-final-check.log` y
+`target/b3-login-transport-final-test.log`. El censo conserva **303** nombres
+sin ausencias ni duplicados y deja **128** en la raiz provisional. B3 y la
+aceptacion global siguen pendientes.
