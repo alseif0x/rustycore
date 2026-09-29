@@ -138,12 +138,22 @@ sin entradas eliminables ni stashes. Reconsultar Git al retomar; estos son datos
 
 | pieza | estado comprobado y límite |
 |---|---|
-| B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Los cortes del 2026-09-29 restringen constantes de terrain y helpers internos de grid; quedan otras visibilidades/features y la aceptación del candidato. |
-| B5 | Raíces de loot y character partidas; quest sigue dentro del presupuesto. Pendiente restringir la API expuesta por la extracción y aceptar el incremento. |
-| B3 | Superficie inicial `test-fixtures` y self dev-dependency añadidas. El piloto falló y fue revertido: las cuatro suites siguen dentro de la lib. |
+| B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Auditoría de consumidores del 2026-09-29: el manager legado sigue requerido por `wow-world`/`world-server`, pero su almacenamiento grid/instance y varios helpers siguen expuestos sin consumidor externo identificado. Quedan estrechar esa API, verificar features/composición y aceptar el candidato. |
+| B5 | Raíces de loot y character miden 243/239 líneas y todos sus hijos extraídos menos de 600. Auditoría de consumidores del 2026-09-29: tres rutas heredadas `pub(crate)` pueden estrecharse; el test externo de planificación de inventario sigue dependiendo de B3. Pendientes el corte de visibilidad y la aceptación. |
+| B3 | `group_tests` ya es target de integración; `character_tests` se distribuye por owners con censo de nombres en las notas finales de esta sección. La suite externa provisional aún no compila completa; `quest_tests` y `loot_tests` siguen pendientes. |
 | B7 | Hay limpieza parcial integrada; los consumidores restantes de fixtures dependen de B3. No está cerrado. |
 | Talentos #578 | La rama `recover/578-talent-catalog`, `0845f5b3`, conserva `docs/migration/recovered/578-talent-catalog-2026-09-04.patch`; el archivo solo existe en esa rama, no en este checkout. No está aplicado; preservar la rama y adaptar por consumidores actuales cuando corresponda. |
 | Orquestación | Sol medium / Luna max copiado a este worktree. Cambios compartidos aún locales, y `.codex/config.toml` ignorado. Iniciar sesión nueva y comprobar runtime efectivo; preservar estos cambios al continuar. |
+
+**C1, análisis sin implementación (2026-09-29):** la única importación
+productiva de `wow-movement` en `wow-data` localizada está en
+`jump_charge.rs`. El corte propuesto conserva fila, normalización, informe
+y catálogo en `wow-data`, y construye `JumpChargeParams` en el adaptador de
+`world-server/src/catalogs/jump_charge.rs`, su único consumidor actual
+localizado. Hay que preservar los tests de datos y composición y verificar
+el cambio de tipo público y la ausencia de consumidores externos antes de
+retirar la dependencia del manifiesto. Esta es una inferencia de diseño
+basada en fuentes, no una arista corregida ni aceptación de C1.
 
 **Avance local posterior, pendiente de aceptación:** commits locales `8f162870`,
 `9df13460` y `dc73db43`. La feature de fixtures de `wow-map`
