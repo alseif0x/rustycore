@@ -1904,3 +1904,15 @@ termino con los otros errores aun pendientes y bajo de **534 a 524** diagnostico
 Logs: `target/b3-character-canonical-access-default-check.log` y
 `target/b3-character-canonical-access-external-check.log`. El fichero de prueba
 sigue dentro del traslado B3 provisional; este resultado no es suite verde.
+
+### B6 `wow-map`: visibilidad de dos metodos de movimiento (2026-09-29)
+
+`WorldCreature::launch_move_spline_init_like_cpp` y
+`WorldCreature::path_generator_from_detour_for_creature_like_cpp` vuelven a
+`pub(super)` en sus modulos `movement/spline.rs` y `movement/terrain.rs`.
+Los llamadores pertenecen a `movement`; no se modificaron cuerpos ni llamadas.
+Con un job y el target del worktree pasaron `cargo check -p wow-map`,
+`cargo check -p wow-world` y `cargo test -p wow-map --lib movement` (52/52).
+Logs: `target/b6-movement-visibility-wow-map-check.log`,
+`target/b6-movement-visibility-wow-world-check.log` y
+`target/b6-movement-visibility-movement-test.log`. La aceptacion final sigue pendiente.
