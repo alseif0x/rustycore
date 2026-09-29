@@ -2128,3 +2128,16 @@ se cambio produccion. `cargo check -p wow-world` paso y los dos filtros
 `target/b3-item-load-support-gems-test.log`. El censo de nombres de la suite
 original sigue en **303/303**, sin perdidas ni duplicados; cuatro tests siguen
 en el `item_1` provisional y la suite externa grande aun no compila.
+
+### B3 `item_1`: limite privado de asignacion de especializacion (2026-09-29)
+
+`assign_equipment_set_spec_ignores_transmog_missing_and_out_of_range_like_cpp`
+vive ahora en `src/session/tests/scenarios_player_items_4.rs`, usando el harness
+privado existente de sesion y la constante privada del contrato de inventario.
+Conserva las tres solicitudes y las dos aserciones; el fixture se adapto al
+harness local sin copiar el port amplio de `character_tests`. No se amplio API
+ni se cambio gameplay. `cargo check -p wow-world` paso y el filtro unitario
+ejecuto **1/1**; logs `target/b3-equipment-set-assign-private-check.log` y
+`target/b3-equipment-set-assign-private-resume-test.log`. El primer intento de
+test fue interrumpido y no cuenta como evidencia. El censo global permanece
+**303/303** sin duplicados; quedan tres tests en `item_1` provisional.

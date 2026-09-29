@@ -641,6 +641,60 @@ fn equipment_set_save_marks_written_sets_unchanged_and_removes_deleted_like_cpp(
     );
     assert!(session.represented_equipment_set_like_cpp(800).is_none());
 }
+#[tokio::test]
+async fn assign_equipment_set_spec_ignores_transmog_missing_and_out_of_range_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    session.insert_represented_equipment_set_like_cpp(
+        100,
+        RepresentedEquipmentSetLikeCpp::transmog(
+            7,
+            -1,
+            RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
+        ),
+    );
+    session.insert_represented_equipment_set_like_cpp(
+        200,
+        RepresentedEquipmentSetLikeCpp::equipment(
+            8,
+            -1,
+            RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
+        ),
+    );
+    let assign_equipment_set_spec_packet = |set_id, spec_index| {
+        let mut packet = wow_packet::WorldPacket::new_empty();
+        packet.write_uint32(set_id);
+        packet.write_uint32(spec_index);
+        packet
+    };
+
+    session
+        .handle_assign_equipment_set_spec(assign_equipment_set_spec_packet(7, 4))
+        .await;
+    session
+        .handle_assign_equipment_set_spec(assign_equipment_set_spec_packet(99, 4))
+        .await;
+    session
+        .handle_assign_equipment_set_spec(assign_equipment_set_spec_packet(
+            crate::session::MAX_EQUIPMENT_SET_INDEX_LIKE_CPP,
+            4,
+        ))
+        .await;
+
+    assert_eq!(
+        session
+            .represented_equipment_set_like_cpp(100)
+            .unwrap()
+            .assigned_spec_index,
+        -1
+    );
+    assert_eq!(
+        session
+            .represented_equipment_set_like_cpp(200)
+            .unwrap()
+            .assigned_spec_index,
+        -1
+    );
+}
 #[test]
 fn canonical_player_saved_equipment_and_void_storage_follow_handle_generation_like_cpp() {
     let (mut session, _, _) = make_session();
