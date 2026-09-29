@@ -385,3 +385,7 @@ impl WorldSession {
             .await
     }
 }
+
+#[cfg(test)]
+#[path = "initial_packets_tests.rs"]
+mod tests;

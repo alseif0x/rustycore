@@ -2344,3 +2344,21 @@ target ejecuto **1/1**; logs
 `target/b3-character-persistence-source-test.log`. Sin cambios productivos
 ni de visibilidad. Censo **303/303** sin duplicados; **211** pruebas siguen
 montadas por la raiz provisional.
+
+### B3 `persistence`: overlay de estados iniciales junto al owner (2026-09-29)
+
+`initial_world_state_port_applies_saved_overlay_after_templates_like_cpp`
+se movio de `tests/character_tests/persistence.rs` al modulo privado
+`handlers/character/world_entry/initial_packets_tests.rs`. Usa el cargador
+productivo `load_initial_world_states_for_login_like_cpp` a traves de su
+delegado de test preexistente; solo cambia el fixture de sesion al harness
+privado. En la referencia 3.4.3 `WorldStateMgr::LoadFromDB`
+(`WorldStateMgr.cpp:39`) carga los defaults de `world_state` antes del overlay
+de `world_state_value`; `Player::SendInitWorldStates` (`Player.cpp:8789`)
+publica los valores desde `FillInitialWorldStates` (`WorldStateMgr.cpp:259`).
+`cargo check -p wow-world` paso y el filtro unitario ejecuto **1/1**;
+logs `target/b3-initial-world-state-overlay-check.log` y
+`target/b3-initial-world-state-overlay-test.log`. Sin cambios de produccion
+ni visibilidad. Censo **303/303** sin duplicados; **210** pruebas siguen
+montadas por la raiz provisional. Esto no equivale a la aceptacion completa
+de `character_tests`.
