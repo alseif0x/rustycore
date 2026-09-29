@@ -254,7 +254,7 @@ impl WorldSession {
         mutate: impl FnOnce(&mut PlayerQuestGameplayState) -> R,
     ) -> Option<R> {
         let mut mutate = Some(mutate);
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none() {
             let mut fixture = self.player_quest_gameplay_fixture_like_cpp();
             let result = mutate.take().expect("test quest mutation executes once")(&mut fixture);
@@ -267,7 +267,7 @@ impl WorldSession {
             )
         });
         if canonical.is_some() {
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             if let Some(state) =
                 self.with_owned_player_like_cpp(|player| player.gameplay_state().quests.clone())
             {
@@ -349,7 +349,7 @@ impl WorldSession {
         state.replace_objective_counts_by_quest_like_cpp(objective_counts_by_quest);
         state
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     fn apply_player_quest_gameplay_fixture_like_cpp(&mut self, state: PlayerQuestGameplayState) {
         self.apply_player_quest_core_compatibility_like_cpp(&state);
         self.quest_test_fixture_like_cpp
@@ -370,7 +370,7 @@ impl WorldSession {
         self.quest_test_fixture_like_cpp
             .seasonal_quest_changed_like_cpp = state.seasonal_quest_changed_like_cpp();
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     fn apply_player_quest_core_compatibility_like_cpp(&mut self, state: &PlayerQuestGameplayState) {
         self.quest_test_fixture_like_cpp.player_quests = state
             .statuses_like_cpp()

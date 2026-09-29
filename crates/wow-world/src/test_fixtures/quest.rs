@@ -82,6 +82,29 @@ pub fn first_free_quest_slot_for_test(
     session.first_free_quest_slot_like_cpp()
 }
 
+pub fn insert_player_quest_gameplay_status_for_test(
+    session: &mut crate::session::WorldSession,
+    quest_id: u32,
+    status: crate::handlers::quest::PlayerQuestStatus,
+) {
+    session
+        .mutate_player_quest_gameplay_like_cpp(|quests| {
+            quests.insert_status_like_cpp(quest_id, status);
+        })
+        .expect("test Player quest owner");
+}
+
+pub fn set_player_quest_gameplay_rewarded_for_test(
+    session: &mut crate::session::WorldSession,
+    quest_id: u32,
+) {
+    session
+        .mutate_player_quest_gameplay_like_cpp(|quests| {
+            quests.set_rewarded_like_cpp(quest_id, true);
+        })
+        .expect("test Player quest owner");
+}
+
 pub fn set_represented_df_quest_for_test(
     session: &mut crate::session::WorldSession,
     quest_id: u32,
