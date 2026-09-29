@@ -2172,3 +2172,16 @@ Logs: `target/b3-inventory-plan-pure-rehome-check.log`,
 `target/b3-inventory-plan-looted-guard-test.log`. Censo de la suite original:
 **303/303** sin duplicados; los demas escenarios de `item_4` siguen
 provisionales.
+
+### B3 `item_4`: consultas de texto de item (2026-09-29)
+
+Los dos casos de `handle_item_text_query` pasan al target independiente
+`tests/character_item_text.rs`, con fixture acotado de sesion y el puente
+existente para insertar el objeto de item. Se conservaron las aserciones de
+bytes para la respuesta invalida y el texto `abc`; la operacion de referencia
+es `QueryHandler.cpp::HandleItemTextQuery` (linea 305 en la fuente 3.4.3),
+con escritura en `QueryPackets.cpp::QueryItemTextResponse::Write` (linea 510).
+No se cambio produccion ni visibilidad. `cargo check -p wow-world` paso y el
+target ejecuto **2/2**; logs `target/b3-character-item-text-check.log` y
+`target/b3-character-item-text-test.log`. Censo original **303/303** sin
+duplicados; la suite provisional grande sigue sin compilar.
