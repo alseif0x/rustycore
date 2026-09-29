@@ -139,7 +139,7 @@ sin entradas eliminables ni stashes. Reconsultar Git al retomar; estos son datos
 
 | pieza | estado comprobado y límite |
 |---|---|
-| B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Se estrecharon exports internos revisados de terrain, grid, pathfinder, respawn y runtime_state; el manager legado sigue requerido por `wow-world`/`world-server`. `map/mod.rs` medía 5 133 líneas en la base y mide unas 4 253 en el árbol D3 local aún no aceptado. La división física no retira los dos managers ni sus puentes. Faltan los demás exports, features/composición y aceptación del candidato. |
+| B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Se estrecharon exports internos revisados de terrain, grid, pathfinder, respawn y runtime_state; el manager legado sigue requerido por `wow-world`/`world-server`. `map/mod.rs` medía 5 133 líneas en la base y mide 4 136 en el árbol D3 local aún no aceptado. La división física no retira los dos managers ni sus puentes. Faltan los demás exports, features/composición y aceptación del candidato. |
 | B5 | Raíces de loot y character miden 243/239 líneas y todos sus hijos extraídos menos de 600. Se estrecharon rutas heredadas de visibilidad de ambos adaptadores, incluido el plan de inventario test-only tras mover sus dos tests privados. Faltan el resto de exports y la aceptación del candidato. |
 | B3 | `group_tests` ya es target de integración. `quest_tests` existe como target provisional; `character_tests` se distribuye por owners, con **303** nombres originales presentes sin duplicados y **107** aún montados en la raíz provisional del árbol local. La suite externa de character aún no compila completa; la migración de quest y loot tampoco está aceptada. |
 | B7 | Hay limpieza parcial local, incluidos siete imports sin uso retirados el 2026-09-29; los consumidores restantes de fixtures dependen de B3. No está cerrado. |
@@ -3387,6 +3387,18 @@ entre filtros: no son 306 tests distintos. Exits y recuentos en
 `target/d3-second-feedback/`. Faltan consumidores completos y aceptación
 final; estas extracciones no retiran el segundo manager ni sus puentes.
 
+**Tercer corte D3 local:** los dos resolvers puros de posición de invocación y
+sus resultados pasaron a `map/summon_position.rs` (133 líneas), con los mismos
+reexports públicos y cuerpos comparados byte a byte. `map/mod.rs` mide ahora
+4 136 líneas. Pasó `cargo check -p wow-map` y los filtros de posición
+`world_object_summon_gameobject_position` y
+`summon_object_wild_position` ejecutaron 2/2 casos cada uno (logs
+`target/b3-summon-position-*.log`). Este corte mejora navegación física; no
+traslada autoridad de estado ni cierra D3/B6. La auditoría posterior midió
+`wow-map` en 66 497 líneas `src` + 252 `tests` = 66 749, 135 ficheros y
+máximo 4 136 (`target/structure-audit-after-summon.log`): la masa total subió
+16 líneas de wiring/reexports aunque bajó el fichero mayor.
+
 Para responder al tamaño del destino con una base comparable, se contaron líneas
 físicas de todos los `.rs` bajo `src/` y `tests/` mediante
 `git archive` en `origin/3.4.3` y en `f32ca7d7`, sin incluir el WIP externo
@@ -3408,8 +3420,9 @@ El ajuste local de `xtask structure-audit` ya imprime esas tres columnas y
 calcula el mayor fichero entre ambos árboles. Su ejecución devolvió 0:
 `wow-world` 377 126 + 28 534 = 405 660 líneas y máximo 1 842;
 `wow-map` 66 481 + 252 = 66 733 y máximo 4 253. El árbol de
-`character_tests` aún es provisional y no compiló como target externo: estas
-cifras describen el worktree, no un candidato aceptado. Log
+`character_tests` aún es provisional y no compiló como target externo; la
+medida precede al tercer corte D3, que bajó el máximo a 4 136. Estas cifras
+describen ese worktree, no un candidato aceptado. Log
 `target/structure-audit-src-tests-total.log`.
 
 El límite semántico también sigue abierto. `world-server/app.rs:4126-4170`
@@ -3443,3 +3456,37 @@ filtro que seleccionó cero tests y no cuenta como evidencia. `cargo check -p
 wow-world` pasó con 261 avisos; son checks de implementación sobre el árbol
 provisional, no aceptación de B3/B6/B7. Los imports B7 restantes y las suites
 externas de character/quest/loot siguen pendientes.
+
+En el mismo árbol `wow-world` aún tiene cuatro ficheros de producción por
+encima de 1 000 líneas: `session/state.rs` (1 842),
+`session/pets/battle_pet.rs` (1 056), `session/mod.rs` (1 034) y
+`session/construction.rs` (1 024). B5 bajó las raíces de los handlers,
+pero no resuelve esos ficheros ni las familias que `WorldSession` aún retiene.
+La decisión B4 de 2026-09-25 ya separó los subestados legítimos de las
+familias cuyo dueño final es composición, Player/loot o Map. No anidar estas
+últimas en otro struct de Session para bajar el contador: completar la
+operación con sus consumidores y retirar el campo/puente antes de atribuir
+modularidad semántica; revisar además cada fichero contra el presupuesto físico.
+
+**Corte semántico B6 local, feedback de implementación:**
+`world-server/runtime/game_events/bootstrap.rs::register_loaded_instance_ids`
+escribía las reservas de ID de instancia en ambos managers, aunque el camino
+productivo de creación de mapas de instancia localizado usa el canónico. El
+arranque conserva en el mismo punto la inicialización y reserva canónicas y
+retira la escritura y lock del allocator legacy. Sus métodos públicos siguen
+existiendo; este corte no retira el manager legacy ni declara cerrado su
+contrato externo. El nuevo test de composición de IDs `[1, 3]` y entrada vacía
+pasó **1/1** con `cargo test -p world-server --lib
+persisted_instance_ids_reserve_canonical_allocator_and_empty_input_is_noop`;
+`cargo check -p world-server` también pasó, con `PROTOC` local, un job y el
+target del worktree. Logs `target/b6-instance-id-bootstrap-lib-test.log` y
+`target/b6-instance-id-world-server-check.log`. El primer intento de test
+`--bin` se interrumpió al constatar que la prueba vive en la librería; no
+cuenta como evidencia. No hay aceptación final ni QA de persistencia/reinicio.
+El puente de criaturas cargadas/spawn/respawn sí alimenta el tick legacy que
+hoy ejecuta AI y combate, por lo que no puede retirarse hasta que la transición
+completa tenga un único dueño probado. C++ 3.4.3 usa un solo allocator:
+`World.cpp:1901`, `MapManager.cpp:139,374` e `InstanceLockMgr.cpp:124`;
+el orden y las entradas de inicialización Rust siguen requiriendo contraste de
+paridad. Las pruebas locales verifican el contrato de la composición actual,
+no esa paridad completa ni los posibles usuarios externos de `wow-map`.

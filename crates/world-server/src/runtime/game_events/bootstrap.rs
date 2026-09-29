@@ -32,23 +32,12 @@ pub(crate) fn map_db2_entries_from_stores(
 }
 
 pub(crate) fn register_loaded_instance_ids(
-    legacy_map_manager: &SharedMapManager,
     canonical_map_manager: &Mutex<wow_map::MapManager>,
     instance_ids: &[u32],
 ) {
     let Some(max_instance_id) = instance_ids.iter().copied().max() else {
         return;
     };
-
-    match legacy_map_manager.write() {
-        Ok(mut manager) => {
-            manager.init_instance_ids_from_max(max_instance_id);
-            for &instance_id in instance_ids {
-                manager.register_instance_id(instance_id);
-            }
-        }
-        Err(_) => warn!("Legacy MapManager lock poisoned; persisted instance ids not registered"),
-    }
 
     match canonical_map_manager.lock() {
         Ok(mut manager) => {
@@ -67,4 +56,32 @@ pub(crate) fn register_loaded_instance_ids(
         instance_ids.len(),
         max_instance_id
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::register_loaded_instance_ids;
+    use std::sync::Mutex;
+    use wow_map::MapManager;
+
+    #[test]
+    fn persisted_instance_ids_reserve_canonical_allocator_and_empty_input_is_noop() {
+        let map_manager = Mutex::new(MapManager::default());
+        register_loaded_instance_ids(&map_manager, &[1, 3]);
+
+        let mut map_manager = map_manager.lock().unwrap();
+        assert_eq!(map_manager.generate_instance_id(), Some(2));
+        assert_eq!(map_manager.generate_instance_id(), Some(4));
+        drop(map_manager);
+
+        let empty_map_manager = Mutex::new(MapManager::default());
+        register_loaded_instance_ids(&empty_map_manager, &[]);
+        assert_eq!(
+            empty_map_manager
+                .lock()
+                .unwrap()
+                .generate_instance_id(),
+            Some(1)
+        );
+    }
 }
