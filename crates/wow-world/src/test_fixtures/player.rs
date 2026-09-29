@@ -4,6 +4,10 @@ pub fn canonical_player_health_snapshot_for_test(
     session.canonical_player_health_snapshot_like_cpp()
 }
 
+pub fn game_time_ms_for_test() -> u32 {
+    crate::session::game_time_ms_like_cpp()
+}
+
 pub fn canonical_player_power_snapshot_for_test(
     session: &crate::session::WorldSession,
     power_type: wow_constants::PowerType,

@@ -421,6 +421,15 @@ de 30 a 24 y E0433 de 30 a 25; las demás categorías no cambiaron. Son once
 errores de nombres resueltos, no aceptación de la suite. Los consumidores
 siguen sin commit.
 
+Las ocho lecturas de `game_time_ms_like_cpp` en la suite externa usan ahora
+`game_time_ms_for_test`, que delega en el reloj monotónico original sin
+duplicarlo; los `wrapping_sub` y las aserciones permanecen. El check default
+pasó (`target/b3-character-clock-fixture-default-check.log`) y el externo
+terminó con exit 101 y **536 errores**
+(`target/b3-character-clock-fixture-external-check.log`): E0603 bajó de 35 a
+27, sin cambio en las otras categorías. La suite sigue sin compilar ni ser
+aceptada; sus consumidores permanecen sin commit.
+
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
 1. **Compila**: `cargo check -p <crate>` (y sus consumidores). Es el bucle de trabajo, no evidencia
