@@ -2537,3 +2537,24 @@ Logs `target/b6-terrain-live-visibility-map-check.log`,
 `target/b6-terrain-live-visibility-focused-test-final.log` y
 `target/b6-terrain-live-visibility-terrain-suite.log`. El resto de
 visibilidades de `map_manager` y la aceptacion final B6 siguen pendientes.
+
+### B3 `misc_4`: enumeracion de personajes junto a `account` (2026-09-29)
+
+Los dos casos `character_enumeration_*` y sus fixtures exclusivos de port y fila
+se movieron al hijo privado `handlers/character/account/enumeration/tests.rs`.
+El hijo provisional `misc_4.rs` y su montaje se retiraron del worktree. No
+cambian las aserciones, la logica productiva ni su visibilidad. El C++ fijado,
+`CharacterHandler.cpp:326-424`, publica la lista y registra GUIDs legitimos,
+y ejecuta la limpieza de bans expirados antes de consultar. El caso de fallo
+del port comprueba una respuesta defensiva del adaptador Rust: no es prueba de
+paridad C++. En particular, `HandleCharEnum` inicia `Success = true` aun cuando
+falla `EnumCharactersQueryHolder::Initialize`; esa diferencia de contrato
+queda pendiente de analisis separado, fuera de este movimiento estructural.
+
+`cargo check -p wow-world` paso y el filtro
+`handlers::character::account::enumeration::tests::` ejecuto **2/2** con
+`CARGO_BUILD_JOBS=1` y el target del worktree. Logs
+`target/b3-misc4-character-enumeration-check.log` y
+`target/b3-misc4-character-enumeration-test.log`. Censo **303/303** nombres
+unicos, **177** montados por la raiz provisional; `character_tests` externa,
+el resto de B3 y la aceptacion global siguen pendientes.
