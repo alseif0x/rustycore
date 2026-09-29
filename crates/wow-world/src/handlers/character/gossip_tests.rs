@@ -3,8 +3,9 @@ use crate::session::{
     RepresentedTaxiFlightNodeLikeCpp, SessionPlayerController, WorldSession,
 };
 use crate::test_fixtures::{
-    player_interaction_source_guid_for_test, push_player_gossip_option_for_test,
-    set_player_faction_template_for_test, set_player_interaction_source_for_test,
+    player_interaction_source_guid_for_test, player_is_alive_for_test,
+    push_player_gossip_option_for_test, set_player_faction_template_for_test,
+    set_player_interaction_source_for_test,
 };
 use std::sync::{Arc, Mutex};
 use wow_constants::unit::NPCFlags1;
@@ -445,9 +446,10 @@ fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes
     opcodes
 }
 
-fn insert_binder_innkeeper(
+fn insert_binder_creature(
     manager: &Arc<Mutex<wow_map::MapManager>>,
     guid: ObjectGuid,
+    npc_flags: u32,
 ) {
     let mut creature = Creature::new(false);
     creature.unit_mut().world_mut().object_mut().create(guid);
@@ -461,7 +463,7 @@ fn insert_binder_innkeeper(
     creature.unit_mut().set_level(80);
     creature.unit_mut().set_max_health(100);
     creature.unit_mut().set_health(100);
-    creature.set_ai_identity_runtime(1, 35, NPCFlags1::INNKEEPER.bits(), 0);
+    creature.set_ai_identity_runtime(1, 35, npc_flags, 0);
     creature.unit_mut().world_mut().object_mut().add_to_world();
 
     manager
@@ -471,6 +473,13 @@ fn insert_binder_innkeeper(
         .map_mut()
         .insert_map_object_record(MapObjectRecord::new_creature(creature).unwrap())
         .unwrap();
+}
+
+fn insert_binder_innkeeper(
+    manager: &Arc<Mutex<wow_map::MapManager>>,
+    guid: ObjectGuid,
+) {
+    insert_binder_creature(manager, guid, NPCFlags1::INNKEEPER.bits());
 }
 
 #[tokio::test]
@@ -554,5 +563,85 @@ async fn binder_activate_rejects_instanceable_map_like_cpp() {
                 .has_unit_state(wow_constants::unit::UnitState::DIED.bits()))
             .expect("canonical player"),
         false
+    );
+}
+
+#[tokio::test]
+async fn binder_activate_rejects_non_innkeeper_like_cpp() {
+    let (mut session, send_rx, canonical) = make_bank_slot_session(1);
+    insert_bank_test_player_in_world(&session, &canonical);
+    let creature = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 31);
+    insert_binder_creature(&canonical, creature, NPCFlags1::BANKER.bits());
+    session.set_player_zone_area_like_cpp(12, 34);
+
+    session
+        .handle_binder_activate(wow_packet::packets::gossip::Hello { unit: creature })
+        .await;
+
+    assert!(session.represented_homebind_like_cpp().is_none());
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn binder_activate_rejects_player_outside_world_like_cpp() {
+    let (mut session, send_rx, canonical) = make_bank_slot_session(1);
+    insert_bank_test_player_in_world(&session, &canonical);
+    let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 33);
+    insert_binder_innkeeper(&canonical, innkeeper);
+    session.set_player_zone_area_like_cpp(12, 34);
+    assert!(
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .world_mut()
+                    .object_mut()
+                    .remove_from_world();
+            })
+            .is_some(),
+        "canonical player fixture"
+    );
+    assert!(player_is_alive_for_test(&session));
+
+    session
+        .handle_binder_activate(wow_packet::packets::gossip::Hello { unit: innkeeper })
+        .await;
+
+    assert!(session.represented_homebind_like_cpp().is_none());
+    assert!(
+        send_rx.try_recv().is_err(),
+        "C++ returns before interaction, bind mutation, and packets when Player::IsInWorld is false"
+    );
+}
+
+#[tokio::test]
+async fn binder_activate_rejects_player_missing_from_canonical_world_like_cpp() {
+    let (mut session, send_rx, canonical) = make_bank_slot_session(1);
+    insert_bank_test_player_in_world(&session, &canonical);
+    let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 34);
+    insert_binder_innkeeper(&canonical, innkeeper);
+    session.set_player_zone_area_like_cpp(12, 34);
+    let player_guid = session.player_guid().expect("player guid");
+    assert!(
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(571, 0)
+            .expect("canonical map")
+            .map_mut()
+            .remove_map_object(player_guid)
+            .is_some(),
+        "remove canonical player fixture"
+    );
+    assert!(player_is_alive_for_test(&session));
+
+    session
+        .handle_binder_activate(wow_packet::packets::gossip::Hello { unit: innkeeper })
+        .await;
+
+    assert!(session.represented_homebind_like_cpp().is_none());
+    assert!(
+        send_rx.try_recv().is_err(),
+        "C++ Player::IsInWorld is false after removal even while the session still has an alive player controller"
     );
 }

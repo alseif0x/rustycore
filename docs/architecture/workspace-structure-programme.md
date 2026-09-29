@@ -2849,3 +2849,26 @@ con un job y target del worktree. Logs
 **303/303** nombres originales sin duplicados, **148** montados por la raiz
 provisional. La suite externa completa, B3 restante y aceptacion global
 siguen pendientes.
+
+### B3 `misc_2`: tres rechazos de binder junto al owner (2026-09-29)
+
+`binder_activate_rejects_non_innkeeper_like_cpp`,
+`binder_activate_rejects_player_outside_world_like_cpp` y
+`binder_activate_rejects_player_missing_from_canonical_world_like_cpp`
+pasaron de `tests/character_tests/misc_2.rs` al hijo privado
+`handlers/character/gossip_tests.rs`. Se reutilizo el fixture local de
+Player canonico y se parametrizaron solo los flags del fixture de criatura;
+el binder positivo y los otros consumidores del fixture compartido siguen
+provisionales. Aserciones, GUIDs y respuestas esperadas se conservan, sin
+cambio productivo ni de visibilidad. `HandleBinderActivateOpcode`
+(`NPCHandler.cpp:373-390`) comprueba Player en mundo y vivo antes de validar
+el flag de innkeeper.
+
+`cargo check -p wow-world` paso y el filtro
+`cargo test -p wow-world --lib handlers::character::gossip::gossip_tests::`
+ejecuto **7/7** con un job y target del worktree. Logs
+`target/584-map-manager-domain-b3-binder-negatives-check-274bc316.log` y
+`target/584-map-manager-domain-b3-binder-negatives-test-274bc316.log`.
+La suite externa completa, B3 restante y aceptacion global siguen
+pendientes; el censo global se recontara tras integrar las ediciones B3
+paralelas en sus archivos disjuntos.
