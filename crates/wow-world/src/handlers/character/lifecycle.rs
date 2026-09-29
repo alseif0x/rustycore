@@ -11,6 +11,10 @@ use super::*;
 #[path = "lifecycle_corpse_tests.rs"]
 mod corpse_tests;
 
+#[cfg(test)]
+#[path = "lifecycle_rename_tests.rs"]
+mod rename_tests;
+
 impl WorldSession {
     /// Update the realmcharacters count in the login database.
     ///

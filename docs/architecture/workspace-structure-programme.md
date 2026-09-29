@@ -2893,3 +2893,26 @@ ejecuto **6/6** con un job y target del worktree; los logs
 `target/b3-quest-status-extra-test.log` registran `CARGO_EXIT_CODE=0`.
 La suite externa completa, B3 restante y aceptacion global siguen
 pendientes.
+
+### B3 `misc_1`: rechazos de renombrado junto a `lifecycle` (2026-09-29)
+
+`character_rename_invalid_name_sends_cpp_result_without_guid` y
+`character_rename_non_owned_guid_kicks_like_cpp` se movieron de
+`tests/character_tests/misc_1.rs` al hijo privado
+`handlers/character/lifecycle_rename_tests.rs`. Conservan el paquete,
+GUIDs y aserciones; solo se sustituyo el constructor compartido de sesion
+por el minimo local. El test puro de validacion de nombres sigue pendiente
+de migrar al dominio `wow-entities`; los demas casos de `misc_1` siguen
+provisionales. No hay cambio productivo ni de visibilidad.
+`HandleCharRenameOpcode` (`CharacterHandler.cpp:1520-1540`) rechaza una
+identidad no propiedad de la cuenta y devuelve el error de nombre antes
+de la consulta de renombrado.
+
+`cargo check -p wow-world` paso y el filtro
+`cargo test -p wow-world --lib handlers::character::lifecycle::rename_tests::`
+ejecuto **2/2** con un job y target del worktree. Logs
+`target/b3-character-rename-check.log` y
+`target/b3-character-rename-test.log`. Con las tres migraciones B3
+paralelas, el censo del arbol es **303/303** nombres originales sin duplicados
+y **139** montados por la raiz provisional. La suite externa completa,
+B3 restante y aceptacion global siguen pendientes.
