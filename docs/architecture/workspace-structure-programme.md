@@ -2058,3 +2058,17 @@ Los escenarios de save/assign/delete/use de equipment sets son candidatos a
 target independiente por operacion, con builders existentes en `fixtures_2.rs`
 y la superficie acotada de `test_fixtures/equipment_sets.rs`; los cuatro casos
 privados deben permanecer junto a sus owners o probar un contrato publico real.
+
+### B3 `item_1`: familia de guardado de equipment sets (2026-09-29)
+
+Seis escenarios de `SaveEquipmentSet`, incluido el GUID compartido con conjuntos
+de transfiguracion y los rechazos de identificador/tipo, viven en
+`tests/character_tests/equipment_set_save.rs`, montado por
+`tests/character_equipment_set_save.rs`. Los builders locales reproducen los
+de `fixtures_2.rs`; se usan las operaciones acotadas de
+`test_fixtures/equipment_sets.rs`. Ninguna visibilidad de produccion se amplio.
+`cargo check -p wow-world` paso y el target independiente ejecuto **6/6**.
+Logs: `target/b3-character-equipment-save-check.log` y
+`target/b3-character-equipment-save-test.log`. Quedan 12 escenarios en el
+`item_1` provisional; el censo global de la suite sigue **303/303** sin
+perdidas ni duplicados. La suite grande aun no compila.
