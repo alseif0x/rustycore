@@ -2072,3 +2072,15 @@ Logs: `target/b3-character-equipment-save-check.log` y
 `target/b3-character-equipment-save-test.log`. Quedan 12 escenarios en el
 `item_1` provisional; el censo global de la suite sigue **303/303** sin
 perdidas ni duplicados. La suite grande aun no compila.
+
+### B3 `item_1`: asignacion de especializacion (2026-09-29)
+
+Dos escenarios que asignan especializacion a un equipment set existente viven
+en `tests/character_tests/equipment_set_assign.rs`, montados por
+`tests/character_equipment_set_assign.rs`; los builders reproducen los de
+`fixtures_2.rs` y los cuerpos/aserciones no cambiaron. El tercer escenario
+de asignacion, que menciona el limite privado
+`MAX_EQUIPMENT_SET_INDEX_LIKE_CPP`, sigue provisional hasta reubicarlo junto
+al owner. `cargo check -p wow-world` paso y el target ejecuto **2/2**.
+Logs: `target/b3-character-equipment-assign-check.log` y
+`target/b3-character-equipment-assign-test.log`. No se amplio API productiva.
