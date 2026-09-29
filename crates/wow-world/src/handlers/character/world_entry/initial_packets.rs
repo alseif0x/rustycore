@@ -389,3 +389,7 @@ impl WorldSession {
 #[cfg(test)]
 #[path = "initial_packets_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "initial_packets_post_add_scaling_tests.rs"]
+mod post_add_scaling_tests;

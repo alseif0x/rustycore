@@ -2578,3 +2578,24 @@ job y el target del worktree. Logs `target/b3-character-map-corpse-check.log`
 y `target/b3-character-map-corpse-tests.log`. El censo mantiene **303/303**
 nombres unicos, **174** montados por la raiz provisional. Sigue pendiente la
 suite externa completa, el resto de B3 y la aceptacion global.
+
+### B3: escalado de items tras add-to-map (2026-09-29)
+
+Los seis casos `post_add_scaling` y su helper compartido se movieron al hijo
+privado `handlers/character/world_entry/initial_packets_post_add_scaling_tests.rs`
+(303 lineas); se retiro el hijo y montaje provisionales. Se conservaron
+nombres, aserciones y capacidad del canal de prueba. No hay cambio productivo
+ni de visibilidad. `Player::SendInitialPacketsAfterAddToMap` llama a
+`UpdateItemLevelAreaBasedScaling` (`Player.cpp:23650,28715-28725`); login y
+worldport llegan a esta fase (`CharacterHandler.cpp:1202`,
+`MovementHandler.cpp:49-154`). Los escenarios de cierre/cancelacion comprueban
+garantias del flujo Rust y no acreditan por si solos la misma semantica C++.
+
+`cargo check -p wow-world` paso. El primer intento del filtro focal fallo al
+compilar por dos imports del fixture (exit 101); corregidos, el reintento
+ejecuto **6/6** con un job y target del worktree. Logs
+`target/b3-character-post-add-scaling-check.log`,
+`target/b3-character-post-add-scaling-tests.log` y
+`target/b3-character-post-add-scaling-tests-retry.log`. Censo **303/303**
+nombres unicos, **168** montados por la raiz provisional. Siguen pendientes
+la suite externa completa, el resto de B3 y la aceptacion global.
