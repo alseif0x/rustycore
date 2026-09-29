@@ -251,7 +251,7 @@ impl WorldSession {
         &mut self,
         quest: &wow_data::quest::QuestTemplate,
     ) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if quest.reward_title_id != 0 {
             self.quest_test_fixture_like_cpp
                 .represented_quest_reward_titles_like_cpp
@@ -275,7 +275,7 @@ impl WorldSession {
         quest: &wow_data::quest::QuestTemplate,
         quest_giver_guid: ObjectGuid,
     ) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             if quest.reward_mail_template_id == 0 {
                 return;
@@ -296,7 +296,7 @@ impl WorldSession {
                     character_db_transaction_unrepresented: true,
                 });
         }
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let _ = (quest, quest_giver_guid);
     }
 

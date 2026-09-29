@@ -261,14 +261,14 @@ impl WorldSession {
 
         missing_learn_triggers
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn represented_quest_rewarded_talent_points_like_cpp(
         &self,
     ) -> Option<u32> {
         let canonical = self.with_owned_player_like_cpp(|player| {
             player.gameplay_state().quest_rewarded_talent_points
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(
                 self.quest_test_fixture_like_cpp
@@ -293,7 +293,7 @@ impl WorldSession {
         if canonical {
             return true;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none() {
             self.quest_test_fixture_like_cpp
                 .represented_quest_reward_talent_points_like_cpp
@@ -542,7 +542,7 @@ impl WorldSession {
             .quest_test_fixture_like_cpp
             .represented_quest_reward_spell_casts_like_cpp
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_quest_reward_titles_like_cpp(
         &self,
     ) -> &[RepresentedQuestRewardTitleLikeCpp] {
@@ -550,7 +550,7 @@ impl WorldSession {
             .quest_test_fixture_like_cpp
             .represented_quest_reward_titles_like_cpp
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_quest_reward_talent_points_like_cpp(
         &self,
     ) -> &[RepresentedQuestRewardTalentPointsLikeCpp] {
@@ -558,7 +558,7 @@ impl WorldSession {
             .quest_test_fixture_like_cpp
             .represented_quest_reward_talent_points_like_cpp
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_quest_reward_mails_like_cpp(
         &self,
     ) -> &[RepresentedQuestRewardMailLikeCpp] {

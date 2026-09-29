@@ -346,7 +346,7 @@ pub(crate) struct RepresentedForceDeselectLikeCpp {
 
 #[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedQuestRewardTitleLikeCpp {
+pub struct RepresentedQuestRewardTitleLikeCpp {
     pub quest_id: u32,
     pub title_id: u32,
     pub char_title_lookup_unrepresented: bool,
@@ -355,7 +355,7 @@ pub(crate) struct RepresentedQuestRewardTitleLikeCpp {
 
 #[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedQuestRewardTalentPointsLikeCpp {
+pub struct RepresentedQuestRewardTalentPointsLikeCpp {
     pub quest_id: u32,
     pub points: u32,
     pub init_talent_for_level_unrepresented: bool,
@@ -363,7 +363,7 @@ pub(crate) struct RepresentedQuestRewardTalentPointsLikeCpp {
 
 #[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedQuestRewardMailLikeCpp {
+pub struct RepresentedQuestRewardMailLikeCpp {
     pub quest_id: u32,
     pub mail_template_id: u32,
     pub delay_secs: u32,
