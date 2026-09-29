@@ -1992,3 +1992,20 @@ sin nuevas correcciones de fixture. Logs:
 `target/b3-character-corpse-owner-focused-test.log` y
 `target/b3-character-corpse-owner-external-check.log`. Los demas escenarios de
 `character_tests` siguen en clasificacion provisional.
+
+### B3 `character_tests`: consulta de mascota en target independiente (2026-09-29)
+
+Los tres escenarios de `QueryPetName` que usan el metodo publico de Session y
+el registro `PacketHandlerEntry` estan en `tests/character_pet.rs`, con sus
+nombres, cuerpos y aserciones conservados. El target reproduce los dos builders
+pequenos que usaba la suite heredada. El cuarto test del antiguo `pet.rs`, sobre
+`enum_character_pet_data_like_cpp`, ya estaba preservado como unitario en
+`handlers/character/enumeration_support_tests.rs`; no se duplico. El modulo
+provisional `pet` dejo de montarse en el target externo grande.
+
+`cargo check -p wow-world` paso y `cargo test -p wow-world --test character_pet`
+ejecuto **3/3**. El inventario del target provisional bajo de 521 a 520 errores.
+Logs: `target/b3-character-pet-default-check.log`,
+`target/b3-character-pet-focused-test.log` y
+`target/b3-character-pet-external-check.log`. Este target pequeno si esta verde;
+el resto de `character_tests` todavia no.
