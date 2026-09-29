@@ -210,8 +210,6 @@ pub struct MapInstance {
 #[derive(Debug)]
 pub struct MapManager {
     maps: HashMap<(u16, u32), MapInstance>, // (map_id, instance_id) -> MapInstance
-    free_instance_ids: Vec<bool>,
-    next_instance_id: u32,
     tick_owner: RuntimeTickOwner,
     /// Shared, file-backed terrain height (DataDir). `None` until wired at server
     /// startup; while absent, height-dependent paths fall back to their prior

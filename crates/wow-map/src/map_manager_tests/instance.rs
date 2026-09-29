@@ -201,26 +201,6 @@ fn test_map_manager_create_map() {
     assert_eq!(map.map_id, 0);
     assert_eq!(map.instance_id, 0);
 }
-#[test]
-fn instance_id_allocator_generates_lowest_free_id_like_cpp() {
-    let mut manager = MapManager::new();
-
-    assert_eq!(manager.generate_instance_id(), Some(1));
-    assert_eq!(manager.generate_instance_id(), Some(2));
-    assert_eq!(manager.generate_instance_id(), Some(3));
-
-    manager.free_instance_id(2);
-    assert_eq!(manager.generate_instance_id(), Some(2));
-    assert_eq!(manager.generate_instance_id(), Some(4));
-}
-#[test]
-fn instance_id_allocator_keeps_zero_reserved_like_cpp() {
-    let mut manager = MapManager::new();
-
-    manager.free_instance_id(0);
-
-    assert_eq!(manager.generate_instance_id(), Some(1));
-}
 /// `active_map_keys` returns the exact `(map_id, instance_id)` pairs of
 /// the maps that have been created in the manager.
 #[test]

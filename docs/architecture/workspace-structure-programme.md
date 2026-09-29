@@ -3491,6 +3491,28 @@ el orden y las entradas de inicialización Rust siguen requiriendo contraste de
 paridad. Las pruebas locales verifican el contrato de la composición actual,
 no esa paridad completa ni los posibles usuarios externos de `wow-map`.
 
+**Retiro local del allocator duplicado de `wow_map::map_manager::MapManager`
+(2026-09-29; implementación sin validar sobre `0e9070c9`):** se quitaron los
+campos `free_instance_ids`/`next_instance_id`, los métodos públicos
+`init_instance_ids_from_max`, `register_instance_id`, `generate_instance_id` y
+`free_instance_id`, y sus tres pruebas antiguas. La búsqueda completa del repo
+encontró las apariciones restantes en el allocator canónico (composición,
+wrappers y tests); no encontró callers de la API legacy fuera de su constructor
+ni de las pruebas retiradas. El módulo `wow_map::map_manager` es público, así que
+esta retirada rompe esa API fuente y cambia el `Debug` derivado para consumidores
+externos al workspace, que no se pudieron auditar. El
+allocator canónico, la composición/bootstrap y sus pruebas permanecen intactos;
+también permanecen el tick `GlobalLegacy` y los puentes de criaturas cargadas,
+spawn y respawn. No cambia el orden ni los datos de bootstrap, y este corte no
+afirma paridad completa con `World.cpp:1901`, `MapManager.cpp:139,374-432` ni
+`InstanceLockMgr.cpp:124`. Feedback del corte: `cargo test -p wow-map --lib
+instance_id` pasó **4/4** y `cargo test -p world-server --lib
+persisted_instance_ids_reserve_canonical_allocator_and_empty_input_is_noop`
+pasó **1/1** con `PROTOC` local, un job y el target de este worktree. Logs
+`target/b6-retire-legacy-allocator-map-test.log` y
+`target/b6-retire-legacy-allocator-bootstrap-test.log`. La aceptación final
+de arquitectura e integración sigue pendiente.
+
 **D3, planes de reubicación (2026-09-29):** los tipos y cálculos puros de
 visibilidad/avisos AI tras una reubicación viven ahora en
 `wow-map/src/map/relocation_plans.rs`; `Map` conserva su estado y el módulo de
@@ -3513,3 +3535,12 @@ dejar en integración solo contratos accesibles desde fuera, conservando los
 nombres y aserciones originales. Las eliminaciones y nuevos archivos de esta
 suite siguen sin commit; ni su cifra de líneas ni el target fallido constituyen
 aceptación de B3.
+
+El primer retorno al dueño privado movió
+`pending_worldport_uses_separate_cpp_connections` al módulo de transferencia
+de `WorldSession`, conservando el nombre y las aserciones de paquetes/orden;
+el filtro de librería pasó **1/1** (`target/b3-private-transfer-test.log`).
+Cinco pruebas de planificación de movimientos bancarios se trasladaron al
+child privado de `handlers::character::items` con fixtures locales mínimos;
+todavía no hay resultado ejecutado de ese lote. Estos son avances de B3
+provisionales y la suite externa sigue sin compilar.

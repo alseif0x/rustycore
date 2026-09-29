@@ -20,19 +20,6 @@ fn test_should_not_unload_with_player() {
     assert!(!grid.should_unload(Duration::from_secs(300)));
 }
 #[test]
-fn instance_id_allocator_registers_loaded_ids_in_order_like_cpp() {
-    let mut manager = MapManager::new();
-    manager.init_instance_ids_from_max(5);
-
-    manager.register_instance_id(1);
-    manager.register_instance_id(2);
-    manager.register_instance_id(4);
-
-    assert_eq!(manager.generate_instance_id(), Some(3));
-    assert_eq!(manager.generate_instance_id(), Some(5));
-    assert_eq!(manager.generate_instance_id(), Some(6));
-}
-#[test]
 fn loaded_grid_canonical_bridge_preserves_level_and_stats_like_cpp() {
     let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 29_715, 97_932);
     let position = Position::new(5875.25, 609.063, 650.368, 1.676);
