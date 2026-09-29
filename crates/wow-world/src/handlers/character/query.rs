@@ -781,3 +781,7 @@ impl WorldSession {
         self.send_packet(&QuestGiverStatusMultiple { statuses });
     }
 }
+
+#[cfg(test)]
+#[path = "query_tests.rs"]
+mod tests;

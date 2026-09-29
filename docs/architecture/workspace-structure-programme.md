@@ -2462,3 +2462,22 @@ Logs `target/b3-misc-owner-check.log`,
 `target/b3-misc-owner-world-state-tests.log`. Sin cambios productivos ni
 visibilidad. Censo **303/303** nombres unicos, **192** montados por la raiz
 provisional; la suite externa completa sigue pendiente.
+
+### B3 `misc_3`: seis consultas DB2 y PageText junto a `query` (2026-09-29)
+
+Tres escenarios de `DBQueryBulk` (TACT hit/miss y rechazo del blob raw) y
+tres de `QueryPageText` se movieron al hijo privado
+`handlers/character/query_tests.rs` (227 lineas). `query.rs` queda en
+787 lineas con el montaje de test. Se conservaron nombres y aserciones;
+el test usa los builders privados de sesion y un catalogo local minimo de
+PageText. El C++ fijado hace `DB2StorageBase::WriteRecord` solo con registro
+tipado (`HotfixHandler.cpp:27-54`) y construye la cadena de paginas estatica
+con `Allow = !Pages.empty()` (`QueryHandler.cpp:202-232`). El rechazo de un
+blob raw sin almacenamiento tipado es una defensa del contrato Rust; su test
+no demuestra por si solo paridad de una ruta C++ de blob arbitrario.
+
+Sin cambios de produccion ni visibilidad. `cargo check -p wow-world` paso;
+`cargo test -p wow-world --lib handlers::character::query::tests::` ejecuto
+**6/6**. Logs `target/b3-query-check.log` y `target/b3-query-tests.log`.
+Censo **303/303** nombres unicos, **186** montados por la raiz provisional;
+`character_tests` externa y la aceptacion global siguen pendientes.
