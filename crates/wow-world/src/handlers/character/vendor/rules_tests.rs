@@ -1,7 +1,8 @@
 //! Unit tests for pure vendor admission, listing, pricing, and purchase rules.
 
 use super::{
-    SellItemAmountAction, VendorBuyTemplateBlock, VendorExtendedCostBlock, sell_item_amount_action,
+    LoadedItemRefundDecision, SellItemAmountAction, VendorBuyTemplateBlock,
+    VendorExtendedCostBlock, loaded_item_refund_decision, sell_item_amount_action,
     vendor_buy_coinage_update_like_cpp, vendor_buy_currency_packet_quantity_to_cpp_count,
     vendor_buy_currency_quantity_block_result, vendor_buy_direct_inventory_destination,
     vendor_buy_direct_store_block_result, vendor_buy_extended_cost_block_result,
@@ -654,5 +655,33 @@ fn vendor_required_reputation_fails_closed_until_reputation_mgr_exists() {
     assert_eq!(
         vendor_buy_required_reputation_block_result(Some(72), Some(5), 5),
         None
+    );
+}
+
+#[test]
+fn loaded_refund_metadata_matches_cpp_load_cleanup() {
+    let refundable_flags = (ItemFieldFlags::SOULBOUND | ItemFieldFlags::REFUNDABLE).bits();
+    assert_eq!(
+        loaded_item_refund_decision(refundable_flags, 7_200, Some(123), Some(45)),
+        LoadedItemRefundDecision::Valid {
+            paid_money: 123,
+            paid_extended_cost: 45,
+        }
+    );
+    assert_eq!(
+        loaded_item_refund_decision(refundable_flags, 7_201, Some(123), Some(45)),
+        LoadedItemRefundDecision::Clear {
+            new_flags: ItemFieldFlags::SOULBOUND.bits(),
+        }
+    );
+    assert_eq!(
+        loaded_item_refund_decision(refundable_flags, 10, None, Some(45)),
+        LoadedItemRefundDecision::Clear {
+            new_flags: ItemFieldFlags::SOULBOUND.bits(),
+        }
+    );
+    assert_eq!(
+        loaded_item_refund_decision(ItemFieldFlags::SOULBOUND.bits(), 10, Some(123), Some(45)),
+        LoadedItemRefundDecision::None
     );
 }

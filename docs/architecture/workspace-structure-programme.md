@@ -2383,3 +2383,18 @@ Actualmente hay **227** nombres en ficheros del armazon provisional, de los
 cuales **17** ya no estan montados por su raiz (tienen otros destinos); por
 tanto **210** siguen montados por `tests/character_tests.rs`. Los recuentos
 historicos de montadas en las entradas previas deben leerse con **+2**.
+
+### B3 `persistence`: metadata de reembolso junto a reglas del vendedor (2026-09-29)
+
+`loaded_refund_metadata_matches_cpp_load_cleanup` se movio al hijo privado
+existente `handlers/character/vendor/rules_tests.rs` (687 lineas tras el
+cambio). `items/login_load.rs` llama a la regla productiva. La referencia
+3.4.3 `Player::_LoadInventory` (`Player.cpp:18415-18442`) retira la marca
+`REFUNDABLE` al superar dos horas o al faltar `item_refund_instance`, y
+carga los importes cuando existe el registro. El caso defensivo de un solo
+importe ausente queda preservado como guardia de Rust; la consulta C++
+devuelve los dos campos juntos. Sin cambios productivos ni de visibilidad.
+`cargo check -p wow-world` paso y el filtro unitario ejecuto **1/1**; logs
+`target/b3-refund-metadata-check.log` y `target/b3-refund-metadata-test.log`.
+Censo **303/303** sin duplicados; **209** pruebas siguen montadas por la
+raiz provisional. `character_tests` externa aun no compila completa.
