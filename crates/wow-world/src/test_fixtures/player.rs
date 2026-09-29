@@ -45,6 +45,34 @@ pub fn reset_player_interaction_if_source_for_test(
     session.reset_player_interaction_if_source_like_cpp(source_guid)
 }
 
+/// Push one option into the ownerless PlayerMenu fixture, matching the former
+/// direct test write without exposing its mutable collection.
+pub fn push_player_gossip_option_for_test(
+    session: &mut crate::session::WorldSession,
+    option: crate::session::GossipOptionInfo,
+) {
+    session.gossip_options.push(option);
+}
+
+/// Snapshot the ownerless PlayerMenu fixture for assertions.
+pub fn player_gossip_options_for_test(
+    session: &crate::session::WorldSession,
+) -> Vec<crate::session::GossipOptionInfo> {
+    session.gossip_options.clone()
+}
+
+pub fn install_canonical_player_owner_for_test(
+    session: &mut crate::session::WorldSession,
+    map_id: u32,
+    instance_id: u32,
+) -> wow_core::ObjectGuid {
+    crate::canonical_player_access::install_canonical_player_owner_for_test(
+        session,
+        map_id,
+        instance_id,
+    )
+}
+
 pub fn get_inventory_item_by_pos_for_test(
     session: &crate::session::WorldSession,
     bag: u8,

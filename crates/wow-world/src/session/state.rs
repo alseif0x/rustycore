@@ -1833,7 +1833,7 @@ pub struct WorldSession {
     pub(in crate::session) player_interaction_data_like_cpp: PlayerInteractionDataLikeCpp,
     /// Active gossip options for the NPC the player is talking to.
     /// Stored when SMSG_GOSSIP_MESSAGE is sent, used when CMSG_GOSSIP_SELECT_OPTION arrives.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) gossip_options: Vec<GossipOptionInfo>,
 
     /// Ownerless legacy fixtures only; production uses Player's teleport state.

@@ -995,7 +995,7 @@ impl WorldSession {
             last_visibility_pos: None,
             #[cfg(any(test, feature = "test-fixtures"))]
             player_interaction_data_like_cpp: PlayerInteractionDataLikeCpp::default(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             gossip_options: Vec::new(),
             #[cfg(test)]
             pending_teleport: None,

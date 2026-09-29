@@ -195,17 +195,19 @@ impl WorldSession {
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| player.clear_gossip_options_like_cpp())
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical || self.player_handle_like_cpp.is_none() {
             self.gossip_options.clear();
         }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+        canonical
+            || (cfg!(any(test, feature = "test-fixtures"))
+                && self.player_handle_like_cpp.is_none())
     }
     pub(crate) fn replace_player_gossip_options_like_cpp(
         &mut self,
         options: Vec<GossipOptionInfo>,
     ) -> bool {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         let fixture_options = options.clone();
         let mut options = Some(options);
         let canonical = self
@@ -215,11 +217,13 @@ impl WorldSession {
                 );
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical || self.player_handle_like_cpp.is_none() {
             self.gossip_options = fixture_options;
         }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+        canonical
+            || (cfg!(any(test, feature = "test-fixtures"))
+                && self.player_handle_like_cpp.is_none())
     }
     pub(crate) fn player_gossip_option_like_cpp(
         &self,
@@ -232,7 +236,7 @@ impl WorldSession {
                 .find(|option| option.gossip_option_id == gossip_option_id)
                 .cloned()
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return self
                 .gossip_options

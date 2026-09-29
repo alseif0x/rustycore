@@ -14,7 +14,7 @@ use wow_entities::{Player, VisibleItemValues};
 
 use crate::session::SharedCanonicalMapManager;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) fn install_canonical_player_owner_for_test(
     session: &mut crate::session::WorldSession,
     map_id: u32,
