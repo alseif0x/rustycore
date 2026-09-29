@@ -146,3 +146,6 @@ pub(in crate::handlers::character) fn materialize_loaded_map_corpses_like_cpp(
     map.mark_corpse_data_loaded_like_cpp();
     outcome
 }
+
+#[cfg(test)]
+mod tests;

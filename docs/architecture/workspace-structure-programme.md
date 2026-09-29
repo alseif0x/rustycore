@@ -1976,3 +1976,19 @@ despues de cada familia consolidada. El traslado provisional no se publica ni
 se usa como evidencia de suite verde. Esta revision no reduce el objetivo de
 eliminar la deuda fisica y de imports de B3/B7; cambia la costura tecnica con
 la que se alcanzara sin ensanchar la API de produccion.
+
+### B3 `character_tests`: primer escenario devuelto al owner (2026-09-29)
+
+`map_corpse_loader_applies_persisted_phases_and_customizations_once_like_cpp`
+prueba directamente `materialize_loaded_map_corpses_like_cpp`, sus filas privadas
+y el mapa cargado; ahora vive junto a `handlers/character/corpse_loading.rs` en
+su hijo `tests.rs`. El cuerpo y las aserciones se conservaron literalmente;
+dejo de montarse en el target externo. `cargo check -p wow-world` paso y el
+filtro `cargo test -p wow-world --lib
+map_corpse_loader_applies_persisted_phases_and_customizations_once_like_cpp`
+ejecuto **1/1**. El diagnostico externo bajo de 524 a 521 errores restantes,
+sin nuevas correcciones de fixture. Logs:
+`target/b3-character-corpse-owner-default-check.log`,
+`target/b3-character-corpse-owner-focused-test.log` y
+`target/b3-character-corpse-owner-external-check.log`. Los demas escenarios de
+`character_tests` siguen en clasificacion provisional.
