@@ -3544,3 +3544,14 @@ Cinco pruebas de planificación de movimientos bancarios se trasladaron al
 child privado de `handlers::character::items` con fixtures locales mínimos;
 todavía no hay resultado ejecutado de ese lote. Estos son avances de B3
 provisionales y la suite externa sigue sin compilar.
+
+**Siguiente checkpoint de implementación B3:** completar `character_tests`
+como entrega coherente: mantener cada prueba privada junto a su dueño,
+conservar exactamente nombres y aserciones, y montar fuera de la librería
+solo las pruebas de contrato público. Mientras se migra esta suite, trabajar
+en nivel 1 sin más compilaciones o pruebas automáticas por cada lote. Cuando
+el target y sus consumidores estén completos, ejecutar la aceptación afectada
+una vez, corregir hallazgos juntos y continuar con las suites restantes.
+La ejecución interrumpida de `cargo test -p wow-world --lib bank_move_plan`
+salió con código 130 por este cambio de cadencia; no aporta evidencia de esos
+cinco tests.

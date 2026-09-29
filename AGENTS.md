@@ -111,12 +111,12 @@ Use implemented, production-integrated and parity-proven as distinct evidence le
 ## Architecture and skills
 
 Use [orchestrate-rustycore](.agents/skills/orchestrate-rustycore/SKILL.md) for development
-coordination. Only two models take part: Claude Opus 5.5 as the parent (started with
-`ocx claude`, opencodex), which decides, reviews and integrates but does not implement, and
-DeepSeek v4.1 flash on the native DeepSeek API as the worker that implements
-(`.claude/agents/deepseek-worker.md`). Opus implements only through
-`.claude/agents/rustycore-worker.md` when the DeepSeek API fails. Agent definitions do
-not override runtime permissions.
+coordination. The native Codex parent uses GPT-6 Sol at medium effort and owns decisions,
+review and integration; it does not implement. GPT-6 Luna at max effort implements assigned
+work. Claude-compatible sessions use `ocx claude`, `.claude/settings.json` and
+`.claude/agents/rustycore-worker.md` for the same roles. These settings are defaults: confirm
+the effective session and worker runtime before claiming a model or effort. Agent definitions
+do not override runtime permissions.
 
 Use the existing architecture skill for boundary/design questions and the safe-refactor skill
 for approved behavior-preserving restructuring. They apply the maintained project documents;
@@ -164,6 +164,11 @@ automatic validation at internal boundaries or at the end of local implementatio
 The one exception is the implementing worker's own feedback loop: crate-scoped
 `cargo check -p <crate>` and focused `cargo test -p <crate> <filter>` on the unit it
 owns, sequentially with `CARGO_BUILD_JOBS=1`. That is coding, not acceptance evidence.
+When the user asks to maximize implementation before strategic checkpoints, suspend even
+that optional worker feedback loop: no Cargo or validation profile until the chosen
+complete responsibility and its consumers are implemented. A helper, file split or
+commit is not a checkpoint. At the checkpoint, validate once, repair findings together,
+record the evidence, and immediately continue the next authorized responsibility.
 Report implementation/unvalidated work separately from accepted evidence. At final
 acceptance, fix findings and rerun affected evidence as needed. An explicit user
 request for an earlier diagnostic run remains authoritative. Do not claim unexecuted
