@@ -87,6 +87,8 @@ struct Crate {
     name: String,
     #[allow(dead_code)]
     dir: PathBuf,
+    src_lines: usize,
+    test_lines: usize,
     lines: usize,
     files: usize,
     largest: usize,
@@ -161,13 +163,16 @@ fn load_crate(root: &Path, member: &str) -> Option<Crate> {
             }
         }
     }
-    let (lines, files, largest) = walk(&dir.join("src"));
+    let (src_lines, src_files, src_largest) = walk(&dir.join("src"));
+    let (test_lines, test_files, test_largest) = walk(&dir.join("tests"));
     Some(Crate {
         name,
         dir,
-        lines,
-        files,
-        largest,
+        src_lines,
+        test_lines,
+        lines: src_lines + test_lines,
+        files: src_files + test_files,
+        largest: src_largest.max(test_largest),
         deps,
         dev_deps,
     })
@@ -259,12 +264,19 @@ fn structure_audit(root: &Path) {
     let crates = load_all(root);
     let consumers = consumers(&crates);
     println!(
-        "{:<24}{:>9}{:>7}{:>8}{:>6}{:>5}  layer  flags",
-        "crate", "lines", "files", "largest", "deps", "used"
+        "{:<24} {:>11} {:>11} {:>11} {:>7} {:>13} {:>6} {:>5}  layer  flags",
+        "crate",
+        "src-lines",
+        "test-lines",
+        "total-lines",
+        "files",
+        "largest-lines",
+        "deps",
+        "used"
     );
     for c in crates.iter().rev() {
         let mut flags = Vec::new();
-        if c.lines <= 60 {
+        if c.src_lines <= 60 {
             flags.push("stub");
         }
         let layer = layer_of(&c.name);
@@ -281,8 +293,10 @@ fn structure_audit(root: &Path) {
             flags.push("no-layer");
         }
         println!(
-            "{:<24}{:>9}{:>7}{:>8}{:>6}{:>5}  L{:<4} {}",
+            "{:<24} {:>11} {:>11} {:>11} {:>7} {:>13} {:>6} {:>5}  L{:<4} {}",
             c.name,
+            c.src_lines,
+            c.test_lines,
             c.lines,
             c.files,
             c.largest,

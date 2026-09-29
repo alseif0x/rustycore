@@ -139,9 +139,9 @@ sin entradas eliminables ni stashes. Reconsultar Git al retomar; estos son datos
 
 | pieza | estado comprobado y límite |
 |---|---|
-| B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Se estrecharon exports internos revisados de terrain, grid, pathfinder, respawn y runtime_state; el manager legado sigue requerido por `wow-world`/`world-server`. `map/mod.rs` ya medía 5 133 líneas en la base y sigue así: D3 se adelanta para no confundir traslado de crate con retiro de monolitos. Faltan los demás exports, features/composición y aceptación del candidato. |
+| B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Se estrecharon exports internos revisados de terrain, grid, pathfinder, respawn y runtime_state; el manager legado sigue requerido por `wow-world`/`world-server`. `map/mod.rs` medía 5 133 líneas en la base y mide unas 4 253 en el árbol D3 local aún no aceptado. La división física no retira los dos managers ni sus puentes. Faltan los demás exports, features/composición y aceptación del candidato. |
 | B5 | Raíces de loot y character miden 243/239 líneas y todos sus hijos extraídos menos de 600. Se estrecharon rutas heredadas de visibilidad de ambos adaptadores, incluido el plan de inventario test-only tras mover sus dos tests privados. Faltan el resto de exports y la aceptación del candidato. |
-| B3 | `group_tests` ya es target de integración. `quest_tests` existe como target provisional; `character_tests` se distribuye por owners, con **303** nombres originales presentes sin duplicados y **111** aún montados en la raíz provisional del árbol local. La suite externa de character aún no compila completa; la migración de quest y loot tampoco está aceptada. |
+| B3 | `group_tests` ya es target de integración. `quest_tests` existe como target provisional; `character_tests` se distribuye por owners, con **303** nombres originales presentes sin duplicados y **107** aún montados en la raíz provisional del árbol local. La suite externa de character aún no compila completa; la migración de quest y loot tampoco está aceptada. |
 | B7 | Hay limpieza parcial local, incluidos siete imports sin uso retirados el 2026-09-29; los consumidores restantes de fixtures dependen de B3. No está cerrado. |
 | Talentos #578 | La rama `recover/578-talent-catalog`, `0845f5b3`, conserva `docs/migration/recovered/578-talent-catalog-2026-09-04.patch`; el archivo solo existe en esa rama, no en este checkout. No está aplicado; preservar la rama y adaptar por consumidores actuales cuando corresponda. |
 | Orquestación | Sol medium / Luna max copiado a este worktree. Cambios compartidos aún locales, y `.codex/config.toml` ignorado. Iniciar sesión nueva y comprobar runtime efectivo; preservar estos cambios al continuar. |
@@ -3363,6 +3363,30 @@ colas; el movimiento físico no cambia esa secuencia. Pasaron
 candidato; los tres ficheros de origen siguen por encima de 1 000 y D3 sigue
 abierto.
 
+Los métodos de otros tipos movidos también tienen feedback focal en ese
+directorio: `transport_update` 5/5, `conversation_update` 4/4 y
+`scene_object_update` 5/5, sin tests cero. La suma de los siete filtros es
+58 ejecuciones, no una suite completa ni prueba de paridad del tick.
+
+**Segundo corte D3 en el árbol local, aún sin aceptación:** se extrajeron
+viewpoint, summon/slots de GameObject, retirada de objetos, inserción,
+acciones de pool y sus actualizaciones, fases de manager y dos grupos de tests
+de criatura/visibilidad. `map/mod.rs` quedó en 4 253 líneas;
+`game_object.rs` 900, `relocation.rs` 916, `storage.rs` 985,
+`spawn_groups.rs` 571, `manager/state_1.rs` 780,
+`manager/state_2.rs` 988, `map_tests/creature_1.rs` 835 y
+`map_tests/visibility.rs` 916. De los nueve archivos D3 inicialmente
+mayores de 1 000, solo la raíz de `Map` sigue por encima; los archivos
+nuevos también están por debajo. El estado `Map` continúa canónico y privado;
+los cuerpos trasladados se compararon byte a byte. Tras corregir tres imports
+de producción/tests, pasó `cargo check -p wow-map` y pasaron los siete filtros
+`spawn_group` (47), `pool_update` (3), `add_to_map` (29),
+`remove_from_map` (30), `guid_sequence` (10), `farsight` (8) y
+`map_manager` (179), cada uno con coincidencias no nulas. Hay solapamiento
+entre filtros: no son 306 tests distintos. Exits y recuentos en
+`target/d3-second-feedback/`. Faltan consumidores completos y aceptación
+final; estas extracciones no retiran el segundo manager ni sus puentes.
+
 Para responder al tamaño del destino con una base comparable, se contaron líneas
 físicas de todos los `.rs` bajo `src/` y `tests/` mediante
 `git archive` en `origin/3.4.3` y en `f32ca7d7`, sin incluir el WIP externo
@@ -3373,6 +3397,20 @@ trasladados. `wow-map` pasa de 53 264 + 252 (53 516) a 66 312 + 252
 (66 564). Estas cifras son tamaño físico por crate, no prueba de retiro de
 autoridad ni de menor coste de compilación; el árbol provisional de character
 todavía necesita compilar y ejecutar sus targets.
+El `xtask structure-audit` anterior a este ajuste (`tools/xtask/src/main.rs`) medía
+solo `src/`: mover tests a `<crate>/tests/` reduce su columna `lines` sin
+reducir por ello el total físico del crate ni retirar lógica de aplicación.
+Para la aceptación de E1 se deben conservar las tres medidas (`src`, `tests`,
+total) y revisar ficheros de ambos árboles; no usar la caída de `src` por B3
+como prueba de distribución semántica o de cumplimiento del techo total.
+
+El ajuste local de `xtask structure-audit` ya imprime esas tres columnas y
+calcula el mayor fichero entre ambos árboles. Su ejecución devolvió 0:
+`wow-world` 377 126 + 28 534 = 405 660 líneas y máximo 1 842;
+`wow-map` 66 481 + 252 = 66 733 y máximo 4 253. El árbol de
+`character_tests` aún es provisional y no compiló como target externo: estas
+cifras describen el worktree, no un candidato aceptado. Log
+`target/structure-audit-src-tests-total.log`.
 
 El límite semántico también sigue abierto. `world-server/app.rs:4126-4170`
 construye un manager legacy (`wow_map::map_manager::MapManager`) y otro canónico
@@ -3385,3 +3423,23 @@ spawn/respawn y sincronización no quedan probados por esa división. Por tanto
 D3 reduce archivos y B6 debe seguir retirando/justificando cada puente según
 su dueño y contrato: no llamar a un `Map` repartido en archivos una autoridad
 única demostrada para todas las transiciones.
+
+**Corrección de criterio para los siguientes cortes (2026-09-29):** antes de
+dar por distribuida una responsabilidad, registrar la operación completa, su
+estado canónico, lectores y escritores, dueño del tick, efectos de persistencia y
+publicación, consumidores migrados y el puente retirado o su condición concreta
+de retiro. Exigir además el presupuesto físico de producción, tests y fixtures.
+Un `impl Map` movido a otro archivo conserva la autoridad y cuenta solo como
+avance físico; una caída de `wow-world/src` causada por trasladar tests tampoco
+cuenta como reducción de masa del crate. El siguiente corte de `Map` debe dejar
+una raíz navegable por familias de operación sin ensanchar visibilidad para mover
+código; el cierre semántico B6 exige tratar el par de managers en la composición
+y en los productores de ticks según el ledger de ownership. Mantener ambas
+medidas separadas en el estado de B6/D3 hasta superar sus dos pruebas de salida.
+
+El feedback local de los dos tests privados de gossip y los dos de validación
+de redirección de inventario fue **2/2** en cada filtro, después de un primer
+filtro que seleccionó cero tests y no cuenta como evidencia. `cargo check -p
+wow-world` pasó con 261 avisos; son checks de implementación sobre el árbol
+provisional, no aceptación de B3/B6/B7. Los imports B7 restantes y las suites
+externas de character/quest/loot siguen pendientes.
