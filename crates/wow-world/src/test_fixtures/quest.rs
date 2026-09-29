@@ -219,3 +219,70 @@ pub fn represented_can_delay_teleport_for_test(
 ) -> bool {
     session.represented_can_delay_teleport_like_cpp()
 }
+
+pub fn plan_item_transfer_quest_persistence_for_test(
+    session: &crate::session::WorldSession,
+    removed_entries_in_order: &[u32],
+    post_removal_non_bank_counts: &[(u32, u32)],
+    added_items_in_order: &[(u32, u32, u32)],
+) -> Vec<crate::handlers::quest::PlayerQuestStatus> {
+    session.plan_item_transfer_quest_persistence_like_cpp(
+        removed_entries_in_order,
+        post_removal_non_bank_counts,
+        added_items_in_order,
+    )
+}
+
+pub fn plan_item_transfer_withdrawal_for_test(
+    session: &crate::session::WorldSession,
+    removed_entries_in_order: &[u32],
+    post_removal_non_bank_counts: &[(u32, u32)],
+    entry_id: u32,
+    quest_log_item_id: u32,
+    count: u32,
+) -> (bool, Vec<crate::handlers::quest::PlayerQuestStatus>) {
+    let mut plan = session.begin_item_transfer_quest_persistence_like_cpp(
+        removed_entries_in_order,
+        post_removal_non_bank_counts,
+    );
+    let credited = session.plan_item_transfer_withdrawal_quest_persistence_like_cpp(
+        &mut plan,
+        entry_id,
+        quest_log_item_id,
+        count,
+    );
+    let statuses = session.finish_item_transfer_quest_persistence_like_cpp(plan);
+    (credited, statuses)
+}
+
+pub fn plan_bank_item_quest_persistence_for_test(
+    session: &crate::session::WorldSession,
+    entry_id: u32,
+    quest_log_item_id: u32,
+    moving_to_bank: bool,
+    post_move_non_bank_count: u32,
+    added_count: u32,
+) -> Vec<crate::handlers::quest::PlayerQuestStatus> {
+    session.plan_bank_item_quest_persistence_like_cpp(
+        entry_id,
+        quest_log_item_id,
+        moving_to_bank,
+        post_move_non_bank_count,
+        added_count,
+    )
+}
+
+pub fn plan_quest_source_item_bound_objective_statuses_for_test(
+    session: &crate::session::WorldSession,
+    entry_id: u32,
+    quest_log_item_id: u32,
+    count: u32,
+) -> Option<Vec<crate::handlers::quest::PlayerQuestStatus>> {
+    session
+        .plan_quest_source_item_bound_objective_persistence_like_cpp(
+            entry_id,
+            quest_log_item_id,
+            count,
+        )
+        .map(|plan| plan.statuses)
+}
