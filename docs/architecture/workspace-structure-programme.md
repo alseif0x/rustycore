@@ -2229,3 +2229,17 @@ filtro unitario ejecuto **2/2**; logs
 `target/b3-cancel-temp-enchantment-check.log` y
 `target/b3-cancel-temp-enchantment-test.log`. Censo **303/303**, sin
 duplicados; quedan **217** tests montados por la raiz provisional.
+
+### B3: costura del port compartido de colecciones (decision 2026-09-29)
+
+`CollectionLoadPortLikeCpp` ocupa unas 365 lineas en `fixtures_1.rs` y sirve
+tambien a login, estados iniciales, transportes, compra de ranura bancaria y
+persistencia. Mover solo el test de apariencias copiaria ese trait y sus
+respuestas stub. Se trasladara una sola implementacion a un hijo de
+`test_fixtures`, compilado solo con la feature de pruebas; los consumidores
+externos mantendran el mismo tipo via reexport. Los pocos accesos directos a
+la cola de futuros de estados iniciales se sustituiran por un metodo de
+encolado del fixture. El primer consumidor privado sera el caso de fallo
+parcial de apariencias, junto a `account/collections.rs`; el test debe pasar
+sin ampliar ninguna API productiva. La retirada de la copia provisional y
+el resto de consumidores se verificaran antes de dar esta costura por cerrada.
