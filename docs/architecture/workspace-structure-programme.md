@@ -2302,3 +2302,20 @@ carga monturas antes de apariencias e ilusiones. El contraste y su limite
 estan en `EXISTING-CODE-DEFECTS.md`. No se traslada ese test como evidencia
 de orden C++ ni se reordena gameplay dentro de B3; las otras familias de
 prueba siguen disponibles para migracion.
+
+### B3 `item_2`/`item_3`: reglas de autostore e inventario antiguo (2026-09-29)
+
+Tres pruebas puras (`autostore_bank_target_depends_on_source_domain_like_cpp`,
+`bank_move_quest_removal_follows_opcode_not_direction_like_cpp` y
+`legacy_zero_inventory_slots_loads_base_backpack_capacity`) viven ahora junto
+a las reglas en `handlers/character/inventory_plan_tests.rs`. Se conservaron
+cuerpos y aserciones; la tercera prueba esta rotulada como compatibilidad Rust.
+`BankHandler.cpp::HandleAutoStoreBankItemOpcode` (78-119) confirma que banco a
+inventario aplica `ItemAddedQuestCheck` y la direccion inversa no. Sin
+cambio productivo ni de visibilidad, `cargo check -p wow-world` paso y los
+tres filtros unitarios ejecutaron **1/1** cada uno. Logs:
+`target/b3-inventory-plan-pure-tests-check.log`,
+`target/b3-inventory-plan-autostore-target-test.log`,
+`target/b3-inventory-plan-bank-move-quest-test.log` y
+`target/b3-inventory-plan-legacy-zero-slots-test.log`. Censo **303/303** sin
+duplicados; **212** siguen montadas por la raiz provisional.

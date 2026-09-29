@@ -1,6 +1,40 @@
 use super::*;
 
 #[test]
+fn autostore_bank_target_depends_on_source_domain_like_cpp() {
+    assert_eq!(
+        autostore_bank_target_like_cpp(INVENTORY_SLOT_BAG_0, wow_entities::BANK_SLOT_ITEM_START,),
+        InventoryStorageTargetLikeCpp::Inventory
+    );
+    assert_eq!(
+        autostore_bank_target_like_cpp(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START,),
+        InventoryStorageTargetLikeCpp::Bank
+    );
+}
+
+#[test]
+fn bank_move_quest_removal_follows_opcode_not_direction_like_cpp() {
+    assert_eq!(
+        autostore_bank_quest_checks_like_cpp(InventoryStorageTargetLikeCpp::Bank),
+        InventoryStorageQuestChecksLikeCpp::None,
+        "C++ AutoStore inventory-to-bank must select no quest check even though its target is Bank"
+    );
+    assert_eq!(
+        autostore_bank_quest_checks_like_cpp(InventoryStorageTargetLikeCpp::Inventory),
+        InventoryStorageQuestChecksLikeCpp::AutoStoreBankItemAdded
+    );
+}
+
+#[test]
+fn legacy_zero_inventory_slots_loads_base_backpack_capacity() {
+    assert_eq!(
+        loaded_inventory_slot_count_with_legacy_rust_compat(0),
+        INVENTORY_DEFAULT_SIZE
+    );
+    assert_eq!(loaded_inventory_slot_count_with_legacy_rust_compat(24), 24);
+}
+
+#[test]
 fn player_money_gain_like_cpp_enforces_max_money_amount() {
     assert_eq!(player_money_gain_like_cpp(0, 0), Some(0));
     assert_eq!(
