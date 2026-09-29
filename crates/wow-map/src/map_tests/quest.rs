@@ -4,6 +4,7 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use wow_entities::UnitSharedVisionSetWorldObjectRequestLikeCpp;
 
 #[test]
 fn unit_shared_vision_set_world_object_request_enqueues_like_cpp() {

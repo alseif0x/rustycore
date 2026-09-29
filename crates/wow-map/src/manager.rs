@@ -28,8 +28,11 @@ use crate::spawn::{Difficulty, SpawnId, SpawnObjectType, SpawnStore};
 use wow_core::{GameTime, ObjectGuid};
 use wow_entities::CreatureRuntimeUpdateContext;
 
+mod admin;
 mod map_lifetime;
+mod map_update;
 mod player_owner;
+mod updater;
 pub use map_lifetime::MapUnloadBlockedLikeCpp;
 pub use player_owner::{
     PlayerHandle, PlayerOwnerError, PlayerResidenceLikeCpp, PlayerVisibilityRefreshIntentLikeCpp,
@@ -41,6 +44,7 @@ mod state_2;
 pub use state_1::*;
 #[allow(unused_imports)]
 pub use state_2::*;
+pub use updater::MapUpdater;
 
 #[cfg(test)]
 #[path = "manager/tests/mod.rs"]
