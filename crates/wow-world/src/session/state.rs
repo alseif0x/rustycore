@@ -1829,7 +1829,7 @@ pub struct WorldSession {
     /// player-choice runtime lands. Gossip options deliberately remain
     /// separate because C++ `InteractionData::Reset` and
     /// `PlayerMenu::ClearMenus` are different operations.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_interaction_data_like_cpp: PlayerInteractionDataLikeCpp,
     /// Active gossip options for the NPC the player is talking to.
     /// Stored when SMSG_GOSSIP_MESSAGE is sent, used when CMSG_GOSSIP_SELECT_OPTION arrives.

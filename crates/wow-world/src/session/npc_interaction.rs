@@ -301,7 +301,7 @@ impl WorldSession {
     ) -> Option<PlayerInteractionDataLikeCpp> {
         let canonical =
             self.with_owned_player_like_cpp(|player| *player.interaction_data_like_cpp());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(self.player_interaction_data_like_cpp);
         }
@@ -312,11 +312,11 @@ impl WorldSession {
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| player.reset_interaction_data_like_cpp())
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical || self.player_handle_like_cpp.is_none() {
             self.player_interaction_data_like_cpp.reset();
         }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+        canonical || cfg!(any(test, feature = "test-fixtures")) && self.player_handle_like_cpp.is_none()
     }
 
     pub(crate) fn set_player_interaction_source_like_cpp(
@@ -328,12 +328,12 @@ impl WorldSession {
                 player.set_interaction_source_like_cpp(source_guid);
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical || self.player_handle_like_cpp.is_none() {
             self.player_interaction_data_like_cpp
                 .set_source(source_guid);
         }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+        canonical || cfg!(any(test, feature = "test-fixtures")) && self.player_handle_like_cpp.is_none()
     }
 
     pub(crate) fn set_player_trainer_interaction_like_cpp(
@@ -346,12 +346,12 @@ impl WorldSession {
                 player.set_trainer_interaction_like_cpp(source_guid, trainer_id);
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical || self.player_handle_like_cpp.is_none() {
             self.player_interaction_data_like_cpp
                 .set_trainer(source_guid, trainer_id);
         }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+        canonical || cfg!(any(test, feature = "test-fixtures")) && self.player_handle_like_cpp.is_none()
     }
 
     pub(crate) fn reset_player_interaction_if_source_like_cpp(
@@ -361,7 +361,7 @@ impl WorldSession {
         let canonical = self.with_owned_player_mut_like_cpp(|player| {
             player.reset_interaction_if_source_like_cpp(source_guid)
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_some() || self.player_handle_like_cpp.is_none() {
             let fixture = self
                 .player_interaction_data_like_cpp

@@ -11,6 +11,19 @@ pub fn canonical_player_power_snapshot_for_test(
     session.canonical_player_power_snapshot_like_cpp(power_type)
 }
 
+pub fn player_interaction_source_guid_for_test(
+    session: &crate::session::WorldSession,
+) -> Option<wow_core::ObjectGuid> {
+    session.player_interaction_source_guid_like_cpp()
+}
+
+pub fn set_player_interaction_source_for_test(
+    session: &mut crate::session::WorldSession,
+    source_guid: wow_core::ObjectGuid,
+) -> bool {
+    session.set_player_interaction_source_like_cpp(source_guid)
+}
+
 pub fn get_inventory_item_by_pos_for_test(
     session: &crate::session::WorldSession,
     bag: u8,

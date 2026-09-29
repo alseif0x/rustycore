@@ -993,7 +993,7 @@ impl WorldSession {
             represented_capture_point_removed_delivered_like_cpp: std::collections::HashSet::new(),
             represented_gameobject_phase_shifts: std::collections::HashMap::new(),
             last_visibility_pos: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             player_interaction_data_like_cpp: PlayerInteractionDataLikeCpp::default(),
             #[cfg(test)]
             gossip_options: Vec::new(),
