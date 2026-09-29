@@ -264,20 +264,21 @@ las 219 pruebas externas completas ni se revalidó el modo sin feature tras los
 **Diagnóstico de character en curso:** se copió la suite de `character_tests`
 (303 tests, 13 280 líneas con sus fixtures) a un target externo y se retiró su
 montaje antiguo en el árbol de trabajo. El check más reciente,
-`cargo check -p wow-world --test character_tests`, aún falla con 719 errores
-(`target/b3-character-item-load-support-external-check.log`, exit 101):
-E0277=10, E0422=43, E0425=120, E0432=2, E0433=37, E0599=148, E0603=55,
+`cargo check -p wow-world --test character_tests`, aún falla con 692 errores
+(`target/b3-character-inventory-plan-external-check.log`, exit 101):
+E0277=10, E0422=43, E0425=100, E0432=2, E0433=30, E0599=148, E0603=55,
 E0609=11, E0616=14 y E0624=279. El check inmediatamente anterior al slice
-tenía 746 errores (`target/b3-character-creature-spawn-external-check.log`,
-exit 101): el mismo reparto salvo E0425=147. Mover ocho transformaciones de
-`item_1.rs` y dos casos de `persistence.rs` a `item_load_support` redujo el
-diagnóstico en 27 errores, todos E0425; el helper de string movido solo tenía
-consumidores dentro de esos casos. El conteo permanece en 303: 276 externos +
-27 privados del dueño. Los filtros enfocados de reglas privadas pasaron 17/17;
-la suite completa de character no se ha ejecutado. Los puentes de interaction
-source, trainer, gossip, canonical owner y regeneración están comprometidos (el puente de
-regeneración quedó en `81e40c51`); el traslado y las adaptaciones consumidoras
-siguen sin commit. Conservar los 303 nombres y separar las reglas privadas del
+tenía 719 errores (`target/b3-character-item-load-support-external-check.log`,
+exit 101): el mismo reparto salvo E0425=120 y E0433=37. Mover cinco tests
+puros de `loot.rs` e `item_2.rs`–`item_4.rs` a sus módulos dueños redujo el
+diagnóstico en 27 errores (20 E0425 y 7 E0433). El conteo permanece en 303:
+281 externos + 22 privados del dueño. Quedaron externos ocho accesos a planners
+dependientes de sesión: siete `plan_inventory_storage_move_like_cpp` y uno
+`plan_destroy_item_count_direct_inventory`. Los filtros enfocados de reglas
+privadas pasaron 22/22; la suite completa de character no se ha ejecutado. Los
+puentes de interaction source, trainer, gossip, canonical owner y regeneración
+están comprometidos; el de regeneración quedó en `81e40c51`. El traslado y las
+adaptaciones consumidoras siguen sin commit. Conservar los 303 nombres y separar las reglas privadas del
 target de aplicación antes de aceptarlo.
 
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
