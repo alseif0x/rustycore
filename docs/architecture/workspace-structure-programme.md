@@ -138,7 +138,7 @@ sin entradas eliminables ni stashes. Reconsultar Git al retomar; estos son datos
 
 | pieza | estado comprobado y límite |
 |---|---|
-| B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Pendientes correcciones de features/visibilidad y aceptación del candidato. |
+| B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. El corte del 2026-09-29 restringe ocho constantes de terrain; quedan las demás visibilidades/features y la aceptación del candidato. |
 | B5 | Raíces de loot y character partidas; quest sigue dentro del presupuesto. Pendiente restringir la API expuesta por la extracción y aceptar el incremento. |
 | B3 | Superficie inicial `test-fixtures` y self dev-dependency añadidas. El piloto falló y fue revertido: las cuatro suites siguen dentro de la lib. |
 | B7 | Hay limpieza parcial integrada; los consumidores restantes de fixtures dependen de B3. No está cerrado. |
@@ -203,6 +203,32 @@ se detalla abajo. B7 y los consumidores pendientes no están cerrados.
    con su regla actual encuentra 13 en esta rama, incluyendo `wow-packet -> wow-entities` y
    `wow-map -> wow-movement`. Reconciliar su contrato con `dependency-policy.json` y sus
    excepciones; no elevar el baseline ni retirar una arista legítima para obtener verde.
+
+**B6 feedback acotado de terrain (2026-09-29):** la comparación de
+`crates/wow-map/src/map_manager/terrain.rs` con
+`origin/3.4.3:crates/wow-world/src/map_manager/terrain.rs` encontró ocho
+constantes que el movimiento había ensanchado de `pub(super)` a `pub`:
+`MAP_MAGIC_LIKE_CPP`, `MAP_AREA_MAGIC_LIKE_CPP`,
+`MAP_VERSION_MAGIC_LIKE_CPP`, `MAP_FILE_HEADER_SIZE_LIKE_CPP`,
+`MAP_AREA_HEADER_SIZE_LIKE_CPP`, `MAP_AREA_HEADER_FLAG_NO_AREA_LIKE_CPP`,
+`MAP_AREA_CELLS_PER_GRID_LIKE_CPP` y `TERRAIN_GRID_COUNT_LIKE_CPP`. Sus usos
+externos al archivo son la implementación de `terrain` y los tests montados bajo
+`map_manager`; no hay consumidores de producción en otros crates. Se limitaron
+a `pub(crate)` y se añadieron reexports crate-only para los tests en
+`map_manager/mod.rs` y `map_manager_tests/fixtures.rs`. Los valores y el parser
+no cambiaron. `grid.rs` y las funciones ensanchadas quedan fuera de este corte.
+
+Los checks secuenciales con `CARGO_BUILD_JOBS=1`, `PROTOC` local y target de este
+worktree pasaron: `cargo check -p wow-map`,
+`cargo test -p wow-map --lib terrain_` (18/18) y
+`cargo check -p wow-world`; logs
+`target/b6-map-terrain-constants-check.log`,
+`target/b6-map-terrain-constants-focused-test.log` y
+`target/b6-map-terrain-consumer-check.log`. Se ejecutaron en el worktree sobre
+`221b6e36` con el diff B6 de tres archivos aplicado, luego comprometido sin
+cambios como `8622c89c`. Es feedback local, no aceptación de B6: siguen
+pendientes el resto de visibilidades de terrain/grid, la revisión de features,
+la composición y la aceptación final.
 
 **Evidencia disponible:** revisión de código, Git, manifiestos y sesión DeepSeek
 `51439d45-bfa1-4f1a-8538-38729d3f7c0d`, más los checks de desarrollo indicados arriba.
