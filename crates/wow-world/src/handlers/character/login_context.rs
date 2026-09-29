@@ -28,3 +28,7 @@ pub(in crate::handlers::character) fn initial_character_rest_state_like_cpp(is_a
         REST_STATE_NORMAL_LIKE_CPP
     }
 }
+
+#[cfg(test)]
+#[path = "login_context_tests.rs"]
+mod rule_tests;
