@@ -11,28 +11,28 @@ pub const GRID_SIZE: f32 = 64.0;
 /// Visibility radius in yards (how far a player can see).
 pub const VISIBILITY_RADIUS: f32 = 100.0;
 
-pub const MAX_NUMBER_OF_CELLS_LIKE_CPP: i32 = 8;
+const MAX_NUMBER_OF_CELLS_LIKE_CPP: i32 = 8;
 
-pub const TOTAL_NUMBER_OF_CELLS_PER_MAP_LIKE_CPP: i32 =
+const TOTAL_NUMBER_OF_CELLS_PER_MAP_LIKE_CPP: i32 =
     MAX_NUMBER_OF_GRIDS_LIKE_CPP * MAX_NUMBER_OF_CELLS_LIKE_CPP;
 
-pub const SIZE_OF_GRID_CELL_LIKE_CPP: f32 =
+const SIZE_OF_GRID_CELL_LIKE_CPP: f32 =
     SIZE_OF_GRIDS_LIKE_CPP / MAX_NUMBER_OF_CELLS_LIKE_CPP as f32;
 
-pub const CENTER_GRID_CELL_ID_LIKE_CPP: i32 = TOTAL_NUMBER_OF_CELLS_PER_MAP_LIKE_CPP / 2;
+const CENTER_GRID_CELL_ID_LIKE_CPP: i32 = TOTAL_NUMBER_OF_CELLS_PER_MAP_LIKE_CPP / 2;
 
-pub const CENTER_GRID_CELL_OFFSET_LIKE_CPP: f32 = SIZE_OF_GRID_CELL_LIKE_CPP / 2.0;
+const CENTER_GRID_CELL_OFFSET_LIKE_CPP: f32 = SIZE_OF_GRID_CELL_LIKE_CPP / 2.0;
 
 /// Default time before a grid unloads if no players are nearby (5 minutes).
 pub const DEFAULT_GRID_UNLOAD_TIME: Duration = Duration::from_secs(300);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct CellCoordLikeCpp {
-    pub x: i32,
-    pub y: i32,
+pub(super) struct CellCoordLikeCpp {
+    pub(super) x: i32,
+    pub(super) y: i32,
 }
 
-pub fn compute_cell_coord_like_cpp(x: f32, y: f32) -> CellCoordLikeCpp {
+fn compute_cell_coord_like_cpp(x: f32, y: f32) -> CellCoordLikeCpp {
     let x_offset = (f64::from(x) - f64::from(CENTER_GRID_CELL_OFFSET_LIKE_CPP))
         / f64::from(SIZE_OF_GRID_CELL_LIKE_CPP);
     let y_offset = (f64::from(y) - f64::from(CENTER_GRID_CELL_OFFSET_LIKE_CPP))
@@ -46,7 +46,7 @@ pub fn compute_cell_coord_like_cpp(x: f32, y: f32) -> CellCoordLikeCpp {
     }
 }
 
-pub fn calculate_cell_area_like_cpp(
+pub(super) fn calculate_cell_area_like_cpp(
     position: Position,
     radius: f32,
 ) -> (CellCoordLikeCpp, CellCoordLikeCpp) {
@@ -61,7 +61,7 @@ pub fn calculate_cell_area_like_cpp(
     )
 }
 
-pub fn cell_area_contains_position_like_cpp(
+pub(super) fn cell_area_contains_position_like_cpp(
     low: CellCoordLikeCpp,
     high: CellCoordLikeCpp,
     position: Position,
@@ -71,7 +71,7 @@ pub fn cell_area_contains_position_like_cpp(
         .then_some(coord)
 }
 
-pub fn position_to_i32_tuple(position: Position) -> (i32, i32, i32) {
+pub(super) fn position_to_i32_tuple(position: Position) -> (i32, i32, i32) {
     (position.x as i32, position.y as i32, position.z as i32)
 }
 

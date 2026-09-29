@@ -245,7 +245,7 @@ pub(crate) use self::terrain::{
     MAP_MAGIC_LIKE_CPP, MAP_VERSION_MAGIC_LIKE_CPP, TERRAIN_GRID_COUNT_LIKE_CPP,
 };
 
-pub use self::grid::{
+use self::grid::{
     calculate_cell_area_like_cpp, cell_area_contains_position_like_cpp, position_to_i32_tuple,
 };
 
