@@ -63,7 +63,7 @@ impl WorldSession {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_quest_statuses_for_save_like_cpp(&self) -> Vec<(u32, u8)> {
         let Some(state) = self.player_quest_gameplay_snapshot_like_cpp() else {
             return Vec::new();

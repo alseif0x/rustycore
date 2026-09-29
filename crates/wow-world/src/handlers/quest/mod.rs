@@ -587,3 +587,12 @@ pub(crate) async fn quest_poi_store_for_test(
 ) -> Arc<HashMap<i32, QuestPoiData>> {
     session.quest_poi_store_like_cpp().await
 }
+
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(crate) async fn save_quest_to_db_for_test(
+    session: &WorldSession,
+    quest_id: u32,
+    status: u8,
+) {
+    session.save_quest_to_db(quest_id, status).await;
+}
