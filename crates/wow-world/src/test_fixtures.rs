@@ -21,6 +21,17 @@ pub use crate::session::quest_dialog::{
     RepresentedQuestRewardMailLikeCpp,
 };
 
+pub const QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP: u32 =
+    crate::handlers::quest::QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP;
+pub const QUEST_OBJECTIVE_CURRENCY_LIKE_CPP_LOCAL: u8 =
+    crate::handlers::quest::QUEST_OBJECTIVE_CURRENCY_LIKE_CPP_LOCAL;
+pub const QUEST_OBJECTIVE_MONEY_LIKE_CPP_LOCAL: u8 =
+    crate::handlers::quest::QUEST_OBJECTIVE_MONEY_LIKE_CPP_LOCAL;
+pub const QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP: u32 =
+    crate::handlers::quest::QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP;
+pub const CURRENCY_DESTROY_REASON_QUEST_TURNIN_LIKE_CPP: i32 =
+    crate::handlers::quest::CURRENCY_DESTROY_REASON_QUEST_TURNIN_LIKE_CPP;
+
 pub fn represented_quest_reward_spell_casts_for_test(
     session: &crate::session::WorldSession,
 ) -> Vec<RepresentedQuestRewardSpellCastLikeCpp> {
