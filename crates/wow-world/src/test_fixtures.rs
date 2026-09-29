@@ -148,6 +148,12 @@ pub fn with_canonical_player_at_mut_like_cpp<R>(
     )
 }
 
+pub fn canonical_map_manager_for_test(
+    session: &crate::session::WorldSession,
+) -> Option<&crate::session::SharedCanonicalMapManager> {
+    session.canonical_map_manager.as_ref()
+}
+
 pub fn set_loaded_player_identity_like_cpp(
     session: &mut crate::session::WorldSession,
     map_id: u16,
