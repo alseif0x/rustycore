@@ -29,3 +29,14 @@ pub fn handle_under_map_for_test(
 pub fn player_is_alive_for_test(session: &crate::session::WorldSession) -> bool {
     session.player_is_alive_like_cpp()
 }
+
+pub fn unregister_from_player_registry_for_test(session: &crate::session::WorldSession) {
+    session.unregister_from_player_registry();
+}
+
+pub fn insert_client_visible_guid_for_test(
+    session: &mut crate::session::WorldSession,
+    guid: wow_core::ObjectGuid,
+) {
+    session.client_visible_guids_like_cpp.insert(guid);
+}
