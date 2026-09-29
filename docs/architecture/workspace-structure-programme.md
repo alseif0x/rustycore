@@ -240,33 +240,26 @@ el estado real, evidencia y siguiente paso. No crear otro plan o handoff paralel
 está comprometido y verde en feedback local; las demás suites, B7, la macro y su aceptación
 siguen pendientes.
 
-**Migración de quest en curso, aún sin compilar:** el traslado de `quest_tests`
-al target externo está en el árbol de trabajo, sin commit ni ejecución de la
-suite. El inventario estático conserva 225 funciones de test. Los commits
-desde `b3ba48e5` preparan fixtures bajo `test-fixtures`: conservan los
-fallbacks originales sin `Player`, el registro de resultados de compartir y
-confirmar quests, recompensa, inventario de solo lectura, POI, Adventure Map y
-los códigos canónicos mediante aliases. Los consumidores se adaptan sin
-retirar aserciones; los checks de biblioteca con y sin feature son feedback de
-compilación, no aceptación del target ni de la macro.
+**Migración de quest compilable, aún sin aceptación:** `1a5ea280` traslada
+`quest_tests` al target externo y deja seis pruebas de reglas privadas en
+`handlers/quest/rule_tests.rs`. La comparación de nombres con los 19 archivos
+anteriores conserva exactamente 225 tests: 219 externos + 6 privados, sin
+nombres perdidos, añadidos ni duplicados. Los puentes bajo `test-fixtures`
+mantienen los fallbacks existentes sin `Player`, las rutas canónicas de quest,
+reputación, habilidad y moneda, los planes de persistencia y las respuestas de
+handler; los tipos de plan y los mapas mutables no se exponen al test externo.
 
-El diagnóstico inicial del target tuvo 1 497 errores. El último check
-`cargo check -p wow-world --test quest_tests` cuenta **48 errores**
-(`target/b3-quest-event-evidence-check.log`), sin errores de sintaxis ni
-de módulo tras extraer los puentes de persistencia de quest a
-`test_fixtures/quest.rs` (`8c12c184`). Los commits hasta `20c929a4`
-recuperan las rutas originales de persistencia de dinero y quest y su evidencia
-de carga y guardado bajo la feature. Los imports canónicos y puentes de solo
-lectura, incluido el registro de eventos `4ba63864`, redujeron más errores.
-Cinco pruebas de reglas privadas se trasladaron
-al módulo dueño: `cargo test -p wow-world --lib rule_tests::` pasó 5/5;
-el inventario actual conserva 220 tests externos + 5 privados = 225. Este
-movimiento sigue sin commit mientras el target externo no compile. El modo
-normal se comprobó antes de los últimos puentes y necesita revalidación.
-Quedan tipos y métodos privados, y después la ejecución de los 220 tests
-externos. No
-atribuir a esta punta una suite verde ni aceptación final. `character_tests`,
-`loot_tests`, B7 y el resto de la macro siguen pendientes.
+El diagnóstico inicial del target tuvo 1 497 errores. El check de desarrollo
+`cargo check -p wow-world --test quest_tests` terminó con código 0 en aarch64
+(`target/b3-quest-item-persistence-planner-check.log`), sobre el árbol previo
+al commit de movimiento; el delta posterior fue solo retirar espacios finales.
+Los filtros de reglas privadas pasaron 5/5 y 1/1 por separado, y un test
+focalizado del target externo pasó 1/1 (218 filtrados;
+`target/b3-quest-item-persistence-planner-focused-test.log`). No se ejecutaron
+las 219 pruebas externas completas ni se revalidó el modo sin feature tras los
+últimos gates. Estos son checks de implementación, no aceptación final del SHA
+`1a5ea280` ni de la macro. `character_tests`, `loot_tests`, B7 y el resto de
+`wow-world` siguen pendientes.
 
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
