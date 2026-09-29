@@ -2185,3 +2185,17 @@ No se cambio produccion ni visibilidad. `cargo check -p wow-world` paso y el
 target ejecuto **2/2**; logs `target/b3-character-item-text-check.log` y
 `target/b3-character-item-text-test.log`. Censo original **303/303** sin
 duplicados; la suite provisional grande sigue sin compilar.
+
+### B3 `item_4`: cuenta de existencias del vendedor (2026-09-29)
+
+`vendor_item_current_count_updates_like_cpp` vive junto a
+`handlers/character/vendor_admission.rs` en su hijo privado de pruebas. Usa
+el harness de sesion existente; conserva las aserciones de consumo, reposicion
+tras 120 segundos y retirada del contador completo. Referencias 3.4.3:
+`Creature.cpp::GetVendorItemCurrentCount` (3038) y
+`Creature.cpp::UpdateVendorItemCurrentCount` (3072). Sin cambios productivos o
+de visibilidad, `cargo check -p wow-world` paso y el filtro unitario ejecuto
+**1/1**. Logs `target/b3-vendor-admission-check.log` y
+`target/b3-vendor-admission-current-count-test.log`. Censo **303/303** sin
+duplicados; quedan **253** pruebas en los hijos provisionales de
+`character_tests` al cierre de este corte.

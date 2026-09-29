@@ -67,3 +67,7 @@ impl WorldSession {
         new_count
     }
 }
+
+#[cfg(test)]
+#[path = "vendor_admission_tests.rs"]
+mod tests;
