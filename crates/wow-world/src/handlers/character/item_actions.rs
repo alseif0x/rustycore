@@ -69,3 +69,7 @@ pub(in crate::handlers::character) fn player_team_for_race_cpp(race: u8) -> Team
         _ => Team::Alliance,
     }
 }
+
+#[cfg(test)]
+#[path = "item_actions_tests.rs"]
+mod rule_tests;

@@ -272,3 +272,7 @@ pub(in crate::handlers::character) fn item_is_not_empty_bag_like_cpp(
 ) -> bool {
     matches!(inventory_type, Some(InventoryType::Bag)) && contains_items
 }
+
+#[cfg(test)]
+#[path = "inventory_plan_tests.rs"]
+mod rule_tests;
