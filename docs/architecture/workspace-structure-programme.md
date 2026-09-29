@@ -204,6 +204,17 @@ se detalla abajo. B7 y los consumidores pendientes no están cerrados.
    `wow-map -> wow-movement`. Reconciliar su contrato con `dependency-policy.json` y sus
    excepciones; no elevar el baseline ni retirar una arista legítima para obtener verde.
 
+La revisión estática posterior confirma que ambas aristas de diferencia son
+dependencias declaradas en los `Cargo.toml`, no falsos positivos del lector de
+manifiestos. `wow-map -> wow-movement` une dos crates `domain-runtime`, categoría
+que `dependency-policy.json` permite depender de sí misma. La arista
+`wow-packet -> wow-entities` tiene una excepción explícita entre crates en esa
+política, justificada por la proyección de CREATE de criatura. El checker de
+`xtask` aplica en cambio `target >= source` a todos los pares de su misma capa
+numérica y por eso detecta ambas. Antes de modificar la herramienta, contrastar
+sus 11 filas históricas con la política completa: alinear la clasificación no
+debe ocultar inversiones reales ni convertir esas dos aristas en deuda de C.
+
 **B6 feedback acotado de terrain (2026-09-29):** la comparación de
 `crates/wow-map/src/map_manager/terrain.rs` con
 `origin/3.4.3:crates/wow-world/src/map_manager/terrain.rs` encontró ocho
