@@ -3080,3 +3080,23 @@ la proyeccion del plan para dos casos, no la persistencia ni la paridad del swap
 `target/b3-inventory-swap-plan-test.log`. El censo conserva **303** nombres sin
 ausencias ni duplicados, con **129** en la raiz provisional. B3/B5 y la
 aceptacion global siguen abiertos.
+
+### B6 `grid`: reexports explicitos y constantes internas (2026-09-29)
+
+`wow-map::map_manager` sustituye el glob de `grid` por reexports explicitos.
+`GRID_SIZE` y `DEFAULT_GRID_UNLOAD_TIME` vuelven a `pub(crate)`; el primero se
+reexporta solo para los tests. Los fixtures de `map_manager_tests` dejan de
+reexportar publicamente sus imports. `Grid`, el `GridCoord` heredado y los
+helpers publicos de coordenadas conservan sus rutas: `MapInstance` expone los
+tipos en firmas, y no se elimina una API externa por ausencia de consumidores
+en el workspace. No cambian valores ni conversiones.
+
+`cargo check -p wow-map` paso tras eliminar un aviso nuevo por reexport sin
+uso, y `cargo test -p wow-map --lib grid` paso **140/140**. Los cinco casos
+de contenedor de criaturas/jugadores y descarga de grid pasaron 1/1 cada uno.
+`cargo check -p wow-world` paso como consumidor, sobre este diff y el B3 de
+transporte aun sin commit. Un job y target del worktree en todos los comandos;
+logs `target/b6-grid-visibility-check.log`,
+`target/b6-grid-visibility-test-grid.log` y
+`target/b3-login-transport-check.log`. Persisten avisos de tests preexistentes;
+B6, consumidores completos y aceptacion global siguen pendientes.

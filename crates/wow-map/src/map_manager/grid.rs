@@ -6,7 +6,7 @@
 use super::*;
 
 /// Size of a grid cell in yards (64x64 yards like TrinityCore).
-pub const GRID_SIZE: f32 = 64.0;
+pub(crate) const GRID_SIZE: f32 = 64.0;
 
 /// Visibility radius in yards (how far a player can see).
 pub const VISIBILITY_RADIUS: f32 = 100.0;
@@ -24,7 +24,7 @@ const CENTER_GRID_CELL_ID_LIKE_CPP: i32 = TOTAL_NUMBER_OF_CELLS_PER_MAP_LIKE_CPP
 const CENTER_GRID_CELL_OFFSET_LIKE_CPP: f32 = SIZE_OF_GRID_CELL_LIKE_CPP / 2.0;
 
 /// Default time before a grid unloads if no players are nearby (5 minutes).
-pub const DEFAULT_GRID_UNLOAD_TIME: Duration = Duration::from_secs(300);
+pub(crate) const DEFAULT_GRID_UNLOAD_TIME: Duration = Duration::from_secs(300);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct CellCoordLikeCpp {

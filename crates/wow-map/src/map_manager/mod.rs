@@ -232,7 +232,13 @@ mod pending_respawn;
 mod runtime_state;
 mod terrain;
 
-pub use self::grid::*;
+pub use self::grid::{
+    Grid, GridCoord, VISIBILITY_RADIUS, grid_corner, grid_to_world, world_to_grid_coords,
+    world_to_grid_x, world_to_grid_y,
+};
+pub(crate) use self::grid::DEFAULT_GRID_UNLOAD_TIME;
+#[cfg(test)]
+pub(crate) use self::grid::GRID_SIZE;
 pub use self::pathfinder::*;
 pub use self::pending_respawn::*;
 pub use self::runtime_state::*;

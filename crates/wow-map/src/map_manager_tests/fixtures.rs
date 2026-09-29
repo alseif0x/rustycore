@@ -5,7 +5,7 @@
 //! the fixtures lets the scenario modules keep importing everything through
 //! `use super::*` without depending on the test root's size.
 
-pub use crate::map_manager::{
+pub(crate) use crate::map_manager::{
     ChaseTargetSnapshotLikeCpp, ChaseTickOutcomeLikeCpp, CreatureAnimKitSlotLikeCpp, GRID_SIZE,
     Grid, LiveTerrainHeights,
     MapInstance, MapManager, PendingRespawn, PersistedRespawnRowLikeCpp, RecipientRule,
