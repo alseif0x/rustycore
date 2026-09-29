@@ -3500,3 +3500,16 @@ corte no retira ningún escritor, reloj ni puente. `cargo test -p wow-map
 relocation` pasó con 28 tests seleccionados (y los targets de integración
 filtrados a cero no cuentan). Log `target/d3-relocation-plan-test.log`. Es
 feedback del corte local, no aceptación final de D3 ni de B6.
+
+**B3, diagnóstico del piloto `character_tests` (2026-09-29):** el árbol
+provisional que intenta montar parte de la suite como target externo sigue
+sin compilar: `cargo test -p wow-world --test character_tests --no-run`
+terminó con 283 errores (log `target/b3-character-current-no-run.log`).
+Predominan llamadas y tipos `pub(crate)`/privados de `WorldSession`, junto
+con fixtures bajo `cfg(test)` de la librería que el target externo no ve.
+No se debe hacer pública la producción para satisfacer estos tests. Separar
+por dueño: mantener en módulos privados las pruebas que ejercen interiores y
+dejar en integración solo contratos accesibles desde fuera, conservando los
+nombres y aserciones originales. Las eliminaciones y nuevos archivos de esta
+suite siguen sin commit; ni su cifra de líneas ni el target fallido constituyen
+aceptación de B3.
