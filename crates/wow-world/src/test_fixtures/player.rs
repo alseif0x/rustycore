@@ -1,3 +1,16 @@
+pub fn canonical_player_health_snapshot_for_test(
+    session: &crate::session::WorldSession,
+) -> Option<(u32, u32)> {
+    session.canonical_player_health_snapshot_like_cpp()
+}
+
+pub fn canonical_player_power_snapshot_for_test(
+    session: &crate::session::WorldSession,
+    power_type: wow_constants::PowerType,
+) -> Option<(i32, i32)> {
+    session.canonical_player_power_snapshot_like_cpp(power_type)
+}
+
 pub fn get_inventory_item_by_pos_for_test(
     session: &crate::session::WorldSession,
     bag: u8,
