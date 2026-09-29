@@ -2398,3 +2398,24 @@ devuelve los dos campos juntos. Sin cambios productivos ni de visibilidad.
 `target/b3-refund-metadata-check.log` y `target/b3-refund-metadata-test.log`.
 Censo **303/303** sin duplicados; **209** pruebas siguen montadas por la
 raiz provisional. `character_tests` externa aun no compila completa.
+
+### B3 `spell`: nueve reglas de login e historial junto a `spell_rules` (2026-09-29)
+
+Se trasladaron a `handlers/character/spell_rules_tests.rs` cuatro casos de
+filtrado/efectos de hechizos de login y cinco de historial/cargas. Sus
+productores se usan en `world_entry/login/spell_loading.rs`,
+`world_entry/login.rs` y `session_state/login_data.rs`; las nueve aserciones
+y nombres se conservaron. La referencia 3.4.3 es `Player::_LoadSpells`
+(`Player.cpp:18924`), `Player::SendKnownSpells` (`Player.cpp:2536`),
+`Player::LearnSkillRewardedSpells`/`_LoadSkills` (`Player.cpp:23930,25812`)
+y `SpellHistory::WritePacket` (`SpellHistory.cpp:302-357`). El test
+`account_mount_spells_are_dependent_and_not_saved_to_character_spell_like_cpp`
+solo contiene `assert!(true)` y permanece en el armazon; no se contabiliza
+como prueba de comportamiento productivo.
+
+Sin cambios de produccion ni visibilidad. `cargo check -p wow-world` paso;
+el filtro privado `handlers::character::spell_rules::tests::` ejecuto **11/11**,
+incluidos los nueve movidos y los dos Fist Weapons anteriores. Logs
+`target/b3-spell-owner-check.log` y `target/b3-spell-owner-tests.log`.
+Censo **303/303** nombres unicos, **200** montados por la raiz provisional;
+la suite externa completa sigue sin aceptacion.
