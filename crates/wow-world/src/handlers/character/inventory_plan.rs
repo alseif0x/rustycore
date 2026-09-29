@@ -7,9 +7,9 @@ use super::*;
 
 #[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::handlers::character) struct DirectInventoryPositionUpdateLikeCpp {
-    pub(in crate::handlers::character) slot: u8,
-    pub(in crate::handlers::character) item_db_guid: u64,
+struct DirectInventoryPositionUpdateLikeCpp {
+    slot: u8,
+    item_db_guid: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,7 +75,7 @@ pub(in crate::handlers::character) enum InventorySwapStepLikeCpp {
 }
 
 #[cfg(test)]
-pub(in crate::handlers::character) fn plan_direct_inventory_swap_persistence_like_cpp(
+fn plan_direct_inventory_swap_persistence_like_cpp(
     src: u8,
     dst: u8,
     src_item: Option<&InventoryItem>,

@@ -3061,3 +3061,22 @@ un job, target del worktree); logs `target/b3-homebind-default-check.log` y
 `target/b3-homebind-default-test.log`. El censo mantiene **303** nombres sin
 ausencias ni duplicados y deja **131** montados en la raiz provisional. B3 y
 la aceptacion global siguen pendientes.
+
+### B3/B5 `item_2`: plan de swap privado (2026-09-29)
+
+Los dos tests `direct_inventory_swap_persistence_plan_*` pasaron del
+provisional `item_2.rs` al hijo privado `inventory_plan_tests.rs`. El tipo
+`DirectInventoryPositionUpdateLikeCpp`, sus campos y la funcion de planificacion
+quedaron privados al modulo de inventario; no se altero produccion. En C++
+`ItemHandler.cpp:69-111` delega a `Player::SwapItem`
+(`Player.cpp:12271-12315,12575-12595`) y `_SaveInventory` encola las posiciones
+finales en una transaccion (`Player.cpp:19977-19999`). Los tests comprueban solo
+la proyeccion del plan para dos casos, no la persistencia ni la paridad del swap.
+
+`cargo check -p wow-world` y el filtro `--lib`
+`inventory_plan::rule_tests::direct_inventory_swap_persistence_plan_` pasaron
+(2/2, un job, target del worktree); logs
+`target/b3-inventory-swap-plan-check.log` y
+`target/b3-inventory-swap-plan-test.log`. El censo conserva **303** nombres sin
+ausencias ni duplicados, con **129** en la raiz provisional. B3/B5 y la
+aceptacion global siguen abiertos.

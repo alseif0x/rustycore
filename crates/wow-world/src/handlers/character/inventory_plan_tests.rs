@@ -1,6 +1,55 @@
 use super::*;
 
 #[test]
+fn direct_inventory_swap_persistence_plan_replaces_both_occupied_positions_like_cpp() {
+    let src = InventoryItem {
+        guid: ObjectGuid::create_item(1, 58),
+        entry_id: 103,
+        db_guid: 58,
+        inventory_type: None,
+    };
+    let dst = InventoryItem {
+        guid: ObjectGuid::create_item(1, 59),
+        entry_id: 104,
+        db_guid: 59,
+        inventory_type: None,
+    };
+
+    assert_eq!(
+        plan_direct_inventory_swap_persistence_like_cpp(35, 36, Some(&src), Some(&dst)),
+        vec![
+            DirectInventoryPositionUpdateLikeCpp {
+                slot: 36,
+                item_db_guid: 58,
+            },
+            DirectInventoryPositionUpdateLikeCpp {
+                slot: 35,
+                item_db_guid: 59,
+            },
+        ],
+        "C++ _SaveInventory replaces each changed item's final position in one transaction"
+    );
+}
+
+#[test]
+fn direct_inventory_swap_persistence_plan_moves_into_empty_position_like_cpp() {
+    let src = InventoryItem {
+        guid: ObjectGuid::create_item(1, 60),
+        entry_id: 105,
+        db_guid: 60,
+        inventory_type: None,
+    };
+
+    assert_eq!(
+        plan_direct_inventory_swap_persistence_like_cpp(35, 36, Some(&src), None),
+        vec![DirectInventoryPositionUpdateLikeCpp {
+            slot: 36,
+            item_db_guid: 60,
+        }]
+    );
+}
+
+#[test]
 fn autostore_bank_target_depends_on_source_domain_like_cpp() {
     assert_eq!(
         autostore_bank_target_like_cpp(INVENTORY_SLOT_BAG_0, wow_entities::BANK_SLOT_ITEM_START,),
