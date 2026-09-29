@@ -186,9 +186,9 @@ impl WorldSession {
             return Err(LootMoneyPersistenceErrorLikeCpp::MissingPlayer);
         }
 
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         let test_result = self.loot_money_persistence_test_result_like_cpp;
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let test_result: Option<bool> = None;
 
         payouts

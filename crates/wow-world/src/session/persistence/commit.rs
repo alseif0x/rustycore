@@ -16,7 +16,7 @@ impl WorldSession {
         money_before: u64,
         money_after: u64,
     ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if let Some(success) = self.loot_money_persistence_test_result_like_cpp {
             return success.then_some(money_persistence);
         }
@@ -112,15 +112,15 @@ impl WorldSession {
         // Unit fixtures without a lifecycle port explicitly model a successful
         // COMMIT. The failure seam proves that no covered runtime state is
         // published on a definite rollback.
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.loot_money_persistence_test_result_like_cpp == Some(false) {
             return None;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         let bypass_database_like_cpp = self.loot_money_persistence_test_result_like_cpp
             == Some(true)
             || self.player_lifecycle_port_like_cpp().is_none();
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let bypass_database_like_cpp = false;
 
         let money_persistence = if bypass_database_like_cpp {

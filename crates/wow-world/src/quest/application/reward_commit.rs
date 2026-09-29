@@ -58,7 +58,7 @@ impl WorldSession {
         // no-I/O money seam, so assertions unrelated to durability still run
         // the operation end to end. A fixture that does install the owner is
         // exercising the transaction itself and must reach it.
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if port.is_none()
             && let Some(success) = self.loot_money_persistence_test_result_like_cpp
         {
