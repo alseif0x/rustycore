@@ -11,7 +11,7 @@ use wow_persistence::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PlayerQuestLoadStageFixtureLikeCpp {
+pub enum PlayerQuestLoadStageFixtureLikeCpp {
     Active,
     Objectives,
     Rewarded,
@@ -21,7 +21,7 @@ pub(crate) enum PlayerQuestLoadStageFixtureLikeCpp {
     Seasonal,
 }
 
-pub(crate) struct PlayerQuestPersistencePortFixtureLikeCpp {
+pub struct PlayerQuestPersistencePortFixtureLikeCpp {
     pub(crate) active: Vec<PlayerQuestActivePersistenceRowLikeCpp>,
     pub(crate) objectives: Vec<PlayerQuestObjectivePersistenceRowLikeCpp>,
     pub(crate) rewarded: Vec<PlayerQuestIdPersistenceRowLikeCpp>,

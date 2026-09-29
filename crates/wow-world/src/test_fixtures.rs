@@ -20,6 +20,9 @@ pub use crate::session::quest_dialog::{
     RepresentedQuestRewardTalentPointsLikeCpp,
     RepresentedQuestRewardMailLikeCpp,
 };
+pub use crate::player::quest_persistence_test_fixture::{
+    PlayerQuestLoadStageFixtureLikeCpp, PlayerQuestPersistencePortFixtureLikeCpp,
+};
 
 pub const QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP: u32 =
     crate::handlers::quest::QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP;
@@ -31,6 +34,37 @@ pub const QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP: u32 =
     crate::handlers::quest::QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP;
 pub const CURRENCY_DESTROY_REASON_QUEST_TURNIN_LIKE_CPP: i32 =
     crate::handlers::quest::CURRENCY_DESTROY_REASON_QUEST_TURNIN_LIKE_CPP;
+
+pub fn player_quest_persistence_port_with_load_rows_for_test(
+    active: Vec<wow_persistence::PlayerQuestActivePersistenceRowLikeCpp>,
+    objectives: Vec<wow_persistence::PlayerQuestObjectivePersistenceRowLikeCpp>,
+    rewarded: Vec<wow_persistence::PlayerQuestIdPersistenceRowLikeCpp>,
+    daily: Vec<wow_persistence::PlayerQuestDailyPersistenceRowLikeCpp>,
+    weekly: Vec<wow_persistence::PlayerQuestIdPersistenceRowLikeCpp>,
+    monthly: Vec<wow_persistence::PlayerQuestIdPersistenceRowLikeCpp>,
+) -> std::sync::Arc<PlayerQuestPersistencePortFixtureLikeCpp> {
+    std::sync::Arc::new(PlayerQuestPersistencePortFixtureLikeCpp {
+        active,
+        objectives,
+        rewarded,
+        daily,
+        weekly,
+        monthly,
+        ..PlayerQuestPersistencePortFixtureLikeCpp::default()
+    })
+}
+
+pub fn player_quest_load_stages_for_test(
+    fixture: &PlayerQuestPersistencePortFixtureLikeCpp,
+) -> Vec<PlayerQuestLoadStageFixtureLikeCpp> {
+    fixture.stages.lock().unwrap().clone()
+}
+
+pub fn player_quest_status_requests_for_test(
+    fixture: &PlayerQuestPersistencePortFixtureLikeCpp,
+) -> Vec<wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp> {
+    fixture.status_requests.lock().unwrap().clone()
+}
 
 pub fn represented_quest_reward_spell_casts_for_test(
     session: &crate::session::WorldSession,

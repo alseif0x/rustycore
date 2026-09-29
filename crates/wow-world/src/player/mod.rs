@@ -11,7 +11,7 @@ pub mod inventory_persistence_test_fixture;
 #[cfg(test)]
 pub mod lifecycle_contract;
 pub mod quest_persistence_projection;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub mod quest_persistence_test_fixture;
 
 #[cfg(any(test, feature = "test-fixtures"))]
