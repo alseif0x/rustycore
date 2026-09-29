@@ -138,7 +138,7 @@ sin entradas eliminables ni stashes. Reconsultar Git al retomar; estos son datos
 
 | pieza | estado comprobado y límite |
 |---|---|
-| B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. El corte del 2026-09-29 restringe ocho constantes de terrain; quedan las demás visibilidades/features y la aceptación del candidato. |
+| B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Los cortes del 2026-09-29 restringen constantes de terrain y helpers internos de grid; quedan otras visibilidades/features y la aceptación del candidato. |
 | B5 | Raíces de loot y character partidas; quest sigue dentro del presupuesto. Pendiente restringir la API expuesta por la extracción y aceptar el incremento. |
 | B3 | Superficie inicial `test-fixtures` y self dev-dependency añadidas. El piloto falló y fue revertido: las cuatro suites siguen dentro de la lib. |
 | B7 | Hay limpieza parcial integrada; los consumidores restantes de fixtures dependen de B3. No está cerrado. |
@@ -216,7 +216,8 @@ externos al archivo son la implementación de `terrain` y los tests montados baj
 `map_manager`; no hay consumidores de producción en otros crates. Se limitaron
 a `pub(crate)` y se añadieron reexports crate-only para los tests en
 `map_manager/mod.rs` y `map_manager_tests/fixtures.rs`. Los valores y el parser
-no cambiaron. `grid.rs` y las funciones ensanchadas quedan fuera de este corte.
+no cambiaron. En ese corte, `grid.rs` y sus funciones ensanchadas quedaron fuera;
+se auditan en el siguiente corte anotado aquí.
 
 Los checks secuenciales con `CARGO_BUILD_JOBS=1`, `PROTOC` local y target de este
 worktree pasaron: `cargo check -p wow-map`,
@@ -229,6 +230,36 @@ worktree pasaron: `cargo check -p wow-map`,
 cambios como `8622c89c`. Es feedback local, no aceptación de B6: siguen
 pendientes el resto de visibilidades de terrain/grid, la revisión de features,
 la composición y la aceptación final.
+
+**B6 feedback acotado de grid (2026-09-29):** al comparar
+`crates/wow-map/src/map_manager/grid.rs` con
+`origin/3.4.3:crates/wow-world/src/map_manager/grid.rs`, se confirmó que las
+visibilidades ensanchadas partían de `pub(super)`. Las cinco constantes
+`MAX_NUMBER_OF_CELLS_LIKE_CPP`, `TOTAL_NUMBER_OF_CELLS_PER_MAP_LIKE_CPP`,
+`SIZE_OF_GRID_CELL_LIKE_CPP`, `CENTER_GRID_CELL_ID_LIKE_CPP` y
+`CENTER_GRID_CELL_OFFSET_LIKE_CPP`, además de `compute_cell_coord_like_cpp`,
+solo se usan dentro de `grid.rs`; ahora son privadas. `CellCoordLikeCpp` y sus
+campos siguen `pub(super)` porque `runtime/manager.rs` consume el resultado y
+ordena por `x/y`. `calculate_cell_area_like_cpp` y
+`cell_area_contains_position_like_cpp` son usados por ese runtime; el conversor
+`position_to_i32_tuple` lo usa `movement/spline.rs`. Estos tres helpers
+permanecen `pub(super)`. Sus imports explícitos en `map_manager/mod.rs` ahora
+son privados; la API pública de `GridCoord`, `Grid` y las conversiones de
+coordenadas no cambió. En particular, `wow_map::calculate_cell_area_like_cpp`
+continúa siendo la función distinta de `crate::cell`, usada por producción.
+Ningún test de `map_manager_tests` referencia directamente los helpers
+restringidos.
+
+Los checks secuenciales con `CARGO_BUILD_JOBS=1`, `PROTOC` local y target del
+worktree pasaron: `cargo check -p wow-map`, `cargo check -p wow-world` y
+`cargo test -p wow-map --lib grid` (140/140). Logs
+`target/b6-map-grid-visibility-check.log`,
+`target/b6-map-grid-world-check.log` y
+`target/b6-map-grid-focused-test.log`. Corrieron sobre `c7d269be` con el diff
+grid aplicado, luego comprometido sin cambios como `e714fe79`. Es feedback
+local, no aceptación de B6: siguen pendientes las visibilidades ensanchadas de
+funciones en `terrain.rs`, la revisión de features, la composición y la
+aceptación final.
 
 **Evidencia disponible:** revisión de código, Git, manifiestos y sesión DeepSeek
 `51439d45-bfa1-4f1a-8538-38729d3f7c0d`, más los checks de desarrollo indicados arriba.
