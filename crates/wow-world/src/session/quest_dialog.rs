@@ -253,7 +253,7 @@ pub struct RepresentedPushQuestToPartyOutcomeLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedAdventureMapStartQuestLikeCpp {
+pub struct RepresentedAdventureMapStartQuestLikeCpp {
     pub quest_id: u32,
     pub adventure_map_poi_id: u32,
     pub player_condition_id: u32,

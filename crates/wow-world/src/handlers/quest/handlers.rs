@@ -314,7 +314,7 @@ impl WorldSession {
         );
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub async fn handle_adventure_map_start_quest(&mut self, pkt: wow_packet::WorldPacket) {
         let store = self.adventure_map_poi_store().cloned().unwrap_or_else(|| {
             std::sync::Arc::new(wow_data::AdventureMapPoiStore::from_entries([]))

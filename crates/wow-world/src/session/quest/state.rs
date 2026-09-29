@@ -764,16 +764,19 @@ impl WorldSession {
     ) -> &[RepresentedConfirmRespecWipeLikeCpp] {
         &self.represented_confirm_respec_wipe_requests_like_cpp
     }
-    #[cfg_attr(not(test), allow(unused_variables))]
+    #[cfg_attr(
+        not(any(test, feature = "test-fixtures")),
+        allow(unused_variables)
+    )]
     pub(crate) fn record_represented_adventure_map_start_quest_like_cpp(
         &mut self,
         request: RepresentedAdventureMapStartQuestLikeCpp,
     ) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.represented_adventure_map_start_quest_requests_like_cpp
             .push(request);
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_adventure_map_start_quest_requests_like_cpp(
         &self,
     ) -> &[RepresentedAdventureMapStartQuestLikeCpp] {

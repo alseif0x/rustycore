@@ -6,6 +6,7 @@
 
 pub use crate::session::quest_dialog::{
     RepresentedPendingQuestSharingLikeCpp,
+    RepresentedAdventureMapStartQuestLikeCpp,
     RepresentedPushQuestToPartyOutcomeLikeCpp,
     RepresentedPushQuestToPartyOutcomeReasonLikeCpp,
     RepresentedQuestConfirmAcceptLikeCpp,
@@ -14,6 +15,14 @@ pub use crate::session::quest_dialog::{
     RepresentedQuestRewardReputationLikeCpp,
     RepresentedQuestRewardReputationSourceLikeCpp,
 };
+
+pub fn represented_adventure_map_start_quest_requests_for_test(
+    session: &crate::session::WorldSession,
+) -> Vec<RepresentedAdventureMapStartQuestLikeCpp> {
+    session
+        .represented_adventure_map_start_quest_requests_like_cpp()
+        .to_vec()
+}
 
 pub fn represented_quest_push_result_responses_for_test(
     session: &crate::session::WorldSession,

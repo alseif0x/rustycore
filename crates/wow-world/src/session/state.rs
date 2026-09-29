@@ -1174,7 +1174,7 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(in crate::session) represented_void_storage_loaded_like_cpp: bool,
     /// Represented accepted Adventure Map quest starts until AddQuestAndCheckCompletion is canonical.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_adventure_map_start_quest_requests_like_cpp:
         Vec<RepresentedAdventureMapStartQuestLikeCpp>,
     /// Represented active `FlightPathMovementGenerator`, if any.

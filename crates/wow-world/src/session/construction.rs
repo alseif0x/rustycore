@@ -628,7 +628,7 @@ impl WorldSession {
             represented_void_storage_items_like_cpp: std::array::from_fn(|_| None),
             #[cfg(test)]
             represented_void_storage_loaded_like_cpp: false,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             represented_adventure_map_start_quest_requests_like_cpp: Vec::new(),
             #[cfg(test)]
             taxi_flight_state_like_cpp: None,
