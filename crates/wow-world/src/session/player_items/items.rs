@@ -100,7 +100,7 @@ impl WorldSession {
     }
     /// Install the process-wide C++
     /// `sObjectMgr->GetGenerator<HighGuid::Item>()` mirror.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_item_guid_generator_like_cpp(&mut self, generator: Arc<ObjectGuidGenerator>) {
         assert_eq!(
             generator.high_guid(),
