@@ -2319,3 +2319,28 @@ tres filtros unitarios ejecutaron **1/1** cada uno. Logs:
 `target/b3-inventory-plan-bank-move-quest-test.log` y
 `target/b3-inventory-plan-legacy-zero-slots-test.log`. Censo **303/303** sin
 duplicados; **212** siguen montadas por la raiz provisional.
+
+### B3 `item_2`: dos pruebas no demuestran un productor real (2026-09-29)
+
+`direct_inventory_swap_persistence_plan_*` llama solo a
+`plan_direct_inventory_swap_persistence_like_cpp`, definido con `#[cfg(test)]`
+en `inventory_plan.rs` y sin llamadores de produccion. Por separado,
+`bag_exchange_child_updates_runtime_container_and_wire_field_like_cpp`
+llama a `relocate_bag_exchange_child_like_cpp`, helper definido dentro del
+propio `item_2.rs` provisional. Estos nombres se conservan en el censo, pero
+sus aprobaciones actuales no prueban el plan o movimiento productivo. Antes
+de reclasificarlos como evidencia B3 hay que identificar el productor real
+y enlazar los mismos escenarios a el, sin cambiar gameplay en un movimiento
+de fichero.
+
+### B3 `persistence`: guardia de ausencia de SQL concreto en login (2026-09-29)
+
+`continue_login_has_no_concrete_persistence_after_remaining_writes_move`
+vive en el target independiente `tests/character_persistence_source.rs`.
+Los 16 `include_str!` y las aserciones positivas/negativas se conservaron;
+solo cambiaron sus rutas relativas. `cargo check -p wow-world` paso y el
+target ejecuto **1/1**; logs
+`target/b3-character-persistence-source-check.log` y
+`target/b3-character-persistence-source-test.log`. Sin cambios productivos
+ni de visibilidad. Censo **303/303** sin duplicados; **211** pruebas siguen
+montadas por la raiz provisional.
