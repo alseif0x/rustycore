@@ -785,3 +785,7 @@ impl WorldSession {
 #[cfg(test)]
 #[path = "query_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "query_quest_status_tests.rs"]
+mod quest_status_tests;

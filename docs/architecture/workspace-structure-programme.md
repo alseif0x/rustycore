@@ -2699,3 +2699,23 @@ job y target del worktree. Logs
 `target/b3-character-creature-query-test.log`. Censo **303/303** nombres
 unicos, **157** montados por la raiz provisional. Siguen pendientes la suite
 externa completa, B3 restante y la aceptacion global.
+
+### B3 `creature`: estado de quest por GUID suministrado (2026-09-29)
+
+El ultimo caso de `creature.rs`,
+`quest_giver_status_tracked_supplied_creature_not_visible_sends_available_like_cpp`,
+se movio a `handlers/character/query_quest_status_tests.rs`, hijo privado de
+`query.rs`. Se retiro el fichero y montaje provisional; el fixture local
+conserva capacidad del canal, configuracion de sesion, criatura canonica y
+aserciones. Los helpers compartidos siguen donde tienen otros consumidores.
+El C++ `HandleQuestgiverStatusTrackedQueryOpcode`
+(`QuestHandler.cpp:775-778`) pasa los GUIDs del cliente directamente a
+`Player::SendQuestGiverStatusMultiple` (`Player.cpp:16803-16829`), que busca
+la criatura en el mapa. El test comprueba que la cache de visibilidad del
+cliente no sustituye esos GUIDs. No cambia produccion ni visibilidad Rust.
+
+`cargo check -p wow-world` paso y el filtro focal ejecuto **1/1** con un job
+y target del worktree. Logs `target/b3-character-quest-status-check.log` y
+`target/b3-character-quest-status-test.log`. Censo **303/303** nombres
+unicos, **156** montados por la raiz provisional. La suite externa completa,
+B3 restante y la aceptacion global siguen pendientes.
