@@ -83,21 +83,21 @@ pub enum ChaseTickOutcomeLikeCpp {
 /// Runtime selector proxy for an active generator whose concrete lifecycle
 /// still lives in `wow_entities::MotionSubsystem`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RuntimeRepresentedActiveKeyLikeCpp {
-    pub kind: RuntimeMovementGeneratorType,
+pub(super) struct RuntimeRepresentedActiveKeyLikeCpp {
+    pub(super) kind: RuntimeMovementGeneratorType,
     mode: RuntimeMovementGeneratorMode,
     priority: RuntimeMovementGeneratorPriority,
     base_unit_state: u32,
 }
 
 #[derive(Debug)]
-pub struct RuntimeRepresentedActiveGeneratorLikeCpp {
+pub(super) struct RuntimeRepresentedActiveGeneratorLikeCpp {
     state: RuntimeMovementGeneratorState,
     kind: RuntimeMovementGeneratorType,
 }
 
 impl RuntimeRepresentedActiveGeneratorLikeCpp {
-    pub fn from_represented(generator: MovementGeneratorRef) -> Option<Self> {
+    pub(super) fn from_represented(generator: MovementGeneratorRef) -> Option<Self> {
         let kind = RuntimeMovementGeneratorType::from_trinity_id(generator.kind.trinity_id())?;
         let mode = match generator.mode {
             wow_entities::MovementGeneratorMode::Default => RuntimeMovementGeneratorMode::Default,
@@ -123,7 +123,7 @@ impl RuntimeRepresentedActiveGeneratorLikeCpp {
         })
     }
 
-    pub const fn key(&self) -> RuntimeRepresentedActiveKeyLikeCpp {
+    pub(super) const fn key(&self) -> RuntimeRepresentedActiveKeyLikeCpp {
         RuntimeRepresentedActiveKeyLikeCpp {
             kind: self.kind,
             mode: self.state.mode,
@@ -181,13 +181,13 @@ impl RuntimeMovementGenerator for RuntimeRepresentedActiveGeneratorLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ActiveTauntLikeCpp {
-    pub caster: ObjectGuid,
+pub(super) struct ActiveTauntLikeCpp {
+    pub(super) caster: ObjectGuid,
     /// `None` represents C++/DB2's permanent duration sentinel `-1`.
-    pub due_at_ms: Option<u64>,
-    pub spell_id: u32,
-    pub effect_mask: u32,
-    pub slot: u8,
+    pub(super) due_at_ms: Option<u64>,
+    pub(super) spell_id: u32,
+    pub(super) effect_mask: u32,
+    pub(super) slot: u8,
 }
 
 /// Who owns the creature/combat tick for a given map at runtime.

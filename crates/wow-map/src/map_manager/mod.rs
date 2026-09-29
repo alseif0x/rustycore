@@ -250,8 +250,3 @@ use self::grid::{
 };
 
 pub use self::pending_respawn::spawn_object_type_raw_like_cpp;
-
-pub use self::runtime_state::{
-    ActiveTauntLikeCpp, RuntimeRepresentedActiveGeneratorLikeCpp,
-    RuntimeRepresentedActiveKeyLikeCpp,
-};

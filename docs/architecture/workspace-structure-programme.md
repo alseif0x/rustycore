@@ -1880,3 +1880,15 @@ de `cfg(test)`. Se retiro el intento parcial; no hay fixture de taxi aceptado ni
 tests externos ejecutados. El siguiente corte requiere demostrar la instalacion
 del dueno canonico en ambas pruebas y fijar un puente que preserve la rama interna
 existente sin exportar el nodo representado.
+
+### B6 `wow-map`: tipos internos del estado runtime (2026-09-29)
+
+`RuntimeRepresentedActiveKeyLikeCpp`, `RuntimeRepresentedActiveGeneratorLikeCpp` y
+`ActiveTauntLikeCpp`, junto con sus miembros antes publicos, vuelven a
+`pub(super)`. Solo los consume `map_manager` y sus hijos; se elimina el reexport
+del raiz. Los cuerpos, el orden y las aserciones permanecen intactos. Con el target
+de este worktree y un job, `cargo check -p wow-map`, `cargo check -p wow-world` y
+`cargo test -p wow-map --lib combat` pasaron (7/7). Logs:
+`target/b6-runtime-types-wow-map-check.log`,
+`target/b6-runtime-types-wow-world-check.log` y
+`target/b6-runtime-types-wow-map-test-combat.log`. No es aceptacion final de B6.
