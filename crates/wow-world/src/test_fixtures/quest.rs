@@ -70,3 +70,22 @@ pub fn remove_represented_active_rewarded_duplicates_for_test(
 ) -> Vec<u32> {
     session.remove_represented_active_rewarded_duplicates_like_cpp()
 }
+
+pub fn represented_inventory_item_counts_for_test(
+    session: &crate::session::WorldSession,
+) -> Option<std::collections::HashMap<u32, u32>> {
+    session.represented_inventory_item_counts_like_cpp()
+}
+
+pub fn player_currency_quantity_for_test(
+    session: &crate::session::WorldSession,
+    currency_id: u32,
+) -> Option<u32> {
+    session.player_currency_quantity(currency_id)
+}
+
+pub fn represented_can_delay_teleport_for_test(
+    session: &crate::session::WorldSession,
+) -> bool {
+    session.represented_can_delay_teleport_like_cpp()
+}
