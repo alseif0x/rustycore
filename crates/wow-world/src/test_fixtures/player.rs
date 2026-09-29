@@ -18,6 +18,12 @@ pub fn set_player_faction_template_for_test(
     session.set_player_faction_template_like_cpp(faction_template);
 }
 
+pub fn represented_item_bonus_state_for_test(
+    session: &crate::session::WorldSession,
+) -> wow_entities::PlayerItemBonusStateLikeCpp {
+    session.represented_item_bonus_state_like_cpp()
+}
+
 pub fn player_interaction_source_guid_for_test(
     session: &crate::session::WorldSession,
 ) -> Option<wow_core::ObjectGuid> {

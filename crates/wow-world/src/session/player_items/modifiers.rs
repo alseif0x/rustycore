@@ -89,7 +89,7 @@ impl WorldSession {
     ) -> Option<wow_entities::PlayerItemModifierRuntimeStateLikeCpp> {
         let canonical = self
             .with_owned_player_like_cpp(|player| player.item_modifier_runtime_snapshot_like_cpp());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(
                 self.player_item_test_fixture_like_cpp
@@ -849,7 +849,7 @@ impl WorldSession {
             .item_set_effect_like_cpp(item_set_id)
             .cloned()
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_item_bonus_state_like_cpp(&self) -> RepresentedItemBonusStateLikeCpp {
         self.resolved_item_bonus_state_like_cpp()
             .expect("test Player item-bonus owner must resolve")
