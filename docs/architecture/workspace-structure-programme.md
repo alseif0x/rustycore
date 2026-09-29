@@ -264,29 +264,36 @@ las 219 pruebas externas completas ni se revalidó el modo sin feature tras los
 **Diagnóstico de character en curso:** se copió la suite de `character_tests`
 (303 tests, 13 280 líneas con sus fixtures) a un target externo y se retiró su
 montaje antiguo en el árbol de trabajo. El check más reciente,
-`cargo check -p wow-world --test character_tests`, aún falla con 656 errores
-(`target/b3-character-login-support-external-check.log`, exit 101): E0277=10,
-E0422=35, E0425=72, E0432=2, E0433=30, E0599=148, E0603=55, E0609=11,
-E0616=14 y E0624=279. Frente al check anterior de 681 errores
-(`target/b3-character-enumeration-support-external-check.log`, exit 101), mover
-dos pruebas puras de selección de homebind/graveyard y fallback de battleground
-a `login_support_tests.rs` reduce E0422 en ocho y E0425 en 17; las demás
-categorías no cambian. El filtro
-`cargo test -p wow-world --lib handlers::character::login_support::rule_tests`
-pasó 2/2 (`target/b3-character-login-support-focused-test.log`). El total sigue
-en 303 por nombres: 275 pruebas externas y 28 privadas de los módulos dueños,
-sin nombres ausentes ni adicionales respecto a la suite original. No se ha
+`cargo check -p wow-world --test character_tests`, aún falla con 647 errores
+(`target/b3-character-creation-context-external-check.log`, exit 101): E0277=10,
+E0422=35, E0425=63, E0432=2, E0433=30, E0599=148, E0603=55, E0609=11,
+E0616=14 y E0624=279. Frente al check inmediatamente anterior de 656 errores
+(`target/b3-character-login-support-external-check.log`, exit 101), mover tres
+pruebas puras de defaults/salud a `creation_support_tests.rs` y una prueba pura
+de rest-state a `login_context_tests.rs` reduce E0425 en nueve; las demás
+categorías no cambian. Antes, el check de 681 errores
+(`target/b3-character-enumeration-support-external-check.log`, exit 101) bajó
+25 al mover dos pruebas puras de selección de homebind/graveyard y fallback de
+battleground a `login_support_tests.rs` (E0422 en ocho y E0425 en 17). Los
+filtros `cargo test -p wow-world --lib
+handlers::character::creation_support::rule_tests` y
+`cargo test -p wow-world --lib handlers::character::login_context::rule_tests`
+pasaron 3/3 y 1/1, respectivamente, en
+`target/b3-character-creation-support-focused-test.log` y
+`target/b3-character-login-context-focused-test.log`. El total sigue en 303
+por nombres: 271 pruebas externas y 32 privadas de módulos dueños, sin nombres
+ausentes, añadidos ni duplicados respecto a la suite original. No se ha
 ejecutado la suite completa de character. La prueba
 `default_homebind_reads_primary_then_neutral_pandaren_from_startup_store_like_cpp`
 permanece externa porque configura una `WorldSession`; los casos con puertos o
-sesión tampoco se trasladan. Las pruebas puras de rest-state, defaults de
-creación/salud y validación de transport quedan para slices de sus dueños. La
-suite externa aún no compila y su traslado/adaptaciones siguen sin commit; el
-módulo privado de login-support quedó comprometido en `924620bd`. El módulo de
-enumeration quedó en `2b2a2cd6`. Los puentes de interaction source, trainer,
-gossip, canonical owner y regeneración constan en checkpoints previos; el de
-regeneración es `81e40c51`. Quedan externos ocho accesos a planners dependientes
-de sesión: siete `plan_inventory_storage_move_like_cpp` y uno
+sesión tampoco se trasladan. Las pruebas de validación de transport aún quedan
+para su módulo dueño. La suite externa no compila y su traslado/adaptaciones
+siguen sin commit; los módulos privados de login-support, enumeration,
+creation-support y login-context sí quedaron comprometidos por separado. Los
+puentes de interaction source, trainer, gossip, canonical owner y regeneración
+constan en checkpoints previos; el de regeneración es `81e40c51`. Quedan
+externos ocho accesos a planners dependientes de sesión:
+siete `plan_inventory_storage_move_like_cpp` y uno
 `plan_destroy_item_count_direct_inventory`. Esta evidencia es de desarrollo,
 no aceptación final del target ni de la macro.
 
