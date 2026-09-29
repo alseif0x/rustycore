@@ -2199,3 +2199,18 @@ de visibilidad, `cargo check -p wow-world` paso y el filtro unitario ejecuto
 `target/b3-vendor-admission-current-count-test.log`. Censo **303/303** sin
 duplicados; quedan **253** pruebas en los hijos provisionales de
 `character_tests` al cierre de este corte.
+
+### B3 `login`: guardias de fuente de las fases (2026-09-29)
+
+Las quince pruebas de orden y delegacion de las fases de login, desde
+`continue_login_no_longer_names_the_core_character_statement` hasta
+`action_button_login_phase_keeps_active_configuration_and_packet_projection`,
+viven en `tests/character_login_source.rs` (**532 lineas**). La comparacion
+con el bloque original de `handlers/character_tests/login.rs` coincide
+literalmente tras adaptar las rutas de los 30 `include_str!`; las pruebas
+restantes de login conservan su montaje provisional. `cargo check -p
+wow-world` paso y el target ejecuto **15/15**. Logs:
+`target/b3-character-login-source-check.log` y
+`target/b3-character-login-source-test.log`. El censo global sigue
+**303/303** sin duplicados; **238** pruebas permanecen en los hijos
+provisionales de `character_tests`.
