@@ -69,6 +69,36 @@ fn insert_creature(manager: &mut wow_map::MapManager, guid: ObjectGuid, entry: u
         .unwrap();
 }
 
+fn gameobject_guid(entry: u32, counter: i64) -> ObjectGuid {
+    ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, entry, counter)
+}
+
+fn insert_gameobject(manager: &mut wow_map::MapManager, guid: ObjectGuid, entry: u32) {
+    let mut gameobject = wow_entities::GameObject::new();
+    gameobject.world_mut().object_mut().create(guid);
+    gameobject.world_mut().object_mut().set_entry(entry);
+    gameobject.world_mut().set_map(571, 0).unwrap();
+    gameobject
+        .world_mut()
+        .relocate(Position::new(10.0, 0.0, 0.0, 0.0));
+    gameobject.world_mut().object_mut().add_to_world();
+    manager
+        .create_world_map(571, 0)
+        .map_mut()
+        .insert_map_object_record(
+            wow_entities::MapObjectRecord::new_game_object(gameobject).unwrap(),
+        )
+        .unwrap();
+}
+
+fn mark_gameobject_questgiver(session: &mut WorldSession, guid: ObjectGuid) {
+    let mut state = crate::session::RepresentedGameObjectUseState::default();
+    state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8);
+    session
+        .represented_gameobject_use_states
+        .insert(guid, state);
+}
+
 fn attach_map_manager(session: &mut WorldSession, manager: wow_map::MapManager) {
     session.set_canonical_map_manager(Arc::new(Mutex::new(manager)));
 }
@@ -111,6 +141,28 @@ async fn quest_giver_status_tracked_supplied_creature_not_visible_sends_availabl
     insert_creature(&mut manager, guid, 9301);
     attach_map_manager(&mut session, manager);
     assert!(!session.client_visible_guids_like_cpp.contains(&guid));
+
+    session
+        .handle_quest_giver_status_tracked_query(tracked_query_packet(&[guid]))
+        .await;
+
+    assert_eq!(
+        recv_status_multiple(&send_rx),
+        vec![(guid, quest_giver_status::TRIVIAL)]
+    );
+}
+
+#[tokio::test]
+async fn quest_giver_status_tracked_supplied_gameobject_uses_uint64_status_like_cpp() {
+    let (mut session, send_rx) = make_quest_status_session();
+    let mut store = store_with_quests(&[3002]);
+    assert!(store.insert_gameobject_starter_relation_like_cpp(9302, 3002));
+    session.set_quest_store(Arc::new(store));
+    let guid = gameobject_guid(9302, 302);
+    let mut manager = wow_map::MapManager::default();
+    insert_gameobject(&mut manager, guid, 9302);
+    attach_map_manager(&mut session, manager);
+    mark_gameobject_questgiver(&mut session, guid);
 
     session
         .handle_quest_giver_status_tracked_query(tracked_query_packet(&[guid]))

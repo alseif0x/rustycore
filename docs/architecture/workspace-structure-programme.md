@@ -2739,3 +2739,23 @@ y target del worktree. Logs `target/b3-character-gameobject-query-check.log`
 y `target/b3-character-gameobject-query-test.log`. `query.rs` mide 795 lineas.
 Censo **303/303** nombres unicos, **154** montados por la raiz provisional;
 suite externa completa, B3 restante y aceptacion global siguen pendientes.
+
+### B3 `gameobject`: estado de quest por GUID (2026-09-29)
+
+`quest_giver_status_tracked_supplied_gameobject_uses_uint64_status_like_cpp`
+paso del hijo provisional `gameobject.rs` al hijo privado existente
+`handlers/character/query_quest_status_tests.rs`, junto al caso de criatura.
+Reutiliza la sesion, paquete y decodificacion comunes; los helpers locales
+de gameobject conservan el setup del fixture provisional. Nombres, aserciones
+y `u64` del estado no cambian. C++ `QuestHandler.cpp:775-778` pasa los GUIDs
+del cliente a `Player::SendQuestGiverStatusMultiple`; la rama GameObject de
+`Player.cpp:16803-16829` consulta el objeto del mapa. Los tres tests de
+gossip siguen provisionales. No cambia produccion ni visibilidad Rust.
+
+`cargo check -p wow-world` paso; el filtro
+`handlers::character::query::quest_status_tests::` ejecuto **2/2** con un
+job y target del worktree. Logs
+`target/b3-character-quest-status-gameobject-check.log` y
+`target/b3-character-quest-status-gameobject-test.log`. Censo **303/303**
+nombres unicos, **153** montados por la raiz provisional; suite externa,
+B3 restante y aceptacion global siguen pendientes.
