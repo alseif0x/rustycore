@@ -264,22 +264,27 @@ las 219 pruebas externas completas ni se revalidó el modo sin feature tras los
 **Diagnóstico de character en curso:** se copió la suite de `character_tests`
 (303 tests, 13 280 líneas con sus fixtures) a un target externo y se retiró su
 montaje antiguo en el árbol de trabajo. El check más reciente,
-`cargo check -p wow-world --test character_tests`, aún falla con 692 errores
-(`target/b3-character-inventory-plan-external-check.log`, exit 101):
-E0277=10, E0422=43, E0425=100, E0432=2, E0433=30, E0599=148, E0603=55,
-E0609=11, E0616=14 y E0624=279. El check inmediatamente anterior al slice
-tenía 719 errores (`target/b3-character-item-load-support-external-check.log`,
-exit 101): el mismo reparto salvo E0425=120 y E0433=37. Mover cinco tests
-puros de `loot.rs` e `item_2.rs`–`item_4.rs` a sus módulos dueños redujo el
-diagnóstico en 27 errores (20 E0425 y 7 E0433). El conteo permanece en 303:
-281 externos + 22 privados del dueño. Quedaron externos ocho accesos a planners
-dependientes de sesión: siete `plan_inventory_storage_move_like_cpp` y uno
-`plan_destroy_item_count_direct_inventory`. Los filtros enfocados de reglas
-privadas pasaron 22/22; la suite completa de character no se ha ejecutado. Los
-puentes de interaction source, trainer, gossip, canonical owner y regeneración
-están comprometidos; el de regeneración quedó en `81e40c51`. El traslado y las
-adaptaciones consumidoras siguen sin commit. Conservar los 303 nombres y separar las reglas privadas del
-target de aplicación antes de aceptarlo.
+`cargo check -p wow-world --test character_tests`, aún falla con 681 errores
+(`target/b3-character-enumeration-support-external-check.log`, exit 101):
+E0277=10, E0422=43, E0425=89, E0432=2, E0433=30, E0599=148, E0603=55,
+E0609=11, E0616=14 y E0624=279. Frente al check anterior de 692 errores
+(`target/b3-character-inventory-plan-external-check.log`, exit 101), trasladar
+dos pruebas puras de flags y dos de datos de mascota a
+`enumeration_support_tests.rs`, junto con su único helper de store, elimina 11
+E0425; las demás categorías no cambian. La comparación de nombres contra la
+suite original conserva los 303: 277 pruebas externas y 26 pruebas privadas
+bajo sus módulos dueños, sin nombres ausentes ni adicionales. El filtro
+`cargo test -p wow-world --lib handlers::character::enumeration_support::rule_tests`
+pasó 8/8 (`target/b3-character-enumeration-support-focused-test.log`). No se ha
+ejecutado la suite completa de character. La suite externa continúa sin compilar
+y su traslado/adaptaciones siguen sin commit; el módulo privado de reglas de
+enumeration quedó comprometido en `2b2a2cd6`. Los filtros enfocados de slices
+anteriores y los puentes de interaction source, trainer, gossip, canonical owner
+y regeneración constan en sus checkpoints previos; el puente de regeneración es
+`81e40c51`. Quedan externos ocho accesos a planners dependientes de sesión:
+siete `plan_inventory_storage_move_like_cpp` y uno
+`plan_destroy_item_count_direct_inventory`. Esta evidencia es de desarrollo,
+no aceptación final del target ni de la macro.
 
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
