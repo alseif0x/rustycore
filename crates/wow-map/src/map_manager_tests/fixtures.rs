@@ -5,7 +5,6 @@
 //! the fixtures lets the scenario modules keep importing everything through
 //! `use super::*` without depending on the test root's size.
 
-pub use crate::map::MapWorldObjectEnvironment;
 pub use crate::map_manager::{
     ChaseTargetSnapshotLikeCpp, ChaseTickOutcomeLikeCpp, CreatureAnimKitSlotLikeCpp, GRID_SIZE,
     Grid, LiveTerrainHeights,
@@ -27,12 +26,11 @@ pub(crate) use crate::map_manager::{
     MAP_AREA_HEADER_SIZE_LIKE_CPP, MAP_AREA_MAGIC_LIKE_CPP, MAP_FILE_HEADER_SIZE_LIKE_CPP,
     MAP_MAGIC_LIKE_CPP, MAP_VERSION_MAGIC_LIKE_CPP, TERRAIN_GRID_COUNT_LIKE_CPP,
 };
-pub use crate::{SharedStaticVMapLineOfSightProvider, SpawnObjectType};
+pub use crate::SpawnObjectType;
 pub use rand::{Rng, RngCore, SeedableRng, rngs::StdRng};
 pub use std::collections::{HashMap, HashSet};
 pub use std::fs;
 pub use std::path::PathBuf;
-pub use std::sync::Arc;
 pub use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 pub use wow_constants::movement::MovementFlag;
 pub use wow_constants::{
@@ -148,31 +146,6 @@ pub fn test_chase_corridor(poly_refs: Vec<u64>, end_x: f32) -> DetourPolyPath {
         },
         start_far_from_poly: false,
         end_far_from_poly: false,
-    }
-}
-
-#[derive(Debug)]
-pub struct RecordingLiveStaticVMapLos {
-    pub result: bool,
-    pub calls: std::sync::Mutex<Vec<crate::VMapLineOfSightQuery>>,
-}
-
-impl RecordingLiveStaticVMapLos {
-    pub fn new(result: bool) -> Self {
-        Self {
-            result,
-            calls: std::sync::Mutex::new(Vec::new()),
-        }
-    }
-}
-
-impl crate::StaticVMapLineOfSightProvider for RecordingLiveStaticVMapLos {
-    fn is_in_line_of_sight(&self, query: crate::VMapLineOfSightQuery) -> bool {
-        self.calls
-            .lock()
-            .expect("recording live vmap LOS calls poisoned")
-            .push(query);
-        self.result
     }
 }
 

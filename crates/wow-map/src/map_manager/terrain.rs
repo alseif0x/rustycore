@@ -216,7 +216,7 @@ impl TerrainGridFileIndexLikeCpp {
     }
 }
 
-pub fn discover_grid_map_files_like_cpp(data_dir: &Path, map_id: u32) -> io::Result<Vec<bool>> {
+fn discover_grid_map_files_like_cpp(data_dir: &Path, map_id: u32) -> io::Result<Vec<bool>> {
     let tile_list_name = data_dir.join("maps").join(format!("{map_id:04}.tilelist"));
     if let Ok(mut tile_list) = File::open(tile_list_name) {
         let mut map_magic = [0_u8; 4];
@@ -423,7 +423,7 @@ impl LiveTerrainHeights {
         }
     }
 
-    pub(crate) fn terrain_for_map(&self, map_id: u32) -> Arc<GridMapTerrain> {
+    fn terrain_for_map(&self, map_id: u32) -> Arc<GridMapTerrain> {
         let mut per_map = self.per_map.lock().expect("live terrain cache poisoned");
         Arc::clone(per_map.entry(map_id).or_insert_with(|| {
             let terrain = GridMapTerrain::new(map_id, &self.data_dir);
@@ -470,3 +470,7 @@ impl LiveTerrainHeights {
         )
     }
 }
+
+#[cfg(test)]
+#[path = "terrain/tests.rs"]
+mod tests;

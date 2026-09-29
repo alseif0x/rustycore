@@ -6,40 +6,6 @@
 use super::*;
 
 #[test]
-fn live_terrain_wires_static_vmap_los_provider_into_map_cache_like_cpp() {
-    let dir = unique_temp_data_dir("live-vmap-los-provider");
-    let provider = Arc::new(RecordingLiveStaticVMapLos::new(false));
-    let shared_provider: SharedStaticVMapLineOfSightProvider = provider.clone();
-    let terrain_cache =
-        LiveTerrainHeights::new_with_static_vmap_line_of_sight(&dir, shared_provider);
-
-    let terrain = terrain_cache.terrain_for_map(1);
-    let mut source = wow_entities::WorldObject::new(
-        false,
-        wow_constants::TypeId::Unit,
-        wow_constants::TypeMask::UNIT,
-    );
-    source.relocate(Position::new(10.0, 10.0, 1.0, 0.0));
-    let query = wow_entities::LineOfSightQuery::to_position_like_cpp(
-        &source,
-        Position::new(20.0, 10.0, 1.0, 0.0),
-        wow_entities::LineOfSightOptions::default(),
-    );
-
-    assert!(
-        !terrain.line_of_sight(query),
-        "live terrain must not bypass an installed static VMAP LOS provider"
-    );
-    let calls = provider
-        .calls
-        .lock()
-        .expect("recording live vmap LOS calls poisoned");
-    assert_eq!(calls.len(), 1);
-    assert_eq!(calls[0].map_id, 1);
-
-    let _ = std::fs::remove_dir_all(&dir);
-}
-#[test]
 fn terrain_grid_area_map_decodes_cpp_area_cell_and_zone_parent() {
     let data_dir = unique_temp_data_dir("terrain-area-map");
     let map_id = 571;

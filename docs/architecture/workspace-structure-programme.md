@@ -2514,3 +2514,26 @@ Logs `target/b3-query-corpse-check.log`,
 `target/b3-cancel-temp-enchant-missing-test-rerun.log`.
 Censo **303/303** nombres unicos, **179** montados por la raiz provisional;
 la suite externa completa sigue pendiente.
+
+### B6 `wow-map`: cache de terreno privado y test LOS junto al owner (2026-09-29)
+
+La revision de usos encontro `discover_grid_map_files_like_cpp` solo en
+`TerrainGridFilesLikeCpp::load_root_like_cpp` y
+`LiveTerrainHeights::terrain_for_map` solo en sus metodos y un test hermano.
+Ambas funciones quedaron privadas de `map_manager/terrain.rs`; no cambiaron
+sus cuerpos. El test `live_terrain_wires_static_vmap_los_provider_into_map_cache_like_cpp`
+se movio a `map_manager/terrain/tests.rs` con la misma consulta y aserciones,
+y su fixture `RecordingLiveStaticVMapLos` salio de
+`map_manager_tests/fixtures.rs`. `exist_map_like_cpp` ya era privado.
+La referencia 3.4.3 de descubrimiento/validacion de mapas es
+`TerrainMgr.cpp:49-75` (`TerrainInfo::DiscoverGridMapFiles`) y `:77+`
+(`ExistMap`); este delta solo reduce visibilidad Rust.
+
+Con un job y el target del worktree, `cargo check -p wow-map` y
+`cargo check -p wow-world` pasaron; el test LOS ejecuto **1/1** y el filtro
+`terrain` dio **28 aprobados, 1 ignorado** (requiere DataDir real).
+Logs `target/b6-terrain-live-visibility-map-check.log`,
+`target/b6-terrain-live-visibility-world-check.log`,
+`target/b6-terrain-live-visibility-focused-test-final.log` y
+`target/b6-terrain-live-visibility-terrain-suite.log`. El resto de
+visibilidades de `map_manager` y la aceptacion final B6 siguen pendientes.
