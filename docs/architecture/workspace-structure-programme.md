@@ -374,6 +374,21 @@ los 268 tests externos completos ni aceptación final. El traslado y las adaptac
 consumidoras siguen sin commit; esta evidencia es de desarrollo, no aceptación de la suite
 ni de la macro.
 
+El corte de inventario posterior mantiene las ocho mutaciones de test que antes
+llamaban a `update_inventory_item_object_like_cpp`: seis casos CHILD/creator usan
+`mark_inventory_child_for_test`; los dos casos de encantamientos usan fixtures
+acotadas que conservan expiración, `EQUIPPED`, slots y valores. Los métodos de
+producción no ganan visibilidad pública; el fallback sin `Player` y su espejo
+quedan bajo `any(test, feature = "test-fixtures")`. El check normal de
+`wow-world` pasó (`target/b3-character-item-enchantment-default-check.log`).
+El check externo terminó con exit 101 y **568 errores**
+(`target/b3-character-item-enchantment-external-check.log`), frente a 576
+antes del corte: E0599=99 y E0624=279, sin categorías nuevas. No se pudo
+ejecutar un test focalizado de esos dos casos porque el target externo todavía
+no compila y no existe uno equivalente bajo el módulo dueño. El productor de
+fixtures se conserva como checkpoint local; los consumidores externos y la
+suite completa siguen sin commit ni aceptación.
+
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
 1. **Compila**: `cargo check -p <crate>` (y sus consumidores). Es el bucle de trabajo, no evidencia
