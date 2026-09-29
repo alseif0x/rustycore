@@ -6,8 +6,10 @@
 
 mod quest;
 mod player;
+mod gameobject;
 pub use quest::*;
 pub use player::*;
+pub use gameobject::*;
 
 pub use crate::session::quest_dialog::{
     RepresentedPendingQuestSharingLikeCpp,
