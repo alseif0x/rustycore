@@ -15,3 +15,11 @@ fn create_character_seeds_valid_cpp_rest_state_for_raf_roles() {
         REST_STATE_RAF_LINKED_LIKE_CPP
     );
 }
+
+#[test]
+fn motd_split_preserves_cpp_empty_and_trailing_lines() {
+    assert_eq!(
+        motd_lines_like_cpp("first@@third@"),
+        vec!["first", "", "third", ""]
+    );
+}

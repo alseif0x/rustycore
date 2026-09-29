@@ -220,3 +220,23 @@ fn battleground_login_fallback_prefers_valid_entry_point_then_homebind_like_cpp(
         None
     );
 }
+
+#[test]
+fn pvp_season_world_states_match_cpp_world_state_mgr() {
+    // In-progress arena season 32 -> current(3191)=32, previous(3901)=31. Matches the
+    // captured C++ INIT_WORLD_STATES (World.cpp:1363-1364). Existing ids stay untouched
+    // and the 3191/3901 values are overridden in place (not duplicated).
+    let mut states = vec![(3191, 0), (3901, 0), (1000, 5)];
+    apply_pvp_season_world_states_like_cpp(&mut states, 32, true);
+    assert_eq!(states, vec![(3191, 32), (3901, 31), (1000, 5)]);
+
+    // Default (season not in progress): current=0, previous=season_id.
+    let mut states = vec![(3191, 0), (3901, 0)];
+    apply_pvp_season_world_states_like_cpp(&mut states, 32, false);
+    assert_eq!(states, vec![(3191, 0), (3901, 32)]);
+
+    // Absent ids are appended rather than dropped.
+    let mut states: Vec<(i32, i32)> = Vec::new();
+    apply_pvp_season_world_states_like_cpp(&mut states, 10, true);
+    assert_eq!(states, vec![(3191, 10), (3901, 9)]);
+}

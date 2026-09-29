@@ -2439,3 +2439,26 @@ quedan locales al test, sin ensanchar la API de produccion. La referencia
 Sin cambios de produccion ni visibilidad. Censo **303/303** nombres unicos,
 **195** montados por la raiz provisional. La suite externa completa sigue
 pendiente.
+
+### B3 `misc_1`: estados iniciales y MOTD junto a sus owners (2026-09-29)
+
+`pvp_season_world_states_match_cpp_world_state_mgr` se movio a
+`login_support_tests.rs`, `motd_split_preserves_cpp_empty_and_trailing_lines`
+a `login_context_tests.rs` y
+`initial_world_state_port_preserves_independent_read_failures_like_cpp` a
+`world_entry/initial_packets_tests.rs`. Se conservaron nombres y aserciones;
+solo el ultimo cambia al constructor de sesion privado. C++
+`World::SetMotd` (`World.cpp:263-269`) separa por `@`; `World.cpp:1363-1364`
+siembra los ids PvP 3191/3901. El caso de fallo del port es **sintetico**:
+comprueba el manejo defensivo de resultados independientes en Rust y no
+demuestra paridad de fallo de DB con `WorldStateMgr::LoadFromDB`, que retorna
+si falla la consulta de templates.
+
+`cargo check -p wow-world` paso; los filtros ejecutaron PvP **1/1**,
+MOTD **1/1** y estados iniciales **2/2** (incluido el overlay anterior).
+Logs `target/b3-misc-owner-check.log`,
+`target/b3-misc-owner-pvp-test.log`,
+`target/b3-misc-owner-motd-test.log` y
+`target/b3-misc-owner-world-state-tests.log`. Sin cambios productivos ni
+visibilidad. Censo **303/303** nombres unicos, **192** montados por la raiz
+provisional; la suite externa completa sigue pendiente.
