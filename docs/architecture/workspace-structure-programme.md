@@ -2084,3 +2084,13 @@ de asignacion, que menciona el limite privado
 al owner. `cargo check -p wow-world` paso y el target ejecuto **2/2**.
 Logs: `target/b3-character-equipment-assign-check.log` y
 `target/b3-character-equipment-assign-test.log`. No se amplio API productiva.
+
+### B3 `item_1`: borrado de equipment sets (2026-09-29)
+
+Los tres escenarios `DeleteEquipmentSet` viven en
+`tests/character_tests/equipment_set_delete.rs`, montados por
+`tests/character_equipment_set_delete.rs`. Se conservaron nombres, cuerpos y
+aserciones; el builder y el codificador local siguen los de `fixtures_2.rs`.
+`cargo check -p wow-world` paso y el target ejecuto **3/3**. Logs:
+`target/b3-character-equipment-delete-check.log` y
+`target/b3-character-equipment-delete-test.log`. No hubo API nueva.
