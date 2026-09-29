@@ -2362,3 +2362,24 @@ logs `target/b3-initial-world-state-overlay-check.log` y
 ni visibilidad. Censo **303/303** sin duplicados; **210** pruebas siguen
 montadas por la raiz provisional. Esto no equivale a la aceptacion completa
 de `character_tests`.
+
+### B3 `persistence`: ajuste de Fist Weapons junto a `spell_rules` (2026-09-29)
+
+`loaded_fist_weapons_mirrors_unarmed_after_all_skill_rows_like_cpp` y
+`loaded_fist_weapons_without_unarmed_is_cleared_like_cpp_set_skill_zero`
+se movieron al hijo privado `handlers/character/spell_rules_tests.rs`.
+`world_entry/login.rs:456` llama al productor real; en la referencia 3.4.3,
+`Player::_LoadSkills` (`Player.cpp:25849-25850`) aplica `SetSkill` despues de
+cargar las filas. Las aserciones permanecen iguales y no cambia codigo
+productivo ni visibilidad. `cargo check -p wow-world` paso y ambos filtros
+unitarios ejecutaron **1/1**; logs `target/b3-fist-weapons-owner-check.log`,
+`target/b3-fist-weapons-mirror-test.log` y
+`target/b3-fist-weapons-clear-test.log`.
+
+**Correccion de recuento:** los recuentos anteriores de pruebas "montadas por
+la raiz" omitian `transfer_routing.rs` y `reputation_retention.rs`, ambos
+hijos de `finalization.rs`. El censo de nombres **303/303** sigue correcto.
+Actualmente hay **227** nombres en ficheros del armazon provisional, de los
+cuales **17** ya no estan montados por su raiz (tienen otros destinos); por
+tanto **210** siguen montados por `tests/character_tests.rs`. Los recuentos
+historicos de montadas en las entradas previas deben leerse con **+2**.

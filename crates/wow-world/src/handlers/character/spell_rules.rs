@@ -175,3 +175,7 @@ pub(super) fn spell_charge_entry_from_db_like_cpp(
         consumed_charges,
     })
 }
+
+#[cfg(test)]
+#[path = "spell_rules_tests.rs"]
+mod tests;
