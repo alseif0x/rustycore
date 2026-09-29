@@ -1687,10 +1687,9 @@ pub struct WorldSession {
     pub(in crate::session) represented_is_outdoors_like_cpp: Option<bool>,
     /// Fixture-only fallback. Production C++ `ReputationMgr` state is owned by
     /// the generation-checked canonical `Player`.
-    #[cfg(test)]
     /// Test-fallback reputation state for a session without a canonical
     /// Player owner; production always uses the Player's own state (#735).
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) reputation_state_like_cpp: wow_entities::PlayerReputationStateLikeCpp,
     /// C++ `ActivePlayerData::WatchedFactionIndex` represented state.
     #[cfg(test)]

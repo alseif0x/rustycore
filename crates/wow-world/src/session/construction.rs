@@ -934,8 +934,7 @@ impl WorldSession {
             vmap_indoor_check_like_cpp: false,
             #[cfg(test)]
             represented_is_outdoors_like_cpp: None,
-            #[cfg(test)]
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             reputation_state_like_cpp: wow_entities::PlayerReputationStateLikeCpp::default(),
             #[cfg(test)]
             watched_faction_index_like_cpp: -1,

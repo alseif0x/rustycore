@@ -161,7 +161,7 @@ impl WorldSession {
         if canonical.is_some() {
             return canonical;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none() {
             let manager = ReputationMgrLikeCpp::borrowing_like_cpp(&self.reputation_state_like_cpp);
             return Some(operation.take().expect("reputation operation is available")(&manager));
@@ -186,7 +186,7 @@ impl WorldSession {
         if canonical.is_some() {
             return canonical;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none() {
             let mut manager =
                 ReputationMgrLikeCpp::borrowing_mut_like_cpp(&mut self.reputation_state_like_cpp);
