@@ -7,6 +7,10 @@
 
 use super::*;
 
+#[cfg(test)]
+#[path = "lifecycle_corpse_tests.rs"]
+mod corpse_tests;
+
 impl WorldSession {
     /// Update the realmcharacters count in the login database.
     ///

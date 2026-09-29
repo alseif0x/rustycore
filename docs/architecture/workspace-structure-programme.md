@@ -2481,3 +2481,36 @@ Sin cambios de produccion ni visibilidad. `cargo check -p wow-world` paso;
 **6/6**. Logs `target/b3-query-check.log` y `target/b3-query-tests.log`.
 Censo **303/303** nombres unicos, **186** montados por la raiz provisional;
 `character_tests` externa y la aceptacion global siguen pendientes.
+
+### B3 `misc_3`: consultas de nombres/cadaver y retirada del hijo (2026-09-29)
+
+Los tres `query_player_names_*` se movieron a `handlers/character/query_tests.rs`
+(454 lineas), junto con su fixture exclusivo
+`PlayerNameQueryPortFixtureLikeCpp`; el fixture se retiro del provisional
+`fixtures_1.rs`. Los dos `query_corpse_*` se movieron a
+`handlers/character/lifecycle_corpse_tests.rs`, montado desde
+`lifecycle.rs` (851 lineas). Los dos casos restantes de `misc_3.rs`
+se trasladaron a `creation_support_tests.rs` (`start_zones_are_valid`) y
+`items/handlers_tests.rs` (encantamiento ausente); el hijo provisional y
+su montaje se retiraron. No cambian las aserciones ni la logica productiva.
+
+En C++ `QueryHandler.cpp:36-57` construye nombres desde `ObjectAccessor`,
+`:126+` responde localizacion de cadaver invalida y `:235+` deja el transporte
+por defecto si no hay cadaver coincidente. Los fallos del port de nombres son
+estados sinteticos de Rust; los tests de cadaver cubren solo la ruta negativa.
+`ItemHandler.cpp:1100-1117` confirma retorno temprano sin encantamiento
+temporal. `start_zones_are_valid` es una comprobacion de la tabla Rust, no
+prueba de paridad de datos C++.
+
+`cargo check -p wow-world` paso. El primer filtro de query fallo por un import
+de `HighGuid`; corregida la ruta, el rerun ejecuto **9/9**. Cadaver ejecuto
+**2/2**; las pruebas finales de zona y encantamiento **1/1** cada una.
+Logs `target/b3-query-corpse-check.log`,
+`target/b3-query-player-name-tests.log` (fallo),
+`target/b3-query-player-name-tests-retry.log`,
+`target/b3-lifecycle-corpse-tests.log`,
+`target/b3-misc3-final-check-rerun.log`,
+`target/b3-start-zones-test-rerun.log` y
+`target/b3-cancel-temp-enchant-missing-test-rerun.log`.
+Censo **303/303** nombres unicos, **179** montados por la raiz provisional;
+la suite externa completa sigue pendiente.

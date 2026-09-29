@@ -87,3 +87,25 @@ async fn cancel_temp_enchantment_ignores_non_equipment_slot_like_cpp() {
     );
     assert!(send_rx.try_recv().is_err());
 }
+
+#[tokio::test]
+async fn cancel_temp_enchantment_ignores_missing_enchant_like_cpp() {
+    let (mut session, send_rx) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 42);
+    session.set_player_guid(Some(player_guid));
+    let item_guid = insert_cancel_temp_enchant_test_item(&mut session, player_guid, 15, 0);
+
+    session
+        .handle_cancel_temp_enchantment(CancelTempEnchantment { slot: 15 })
+        .await;
+
+    let item = session
+        .inventory_item_objects_like_cpp()
+        .get(&item_guid)
+        .unwrap();
+    assert_eq!(
+        item.data().enchantments[EnchantmentSlot::EnhancementTemporary as usize].duration,
+        12_000
+    );
+    assert!(send_rx.try_recv().is_err());
+}
