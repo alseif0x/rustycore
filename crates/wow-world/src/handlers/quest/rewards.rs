@@ -204,7 +204,7 @@ impl WorldSession {
         &mut self,
         quest: &wow_data::quest::QuestTemplate,
     ) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             let caster_selection_unrepresented =
                 (quest.flags & QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP) == 0;
@@ -243,7 +243,7 @@ impl WorldSession {
                     });
             }
         }
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let _ = quest;
     }
 

@@ -14,7 +14,17 @@ pub use crate::session::quest_dialog::{
     RepresentedQuestPushResultResponseLikeCpp,
     RepresentedQuestRewardReputationLikeCpp,
     RepresentedQuestRewardReputationSourceLikeCpp,
+    RepresentedQuestRewardSpellCastLikeCpp,
+    RepresentedQuestRewardSpellKindLikeCpp,
 };
+
+pub fn represented_quest_reward_spell_casts_for_test(
+    session: &crate::session::WorldSession,
+) -> Vec<RepresentedQuestRewardSpellCastLikeCpp> {
+    session
+        .represented_quest_reward_spell_casts_like_cpp()
+        .to_vec()
+}
 
 pub fn represented_adventure_map_start_quest_requests_for_test(
     session: &crate::session::WorldSession,

@@ -82,9 +82,13 @@ use crate::session::{
 };
 #[cfg(test)]
 use crate::session::{
-    RepresentedQuestRewardMailLikeCpp, RepresentedQuestRewardSpellCastLikeCpp,
-    RepresentedQuestRewardSpellKindLikeCpp, RepresentedQuestRewardTalentPointsLikeCpp,
+    RepresentedQuestRewardMailLikeCpp,
+    RepresentedQuestRewardTalentPointsLikeCpp,
     RepresentedQuestRewardTitleLikeCpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+use crate::session::{
+    RepresentedQuestRewardSpellCastLikeCpp, RepresentedQuestRewardSpellKindLikeCpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::RepresentedQuestRewardReputationLikeCpp;
@@ -102,7 +106,7 @@ fn quest_giver_creature_id_from_source_like_cpp(source_guid: ObjectGuid) -> i32 
 }
 
 pub(crate) const QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP: u32 = 0x0001_0000;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) const QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP: u32 = 0x0020_0000;
 pub(crate) const QUEST_FLAGS_SHARABLE_LIKE_CPP: u32 = 0x0000_0008;
 const QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP: u32 = 0x0000_0400;

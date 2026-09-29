@@ -534,7 +534,7 @@ impl WorldSession {
             .quest_test_fixture_like_cpp
             .represented_quest_reward_skill_updates_like_cpp
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_quest_reward_spell_casts_like_cpp(
         &self,
     ) -> &[RepresentedQuestRewardSpellCastLikeCpp] {

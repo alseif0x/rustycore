@@ -316,14 +316,14 @@ pub(crate) struct RepresentedQuestCompleteStatusUpdateLikeCpp {
 
 #[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedQuestRewardSpellKindLikeCpp {
+pub enum RepresentedQuestRewardSpellKindLikeCpp {
     RewardSpell,
     RewardDisplaySpell { index: u8 },
 }
 
 #[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedQuestRewardSpellCastLikeCpp {
+pub struct RepresentedQuestRewardSpellCastLikeCpp {
     pub quest_id: u32,
     pub spell_id: u32,
     pub kind: RepresentedQuestRewardSpellKindLikeCpp,
