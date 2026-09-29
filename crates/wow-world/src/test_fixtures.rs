@@ -225,6 +225,13 @@ pub fn player_gold_for_test(session: &crate::session::WorldSession) -> u64 {
     session.player_gold_like_cpp()
 }
 
+pub fn set_loot_money_persistence_test_result_for_test(
+    session: &mut crate::session::WorldSession,
+    success: bool,
+) {
+    session.set_loot_money_persistence_test_result_like_cpp(success);
+}
+
 pub fn inventory_items_for_test(
     session: &crate::session::WorldSession,
 ) -> &std::collections::HashMap<u8, crate::session::InventoryItem> {

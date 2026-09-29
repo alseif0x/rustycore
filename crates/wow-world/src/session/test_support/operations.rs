@@ -192,20 +192,20 @@ impl WorldSession {
             declined_names_used: self.declined_names_used_like_cpp,
         }
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_loot_money_persistence_test_result_like_cpp(&mut self, success: bool) {
         self.loot_money_persistence_test_result_like_cpp = Some(success);
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn clear_loot_money_persistence_test_result_like_cpp(&mut self) {
         self.loot_money_persistence_test_result_like_cpp = None;
     }
     pub(crate) fn loot_money_persistence_test_result_for_worker_like_cpp(&self) -> Option<bool> {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             self.loot_money_persistence_test_result_like_cpp
         }
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         {
             None
         }

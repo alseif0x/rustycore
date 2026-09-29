@@ -1648,7 +1648,7 @@ pub struct WorldSession {
         std::collections::HashMap<(wow_core::ObjectGuid, u8), RepresentedLootRollState>,
     /// Explicit test seam for persistence-sensitive loot-money paths. Production
     /// never bypasses the character database.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) loot_money_persistence_test_result_like_cpp: Option<bool>,
     #[cfg(test)]
     pub(crate) loot_item_store_test_grants_like_cpp: Option<Arc<AtomicUsize>>,

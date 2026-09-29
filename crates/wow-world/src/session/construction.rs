@@ -910,7 +910,7 @@ impl WorldSession {
             #[cfg(any(test, feature = "test-fixtures"))]
             module_registry_like_cpp: None,
             represented_loot_rolls: std::collections::HashMap::new(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             loot_money_persistence_test_result_like_cpp: None,
             #[cfg(test)]
             loot_item_store_test_grants_like_cpp: None,
