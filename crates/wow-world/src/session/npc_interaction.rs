@@ -381,7 +381,7 @@ impl WorldSession {
             .map(|interaction| interaction.trainer_id)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn player_interaction_trainer_id_like_cpp(&self) -> u32 {
         self.resolved_player_interaction_trainer_id_like_cpp()
             .unwrap_or(0)

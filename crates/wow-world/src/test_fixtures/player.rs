@@ -24,6 +24,27 @@ pub fn set_player_interaction_source_for_test(
     session.set_player_interaction_source_like_cpp(source_guid)
 }
 
+pub fn player_interaction_trainer_id_for_test(
+    session: &crate::session::WorldSession,
+) -> u32 {
+    session.player_interaction_trainer_id_like_cpp()
+}
+
+pub fn set_player_trainer_interaction_for_test(
+    session: &mut crate::session::WorldSession,
+    source_guid: wow_core::ObjectGuid,
+    trainer_id: u32,
+) -> bool {
+    session.set_player_trainer_interaction_like_cpp(source_guid, trainer_id)
+}
+
+pub fn reset_player_interaction_if_source_for_test(
+    session: &mut crate::session::WorldSession,
+    source_guid: wow_core::ObjectGuid,
+) -> bool {
+    session.reset_player_interaction_if_source_like_cpp(source_guid)
+}
+
 pub fn get_inventory_item_by_pos_for_test(
     session: &crate::session::WorldSession,
     bag: u8,
