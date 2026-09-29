@@ -2141,3 +2141,19 @@ ejecuto **1/1**; logs `target/b3-equipment-set-assign-private-check.log` y
 `target/b3-equipment-set-assign-private-resume-test.log`. El primer intento de
 test fue interrumpido y no cuenta como evidencia. El censo global permanece
 **303/303** sin duplicados; quedan tres tests en `item_1` provisional.
+
+### B3 `item_1`: usos representados de equipment sets (2026-09-29)
+
+Los dos escenarios de `UseEquipmentSet` que dependen de los respaldos
+`cfg(test)` de inventario y mods viven ahora en el hijo privado
+`src/session/tests/scenarios_player_items_4/equipment_set_use.rs`. El montaje
+deja el fichero padre en **942 lineas** y el hijo en **132**. Se conservaron
+las expectativas y el codec de packet del fixture anterior; la preparacion
+usa el harness privado de Session. No se cambio produccion ni visibilidad.
+`cargo check -p wow-world` paso y `cargo test -p wow-world --lib
+use_equipment_set_` ejecuto **2/2**; logs
+`target/b3-equipment-set-use-private-final-check.log` y
+`target/b3-equipment-set-use-private-final-test.log`. El censo de la suite
+original sigue **303/303** sin duplicados. En `item_1` provisional solo queda
+el caso de fallo parcial al cargar apariencias de cuenta; la suite externa
+grande todavia no compila.

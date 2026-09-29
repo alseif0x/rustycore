@@ -5,6 +5,9 @@
 
 use super::*;
 
+#[path = "scenarios_player_items_4/equipment_set_use.rs"]
+mod equipment_set_use;
+
 #[test]
 fn canonical_player_pvp_item_level_mode_follows_detached_and_stale_handle_ownership_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
