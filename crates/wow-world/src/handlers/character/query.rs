@@ -789,3 +789,7 @@ mod tests;
 #[cfg(test)]
 #[path = "query_quest_status_tests.rs"]
 mod quest_status_tests;
+
+#[cfg(test)]
+#[path = "query_gameobject_tests.rs"]
+mod gameobject_tests;

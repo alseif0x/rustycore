@@ -2719,3 +2719,23 @@ y target del worktree. Logs `target/b3-character-quest-status-check.log` y
 `target/b3-character-quest-status-test.log`. Censo **303/303** nombres
 unicos, **156** montados por la raiz provisional. La suite externa completa,
 B3 restante y la aceptacion global siguen pendientes.
+
+### B3 `gameobject`: consultas tipadas junto a `query` (2026-09-29)
+
+Los dos `gameobject_query_*` se movieron a
+`handlers/character/query_gameobject_tests.rs`, hijo privado de `query.rs`,
+con la fila exclusiva de catalogo, sus dos items de quest y un instalador
+tipado minimo. Se conservaron nombres, GUIDs, bytes esperados y capacidad
+de envio; los otros cuatro casos siguen en `gameobject.rs` provisional.
+El instalador general mantiene sus otros consumidores. No hay cambio de
+produccion ni de visibilidad. C++ `HandleGameObjectQueryOpcode`
+(`QueryHandler.cpp:101-123`) responde desde el template o devuelve respuesta
+disallowed con el ID y GUID pedidos. La ausencia de capacidad de catalogo
+es una defensa Rust, no una prueba de fallo DB equivalente en C++.
+
+`cargo check -p wow-world` paso y el filtro
+`handlers::character::query::gameobject_tests::` ejecuto **2/2** con un job
+y target del worktree. Logs `target/b3-character-gameobject-query-check.log`
+y `target/b3-character-gameobject-query-test.log`. `query.rs` mide 795 lineas.
+Censo **303/303** nombres unicos, **154** montados por la raiz provisional;
+suite externa completa, B3 restante y aceptacion global siguen pendientes.
