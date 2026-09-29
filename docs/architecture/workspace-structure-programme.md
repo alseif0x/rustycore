@@ -2009,3 +2009,14 @@ Logs: `target/b3-character-pet-default-check.log`,
 `target/b3-character-pet-focused-test.log` y
 `target/b3-character-pet-external-check.log`. Este target pequeno si esta verde;
 el resto de `character_tests` todavia no.
+
+### B3 `character_tests`: guardia de publicacion independiente (2026-09-29)
+
+El test `committed_money_callers_publish_all_runtime_state_before_reopening_admission`
+se monta desde `tests/character_publication_order.rs`, conservando su fichero
+de source scan en `tests/character_tests/loot.rs` para mantener los `include_str!`
+relativos. No usa Session ni fixtures; se retiro el import de padre innecesario
+y el montaje del target provisional. `cargo check -p wow-world` paso y
+`cargo test -p wow-world --test character_publication_order` ejecuto **1/1**.
+Logs: `target/b3-character-publication-default-check.log` y
+`target/b3-character-publication-focused-test.log`.
