@@ -2,6 +2,29 @@ pub use crate::player::quest_persistence_test_fixture::{
     PlayerQuestLoadStageFixtureLikeCpp, PlayerQuestPersistencePortFixtureLikeCpp,
     PlayerQuestRewardPersistencePortFixtureLikeCpp,
 };
+pub use crate::session::quest_dialog::RepresentedQuestCompleteStatusUpdateLikeCpp;
+
+pub fn represented_quest_complete_status_updates_for_test(
+    session: &crate::session::WorldSession,
+) -> Vec<RepresentedQuestCompleteStatusUpdateLikeCpp> {
+    session
+        .represented_quest_complete_status_updates_like_cpp()
+        .to_vec()
+}
+
+pub fn represented_timed_quest_removals_for_test(
+    session: &crate::session::WorldSession,
+) -> Vec<u32> {
+    session.represented_timed_quest_removals_like_cpp().to_vec()
+}
+
+pub fn represented_quest_reward_skill_updates_for_test(
+    session: &crate::session::WorldSession,
+) -> Vec<(u32, u32)> {
+    session
+        .represented_quest_reward_skill_updates_like_cpp()
+        .to_vec()
+}
 
 pub fn player_quest_reward_persistence_fixture_with_outcome_for_test(
     outcome: wow_persistence::PlayerQuestRewardCommitOutcomeLikeCpp,

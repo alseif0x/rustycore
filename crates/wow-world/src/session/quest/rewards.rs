@@ -528,7 +528,7 @@ impl WorldSession {
         });
         self.sync_player_registry_state_like_cpp();
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_quest_reward_skill_updates_like_cpp(&self) -> &[(u32, u32)] {
         &self
             .quest_test_fixture_like_cpp

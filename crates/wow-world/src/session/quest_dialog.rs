@@ -300,7 +300,7 @@ pub struct RepresentedQuestConfirmAcceptLikeCpp {
 
 /// Evidence for represented `Player::CompleteQuest` status-update side effects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedQuestCompleteStatusUpdateLikeCpp {
+pub struct RepresentedQuestCompleteStatusUpdateLikeCpp {
     pub quest_id: u32,
     pub old_status: u8,
     pub new_status: u8,

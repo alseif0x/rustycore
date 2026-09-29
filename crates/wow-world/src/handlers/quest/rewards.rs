@@ -187,12 +187,12 @@ impl WorldSession {
         true
     }
 
-    #[cfg_attr(not(test), allow(unused_variables))]
+    #[cfg_attr(not(any(test, feature = "test-fixtures")), allow(unused_variables))]
     fn apply_represented_quest_reward_skill_like_cpp(
         &mut self,
         quest: &wow_data::quest::QuestTemplate,
     ) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if quest.reward_skill_line_id != 0 {
             self.quest_test_fixture_like_cpp
                 .represented_quest_reward_skill_updates_like_cpp

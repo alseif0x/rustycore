@@ -268,7 +268,7 @@ impl WorldSession {
     pub(super) fn remove_represented_timed_quest_like_cpp(&mut self, quest_id: u32) {
         let removed = self.clear_represented_quest_end_time_like_cpp(quest_id);
         if removed {
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             {
                 self.quest_test_fixture_like_cpp
                     .represented_timed_quest_removals_like_cpp
