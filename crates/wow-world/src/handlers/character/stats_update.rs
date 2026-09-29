@@ -296,3 +296,7 @@ impl WorldSession {
         self.send_packet(&update);
     }
 }
+
+#[cfg(test)]
+#[path = "stats_update_tests.rs"]
+mod tests;

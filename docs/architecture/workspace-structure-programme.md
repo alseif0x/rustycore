@@ -2419,3 +2419,23 @@ incluidos los nueve movidos y los dos Fist Weapons anteriores. Logs
 `target/b3-spell-owner-check.log` y `target/b3-spell-owner-tests.log`.
 Censo **303/303** nombres unicos, **200** montados por la raiz provisional;
 la suite externa completa sigue sin aceptacion.
+
+### B3 `misc_1`: cinco escenarios de estadisticas junto a `stats_update` (2026-09-29)
+
+Los cuatro casos de conservacion/limite de salud y mana y el de aura
+`SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE` se movieron a
+`handlers/character/stats_update_tests.rs` (274 lineas). Las cinco
+aserciones y nombres se conservaron. El fixture privado usa el constructor
+de sesion existente, instala el Player canonico y configura sus valores
+vitales mediante helpers `#[cfg(test)]`; los datos de Priest/regen y aura
+quedan locales al test, sin ensanchar la API de produccion. La referencia
+3.4.3 es `Player.cpp:17792-17800` para restauracion/limite tras login,
+`Unit/StatSystem.cpp:298-315` para los maximos y
+`SpellAuraEffects.cpp:3685-3700` para la excepcion de salud del aura.
+
+`cargo check -p wow-world` paso y el filtro
+`handlers::character::stats_update::tests::` ejecuto **5/5**; logs
+`target/b3-stats-owner-check.log` y `target/b3-stats-owner-tests.log`.
+Sin cambios de produccion ni visibilidad. Censo **303/303** nombres unicos,
+**195** montados por la raiz provisional. La suite externa completa sigue
+pendiente.
