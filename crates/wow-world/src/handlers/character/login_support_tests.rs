@@ -1,4 +1,6 @@
 use super::*;
+use crate::handlers::test_support::world::make_session;
+use std::sync::Arc;
 use wow_data::PlayerCreatePositionLikeCpp;
 
 #[test]
@@ -113,6 +115,66 @@ fn invalid_homebind_repair_selects_cpp_create_mode_and_graveyard_order() {
         Some(&scenario_garrison_store),
         2,
     ));
+}
+
+#[test]
+fn default_homebind_reads_primary_then_neutral_pandaren_from_startup_store_like_cpp() {
+    fn map(id: u32) -> wow_data::MapEntry {
+        wow_data::MapEntry {
+            id,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        }
+    }
+    let maps = wow_data::MapStore::from_entries([map(1), map(870)]);
+    let primary = wow_data::WorldSafeLocRow {
+        id: 4,
+        map_id: 1,
+        x: 1.0,
+        y: 2.0,
+        z: 3.0,
+        facing_degrees: 90.0,
+    };
+    let fallback = wow_data::WorldSafeLocRow {
+        id: 3295,
+        map_id: 870,
+        x: 4.0,
+        y: 5.0,
+        z: 6.0,
+        facing_degrees: 180.0,
+    };
+
+    let (mut session, _send_rx) = make_session();
+    let (store, report) =
+        wow_data::WorldSafeLocStore::from_rows_like_cpp([fallback, primary], &maps);
+    assert_eq!(report.loaded, 2);
+    session.set_world_safe_loc_store_like_cpp(Arc::new(store));
+    assert_eq!(
+        session
+            .load_default_graveyard_homebind_like_cpp(24)
+            .expect("neutral Pandaren uses faction primary first"),
+        CharacterLoginLocationLikeCpp {
+            map_id: 1,
+            bind_area_id: None,
+            position: Position::new(1.0, 2.0, 3.0, 90_f32.to_radians()),
+        }
+    );
+
+    let (fallback_only, report) =
+        wow_data::WorldSafeLocStore::from_rows_like_cpp([fallback], &maps);
+    assert_eq!(report.loaded, 1);
+    session.set_world_safe_loc_store_like_cpp(Arc::new(fallback_only));
+    assert_eq!(
+        session
+            .load_default_graveyard_homebind_like_cpp(24)
+            .expect("neutral Pandaren keeps C++ 3295 fallback")
+            .map_id,
+        870
+    );
 }
 
 #[test]

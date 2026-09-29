@@ -3045,3 +3045,19 @@ con `--lib` pasaron (1/1, un job, target del worktree). Logs
 **303** nombres originales sin ausencias ni duplicados, con **132** montados
 por la raiz provisional. La suite externa completa y la aceptacion global
 siguen pendientes.
+
+### B3 `misc_1`: homebind por defecto junto a `login_support` (2026-09-29)
+
+`default_homebind_reads_primary_then_neutral_pandaren_from_startup_store_like_cpp`
+paso al test privado de `login_support`, con las mismas filas de mapa y
+ubicacion y las mismas aserciones. `Player::_LoadHomeBind` en
+`Player.cpp:19228-19300` consulta primero el cementerio de faccion y usa la
+ubicacion 3295 para pandaren neutral solo si falta aquel; `ObjectMgr.cpp:6828-6841`
+fija los ids 4 y 10. El test comprueba seleccion sobre un store sintetico, no
+la carga completa desde la base de datos.
+
+`cargo check -p wow-world` y el filtro exacto `--lib` del test pasaron (1/1,
+un job, target del worktree); logs `target/b3-homebind-default-check.log` y
+`target/b3-homebind-default-test.log`. El censo mantiene **303** nombres sin
+ausencias ni duplicados y deja **131** montados en la raiz provisional. B3 y
+la aceptacion global siguen pendientes.
