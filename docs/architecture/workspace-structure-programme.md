@@ -251,13 +251,14 @@ retirar aserciones; los checks de biblioteca con y sin feature son feedback de
 compilación, no aceptación del target ni de la macro.
 
 El diagnóstico inicial del target tuvo 1 497 errores. El último check
-`cargo check -p wow-world --test quest_tests` cuenta **53 errores**
-(`target/b3-quest-rule-tests-target-check.log`), sin errores de sintaxis ni
+`cargo check -p wow-world --test quest_tests` cuenta **48 errores**
+(`target/b3-quest-event-evidence-check.log`), sin errores de sintaxis ni
 de módulo tras extraer los puentes de persistencia de quest a
 `test_fixtures/quest.rs` (`8c12c184`). Los commits hasta `20c929a4`
 recuperan las rutas originales de persistencia de dinero y quest y su evidencia
 de carga y guardado bajo la feature. Los imports canónicos y puentes de solo
-lectura redujeron más errores. Cinco pruebas de reglas privadas se trasladaron
+lectura, incluido el registro de eventos `4ba63864`, redujeron más errores.
+Cinco pruebas de reglas privadas se trasladaron
 al módulo dueño: `cargo test -p wow-world --lib rule_tests::` pasó 5/5;
 el inventario actual conserva 220 tests externos + 5 privados = 225. Este
 movimiento sigue sin commit mientras el target externo no compile. El modo
