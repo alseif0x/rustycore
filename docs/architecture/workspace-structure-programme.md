@@ -2037,3 +2037,24 @@ la suite original en `HEAD` encontro los **303 nombres** una sola vez cada uno
 en el arbol de trabajo actual (tests privados y targets externos combinados):
 0 perdidos, 0 duplicados. Esto comprueba el montaje provisional, no sustituye
 la compilacion/ejecucion completa de los 303 escenarios.
+
+### B3 `item_1`: source scans de login separados (2026-09-29)
+
+Los dos guardias `continue_login_inventory_reads_cross_the_typed_lifecycle_port`
+y `continue_login_item_repairs_cross_the_typed_lifecycle_port` viven en
+`tests/character_tests/item_login_source.rs`, montado por
+`tests/character_item_login_source.rs`. Sus aserciones y fuente inspeccionada
+son iguales; el resto de `item_1.rs` conserva 18 tests. `cargo check -p
+wow-world` paso y el target independiente ejecuto **2/2**. Logs:
+`target/b3-character-item-login-source-check.log` y
+`target/b3-character-item-login-source-test.log`. El censo tras el corte sigue
+en **303/303** nombres, sin perdida ni duplicacion en el worktree.
+
+De los 18 restantes en `item_1`, cuatro escenarios concentran seis errores
+privados en el diagnostico externo: carga de apariencias (dos metodos), estado
+mutable de almacenamiento (dos helpers), gemas engarzadas (un helper), y el
+limite privado `MAX_EQUIPMENT_SET_INDEX_LIKE_CPP` en un caso de asignacion.
+Los escenarios de save/assign/delete/use de equipment sets son candidatos a
+target independiente por operacion, con builders existentes en `fixtures_2.rs`
+y la superficie acotada de `test_fixtures/equipment_sets.rs`; los cuatro casos
+privados deben permanecer junto a sus owners o probar un contrato publico real.
