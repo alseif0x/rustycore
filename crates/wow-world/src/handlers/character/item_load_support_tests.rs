@@ -291,3 +291,58 @@ fn loaded_missing_random_property_records_are_rejected_like_cpp() {
         None
     );
 }
+
+#[test]
+fn bank_storage_mutable_state_round_trips_loaded_expiration_and_charges_like_cpp() {
+    let mut item = wow_entities::Item::default();
+    assert!(!apply_loaded_item_storage_mutable_fields_like_cpp(
+        &mut item,
+        90_000,
+        90_000,
+        "5 -2 0 7 1 ",
+        5,
+    ));
+    item.set_durability(44);
+    item.set_create_played_time(55);
+
+    let persisted = item_storage_mutable_persistence_like_cpp(
+        7_777,
+        &item,
+        3,
+        0x1234,
+        "901 12000 2 ".to_string(),
+        5,
+    );
+
+    assert_eq!(persisted.item_guid, 7_777);
+    assert_eq!(persisted.count, 3);
+    assert_eq!(persisted.expiration, 90_000);
+    assert_eq!(persisted.charges, "5 -2 0 7 1 ");
+    assert_eq!(persisted.flags, 0x1234);
+    assert_eq!(persisted.enchantments, "901 12000 2 ");
+    assert_eq!(persisted.durability, 44);
+    assert_eq!(persisted.played_time, 55);
+}
+#[test]
+fn loaded_socketed_gems_preserve_cpp_item_ids_context_and_bonus_lists() {
+    assert_eq!(
+        loaded_socketed_gems_like_cpp([
+            (700, "11 12".to_string(), 3),
+            (0, "13".to_string(), 4),
+            (701, "bad 14".to_string(), 5),
+        ]),
+        vec![
+            SocketedGem {
+                item_id: 700,
+                context: 3,
+                bonus_list_ids: vec![11, 12],
+            },
+            SocketedGem::default(),
+            SocketedGem {
+                item_id: 701,
+                context: 5,
+                bonus_list_ids: vec![14],
+            },
+        ]
+    );
+}

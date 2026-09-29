@@ -2114,3 +2114,17 @@ la misma puerta. La compilacion externa con `test-fixtures` no prueba el mismo
 estado representado de esos escenarios. Logs del intento y del corte validado:
 `target/b3-character-equipment-use-test.log` y
 `target/b3-character-equipment-use-reduced-test.log`.
+
+### B3 `item_1`: carga mutable y gemas junto al owner (2026-09-29)
+
+Los dos tests de `apply_loaded_item_storage_mutable_fields_like_cpp` y
+`loaded_socketed_gems_like_cpp` pasaron de `item_1` provisional a
+`src/handlers/character/item_load_support_tests.rs`, junto a las reglas que
+ejercen. Cuerpos y aserciones permanecen iguales; no se amplio visibilidad ni
+se cambio produccion. `cargo check -p wow-world` paso y los dos filtros
+`cargo test -p wow-world --lib` ejecutaron **1/1** cada uno. Logs:
+`target/b3-item-load-support-check.log`,
+`target/b3-item-load-support-bank-test.log` y
+`target/b3-item-load-support-gems-test.log`. El censo de nombres de la suite
+original sigue en **303/303**, sin perdidas ni duplicados; cuatro tests siguen
+en el `item_1` provisional y la suite externa grande aun no compila.
