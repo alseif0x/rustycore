@@ -1928,3 +1928,16 @@ Con un job y el target del worktree, `cargo check -p wow-map`,
 (104/104). Logs: `target/b6-respawn-visibility-wow-map-check.log`,
 `target/b6-respawn-visibility-wow-world-check.log` y
 `target/b6-respawn-visibility-respawn-test.log`.
+
+### B6 `wow-map`: visibilidad del cache de terreno (2026-09-29)
+
+`exist_map_like_cpp` queda privado de `terrain.rs`, su unico consumidor.
+`LiveTerrainHeights::terrain_for_map` queda `pub(crate)`: ademas de los metodos
+de terreno, solo lo usa `map_manager_tests/instance.rs`, hermano dentro de
+`wow-map`. No cambian cuerpos ni llamadas. Con un job y el target del worktree
+pasaron `cargo check -p wow-map`, `cargo check -p wow-world` y
+`cargo test -p wow-map --lib instance` (56/56). Logs:
+`target/b6-terrain-visibility-wow-map-check.log`,
+`target/b6-terrain-visibility-wow-world-check.log` y
+`target/b6-terrain-visibility-instance-test.log`. Sigue pendiente la aceptacion
+final de la ola.

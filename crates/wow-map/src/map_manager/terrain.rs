@@ -263,7 +263,7 @@ fn terrain_grid_bitset_from_cpp_string_like_cpp(tiles_data: &[u8]) -> Vec<bool> 
     grid_file_exists
 }
 
-pub fn exist_map_like_cpp(data_dir: &Path, map_id: u32, gx: i32, gy: i32) -> bool {
+fn exist_map_like_cpp(data_dir: &Path, map_id: u32, gx: i32, gy: i32) -> bool {
     let file_name = data_dir
         .join("maps")
         .join(format!("{map_id:04}_{gx:02}_{gy:02}.map"));
@@ -423,7 +423,7 @@ impl LiveTerrainHeights {
         }
     }
 
-    pub fn terrain_for_map(&self, map_id: u32) -> Arc<GridMapTerrain> {
+    pub(crate) fn terrain_for_map(&self, map_id: u32) -> Arc<GridMapTerrain> {
         let mut per_map = self.per_map.lock().expect("live terrain cache poisoned");
         Arc::clone(per_map.entry(map_id).or_insert_with(|| {
             let terrain = GridMapTerrain::new(map_id, &self.data_dir);
