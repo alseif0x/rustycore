@@ -240,65 +240,24 @@ el estado real, evidencia y siguiente paso. No crear otro plan o handoff paralel
 está comprometido y verde en feedback local; las demás suites, B7, la macro y su aceptación
 siguen pendientes.
 
-**Migración de quest en curso, aún sin compilar:** `b3ba48e5` preparó la fixture
-original de sesión bajo `test-fixtures`; `17aa0272` añadió operaciones estrechas
-para el estado de quests activas y recompensadas, y `b82d7881` para los conjuntos
-de cadencia y lecturas auxiliares. El traslado de `quest_tests`
+**Migración de quest en curso, aún sin compilar:** el traslado de `quest_tests`
 al target externo está en el árbol de trabajo, sin commit ni ejecución de la
-suite. El inventario estático conserva 225 funciones de test; tras adaptar
-los 23 accesos directos restantes al fixture privado y las rutas externas,
-`cargo check -p wow-world --test quest_tests` terminó con 893 diagnósticos,
-principalmente por visibilidad de métodos, tipos y constantes. El aumento
-respecto de los 850 anteriores se debe a que el compilador alcanzó más cuerpos.
-Los commits `018e6682` y `c2d68f8b` añadieron aliases bajo la feature para
-constantes canónicas, y `eedf6988`/`55a13a1f` preservaron el registro y la
-lectura de los 70 resultados de compartir quests desde el target externo.
-Ese diagnóstico (`target/b3-quest-push-outcome-consumer-check.log`) bajó
-a **581 errores**: predominan métodos privados de registro, pending-share,
-recompensa, inventario y los tipos de confirmación de quests. No hubo errores
-de sintaxis en esa compilación. Es feedback de desarrollo, no prueba verde ni
-aceptación. Quedan fixtures privadas de sesión, métodos y constantes de quest
-por adaptar sin ampliar indiscriminadamente la API de producción.
-`77e13488` preservó el estado original de pending-share bajo `test-fixtures`;
-la adaptación de sus 36 setters y 26 getters en el árbol de trabajo bajó el
-siguiente diagnóstico a **515 errores**
-(`target/b3-pending-share-consumer-check.log`), todavía sin ejecutar tests.
-`34a5de75` añadió wrappers del registro de jugadores y sus 51 consumidores
-se adaptaron sin cambiar receptores. `45f86919` habilitó el helper original
-de recompensa para la feature externa. El diagnóstico posterior cuenta
-**427 errores** (`target/b3-quest-reward-helper-consumer-check.log`), sin
-errores de sintaxis ni de tipos en esas adaptaciones. La suite aún no compila.
-`d4aba14d` conservó el fallback de oro sin `Player` canónico; el siguiente
-diagnóstico, tras adaptar 34 llamadas de oro y 17 de identidad/nombre, cuenta
-**376 errores** (`target/b3-quest-gold-consumer-check.log`). Predominan ahora
-los tipos y observaciones de confirmación de quest, inventario y recompensas.
-La suite sigue sin compilar y no tiene aceptación de test.
-`d318d97e` conservó los tipos y el registro originales de confirmación;
-tras adaptar sus lectores, el diagnóstico contó **330 errores**
-(`target/b3-quest-confirm-consumer-check.log`). Una llamada restante en la
-raíz de la suite se corrigió después de ese check; el recuento no se relabela.
-`7f66f57d` abrió solo lectura de los mapas de inventario originales bajo
-`test-fixtures`, sin clonar ni añadir mutadores; sus 24 lecturas externas se
-adaptaron y el siguiente check contó **305 errores**
-(`target/b3-quest-inventory-consumer-check.log`), ninguno de préstamos o
-tipos en los nuevos accesos. El target todavía no compila ni ha ejecutado tests.
-`4ac4df54` publicó bajo la feature los 26 códigos canónicos de resultado de
-compartir quest mediante aliases; el siguiente check de `quest_tests` bajó a
-**251 errores** (`target/b3-quest-push-reason-consumer-check.log`). No quedan
-diagnósticos de esa familia. B3 sigue abierto y la suite sin ejecutar.
-`985eebf9` conservó la evidencia original de reputación de recompensa con
-sus tipos, escritura y lectura bajo `test-fixtures`; tras adaptar nueve lecturas,
-el siguiente check bajó a **230 errores**
-(`target/b3-quest-reward-reputation-consumer-check.log`). Aún hay fallbacks
-internos de sesión, métodos privados y constantes de test por trasladar.
-`cfc969b6` preservó el fallback sin `Player` del snapshot de quests y del
-nivel para los tests externos; tras adaptar siete lecturas de slot, seis
-setters de nivel y seis asignaciones de grupo, el diagnóstico bajó a
-**211 errores** (`target/b3-quest-slot-level-group-consumer-check.log`).
-`cbd2251e` mantuvo privado el tipo de elección de recompensa y expuso solo
-sus tres valores de prueba mediante un puente al parser/validador originales;
-tras adaptar esas aserciones, el target bajó a **200 errores**
-(`target/b3-quest-choice-consumer-check.log`). Sigue sin compilar.
+suite. El inventario estático conserva 225 funciones de test. Los commits
+desde `b3ba48e5` preparan fixtures bajo `test-fixtures`: conservan los
+fallbacks originales sin `Player`, el registro de resultados de compartir y
+confirmar quests, recompensa, inventario de solo lectura, POI, Adventure Map y
+los códigos canónicos mediante aliases. Los consumidores se adaptan sin
+retirar aserciones; los checks de biblioteca con y sin feature son feedback de
+compilación, no aceptación del target ni de la macro.
+
+El diagnóstico inicial del target tuvo 1 497 errores. El último check
+`cargo check -p wow-world --test quest_tests` cuenta **132 errores**
+(`target/b3-quest-canonical-map-reader-consumer-check.log`), sin errores de
+sintaxis, de préstamos temporales ni de tipos en las llamadas recién migradas.
+Quedan imports/tipos/constantes de test, métodos y campos privados, y después
+la ejecución de las 225 pruebas. No atribuir a esta punta una suite verde ni
+aceptación final. `character_tests`, `loot_tests`, B7 y el resto de la macro
+siguen pendientes.
 
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
