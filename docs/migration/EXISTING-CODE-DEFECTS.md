@@ -44,6 +44,22 @@ bulk-closed, retested or reclassified as parity-proven by this planning review.
 
 ## Later verified open findings
 
+- **2026-09-29, bank-bag flag opcode — source-level 3.4.3 admission divergence.**
+  At Rust `0c9330cf`, `handlers/character/account/registrations/world_services.rs:222`
+  registers `ChangeBankBagSlotFlag` as `LoggedIn`, and
+  `handlers/character/bank.rs:312` accepts it, mutates a represented
+  `BankBagSlotFlags` value and sends an update. Three provisional tests in
+  `tests/character_tests/item_4.rs` expect that behavior. The pinned target
+  checkout `a5f8da2e`, `src/server/game/Server/Protocol/Opcodes.cpp:289`,
+  instead registers `CMSG_CHANGE_BANK_BAG_SLOT_FLAG` as `STATUS_UNHANDLED`
+  with `Handle_NULL`; no `HandleChangeBankBagSlotFlag` implementation was
+  found in that checkout. The Rust handler's C++ reference comment therefore
+  does not substantiate the implementation or the tests' `like_cpp` suffix.
+  This is a source contrast, not live capture or runtime reproduction.
+  Keep the behavior repair separate from the #1233 structural test migration;
+  resolve its intended 3.4.3 contract before approving those three tests as
+  parity evidence.
+
 - **2026-09-11, #743 group removal — the member's own state clear can be dropped.**
   Source-verified on `6aeca244`. When a member is kicked or the group disbands,
   the acting session mutates the registry and then asks the affected member's

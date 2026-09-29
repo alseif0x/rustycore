@@ -2267,3 +2267,14 @@ El diagnostico adicional de `--test character_tests` sigue fallando (exit
 log `target/b3-lifecycle-port-external-consumers-check.log`. Esto **no** es
 aceptacion de la suite externa. Censo **303/303** sin duplicados; **216**
 pruebas siguen montadas por la raiz provisional.
+
+### B3 `item_4`: discrepancia de admision del opcode bancario (2026-09-29)
+
+Los tres tests de `ChangeBankBagSlotFlag` no se aprueban como evidencia de
+paridad ni se trasladan todavia: la fuente 3.4.3 registra el opcode como
+`STATUS_UNHANDLED`/`Handle_NULL`, mientras Rust lo registra `LoggedIn` y
+ejecuta un handler que cambia estado y publica update. El contraste exacto,
+SHA y limites de evidencia estan en
+`docs/migration/EXISTING-CODE-DEFECTS.md`. Esta es una discrepancia previa,
+no un resultado del traslado B3; no se cambia gameplay dentro del movimiento
+estructural. Los otros escenarios de `item_4` y las demas suites pueden seguir.
