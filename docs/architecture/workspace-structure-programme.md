@@ -2972,3 +2972,25 @@ ejecuto **8/8** con un job y target del worktree. Logs
 `target/b3-binder-positive-test-b9d584a0.log`. Censo **303/303** nombres
 originales sin duplicados, **136** montados por la raiz provisional. La suite
 externa completa, B3 restante y aceptacion global siguen pendientes.
+
+### B3 `misc_1`: perfil y payloads junto a `lifecycle` (2026-09-29)
+
+Tres casos pasaron al hijo privado `lifecycle_profile_tests.rs`: rechazo de
+`AlterAppearance` sin silla, error de nombres declinados sin runtime y
+payload corto de nombres declinados. Se conservaron nombres, bytes,
+aserciones, locale `esES` y capacidad de envio; los helpers de apariencia
+siguen en el provisional por otros consumidores. No cambia produccion ni
+visibilidad. `HandleAlterAppearance` (`CharacterHandler.cpp:1671+`) valida
+apariencia antes de comprobar la silla real; que el input representado del
+test supere esas validaciones C++ sigue sin probarse. La ruta de nombres
+declinados (`CharacterHandler.cpp:1611+`) puede tener exito con datos
+validos; el caso movido solo prueba el error sin runtime. El paquete corto
+es defensa del parser Rust, sin rama equivalente del handler C++.
+
+`cargo check -p wow-world` paso y el filtro
+`cargo test -p wow-world --lib handlers::character::lifecycle::profile_tests::`
+ejecuto **3/3** con un job y target del worktree. Logs
+`target/b3-lifecycle-profile-check.log` y
+`target/b3-lifecycle-profile-test.log`. Censo **303/303** nombres originales
+sin duplicados, **133** montados por la raiz provisional. La suite externa
+completa, B3 restante y aceptacion global siguen pendientes.
