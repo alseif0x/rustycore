@@ -2292,3 +2292,13 @@ filtro unitario ejecuto **1/1**; logs `target/b3-extended-cost-turnin-check.log`
 y `target/b3-extended-cost-turnin-test.log`. Censo **303/303** sin duplicados;
 **215** pruebas siguen montadas por la raiz provisional. En `item_4` quedan
 gossip bancario y las tres pruebas del opcode con discrepancia registrada.
+
+### B3: orden de colecciones de cuenta no probado por el test antiguo (2026-09-29)
+
+El test provisional `account_collection_loads_cross_the_typed_port_in_login_order_like_cpp`
+invoca manualmente toys, heirlooms, apariencias, ilusiones y monturas. El
+coordinador Rust usa ese orden, pero `WorldSession.cpp:1187-1191` de 3.4.3
+carga monturas antes de apariencias e ilusiones. El contraste y su limite
+estan en `EXISTING-CODE-DEFECTS.md`. No se traslada ese test como evidencia
+de orden C++ ni se reordena gameplay dentro de B3; las otras familias de
+prueba siguen disponibles para migracion.

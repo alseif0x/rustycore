@@ -44,6 +44,22 @@ bulk-closed, retested or reclassified as parity-proven by this planning review.
 
 ## Later verified open findings
 
+- **2026-09-29, account-collection login order — source-level phase divergence.**
+  At Rust `11954c4e`, `handlers/character/world_entry/login.rs:363-367`
+  loads toys, heirlooms, item appearances, transmog illusions, then mounts.
+  In the pinned target checkout `a5f8da2e`,
+  `src/server/game/Server/WorldSession.cpp:1187-1191` calls
+  `CollectionMgr::LoadAccountToys`, `LoadAccountHeirlooms`,
+  `LoadAccountMounts`, `LoadAccountItemAppearances`, then
+  `LoadAccountTransmogIllusions`. The provisional
+  `tests/character_tests/persistence.rs` test
+  `account_collection_loads_cross_the_typed_port_in_login_order_like_cpp`
+  manually calls the Rust order, so its name does not prove the target login
+  order. This is a source contrast, not a demonstrated runtime difference or
+  a claim that the stages have an observable dependency. Review the complete
+  collection/login contract before changing phase order; keep any repair
+  separate from #1233's behavior-preserving test relocation.
+
 - **2026-09-29, bank-bag flag opcode — source-level 3.4.3 admission divergence.**
   At Rust `0c9330cf`, `handlers/character/account/registrations/world_services.rs:222`
   registers `ChangeBankBagSlotFlag` as `LoggedIn`, and
