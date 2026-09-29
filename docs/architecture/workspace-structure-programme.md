@@ -147,13 +147,17 @@ sin entradas eliminables ni stashes. Reconsultar Git al retomar; estos son datos
 
 **C1, análisis sin implementación (2026-09-29):** la única importación
 productiva de `wow-movement` en `wow-data` localizada está en
-`jump_charge.rs`. El corte propuesto conserva fila, normalización, informe
-y catálogo en `wow-data`, y construye `JumpChargeParams` en el adaptador de
-`world-server/src/catalogs/jump_charge.rs`, su único consumidor actual
-localizado. Hay que preservar los tests de datos y composición y verificar
-el cambio de tipo público y la ausencia de consumidores externos antes de
-retirar la dependencia del manifiesto. Esta es una inferencia de diseño
-basada en fuentes, no una arista corregida ni aceptación de C1.
+`jump_charge.rs`. El corte propuesto conserva fila, normalización, informe y
+catálogo en `wow-data`, y traslada allí el valor normalizado
+`JumpChargeSpec`/`JumpChargeParams`. Los consumidores actuales del getter son
+solo tests de datos y composición; `world-server/app.rs` guarda el catálogo
+sin conectarlo todavía a `Spell::EffectJumpCharge`. Por eso no hace falta
+crear una conversión a `wow-movement` al arrancar: la conversión de tiempo de
+movimiento a velocidad depende de la distancia en el efecto futuro, como en
+`SpellEffects.cpp:5730` de C++ 3.4.3. Antes de quitar la dependencia del
+manifiesto hay que preservar los cuatro tests de datos, tres de composición,
+contrato SQL y valorar las rutas públicas actuales de esos tipos en
+`wow-movement`. Es preflight, no una arista corregida ni aceptación de C1.
 
 **Avance local posterior, pendiente de aceptación:** commits locales `8f162870`,
 `9df13460` y `dc73db43`. La feature de fixtures de `wow-map`
