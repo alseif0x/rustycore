@@ -9,11 +9,13 @@ mod player;
 mod equipment_sets;
 mod gameobject;
 mod reputation;
+mod lifecycle_port;
 pub use quest::*;
 pub use player::*;
 pub use equipment_sets::*;
 pub use gameobject::*;
 pub use reputation::*;
+pub use lifecycle_port::CollectionLoadPortLikeCpp;
 
 pub use crate::session::quest_dialog::{
     RepresentedPendingQuestSharingLikeCpp,

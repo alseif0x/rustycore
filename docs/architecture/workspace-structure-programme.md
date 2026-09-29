@@ -2243,3 +2243,27 @@ encolado del fixture. El primer consumidor privado sera el caso de fallo
 parcial de apariencias, junto a `account/collections.rs`; el test debe pasar
 sin ampliar ninguna API productiva. La retirada de la copia provisional y
 el resto de consumidores se verificaran antes de dar esta costura por cerrada.
+
+### B3: port compartido y fallo parcial de apariencias (2026-09-29)
+
+`CollectionLoadPortLikeCpp` vive ahora una sola vez en
+`src/test_fixtures/lifecycle_port.rs` (**377 lineas**, feature `test-fixtures`),
+reexportado desde `test_fixtures.rs`. Su implementacion del trait conserva
+literalmente los metodos originales; los campos internos son privados.
+`post_add_rest` y `post_add_scaling` encolan el mismo futuro por
+`enqueue_initial_world_state_outcome`. La copia de `fixtures_1` provisional
+se retiro. El ultimo caso de `item_1`, fallo de la lectura de bloques de
+apariencias con favoritos cargados, vive junto a
+`handlers/character/account/collections.rs` y conserva sus aserciones; el
+montaje y fichero provisional `item_1` se retiraron.
+
+`cargo check -p wow-world` paso. El filtro unitario de apariencias ejecuto
+**1/1** tanto con `--features test-fixtures` como sin feature explicita
+(self dev-dependency); logs `target/b3-lifecycle-port-seam-check.log`,
+`target/b3-lifecycle-port-account-appearance-test.log` y
+`target/b3-lifecycle-port-account-appearance-default-test.log`.
+El diagnostico adicional de `--test character_tests` sigue fallando (exit
+101, 502 errores residuales), sin errores que nombren el port trasladado;
+log `target/b3-lifecycle-port-external-consumers-check.log`. Esto **no** es
+aceptacion de la suite externa. Censo **303/303** sin duplicados; **216**
+pruebas siguen montadas por la raiz provisional.

@@ -323,3 +323,7 @@ impl WorldSession {
         self.load_represented_account_transmog_illusions_like_cpp(illusion_blocks);
     }
 }
+
+#[cfg(all(test, feature = "test-fixtures"))]
+#[path = "collections_tests.rs"]
+mod tests;
