@@ -504,6 +504,11 @@ fn an_unknown_outcome_is_neither_applied_nor_a_plain_failure_like_cpp() {
 
 #[test]
 fn stored_item_money_reconciliation_requires_joint_money_and_source_evidence_like_cpp() {
+    // Rust-specific durability protocol: the database adapter updates character
+    // money and deletes stored Item money in one transaction, then reconciles
+    // both rows after an unknown COMMIT. Pinned C++ HandleLootMoneyOpcode
+    // changes runtime money and StoredLootContainer::RemoveMoney deletes the
+    // source separately; it has no matching joint-transaction readback.
     let outcome = StoredItemMoneyPersistenceOutcomeLikeCpp {
         before: 100,
         after: 107,
@@ -520,7 +525,33 @@ fn stored_item_money_reconciliation_requires_joint_money_and_source_evidence_lik
     );
     assert_eq!(
         classify_stored_item_money_reconciliation_like_cpp(outcome, 100, None),
-        StoredItemMoneyReconciliationLikeCpp::Indeterminate { reason: None }
+        StoredItemMoneyReconciliationLikeCpp::Indeterminate { reason: None },
+        "a missing source alone cannot attribute a later consumer's commit to this attempt"
+    );
+    assert_eq!(
+        classify_stored_item_money_reconciliation_like_cpp(outcome, 107, Some(7)),
+        StoredItemMoneyReconciliationLikeCpp::Indeterminate { reason: None },
+        "an after-balance with the source still present is contradictory evidence"
+    );
+}
+
+#[test]
+fn stored_item_money_cap_noop_still_reconciles_source_consumption_like_cpp() {
+    // Synthetic unchanged balance: cap arithmetic is covered by the database
+    // adapter test, while this SQLx-free contract checks source reconciliation.
+    let outcome = StoredItemMoneyPersistenceOutcomeLikeCpp {
+        before: 100,
+        after: 100,
+        applied_delta: 0,
+        notified_amount: 2,
+    };
+    assert_eq!(
+        classify_stored_item_money_reconciliation_like_cpp(outcome, 100, None),
+        StoredItemMoneyReconciliationLikeCpp::Committed
+    );
+    assert_eq!(
+        classify_stored_item_money_reconciliation_like_cpp(outcome, 100, Some(2)),
+        StoredItemMoneyReconciliationLikeCpp::RolledBack
     );
 }
 

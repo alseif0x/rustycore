@@ -140,7 +140,7 @@ sin entradas eliminables ni stashes. Reconsultar Git al retomar; estos son datos
 |---|---|
 | B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Se estrecharon exports internos revisados de terrain, grid y pathfinder; el manager legado sigue requerido por `wow-world`/`world-server`. Faltan los demás exports, features/composición y aceptación del candidato. |
 | B5 | Raíces de loot y character miden 243/239 líneas y todos sus hijos extraídos menos de 600. Se estrecharon rutas heredadas de visibilidad de ambos adaptadores, incluido el plan de inventario test-only tras mover sus dos tests privados. Faltan el resto de exports y la aceptación del candidato. |
-| B3 | `group_tests` ya es target de integración. `quest_tests` existe como target provisional; `character_tests` se distribuye por owners, con **303** nombres originales conservados y **121** aún montados en la raíz provisional del árbol local. La suite externa de character aún no compila completa; la migración de quest y loot tampoco está aceptada. |
+| B3 | `group_tests` ya es target de integración. `quest_tests` existe como target provisional; `character_tests` se distribuye por owners, con **303** nombres originales conservados y **119** aún montados en la raíz provisional del árbol local. La suite externa de character aún no compila completa; la migración de quest y loot tampoco está aceptada. |
 | B7 | Hay limpieza parcial integrada; la revisión del 2026-09-29 detecta avisos e imports independientes para un próximo corte, pero los consumidores restantes de fixtures dependen de B3. No está cerrado. |
 | Talentos #578 | La rama `recover/578-talent-catalog`, `0845f5b3`, conserva `docs/migration/recovered/578-talent-catalog-2026-09-04.patch`; el archivo solo existe en esa rama, no en este checkout. No está aplicado; preservar la rama y adaptar por consumidores actuales cuando corresponda. |
 | Orquestación | Sol medium / Luna max copiado a este worktree. Cambios compartidos aún locales, y `.codex/config.toml` ignorado. Iniciar sesión nueva y comprobar runtime efectivo; preservar estos cambios al continuar. |
@@ -3226,3 +3226,35 @@ hearth (**3/3**) y `cargo check -p world-server` como consumidor B6. Un job,
 `target/b6-pathfinder-check-world-server.log`. El ultimo check tardo **4m56s**
 y el test de hearth **2m40s**; son costes de feedback local, no una campaña
 final medida. B3/B5/B6 y aceptacion global siguen pendientes.
+
+### B3: tablas de creacion y dinero almacenado; B5 loot (2026-09-29)
+
+`start_positions_are_valid` y `display_ids_are_valid` pasaron de
+`character_tests/misc_2.rs` al test privado de `creation_support.rs`, junto
+a `start_zones_are_valid`. Conservan datos y aserciones; comprueban sanidad de
+tablas Rust, no igualdad por raza/clase con `ObjectMgr::LoadPlayerInfo` o
+`Player::Create` de C++. El censo de character mantiene **303** nombres sin
+ausencias ni duplicados, con **119** en la raiz provisional.
+
+Se retiraron tres tests puros duplicados de `loot_tests/item_1.rs` tras
+revisar su cobertura en `wow-persistence/src/tests.rs`: se añadio el caso
+`after balance + source presente -> Indeterminate` al test de reconciliacion
+y un caso de saldo estable/consumo de fuente con valor sintetico. El test
+existente de fuente ausente con importe cero conserva exactamente esa
+asercion; la aritmetica del tope real queda en el test del adaptador de
+`wow-database`. El worker de sesion permanece en loot. La transaccion
+conjunta y lectura tras COMMIT desconocido son contrato Rust; el C++
+`HandleLootMoneyOpcode` y `StoredLootContainer::RemoveMoney` no los hacen
+como una unidad atomica.
+
+B5 limito a `crate::handlers` tres helpers de loot: los wrappers test-only
+de tick de rolls y espera de persistencia, y el retiro de loot destruido
+consumido por void storage. No cambian sus cuerpos. Pasaron
+`cargo test -p wow-persistence --lib stored_item_money` (**3/3**),
+`cargo check -p wow-world`, el filtro privado de `creation_support`
+(**6/6**) y el worker de dinero almacenado (**1/1**), con un job y target del
+worktree. Logs `target/b3-stored-money-persistence-test.log`,
+`target/b3-creation-b5-loot-check-wow-world.log`,
+`target/b3-creation-support-focused-test.log` y
+`target/b3-stored-money-worker-focused-test.log`. B3/B5 y aceptacion global
+siguen pendientes.

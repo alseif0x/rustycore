@@ -855,7 +855,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub(crate) async fn tick_represented_loot_rolls_like_cpp(&mut self) {
+    pub(in crate::handlers) async fn tick_represented_loot_rolls_like_cpp(&mut self) {
         let generators = self.id_generators_for_test_like_cpp();
         let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
         self.tick_represented_loot_rolls_with_generator_like_cpp(

@@ -564,7 +564,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub(crate) async fn wait_for_active_loot_persistence_like_cpp(&mut self) {
+    pub(in crate::handlers) async fn wait_for_active_loot_persistence_like_cpp(&mut self) {
         let generators = self.id_generators_for_test_like_cpp();
         self.wait_for_active_loot_persistence_with_generator_like_cpp(generators.item.as_ref())
             .await;
@@ -575,7 +575,7 @@ impl WorldSession {
     /// window teardown from destroying the Item and its owned `Loot`; this is
     /// deliberately narrower than `DoLootReleaseAll` and cannot consume or
     /// otherwise mutate an unrelated active loot owner.
-    pub(crate) fn retire_committed_destroyed_item_loot_like_cpp(
+    pub(in crate::handlers) fn retire_committed_destroyed_item_loot_like_cpp(
         &mut self,
         item_guid: ObjectGuid,
         player_guid: ObjectGuid,

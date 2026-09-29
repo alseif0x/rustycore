@@ -6,58 +6,6 @@
 use super::*;
 use wow_loot::{LOOT_METHOD_GROUP_LIKE_CPP, LOOT_METHOD_MASTER_LIKE_CPP};
 
-#[test]
-fn stored_item_money_commit_unknown_requires_joint_balance_and_source_evidence_like_cpp() {
-    let outcome = StoredItemMoneyPersistenceOutcomeLikeCpp {
-        before: 100,
-        after: 107,
-        applied_delta: 7,
-        notified_amount: 7,
-    };
-    assert_eq!(
-        classify_stored_item_money_reconciliation_like_cpp(outcome, 100, Some(7)),
-        StoredItemMoneyReconciliationLikeCpp::RolledBack
-    );
-    assert_eq!(
-        classify_stored_item_money_reconciliation_like_cpp(outcome, 107, None),
-        StoredItemMoneyReconciliationLikeCpp::Committed
-    );
-    assert_eq!(
-        classify_stored_item_money_reconciliation_like_cpp(outcome, 100, None),
-        StoredItemMoneyReconciliationLikeCpp::Indeterminate { reason: None },
-        "a missing source alone cannot attribute a later consumer's commit to this attempt"
-    );
-    assert_eq!(
-        classify_stored_item_money_reconciliation_like_cpp(outcome, 107, Some(7)),
-        StoredItemMoneyReconciliationLikeCpp::Indeterminate { reason: None }
-    );
-}
-#[test]
-fn stored_item_money_cap_noop_still_reconciles_source_consumption_like_cpp() {
-    let outcome = StoredItemMoneyPersistenceOutcomeLikeCpp {
-        before: MAX_MONEY_AMOUNT - 1,
-        after: MAX_MONEY_AMOUNT - 1,
-        applied_delta: 0,
-        notified_amount: 2,
-    };
-    assert_eq!(
-        classify_stored_item_money_reconciliation_like_cpp(outcome, MAX_MONEY_AMOUNT - 1, None,),
-        StoredItemMoneyReconciliationLikeCpp::Committed
-    );
-    assert_eq!(
-        classify_stored_item_money_reconciliation_like_cpp(outcome, MAX_MONEY_AMOUNT - 1, Some(2),),
-        StoredItemMoneyReconciliationLikeCpp::RolledBack
-    );
-}
-#[test]
-fn stored_item_money_zero_without_db_source_is_success_but_positive_is_consumed() {
-    let zero = stored_item_money_zero_without_source_outcome_like_cpp(41, 0).unwrap();
-    assert_eq!(zero.before, 41);
-    assert_eq!(zero.after, 41);
-    assert_eq!(zero.applied_delta, 0);
-    assert_eq!(zero.notified_amount, 0);
-    assert!(stored_item_money_zero_without_source_outcome_like_cpp(41, 1).is_none());
-}
 #[tokio::test]
 async fn stored_item_money_worker_requires_and_uses_the_typed_persistence_port_like_cpp() {
     let mut session = make_session();

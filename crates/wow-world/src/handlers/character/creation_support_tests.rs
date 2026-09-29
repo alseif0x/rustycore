@@ -30,3 +30,28 @@ fn start_zones_are_valid() {
         assert!(zone > 0, "Race {race} has invalid zone");
     }
 }
+
+#[test]
+fn start_positions_are_valid() {
+    // Rust table sanity only; this enumeration is not proof of C++ parity.
+    for race in [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 22] {
+        let (map, x, y, z, _o) = start_position(race);
+        assert!(map >= 0, "Race {race} has invalid map");
+        // Positions should be non-zero (except possibly orientation)
+        assert!(
+            x != 0.0 || y != 0.0 || z != 0.0,
+            "Race {race} has zero position"
+        );
+    }
+}
+
+#[test]
+fn display_ids_are_valid() {
+    // Rust table sanity only; this enumeration is not proof of C++ parity.
+    for race in [1, 2, 3, 4, 5, 6, 7, 8, 10, 11] {
+        for sex in [0u8, 1] {
+            let id = default_display_id(race, sex);
+            assert!(id > 0, "Race {race} sex {sex} has zero display ID");
+        }
+    }
+}
