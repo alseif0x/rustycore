@@ -272,3 +272,25 @@ fn total_stat_percentage_non_ability_keeps_current_health_like_cpp() {
         "C++ only preserves health percentage for SPELL_ATTR0_IS_ABILITY"
     );
 }
+
+#[test]
+fn level_up_stat_update_refills_health_and_mana_like_cpp() {
+    let (mut session, _send_rx) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 76);
+    session.set_player_guid(Some(player_guid));
+    set_loaded_player_identity_like_cpp(&mut session, 571, 1, 5, 80, 0);
+    set_priest_level80_stats(&mut session, 1000, 40);
+    attach_stat_update_player_with_mana_and_health(&mut session, player_guid, 777, 1320, 3, 10);
+
+    session.send_level_up_stat_update_like_cpp();
+
+    assert_eq!(
+        canonical_player_health_snapshot_for_test(&session),
+        Some((10, 10))
+    );
+    assert_eq!(
+        canonical_player_power_snapshot_for_test(&session, PowerType::Mana),
+        Some((1320, 1320))
+    );
+    assert_eq!(session.player_health_like_cpp(), 10);
+}

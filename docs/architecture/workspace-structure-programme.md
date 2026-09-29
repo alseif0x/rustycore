@@ -2617,3 +2617,23 @@ target del worktree. Logs `target/b3-character-post-add-rest-check.log` y
 `target/b3-character-post-add-rest-test.log`. Censo **303/303** nombres unicos,
 **167** montados por la raiz provisional. La suite externa completa, el resto
 de B3 y la aceptacion global siguen pendientes.
+
+### B3 `skill`: deltas y recarga de subida de nivel (2026-09-29)
+
+`level_up_deltas_use_cpp_class_race_stats_and_base_mp` se movio al hijo
+privado `handlers/character/stats_queries_tests.rs` y
+`level_up_stat_update_refills_health_and_mana_like_cpp` a
+`handlers/character/stats_update_tests.rs`, que ya tenia sus fixtures de
+jugador y estadisticas. El hijo provisional `skill.rs` conserva solo el caso
+de cinematica. Se preservan nombres y aserciones, sin cambio productivo ni
+de visibilidad. `Player::GiveLevel` consulta las estadisticas de raza/clase y
+mana base, calcula deltas, actualiza estadisticas y repone salud y los powers
+marcados para recarga (`Player.cpp:2247-2314`). Estos dos tests cubren solo
+las proyecciones y la publicacion Rust que afirman sus aserciones.
+
+`cargo check -p wow-world` paso; cada filtro focal ejecuto **1/1** con un job
+y target del worktree. Logs `target/b3-character-level-up-check.log`,
+`target/b3-character-level-up-deltas-test.log` y
+`target/b3-character-level-up-refill-test.log`. Censo **303/303** nombres
+unicos, **165** montados por la raiz provisional; la suite externa, B3
+restante y la aceptacion global siguen pendientes.

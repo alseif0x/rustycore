@@ -7,6 +7,10 @@
 
 use super::*;
 
+#[cfg(test)]
+#[path = "stats_queries_tests.rs"]
+mod tests;
+
 impl WorldSession {
     pub(crate) fn level_up_stat_deltas_like_cpp(&self, new_level: u8) -> Option<(i32, [i32; 5])> {
         let store = self.player_stats()?;
