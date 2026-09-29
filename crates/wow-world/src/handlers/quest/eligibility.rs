@@ -7,6 +7,10 @@
 
 use super::*;
 
+#[cfg(test)]
+#[path = "eligibility_tests.rs"]
+mod tests;
+
 impl WorldSession {
     /// Resolves CMSG_QUEST_GIVER_STATUS_QUERY through the represented equivalent of
     /// C++ `ObjectAccessor::GetObjectByTypeMask(*_player, guid, TYPEMASK_UNIT | TYPEMASK_GAMEOBJECT)`.

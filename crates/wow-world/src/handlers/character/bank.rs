@@ -292,7 +292,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_buy_bank_slot(&mut self, buy: BuyBankSlot) {
+    async fn handle_buy_bank_slot(&mut self, buy: BuyBankSlot) {
         let prices = self
             .bank_bag_slot_prices_store_for_test_like_cpp()
             .cloned()
@@ -353,3 +353,7 @@ impl WorldSession {
         self.send_player_bank_bag_slot_flag_update_like_cpp(slot, updated);
     }
 }
+
+#[cfg(test)]
+#[path = "bank_tests.rs"]
+mod bank_tests;

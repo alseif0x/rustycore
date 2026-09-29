@@ -5,6 +5,10 @@
 
 use super::*;
 
+#[cfg(test)]
+#[path = "reply_items_tests.rs"]
+mod tests;
+
 pub(in crate::handlers::loot) fn direct_item_count_after_loot_release_like_cpp(
     current_count: u32,
     maximum_destroy_count: Option<u32>,

@@ -440,56 +440,6 @@ fn can_take_quest_blocks_when_session_expansion_below_required_like_cpp() {
     assert!(session2.can_take_quest(&quest2));
 }
 #[test]
-fn can_take_quest_blocks_daily_already_completed_like_cpp() {
-    // NEGATIVE: a daily quest already in DailyQuestsCompleted is blocked
-    // (C++ SatisfyQuestDay, Player.cpp:15393-15407).
-    let (mut session, _send_rx) = make_session();
-    let mut quest = quest_template(7600u32);
-    quest.flags = QUEST_FLAGS_DAILY_LIKE_CPP;
-    let store = QuestStore::from_quests_like_cpp([quest.clone()]);
-    session.set_quest_store(Arc::new(store));
-    insert_daily_quest_completed_for_test(&mut session, quest.id);
-
-    assert!(!session.can_take_quest(&quest));
-}
-#[test]
-fn can_take_quest_allows_daily_not_yet_completed_like_cpp() {
-    // POSITIVE: a daily quest not yet completed today is acceptable.
-    let (mut session, _send_rx) = make_session();
-    let mut quest = quest_template(7601u32);
-    quest.flags = QUEST_FLAGS_DAILY_LIKE_CPP;
-    let store = QuestStore::from_quests_like_cpp([quest.clone()]);
-    session.set_quest_store(Arc::new(store));
-
-    assert!(session.can_take_quest(&quest));
-}
-#[test]
-fn can_take_quest_blocks_df_quest_already_completed_like_cpp() {
-    // NEGATIVE: a DF (dungeon-finder) quest already in DFQuests is blocked
-    // (C++ SatisfyQuestDay DFQuest branch, Player.cpp:15393-15407).
-    let (mut session, _send_rx) = make_session();
-    let mut quest = quest_template(7602u32);
-    quest.special_flags = QUEST_SPECIAL_FLAGS_DF_QUEST_LIKE_CPP;
-    let store = QuestStore::from_quests_like_cpp([quest.clone()]);
-    session.set_quest_store(Arc::new(store));
-    insert_df_quest_for_test(&mut session, quest.id);
-
-    assert!(!session.can_take_quest(&quest));
-}
-#[test]
-fn can_take_quest_blocks_weekly_already_completed_like_cpp() {
-    // NEGATIVE: a weekly quest already in the weekly cooldown set is blocked
-    // (C++ SatisfyQuestWeek, Player.cpp:15409-15418).
-    let (mut session, _send_rx) = make_session();
-    let mut quest = quest_template(7603u32);
-    quest.flags = QUEST_FLAGS_WEEKLY_LIKE_CPP;
-    let store = QuestStore::from_quests_like_cpp([quest.clone()]);
-    session.set_quest_store(Arc::new(store));
-    insert_weekly_quest_completed_for_test(&mut session, quest.id);
-
-    assert!(!session.can_take_quest(&quest));
-}
-#[test]
 fn can_take_quest_allows_weekly_not_yet_completed_like_cpp() {
     // POSITIVE: a weekly quest not on cooldown is acceptable.
     let (mut session, _send_rx) = make_session();
@@ -499,19 +449,6 @@ fn can_take_quest_allows_weekly_not_yet_completed_like_cpp() {
     session.set_quest_store(Arc::new(store));
 
     assert!(session.can_take_quest(&quest));
-}
-#[test]
-fn can_take_quest_blocks_monthly_already_completed_like_cpp() {
-    // NEGATIVE: a monthly quest already in the monthly cooldown set is blocked
-    // (C++ SatisfyQuestMonth, Player.cpp:15445-15454).
-    let (mut session, _send_rx) = make_session();
-    let mut quest = quest_template(7605u32);
-    quest.special_flags = QUEST_SPECIAL_FLAGS_MONTHLY_LIKE_CPP;
-    let store = QuestStore::from_quests_like_cpp([quest.clone()]);
-    session.set_quest_store(Arc::new(store));
-    insert_monthly_quest_completed_for_test(&mut session, quest.id);
-
-    assert!(!session.can_take_quest(&quest));
 }
 #[test]
 fn can_take_quest_allows_monthly_not_yet_completed_like_cpp() {

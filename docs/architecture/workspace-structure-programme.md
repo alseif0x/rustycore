@@ -140,7 +140,7 @@ sin entradas eliminables ni stashes. Reconsultar Git al retomar; estos son datos
 |---|---|
 | B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Los exports de terrain y grid revisados se estrecharon donde había consumidores internos demostrados. El manager legado sigue requerido por `wow-world`/`world-server`; faltan los demas exports, features/composición y aceptación del candidato. |
 | B5 | Raíces de loot y character miden 243/239 líneas y todos sus hijos extraídos menos de 600. Se estrecharon las rutas heredadas de visibilidad revisadas, incluido el plan de inventario test-only tras mover sus dos tests privados. Faltan el resto de exports y la aceptación del candidato. |
-| B3 | `group_tests` ya es target de integración. `quest_tests` existe como target provisional; `character_tests` se distribuye por owners, con **303** nombres originales conservados y **128** aún montados en la raíz provisional tras `d3c5b7a0`. La suite externa de character aún no compila completa; la migración de quest y loot tampoco está aceptada. |
+| B3 | `group_tests` ya es target de integración. `quest_tests` existe como target provisional; `character_tests` se distribuye por owners, con **303** nombres originales conservados y **124** aún montados en la raíz provisional del árbol local. La suite externa de character aún no compila completa; la migración de quest y loot tampoco está aceptada. |
 | B7 | Hay limpieza parcial integrada; la revisión del 2026-09-29 detecta avisos e imports independientes para un próximo corte, pero los consumidores restantes de fixtures dependen de B3. No está cerrado. |
 | Talentos #578 | La rama `recover/578-talent-catalog`, `0845f5b3`, conserva `docs/migration/recovered/578-talent-catalog-2026-09-04.patch`; el archivo solo existe en esa rama, no en este checkout. No está aplicado; preservar la rama y adaptar por consumidores actuales cuando corresponda. |
 | Orquestación | Sol medium / Luna max copiado a este worktree. Cambios compartidos aún locales, y `.codex/config.toml` ignorado. Iniciar sesión nueva y comprobar runtime efectivo; preservar estos cambios al continuar. |
@@ -3130,3 +3130,33 @@ el import. `cargo check -p wow-world` paso (un job, target del worktree),
 log `target/b7-driver-import-check.log`. El resumen del crate bajo este
 arbol bajo de 273 a 272 avisos; sigue pendiente la limpieza B7 restante y
 la aceptacion global.
+
+### B3: bank, loot reply y elegibilidad junto a sus owners (2026-09-29)
+
+Cuatro `buy_bank_slot_*` salieron del provisional `character_tests/item_3.rs`
+al hijo privado de `bank.rs`; sus tres fixtures comunes viven ahora en
+`bank_test_support.rs` bajo `cfg(test)` y tambien sirven a `gossip_tests.rs`,
+que baja a 712 lineas. El wrapper bancario solo de test se hizo privado; el
+helper productivo y su registro no cambiaron. `BankHandler.cpp:122-150`
+respalda compra y rechazos; el caso de rollback definitivo cubre el contrato
+de persistencia Rust y no una transaccion inmediata equivalente en C++.
+
+Dos casos de respuesta de loot salieron de `loot_tests/item_1.rs` al hijo
+privado de `loot/reply_items.rs`; un fixture local conserva sus defaults.
+`Loot.cpp:140,915,995,1024` respalda las reglas de UI, FFA y proyeccion de
+items, no serializacion ni apertura completa del loot. Cinco casos de
+recurrencia salieron de `tests/quest_tests/quest_7.rs` al hijo privado de
+`quest/eligibility.rs`; el resto de escenarios de flujo sigue externo.
+`Player.cpp:14087-14096,15387-15410,15439-15446` respalda las puertas diaria,
+DF, semanal y mensual. Los tests siembran estado sintetico sin Player cargado;
+no prueban hidratacion, resets ni persistencia.
+
+El censo mantiene los **303** nombres originales de character sin ausencias
+ni duplicados, con **124** en su raiz provisional. Cada uno de los dos nombres
+movidos de loot y los cinco de quest aparece una vez. `cargo check -p wow-world`
+y `cargo check -p wow-world --test quest_tests` pasaron; los filtros `--lib`
+pasaron bank **4/4**, gossip **8/8**, loot reply **2/2** y elegibilidad **5/5**.
+Un job, target del worktree; logs `target/584-b3-01-cargo-check-wow-world.log`
+a `target/584-b3-06-check-quest-tests.log`. Los 272 avisos de la lib no
+aumentaron. La suite externa de character, B3 total y aceptacion global
+siguen pendientes.

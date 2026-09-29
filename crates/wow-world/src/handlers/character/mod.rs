@@ -12,6 +12,8 @@
 
 mod account;
 mod bank;
+#[cfg(test)]
+mod bank_test_support;
 mod condition_objects;
 mod corpse_loading;
 mod creation_support;
