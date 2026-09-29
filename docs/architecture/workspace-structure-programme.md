@@ -261,15 +261,15 @@ las 219 pruebas externas completas ni se revalidó el modo sin feature tras los
 `1a5ea280` ni de la macro. `character_tests`, `loot_tests`, B7 y el resto de
 `wow-world` siguen pendientes.
 
-**Diagnóstico de character en curso, sin commit:** se copió la suite de
-`character_tests` (303 tests, 13 280 líneas con sus fixtures) a un target externo
-y se retiró su montaje antiguo solo en el árbol de trabajo. El primer
-`cargo check -p wow-world --test character_tests` arrojó 1 131 errores
-(`target/b3-character-initial-check.log`), principalmente visibilidad y nombres
-que el viejo `super::*` aportaba. Reusar el fixture ya existente de identidad
-cargada eliminó 42 errores: el último diagnóstico tiene 1 089
-(`target/b3-character-identity-fixture-check.log`). No se han ejecutado sus
-tests ni se ha comprometido el traslado. Conservar los 303 nombres y separar
+**Diagnóstico de character en curso:** se copió la suite de `character_tests`
+(303 tests, 13 280 líneas con sus fixtures) a un target externo y se retiró su
+montaje antiguo en el árbol de trabajo. El check más reciente,
+`cargo check -p wow-world --test character_tests`, aún falla con 878 errores
+(`target/b3-character-trainer-interaction-check.log`): E0277=10, E0422=86,
+E0425=201, E0432=2, E0433=37, E0599=148, E0603=55, E0609=31, E0616=14 y
+E0624=294. El puente productor de interaction source está en `4c21ba88`; los
+wrappers trainer, el traslado y las adaptaciones consumidoras siguen sin commit.
+No se han ejecutado tests de character. Conservar los 303 nombres y separar
 las reglas privadas del target de aplicación antes de aceptarlo.
 
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
