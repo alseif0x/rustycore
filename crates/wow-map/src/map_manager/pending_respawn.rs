@@ -35,7 +35,7 @@ pub enum LegacyRespawnTimeAddOutcomeLikeCpp {
     RejectedExistingSoonerOrEqual,
 }
 
-pub fn spawn_object_type_raw_like_cpp(object_type: SpawnObjectType) -> u16 {
+pub(super) fn spawn_object_type_raw_like_cpp(object_type: SpawnObjectType) -> u16 {
     u16::from(object_type as u8)
 }
 

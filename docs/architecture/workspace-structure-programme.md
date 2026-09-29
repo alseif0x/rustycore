@@ -1916,3 +1916,15 @@ Con un job y el target del worktree pasaron `cargo check -p wow-map`,
 Logs: `target/b6-movement-visibility-wow-map-check.log`,
 `target/b6-movement-visibility-wow-world-check.log` y
 `target/b6-movement-visibility-movement-test.log`. La aceptacion final sigue pendiente.
+
+### B6 `wow-map`: visibilidad interna de respawn (2026-09-29)
+
+`spawn_object_type_raw_like_cpp` y
+`WorldCreature::restore_respawn_aura_source_authority_like_cpp` vuelven a
+`pub(super)`; el primer helper deja de reexportarse desde `map_manager`.
+Solo hay consumidores dentro de ese modulo. Cuerpos y llamadas no cambiaron.
+Con un job y el target del worktree, `cargo check -p wow-map`,
+`cargo check -p wow-world` y `cargo test -p wow-map --lib respawn` pasaron
+(104/104). Logs: `target/b6-respawn-visibility-wow-map-check.log`,
+`target/b6-respawn-visibility-wow-world-check.log` y
+`target/b6-respawn-visibility-respawn-test.log`.

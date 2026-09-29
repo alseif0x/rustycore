@@ -248,5 +248,3 @@ pub(crate) use self::terrain::{
 use self::grid::{
     calculate_cell_area_like_cpp, cell_area_contains_position_like_cpp, position_to_i32_tuple,
 };
-
-pub use self::pending_respawn::spawn_object_type_raw_like_cpp;

@@ -8,7 +8,7 @@
 use super::*;
 
 impl WorldCreature {
-    pub fn restore_respawn_aura_source_authority_like_cpp(
+    pub(super) fn restore_respawn_aura_source_authority_like_cpp(
         &mut self,
         spell_hit: bool,
         spell_cast_log: bool,
