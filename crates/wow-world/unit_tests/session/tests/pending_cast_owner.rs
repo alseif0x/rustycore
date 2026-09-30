@@ -30,7 +30,7 @@ fn cancelled(id: i64) -> Vec<u8> {
 fn pending_cast_uses_active_and_detached_player_and_publishes_replacement_cancel_once() {
     let (mut session, _, send_rx) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     for detached in [false, true] {
         if detached {
             assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
@@ -60,6 +60,7 @@ fn pending_cast_uses_active_and_detached_player_and_publishes_replacement_cancel
         );
         assert!(
             session
+                .spell_state
                 .represented_pending_spell_cast_request_like_cpp
                 .is_none()
         );
@@ -77,7 +78,7 @@ fn pending_cast_uses_active_and_detached_player_and_publishes_replacement_cancel
 fn stale_pending_cast_cannot_cancel_replace_or_publish_for_new_incarnation() {
     let (mut session, _, send_rx) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
@@ -104,7 +105,7 @@ fn stale_pending_cast_cannot_cancel_replace_or_publish_for_new_incarnation() {
         Some(Some(request(guid, 3)))
     );
     assert!(drain_server_opcodes(&send_rx).is_empty());
-    session.canonical_map_manager = None;
+    session.core.canonical_map_manager = None;
     assert_eq!(
         session.with_owned_player_mut_like_cpp(|_| panic!("missing owner")),
         None::<()>

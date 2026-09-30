@@ -437,7 +437,7 @@ pub(super) fn request(
 
     Some(PlayerCharacterSaveRequestLikeCpp {
         player_guid: guid_counter,
-        account_id: session.account_id,
+        account_id: session.core.account_id,
         wall_clock_unix_secs: now_unix_secs,
         character,
         spells,

@@ -32,8 +32,12 @@ impl WorldSession {
                 .collect()
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.represented_completed_achievements_like_cpp.clone());
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(
+                self.collections
+                    .represented_completed_achievements_like_cpp
+                    .clone(),
+            );
         }
         canonical
     }
@@ -59,8 +63,8 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_completed_achievements_like_cpp = achievement_ids;
+        if self.core.player_handle_like_cpp.is_none() {
+            self.collections.represented_completed_achievements_like_cpp = achievement_ids;
             return true;
         }
         canonical
@@ -73,12 +77,18 @@ impl WorldSession {
             return true;
         }
 
-        let Some(player_guid) = self.player_guid else {
+        let Some(player_guid) = self.core.player_guid else {
             return false;
         };
         let leader_guid = self
             .resolved_group_guid_like_cpp()
-            .and_then(|group_guid| self.directory.group_registry.as_ref()?.get(&group_guid))
+            .and_then(|group_guid| {
+                self.core
+                    .directory
+                    .group_registry
+                    .as_ref()?
+                    .get(&group_guid)
+            })
             .map(|group| group.leader_guid)
             .unwrap_or(player_guid);
         if leader_guid == player_guid {
@@ -87,7 +97,7 @@ impl WorldSession {
                 .is_some_and(|achievements| achievements.contains(&achievement_id));
         }
 
-        self.player_registry.as_ref().is_some_and(|registry| {
+        self.core.player_registry.as_ref().is_some_and(|registry| {
             registry.connected_player_has_achievement(leader_guid, achievement_id)
         })
     }
@@ -97,12 +107,14 @@ impl WorldSession {
         bid: RepresentedAuctionPlaceBidLikeCpp,
     ) {
         #[cfg(test)]
-        self.represented_auction_place_bids_like_cpp.push(bid);
+        self.inventory
+            .represented_auction_place_bids_like_cpp
+            .push(bid);
     }
     #[cfg(test)]
     pub(crate) fn represented_auction_place_bids_like_cpp(
         &self,
     ) -> &[RepresentedAuctionPlaceBidLikeCpp] {
-        &self.represented_auction_place_bids_like_cpp
+        &self.inventory.represented_auction_place_bids_like_cpp
     }
 }

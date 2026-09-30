@@ -36,7 +36,10 @@ fn canonical_player_resurrection_follows_active_detached_and_stale_ownership_lik
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     assert!(session.set_represented_resurrection_request_like_cpp(request));
     assert!(session.schedule_represented_resurrection_after_teleport_like_cpp(request));
@@ -147,7 +150,10 @@ fn canonical_player_taxi_and_titles_follow_active_detached_and_stale_ownership_l
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
     let owned_taxi = wow_entities::PlayerTaxiState::from_represented_parts_like_cpp(
         vec![10, 20],
         Some(wow_entities::PlayerTaxiFlightStateLikeCpp {
@@ -241,7 +247,10 @@ fn canonical_player_rest_manager_follows_active_detached_and_stale_ownership_lik
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
     assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0));
@@ -338,7 +347,10 @@ fn canonical_player_homebind_follows_detached_and_stale_handle_ownership_like_cp
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
     assert!(session.set_represented_homebind_like_cpp(original));
     assert_eq!(session.represented_homebind_like_cpp(), Some(original));
 
@@ -398,7 +410,10 @@ fn canonical_player_cinematic_state_follows_detached_and_stale_handle_ownership_
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
     session.set_represented_cinematic_like_cpp_for_test(Some(444));
     session.set_represented_movie_like_cpp_for_test(Some(177));
     assert_eq!(session.represented_cinematic_like_cpp(), Some(444));
@@ -473,7 +488,10 @@ fn canonical_player_trait_config_authority_follows_detached_and_stale_ownership_
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     assert!(
         session.complete_represented_trait_config_authority_load_like_cpp(
@@ -551,7 +569,10 @@ fn canonical_player_collection_authority_follows_detached_and_stale_ownership_li
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     assert!(
         session
@@ -668,6 +689,7 @@ fn canonical_access_requirement_min_level_sends_notification_like_cpp() {
         0,
     ));
     session
+        .instances
         .instance_test_fixture_like_cpp
         .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
@@ -719,6 +741,7 @@ fn canonical_access_requirement_ignore_level_config_bypasses_level_like_cpp() {
         0,
     ));
     session
+        .instances
         .instance_test_fixture_like_cpp
         .represented_raid_difficulty_id_like_cpp = 3;
     session.set_instance_ignore_level_like_cpp(true);
@@ -751,6 +774,7 @@ fn canonical_access_requirement_current_player_achievement_matches_cpp() {
         0,
     ));
     session
+        .instances
         .instance_test_fixture_like_cpp
         .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
@@ -812,7 +836,7 @@ fn initial_canonical_player_sets_display_mount_collision_shape_like_cpp() {
     ));
     configure_player_shape_mount_collision_stores_like_cpp(&mut session);
     session.update_player_collision_height_like_cpp();
-    session.player_mount_display_id_like_cpp = 4321;
+    session.vehicles.player_mount_display_id_like_cpp = 4321;
     session.update_player_collision_height_like_cpp();
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
@@ -836,18 +860,21 @@ fn initial_canonical_player_sets_display_mount_collision_shape_like_cpp() {
     );
     assert_eq!(player.unit().data().mount_display_id, 4321);
     assert!(
-        (player.unit().collision_height_like_cpp() - session.player_collision_height_like_cpp)
+        (player.unit().collision_height_like_cpp()
+            - session.movement.player_collision_height_like_cpp)
             .abs()
             < 0.0001
     );
     assert!(
         (player.unit().world().collision_height_like_cpp()
-            - session.player_collision_height_like_cpp)
+            - session.movement.player_collision_height_like_cpp)
             .abs()
             < 0.0001
     );
     assert!(
-        (player.unit().world().object().scale() - session.player_object_scale_like_cpp).abs()
+        (player.unit().world().object().scale()
+            - session.presentation.player_object_scale_like_cpp)
+            .abs()
             < 0.0001
     );
 }

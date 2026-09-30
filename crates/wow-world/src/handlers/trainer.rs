@@ -151,7 +151,7 @@ fn trainer_spell_class_race_fit_like_cpp(
 
 fn trainer_spell_product_like_cpp(session: &WorldSession, spell_id: u32) -> TrainerProductLikeCpp {
     const SPELL_EFFECT_LEARN_SPELL_LIKE_CPP: u32 = 36;
-    let Some(catalog) = session.spell_catalogs.spell_acquisition_catalog() else {
+    let Some(catalog) = session.catalogs.spell_catalogs.spell_acquisition_catalog() else {
         return TrainerProductLikeCpp::InvalidOrUnsupportedWrapper;
     };
     let effects = match catalog.acquisition_effects_like_cpp(spell_id) {
@@ -219,7 +219,7 @@ impl WorldSession {
         if let Some(player_guid) = self.player_guid() {
             debug!("ShowTradeSkill from {:?}", player_guid);
         } else {
-            debug!("ShowTradeSkill from account {}", self.account_id);
+            debug!("ShowTradeSkill from account {}", self.core.account_id);
         }
     }
 
@@ -321,7 +321,7 @@ impl WorldSession {
                 })
             })
         };
-        let acquisition = self.spell_catalogs.spell_acquisition_catalog();
+        let acquisition = self.catalogs.spell_catalogs.spell_acquisition_catalog();
         let battle_pet = match acquisition
             .map(|catalog| catalog.battle_pet_classification_like_cpp(trainer_spell.spell_id))
         {
@@ -386,7 +386,7 @@ impl WorldSession {
     ) {
         let trainer_guid = hello.unit;
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             trainer_guid = ?trainer_guid,
             "CMSG_TRAINER_LIST"
         );
@@ -400,7 +400,7 @@ impl WorldSession {
             Some(access) => access,
             None => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     trainer_guid = ?trainer_guid,
                     "Trainer GUID not found or not interactable"
                 );
@@ -421,7 +421,7 @@ impl WorldSession {
             resolve_creature_trainer_like_cpp(trainer_store.as_ref(), entry, gossip_option)
         else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 entry = entry,
                 gossip_option = ?gossip_option,
                 "No creature trainer in the loaded C++ trainer store"
@@ -484,7 +484,7 @@ impl WorldSession {
         }
 
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             trainer_id = trainer_id,
             spell_count = spells.len(),
             "Sending SMSG_TRAINER_LIST"
@@ -519,7 +519,7 @@ impl WorldSession {
             Ok(r) => r,
             Err(e) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "Failed to parse CMSG_TRAINER_BUY_SPELL: {e}"
                 );
                 return;
@@ -531,7 +531,7 @@ impl WorldSession {
         let spell_id = req.spell_id;
 
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             trainer_id = trainer_id,
             spell_id = spell_id,
             "CMSG_TRAINER_BUY_SPELL"
@@ -543,7 +543,7 @@ impl WorldSession {
             0,
         ) else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 trainer_guid = ?trainer_guid,
                 "Trainer buy rejected: trainer not interactable"
             );
@@ -556,7 +556,7 @@ impl WorldSession {
 
         if !self.player_trainer_interaction_matches_like_cpp(trainer_guid, trainer_id) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 trainer_guid = ?trainer_guid,
                 trainer_id = trainer_id,
                 active_source = ?self.player_interaction_source_guid_like_cpp(),
@@ -578,7 +578,7 @@ impl WorldSession {
         };
         let Some(_trainer_spell) = trainer.get_spell_like_cpp(spell_id as u32).cloned() else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 trainer_id = trainer_id,
                 spell_id = spell_id,
                 "Spell not in trainer's loaded C++ spell set"
@@ -784,7 +784,7 @@ impl WorldSession {
         .await;
 
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             trainer_id,
             spell_id,
             effective_price = offer.effective_price,

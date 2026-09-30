@@ -31,7 +31,7 @@ impl WorldSession {
             Ok(r) => r,
             Err(e) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "Failed to parse CMSG_CAST_SPELL: {e}"
                 );
                 return;
@@ -42,7 +42,7 @@ impl WorldSession {
         let cast_id = req.cast_id;
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             spell_id = original_spell_id,
             cast_id = ?cast_id,
             target = ?req.target.unit,
@@ -56,7 +56,7 @@ impl WorldSession {
             .is_none()
         {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 spell_id = original_spell_id,
                 "Ignoring cast request without an effective spell"
             );
@@ -138,7 +138,7 @@ impl WorldSession {
             Ok(open) => open,
             Err(e) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "Failed to parse CMSG_OPEN_ITEM: {e}"
                 );
                 return;
@@ -146,7 +146,7 @@ impl WorldSession {
         };
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             slot = open.slot,
             pack_slot = open.pack_slot,
             "CMSG_OPEN_ITEM"
@@ -203,7 +203,7 @@ impl WorldSession {
             return;
         };
 
-        if !self.loot_table.contains_key(&item.guid) {
+        if !self.loot.loot_table.contains_key(&item.guid) {
             let stored_money = self.load_stored_item_money_like_cpp(item.guid).await;
             let stored_items = self.load_stored_item_items_like_cpp(item.guid).await;
             let loaded_stored_loot = stored_money.is_some() || stored_items.is_some();
@@ -233,7 +233,7 @@ impl WorldSession {
                     .await;
             }
 
-            self.loot_table.insert(
+            self.loot.loot_table.insert(
                 item.guid,
                 CreatureLoot {
                     loot_guid: item.guid,
@@ -264,7 +264,7 @@ impl WorldSession {
             )],
         );
 
-        let Some(loot) = self.loot_table.get(&item.guid) else {
+        let Some(loot) = self.loot.loot_table.get(&item.guid) else {
             self.send_equip_error(
                 InventoryResult::ClientLockedOut,
                 Some(item.guid),

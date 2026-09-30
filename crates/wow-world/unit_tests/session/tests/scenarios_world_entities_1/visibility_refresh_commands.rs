@@ -35,7 +35,7 @@ async fn refresh_visible_world_creatures_command_forces_creature_visibility_like
         ),
     );
 
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_map_manager(manager);
     session.set_canonical_map_manager(canonical);
     session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
@@ -53,7 +53,7 @@ async fn refresh_visible_world_creatures_command_forces_creature_visibility_like
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("canonical viewer map");
     // Prove the command bypasses the 50-yard visibility throttle.
-    session.last_visibility_pos = Some(player_position);
+    session.visibility.last_visibility_pos = Some(player_position);
 
     session
         .session_command_tx()
@@ -70,6 +70,7 @@ async fn refresh_visible_world_creatures_command_forces_creature_visibility_like
 
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&creature_guid),
         "forced creature visibility must create the unseen creature"
@@ -85,9 +86,9 @@ async fn refresh_visible_world_creatures_command_forces_creature_visibility_like
 #[tokio::test]
 async fn refresh_visible_world_creatures_command_rejects_wrong_map_like_cpp() {
     let (mut session, _, send_rx) = make_session();
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_player_map_position_like_cpp(571, Position::ZERO);
-    session.last_visibility_pos = Some(Position::ZERO);
+    session.visibility.last_visibility_pos = Some(Position::ZERO);
 
     session
         .session_command_tx()
@@ -103,7 +104,7 @@ async fn refresh_visible_world_creatures_command_rejects_wrong_map_like_cpp() {
         .await;
 
     assert_eq!(
-        session.last_visibility_pos,
+        session.visibility.last_visibility_pos,
         Some(Position::ZERO),
         "wrong-map command must not force visibility"
     );
@@ -137,18 +138,22 @@ async fn refresh_visible_gameobjects_or_spellclicks_command_sends_gameobject_del
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![0],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -167,16 +172,20 @@ async fn refresh_visible_gameobjects_or_spellclicks_command_sends_gameobject_del
         Position::new(12.0, 0.0, 0.0, 0.0),
     );
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_gameobject_use_states.insert(
-        gameobject_guid,
-        RepresentedGameObjectUseState {
-            go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
-            loot_state: Some(wow_entities::LootState::Ready),
-            ..Default::default()
-        },
-    );
+    session
+        .world_entities
+        .represented_gameobject_use_states
+        .insert(
+            gameobject_guid,
+            RepresentedGameObjectUseState {
+                go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
+                loot_state: Some(wow_entities::LootState::Ready),
+                ..Default::default()
+            },
+        );
 
     session
         .session_command_tx()

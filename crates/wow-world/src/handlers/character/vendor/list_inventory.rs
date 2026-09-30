@@ -23,7 +23,7 @@ impl WorldSession {
         let vendor_guid = hello.unit;
         info!(
             "ListInventory for {:?} from account {}",
-            vendor_guid, self.account_id
+            vendor_guid, self.core.account_id
         );
 
         let vendor_catalog = match self.vendor_catalog_persistence_port_like_cpp() {
@@ -183,8 +183,11 @@ impl WorldSession {
                         incr_time,
                         stack_count.max(1) as u32,
                     );
-                    if vendor_list_should_skip_sold_out(maxcount, current_count, self.security > 0)
-                    {
+                    if vendor_list_should_skip_sold_out(
+                        maxcount,
+                        current_count,
+                        self.core.security > 0,
+                    ) {
                         continue;
                     }
                     let template = self.item_storage_template(item_id as u32);
@@ -195,14 +198,14 @@ impl WorldSession {
                         sparse_template.map(|template| template.allowable_class),
                         sparse_template.map(|template| template.bonding),
                         self.player_class_like_cpp(),
-                        self.security > 0,
+                        self.core.security > 0,
                     ) {
                         continue;
                     }
                     if vendor_list_should_skip_faction_flags(
                         sparse_template.map(|template| template.flags[1]),
                         player_team_for_race_cpp(self.player_race_like_cpp()),
-                        self.security > 0,
+                        self.core.security > 0,
                     ) {
                         continue;
                     }

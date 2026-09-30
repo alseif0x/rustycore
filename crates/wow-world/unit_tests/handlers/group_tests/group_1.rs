@@ -194,7 +194,7 @@ async fn leave_group_disband_queues_remote_group_removal_like_cpp() {
     group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(leaving_guid));
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -243,7 +243,7 @@ async fn party_invite_party_index_instance_does_not_use_full_home_group_like_cpp
 
     let pending_invites = Arc::new(PendingInvites::default());
     session.set_player_guid(Some(inviter));
-    session.group_guid = Some(home_group_guid);
+    session.social.group_guid = Some(home_group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(Arc::clone(&group_registry), Arc::clone(&pending_invites));
 
@@ -531,7 +531,7 @@ async fn party_invite_non_leader_rejects_not_leader_like_cpp() {
     group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(inviter));
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(
         Arc::clone(&group_registry),
@@ -614,7 +614,7 @@ async fn party_invite_raid_with_five_members_is_not_full_like_cpp() {
     let pending_invites = Arc::new(PendingInvites::default());
 
     session.set_player_guid(Some(inviter));
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(Arc::clone(&group_registry), Arc::clone(&pending_invites));
 

@@ -67,7 +67,7 @@ impl WorldSession {
         self.lifecycle.finalization = Some(SessionFinalization::new(
             mode,
             !no_player,
-            self.player_handle_like_cpp,
+            self.core.player_handle_like_cpp,
         ));
 
         while let Some(step) = self.lifecycle.finalization.as_ref().unwrap().next_step() {
@@ -102,13 +102,13 @@ impl WorldSession {
     fn finalization_identity_is_current(&self) -> bool {
         let report = self.lifecycle.finalization.as_ref().unwrap().report();
         if report.outcome(FinalizationStep::Retirement) == FinalizationOutcome::Applied {
-            return self.player_handle_like_cpp.is_none();
+            return self.core.player_handle_like_cpp.is_none();
         }
-        report.player == self.player_handle_like_cpp
+        report.player == self.core.player_handle_like_cpp
             && report
                 .player
                 .is_none_or(|handle| self.player_guid() == Some(handle.guid()))
-            && !(self.player_guid().is_none() && self.player_handle_like_cpp.is_some())
+            && !(self.player_guid().is_none() && self.core.player_handle_like_cpp.is_some())
     }
 
     async fn execute_finalization_step(
@@ -247,6 +247,7 @@ mod tests {
         );
         let fence = wow_network::SocketWriteFenceLikeCpp::default();
         session
+            .core
             .transport
             .connection
             .set_send_write_fence_like_cpp(fence.clone());

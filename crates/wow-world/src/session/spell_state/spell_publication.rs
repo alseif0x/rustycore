@@ -45,7 +45,7 @@ impl WorldSession {
         else {
             return;
         };
-        let Some(registry) = self.player_registry.as_ref() else {
+        let Some(registry) = self.core.player_registry.as_ref() else {
             return;
         };
         for registration in registry.spell_pull_recipients(
@@ -156,7 +156,7 @@ impl WorldSession {
             })
             .is_some_and(|changed| changed);
         #[cfg(test)]
-        let canonical = if !canonical && self.player_handle_like_cpp.is_none() {
+        let canonical = if !canonical && self.core.player_handle_like_cpp.is_none() {
             self.mutate_player_trade_state_like_cpp(|state| {
                 if let Some(state) = state {
                     state.spell_id = spell_id;

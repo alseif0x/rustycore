@@ -183,19 +183,27 @@ fn player_spell_hit_source_authority_requires_login_skill_guild_and_quest_source
         [recast.clone()],
     )));
     session.begin_player_quest_status_authority_load_like_cpp();
-    session.quest_test_fixture_like_cpp.player_quests.clear();
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        recast.id,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: recast.id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
-    );
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .clear();
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
+            recast.id,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id: recast.id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
     session.complete_player_quest_status_authority_load_like_cpp();
     assert!(
         session.can_authorize_empty_player_spell_hit_aura_source_like_cpp(),

@@ -9,7 +9,7 @@ async fn spell_effect_school_damage_negative_amount_is_noop_like_cpp() {
     let spell_id = 723_i32;
     let guid = test_creature_guid(18_011);
     let player_guid = ObjectGuid::create_player(1, 54);
-    session.player_guid = Some(player_guid);
+    session.core.player_guid = Some(player_guid);
     register_test_creature(&mut session, manager.clone(), guid, 40);
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(
@@ -52,8 +52,8 @@ async fn spell_direct_heal_and_damage_use_spell_effect_rows_like_cpp() {
     let spell_id = 724_i32;
     let guid = test_creature_guid(18_012);
     let player_guid = ObjectGuid::create_player(1, 55);
-    session.player_guid = Some(player_guid);
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(player_guid);
+    session.core.client_visible_guids_like_cpp.insert(guid);
     register_test_creature(&mut session, manager.clone(), guid, 40);
 
     let mut spell_store = wow_data::SpellStore::new();
@@ -121,8 +121,8 @@ async fn spell_school_damage_applies_spell_power_coefficient_like_cpp() {
     let spell_id = 725_i32;
     let guid = test_creature_guid(18_013);
     let player_guid = ObjectGuid::create_player(1, 56);
-    session.player_guid = Some(player_guid);
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(player_guid);
+    session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     // `GetBaseSpellPowerBonus()` 100 and the four stats the flat term can read.
@@ -198,8 +198,8 @@ async fn spell_school_damage_uses_max_damage_done_percent_like_cpp() {
     let spell_id = 726_i32;
     let guid = test_creature_guid(18_014);
     let player_guid = ObjectGuid::create_player(1, 57);
-    session.player_guid = Some(player_guid);
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(player_guid);
+    session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     // Holy 1.5, fire 2.5: C++ takes the maximum over the spell's schools.

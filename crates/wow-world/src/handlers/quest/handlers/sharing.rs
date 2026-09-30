@@ -48,7 +48,7 @@ impl WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?error,
                     "PushQuestToParty: failed to read QuestID"
                 );
@@ -56,9 +56,9 @@ impl WorldSession {
             }
         };
 
-        let Some(quest_store) = self.quests.store.as_ref().map(Arc::clone) else {
+        let Some(quest_store) = self.catalogs.quests.store.as_ref().map(Arc::clone) else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id = packet.quest_id,
                 "PushQuestToParty: missing QuestStore, silent return like missing ObjectMgr template path"
             );
@@ -67,7 +67,7 @@ impl WorldSession {
 
         let Some(quest) = quest_store.get(packet.quest_id) else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id = packet.quest_id,
                 "PushQuestToParty: missing quest template, silent return like C++"
             );
@@ -94,7 +94,8 @@ impl WorldSession {
             return;
         }
 
-        let Some(quest_pool_store) = self.quests.pool_store.as_ref().map(Arc::clone) else {
+        let Some(quest_pool_store) = self.catalogs.quests.pool_store.as_ref().map(Arc::clone)
+        else {
             self.record_represented_push_quest_to_party_outcome_like_cpp(
                 RepresentedPushQuestToPartyOutcomeLikeCpp {
                     sender_guid,
@@ -199,7 +200,7 @@ impl WorldSession {
             return;
         };
 
-        let canonical_map_manager = self.canonical_map_manager.clone();
+        let canonical_map_manager = self.core.canonical_map_manager.clone();
         let receiver_snapshots = group_info
             .members
             .iter()

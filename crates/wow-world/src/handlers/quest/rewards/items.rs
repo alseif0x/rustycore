@@ -69,7 +69,7 @@ impl WorldSession {
             )
         else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 entry_id,
                 count = new_item_count,
                 "RewardQuest: process-wide item GUID allocator is unavailable"
@@ -88,7 +88,7 @@ impl WorldSession {
                     self.resolved_inventory_item_object_like_cpp(inv_item.guid)
                 else {
                     warn!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         slot,
                         entry_id,
                         "RewardQuest: missing runtime item object for reward item stack"
@@ -130,7 +130,7 @@ impl WorldSession {
                     (bag_inventory_item.db_guid, bag_inventory_item.guid)
                 } else {
                     warn!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         bag,
                         slot,
                         entry_id,
@@ -142,7 +142,7 @@ impl WorldSession {
 
                 let Some((db_guid, item_guid)) = allocated_new_item_guids.next() else {
                     warn!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         entry_id,
                         "RewardQuest: preallocated item GUID count did not match store plan"
                     );
@@ -482,7 +482,7 @@ impl WorldSession {
             return true;
         }
 
-        let Some(store) = &self.quests.package_item_store else {
+        let Some(store) = &self.catalogs.quests.package_item_store else {
             return true;
         };
         let Ok(choice_item_id) = i32::try_from(choice.item_id) else {

@@ -6,7 +6,7 @@ use super::*;
 fn talent_reset_price_reads_active_and_detached_owner_without_mutation() {
     let (mut session, _, _) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     let month = 30 * 24 * 60 * 60;
     for detached in [false, true] {
         if detached {
@@ -37,7 +37,7 @@ fn talent_reset_price_reads_active_and_detached_owner_without_mutation() {
         );
         assert!(manager.try_lock().is_ok());
     }
-    session.canonical_map_manager = None;
+    session.core.canonical_map_manager = None;
     assert_eq!(
         session.represented_next_reset_talents_cost_like_cpp(month),
         None
@@ -50,7 +50,7 @@ fn talent_reset_price_reads_active_and_detached_owner_without_mutation() {
 fn talent_reset_price_rejects_stale_generation_instead_of_pricing_replacement() {
     let (mut session, _, _) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
@@ -105,7 +105,7 @@ fn talent_points_refresh_reads_active_group_and_rewards_from_active_and_detached
     let mut spells = wow_data::SpellStore::new();
     spells.insert(50_101, test_spell_info_like_cpp(50_101));
     session.set_spell_store(Arc::new(spells));
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     for detached in [false, true] {
         if detached {
             assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
@@ -164,7 +164,7 @@ fn talent_points_refresh_without_level_catalog_saturates_and_clamps_canonical_re
 fn talent_points_refresh_rejects_stale_and_missing_owner_without_fixture_fallback() {
     let (mut session, _, _) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
@@ -174,12 +174,12 @@ fn talent_points_refresh_rejects_stale_and_missing_owner_without_fixture_fallbac
         .unwrap()
         .install_detached_player_like_cpp(replacement)
         .unwrap();
-    session.player_character_points_like_cpp = 456;
+    session.progression.player_character_points_like_cpp = 456;
     session.refresh_represented_talent_points_like_cpp();
-    assert_eq!(session.player_character_points_like_cpp, 456);
-    session.canonical_map_manager = None;
+    assert_eq!(session.progression.player_character_points_like_cpp, 456);
+    session.core.canonical_map_manager = None;
     session.refresh_represented_talent_points_like_cpp();
-    assert_eq!(session.player_character_points_like_cpp, 456);
+    assert_eq!(session.progression.player_character_points_like_cpp, 456);
     assert_eq!(
         manager
             .lock()
@@ -193,7 +193,7 @@ fn talent_points_refresh_rejects_stale_and_missing_owner_without_fixture_fallbac
 fn talent_mutation_runs_on_active_and_detached_player_without_writeback() {
     let (mut session, _, _) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     for detached in [false, true] {
         if detached {
             assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
@@ -227,7 +227,7 @@ fn talent_mutation_runs_on_active_and_detached_player_without_writeback() {
         assert_eq!(state.reset_talents_cost_like_cpp(), 100_000);
         assert!(state.talents_loaded_like_cpp() && state.glyphs_loaded_like_cpp());
     }
-    session.canonical_map_manager = None;
+    session.core.canonical_map_manager = None;
     assert_eq!(
         session.mutate_player_talent_runtime_for_test_like_cpp(|_| panic!("missing owner")),
         None::<()>

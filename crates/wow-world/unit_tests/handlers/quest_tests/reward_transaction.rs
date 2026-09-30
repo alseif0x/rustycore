@@ -26,18 +26,22 @@ fn complete_quest_session_like_cpp(
     quest.flags = QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP;
     quest.special_flags |= special_flags;
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
-    );
+            PlayerQuestStatus {
+                quest_id,
+                status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
     (session, send_rx)
 }
 
@@ -65,6 +69,7 @@ async fn quest_reward_reaches_the_database_once_with_its_status_row_like_cpp() {
 
     assert!(
         !session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .contains_key(&quest_id),

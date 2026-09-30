@@ -22,8 +22,13 @@ impl WorldSession {
             return None;
         }
 
-        let basic = self.items.store.as_ref()?.get(item_id)?;
-        let sparse = self.items.stats_store.as_ref()?.sparse_template(item_id)?;
+        let basic = self.catalogs.items.store.as_ref()?.get(item_id)?;
+        let sparse = self
+            .catalogs
+            .items
+            .stats_store
+            .as_ref()?
+            .sparse_template(item_id)?;
         let item_flags = sparse.item_flags();
 
         if item_flags.contains(ItemFlags::CONJURED)
@@ -80,23 +85,26 @@ impl WorldSession {
         &mut self,
         store: Arc<ItemRandomEnchantmentTemplateStore>,
     ) {
-        self.items.random_enchantment_template_store = Some(store);
+        self.catalogs.items.random_enchantment_template_store = Some(store);
     }
     /// Get the item random enchantment template store reference.
     pub fn item_random_enchantment_template_store(
         &self,
     ) -> Option<&Arc<ItemRandomEnchantmentTemplateStore>> {
-        self.items.random_enchantment_template_store.as_ref()
+        self.catalogs
+            .items
+            .random_enchantment_template_store
+            .as_ref()
     }
     /// Set the item disenchant loot store for this session.
     #[cfg(test)]
     pub fn set_item_disenchant_loot_store(&mut self, store: Arc<ItemDisenchantLootStore>) {
-        self.item_disenchant_loot_store = Some(store);
+        self.catalogs.item_disenchant_loot_store = Some(store);
     }
     /// Get the item disenchant loot store reference.
     #[cfg(test)]
     pub fn item_disenchant_loot_store(&self) -> Option<&Arc<ItemDisenchantLootStore>> {
-        self.item_disenchant_loot_store.as_ref()
+        self.catalogs.item_disenchant_loot_store.as_ref()
     }
     /// Resolve C++ `sItemRandomSuffixStore.LookupEntry(abs(RandomPropertiesID))`.
     pub fn apply_enchantment_random_suffix_ref(
@@ -108,7 +116,8 @@ impl WorldSession {
             return None;
         }
 
-        self.items
+        self.catalogs
+            .items
             .random_suffix_store
             .as_ref()
             .and_then(|store| store.get(id))
@@ -122,17 +131,22 @@ impl WorldSession {
     }
     /// Set the spell item enchantment store for this session.
     pub fn set_spell_item_enchantment_store(&mut self, store: Arc<SpellItemEnchantmentStore>) {
-        self.spell_catalogs.spell_item_enchantment_store = Some(store);
+        self.catalogs.spell_catalogs.spell_item_enchantment_store = Some(store);
     }
     pub fn set_spell_item_enchantment_condition_store(
         &mut self,
         store: Arc<SpellItemEnchantmentConditionStore>,
     ) {
-        self.spell_catalogs.spell_item_enchantment_condition_store = Some(store);
+        self.catalogs
+            .spell_catalogs
+            .spell_item_enchantment_condition_store = Some(store);
     }
     /// Get the spell item enchantment store reference.
     pub fn spell_item_enchantment_store(&self) -> Option<&Arc<SpellItemEnchantmentStore>> {
-        self.spell_catalogs.spell_item_enchantment_store.as_ref()
+        self.catalogs
+            .spell_catalogs
+            .spell_item_enchantment_store
+            .as_ref()
     }
     /// C++ `Player::EnchantmentFitsRequirements` for the currently equipped gems.
     fn enchantment_fits_requirements_like_cpp(
@@ -144,6 +158,7 @@ impl WorldSession {
             return true;
         }
         let Some(condition) = self
+            .catalogs
             .spell_catalogs
             .spell_item_enchantment_condition_store
             .as_ref()
@@ -172,6 +187,7 @@ impl WorldSession {
                     continue;
                 };
                 let Some(gem_properties_id) = self
+                    .catalogs
                     .items
                     .stats_store
                     .as_ref()
@@ -181,6 +197,7 @@ impl WorldSession {
                     continue;
                 };
                 let Some(gem_type) = self
+                    .catalogs
                     .gem_properties_store
                     .as_ref()
                     .and_then(|store| store.get(gem_properties_id))
@@ -225,21 +242,23 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub fn set_spell_enchant_proc_store(&mut self, store: Arc<SpellEnchantProcStoreLikeCpp>) {
-        self.spell_catalogs.spell_enchant_proc_store = Some(store);
+        self.catalogs.spell_catalogs.spell_enchant_proc_store = Some(store);
     }
     #[cfg(test)]
     pub(crate) fn spell_enchant_proc_event_like_cpp(
         &self,
         enchantment_id: u32,
     ) -> Option<&SpellEnchantProcEntryLikeCpp> {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_enchant_proc_store
             .as_ref()
             .and_then(|store| store.get_spell_enchant_proc_event_like_cpp(enchantment_id))
     }
     /// C++ `SpellMgr::IsArenaAllowedEnchancment`.
     pub fn is_arena_allowed_enchantment(&self, enchantment_id: u32) -> bool {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_item_enchantment_store
             .as_ref()
             .is_some_and(|store| store.is_arena_allowed_enchantment(enchantment_id))
@@ -252,7 +271,8 @@ impl WorldSession {
         condition_fits: bool,
     ) -> Option<ApplyEnchantmentTemplateRef> {
         let id = u32::try_from(enchantment_id).ok()?;
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_item_enchantment_store
             .as_ref()
             .and_then(|store| store.get(id))
@@ -272,7 +292,8 @@ impl WorldSession {
         &self,
         enchantment_id: u32,
     ) -> Option<[ApplyEnchantmentEffectRef; 3]> {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_item_enchantment_store
             .as_ref()
             .and_then(|store| store.get(enchantment_id))
@@ -308,6 +329,7 @@ impl WorldSession {
         };
         let item = self.resolved_inventory_item_object_like_cpp(item_guid)?;
         let socket_color = self
+            .catalogs
             .items
             .stats_store
             .as_ref()
@@ -320,7 +342,8 @@ impl WorldSession {
             .get(socket_index)
             .and_then(|gem| u32::try_from(gem.item_id).ok())
             .and_then(|gem_item_id| {
-                self.items
+                self.catalogs
+                    .items
                     .stats_store
                     .as_ref()?
                     .socket_template(gem_item_id)
@@ -377,7 +400,8 @@ impl WorldSession {
         let condition_fits = u32::try_from(enchantment_id)
             .ok()
             .and_then(|id| {
-                self.spell_catalogs
+                self.catalogs
+                    .spell_catalogs
                     .spell_item_enchantment_store
                     .as_ref()?
                     .get(id)
@@ -534,7 +558,8 @@ impl WorldSession {
             let enchantment_entry = u32::try_from(enchantment.id)
                 .ok()
                 .and_then(|id| {
-                    self.spell_catalogs
+                    self.catalogs
+                        .spell_catalogs
                         .spell_item_enchantment_store
                         .as_ref()?
                         .get(id)
@@ -576,8 +601,8 @@ impl WorldSession {
             player.enchanting_skill_value_like_cpp(SKILL_ENCHANTING_LIKE_CPP)
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.represented_enchanting_skill);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.progression.represented_enchanting_skill);
         }
         canonical
     }
@@ -727,7 +752,8 @@ impl WorldSession {
                 action,
             };
             #[cfg(test)]
-            self.player_item_test_fixture_like_cpp
+            self.inventory
+                .player_item_test_fixture_like_cpp
                 .represented_item_bonus_actions_like_cpp
                 .push(represented_action.clone());
             let spell_action_applied = self.apply_loaded_enchantment_spell_action_like_cpp(action);

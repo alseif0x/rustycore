@@ -31,7 +31,7 @@ async fn teleport_to_same_map_delays_when_can_delay_teleport_is_set_like_cpp() {
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "NearTeleportDelayed".to_string(),
@@ -49,8 +49,8 @@ async fn teleport_to_same_map_delays_when_can_delay_teleport_is_set_like_cpp() {
         wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
         wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
     );
-    session.combat_target = Some(creature_guid);
-    session.in_combat = true;
+    session.combat.combat_target = Some(creature_guid);
+    session.combat.in_combat = true;
     session.set_represented_can_delay_teleport_like_cpp(true);
 
     session.teleport_to(571, destination).await;
@@ -71,7 +71,7 @@ async fn teleport_to_same_map_delays_when_can_delay_teleport_is_set_like_cpp() {
         "C++ returns before the same-map pet distance branch while delayed"
     );
     assert!(
-        session.in_combat,
+        session.combat.in_combat,
         "C++ returns before CombatStop while delayed"
     );
 }
@@ -92,9 +92,10 @@ async fn update_processes_alive_delayed_same_map_teleport_like_cpp() {
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
-    session.state = SessionState::LoggedIn;
-    session.admission.socket_timeout_deadline_like_cpp = Instant::now() + Duration::from_secs(60);
+    session.core.expansion = 1;
+    session.core.state = SessionState::LoggedIn;
+    session.core.admission.socket_timeout_deadline_like_cpp =
+        Instant::now() + Duration::from_secs(60);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "NearTeleportDelayedUpdate".to_string(),
@@ -118,7 +119,7 @@ async fn update_processes_alive_delayed_same_map_teleport_like_cpp() {
     assert!(send_rx.try_recv().is_err());
 
     session.update(50).await;
-    assert_eq!(session.state, SessionState::LoggedIn);
+    assert_eq!(session.core.state, SessionState::LoggedIn);
     assert!(!session.represented_has_delayed_teleport_like_cpp());
 
     assert_eq!(
@@ -165,7 +166,7 @@ async fn teleport_to_same_map_fanouts_move_update_teleport_to_visible_players_li
     source.register_in_player_registry();
 
     viewer.set_player_registry(Arc::clone(&registry));
-    viewer.state = SessionState::LoggedIn;
+    viewer.core.state = SessionState::LoggedIn;
     viewer.attach_player_controller_like_cpp(SessionPlayerController::new(
         viewer_guid,
         "NearTeleportViewer".to_string(),
@@ -176,7 +177,10 @@ async fn teleport_to_same_map_fanouts_move_update_teleport_to_visible_players_li
         80,
         0,
     ));
-    viewer.client_visible_guids_like_cpp.insert(source_guid);
+    viewer
+        .core
+        .client_visible_guids_like_cpp
+        .insert(source_guid);
     viewer.register_in_player_registry();
 
     source.teleport_to(571, destination).await;
@@ -223,7 +227,7 @@ async fn teleport_to_same_map_not_leave_combat_preserves_combat_like_cpp() {
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "NearTeleportCombat".to_string(),
@@ -240,8 +244,8 @@ async fn teleport_to_same_map_not_leave_combat_preserves_combat_like_cpp() {
             .ensure_canonical_world_map_for_current_player_like_cpp()
             .is_some()
     );
-    session.combat_target = Some(creature_guid);
-    session.in_combat = true;
+    session.combat.combat_target = Some(creature_guid);
+    session.combat.in_combat = true;
 
     session
         .teleport_to_with_options(571, destination, TELE_TO_NOT_LEAVE_COMBAT_LIKE_CPP)
@@ -252,8 +256,8 @@ async fn teleport_to_same_map_not_leave_combat_preserves_combat_like_cpp() {
         vec![ServerOpcodes::MoveTeleport],
         "C++ same-map TeleportTo skips CombatStop when TELE_TO_NOT_LEAVE_COMBAT is set"
     );
-    assert_eq!(session.combat_target, Some(creature_guid));
-    assert!(session.in_combat);
+    assert_eq!(session.combat.combat_target, Some(creature_guid));
+    assert!(session.combat.in_combat);
     assert!(session.near_teleport_pending_like_cpp());
 }
 #[tokio::test]
@@ -272,7 +276,7 @@ async fn teleport_to_same_map_logout_sets_near_pending_without_packet_like_cpp()
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "NearTeleportLogout".to_string(),
@@ -321,7 +325,7 @@ async fn teleport_to_same_map_revive_at_teleport_restores_half_health_and_powers
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "NearTeleportRevive".to_string(),
@@ -406,7 +410,7 @@ async fn teleport_to_same_map_without_revive_flag_keeps_dead_player_like_cpp() {
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "NearTeleportNoRevive".to_string(),
@@ -460,7 +464,7 @@ async fn teleport_to_same_map_unsummons_pet_when_destination_out_of_visibility_l
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "NearTeleportPetFar".to_string(),
@@ -507,7 +511,7 @@ async fn teleport_to_same_map_keeps_pet_when_destination_within_visibility_like_
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "NearTeleportPetNear".to_string(),
@@ -559,7 +563,7 @@ async fn teleport_to_same_map_not_unsummon_pet_option_preserves_pet_like_cpp() {
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "NearTeleportPetNoUnsummon".to_string(),
@@ -825,7 +829,7 @@ fn logout_save_snapshot_uses_pending_near_teleport_destination_like_cpp() {
 #[tokio::test]
 async fn periodic_player_save_defers_while_teleport_pending_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_player_save_interval_ms_like_cpp(100);
     assert!(session.set_pending_teleport_like_cpp(Some((0, Position::new(10.0, 20.0, 30.0, 1.5)))));
     session.update_player_save_timer_like_cpp(100);
@@ -848,7 +852,7 @@ fn player_currency_remove_and_save_state_match_cpp() {
         currency_entry(396),
         currency_entry(397),
     ])));
-    session.player_currencies.insert(
+    session.inventory.player_currencies.insert(
         395,
         PlayerCurrency {
             state: PlayerCurrencyState::Unchanged,
@@ -860,7 +864,7 @@ fn player_currency_remove_and_save_state_match_cpp() {
             flags: 9,
         },
     );
-    session.player_currencies.insert(
+    session.inventory.player_currencies.insert(
         396,
         PlayerCurrency {
             state: PlayerCurrencyState::New,
@@ -872,7 +876,7 @@ fn player_currency_remove_and_save_state_match_cpp() {
             flags: 0,
         },
     );
-    session.player_currencies.insert(
+    session.inventory.player_currencies.insert(
         397,
         PlayerCurrency {
             state: PlayerCurrencyState::Unchanged,
@@ -889,6 +893,7 @@ fn player_currency_remove_and_save_state_match_cpp() {
     assert_eq!(session.player_currency_quantity(395), Some(0));
     assert_eq!(
         session
+            .inventory
             .player_currencies
             .get(&395)
             .map(|currency| currency.state),
@@ -902,6 +907,7 @@ fn player_currency_remove_and_save_state_match_cpp() {
     assert_eq!(request.rows.len(), 2);
     assert_eq!(
         session
+            .inventory
             .player_currencies
             .get(&395)
             .map(|currency| currency.state),
@@ -909,6 +915,7 @@ fn player_currency_remove_and_save_state_match_cpp() {
     );
     assert_eq!(
         session
+            .inventory
             .player_currencies
             .get(&396)
             .map(|currency| currency.state),
@@ -916,6 +923,7 @@ fn player_currency_remove_and_save_state_match_cpp() {
     );
     assert_eq!(
         session
+            .inventory
             .player_currencies
             .get(&397)
             .map(|currency| currency.state),

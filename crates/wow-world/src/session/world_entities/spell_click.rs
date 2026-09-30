@@ -13,7 +13,7 @@ impl WorldSession {
         if guid.is_empty() || !guid.is_any_type_creature() {
             return None;
         }
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
         };
@@ -43,10 +43,11 @@ impl WorldSession {
         &self,
         creature_guid: ObjectGuid,
     ) -> RepresentedCanSeeSpellClickOutcomeLikeCpp {
-        let Some(spell_click_store) = self.spell_catalogs.npc_spell_click_store.as_ref() else {
+        let Some(spell_click_store) = self.catalogs.spell_catalogs.npc_spell_click_store.as_ref()
+        else {
             return RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented;
         };
-        let Some(condition_store) = self.condition_store.as_ref() else {
+        let Some(condition_store) = self.catalogs.condition_store.as_ref() else {
             return RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented;
         };
         let Some(creature) = self.represented_spell_click_creature_snapshot_like_cpp(creature_guid)
@@ -102,14 +103,14 @@ impl WorldSession {
         else {
             return RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented;
         };
-        let area_table_store = self.area_table_store.as_ref().cloned();
+        let area_table_store = self.catalogs.area_table_store.as_ref().cloned();
 
         for click_info in click_bounds {
             match click_info.user_type {
                 SPELL_CLICK_USER_FRIEND_LIKE_CPP => {
                     let player_faction_template = self.player_faction_template_id_like_cpp();
                     if creature.is_summon
-                        || self.factions.template_store.is_none()
+                        || self.catalogs.factions.template_store.is_none()
                         || player_faction_template.is_none()
                     {
                         return RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented;
@@ -199,7 +200,7 @@ impl WorldSession {
         };
         if damage_amount > 0 && applied_damage == 0 {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 player = ?player_guid,
                 spell_id,
                 damage = damage_amount,
@@ -220,7 +221,7 @@ impl WorldSession {
         creature_guid: ObjectGuid,
         damage_amount: u32,
     ) -> Result<(), &'static str> {
-        let account_id = self.account_id;
+        let account_id = self.core.account_id;
         let values_update = self
             .mutate_world_creature(creature_guid, |creature| {
                 if !creature.is_alive() {
@@ -241,7 +242,10 @@ impl WorldSession {
             return Ok(());
         };
 
-        if self.client_visible_guids_like_cpp.contains(&creature_guid)
+        if self
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&creature_guid)
             && let Some(update) = self.represented_unit_values_update_to_update_object_like_cpp(
                 creature_guid,
                 self.player_map_id_like_cpp(),

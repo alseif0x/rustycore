@@ -87,6 +87,7 @@ fn remove_known_spell_clears_titan_grip_and_penalty_aura_like_cpp() {
     );
     assert!(
         !session
+            .auras
             .visible_auras
             .values()
             .any(|aura| aura.spell_id == penalty_spell_id),
@@ -696,6 +697,7 @@ fn represented_item_level_area_scaling_activates_on_pvp_rules_aura_like_cpp() {
     ])));
     session.set_player_map_position_like_cpp(30_156, Position::ZERO);
     session
+        .auras
         .visible_auras
         .insert(1, test_visible_aura(1, SPELL_PVP_RULES_ENABLED_LIKE_CPP));
 
@@ -753,6 +755,7 @@ fn represented_pvp_rules_aura_removal_recalculates_item_level_scaling_like_cpp()
         )
         .expect("represented PvP rules aura should apply");
     let slot = session
+        .auras
         .visible_auras
         .values()
         .find_map(|aura| (aura.spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP).then_some(aura.slot))

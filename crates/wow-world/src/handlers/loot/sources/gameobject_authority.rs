@@ -9,11 +9,12 @@ impl WorldSession {
         let Some(authority) = self.represented_owned_loot_authority_like_cpp(gameobject_guid)
         else {
             return (represented_local_loot_fixture_allowed_like_cpp()
-                && self.loot_table.contains_key(&gameobject_guid))
+                && self.loot.loot_table.contains_key(&gameobject_guid))
             .then_some(());
         };
-        let loot = self.loot_table.get(&gameobject_guid)?.clone();
+        let loot = self.loot.loot_table.get(&gameobject_guid)?.clone();
         let is_personal = self
+            .loot
             .represented_personal_loot_owners
             .contains(&gameobject_guid);
         let (shared, personal) = self.represented_loot_authority_pools_like_cpp(
@@ -30,8 +31,9 @@ impl WorldSession {
                 .snapshot_for_player_like_cpp(player_guid)
                 .is_none()
         {
-            self.loot_table.remove(&gameobject_guid);
-            self.represented_loot_cache_generations_like_cpp
+            self.loot.loot_table.remove(&gameobject_guid);
+            self.loot
+                .represented_loot_cache_generations_like_cpp
                 .remove(&gameobject_guid);
             return None;
         }
@@ -170,7 +172,7 @@ impl WorldSession {
     fn canonical_gameobject_owner_for_loot_like_cpp(&self, guid: ObjectGuid) -> Option<ObjectGuid> {
         let map_key = self
             .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let manager = manager.lock().ok()?;
         let map = manager.find_map(map_key.map_id, map_key.instance_id)?.map();
         let owner_guid = map.get_typed_game_object(guid)?.owner_guid();
@@ -193,10 +195,13 @@ impl WorldSession {
             ],
         );
         let canonical_owner = self.canonical_gameobject_owner_for_loot_like_cpp(guid);
-        let represented_state = self.represented_gameobject_use_states.get(&guid);
+        let represented_state = self
+            .world_entities
+            .represented_gameobject_use_states
+            .get(&guid);
         if canonical_position.is_none()
             && represented_state.and_then(|state| state.position).is_none()
-            && !self.client_visible_guids_like_cpp.contains(&guid)
+            && !self.core.client_visible_guids_like_cpp.contains(&guid)
         {
             return None;
         }

@@ -213,17 +213,17 @@ impl WorldSession {
             (before, after, max_health, applied, killed)
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            let max_health = self.player_max_health_like_cpp.max(1);
-            let before = self.player_health_like_cpp.min(max_health);
-            if !self.player_alive_like_cpp || before == 0 {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            let max_health = self.combat.player_max_health_like_cpp.max(1);
+            let before = self.combat.player_health_like_cpp.min(max_health);
+            if !self.combat.player_alive_like_cpp || before == 0 {
                 return Some((before, before, max_health, 0, false));
             }
             let applied = requested_damage.min(before);
             let after = before.saturating_sub(applied);
             let killed = applied > 0 && after == 0;
-            self.player_health_like_cpp = after;
-            self.player_alive_like_cpp = !killed;
+            self.combat.player_health_like_cpp = after;
+            self.combat.player_alive_like_cpp = !killed;
             return Some((before, after, max_health, applied, killed));
         }
         canonical
@@ -235,8 +235,8 @@ impl WorldSession {
                 player.set_normal_damage_immune_like_cpp(immune)
             })
             .is_some();
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.player_normal_damage_immune_like_cpp = immune;
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.combat.player_normal_damage_immune_like_cpp = immune;
         }
     }
     #[cfg(test)]
@@ -246,8 +246,8 @@ impl WorldSession {
                 player.set_environmental_damage_immune_like_cpp(immune)
             })
             .is_some();
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.player_environmental_damage_immune_like_cpp = immune;
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.combat.player_environmental_damage_immune_like_cpp = immune;
         }
     }
     pub(in crate::session) fn resolved_player_damage_control_like_cpp(
@@ -255,11 +255,13 @@ impl WorldSession {
     ) -> Option<wow_entities::PlayerDamageControlStateLikeCpp> {
         let canonical = self.with_owned_player_like_cpp(|player| player.damage_control_like_cpp());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(wow_entities::PlayerDamageControlStateLikeCpp {
-                cheat_god: self.player_cheat_god_like_cpp,
-                normal_damage_immune: self.player_normal_damage_immune_like_cpp,
-                environmental_damage_immune: self.player_environmental_damage_immune_like_cpp,
+                cheat_god: self.combat.player_cheat_god_like_cpp,
+                normal_damage_immune: self.combat.player_normal_damage_immune_like_cpp,
+                environmental_damage_immune: self
+                    .combat
+                    .player_environmental_damage_immune_like_cpp,
             });
         }
         canonical

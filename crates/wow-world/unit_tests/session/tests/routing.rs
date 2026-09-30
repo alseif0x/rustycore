@@ -29,7 +29,7 @@ fn borrowed_hotfix_catalog_preserves_init_order_locale_and_realm_delivery() {
     for (locale, push_id) in [("esES", Some(78)), ("enUS", Some(79)), ("deDE", None)] {
         // Initialization runs before ConnectTo: the primary socket is Realm.
         let (mut session, _, realm_rx) = make_session();
-        session.locale = locale.to_owned();
+        session.core.locale = locale.to_owned();
         session.send_session_init_packets_with_policy_like_cpp(
             &SupportFeaturePolicyLikeCpp::default(),
             &cache,
@@ -96,8 +96,9 @@ async fn borrowed_hotfix_catalog_dispatch_preserves_locale_unknown_push_and_curr
         let (mut session, _, instance_rx) = make_session();
         let (realm_tx, realm_rx) = flume::unbounded();
         session.install_realm_send_channel_for_test(realm_tx);
-        session.locale = locale.to_owned();
+        session.core.locale = locale.to_owned();
         let entry = session
+            .core
             .admission
             .dispatch_table
             .get(&ClientOpcodes::HotfixRequest)
@@ -151,10 +152,10 @@ async fn realm_only_party_commands_never_use_instance_after_connect_to_like_cpp(
     let group = GroupInfo::new(player_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(player_guid));
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
 
     let member_full_state = vec![0x59, 0x27, 0xAA];
     session
@@ -250,7 +251,7 @@ async fn realm_only_party_commands_never_use_instance_after_connect_to_like_cpp(
         .await;
     assert!(realm_rx.try_recv().is_err());
 
-    session.state = SessionState::Authed;
+    session.core.state = SessionState::Authed;
     session
         .session_command_tx()
         .try_send(SessionCommand::SendRealmPacketLikeCpp(
@@ -306,10 +307,13 @@ pub(super) fn assert_destroyed_party_update_like_cpp(bytes: &[u8], group_guid: u
 async fn send_if_visible_command_rejected_on_wrong_instance_id_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let source_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1004);
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     // session has no canonical map manager → instance_id fallback is 0
-    session.client_visible_guids_like_cpp.insert(source_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(source_guid);
 
     session
         .session_command_tx()
@@ -430,7 +434,7 @@ async fn dispatch_routes_send_text_emote_to_handler_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 101);
     session.set_state(SessionState::LoggedIn);
     session.set_player_guid(Some(player_guid));
-    session.player_name = Some("Emoter".to_string());
+    session.identity.player_name = Some("Emoter".to_string());
     let catalogs = SessionHandlerCatalogsLikeCpp {
         emotes_text: Arc::new(wow_data::EmotesTextStore::from_entries([
             wow_data::EmotesTextEntry {

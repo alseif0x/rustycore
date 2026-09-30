@@ -451,8 +451,8 @@ async fn check_creature_aggro_uses_detected_range_aura_modifier_like_cpp() {
 
     session.check_creature_aggro().await;
 
-    assert!(session.in_combat);
-    assert_eq!(session.combat_target, Some(creature_guid));
+    assert!(session.combat.in_combat);
+    assert_eq!(session.combat.combat_target, Some(creature_guid));
     assert!(drain_server_opcodes(&send_rx).contains(&ServerOpcodes::AttackStart));
 }
 #[tokio::test]
@@ -481,8 +481,8 @@ async fn check_creature_aggro_uses_configured_aggro_rate_like_cpp() {
 
     session.check_creature_aggro().await;
 
-    assert!(!session.in_combat);
-    assert_ne!(session.combat_target, Some(creature_guid));
+    assert!(!session.combat.in_combat);
+    assert_ne!(session.combat.combat_target, Some(creature_guid));
     assert!(!drain_server_opcodes(&send_rx).contains(&ServerOpcodes::AttackStart));
 }
 #[tokio::test]
@@ -513,10 +513,10 @@ async fn check_creature_aggro_uses_template_required_expansion_cap_like_cpp() {
     session.check_creature_aggro().await;
 
     assert!(
-        !session.in_combat,
+        !session.combat.in_combat,
         "C++ Creature::GetAttackDistance caps level 80 RequiredExpansion=1 creatures to expansion max level 70"
     );
-    assert_ne!(session.combat_target, Some(creature_guid));
+    assert_ne!(session.combat.combat_target, Some(creature_guid));
     assert!(!drain_server_opcodes(&send_rx).contains(&ServerOpcodes::AttackStart));
 }
 #[test]

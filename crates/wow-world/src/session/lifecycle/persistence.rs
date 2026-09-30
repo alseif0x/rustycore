@@ -180,10 +180,10 @@ impl WorldSession {
                 .defer_player_save_for_transfer_like_cpp()
                 .unwrap_or(PlayerSaveOutcomeLikeCpp::Unavailable);
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 player_guid = ?self.player_guid(),
                 has_session_position = self.player_position_like_cpp().is_some(),
-                has_canonical_map_manager = self.canonical_map_manager.is_some(),
+                has_canonical_map_manager = self.core.canonical_map_manager.is_some(),
                 "Skipping Player::SaveToDB represented save because no coherent player snapshot is available"
             );
             drop(money_mutation_lock);
@@ -197,7 +197,7 @@ impl WorldSession {
         let Some(player_lifecycle_port) = self.player_lifecycle_port_like_cpp().map(Arc::clone)
         else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 player_guid = ?self.player_guid(),
                 "Skipping Player::SaveToDB represented save because lifecycle persistence is unavailable"
             );

@@ -23,7 +23,7 @@ fn corpse_money_reward_distance_ignores_range_only_in_same_dungeon_instance_like
     session.set_player_registry(Arc::clone(&registry));
     let mut loot = authoritative_test_loot_like_cpp(8, false);
     loot.allowed_looters = vec![player_guid, member_guid];
-    session.loot_table.insert(owner, loot);
+    session.loot.loot_table.insert(owner, loot);
 
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {
@@ -665,10 +665,10 @@ async fn loot_response_success_keeps_cpp_failure_and_threshold_defaults() {
     group.loot_threshold = 4;
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         creature_guid,
         CreatureLoot {
             loot_guid: represented_loot_object_guid_like_cpp(creature_guid),
@@ -740,7 +740,7 @@ async fn dungeon_trash_builds_one_personal_pool_for_selected_group_looter_like_c
     group.looter_guid = fixture.second_tapper;
     let group_guid = group.group_guid;
     groups.register_group_like_cpp(group_guid, group);
-    fixture.session.group_guid = Some(group_guid);
+    fixture.session.social.group_guid = Some(group_guid);
     fixture
         .session
         .set_group_registry(Arc::clone(&groups), Arc::new(PendingInvites::default()));
@@ -813,9 +813,11 @@ fn personal_encounter_late_upsert_cannot_cross_clear_loot_like_cpp() {
     stale_late_pool.allowed_looters = vec![late_player];
     stale_late_pool.items[0].allowed_looters = vec![late_player];
     session
+        .loot
         .represented_personal_loot_owners
         .insert(gameobject_guid);
     session
+        .loot
         .represented_personal_loot_money
         .insert((gameobject_guid, late_player), 0);
 
@@ -839,8 +841,9 @@ fn personal_encounter_late_upsert_cannot_cross_clear_loot_like_cpp() {
     assert!(authority.personal_snapshots_like_cpp().is_empty());
     assert!(
         !session
+            .loot
             .represented_personal_loot_money
             .contains_key(&(gameobject_guid, late_player))
     );
-    assert!(!session.loot_table.contains_key(&gameobject_guid));
+    assert!(!session.loot.loot_table.contains_key(&gameobject_guid));
 }

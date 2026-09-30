@@ -29,7 +29,7 @@ impl WorldSession {
             return None;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             let header = self.current_player_save_to_db_snapshot_like_cpp()?;
             let request = self.current_player_character_save_request_like_cpp(&header, now)?;
             return Some(PreparedPlayerSave {
@@ -43,11 +43,11 @@ impl WorldSession {
                 header,
             });
         }
-        let handle = self.player_handle_like_cpp?;
+        let handle = self.core.player_handle_like_cpp?;
         if self.player_guid()? != handle.guid() {
             return None;
         }
-        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
         let residence = manager.player_residence_like_cpp(handle)?;
         manager.with_player_like_cpp(handle, |player| {
             let teleport = player.teleport_state_like_cpp();
@@ -171,7 +171,7 @@ impl SavedPlayerReceipt {
         let Some(handle) = self.handle else {
             return;
         };
-        if session.player_handle_like_cpp != Some(handle)
+        if session.core.player_handle_like_cpp != Some(handle)
             || session.player_guid() != Some(handle.guid())
         {
             return;
@@ -179,7 +179,7 @@ impl SavedPlayerReceipt {
         let Some(owner) = self.owner else {
             return;
         };
-        let Some(manager) = session.canonical_map_manager.as_ref() else {
+        let Some(manager) = session.core.canonical_map_manager.as_ref() else {
             return;
         };
         let acknowledged = manager

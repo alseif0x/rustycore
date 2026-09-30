@@ -87,7 +87,7 @@ fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp()
                     }]);
 
                 source.set_player_guid(Some(source_guid));
-                source.player_name = Some("BridgeSource".into());
+                source.identity.player_name = Some("BridgeSource".into());
                 source.set_player_map_position_like_cpp(571, position);
                 source.set_canonical_map_manager(Arc::clone(&canonical));
                 source.set_spell_store(Arc::new(spell_store));
@@ -172,7 +172,7 @@ fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp()
                         snapshot_standing_spell_id,
                     ),
                 ] {
-                    source.visible_auras.insert(
+                    source.auras.visible_auras.insert(
                         slot,
                         AuraApplication {
                             spell_id,
@@ -225,7 +225,7 @@ fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp()
                 );
                 assert!(
                     source
-                        .visible_auras
+                        .auras.visible_auras
                         .contains_key(&represented_standing_slot)
                 );
                 assert_eq!(
@@ -268,12 +268,12 @@ fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp()
                         assert!(!player.unit().world().object().is_object_updated());
                     })
                     .unwrap();
-                source.represented_live_applications_like_cpp.clear();
+                source.presentation.represented_live_applications_like_cpp.clear();
 
                 viewer.set_player_guid(Some(viewer_guid));
                 viewer.set_player_map_position_like_cpp(571, position);
-                viewer.state = SessionState::LoggedIn;
-                viewer.client_visible_guids_like_cpp.insert(source_guid);
+                viewer.core.state = SessionState::LoggedIn;
+                viewer.core.client_visible_guids_like_cpp.insert(source_guid);
                 let registry = Arc::new(PlayerRegistry::default());
                 let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
                 let mut viewer_info = broadcast_info_with_command(
@@ -324,13 +324,13 @@ fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp()
                 );
                 assert!(
                     !source
-                        .visible_auras
+                        .auras.visible_auras
                         .contains_key(&represented_standing_slot)
                 );
-                assert!(source.visible_auras.contains_key(&represented_kept_slot));
+                assert!(source.auras.visible_auras.contains_key(&represented_kept_slot));
                 assert!(
                     !source
-                        .visible_auras
+                        .auras.visible_auras
                         .contains_key(&represented_snapshot_standing_slot)
                 );
                 source
@@ -457,7 +457,7 @@ fn stand_state_casting_standing_channel_interrupts_non_melee_spells_like_cpp() {
         );
 
         session.set_player_guid(Some(player_guid));
-        session.player_name = Some("StandBoundary".into());
+        session.identity.player_name = Some("StandBoundary".into());
         session.set_player_map_position_like_cpp(571, position);
         session.set_canonical_map_manager(Arc::clone(&canonical));
         session.set_spell_store(Arc::new(spell_store));
@@ -514,7 +514,7 @@ fn stand_state_casting_standing_channel_interrupts_non_melee_spells_like_cpp() {
                 player.clear_data_changes();
             })
             .unwrap();
-        session.visible_auras.insert(
+        session.auras.visible_auras.insert(
             standing_aura_slot,
             AuraApplication {
                 spell_id: standing_aura_spell_id,
@@ -578,7 +578,12 @@ fn stand_state_casting_standing_channel_interrupts_non_melee_spells_like_cpp() {
             UnitStandStateType::Stand
         );
         assert!(session.active_spell_cast_snapshot_like_cpp().is_none());
-        assert!(!session.visible_auras.contains_key(&standing_aura_slot));
+        assert!(
+            !session
+                .auras
+                .visible_auras
+                .contains_key(&standing_aura_slot)
+        );
         assert_eq!(
             session.represented_live_applications_like_cpp(),
             &[RepresentedLiveApplicationLikeCpp {

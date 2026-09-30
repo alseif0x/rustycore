@@ -44,7 +44,7 @@ impl WorldSession {
         let bnet_account_id = self.battlenet_account_id();
         if bnet_account_id == 0 {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Skipping account mount load because the game account is not linked to a Battle.net account"
             );
             return false;
@@ -60,7 +60,7 @@ impl WorldSession {
             ) => rows,
             AccountCollectionLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     bnet_account = bnet_account_id,
                     "Failed to load account mounts: {reason}"
                 );
@@ -68,7 +68,7 @@ impl WorldSession {
             }
             AccountCollectionLoadOutcomeLikeCpp::Loaded(_) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     bnet_account = bnet_account_id,
                     "Player lifecycle port returned the wrong account collection for mounts"
                 );
@@ -78,7 +78,7 @@ impl WorldSession {
 
         if rows.is_empty() {
             info!(
-                account = self.account_id,
+                account = self.core.account_id,
                 bnet_account = bnet_account_id,
                 "Loaded 0 account mounts from battlenet_account_mounts"
             );
@@ -112,7 +112,7 @@ impl WorldSession {
         }
 
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             bnet_account = bnet_account_id,
             loaded = mounts.len(),
             skipped_invalid_spell_id,
@@ -148,7 +148,7 @@ impl WorldSession {
                 .collect(),
             AccountCollectionLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     bnet_account = bnet_account_id,
                     "Failed to load account toys: {reason}"
                 );
@@ -156,7 +156,7 @@ impl WorldSession {
             }
             AccountCollectionLoadOutcomeLikeCpp::Loaded(_) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     bnet_account = bnet_account_id,
                     "Player lifecycle port returned the wrong account collection for toys"
                 );
@@ -192,7 +192,7 @@ impl WorldSession {
                 .collect(),
             AccountCollectionLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     bnet_account = bnet_account_id,
                     "Failed to load account heirlooms: {reason}"
                 );
@@ -200,7 +200,7 @@ impl WorldSession {
             }
             AccountCollectionLoadOutcomeLikeCpp::Loaded(_) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     bnet_account = bnet_account_id,
                     "Player lifecycle port returned the wrong account collection for heirlooms"
                 );
@@ -237,7 +237,7 @@ impl WorldSession {
                         .collect(),
                     AccountCollectionRowsLikeCpp::Failed { reason } => {
                         warn!(
-                            account = self.account_id,
+                            account = self.core.account_id,
                             bnet_account = bnet_account_id,
                             "Failed to load account item appearances: {reason}"
                         );
@@ -248,7 +248,7 @@ impl WorldSession {
                     AccountCollectionRowsLikeCpp::Loaded(rows) => rows,
                     AccountCollectionRowsLikeCpp::Failed { reason } => {
                         warn!(
-                            account = self.account_id,
+                            account = self.core.account_id,
                             bnet_account = bnet_account_id,
                             "Failed to load account favorite item appearances: {reason}"
                         );
@@ -259,7 +259,7 @@ impl WorldSession {
             }
             AccountCollectionLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     bnet_account = bnet_account_id,
                     "Failed to load account item appearances: {reason}"
                 );
@@ -267,7 +267,7 @@ impl WorldSession {
             }
             AccountCollectionLoadOutcomeLikeCpp::Loaded(_) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     bnet_account = bnet_account_id,
                     "Player lifecycle port returned the wrong account collection for item appearances"
                 );
@@ -304,7 +304,7 @@ impl WorldSession {
                 .collect(),
             AccountCollectionLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     bnet_account = bnet_account_id,
                     "Failed to load account transmog illusions: {reason}"
                 );
@@ -312,7 +312,7 @@ impl WorldSession {
             }
             AccountCollectionLoadOutcomeLikeCpp::Loaded(_) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     bnet_account = bnet_account_id,
                     "Player lifecycle port returned the wrong account collection for transmog illusions"
                 );

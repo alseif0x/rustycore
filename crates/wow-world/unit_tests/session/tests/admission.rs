@@ -71,7 +71,7 @@ async fn update_processes_packets() {
 
     let processed = session.update(100).await;
     assert_eq!(processed, 5);
-    assert_eq!(session.admission.pending_packets.len(), 5);
+    assert_eq!(session.core.admission.pending_packets.len(), 5);
 }
 
 #[tokio::test]
@@ -81,7 +81,8 @@ async fn update_disconnects_when_socket_timeout_deadline_expired_like_cpp() {
         unauthenticated_secs: 60,
         active_secs: 30,
     });
-    session.admission.socket_timeout_deadline_like_cpp = Instant::now() - Duration::from_secs(1);
+    session.core.admission.socket_timeout_deadline_like_cpp =
+        Instant::now() - Duration::from_secs(1);
 
     assert_eq!(session.update(100).await, 0);
     assert!(session.is_disconnecting());
@@ -112,7 +113,8 @@ async fn update_resets_socket_timeout_on_regular_packet_like_cpp() {
         unauthenticated_secs: 60,
         active_secs: 30,
     });
-    session.admission.socket_timeout_deadline_like_cpp = Instant::now() - Duration::from_secs(1);
+    session.core.admission.socket_timeout_deadline_like_cpp =
+        Instant::now() - Duration::from_secs(1);
     pkt_tx
         .send(WorldPacket::from_bytes(&[0x00, 0x00]))
         .expect("packet queued");
@@ -130,8 +132,10 @@ async fn keep_alive_only_resets_socket_timeout_for_logged_in_session_like_cpp() 
         unauthenticated_secs: 60,
         active_secs: 30,
     });
-    authed_session.admission.socket_timeout_deadline_like_cpp =
-        Instant::now() - Duration::from_secs(1);
+    authed_session
+        .core
+        .admission
+        .socket_timeout_deadline_like_cpp = Instant::now() - Duration::from_secs(1);
     authed_tx
         .send(WorldPacket::from_bytes(&keep_alive_opcode))
         .expect("keepalive queued");
@@ -145,8 +149,10 @@ async fn keep_alive_only_resets_socket_timeout_for_logged_in_session_like_cpp() 
         unauthenticated_secs: 60,
         active_secs: 30,
     });
-    logged_in_session.admission.socket_timeout_deadline_like_cpp =
-        Instant::now() - Duration::from_secs(1);
+    logged_in_session
+        .core
+        .admission
+        .socket_timeout_deadline_like_cpp = Instant::now() - Duration::from_secs(1);
     logged_in_tx
         .send(WorldPacket::from_bytes(&keep_alive_opcode))
         .expect("keepalive queued");
@@ -172,7 +178,7 @@ async fn packet_spoof_policy_kick_blocks_over_limit_opcode_like_cpp() {
         .expect("second packet queued");
 
     assert_eq!(session.update(100).await, 1);
-    assert_eq!(session.admission.pending_packets.len(), 1);
+    assert_eq!(session.core.admission.pending_packets.len(), 1);
     assert!(session.is_disconnecting());
 }
 
@@ -193,7 +199,7 @@ async fn packet_spoof_policy_log_keeps_over_limit_opcode_like_cpp() {
         .expect("second packet queued");
 
     assert_eq!(session.update(100).await, 2);
-    assert_eq!(session.admission.pending_packets.len(), 2);
+    assert_eq!(session.core.admission.pending_packets.len(), 2);
     assert!(!session.is_disconnecting());
 }
 
@@ -216,7 +222,7 @@ async fn packet_spoof_policy_ban_stages_account_ban_like_cpp() {
     assert_eq!(session.update(100).await, 1);
     assert!(session.is_disconnecting());
     assert_eq!(
-        session.admission.pending_packet_spoof_ban_like_cpp,
+        session.core.admission.pending_packet_spoof_ban_like_cpp,
         Some(PacketSpoofPendingBanLikeCpp {
             target: PacketSpoofPendingBanTargetLikeCpp::Account { account_id: 1 },
             duration_secs: 3_600,
@@ -244,7 +250,7 @@ async fn packet_spoof_policy_ban_stages_ip_ban_from_remote_address_like_cpp() {
     assert_eq!(session.update(100).await, 1);
     assert!(session.is_disconnecting());
     assert_eq!(
-        session.admission.pending_packet_spoof_ban_like_cpp,
+        session.core.admission.pending_packet_spoof_ban_like_cpp,
         Some(PacketSpoofPendingBanLikeCpp {
             target: PacketSpoofPendingBanTargetLikeCpp::Ip {
                 address: "203.0.113.77".to_string(),
@@ -262,7 +268,7 @@ async fn packet_spoof_account_ban_uses_one_semantic_write_without_ip_lookup_like
         wow_persistence::PersistenceOutcomeLikeCpp::Applied { rows: 1 },
     ));
     session.set_packet_spoof_ban_persistence_port_like_cpp(port.clone());
-    session.admission.pending_packet_spoof_ban_like_cpp = Some(PacketSpoofPendingBanLikeCpp {
+    session.core.admission.pending_packet_spoof_ban_like_cpp = Some(PacketSpoofPendingBanLikeCpp {
         target: PacketSpoofPendingBanTargetLikeCpp::Account { account_id: 7 },
         duration_secs: 60,
     });
@@ -271,6 +277,7 @@ async fn packet_spoof_account_ban_uses_one_semantic_write_without_ip_lookup_like
 
     assert!(
         session
+            .core
             .admission
             .pending_packet_spoof_ban_like_cpp
             .is_none()
@@ -297,7 +304,7 @@ async fn packet_spoof_ip_lookup_failure_does_not_suppress_ban_write_like_cpp() {
         wow_persistence::PersistenceOutcomeLikeCpp::Applied { rows: 1 },
     ));
     session.set_packet_spoof_ban_persistence_port_like_cpp(port.clone());
-    session.admission.pending_packet_spoof_ban_like_cpp = Some(PacketSpoofPendingBanLikeCpp {
+    session.core.admission.pending_packet_spoof_ban_like_cpp = Some(PacketSpoofPendingBanLikeCpp {
         target: PacketSpoofPendingBanTargetLikeCpp::Ip {
             address: "203.0.113.77".to_string(),
         },
@@ -308,6 +315,7 @@ async fn packet_spoof_ip_lookup_failure_does_not_suppress_ban_write_like_cpp() {
 
     assert!(
         session
+            .core
             .admission
             .pending_packet_spoof_ban_like_cpp
             .is_none()
@@ -335,12 +343,12 @@ async fn packet_spoof_persistence_failure_restages_the_exact_plan_like_cpp() {
         },
         duration_secs: 120,
     };
-    session.admission.pending_packet_spoof_ban_like_cpp = Some(plan.clone());
+    session.core.admission.pending_packet_spoof_ban_like_cpp = Some(plan.clone());
 
     session.flush_packet_spoof_ban_like_cpp().await;
 
     assert_eq!(
-        session.admission.pending_packet_spoof_ban_like_cpp,
+        session.core.admission.pending_packet_spoof_ban_like_cpp,
         Some(plan)
     );
 }
@@ -738,6 +746,6 @@ async fn packet_spoof_zero_limit_opcode_is_unlimited_like_cpp() {
     }
 
     assert_eq!(session.update(100).await, 5);
-    assert_eq!(session.admission.pending_packets.len(), 5);
+    assert_eq!(session.core.admission.pending_packets.len(), 5);
     assert!(!session.is_disconnecting());
 }

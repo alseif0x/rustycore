@@ -21,7 +21,10 @@ fn canonical_player_skills_follow_active_detached_and_stale_ownership_like_cpp()
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
     let owned = HashMap::from([(
         333,
         RepresentedPlayerSkillLikeCpp {
@@ -118,7 +121,10 @@ fn canonical_player_damage_control_follows_active_detached_and_stale_ownership_l
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     session.set_player_cheat_god_like_cpp(true);
     session.set_player_normal_damage_immune_like_cpp(true);

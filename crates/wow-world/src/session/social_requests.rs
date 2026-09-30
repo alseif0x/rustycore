@@ -117,7 +117,8 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        self.calendar_test_fixture_like_cpp
+        self.social
+            .calendar_test_fixture_like_cpp
             .represented_calendar_community_invites_like_cpp
             .push(RepresentedCalendarCommunityInviteLikeCpp {
                 guild_id,
@@ -133,6 +134,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedCalendarCommunityInviteLikeCpp] {
         &self
+            .social
             .calendar_test_fixture_like_cpp
             .represented_calendar_community_invites_like_cpp
     }
@@ -169,7 +171,8 @@ impl WorldSession {
         };
 
         #[cfg(test)]
-        self.calendar_test_fixture_like_cpp
+        self.social
+            .calendar_test_fixture_like_cpp
             .represented_calendar_add_events_like_cpp
             .push(RepresentedCalendarAddEventLikeCpp {
                 guild_id,
@@ -191,6 +194,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedCalendarAddEventLikeCpp] {
         &self
+            .social
             .calendar_test_fixture_like_cpp
             .represented_calendar_add_events_like_cpp
     }
@@ -206,7 +210,7 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if !canonical && self.player_handle_like_cpp.is_none() {
+        if !canonical && self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_battleground_state_like_cpp(|state| {
                     state.set_arena_team_id_invited_like_cpp(arena_team_id);

@@ -9,11 +9,14 @@ async fn apply_creature_melee_damage_command_updates_victim_and_sends_hit_like_c
     let attacker_guid =
         ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1007);
     let victim_guid = ObjectGuid::create_player(1, 7001);
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_player_guid(Some(victim_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session.set_player_health_like_cpp(100, 100);
-    session.client_visible_guids_like_cpp.insert(attacker_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(attacker_guid);
     let committed_revision = install_committed_canonical_player_health_for_melee_test_like_cpp(
         &mut session,
         victim_guid,
@@ -68,7 +71,7 @@ async fn apply_creature_melee_damage_command_syncs_health_without_visible_attack
     let attacker_guid =
         ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1008);
     let victim_guid = ObjectGuid::create_player(1, 7002);
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_player_guid(Some(victim_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session.set_player_health_like_cpp(100, 100);
@@ -123,11 +126,14 @@ async fn apply_creature_melee_damage_command_delayed_after_heal_presents_current
     let attacker_guid =
         ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1014);
     let victim_guid = ObjectGuid::create_player(1, 7008);
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_player_guid(Some(victim_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session.set_player_health_like_cpp(83, 100);
-    session.client_visible_guids_like_cpp.insert(attacker_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(attacker_guid);
     let committed_revision = install_committed_canonical_player_health_for_melee_test_like_cpp(
         &mut session,
         victim_guid,
@@ -217,11 +223,14 @@ async fn apply_creature_melee_damage_command_replay_after_resurrection_is_suppre
     let attacker_guid =
         ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1015);
     let victim_guid = ObjectGuid::create_player(1, 7009);
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_player_guid(Some(victim_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session.set_player_health_like_cpp(100, 100);
-    session.client_visible_guids_like_cpp.insert(attacker_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(attacker_guid);
     let committed_revision = install_committed_canonical_player_health_for_melee_test_like_cpp(
         &mut session,
         victim_guid,
@@ -319,7 +328,7 @@ async fn apply_creature_melee_damage_command_lethal_publishes_durability_loss_li
     let attacker_guid =
         ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1016);
     let victim_guid = ObjectGuid::create_player(1, 7010);
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_player_guid(Some(victim_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session.set_player_health_like_cpp(100, 100);
@@ -370,7 +379,7 @@ async fn apply_creature_melee_damage_command_battleground_skips_durability_like_
     let attacker_guid =
         ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1017);
     let victim_guid = ObjectGuid::create_player(1, 7011);
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_player_guid(Some(victim_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session.set_player_health_like_cpp(100, 100);

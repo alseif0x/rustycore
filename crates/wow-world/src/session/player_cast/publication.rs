@@ -76,15 +76,15 @@ impl WorldSession {
         bytes: Vec<u8>,
     ) {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             self.send_raw_packet(&bytes);
             return;
         }
-        let Some(handle) = self.player_handle_like_cpp else {
+        let Some(handle) = self.core.player_handle_like_cpp else {
             return;
         };
         let source = (|| {
-            let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+            let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
             let (key, revision) = manager.player_active_residence_revision_like_cpp(handle)?;
             if Some(revision) != metadata.prepared_residence_revision {
                 return None;
@@ -148,6 +148,7 @@ impl WorldSession {
         }
         if self.state() != SessionState::LoggedIn
             || !self
+                .core
                 .client_visible_guids_like_cpp
                 .shares_storage_like_cpp(&command.committed_visibility_like_cpp)
             || self.current_canonical_player_map_key_like_cpp()

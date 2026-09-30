@@ -23,7 +23,7 @@ impl WorldSession {
             modifiers.source_item_guid.to_raw_bytes(),
         ) else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 species = modifiers.species_id,
                 "Durable battle-pet uncage lacks a stable source-item identity"
             );
@@ -36,7 +36,7 @@ impl WorldSession {
             Ok(committed) => committed,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     species = modifiers.species_id,
                     ?error,
                     "Failed to reconcile a durable battle-pet uncage request"
@@ -60,7 +60,7 @@ impl WorldSession {
                 .is_none()
         {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 item_guid = modifiers.source_item_guid.counter(),
                 cast_item_entry,
                 "Battle-pet uncage source item disappeared or changed before effect execution"
@@ -128,7 +128,7 @@ impl WorldSession {
             .await
         {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 species = modifiers.species_id,
                 ?error,
                 "Durable battle-pet uncage add was rejected"
@@ -184,7 +184,7 @@ impl WorldSession {
 
         let Some(destination) = target_data.dst_location.as_ref().map(|dst| dst.position) else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 effect_index = effect.effect_index,
                 "Spell::EffectTeleportUnits represented no-op: missing destination"
             );
@@ -272,6 +272,7 @@ impl WorldSession {
         let spell_id_u32 = u32::try_from(spell_id).ok()?;
         let spell_visual_id_i32 = i32::try_from(spell_visual_id).ok()?;
         let duration_index = self
+            .catalogs
             .spell_catalogs
             .spell_misc_store
             .as_deref()
@@ -280,13 +281,13 @@ impl WorldSession {
             .unwrap_or(0);
         let duration_ms = spell_duration_ms_like_cpp(
             duration_index,
-            self.spell_catalogs.spell_duration_store.as_deref(),
+            self.catalogs.spell_catalogs.spell_duration_store.as_deref(),
         );
         let radius = spell_effect_radius_like_cpp(
             effect.effect_radius_index_1,
-            self.spell_catalogs.spell_radius_store.as_deref(),
+            self.catalogs.spell_catalogs.spell_radius_store.as_deref(),
         );
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
         let mut manager = manager.lock().ok()?;
         let map_id = u32::from(self.player_map_id_like_cpp());
         let mut instance_id = None;
@@ -304,7 +305,7 @@ impl WorldSession {
             radius,
             duration_ms,
             u64::from(cast_time_ms),
-            self.realm_id,
+            self.core.realm_id,
             player_guid.server_id(),
         ))
     }
@@ -315,7 +316,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        if !self.represented_cast_unstuck_enabled_like_cpp {
+        if !self.config.represented_cast_unstuck_enabled_like_cpp {
             return;
         }
         if self.resolved_is_in_taxi_flight_like_cpp() != Some(false) {
@@ -332,8 +333,10 @@ impl WorldSession {
                     self.set_player_ghost_flag_like_cpp(true);
                     #[cfg(test)]
                     {
-                        self.represented_repop_at_graveyard_count =
-                            self.represented_repop_at_graveyard_count.saturating_add(1);
+                        self.combat.represented_repop_at_graveyard_count = self
+                            .combat
+                            .represented_repop_at_graveyard_count
+                            .saturating_add(1);
                     }
                 }
                 return;
@@ -365,6 +368,7 @@ impl WorldSession {
         }
 
         let Some(hearthstone_cooldown_ms) = self
+            .catalogs
             .spell_catalogs
             .spell_store
             .as_deref()

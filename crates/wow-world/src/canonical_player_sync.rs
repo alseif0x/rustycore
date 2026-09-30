@@ -9,6 +9,7 @@ pub(crate) fn hydrate_player_presentation_like_cpp(
     #[cfg(test)]
     {
         player.gameplay_state_mut().customizations = session
+            .lifecycle
             .loaded_player_customizations_like_cpp
             .iter()
             .map(|choice| wow_entities::PlayerCustomizationChoice {
@@ -52,10 +53,10 @@ pub(crate) fn sync_player_level_like_cpp(session: &WorldSession, level: u8, gray
 pub(crate) fn hydrate_player_directory_fixture_like_cpp(session: &WorldSession) {
     let known_spells = session.known_spells_fixture_like_cpp();
     let quests = session.player_quest_gameplay_snapshot_like_cpp();
-    let mount_vehicle_kit = session.player_mount_vehicle_kit_like_cpp.clone();
-    let vehicle_seat_flags = session.player_vehicle_seat_flags_like_cpp;
-    let vehicle_seat_id = session.player_vehicle_seat_id_like_cpp;
-    let pet_guid = session.represented_pet_guid_like_cpp;
+    let mount_vehicle_kit = session.vehicles.player_mount_vehicle_kit_like_cpp.clone();
+    let vehicle_seat_flags = session.vehicles.player_vehicle_seat_flags_like_cpp;
+    let vehicle_seat_id = session.vehicles.player_vehicle_seat_id_like_cpp;
+    let pet_guid = session.pets.represented_pet_guid_like_cpp;
     let _ = session.mutate_canonical_player_like_cpp(|player| {
         let state = player.gameplay_state_mut();
         let rows = known_spells

@@ -305,8 +305,8 @@ async fn the_map_pass_tail_sends_the_periodic_time_sync_with_the_admitted_diff()
     let (mut session, _pkt_tx, _send_rx) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);
     register_session_for_phases(&mut session);
-    session.state = SessionState::LoggedIn;
-    session.driver.time_synchronization.timer_ms = 200;
+    session.core.state = SessionState::LoggedIn;
+    session.core.driver.time_synchronization.timer_ms = 200;
 
     let admission = session
         .current_map_phase_admission_for_test_like_cpp(1, 7, 50)
@@ -329,7 +329,7 @@ async fn the_map_pass_tail_sends_the_periodic_time_sync_with_the_admitted_diff()
     // C++ decrements this timer on the `!ProcessUnsafe()` branch, i.e. in the
     // map filter's pass, with that pass's diff (`WorldSession.cpp:488-497`).
     // It runs even though no packet was queued.
-    assert_eq!(session.driver.time_synchronization.timer_ms, 150);
+    assert_eq!(session.core.driver.time_synchronization.timer_ms, 150);
 }
 
 #[tokio::test]
@@ -337,8 +337,8 @@ async fn a_coordinated_session_does_not_send_the_time_sync_twice_per_step() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);
     register_session_for_phases(&mut session);
-    session.state = SessionState::LoggedIn;
-    session.driver.time_synchronization.timer_ms = 200;
+    session.core.state = SessionState::LoggedIn;
+    session.core.driver.time_synchronization.timer_ms = 200;
     session.mark_map_phase_coordinated_like_cpp();
 
     // The world pass of the same step must leave the timer to the map pass:
@@ -347,7 +347,7 @@ async fn a_coordinated_session_does_not_send_the_time_sync_twice_per_step() {
         .update_with_catalogs_like_cpp(50, &SessionHandlerCatalogsLikeCpp::default())
         .await;
 
-    assert_eq!(session.driver.time_synchronization.timer_ms, 200);
+    assert_eq!(session.core.driver.time_synchronization.timer_ms, 200);
 }
 
 #[tokio::test]
@@ -431,7 +431,7 @@ async fn control_traffic_behind_a_map_eligible_head_still_advances_in_the_world_
     let (mut session, _pkt_tx, _send_rx) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);
     register_session_for_phases(&mut session);
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     // A head this phase may not process, which C++ leaves queued rather than
     // skipping (`LockedQueue.h:82-95`).
     queued(&mut session, ClientOpcodes::MoveInitActiveMoverComplete);
@@ -488,7 +488,7 @@ async fn a_logout_cancel_queued_in_the_same_step_is_seen_before_the_logout_decis
     let (mut session, _pkt_tx, _send_rx) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);
     register_session_for_phases(&mut session);
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     // The logout timer is already due when this step begins.
     session.lifecycle.logout_time =
         Some(std::time::Instant::now() - std::time::Duration::from_secs(1));
@@ -519,7 +519,7 @@ async fn a_logout_cancel_queued_in_the_same_step_is_seen_before_the_logout_decis
         session.lifecycle.logout_time.is_none(),
         "the queued cancel must be dispatched before the decision"
     );
-    assert_eq!(session.state, SessionState::LoggedIn);
+    assert_eq!(session.core.state, SessionState::LoggedIn);
 }
 
 #[tokio::test]
@@ -589,7 +589,7 @@ async fn the_world_and_map_phases_of_one_step_share_an_epoch_without_refusing_ea
     let (mut session, _pkt_tx, _send_rx) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);
     register_session_for_phases(&mut session);
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
 
     // C++ runs `UpdateSessions(diff)` and then `MapManager::Update(diff)` in one
     // `World::Update` (World.cpp:2704, World.cpp:2748): one step, both phases.

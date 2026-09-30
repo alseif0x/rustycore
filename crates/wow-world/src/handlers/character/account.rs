@@ -21,7 +21,7 @@ impl WorldSession {
             None => {
                 warn!(
                     "No session manager for ConnectTo flow (account {}), sending login directly",
-                    self.account_id
+                    self.core.account_id
                 );
                 self.fallback_direct_login();
                 return;
@@ -30,7 +30,7 @@ impl WorldSession {
 
         // Generate ConnectToKey
         let key = ConnectToKey {
-            account_id: self.account_id,
+            account_id: self.core.account_id,
             connection_type: 1, // Instance
             key: rand::thread_rng().gen_range(0..0x7FFF_FFFF_u32),
         };
@@ -39,7 +39,11 @@ impl WorldSession {
         self.set_connect_to_serial(Some(serial));
 
         // Register in SessionManager — returns oneshot receiver for instance link
-        let rx = session_mgr.register(self.account_id, key_raw, self.transport.session_key.clone());
+        let rx = session_mgr.register(
+            self.core.account_id,
+            key_raw,
+            self.core.transport.session_key.clone(),
+        );
         self.set_instance_link_rx(Some(rx));
 
         // Build the ConnectTo payload
@@ -65,7 +69,7 @@ impl WorldSession {
         info!(
             "Sending ConnectTo (serial={:?}) to account {} for instance {}:{port}",
             serial,
-            self.account_id,
+            self.core.account_id,
             format!("{}.{}.{}.{}", addr[0], addr[1], addr[2], addr[3])
         );
 
@@ -118,13 +122,13 @@ impl WorldSession {
             req.client_build,
             req.data_build,
             req.hotfixes.len(),
-            self.account_id,
+            self.core.account_id,
             req.hotfixes.first(),
             req.hotfixes.last()
         );
 
         let mut response = HotfixConnect::empty();
-        let locale_mask = hotfix_locale_mask(&self.locale);
+        let locale_mask = hotfix_locale_mask(&self.core.locale);
         for push_id in &req.hotfixes {
             let Some(push) = cache.hotfix_push(*push_id) else {
                 continue;
@@ -145,7 +149,7 @@ impl WorldSession {
                         if let Some(optional_entries) = cache.get_optional_data(
                             record.table_hash,
                             record.record_id,
-                            &self.locale,
+                            &self.core.locale,
                         ) {
                             for optional_data in optional_entries {
                                 response
@@ -186,12 +190,12 @@ impl WorldSession {
     pub async fn handle_connect_to_failed(&mut self, pkt: ConnectToFailed) {
         warn!(
             "ConnectToFailed (serial={:?}) from account {}",
-            pkt.serial, self.account_id
+            pkt.serial, self.core.account_id
         );
 
         // Clean up the pending entry from SessionManager
         if let Some(mgr) = self.session_mgr() {
-            mgr.remove(self.account_id);
+            mgr.remove(self.core.account_id);
         }
         self.set_instance_link_rx(None);
 
@@ -202,7 +206,7 @@ impl WorldSession {
         } else {
             warn!(
                 "All ConnectTo retries exhausted for account {}, aborting login like C++",
-                self.account_id
+                self.core.account_id
             );
             self.set_player_loading(None);
             self.release_character_login_claim_like_cpp();

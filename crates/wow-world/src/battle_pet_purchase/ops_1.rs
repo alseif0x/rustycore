@@ -129,7 +129,7 @@ impl WorldSession {
             }
             Err(BattlePetPurchaseStoreErrorLikeCpp::Indeterminate(error)) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     error,
                     "Battle-pet purchase charge COMMIT outcome is unknown; quarantined the session"
                 );
@@ -140,7 +140,7 @@ impl WorldSession {
             }
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?error,
                     "Battle-pet purchase charge did not commit"
                 );
@@ -246,7 +246,7 @@ impl WorldSession {
             }
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?error,
                     "Battle-pet purchase apply deferred after bounded retries"
                 );
@@ -299,7 +299,7 @@ impl WorldSession {
             Ok(commands) => commands,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?error,
                     "Battle-pet purchase recovery scan failed; will retry on next login"
                 );
@@ -333,7 +333,7 @@ impl WorldSession {
             if account_mismatch && command.status == BattlePetPurchaseStatusLikeCpp::Completed {
                 if !command.published {
                     warn!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         command_account = command.account_id,
                         "Closing the publication marker of a battle-pet purchase owned by another account"
                     );
@@ -506,7 +506,7 @@ impl WorldSession {
                         }
                         Err(error) => {
                             warn!(
-                                account = self.account_id,
+                                account = self.core.account_id,
                                 ?error,
                                 "Battle-pet purchase recovery deferred a command"
                             );
@@ -570,7 +570,7 @@ impl WorldSession {
                         }
                         Err(error) => {
                             warn!(
-                                account = self.account_id,
+                                account = self.core.account_id,
                                 ?error,
                                 "Battle-pet purchase recovery could not resolve the publication packet"
                             );
@@ -581,7 +581,7 @@ impl WorldSession {
                 }
                 status => {
                     warn!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         ?status,
                         "Battle-pet purchase recovery scanned an unexpected terminal command"
                     );
@@ -590,7 +590,7 @@ impl WorldSession {
         }
         if full_batch {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 limit = BATTLE_PET_PURCHASE_RECOVERY_BATCH_LIMIT_LIKE_CPP,
                 "Battle-pet purchase recovery batch is full; remaining commands resume on later logins"
             );
@@ -655,7 +655,7 @@ impl WorldSession {
             ) => true,
             Ok(conflict) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?conflict,
                     "Battle-pet purchase publication marker observed a conflicting terminal state"
                 );
@@ -663,7 +663,7 @@ impl WorldSession {
             }
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?error,
                     "Battle-pet purchase publication marker did not commit"
                 );
@@ -690,7 +690,7 @@ impl WorldSession {
             ) => true,
             Ok(conflict) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?conflict,
                     "Battle-pet purchase completion observed a conflicting terminal state"
                 );
@@ -698,7 +698,7 @@ impl WorldSession {
             }
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?error,
                     "Battle-pet purchase completion deferred"
                 );

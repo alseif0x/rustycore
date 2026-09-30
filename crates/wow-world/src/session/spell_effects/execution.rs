@@ -43,7 +43,7 @@ impl WorldSession {
         let effect_base_points = spell_info.effect_base_points;
 
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             spell_id = spell_id,
             target = ?target_guid,
             effect_type = effect_type,
@@ -211,7 +211,7 @@ impl WorldSession {
                         .await?;
                     } else {
                         debug!(
-                            account = self.account_id,
+                            account = self.core.account_id,
                             spell_id,
                             effect_index = direct_effect_index,
                             effect_base_points = direct_effect_base_points,
@@ -230,7 +230,7 @@ impl WorldSession {
                         .await?;
                     } else {
                         debug!(
-                            account = self.account_id,
+                            account = self.core.account_id,
                             spell_id,
                             effect_index = direct_effect_index,
                             effect_base_points = direct_effect_base_points,
@@ -556,7 +556,7 @@ impl WorldSession {
                         .await?;
                     } else {
                         debug!(
-                            account = self.account_id,
+                            account = self.core.account_id,
                             spell_id,
                             effect_index = direct_effect_index,
                             effect_base_points = direct_effect_base_points,
@@ -929,7 +929,7 @@ impl WorldSession {
                     )?;
                 } else {
                     debug!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         spell_id,
                         effect_index = effect.effect_index,
                         "Skipping represented generic multi-effect aura grouping until C++ aura effect-mask application is ported"

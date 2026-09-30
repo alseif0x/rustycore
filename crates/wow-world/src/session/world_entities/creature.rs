@@ -48,7 +48,7 @@ impl WorldSession {
     ) -> Option<R> {
         let map_key = self
             .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
         let mut manager = manager.lock().ok()?;
         let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
         let creature = managed.map_mut().get_typed_creature_mut(guid)?;
@@ -65,7 +65,7 @@ impl WorldSession {
             })
             .is_some();
 
-        if let Some(manager) = self.map_manager.as_ref() {
+        if let Some(manager) = self.core.map_manager.as_ref() {
             let mut manager = manager
                 .write()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -84,7 +84,7 @@ impl WorldSession {
     }
     pub(crate) fn world_creature_guids(&self) -> Vec<ObjectGuid> {
         let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        if let Some(manager) = &self.map_manager {
+        if let Some(manager) = &self.core.map_manager {
             return manager
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -97,7 +97,7 @@ impl WorldSession {
         let Some(player_position) = self.player_position_like_cpp() else {
             return Vec::new();
         };
-        let Some(manager) = &self.map_manager else {
+        let Some(manager) = &self.core.map_manager else {
             return Vec::new();
         };
         let Some(player_phase_shift) = self.represented_player_phase_shift_like_cpp() else {
@@ -141,7 +141,7 @@ impl WorldSession {
         creature: &crate::map_manager::WorldCreature,
         required_3d: bool,
     ) -> bool {
-        if !self.client_visible_guids_like_cpp.contains(&guid) {
+        if !self.core.client_visible_guids_like_cpp.contains(&guid) {
             return false;
         }
 
@@ -191,7 +191,7 @@ impl WorldSession {
         required_3d: bool,
         allow_legacy_fallback: bool,
     ) -> Option<bool> {
-        if let Some(manager) = &self.canonical_map_manager {
+        if let Some(manager) = &self.core.canonical_map_manager {
             let creature = {
                 let manager = manager.lock().ok()?;
                 manager
@@ -231,7 +231,7 @@ impl WorldSession {
         // it owns a source already validated from the legacy map. Only the
         // provenance-marked command path may cross this fallback boundary.
         let creature = {
-            let manager = self.map_manager.as_ref()?;
+            let manager = self.core.map_manager.as_ref()?;
             manager
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -251,7 +251,7 @@ impl WorldSession {
         &mut self,
         rates: CreatureClassificationHealthRatesLikeCpp,
     ) {
-        self.creature_health_rates_like_cpp = rates;
+        self.config.creature_health_rates_like_cpp = rates;
     }
     pub(crate) fn creature_create_model_scalars_like_cpp(
         &self,
@@ -259,19 +259,26 @@ impl WorldSession {
         object_scale: f32,
         display_scale: f32,
     ) -> Option<CreatureCreateModelScalarsLikeCpp> {
-        let model = self.creatures.model_info_store.as_ref()?.get(display_id)?;
+        let model = self
+            .catalogs
+            .creatures
+            .model_info_store
+            .as_ref()?
+            .get(display_id)?;
         let display_scale = if display_scale <= 0.0 {
             1.0
         } else {
             display_scale
         };
         let hover_height = self
+            .catalogs
             .creatures
             .display_info_store
             .as_ref()
             .and_then(|display_store| display_store.get(display_id))
             .and_then(|display| {
-                self.creatures
+                self.catalogs
+                    .creatures
                     .model_data_store
                     .as_ref()
                     .and_then(|model_store| model_store.get(u32::from(display.model_id)))
@@ -310,13 +317,14 @@ impl WorldSession {
         }
 
         let template = self
+            .catalogs
             .creatures
             .template_lifecycle_store_like_cpp
             .as_ref()
             .and_then(|store| store.get(entry));
         let mut selected = template.and_then(|template| {
             if template_flags_extra & CreatureFlagsExtra::TRIGGER.bits() != 0 {
-                let model_info_store = self.creatures.model_info_store.as_ref()?;
+                let model_info_store = self.catalogs.creatures.model_info_store.as_ref()?;
                 template
                     .models
                     .iter()
@@ -371,6 +379,7 @@ impl WorldSession {
 
         let mut selected = selected?;
         if let Some(other_gender) = self
+            .catalogs
             .creatures
             .model_info_store
             .as_ref()
@@ -421,7 +430,8 @@ impl WorldSession {
         )
     }
     pub(crate) fn creature_display_power_for_class_like_cpp(&self, unit_class: u8) -> u8 {
-        self.chr
+        self.catalogs
+            .chr
             .classes_store
             .as_ref()
             .and_then(|store| store.get(u32::from(unit_class)))
@@ -495,7 +505,7 @@ impl WorldSession {
         });
         #[cfg(test)]
         let canonical = canonical.or_else(|| {
-            if self.player_handle_like_cpp.is_some() {
+            if self.core.player_handle_like_cpp.is_some() {
                 return None;
             }
             self.mutate_canonical_player_like_cpp(|player| {
@@ -515,11 +525,12 @@ impl WorldSession {
 
         #[cfg(test)]
         {
-            self.player_max_health_like_cpp =
+            self.combat.player_max_health_like_cpp =
                 _canonical_max_health.clamp(1, u64::from(u32::MAX)) as u32;
-            self.player_health_like_cpp =
-                canonical_health.min(u64::from(self.player_max_health_like_cpp)) as u32;
-            self.player_alive_like_cpp = _canonical_alive && self.player_health_like_cpp > 0;
+            self.combat.player_health_like_cpp =
+                canonical_health.min(u64::from(self.combat.player_max_health_like_cpp)) as u32;
+            self.combat.player_alive_like_cpp =
+                _canonical_alive && self.combat.player_health_like_cpp > 0;
         }
         self.view
             .last_presented_creature_melee_health_state_revision_like_cpp = committed_revision;
@@ -677,7 +688,8 @@ impl WorldSession {
         let slot = self
             .canonical_creature_aura_slot_like_cpp(target_guid, spell_key, caster_guid)
             .ok_or("creature aura slot missing after application")?;
-        self.represented_creature_auras_like_cpp
+        self.world_entities
+            .represented_creature_auras_like_cpp
             .push(RepresentedCreatureAuraLikeCpp {
                 target_guid,
                 spell_id,
@@ -727,7 +739,7 @@ impl WorldSession {
         else {
             return;
         };
-        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
             return;
         };
         let Some(aura_info) = ({
@@ -770,10 +782,15 @@ impl WorldSession {
     /// applied: a duration that elapsed removes the canonical application and
     /// publishes the removal.
     pub(in crate::session) fn tick_represented_creature_auras_like_cpp(&mut self) {
-        if self.represented_creature_auras_like_cpp.is_empty() {
+        if self
+            .world_entities
+            .represented_creature_auras_like_cpp
+            .is_empty()
+        {
             return;
         }
         let expired: Vec<RepresentedCreatureAuraLikeCpp> = self
+            .world_entities
             .represented_creature_auras_like_cpp
             .iter()
             .filter(|aura| {
@@ -809,7 +826,8 @@ impl WorldSession {
                     removed
                 })
                 .unwrap_or(false);
-            self.represented_creature_auras_like_cpp
+            self.world_entities
+                .represented_creature_auras_like_cpp
                 .retain(|tracked| *tracked != aura);
             if removed {
                 self.publish_creature_aura_slot_update_like_cpp(aura.target_guid, aura.slot, false);

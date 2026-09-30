@@ -419,7 +419,9 @@ fn resummon_pet_validates_action_bar_spells_like_cpp() {
         0,
     ));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
-    session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
+    session
+        .pets
+        .represented_temporary_unsummoned_pet_number_like_cpp = 42;
     let mut stable = represented_hunter_pet_stable_like_cpp(42, 500);
     stable.active_pets[0].as_mut().unwrap().action_bar =
         "7 2 7 1 7 0 193 1111 193 3333 129 2222 193 4444 6 2 6 1 6 0".to_string();
@@ -444,7 +446,7 @@ fn resummon_pet_validates_action_bar_spells_like_cpp() {
         no_autocast_misc,
         autocastable_misc,
     ])));
-    let catalogs = &session.spell_catalogs;
+    let catalogs = &session.catalogs.spell_catalogs;
     let spell_misc_store = catalogs
         .spell_misc_store()
         .expect("spell misc store should be installed");
@@ -528,7 +530,7 @@ async fn teleport_to_far_map_interrupts_non_melee_spell_casts_like_cpp() {
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportInterruptSpells".to_string(),
@@ -616,7 +618,7 @@ async fn teleport_to_preflight_abort_preserves_non_melee_spell_casts_like_cpp() 
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportRejectPreservesSpell".to_string(),
@@ -706,7 +708,7 @@ async fn teleport_to_spell_option_preserves_non_melee_spell_casts_like_cpp() {
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportSpellOption".to_string(),

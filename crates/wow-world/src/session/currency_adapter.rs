@@ -70,8 +70,8 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.player_currencies = currencies;
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.inventory.player_currencies = currencies;
             return true;
         }
         canonical
@@ -85,8 +85,8 @@ impl WorldSession {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.gameplay_state().currencies.clone());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.player_currencies.clone());
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.inventory.player_currencies.clone());
         }
         canonical
     }

@@ -167,16 +167,22 @@ async fn addon_list_is_silent_like_cpp_log_only_handler() {
 #[tokio::test]
 async fn unregister_all_addon_prefixes_preserves_filter_flag_like_cpp() {
     let (mut session, _send_rx) = make_session();
-    session.addon_filter.registered_addon_prefixes = vec!["ABC".to_string()];
-    session.addon_filter.filter_addon_messages = true;
+    session.social.addon_filter.registered_addon_prefixes = vec!["ABC".to_string()];
+    session.social.addon_filter.filter_addon_messages = true;
     assert!(session.is_addon_registered_like_cpp("ABC"));
 
     session
         .handle_chat_unregister_all_addon_prefixes(WorldPacket::from_bytes(&[]))
         .await;
 
-    assert!(session.addon_filter.registered_addon_prefixes.is_empty());
-    assert!(session.addon_filter.filter_addon_messages);
+    assert!(
+        session
+            .social
+            .addon_filter
+            .registered_addon_prefixes
+            .is_empty()
+    );
+    assert!(session.social.addon_filter.filter_addon_messages);
     assert!(!session.is_addon_registered_like_cpp("ABC"));
 }
 

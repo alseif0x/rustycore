@@ -45,7 +45,7 @@ impl WorldSession {
                 fail_arg2: 0,
             });
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 spell_id = spell_id,
                 "Failing represented GameObject summon because C++ nearby-entry destination search found no target"
             );

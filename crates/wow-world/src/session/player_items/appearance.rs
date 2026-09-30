@@ -50,34 +50,35 @@ impl WorldSession {
     }
     /// Set the item appearance store for this session.
     pub fn set_item_appearance_store(&mut self, store: Arc<ItemAppearanceStore>) {
-        self.items.appearance_store = Some(store);
+        self.catalogs.items.appearance_store = Some(store);
     }
     /// Get the item appearance store reference.
     pub fn item_appearance_store(&self) -> Option<&Arc<ItemAppearanceStore>> {
-        self.items.appearance_store.as_ref()
+        self.catalogs.items.appearance_store.as_ref()
     }
     /// Set the item modified appearance store for this session.
     pub fn set_item_modified_appearance_store(&mut self, store: Arc<ItemModifiedAppearanceStore>) {
-        self.items.modified_appearance_store = Some(store);
+        self.catalogs.items.modified_appearance_store = Some(store);
     }
     /// Get the item modified appearance store reference.
     pub fn item_modified_appearance_store(&self) -> Option<&Arc<ItemModifiedAppearanceStore>> {
-        self.items.modified_appearance_store.as_ref()
+        self.catalogs.items.modified_appearance_store.as_ref()
     }
     /// Set the transmog set item store for this session.
     pub fn set_transmog_set_item_store(&mut self, store: Arc<TransmogSetItemStore>) {
-        self.transmog_set_item_store = Some(store);
+        self.catalogs.transmog_set_item_store = Some(store);
     }
     /// Get the transmog set item store reference.
     pub fn transmog_set_item_store(&self) -> Option<&Arc<TransmogSetItemStore>> {
-        self.transmog_set_item_store.as_ref()
+        self.catalogs.transmog_set_item_store.as_ref()
     }
     /// C++ `DB2Manager::GetTransmogSetItems`.
     pub fn transmog_set_items_like_cpp(
         &self,
         transmog_set_id: u32,
     ) -> Option<&[wow_data::TransmogSetItemEntry]> {
-        self.transmog_set_item_store
+        self.catalogs
+            .transmog_set_item_store
             .as_ref()
             .and_then(|store| store.get_transmog_set_items_like_cpp(transmog_set_id))
     }
@@ -86,11 +87,14 @@ impl WorldSession {
         &self,
         item_modified_appearance_id: u32,
     ) -> Option<&[TransmogSetEntry]> {
-        self.transmog_set_item_store.as_ref().and_then(|store| {
-            store.get_transmog_sets_for_item_modified_appearance_like_cpp(
-                item_modified_appearance_id,
-            )
-        })
+        self.catalogs
+            .transmog_set_item_store
+            .as_ref()
+            .and_then(|store| {
+                store.get_transmog_sets_for_item_modified_appearance_like_cpp(
+                    item_modified_appearance_id,
+                )
+            })
     }
     /// C++ `CollectionMgr::AddTransmogSet` expansion before `AddItemAppearance`.
     pub fn transmog_set_item_modified_appearances_like_cpp(
@@ -100,7 +104,8 @@ impl WorldSession {
         let Some(items) = self.transmog_set_items_like_cpp(transmog_set_id) else {
             return Vec::new();
         };
-        let Some(item_modified_appearance_store) = self.items.modified_appearance_store.as_ref()
+        let Some(item_modified_appearance_store) =
+            self.catalogs.items.modified_appearance_store.as_ref()
         else {
             return Vec::new();
         };
@@ -198,6 +203,7 @@ impl WorldSession {
         item_modified_appearance_id: u32,
     ) -> bool {
         let Some(item_modified_appearance) = self
+            .catalogs
             .items
             .modified_appearance_store
             .as_ref()
@@ -214,6 +220,7 @@ impl WorldSession {
             return false;
         };
         let Some(search_template) = self
+            .catalogs
             .items
             .search_name_store
             .as_ref()
@@ -223,6 +230,7 @@ impl WorldSession {
         };
 
         let Some(item_record) = self
+            .catalogs
             .items
             .store
             .as_ref()
@@ -231,6 +239,7 @@ impl WorldSession {
             return false;
         };
         let Some(sparse_template) = self
+            .catalogs
             .items
             .stats_store
             .as_ref()
@@ -437,6 +446,7 @@ impl WorldSession {
         let player_class_mask =
             player_class_mask_for_transmog_like_cpp(self.player_class_like_cpp());
         let package_item_ids = self
+            .catalogs
             .quests
             .package_item_store
             .as_ref()
@@ -498,7 +508,8 @@ impl WorldSession {
         &self,
         item_modified_appearance_id: u32,
     ) -> bool {
-        self.represented_item_appearances_like_cpp
+        self.collections
+            .represented_item_appearances_like_cpp
             .contains(&item_modified_appearance_id)
     }
     /// C++ `CollectionMgr::HasItemAppearance`.
@@ -776,7 +787,8 @@ impl WorldSession {
         &self,
         item_modified_appearance_id: u32,
     ) -> Option<FavoriteAppearanceStateLikeCpp> {
-        self.represented_favorite_item_appearances_like_cpp
+        self.collections
+            .represented_favorite_item_appearances_like_cpp
             .get(&item_modified_appearance_id)
             .copied()
     }
@@ -831,6 +843,7 @@ impl WorldSession {
     /// C++ `CollectionMgr::AddItemAppearance` criteria side effects.
     fn update_represented_transmog_criteria_like_cpp(&mut self, item_modified_appearance_id: u32) {
         let item_id = self
+            .catalogs
             .items
             .modified_appearance_store
             .as_ref()
@@ -839,7 +852,8 @@ impl WorldSession {
 
         if let Some(_transmog_slot) = item_id
             .and_then(|item_id| {
-                self.items
+                self.catalogs
+                    .items
                     .store
                     .as_ref()
                     .and_then(|store| store.inventory_type(item_id))
@@ -847,7 +861,7 @@ impl WorldSession {
             .and_then(wow_entities::item_transmogrification_slot_like_cpp)
         {
             #[cfg(test)]
-            self.represented_transmog_criteria_events.push(
+            self.inventory.represented_transmog_criteria_events.push(
                 RepresentedTransmogCriteriaEvent::LearnAnyTransmogInSlot {
                     equipment_slot: _transmog_slot as u32,
                     item_modified_appearance_id,
@@ -867,7 +881,7 @@ impl WorldSession {
         for (transmog_set_id, _transmog_set_group_id) in transmog_sets {
             if self.is_transmog_set_completed_like_cpp(transmog_set_id) {
                 #[cfg(test)]
-                self.represented_transmog_criteria_events.push(
+                self.inventory.represented_transmog_criteria_events.push(
                     RepresentedTransmogCriteriaEvent::CollectTransmogSetFromGroup {
                         transmog_set_group_id: _transmog_set_group_id,
                     },
@@ -884,6 +898,7 @@ impl WorldSession {
         let mut known_pieces = [-1_i8; EQUIPMENT_SLOT_END as usize];
         for transmog_set_item in transmog_set_items {
             let Some(item_modified_appearance) = self
+                .catalogs
                 .items
                 .modified_appearance_store
                 .as_ref()
@@ -895,6 +910,7 @@ impl WorldSession {
                 continue;
             };
             let Some(inventory_type) = self
+                .catalogs
                 .items
                 .store
                 .as_ref()
@@ -945,7 +961,8 @@ impl WorldSession {
     /// Build the closure result expected by `Item::visible_entry` and
     /// `Item::visible_appearance_mod_id` from `ItemModifiedAppearance.db2`.
     pub fn item_modified_appearance_ref(&self, id: u32) -> Option<(u32, u16)> {
-        self.items
+        self.catalogs
+            .items
             .modified_appearance_store
             .as_ref()
             .and_then(|store| store.get(id))
@@ -962,7 +979,8 @@ impl WorldSession {
         item_id: u32,
         appearance_mod_id: u32,
     ) -> Option<u32> {
-        self.items
+        self.catalogs
+            .items
             .modified_appearance_store
             .as_ref()
             .and_then(|store| store.get_for_item(item_id, appearance_mod_id))
@@ -975,7 +993,8 @@ impl WorldSession {
     ) {
         #[cfg(test)]
         {
-            self.represented_alter_appearance_requests_like_cpp
+            self.presentation
+                .represented_alter_appearance_requests_like_cpp
                 .push(request);
         }
     }
@@ -983,6 +1002,8 @@ impl WorldSession {
     pub(crate) fn represented_alter_appearance_requests_like_cpp(
         &self,
     ) -> &[RepresentedAlterAppearanceLikeCpp] {
-        &self.represented_alter_appearance_requests_like_cpp
+        &self
+            .presentation
+            .represented_alter_appearance_requests_like_cpp
     }
 }

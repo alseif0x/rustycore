@@ -19,14 +19,14 @@ use crate::finalization::FinalizationOutcome;
 
 impl WorldSession {
     pub(crate) fn unregister_canonical_player_from_map_like_cpp(&mut self) -> FinalizationOutcome {
-        let Some(handle) = self.player_handle_like_cpp else {
+        let Some(handle) = self.core.player_handle_like_cpp else {
             return if self.player_guid().is_none() {
                 FinalizationOutcome::NoWork
             } else {
                 FinalizationOutcome::Unavailable
             };
         };
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
             return FinalizationOutcome::Unavailable;
         };
         let Ok(mut manager) = manager.lock() else {
@@ -37,7 +37,7 @@ impl WorldSession {
         // GUID lookup (WorldSession.cpp:660-672). Without an incarnation token
         // this Session has no authority to remove any current map resident.
         if manager.retire_player_like_cpp(handle).is_some() {
-            self.player_handle_like_cpp = None;
+            self.core.player_handle_like_cpp = None;
             FinalizationOutcome::Applied
         } else {
             // Retain the exact token on failure. Any later attempt must still
@@ -111,10 +111,10 @@ impl WorldSession {
     /// Remove this session from the player registry.
     /// Called on logout or disconnect.
     pub(crate) fn unregister_from_player_registry(&self) {
-        let (Some(guid), Some(reg)) = (self.player_guid(), &self.player_registry) else {
+        let (Some(guid), Some(reg)) = (self.player_guid(), &self.core.player_registry) else {
             return;
         };
-        if reg.unregister_control_channel(guid, &self.session_command_tx) {
+        if reg.unregister_control_channel(guid, &self.core.session_command_tx) {
             debug!("Unregistered player {:?} from broadcast registry", guid);
         }
     }

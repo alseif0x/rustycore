@@ -91,8 +91,12 @@ fn is_toy_item_uses_toy_db2_item_id_like_cpp() {
 #[test]
 fn load_account_item_appearances_rebuilds_blocks_and_favorites_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.represented_item_appearances_like_cpp.insert(999);
     session
+        .collections
+        .represented_item_appearances_like_cpp
+        .insert(999);
+    session
+        .collections
         .represented_favorite_item_appearances_like_cpp
         .insert(998, FavoriteAppearanceStateLikeCpp::New);
 
@@ -102,7 +106,7 @@ fn load_account_item_appearances_rebuilds_blocks_and_favorites_like_cpp() {
     );
 
     assert_eq!(
-        session.represented_item_appearances_like_cpp,
+        session.collections.represented_item_appearances_like_cpp,
         HashSet::from([1, 31, 64])
     );
     assert_eq!(
@@ -125,14 +129,17 @@ fn load_account_item_appearances_rebuilds_blocks_and_favorites_like_cpp() {
 #[test]
 fn account_item_appearance_save_plan_matches_collection_mgr_state_transitions_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.represented_item_appearances_like_cpp = HashSet::from([1, 31, 64]);
+    session.collections.represented_item_appearances_like_cpp = HashSet::from([1, 31, 64]);
     session
+        .collections
         .represented_favorite_item_appearances_like_cpp
         .insert(65, FavoriteAppearanceStateLikeCpp::New);
     session
+        .collections
         .represented_favorite_item_appearances_like_cpp
         .insert(96, FavoriteAppearanceStateLikeCpp::Removed);
     session
+        .collections
         .represented_favorite_item_appearances_like_cpp
         .insert(97, FavoriteAppearanceStateLikeCpp::Unchanged);
 
@@ -162,7 +169,10 @@ fn account_item_appearance_save_plan_matches_collection_mgr_state_transitions_li
 #[test]
 fn load_account_transmog_illusions_includes_static_defaults_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.represented_transmog_illusions_like_cpp.insert(999);
+    session
+        .collections
+        .represented_transmog_illusions_like_cpp
+        .insert(999);
 
     session
         .load_represented_account_transmog_illusions_like_cpp([(0, 1_u32 << 1), (2, 1_u32 << 3)]);
@@ -378,12 +388,19 @@ fn is_transmog_set_completed_ignores_temporary_and_missing_entries_like_cpp() {
     assert!(session.is_transmog_set_completed_like_cpp(71));
 
     session
+        .collections
         .represented_temporary_item_appearances_like_cpp
         .insert(65, HashSet::from([ObjectGuid::create_item(1, 901)]));
-    session.represented_item_appearances_like_cpp.insert(96);
+    session
+        .collections
+        .represented_item_appearances_like_cpp
+        .insert(96);
     assert!(!session.is_transmog_set_completed_like_cpp(70));
 
-    session.represented_item_appearances_like_cpp.insert(65);
+    session
+        .collections
+        .represented_item_appearances_like_cpp
+        .insert(65);
     assert!(session.is_transmog_set_completed_like_cpp(70));
 }
 #[test]
@@ -463,14 +480,25 @@ fn is_transmog_set_completed_keeps_first_completed_slot_like_cpp() {
     ])));
 
     session
+        .collections
         .represented_temporary_item_appearances_like_cpp
         .insert(65, HashSet::from([ObjectGuid::create_item(1, 901)]));
-    session.represented_item_appearances_like_cpp.insert(96);
+    session
+        .collections
+        .represented_item_appearances_like_cpp
+        .insert(96);
     assert!(session.is_transmog_set_completed_like_cpp(80));
 
-    session.represented_item_appearances_like_cpp.remove(&96);
-    session.represented_item_appearances_like_cpp.insert(65);
     session
+        .collections
+        .represented_item_appearances_like_cpp
+        .remove(&96);
+    session
+        .collections
+        .represented_item_appearances_like_cpp
+        .insert(65);
+    session
+        .collections
         .represented_temporary_item_appearances_like_cpp
         .insert(96, HashSet::from([ObjectGuid::create_item(1, 902)]));
     assert!(session.is_transmog_set_completed_like_cpp(81));
@@ -569,6 +597,7 @@ fn add_item_appearance_records_transmog_criteria_like_cpp() {
     ])));
     session.mutate_canonical_player_like_cpp(|player| player.clear_data_changes());
     session
+        .collections
         .represented_temporary_item_appearances_like_cpp
         .insert(96, HashSet::from([ObjectGuid::create_item(1, 902)]));
 
@@ -576,19 +605,22 @@ fn add_item_appearance_records_transmog_criteria_like_cpp() {
         .add_item_appearance_like_cpp(65)
         .expect("first permanent piece should update transmog state");
     assert_eq!(
-        session.represented_transmog_criteria_events,
+        session.inventory.represented_transmog_criteria_events,
         vec![RepresentedTransmogCriteriaEvent::LearnAnyTransmogInSlot {
             equipment_slot: EQUIPMENT_SLOT_HEAD as u32,
             item_modified_appearance_id: 65,
         }]
     );
 
-    session.represented_transmog_criteria_events.clear();
+    session
+        .inventory
+        .represented_transmog_criteria_events
+        .clear();
     session
         .add_item_appearance_like_cpp(96)
         .expect("second permanent piece should complete the set");
     assert_eq!(
-        session.represented_transmog_criteria_events,
+        session.inventory.represented_transmog_criteria_events,
         vec![
             RepresentedTransmogCriteriaEvent::LearnAnyTransmogInSlot {
                 equipment_slot: EQUIPMENT_SLOT_CHEST as u32,

@@ -17,14 +17,19 @@ async fn disconnect_after_primary_ae_release_closes_secondary_view_like_cpp() {
     session
         .handle_loot_release(loot_release_packet(primary_guid))
         .await;
-    assert!(session.active_loot_guid.is_empty());
-    assert!(session.active_loot_view_owners.contains(&secondary_guid));
+    assert!(session.loot.active_loot_guid.is_empty());
+    assert!(
+        session
+            .loot
+            .active_loot_view_owners
+            .contains(&secondary_guid)
+    );
 
     session
         .cleanup_shared_runtime_state_on_disconnect_like_cpp()
         .await;
 
-    assert!(session.active_loot_view_owners.is_empty());
+    assert!(session.loot.active_loot_view_owners.is_empty());
     assert!(
         !secondary_authority
             .snapshot_for_player_like_cpp(player_guid)
@@ -125,7 +130,9 @@ fn concurrent_fishing_hole_releases_cannot_finish_ready_after_max_like_cpp() {
         GAMEOBJECT_TYPE_FISHING_HOLE as u8,
     );
     attach_canonical_gameobject(&mut first, gameobject);
-    second.set_canonical_map_manager(Arc::clone(first.canonical_map_manager.as_ref().unwrap()));
+    second.set_canonical_map_manager(Arc::clone(
+        first.core.canonical_map_manager.as_ref().unwrap(),
+    ));
     let start = Arc::new(Barrier::new(2));
 
     std::thread::scope(|scope| {

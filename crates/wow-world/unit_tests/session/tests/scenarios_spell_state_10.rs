@@ -260,7 +260,10 @@ async fn represented_spellclick_executes_clicker_cast_to_clickee_like_cpp() {
         0,
     );
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
-    session.client_visible_guids_like_cpp.insert(creature_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(creature_guid);
     session.set_map_manager(manager.clone());
     session.register_world_creature(
         571,
@@ -438,7 +441,10 @@ async fn represented_spellclick_executes_clickee_caster_self_damage_like_cpp() {
         0,
     );
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
-    session.client_visible_guids_like_cpp.insert(creature_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(creature_guid);
     session.set_map_manager(manager.clone());
     session.register_world_creature(
         571,
@@ -560,7 +566,10 @@ async fn represented_spellclick_executes_clickee_caster_damage_to_clicker_like_c
         0,
     ));
     session.set_player_health_like_cpp(50, 100);
-    session.client_visible_guids_like_cpp.insert(creature_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(creature_guid);
     add_canonical_test_creature(
         &canonical,
         creature_guid,
@@ -687,7 +696,10 @@ async fn represented_spellclick_executes_owner_original_caster_when_owner_is_cli
         0,
     );
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
-    session.client_visible_guids_like_cpp.insert(creature_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(creature_guid);
     session.set_map_manager(manager.clone());
     session.register_world_creature(
         571,

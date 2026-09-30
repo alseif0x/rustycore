@@ -21,7 +21,7 @@ impl WorldSession {
             .into_iter()
             .collect();
         wow_packet::packets::void_storage::VoidItem {
-            guid: ObjectGuid::create_item(self.realm_id, item.item_id as i64),
+            guid: ObjectGuid::create_item(self.core.realm_id, item.item_id as i64),
             creator: item.creator_guid,
             slot: u32::from(slot),
             item: wow_packet::packets::item::ItemInstance {
@@ -77,7 +77,7 @@ impl WorldSession {
     }
     /// C++ `Player::SendCurrencies`.
     pub(crate) fn setup_currencies_packet_like_cpp(&self) -> Option<SetupCurrency> {
-        let store = self.currency_types_store.as_ref()?;
+        let store = self.catalogs.currency_types_store.as_ref()?;
         let currencies = self.player_currencies_like_cpp()?;
 
         let player_team = player_team_for_race_cpp(self.player_race_like_cpp());
@@ -95,6 +95,7 @@ impl WorldSession {
 
             if entry.award_condition_id != 0 {
                 if let Some(condition) = self
+                    .catalogs
                     .player_condition_store
                     .as_ref()
                     .and_then(|store| store.get(entry.award_condition_id as u32))
@@ -287,6 +288,7 @@ impl WorldSession {
             conversation_guid: ObjectGuid::EMPTY,
         });
         if let Some(sequence) = self
+            .catalogs
             .cinematic_sequences_store
             .as_ref()
             .and_then(|store| store.get(cinematic_id))
@@ -347,7 +349,7 @@ impl WorldSession {
     }
     /// Get a clone of the send channel.
     pub fn send_tx(&self) -> &flume::Sender<Vec<u8>> {
-        self.transport.connection.send_tx()
+        self.core.transport.connection.send_tx()
     }
     pub(in crate::session) fn send_represented_mount_unit_update_like_cpp(
         &mut self,
@@ -376,24 +378,25 @@ impl WorldSession {
     /// Send a TimeSyncRequest and schedule the next one.
     pub(crate) fn send_time_sync(&mut self) {
         use wow_packet::packets::misc::TimeSyncRequest;
-        let sequence_index = self.driver.time_synchronization.next_counter;
+        let sequence_index = self.core.driver.time_synchronization.next_counter;
         self.send_packet(&TimeSyncRequest { sequence_index });
         trace!(
             "Sent TimeSyncRequest(seq={}) for account {}",
-            sequence_index, self.account_id
+            sequence_index, self.core.account_id
         );
-        self.driver
+        self.core
+            .driver
             .time_synchronization
             .pending_requests
             .insert(sequence_index, crate::session::game_time_ms_like_cpp());
         // C++ uses 5s for the first request, then 10s.
-        self.driver.time_synchronization.timer_ms =
-            if self.driver.time_synchronization.next_counter == 0 {
+        self.core.driver.time_synchronization.timer_ms =
+            if self.core.driver.time_synchronization.next_counter == 0 {
                 5000
             } else {
                 10000
             };
-        self.driver.time_synchronization.next_counter += 1;
+        self.core.driver.time_synchronization.next_counter += 1;
     }
     /// Send a server packet back to the client via the instance (default) channel.
     /// Enqueue one packet, reporting whether it was accepted.
@@ -405,14 +408,14 @@ impl WorldSession {
         let data = pkt.to_bytes();
         if std::env::var_os("RUSTYCORE_LOGIN_TRACE").is_some() {
             info!(
-                account = self.account_id,
+                account = self.core.account_id,
                 opcode = ?P::OPCODE,
                 bytes = data.len(),
                 "RUST_LOGIN_TRACE send_packet"
             );
         }
         if self.send_tx().send(data).is_err() {
-            warn!("Send channel closed for account {}", self.account_id);
+            warn!("Send channel closed for account {}", self.core.account_id);
             return false;
         }
         true
@@ -427,7 +430,7 @@ impl WorldSession {
         let data = pkt.to_bytes();
         if std::env::var_os("RUSTYCORE_LOGIN_TRACE").is_some() {
             info!(
-                account = self.account_id,
+                account = self.core.account_id,
                 opcode = ?P::OPCODE,
                 bytes = data.len(),
                 "RUST_LOGIN_TRACE try_send_packet"
@@ -438,12 +441,12 @@ impl WorldSession {
             Err(flume::TrySendError::Full(_)) => {
                 warn!(
                     "Send channel full for account {}; packet rejected without blocking",
-                    self.account_id
+                    self.core.account_id
                 );
                 false
             }
             Err(flume::TrySendError::Disconnected(_)) => {
-                warn!("Send channel closed for account {}", self.account_id);
+                warn!("Send channel closed for account {}", self.core.account_id);
                 false
             }
         }
@@ -492,14 +495,14 @@ impl WorldSession {
                 .map(|bytes| format!("0x{:04X}", u16::from_le_bytes([bytes[0], bytes[1]])))
                 .unwrap_or_else(|| "<short>".to_string());
             info!(
-                account = self.account_id,
+                account = self.core.account_id,
                 opcode = opcode_text.as_str(),
                 bytes = data.len(),
                 "RUST_LOGIN_TRACE send_raw_packet"
             );
         }
         if self.send_tx().send(data.to_vec()).is_err() {
-            warn!("Send channel closed for account {}", self.account_id);
+            warn!("Send channel closed for account {}", self.core.account_id);
         }
     }
     pub fn send_buy_error(&self, result: BuyResult, creature_guid: Option<ObjectGuid>, item: u32) {

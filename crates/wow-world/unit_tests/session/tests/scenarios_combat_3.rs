@@ -75,8 +75,8 @@ fn combat_tick_keeps_and_damages_canonical_player_victim_like_cpp() {
             unit.set_weapon_damage(WeaponAttackType::BaseAttack, 7.0, 7.0);
         })
         .unwrap();
-    session.combat_target = Some(victim);
-    session.in_combat = true;
+    session.combat.combat_target = Some(victim);
+    session.combat.in_combat = true;
 
     session.tick_combat_sync();
 
@@ -93,8 +93,8 @@ fn combat_tick_keeps_and_damages_canonical_player_victim_like_cpp() {
         Some(victim)
     );
     assert_eq!(victim_entity.unit().data().health, 33);
-    assert_eq!(session.combat_target, Some(victim));
-    assert!(session.in_combat);
+    assert_eq!(session.combat.combat_target, Some(victim));
+    assert!(session.combat.in_combat);
 }
 #[test]
 fn combat_tick_offhand_only_does_not_clear_base_swing_error_like_cpp() {
@@ -163,8 +163,8 @@ fn combat_tick_offhand_only_does_not_clear_base_swing_error_like_cpp() {
             player.set_attack_swing_error_like_cpp(Some(0));
         })
         .unwrap();
-    session.combat_target = Some(guid);
-    session.in_combat = true;
+    session.combat.combat_target = Some(guid);
+    session.combat.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -381,7 +381,7 @@ fn combat_tick_revalidates_and_purges_invalid_combat_refs_like_cpp() {
 #[test]
 fn chat_away_ignored_while_in_combat_like_cpp() {
     let (mut session, _, guid) = session_with_canonical_player_for_away_like_cpp();
-    session.in_combat = true;
+    session.combat.in_combat = true;
 
     assert!(
         !session.apply_chat_away_mode_like_cpp(PlayerAwayModeLikeCpp::Afk, "cannot".to_string())
@@ -433,10 +433,10 @@ fn default_session_owner_preserves_combat_tick_packets() {
     let (mut session, _, recv) = make_session();
     let guid = test_creature_guid(90_002);
     let player = ObjectGuid::create_player(1, 90_002);
-    session.player_guid = Some(player);
-    session.combat_target = Some(guid);
-    session.in_combat = true;
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(player);
+    session.combat.combat_target = Some(guid);
+    session.combat.in_combat = true;
+    session.core.client_visible_guids_like_cpp.insert(guid);
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {

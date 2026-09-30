@@ -111,7 +111,7 @@ async fn killing_moving_creature_sends_cpp_like_monster_move_stop() {
     let (mut session, _, send_rx) = make_session();
     let manager = shared_map_manager();
     let guid = test_creature_guid(18_202);
-    session.player_guid = Some(ObjectGuid::create_player(1, 202));
+    session.core.player_guid = Some(ObjectGuid::create_player(1, 202));
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -162,10 +162,10 @@ fn combat_tick_damage_syncs_canonical_creature_health() {
     let manager = shared_map_manager();
     let guid = test_creature_guid(18_003);
     let player = ObjectGuid::create_player(1, 43);
-    session.player_guid = Some(player);
-    session.combat_target = Some(guid);
-    session.in_combat = true;
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(player);
+    session.combat.combat_target = Some(guid);
+    session.combat.in_combat = true;
+    session.core.client_visible_guids_like_cpp.insert(guid);
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -194,12 +194,12 @@ async fn combat_tick_kill_keeps_empty_creature_loot_non_lootable_after_pending_d
     let manager = shared_map_manager();
     let guid = test_creature_guid(18_015);
     let player = ObjectGuid::create_player(1, 63);
-    session.player_guid = Some(player);
+    session.core.player_guid = Some(player);
     session.set_player_level_like_cpp(1);
     session.set_player_xp_like_cpp(0);
     session.set_player_next_level_xp_like_cpp(400);
-    session.combat_target = Some(guid);
-    session.in_combat = true;
+    session.combat.combat_target = Some(guid);
+    session.combat.in_combat = true;
     let mut quest_store = wow_data::quest::QuestStore::new();
     quest_store.quests.insert(
         9_001,
@@ -287,18 +287,22 @@ async fn combat_tick_kill_keeps_empty_creature_loot_non_lootable_after_pending_d
         },
     );
     session.set_quest_store(Arc::new(quest_store));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        9_001,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: 9_001,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![0],
-            slot: 0,
-        },
-    );
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
+            9_001,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id: 9_001,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
     register_test_creature(&mut session, manager.clone(), guid, 3);
     session
         .mutate_world_creature(guid, |creature| {
@@ -310,12 +314,16 @@ async fn combat_tick_kill_keeps_empty_creature_loot_non_lootable_after_pending_d
 
     session.tick_combat_sync();
 
-    assert!(session.loot_table.get(&guid).is_none());
-    assert_eq!(session.pending_creature_kill_loot_like_cpp, vec![guid]);
+    assert!(session.loot.loot_table.get(&guid).is_none());
+    assert_eq!(
+        session.world_entities.pending_creature_kill_loot_like_cpp,
+        vec![guid]
+    );
 
     session.process_pending().await;
 
     let loot = session
+        .loot
         .loot_table
         .get(&guid)
         .expect("melee kill loot is generated from pending bridge");
@@ -324,6 +332,7 @@ async fn combat_tick_kill_keeps_empty_creature_loot_non_lootable_after_pending_d
     assert_eq!((loot.coins, loot.unlooted_count), (0, 0));
     assert!(session.player_xp_like_cpp() > 0);
     let quest = session
+        .quest_state
         .quest_test_fixture_like_cpp
         .player_quests
         .get(&9_001)
@@ -434,8 +443,8 @@ fn combat_tick_damage_adds_creature_threat_like_cpp() {
             unit.set_weapon_damage(WeaponAttackType::BaseAttack, 7.0, 7.0);
         })
         .unwrap();
-    session.combat_target = Some(guid);
-    session.in_combat = true;
+    session.combat.combat_target = Some(guid);
+    session.combat.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -516,9 +525,9 @@ async fn attack_stop_preserves_creature_combat_state_like_cpp() {
     let manager = shared_map_manager();
     let guid = test_creature_guid(18_004);
     let player = ObjectGuid::create_player(1, 44);
-    session.player_guid = Some(player);
-    session.combat_target = Some(guid);
-    session.in_combat = true;
+    session.core.player_guid = Some(player);
+    session.combat.combat_target = Some(guid);
+    session.combat.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| creature.enter_combat(player))
@@ -771,8 +780,8 @@ fn player_attack_dead_typed_creature_is_rejected_like_cpp() {
             .unit()
             .has_attacker_like_cpp(player)
     );
-    assert_eq!(session.combat_target, None);
-    assert!(!session.in_combat);
+    assert_eq!(session.combat.combat_target, None);
+    assert!(!session.combat.in_combat);
 }
 #[test]
 fn player_attack_unseen_phase_creature_is_rejected_like_cpp() {
@@ -844,6 +853,6 @@ fn player_attack_unseen_phase_creature_is_rejected_like_cpp() {
     assert_eq!(player_entity.unit().attacking(), None);
     assert_eq!(player_entity.unit().data().target, ObjectGuid::EMPTY);
     assert!(!victim_entity.unit().has_attacker_like_cpp(player));
-    assert_eq!(session.combat_target, None);
-    assert!(!session.in_combat);
+    assert_eq!(session.combat.combat_target, None);
+    assert!(!session.combat.in_combat);
 }

@@ -182,12 +182,15 @@ fn canonical_player_logout_retires_detached_handle_like_cpp() {
         session
             .ensure_canonical_world_map_for_current_player_like_cpp()
             .expect("initial world map");
-        let handle = session.player_handle_like_cpp.expect("canonical handle");
+        let handle = session
+            .core
+            .player_handle_like_cpp
+            .expect("canonical handle");
         assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
 
         session.cleanup_shared_runtime_state();
 
-        assert_eq!(session.player_handle_like_cpp, None);
+        assert_eq!(session.core.player_handle_like_cpp, None);
         assert_eq!(
             canonical.lock().unwrap().player_residence_like_cpp(handle),
             None
@@ -201,7 +204,7 @@ async fn disconnect_cleanup_releases_active_loot_views_like_cpp_logout_player() 
     let loot_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 19_040);
     session.set_player_guid(Some(player_guid));
     session.set_active_loot_guid(loot_guid);
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -246,7 +249,7 @@ async fn disconnect_cleanup_releases_active_loot_views_like_cpp_logout_player() 
     assert_eq!(sent.read_packed_guid().unwrap(), player_guid);
     assert!(!session.is_active_loot_guid(loot_guid));
     assert!(
-        !session.loot_table.contains_key(&loot_guid),
+        !session.loot.loot_table.contains_key(&loot_guid),
         "full disconnect release retires the session packet-cache copy like C++"
     );
 }

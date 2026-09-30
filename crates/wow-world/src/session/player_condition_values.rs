@@ -84,9 +84,9 @@ impl RepresentedPlayerConditionContextLikeCpp {
             lfg_values: &self.lfg_values,
             area_id,
             parent_area_ids: &self.parent_area_ids,
-            expansion: session.expansion as i8,
-            server_expansion: session.account_expansion as i8,
-            is_game_master: session.security > 0,
+            expansion: session.core.expansion as i8,
+            server_expansion: session.core.account_expansion as i8,
+            is_game_master: session.core.security > 0,
             phase_satisfied: true,
             quest_kill_id: 0,
             quest_kills: &self.quest_kills,
@@ -163,6 +163,7 @@ impl WorldSession {
         let (_, area_id) = self.player_zone_area_like_cpp()?;
         let explored_zones = self.player_explored_zones_snapshot_like_cpp()?;
         let (explored_area_ids, parent_area_ids) = self
+            .catalogs
             .area_table_store
             .as_ref()
             .map(|store| {
@@ -177,6 +178,7 @@ impl WorldSession {
         for (&slot, inventory_item) in &self.resolved_inventory_items_like_cpp()? {
             if slot == EQUIPMENT_SLOT_MAINHAND {
                 mainhand_weapon_subclass = self
+                    .catalogs
                     .items
                     .store
                     .as_ref()
@@ -211,7 +213,7 @@ impl WorldSession {
             return true;
         }
 
-        let Some(store) = self.player_condition_store.as_ref() else {
+        let Some(store) = self.catalogs.player_condition_store.as_ref() else {
             return false;
         };
         let Some(condition) = store.get(player_condition_id) else {

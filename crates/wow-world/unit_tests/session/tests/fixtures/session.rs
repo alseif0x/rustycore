@@ -105,7 +105,7 @@ pub(in crate::session::tests) fn insert_session_player_into_canonical_map_like_c
     map_id: u32,
     instance_id: u32,
 ) {
-    if let Some(handle) = session.player_handle_like_cpp {
+    if let Some(handle) = session.core.player_handle_like_cpp {
         let position = session
             .player_position_like_cpp()
             .expect("canonical Player fixture position");

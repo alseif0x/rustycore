@@ -15,7 +15,7 @@ async fn push_quest_to_party_inactive_pooled_quest_records_not_daily_before_grou
     session.set_quest_store(Arc::new(quest_store));
     session.set_quest_pool_store(Arc::new(quest_pool_store));
     add_active_quest(&mut session, 7106);
-    session.group_guid = Some(99);
+    session.social.group_guid = Some(99);
 
     run_push_quest_to_party(&mut session, 7106).await;
 
@@ -83,7 +83,7 @@ async fn push_quest_to_party_non_pooled_quest_passes_pool_check_to_group_boundar
     session.set_quest_store(Arc::new(quest_store));
     session.set_quest_pool_store(Arc::new(quest_pool_store));
     add_active_quest(&mut session, 7110);
-    session.group_guid = Some(99);
+    session.social.group_guid = Some(99);
 
     run_push_quest_to_party(&mut session, 7110).await;
 
@@ -726,6 +726,7 @@ async fn push_quest_to_party_grouped_receiver_low_min_reputation_emits_low_facti
     receiver_session.sync_player_registry_state_like_cpp();
     set_canonical_party_reputation_like_cpp(
         receiver_session
+            .core
             .canonical_map_manager
             .as_ref()
             .expect("canonical map manager"),
@@ -771,6 +772,7 @@ async fn push_quest_to_party_grouped_receiver_equal_max_reputation_emits_low_fac
     receiver_session.sync_player_registry_state_like_cpp();
     set_canonical_party_reputation_like_cpp(
         receiver_session
+            .core
             .canonical_map_manager
             .as_ref()
             .expect("canonical map manager"),

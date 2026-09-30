@@ -24,12 +24,14 @@ async fn teleport_to_instance_rejects_new_instance_farm_limit_before_transfer_li
         0,
     ));
     session
+        .instances
         .instance_test_fixture_like_cpp
         .represented_raid_difficulty_id_like_cpp = 3;
     session.set_max_instances_per_hour_like_cpp(5);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     for instance_id in 100..105 {
         session
+            .instances
             .represented_instance_reset_times_like_cpp
             .insert(instance_id, u64::MAX);
     }
@@ -51,7 +53,7 @@ async fn teleport_to_instance_rejects_new_instance_farm_limit_before_transfer_li
         "C++ Player::TeleportTo returns before SMSG_TRANSFER_PENDING when Map::PlayerCannotEnter rejects the instance cap"
     );
     assert_eq!(session.pending_teleport_like_cpp(), None);
-    assert_ne!(session.state, SessionState::Transfer);
+    assert_ne!(session.core.state, SessionState::Transfer);
     assert!(
         canonical.lock().unwrap().find_map(631, 0).is_none(),
         "teleport preflight must not create the target instance before the client transfer"
@@ -89,7 +91,7 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
                 .add_unit_state(UnitState::ATTACK_PLAYER.bits());
         })
         .unwrap();
-    session.player_contested_pvp_timer_like_cpp = 77;
+    session.combat.player_contested_pvp_timer_like_cpp = 77;
     session.register_in_player_registry();
     session.set_selection_guid_like_cpp(Some(selected_guid));
     session.register_world_creature(
@@ -122,8 +124,9 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
                 .add_threat(player_guid, 25.0);
         })
         .unwrap();
-    assert!(session.in_combat);
+    assert!(session.combat.in_combat);
     session
+        .instances
         .instance_test_fixture_like_cpp
         .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
@@ -143,14 +146,14 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
         session.pending_teleport_like_cpp(),
         Some((631, destination))
     );
-    assert_eq!(session.state, SessionState::Transfer);
+    assert_eq!(session.core.state, SessionState::Transfer);
     assert_eq!(
         session.selection_guid_like_cpp(),
         None,
         "C++ far Player::TeleportTo clears selection after entry preflight and before transfer"
     );
     assert_eq!(
-        session.player_contested_pvp_timer_like_cpp, 0,
+        session.combat.player_contested_pvp_timer_like_cpp, 0,
         "C++ far Player::TeleportTo calls ResetContestedPvP before transfer"
     );
     {
@@ -187,8 +190,8 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
             Some(0.0)
         );
     }
-    assert_eq!(session.combat_target, None);
-    assert!(!session.in_combat);
+    assert_eq!(session.combat.combat_target, None);
+    assert!(!session.combat.in_combat);
     assert!(
         canonical.lock().unwrap().find_map(631, 0).is_none(),
         "C++ Player::TeleportTo only preflights entry rights; map materialization happens later"
@@ -199,7 +202,7 @@ async fn teleport_to_blocks_client_without_target_map_expansion_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let player_guid = ObjectGuid::create_player(1, 792);
     let destination = Position::new(100.0, 200.0, 30.0, 1.5);
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {
             id: 870,
@@ -236,7 +239,7 @@ async fn teleport_to_blocks_client_without_target_map_expansion_like_cpp() {
     );
     assert!(send_rx.try_recv().is_err());
     assert_eq!(session.pending_teleport_like_cpp(), None);
-    assert_ne!(session.state, SessionState::Transfer);
+    assert_ne!(session.core.state, SessionState::Transfer);
 }
 #[tokio::test]
 async fn teleport_to_expansion_abort_preserves_vehicle_state_like_cpp() {
@@ -244,7 +247,7 @@ async fn teleport_to_expansion_abort_preserves_vehicle_state_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 829);
     let registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let destination = Position::new(100.0, 200.0, 30.0, 1.5);
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {
             id: 870,
@@ -267,8 +270,9 @@ async fn teleport_to_expansion_abort_preserves_vehicle_state_like_cpp() {
         80,
         0,
     ));
-    session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
-    session.player_vehicle_seat_id_like_cpp = Some(1004);
+    session.vehicles.player_vehicle_seat_flags_like_cpp =
+        Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
+    session.vehicles.player_vehicle_seat_id_like_cpp = Some(1004);
     session.register_in_player_registry();
 
     session.teleport_to(870, destination).await;
@@ -284,11 +288,11 @@ async fn teleport_to_expansion_abort_preserves_vehicle_state_like_cpp() {
         .to_bytes()
     );
     assert_eq!(
-        session.player_vehicle_seat_flags_like_cpp,
+        session.vehicles.player_vehicle_seat_flags_like_cpp,
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK),
         "C++ returns from the expansion gate before Player::TeleportTo calls ExitVehicle"
     );
-    assert_eq!(session.player_vehicle_seat_id_like_cpp, Some(1004));
+    assert_eq!(session.vehicles.player_vehicle_seat_id_like_cpp, Some(1004));
     let info = registry
         .party_member(player_guid)
         .expect("registered player");
@@ -300,7 +304,7 @@ async fn teleport_to_allows_target_map_when_session_expansion_matches_like_cpp()
     let (mut session, _, send_rx) = make_session();
     let player_guid = ObjectGuid::create_player(1, 793);
     let destination = Position::new(101.0, 201.0, 31.0, 1.6);
-    session.expansion = 2;
+    session.core.expansion = 2;
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {
             id: 870,
@@ -337,7 +341,7 @@ async fn teleport_to_allows_target_map_when_session_expansion_matches_like_cpp()
         session.pending_teleport_like_cpp(),
         Some((870, destination))
     );
-    assert_eq!(session.state, SessionState::Transfer);
+    assert_eq!(session.core.state, SessionState::Transfer);
 }
 #[tokio::test]
 async fn teleport_to_battleground_without_assignment_is_silent_like_cpp() {
@@ -373,7 +377,7 @@ async fn teleport_to_battleground_without_assignment_is_silent_like_cpp() {
         "C++ Player::TeleportTo returns false without SMSG_TRANSFER_ABORTED for unassigned battleground/arena maps"
     );
     assert_eq!(session.pending_teleport_like_cpp(), None);
-    assert_ne!(session.state, SessionState::Transfer);
+    assert_ne!(session.core.state, SessionState::Transfer);
 }
 #[tokio::test]
 async fn teleport_to_battleground_with_assignment_can_start_transfer_like_cpp() {
@@ -417,7 +421,7 @@ async fn teleport_to_battleground_with_assignment_can_start_transfer_like_cpp() 
         session.pending_teleport_like_cpp(),
         Some((529, destination))
     );
-    assert_eq!(session.state, SessionState::Transfer);
+    assert_eq!(session.core.state, SessionState::Transfer);
     assert_eq!(
         session.represented_battleground_leave_requests_like_cpp(),
         0
@@ -448,7 +452,7 @@ async fn teleport_to_leaves_represented_battleground_when_target_map_differs_lik
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.set_player_battleground_context_like_cpp(BATTLEGROUND_AB_LIKE_CPP, 529);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -475,7 +479,7 @@ async fn teleport_to_leaves_represented_battleground_when_target_map_differs_lik
         session.pending_teleport_like_cpp(),
         Some((571, destination))
     );
-    assert_eq!(session.state, SessionState::Transfer);
+    assert_eq!(session.core.state, SessionState::Transfer);
     assert_eq!(
         session.represented_battleground_leave_requests_like_cpp(),
         1
@@ -510,7 +514,7 @@ async fn teleport_to_far_map_requests_temporary_pet_unsummon_like_cpp() {
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.set_represented_pet_mode_state_with_spell_like_cpp(
         Some(pet_guid),
         wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
@@ -551,12 +555,14 @@ async fn teleport_to_far_map_requests_temporary_pet_unsummon_like_cpp() {
     );
     assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 1);
-    assert_eq!(session.represented_pet_guid_like_cpp, None);
+    assert_eq!(session.pets.represented_pet_guid_like_cpp, None);
     assert_eq!(
-        session.represented_temporary_unsummoned_pet_number_like_cpp,
+        session
+            .pets
+            .represented_temporary_unsummoned_pet_number_like_cpp,
         42
     );
-    assert_eq!(session.represented_old_pet_spell_like_cpp, 6_889);
+    assert_eq!(session.pets.represented_old_pet_spell_like_cpp, 6_889);
     {
         let manager = canonical.lock().unwrap();
         assert!(
@@ -599,7 +605,7 @@ async fn teleport_to_far_map_removes_temporary_pet_without_storing_pet_number_li
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.set_represented_pet_mode_state_with_spell_like_cpp(
         Some(pet_guid),
         wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
@@ -639,12 +645,14 @@ async fn teleport_to_far_map_removes_temporary_pet_without_storing_pet_number_li
         ]
     );
     assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 1);
-    assert_eq!(session.represented_pet_guid_like_cpp, None);
+    assert_eq!(session.pets.represented_pet_guid_like_cpp, None);
     assert_eq!(
-        session.represented_temporary_unsummoned_pet_number_like_cpp,
+        session
+            .pets
+            .represented_temporary_unsummoned_pet_number_like_cpp,
         0
     );
-    assert_eq!(session.represented_old_pet_spell_like_cpp, 0);
+    assert_eq!(session.pets.represented_old_pet_spell_like_cpp, 0);
     {
         let manager = canonical.lock().unwrap();
         assert!(
@@ -682,7 +690,7 @@ async fn teleport_to_far_map_without_pet_does_not_request_pet_unsummon_like_cpp(
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportNoPetUnsummon".to_string(),
@@ -733,7 +741,7 @@ async fn teleport_to_far_map_delays_when_can_delay_teleport_is_set_like_cpp() {
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "FarTeleportDelayed".to_string(),
@@ -749,7 +757,7 @@ async fn teleport_to_far_map_delays_when_can_delay_teleport_is_set_like_cpp() {
         wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
         wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
     );
-    session.in_combat = true;
+    session.combat.in_combat = true;
     session.set_represented_can_delay_teleport_like_cpp(true);
 
     session.teleport_to(0, destination).await;
@@ -766,7 +774,7 @@ async fn teleport_to_far_map_delays_when_can_delay_teleport_is_set_like_cpp() {
     assert!(session.represented_far_teleport_pending_like_cpp());
     assert_eq!(session.pending_teleport_like_cpp(), None);
     assert!(
-        session.in_combat,
+        session.combat.in_combat,
         "C++ delayed far branch returns before CombatStop"
     );
     assert_eq!(
@@ -801,9 +809,10 @@ async fn update_processes_alive_delayed_far_teleport_like_cpp() {
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
-    session.state = SessionState::LoggedIn;
-    session.admission.socket_timeout_deadline_like_cpp = Instant::now() + Duration::from_secs(60);
+    session.core.expansion = 1;
+    session.core.state = SessionState::LoggedIn;
+    session.core.admission.socket_timeout_deadline_like_cpp =
+        Instant::now() + Duration::from_secs(60);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "FarTeleportDelayedUpdate".to_string(),
@@ -815,7 +824,7 @@ async fn update_processes_alive_delayed_far_teleport_like_cpp() {
         0,
     ));
     session.set_player_health_like_cpp(100, 100);
-    session.in_combat = true;
+    session.combat.in_combat = true;
     session.set_represented_can_delay_teleport_like_cpp(true);
     session.teleport_to(0, destination).await;
     assert!(send_rx.try_recv().is_err());
@@ -830,10 +839,10 @@ async fn update_processes_alive_delayed_far_teleport_like_cpp() {
             ServerOpcodes::SuspendToken
         ]
     );
-    assert_eq!(session.state, SessionState::Transfer);
+    assert_eq!(session.core.state, SessionState::Transfer);
     assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert!(session.represented_far_teleport_pending_like_cpp());
     assert!(!session.represented_has_delayed_teleport_like_cpp());
     assert_eq!(session.represented_delayed_teleport_like_cpp(), None);
-    assert!(!session.in_combat);
+    assert!(!session.combat.in_combat);
 }

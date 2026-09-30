@@ -27,6 +27,7 @@ impl WorldSession {
             return;
         }
         let attacker_is_visible = self
+            .core
             .client_visible_guids_like_cpp
             .contains(&command.attacker_guid);
         self.set_in_combat_like_cpp(true);
@@ -78,6 +79,7 @@ impl WorldSession {
             return;
         }
         let still_in_combat = self
+            .core
             .canonical_map_manager
             .as_ref()
             .and_then(|manager| manager.lock().ok())

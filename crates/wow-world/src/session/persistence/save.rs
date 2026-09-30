@@ -10,15 +10,15 @@ impl WorldSession {
         &self,
     ) -> Option<PlayerSaveToDbSnapshotLikeCpp> {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self.fixture_player_save_to_db_snapshot_like_cpp();
         }
         let guid = self.player_guid()?;
-        let handle = self.player_handle_like_cpp?;
+        let handle = self.core.player_handle_like_cpp?;
         if handle.guid() != guid {
             return None;
         }
-        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
         let residence = manager.player_residence_like_cpp(handle)?;
         // C++ Player.cpp:19480-19514 reads one Player and selects a save-only
         // teleport destination. Resolve every mutable input under this same guard.
@@ -44,7 +44,7 @@ impl WorldSession {
         // `player_level_like_cpp` re-enters it and would self-deadlock.
         let level = self.player_level_like_cpp();
         let pending_teleport_destination = self.pending_teleport_save_destination_like_cpp();
-        if let Some(manager) = self.canonical_map_manager.as_ref()
+        if let Some(manager) = self.core.canonical_map_manager.as_ref()
             && let Ok(manager) = manager.lock()
         {
             let mut snapshot = None;
@@ -137,7 +137,7 @@ impl WorldSession {
         currencies: &mut HashMap<u32, PlayerCurrency>,
     ) -> wow_persistence::PlayerCurrencySaveRequestLikeCpp {
         let mut rows = Vec::new();
-        let Some(store) = self.currency_types_store.as_ref() else {
+        let Some(store) = self.catalogs.currency_types_store.as_ref() else {
             return wow_persistence::PlayerCurrencySaveRequestLikeCpp {
                 player_guid: character_guid,
                 rows,
@@ -289,9 +289,10 @@ impl WorldSession {
             resolve(player.data().player_flags, player.rest_state_like_cpp())
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(resolve(
-                self.player_flags_test_fixture_like_cpp
+                self.lifecycle
+                    .player_flags_test_fixture_like_cpp
                     .represented_loaded_player_flags_like_cpp
                     .unwrap_or(0),
                 &self.player_rest_state_snapshot_like_cpp()?,
@@ -303,7 +304,8 @@ impl WorldSession {
     pub(in crate::session) fn represented_player_flags_for_rest_state_save_like_cpp(&self) -> u32 {
         self.resolved_player_flags_for_rest_state_save_like_cpp()
             .unwrap_or_else(|| {
-                self.player_flags_test_fixture_like_cpp
+                self.lifecycle
+                    .player_flags_test_fixture_like_cpp
                     .represented_loaded_player_flags_like_cpp
                     .unwrap_or(0)
             })
@@ -313,7 +315,7 @@ impl WorldSession {
         item_guid_generator: &wow_core::ObjectGuidGenerator,
     ) {
         if !self.lifecycle.pending_periodic_player_save_like_cpp
-            || self.state != SessionState::LoggedIn
+            || self.core.state != SessionState::LoggedIn
         {
             return;
         }
@@ -410,11 +412,11 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.cuf_profiles_like_cpp =
+        if self.core.player_handle_like_cpp.is_none() {
+            self.presentation.cuf_profiles_like_cpp =
                 vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
             for (slot, profile) in fixture_profiles.into_iter().enumerate() {
-                self.cuf_profiles_like_cpp[slot] = Some(profile);
+                self.presentation.cuf_profiles_like_cpp[slot] = Some(profile);
             }
             return true;
         }

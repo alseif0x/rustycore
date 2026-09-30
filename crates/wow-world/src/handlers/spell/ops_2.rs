@@ -168,7 +168,7 @@ impl WorldSession {
         &self,
         item_object_id: i32,
     ) -> bool {
-        let Some(quest_store) = &self.quests.store else {
+        let Some(quest_store) = &self.catalogs.quests.store else {
             return false;
         };
         let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
@@ -209,7 +209,7 @@ impl WorldSession {
         &self,
         item_id: u32,
     ) -> bool {
-        let Some(quest_store) = &self.quests.store else {
+        let Some(quest_store) = &self.catalogs.quests.store else {
             return false;
         };
         let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
@@ -369,7 +369,7 @@ impl WorldSession {
         &self,
         objective_id: u32,
     ) -> Option<i32> {
-        let quest_store = self.quests.store.as_ref()?;
+        let quest_store = self.catalogs.quests.store.as_ref()?;
         let quests = self.player_quest_gameplay_snapshot_like_cpp()?;
 
         for status in quests.statuses_like_cpp().values() {
@@ -547,7 +547,7 @@ impl WorldSession {
             Ok(spell_click) => spell_click,
             Err(e) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "Failed to parse CMSG_SPELL_CLICK: {e}"
                 );
                 return;
@@ -555,7 +555,7 @@ impl WorldSession {
         };
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             target = ?spell_click.unit_guid,
             try_auto_dismount = spell_click.try_auto_dismount,
             "CMSG_SPELL_CLICK"
@@ -563,7 +563,7 @@ impl WorldSession {
 
         let plan = self.represented_handle_spell_click_plan_like_cpp(spell_click.unit_guid);
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             target = ?spell_click.unit_guid,
             casts = plan.casts.len(),
             exact_context_unrepresented = plan.exact_context_unrepresented,
@@ -579,7 +579,7 @@ impl WorldSession {
             )
             .await;
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             target = ?spell_click.unit_guid,
             planned_casts = outcome.planned_casts,
             executed_casts = outcome.executed_casts,
@@ -607,7 +607,7 @@ impl WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "CancelCast parse failed: {error}"
                 );
                 return;
@@ -624,7 +624,7 @@ impl WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "CancelAura parse failed: {error}"
                 );
                 return;
@@ -632,7 +632,7 @@ impl WorldSession {
         };
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             spell_id = request.spell_id,
             caster_guid = ?request.caster_guid,
             "CMSG_CANCEL_AURA parsed"
@@ -664,7 +664,7 @@ impl WorldSession {
     pub async fn handle_cancel_auto_repeat_spell(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = CancelAutoRepeatSpell::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "CancelAutoRepeatSpell parse failed: {error}"
             );
         }
@@ -677,7 +677,7 @@ impl WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "CancelChannelling parse failed: {error}"
                 );
                 return;
@@ -698,7 +698,7 @@ impl WorldSession {
         }
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             channel_spell = request.channel_spell,
             reason = request.reason,
             "CMSG_CANCEL_CHANNELLING parsed"
@@ -709,7 +709,7 @@ impl WorldSession {
     pub async fn handle_cancel_growth_aura(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = CancelGrowthAura::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "CancelGrowthAura parse failed: {error}"
             );
         }
@@ -740,7 +740,7 @@ impl WorldSession {
     pub async fn handle_cancel_mount_aura(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = CancelMountAura::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "CancelMountAura parse failed: {error}"
             );
         }
@@ -750,7 +750,7 @@ impl WorldSession {
     pub async fn handle_cancel_queued_spell(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = CancelQueuedSpell::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "CancelQueuedSpell parse failed: {error}"
             );
             return;
@@ -770,13 +770,16 @@ impl WorldSession {
         let request = match SelfRes::read(&mut pkt) {
             Ok(request) => request,
             Err(error) => {
-                warn!(account = self.account_id, "SelfRes parse failed: {error}");
+                warn!(
+                    account = self.core.account_id,
+                    "SelfRes parse failed: {error}"
+                );
                 return;
             }
         };
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             spell_id = request.spell_id,
             "CMSG_SELF_RES parsed"
         );
@@ -821,7 +824,7 @@ impl WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "PetCancelAura parse failed: {error}"
                 );
                 return;
@@ -829,7 +832,7 @@ impl WorldSession {
         };
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             pet_guid = ?request.pet_guid,
             spell_id = request.spell_id,
             "CMSG_PET_CANCEL_AURA parsed"
@@ -842,7 +845,7 @@ impl WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "TotemDestroyed parse failed: {error}"
                 );
                 return;
@@ -850,7 +853,7 @@ impl WorldSession {
         };
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             slot = request.slot,
             totem_guid = ?request.totem_guid,
             "CMSG_TOTEM_DESTROYED parsed"

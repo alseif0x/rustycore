@@ -28,6 +28,7 @@ mod queued_packets {
                 Box::pin(async move {
                     let marker = packet.read_uint32().unwrap();
                     session
+                        .core
                         .driver
                         .time_synchronization
                         .clock_delta_queue
@@ -53,11 +54,13 @@ mod queued_packets {
         let (mut session, _tx, _rx) = make_session();
         // Replace only this session's entry; the production inventory is untouched.
         session
+            .core
             .admission
             .dispatch_table
             .insert(ClientOpcodes::QueryTime, &PROBE);
         for marker in [1, 2, 3] {
             session
+                .core
                 .admission
                 .pending_packets
                 .push_back(marked_packet(marker));
@@ -70,6 +73,7 @@ mod queued_packets {
         drop(pass);
         assert_eq!(
             session
+                .core
                 .driver
                 .time_synchronization
                 .clock_delta_queue
@@ -78,20 +82,33 @@ mod queued_packets {
                 .collect::<Vec<_>>(),
             vec![(1, 0)]
         );
-        assert_eq!(session.admission.pending_packets.len(), 2);
+        assert_eq!(session.core.admission.pending_packets.len(), 2);
         assert_eq!(
-            session.admission.pending_packets.front().unwrap().data(),
+            session
+                .core
+                .admission
+                .pending_packets
+                .front()
+                .unwrap()
+                .data(),
             marked_packet(2).data()
         );
         assert_eq!(
-            session.admission.pending_packets.back().unwrap().data(),
+            session
+                .core
+                .admission
+                .pending_packets
+                .back()
+                .unwrap()
+                .data(),
             marked_packet(3).data()
         );
 
         session.process_pending().await;
-        assert!(session.admission.pending_packets.is_empty());
+        assert!(session.core.admission.pending_packets.is_empty());
         assert_eq!(
             session
+                .core
                 .driver
                 .time_synchronization
                 .clock_delta_queue
@@ -106,13 +123,20 @@ mod queued_packets {
     async fn dropping_an_unpolled_pass_leaves_the_entire_queue_owned_by_session() {
         let (mut session, _tx, _rx) = make_session();
         session
+            .core
             .admission
             .pending_packets
             .push_back(marked_packet(2));
         drop(session.process_pending());
-        assert_eq!(session.admission.pending_packets.len(), 1);
+        assert_eq!(session.core.admission.pending_packets.len(), 1);
         assert_eq!(
-            session.admission.pending_packets.front().unwrap().data(),
+            session
+                .core
+                .admission
+                .pending_packets
+                .front()
+                .unwrap()
+                .data(),
             marked_packet(2).data()
         );
     }
@@ -121,10 +145,12 @@ mod queued_packets {
     async fn retained_packets_share_the_next_ingestion_budget_without_dropping_surplus() {
         let (mut session, _tx, _rx) = make_session();
         session
+            .core
             .admission
             .pending_packets
             .push_back(marked_packet(2));
         session
+            .core
             .admission
             .pending_packets
             .push_back(marked_packet(3));
@@ -135,14 +161,20 @@ mod queued_packets {
         }
         assert_eq!(session.update(0).await, MAX_PACKETS_PER_UPDATE - 2);
         assert_eq!(
-            session.admission.pending_packets.len(),
+            session.core.admission.pending_packets.len(),
             MAX_PACKETS_PER_UPDATE
         );
         assert_eq!(tx.len(), 2);
         assert_eq!(session.update(0).await, 0);
         assert_eq!(tx.len(), 2);
         assert_eq!(
-            session.admission.pending_packets.front().unwrap().data(),
+            session
+                .core
+                .admission
+                .pending_packets
+                .front()
+                .unwrap()
+                .data(),
             marked_packet(2).data()
         );
     }
@@ -216,7 +248,7 @@ async fn sustained_load_keeps_the_phase_order_and_dispatches_in_the_same_pass_li
         .position(|phase| *phase == Phase::DispatchQueuedPackets)
         .expect("dispatch phase");
     assert!(ingest < dispatch);
-    assert!(session.admission.pending_packets.is_empty());
+    assert!(session.core.admission.pending_packets.is_empty());
 }
 
 /// Bounded progress: one pass never ingests more than the shared budget, and
@@ -239,7 +271,7 @@ async fn ingestion_stops_at_the_shared_budget_like_cpp() {
 
     assert_eq!(processed, MAX_PACKETS_PER_UPDATE);
     assert_eq!(
-        session.admission.pending_packets.len(),
+        session.core.admission.pending_packets.len(),
         MAX_PACKETS_PER_UPDATE
     );
     assert_eq!(pkt_tx.len(), surplus);
@@ -270,7 +302,8 @@ async fn realm_and_primary_ingestion_share_one_budget_like_cpp() {
 async fn expired_idle_deadline_marks_the_session_disconnecting_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     assert!(!session.is_disconnecting());
-    session.admission.socket_timeout_deadline_like_cpp = Instant::now() - Duration::from_secs(1);
+    session.core.admission.socket_timeout_deadline_like_cpp =
+        Instant::now() - Duration::from_secs(1);
 
     session.reset_driver_phase_trace_like_cpp();
     session.update(0).await;

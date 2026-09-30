@@ -322,7 +322,7 @@ fn two_sessions_same_map_under_global_owner_do_not_session_tick_creature() {
 
     let (mut session2, _, recv2) = make_session();
     session2.set_map_manager(manager.clone());
-    session2.current_map_id = 0;
+    session2.core.current_map_id = 0;
 
     let start_position = manager
         .read()
@@ -371,6 +371,7 @@ fn respawn_queue_lives_in_map_not_in_session_like_cpp() {
     // Verify the pending respawn is in the map, not in a session field.
     let map_id = session.player_map_id_like_cpp();
     let queue_len = session
+        .core
         .map_manager
         .as_ref()
         .map(|m| {
@@ -423,9 +424,9 @@ fn two_sessions_share_respawn_queue_drain_is_not_duplicated_like_cpp() {
     let (mut session_b, _, _send_rx_b) = make_session();
 
     session_a.set_map_manager(manager.clone());
-    session_a.current_map_id = 0;
+    session_a.core.current_map_id = 0;
     session_b.set_map_manager(manager.clone());
-    session_b.current_map_id = 0;
+    session_b.core.current_map_id = 0;
 
     let past = Instant::now() - Duration::from_secs(1);
 

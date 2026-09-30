@@ -129,6 +129,7 @@ fn represented_run_speed_minimum_speed_removal_recomputes_like_cpp() {
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 5.25).abs() < 0.0001
     );
     let minimum_slot = session
+        .auras
         .visible_auras
         .iter()
         .find_map(|(&slot, aura)| {
@@ -236,6 +237,7 @@ fn represented_run_speed_minimum_speed_rate_removal_recomputes_like_cpp() {
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 5.0).abs() < 0.0001
     );
     let minimum_rate_slot = session
+        .auras
         .visible_auras
         .iter()
         .find_map(|(&slot, aura)| {
@@ -254,7 +256,7 @@ fn represented_run_speed_minimum_speed_rate_removal_recomputes_like_cpp() {
 #[test]
 fn represented_mount_capability_uses_login_zone_area_fallback_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.current_map_id = 571;
+    session.core.current_map_id = 571;
     install_canonical_player_owner_for_test(&mut session, 571, 0);
     session.set_player_skill_values_like_cpp(HashMap::from([(SKILL_RIDING_LIKE_CPP, 75)]));
     session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
@@ -313,10 +315,10 @@ fn represented_mount_capability_uses_login_zone_area_fallback_like_cpp() {
 #[test]
 fn adjust_client_movement_time_uses_clock_delta_or_cpp_fallback() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
-    session.driver.time_synchronization.clock_delta = 250;
+    session.core.driver.time_synchronization.clock_delta = 250;
     assert_eq!(session.adjust_client_movement_time_like_cpp(1_000), 1_250);
 
-    session.driver.time_synchronization.clock_delta = 0;
+    session.core.driver.time_synchronization.clock_delta = 0;
     let adjusted = session.adjust_client_movement_time_like_cpp(1_000);
     assert_ne!(adjusted, 1_000);
 }
@@ -349,16 +351,19 @@ fn canonical_visibility_uses_player_instance_cross_map_blocks_instance_zero_fall
         571,
         0,
     );
-    session.represented_gameobject_use_states.insert(
-        default_instance_guid,
-        RepresentedGameObjectUseState {
-            display_id: Some(7_620),
-            go_type: Some(3),
-            map_id: Some(571),
-            position: Some(session_position),
-            ..Default::default()
-        },
-    );
+    session
+        .world_entities
+        .represented_gameobject_use_states
+        .insert(
+            default_instance_guid,
+            RepresentedGameObjectUseState {
+                display_id: Some(7_620),
+                go_type: Some(3),
+                map_id: Some(571),
+                position: Some(session_position),
+                ..Default::default()
+            },
+        );
 
     let visible =
         session.visible_gameobjects_from_canonical_map_like_cpp(571, &session_position, 100.0);
@@ -439,6 +444,7 @@ async fn far_sight_update_visibility_falls_back_for_unsupported_seer_like_cpp() 
 
     set_canonical_player_farsight_object_like_cpp(&canonical, player_guid, gameobject_seer_guid);
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(gameobject_seer_guid);
 
@@ -451,11 +457,15 @@ async fn far_sight_update_visibility_falls_back_for_unsupported_seer_like_cpp() 
 
     assert!(
         !session
+            .core
             .client_visible_guids_like_cpp
             .contains(&far_creature_guid),
         "unsupported GameObject m_seer must not become the visibility source"
     );
-    assert_eq!(session.last_visibility_pos, Some(player_position));
+    assert_eq!(
+        session.visibility.last_visibility_pos,
+        Some(player_position)
+    );
 }
 #[test]
 fn npc_interaction_legacy_fallback_uses_player_instance_like_cpp() {
@@ -625,9 +635,9 @@ fn canonical_player_map_transfer_sync_removes_stale_old_map_like_cpp() {
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
 
     other_session.set_player_guid(Some(other_player_guid));
-    other_session.player_name = Some("TransferOther".into());
-    other_session.player_position = Some(Position::new(3710.0, 1510.0, 120.0, 0.0));
-    other_session.current_map_id = 571;
+    other_session.identity.player_name = Some("TransferOther".into());
+    other_session.movement.player_position = Some(Position::new(3710.0, 1510.0, 120.0, 0.0));
+    other_session.core.current_map_id = 571;
     insert_session_player_into_canonical_map_like_cpp(&other_session, &canonical, 571, 0);
     add_canonical_test_creature(
         &canonical,
@@ -684,7 +694,10 @@ fn canonical_player_far_teleport_keeps_one_detached_identity_like_cpp() {
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let handle = session.player_handle_like_cpp.expect("canonical handle");
+    let handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_attacking(Some(target_guid));
@@ -710,7 +723,7 @@ fn canonical_player_far_teleport_keeps_one_detached_identity_like_cpp() {
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("target world map");
 
-    assert_eq!(session.player_handle_like_cpp, Some(handle));
+    assert_eq!(session.core.player_handle_like_cpp, Some(handle));
     let manager = canonical.lock().unwrap();
     assert_eq!(
         manager.player_residence_like_cpp(handle),

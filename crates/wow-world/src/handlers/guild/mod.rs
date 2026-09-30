@@ -215,7 +215,7 @@ impl crate::session::WorldSession {
     ) {
         if let Err(error) = GuildSetAchievementTracking::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "GuildSetAchievementTracking parse failed: {error}"
             );
             return;
@@ -231,7 +231,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "DeclineGuildInvites parse failed: {error}"
                 );
                 return;
@@ -248,7 +248,7 @@ impl crate::session::WorldSession {
     pub async fn handle_accept_guild_invite(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = AcceptGuildInvite::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "AcceptGuildInvite parse failed: {error}"
             );
             return;
@@ -275,7 +275,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "GuildBankActivate parse failed: {error}"
                 );
                 return;
@@ -311,7 +311,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "GuildBankQueryTab parse failed: {error}"
                 );
                 return;
@@ -345,7 +345,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "GuildBankBuyTab parse failed: {error}"
                 );
                 return;
@@ -364,7 +364,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "GuildBankUpdateTab parse failed: {error}"
                 );
                 return;
@@ -388,7 +388,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "GuildBankDepositMoney parse failed: {error}"
                 );
                 return;
@@ -407,7 +407,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "GuildBankWithdrawMoney parse failed: {error}"
                 );
                 return;
@@ -426,7 +426,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "GuildBankLogQuery parse failed: {error}"
                 );
                 return;
@@ -445,7 +445,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "GuildBankTextQuery parse failed: {error}"
                 );
                 return;
@@ -464,7 +464,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "GuildBankSetTabText parse failed: {error}"
                 );
                 return;
@@ -483,7 +483,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "AutoGuildBankItem parse failed: {error}"
                 );
                 return;
@@ -513,7 +513,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "AutoStoreGuildBankItem parse failed: {error}"
                 );
                 return;

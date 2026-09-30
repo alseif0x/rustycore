@@ -67,13 +67,13 @@ fn account_data_times_respect_global_and_character_masks_like_cpp() {
 #[test]
 fn represented_player_condition_context_uses_live_session_state_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.player_race = 1;
-    session.player_class = 2;
-    session.player_gender = 1;
+    session.identity.player_race = 1;
+    session.identity.player_class = 2;
+    session.identity.player_gender = 1;
     session.set_known_spells_like_cpp(vec![635, -1, 19740]);
     session
         .set_player_skill_values_like_cpp(HashMap::from([(SKILL_RIDING_LIKE_CPP, 75), (333, 125)]));
-    session.player_currencies.insert(
+    session.inventory.player_currencies.insert(
         81,
         PlayerCurrency {
             state: PlayerCurrencyState::Unchanged,
@@ -85,31 +85,40 @@ fn represented_player_condition_context_uses_live_session_state_like_cpp() {
             flags: 0,
         },
     );
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        100,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: 100,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![],
-            slot: 0,
-        },
-    );
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        101,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: 101,
-            status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![],
-            slot: 0,
-        },
-    );
     session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
+            100,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id: 100,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![],
+                slot: 0,
+            },
+        );
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
+            101,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id: 101,
+                status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![],
+                slot: 0,
+            },
+        );
+    session
+        .quest_state
         .quest_test_fixture_like_cpp
         .rewarded_quests
         .insert(200);
@@ -149,7 +158,7 @@ fn represented_player_condition_context_uses_live_session_state_like_cpp() {
 #[test]
 fn represented_mount_capability_for_type_uses_session_state_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.current_map_id = 1;
+    session.core.current_map_id = 1;
     install_canonical_player_owner_for_test(&mut session, 1, 0);
     session.set_player_zone_area_like_cpp(10, 77);
     session.set_known_spells_like_cpp(vec![456]);
@@ -481,12 +490,14 @@ fn logout_resting_only_selects_offline_rate_and_does_not_restore_online_rest_lik
     assert!(!session.represented_is_resting_like_cpp());
     assert_eq!(
         session
+            .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_inn_area_trigger_id_like_cpp,
         0
     );
     assert_eq!(
         session
+            .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_rest_time_secs_like_cpp,
         0
@@ -609,6 +620,7 @@ fn login_update_zone_rebuilds_city_and_faction_rest_when_ids_are_preseeded_like_
     assert!(session.represented_is_resting_like_cpp());
     assert_ne!(
         session
+            .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_rest_flag_mask_like_cpp
             & REST_FLAG_IN_CITY_LIKE_CPP,
@@ -616,6 +628,7 @@ fn login_update_zone_rebuilds_city_and_faction_rest_when_ids_are_preseeded_like_
     );
     assert_ne!(
         session
+            .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_rest_flag_mask_like_cpp
             & REST_FLAG_IN_FACTION_AREA_LIKE_CPP,
@@ -623,6 +636,7 @@ fn login_update_zone_rebuilds_city_and_faction_rest_when_ids_are_preseeded_like_
     );
     assert_ne!(
         session
+            .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_rest_time_secs_like_cpp,
         0

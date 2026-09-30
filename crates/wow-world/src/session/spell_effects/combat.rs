@@ -19,7 +19,7 @@ impl WorldSession {
         }
 
         let pve_refs = {
-            let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+            let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
                 return;
             };
             let Ok(mut manager) = manager.lock() else {

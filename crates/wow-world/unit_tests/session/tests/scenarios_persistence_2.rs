@@ -35,7 +35,10 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
     let share_sender = ObjectGuid::create_player(1, 5_568);
     let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 5_569, 10);
     let transport_guid = ObjectGuid::create_transport(HighGuid::Transport, 7_005);
@@ -563,29 +566,40 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
 fn load_completed_achievement_rows_like_cpp_clears_stale_and_deduplicates() {
     let (mut session, _, _) = make_session();
     session
+        .collections
         .represented_completed_achievements_like_cpp
         .insert(7777);
 
     session.load_completed_achievement_rows_like_cpp([9001, 9001, 0, 9002]);
 
-    assert_eq!(session.represented_completed_achievements_like_cpp.len(), 2);
+    assert_eq!(
+        session
+            .collections
+            .represented_completed_achievements_like_cpp
+            .len(),
+        2
+    );
     assert!(
         session
+            .collections
             .represented_completed_achievements_like_cpp
             .contains(&9001)
     );
     assert!(
         session
+            .collections
             .represented_completed_achievements_like_cpp
             .contains(&9002)
     );
     assert!(
         !session
+            .collections
             .represented_completed_achievements_like_cpp
             .contains(&7777)
     );
     assert!(
         !session
+            .collections
             .represented_completed_achievements_like_cpp
             .contains(&0)
     );
@@ -610,6 +624,7 @@ fn canonical_loading_player_bypasses_existing_raid_in_progress_gate_like_cpp() {
     ));
     session.set_player_loading(Some(member));
     session
+        .instances
         .instance_test_fixture_like_cpp
         .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 0);
@@ -621,7 +636,7 @@ fn canonical_loading_player_bypasses_existing_raid_in_progress_gate_like_cpp() {
     group.set_recent_instance_like_cpp(631, leader, 9001);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     {
@@ -758,7 +773,7 @@ fn player_attack_rejects_player_loading_visibility_like_cpp() {
         attacker_session.start_player_attack_like_cpp(victim),
         PlayerAttackStartLikeCppResult::Rejected
     );
-    assert_eq!(attacker_session.combat_target, None);
+    assert_eq!(attacker_session.combat.combat_target, None);
 
     victim_session.set_player_loading(None);
     assert_eq!(

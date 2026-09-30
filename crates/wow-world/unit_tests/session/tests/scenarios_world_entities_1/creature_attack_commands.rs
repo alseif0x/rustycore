@@ -26,10 +26,13 @@ async fn send_if_visible_creature_command_rechecks_current_phase_and_range_like_
             0,
         ),
     );
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_map_manager(Arc::clone(&manager));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
-    session.client_visible_guids_like_cpp.insert(source_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(source_guid);
 
     session
         .session_command_tx()
@@ -112,10 +115,13 @@ async fn creature_attack_start_command_sets_combat_and_sends_packet_like_cpp() {
     let attacker_guid =
         ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1006);
     let victim_guid = ObjectGuid::create_player(1, 7000);
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_player_guid(Some(victim_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
-    session.client_visible_guids_like_cpp.insert(attacker_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(attacker_guid);
 
     session
         .session_command_tx()
@@ -135,10 +141,10 @@ async fn creature_attack_start_command_sets_combat_and_sends_packet_like_cpp() {
         .await;
 
     assert_eq!(
-        session.combat_target, None,
+        session.combat.combat_target, None,
         "incoming attacks must not select the attacker as the player's target"
     );
-    assert!(session.in_combat);
+    assert!(session.combat.in_combat);
     let packet = send_rx.try_recv().expect("attack start packet");
     let opcode = u16::from_le_bytes([packet[0], packet[1]]);
     assert_eq!(opcode, ServerOpcodes::AttackStart as u16);
@@ -151,7 +157,7 @@ async fn creature_attack_start_command_syncs_combat_when_attacker_is_no_longer_v
     let attacker_guid =
         ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1009);
     let victim_guid = ObjectGuid::create_player(1, 7003);
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_player_guid(Some(victim_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
 
@@ -173,10 +179,10 @@ async fn creature_attack_start_command_syncs_combat_when_attacker_is_no_longer_v
         .await;
 
     assert_eq!(
-        session.combat_target, None,
+        session.combat.combat_target, None,
         "incoming attacks must not select the attacker as the player's target"
     );
-    assert!(session.in_combat);
+    assert!(session.combat.in_combat);
     assert!(
         send_rx.try_recv().is_err(),
         "an attacker no longer visible to the client must not emit AttackStart"
@@ -189,10 +195,13 @@ async fn creature_attack_start_command_rejects_dead_victim_like_cpp() {
     let attacker_guid =
         ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1010);
     let victim_guid = ObjectGuid::create_player(1, 7004);
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_player_guid(Some(victim_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
-    session.client_visible_guids_like_cpp.insert(attacker_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(attacker_guid);
     session.set_player_alive_like_cpp(false);
 
     session

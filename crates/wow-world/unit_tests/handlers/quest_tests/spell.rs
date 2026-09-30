@@ -15,18 +15,22 @@ async fn quest_giver_choose_reward_records_reward_spell_cast_like_cpp() {
     quest.reward_spell = 12_345;
     quest.reward_display_spell = [22_001, 22_002, 0];
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
-    );
+            PlayerQuestStatus {
+                quest_id,
+                status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
 
     session
         .handle_quest_giver_choose_reward(quest_giver_choose_reward_packet_like_cpp(
@@ -60,18 +64,22 @@ async fn quest_giver_choose_reward_records_display_spells_only_without_reward_sp
     quest.flags = QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP | QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP;
     quest.reward_display_spell = [22_001, 0, 22_003];
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
-    );
+            PlayerQuestStatus {
+                quest_id,
+                status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
 
     session
         .handle_quest_giver_choose_reward(quest_giver_choose_reward_packet_like_cpp(
@@ -130,6 +138,7 @@ async fn quest_confirm_accept_source_spell_records_two_self_casts_like_cpp() {
 
     assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
     let status = session
+        .quest_state
         .quest_test_fixture_like_cpp
         .player_quests
         .get(&quest_id)
@@ -227,7 +236,7 @@ async fn quest_confirm_accept_source_item_bound_objective_broadcasts_to_group_li
     group.add_member(other_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;

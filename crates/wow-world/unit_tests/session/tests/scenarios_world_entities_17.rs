@@ -24,7 +24,7 @@ async fn gameobject_use_spellcaster_casts_and_ticks_charges_like_cpp() {
         },
     ));
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::RemoveMountedAuras {
                 gameobject_guid,
@@ -56,6 +56,7 @@ async fn gameobject_use_spellcaster_casts_and_ticks_charges_like_cpp() {
     );
     assert_eq!(
         session
+            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)
             .unwrap()
@@ -64,18 +65,22 @@ async fn gameobject_use_spellcaster_casts_and_ticks_charges_like_cpp() {
     );
     assert_eq!(
         session
+            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)
             .unwrap()
             .max_charges,
         Some(1)
     );
-    session.represented_gameobject_use_effects.clear();
+    session
+        .world_entities
+        .represented_gameobject_use_effects
+        .clear();
 
     session.process_pending().await;
 
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![RepresentedGameObjectUseEffect::GameObjectChargesDepleted {
             gameobject_guid,
             max_charges: 1,
@@ -84,6 +89,7 @@ async fn gameobject_use_spellcaster_casts_and_ticks_charges_like_cpp() {
     );
     assert_eq!(
         session
+            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)
             .unwrap()
@@ -92,6 +98,7 @@ async fn gameobject_use_spellcaster_casts_and_ticks_charges_like_cpp() {
     );
     assert_eq!(
         session
+            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)
             .unwrap()
@@ -117,7 +124,7 @@ fn gameobject_use_spellcaster_party_only_fails_without_owner_context_like_cpp_gu
         },
     ));
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::SpellcasterPartyOnlyRejected {
                 gameobject_guid,
@@ -139,6 +146,7 @@ fn gameobject_use_spellcaster_party_only_requires_owner_raid_like_cpp() {
         party_only: true,
     };
     session
+        .world_entities
         .represented_gameobject_use_states
         .entry(gameobject_guid)
         .or_default()
@@ -151,7 +159,7 @@ fn gameobject_use_spellcaster_party_only_requires_owner_raid_like_cpp() {
         source,
     ));
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::SpellcasterPartyOnlyRejected {
                 gameobject_guid,
@@ -159,14 +167,17 @@ fn gameobject_use_spellcaster_party_only_requires_owner_raid_like_cpp() {
             }
         ]
     );
-    session.represented_gameobject_use_effects.clear();
+    session
+        .world_entities
+        .represented_gameobject_use_effects
+        .clear();
 
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(owner_guid);
     group.add_member(player_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     assert!(session.use_represented_gameobject_spellcaster_like_cpp(
@@ -177,6 +188,7 @@ fn gameobject_use_spellcaster_party_only_requires_owner_raid_like_cpp() {
     ));
     assert!(
         session
+            .world_entities
             .represented_gameobject_use_effects
             .iter()
             .any(|effect| matches!(
@@ -205,7 +217,7 @@ fn gameobject_use_spellcaster_party_only_accepts_canonical_created_by_like_cpp()
 
     canonical.lock().unwrap().create_world_map(571, 0);
     session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.current_map_id = 571;
+    session.core.current_map_id = 571;
     session.record_represented_gameobject_runtime_state_like_cpp(
         571,
         gameobject_guid,
@@ -230,14 +242,17 @@ fn gameobject_use_spellcaster_party_only_accepts_canonical_created_by_like_cpp()
         777,
         source,
     ));
-    session.represented_gameobject_use_effects.clear();
+    session
+        .world_entities
+        .represented_gameobject_use_effects
+        .clear();
 
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(owner_guid);
     group.add_member(player_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     assert!(session.use_represented_gameobject_spellcaster_like_cpp(
@@ -248,6 +263,7 @@ fn gameobject_use_spellcaster_party_only_accepts_canonical_created_by_like_cpp()
     ));
     assert!(
         session
+            .world_entities
             .represented_gameobject_use_effects
             .iter()
             .any(|effect| matches!(
@@ -273,7 +289,7 @@ fn gameobject_use_spell_focus_triggers_linked_trap_like_cpp() {
         555,
     ));
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![RepresentedGameObjectUseEffect::TriggerLinkedTrap {
             gameobject_guid,
             player_guid,
@@ -281,13 +297,21 @@ fn gameobject_use_spell_focus_triggers_linked_trap_like_cpp() {
         }]
     );
 
-    session.represented_gameobject_use_effects.clear();
+    session
+        .world_entities
+        .represented_gameobject_use_effects
+        .clear();
     assert!(session.use_represented_gameobject_spell_focus_like_cpp(
         gameobject_guid,
         player_guid,
         0,
     ));
-    assert!(session.represented_gameobject_use_effects.is_empty());
+    assert!(
+        session
+            .world_entities
+            .represented_gameobject_use_effects
+            .is_empty()
+    );
 }
 #[test]
 fn gameobject_use_camera_records_cinematic_and_event_like_cpp() {
@@ -305,7 +329,7 @@ fn gameobject_use_camera_records_cinematic_and_event_like_cpp() {
         },
     ));
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::TriggerCinematic {
                 gameobject_guid,
@@ -350,7 +374,10 @@ fn gameobject_use_camera_records_cinematic_and_event_like_cpp() {
     expected.extend_from_slice(&ObjectGuid::EMPTY.to_raw_bytes());
     assert_eq!(send_rx.try_recv().unwrap(), expected);
 
-    session.represented_gameobject_use_effects.clear();
+    session
+        .world_entities
+        .represented_gameobject_use_effects
+        .clear();
     assert!(session.use_represented_gameobject_camera_like_cpp(
         gameobject_guid,
         player_guid,
@@ -359,7 +386,12 @@ fn gameobject_use_camera_records_cinematic_and_event_like_cpp() {
             event_id: 0,
         },
     ));
-    assert!(session.represented_gameobject_use_effects.is_empty());
+    assert!(
+        session
+            .world_entities
+            .represented_gameobject_use_effects
+            .is_empty()
+    );
 }
 #[tokio::test]
 async fn gameobject_use_goober_records_player_preamble_hooks_like_cpp() {
@@ -393,7 +425,7 @@ async fn gameobject_use_goober_records_player_preamble_hooks_like_cpp() {
     expected.extend_from_slice(&gameobject_guid.to_raw_bytes());
     assert_eq!(send_rx.try_recv().unwrap(), expected);
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::ShowPageText {
                 gameobject_guid,
@@ -418,7 +450,10 @@ async fn gameobject_use_goober_records_player_preamble_hooks_like_cpp() {
         ]
     );
 
-    session.represented_gameobject_use_effects.clear();
+    session
+        .world_entities
+        .represented_gameobject_use_effects
+        .clear();
     assert!(
         session
             .use_represented_gameobject_goober_preamble_like_cpp(
@@ -434,7 +469,10 @@ async fn gameobject_use_goober_records_player_preamble_hooks_like_cpp() {
             .await
     );
     assert_eq!(
-        session.represented_gameobject_use_effects.first(),
+        session
+            .world_entities
+            .represented_gameobject_use_effects
+            .first(),
         Some(&RepresentedGameObjectUseEffect::SendGossip {
             gameobject_guid,
             player_guid,
@@ -470,18 +508,22 @@ async fn gameobject_use_goober_tracking_event_objective_auto_rewards_like_cpp() 
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![0],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
 
     assert!(
         session
@@ -497,12 +539,14 @@ async fn gameobject_use_goober_tracking_event_objective_auto_rewards_like_cpp() 
 
     assert!(
         !session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .contains_key(&quest_id)
     );
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .rewarded_quests
             .contains(&quest_id)
@@ -533,7 +577,7 @@ async fn gameobject_use_goober_tracking_event_objective_auto_rewards_like_cpp() 
         ]
     );
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![RepresentedGameObjectUseEffect::KillCreditGo {
             gameobject_guid,
             player_guid,
@@ -569,7 +613,7 @@ async fn gameobject_use_goober_quest_gate_matches_cpp_incomplete_requirement() {
             .await
     );
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::TriggerGameEvent {
                 gameobject_guid,
@@ -584,19 +628,26 @@ async fn gameobject_use_goober_quest_gate_matches_cpp_incomplete_requirement() {
         ]
     );
 
-    session.represented_gameobject_use_effects.clear();
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        200,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: 200,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![],
-            slot: 0,
-        },
-    );
+    session
+        .world_entities
+        .represented_gameobject_use_effects
+        .clear();
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
+            200,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id: 200,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![],
+                slot: 0,
+            },
+        );
     assert!(
         session
             .use_represented_gameobject_goober_preamble_like_cpp(
@@ -613,7 +664,7 @@ async fn gameobject_use_goober_quest_gate_matches_cpp_incomplete_requirement() {
             .await
     );
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::KillCreditGo {
                 gameobject_guid,
@@ -656,7 +707,7 @@ async fn gameobject_use_goober_kill_credit_filters_group_reward_distance_like_cp
     group.add_member(far_member);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -673,7 +724,7 @@ async fn gameobject_use_goober_kill_credit_filters_group_reward_distance_like_cp
     );
 
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::KillCreditGo {
                 gameobject_guid,
@@ -708,6 +759,7 @@ fn gameobject_use_goober_state_branch_matches_cpp_global_use() {
     ));
 
     let state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&gameobject_guid)
         .unwrap();
@@ -717,7 +769,7 @@ fn gameobject_use_goober_state_branch_matches_cpp_global_use() {
     assert_eq!(state.go_state, Some(wow_entities::GoState::Active));
     assert!(state.cooldown_until.is_some());
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::GooberUsed {
                 gameobject_guid,
@@ -786,6 +838,7 @@ fn gameobject_use_goober_state_branch_matches_cpp_custom_anim_and_go_cast() {
     ));
 
     let state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&gameobject_guid)
         .unwrap();
@@ -807,7 +860,7 @@ fn gameobject_use_goober_state_branch_matches_cpp_custom_anim_and_go_cast() {
     assert_eq!(command.packet_bytes, expected);
     assert!(other_command_rx.try_recv().is_err());
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::GooberUsed {
                 gameobject_guid,

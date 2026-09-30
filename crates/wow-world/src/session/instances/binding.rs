@@ -24,7 +24,7 @@ impl WorldSession {
         };
         let bit = u32::try_from(encounter.bit).ok().filter(|bit| *bit < 32)?;
 
-        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
         let mut residence = None;
         let mut ambiguous = false;
         manager.do_for_all_maps(|managed| {
@@ -44,7 +44,7 @@ impl WorldSession {
         let (map_id, difficulty_id) = residence?;
         let entries = self.create_map_db2_entries_like_cpp(map_id, difficulty_id)?;
         let now = u64::try_from(unix_now()).ok()?;
-        let lock_mgr = self.instance_lock_mgr.as_ref()?.read().ok()?;
+        let lock_mgr = self.core.instance_lock_mgr.as_ref()?.read().ok()?;
         let Some(lock) = lock_mgr.find_active_instance_lock_at(player_guid, &entries, now) else {
             return Some(false);
         };
@@ -70,8 +70,9 @@ impl WorldSession {
             return;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_instance_reset_times_like_cpp
+        if self.core.player_handle_like_cpp.is_none() {
+            self.instances
+                .represented_instance_reset_times_like_cpp
                 .retain(|_, release_time| *release_time > now_secs);
         }
     }
@@ -81,12 +82,12 @@ impl WorldSession {
         difficulty_id: wow_map::Difficulty,
         target_lock_context: wow_map::CreateMapInstanceLockContext,
     ) -> Option<wow_instances::TransferAbortReason> {
-        let player_guid = self.player_guid?;
+        let player_guid = self.core.player_guid?;
         let owner_guid_counter = i64::try_from(target_lock_context.owner_guid_counter).ok()?;
         let owner_guid = ObjectGuid::create_player(1, owner_guid_counter);
         let entries = self.create_map_db2_entries_like_cpp(map_id, difficulty_id)?;
         let now = u64::try_from(unix_now()).unwrap_or(0);
-        let mgr = self.instance_lock_mgr.as_ref()?;
+        let mgr = self.core.instance_lock_mgr.as_ref()?;
         let mgr = mgr.read().ok()?;
         let target_lock = mgr.find_active_instance_lock_at(owner_guid, &entries, now)?;
         Some(mgr.can_join_instance_lock_at(player_guid, &entries, target_lock, now))
@@ -100,13 +101,13 @@ impl WorldSession {
     ) -> Option<()> {
         let entries = self.create_map_db2_entries_like_cpp(map_id, difficulty_id)?;
         let now = u64::try_from(unix_now()).unwrap_or(0);
-        let mgr = self.instance_lock_mgr.as_ref()?;
+        let mgr = self.core.instance_lock_mgr.as_ref()?;
         let mut mgr = mgr.write().ok()?;
         mgr.create_instance_lock_for_new_instance_at(
             owner_guid,
             &entries,
             instance_id,
-            self.reset_schedule_like_cpp,
+            self.config.reset_schedule_like_cpp,
             now,
         )?;
         Some(())
@@ -120,7 +121,7 @@ impl WorldSession {
         let entries = self.create_map_db2_entries_like_cpp(map_id, difficulty_id)?;
         let owner_guid = self.create_map_instance_owner_guid_like_cpp(map_id)?;
         let now = u64::try_from(unix_now()).unwrap_or(0);
-        let mgr = self.instance_lock_mgr.as_ref()?;
+        let mgr = self.core.instance_lock_mgr.as_ref()?;
         let mut mgr = mgr.write().ok()?;
         mgr.set_active_instance_lock_instance_id_at(owner_guid, &entries, now, instance_id)
             .then_some(())
@@ -133,7 +134,7 @@ impl WorldSession {
         let entries = self.create_map_db2_entries_like_cpp(map_id, difficulty_id)?;
         let owner_guid = self.create_map_instance_owner_guid_like_cpp(map_id)?;
         let now = u64::try_from(unix_now()).unwrap_or(0);
-        let mgr = self.instance_lock_mgr.as_ref()?;
+        let mgr = self.core.instance_lock_mgr.as_ref()?;
         let mgr = mgr.read().ok()?;
         let lock = mgr.find_active_instance_lock_at(owner_guid, &entries, now)?;
 
@@ -149,13 +150,13 @@ impl WorldSession {
         map_id: u32,
         difficulty_id: wow_map::Difficulty,
     ) -> bool {
-        let Some(player_guid) = self.player_guid else {
+        let Some(player_guid) = self.core.player_guid else {
             return false;
         };
         let Some(entries) = self.create_map_db2_entries_like_cpp(map_id, difficulty_id) else {
             return false;
         };
-        let Some(mgr) = self.instance_lock_mgr.as_ref() else {
+        let Some(mgr) = self.core.instance_lock_mgr.as_ref() else {
             return false;
         };
         let Ok(mgr) = mgr.read() else {
@@ -170,7 +171,7 @@ impl WorldSession {
         &mut self,
         mgr: Arc<std::sync::RwLock<wow_instances::InstanceLockMgr>>,
     ) {
-        self.instance_lock_mgr = Some(mgr);
+        self.core.instance_lock_mgr = Some(mgr);
     }
     pub(crate) fn apply_represented_player_instance_reset_result_like_cpp(
         &mut self,

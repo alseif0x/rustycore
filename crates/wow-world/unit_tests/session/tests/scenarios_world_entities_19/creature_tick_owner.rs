@@ -21,7 +21,7 @@ fn default_session_owner_preserves_creatures_tick_packets() {
     });
     let guid = test_creature_guid(90_001);
     register_test_creature(&mut session_a, manager.clone(), guid, 25);
-    session_a.client_visible_guids_like_cpp.insert(guid);
+    session_a.core.client_visible_guids_like_cpp.insert(guid);
     session_a
         .mutate_world_creature(guid, |creature| {
             creature
@@ -108,10 +108,10 @@ fn global_legacy_owner_skips_creature_tick_but_keeps_player_combat_tick_like_cpp
     let (mut session, _, recv) = make_session();
     let guid = test_creature_guid(90_003);
     let player = ObjectGuid::create_player(1, 90_003);
-    session.player_guid = Some(player);
-    session.combat_target = Some(guid);
-    session.in_combat = true;
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(player);
+    session.combat.combat_target = Some(guid);
+    session.combat.in_combat = true;
+    session.core.client_visible_guids_like_cpp.insert(guid);
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -122,16 +122,16 @@ fn global_legacy_owner_skips_creature_tick_but_keeps_player_combat_tick_like_cpp
         .unwrap();
 
     // Drive creature_tick to a value where both %4 and %2 would fire.
-    session.creature_tick = 3; // next wrapping_add → 4, divisible by both 4 and 2.
-    session.state = crate::session::SessionState::LoggedIn;
+    session.world_entities.creature_tick = 3; // next wrapping_add → 4, divisible by both 4 and 2.
+    session.core.state = crate::session::SessionState::LoggedIn;
 
     // Simulate the guard logic in update() for the tick path only.
     let owner = session.runtime_tick_owner_like_cpp();
-    session.creature_tick = session.creature_tick.wrapping_add(1);
-    if session.creature_tick % 4 == 0 && owner == RuntimeTickOwner::Session {
+    session.world_entities.creature_tick = session.world_entities.creature_tick.wrapping_add(1);
+    if session.world_entities.creature_tick % 4 == 0 && owner == RuntimeTickOwner::Session {
         session.tick_creatures_sync();
     }
-    if session.creature_tick % 2 == 0 {
+    if session.world_entities.creature_tick % 2 == 0 {
         session.tick_combat_sync();
     }
 
@@ -151,7 +151,7 @@ fn global_legacy_owner_skips_creature_tick_but_keeps_player_combat_tick_like_cpp
         "player combat must still damage the target under GlobalLegacy"
     );
     // creature_tick was still incremented (guard only wraps the tick calls).
-    assert_eq!(session.creature_tick, 4);
+    assert_eq!(session.world_entities.creature_tick, 4);
 }
 #[tokio::test]
 async fn update_global_legacy_owner_skips_real_session_creature_tick_path() {
@@ -190,9 +190,9 @@ async fn update_global_legacy_owner_skips_real_session_creature_tick_path() {
         creature.position()
     };
 
-    session.state = crate::session::SessionState::LoggedIn;
-    session.creature_tick = 3; // update() increments to 4, so creature tick would fire.
-    session.driver.time_synchronization.timer_ms = 0;
+    session.core.state = crate::session::SessionState::LoggedIn;
+    session.world_entities.creature_tick = 3; // update() increments to 4, so creature tick would fire.
+    session.core.driver.time_synchronization.timer_ms = 0;
 
     assert_eq!(session.update(50).await, 0);
 

@@ -26,18 +26,22 @@ async fn spell_kill_credit_effect_row_rewards_player_monster_objective_like_cpp(
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![0],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
 
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(
@@ -71,12 +75,14 @@ async fn spell_kill_credit_effect_row_rewards_player_monster_objective_like_cpp(
 
     assert!(
         !session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .contains_key(&quest_id)
     );
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .rewarded_quests
             .contains(&quest_id)
@@ -120,18 +126,22 @@ async fn spell_kill_credit2_effect_row_rewards_current_session_like_cpp_without_
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![0],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
 
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(
@@ -165,12 +175,14 @@ async fn spell_kill_credit2_effect_row_rewards_current_session_like_cpp_without_
 
     assert!(
         !session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .contains_key(&quest_id)
     );
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .rewarded_quests
             .contains(&quest_id)

@@ -10,7 +10,9 @@ impl WorldSession {
     pub(crate) fn represented_auto_unequip_offhand_requests_like_cpp(
         &self,
     ) -> &[RepresentedAutoUnequipOffhandLikeCpp] {
-        &self.represented_auto_unequip_offhand_requests_like_cpp
+        &self
+            .inventory
+            .represented_auto_unequip_offhand_requests_like_cpp
     }
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_auto_unequip_offhand_request_like_cpp(
@@ -18,7 +20,8 @@ impl WorldSession {
         request: RepresentedAutoUnequipOffhandLikeCpp,
     ) {
         #[cfg(test)]
-        self.represented_auto_unequip_offhand_requests_like_cpp
+        self.inventory
+            .represented_auto_unequip_offhand_requests_like_cpp
             .push(request);
     }
     pub(crate) fn represented_auto_unequip_offhand_reason_like_cpp(
@@ -145,7 +148,8 @@ impl WorldSession {
         self.record_represented_avg_equipped_item_level_update_like_cpp();
 
         #[cfg(test)]
-        self.represented_auto_unequip_offhand_requests_like_cpp
+        self.inventory
+            .represented_auto_unequip_offhand_requests_like_cpp
             .push(RepresentedAutoUnequipOffhandLikeCpp {
                 item_guid: offhand_item.guid,
                 item_entry: offhand_item.entry_id,

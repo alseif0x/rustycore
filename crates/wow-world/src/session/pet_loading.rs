@@ -164,9 +164,9 @@ impl WorldSession {
         });
         #[cfg(test)]
         if !canonical {
-            self.represented_pet_created_by_spell_like_cpp = created_by_spell;
-            self.represented_pet_react_state_like_cpp = react_state;
-            self.represented_pet_command_state_like_cpp = command_state;
+            self.pets.represented_pet_created_by_spell_like_cpp = created_by_spell;
+            self.pets.represented_pet_react_state_like_cpp = react_state;
+            self.pets.represented_pet_command_state_like_cpp = command_state;
         }
         #[cfg(not(test))]
         let _ = canonical;
@@ -177,7 +177,7 @@ impl WorldSession {
             });
             #[cfg(test)]
             {
-                self.represented_pet_movement_speed_rates_like_cpp =
+                self.pets.represented_pet_movement_speed_rates_like_cpp =
                     [1.0; UnitMoveTypeLikeCpp::COUNT];
             }
         }
@@ -245,7 +245,7 @@ impl WorldSession {
         rows: impl IntoIterator<Item = CharacterPetSpellChargeRowLikeCpp>,
     ) -> usize {
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
-        let spell_category_store = self.spell_catalogs.spell_category_store().cloned();
+        let spell_category_store = self.catalogs.spell_catalogs.spell_category_store().cloned();
         let charges: Vec<_> = rows
             .into_iter()
             .filter(|row| {
@@ -287,8 +287,12 @@ impl WorldSession {
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
         let spell_store = self.spell_store().cloned();
         let difficulty_store = self.difficulty_store().cloned();
-        let aura_options_store = self.spell_catalogs.spell_aura_options_store.clone();
-        let spell_misc_store = self.spell_catalogs.spell_misc_store().cloned();
+        let aura_options_store = self
+            .catalogs
+            .spell_catalogs
+            .spell_aura_options_store
+            .clone();
+        let spell_misc_store = self.catalogs.spell_catalogs.spell_misc_store().cloned();
         let auras: Vec<_> = rows
             .into_iter()
             .filter(|row| {

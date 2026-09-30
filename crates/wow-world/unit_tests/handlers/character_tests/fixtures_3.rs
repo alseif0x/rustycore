@@ -13,7 +13,7 @@ pub(super) fn seed_represented_feign_death_like_cpp(session: &mut WorldSession, 
                 .add_unit_state(wow_constants::unit::UnitState::DIED.bits());
         })
         .expect("canonical player");
-    session.visible_auras.insert(
+    session.auras.visible_auras.insert(
         slot,
         AuraApplication {
             spell_id: 5384,
@@ -117,7 +117,10 @@ pub(super) fn make_binder_observer(
             .unwrap();
     }
     if visible {
-        observer.client_visible_guids_like_cpp.insert(innkeeper);
+        observer
+            .core
+            .client_visible_guids_like_cpp
+            .insert(innkeeper);
     }
     observer.register_in_player_registry();
     assert!(registry.fixture_update(guid, |placement| {
@@ -708,6 +711,7 @@ pub(super) fn mark_gameobject_questgiver(session: &mut WorldSession, guid: Objec
     let mut state = crate::session::RepresentedGameObjectUseState::default();
     state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8);
     session
+        .world_entities
         .represented_gameobject_use_states
         .insert(guid, state);
 }

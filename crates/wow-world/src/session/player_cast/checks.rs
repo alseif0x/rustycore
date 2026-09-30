@@ -53,7 +53,7 @@ impl WorldSession {
                 fail_arg2: 0,
             });
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 spell_id = spell_id,
                 requires_spell_focus = spell_info.requires_spell_focus,
                 "Failing live GameObject summon because C++ SearchSpellFocus found no represented focusObject"
@@ -73,7 +73,7 @@ impl WorldSession {
                 fail_arg2: 0,
             });
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 spell_id = spell_id,
                 reason = reason as i32,
                 "Failing represented battle-pet spell because C++ Spell::CheckCast rejected it"
@@ -93,7 +93,7 @@ impl WorldSession {
                         fail_arg2: 0,
                     });
                     debug!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         spell_id = spell_id,
                         reason = reason as i32,
                         "Failing represented mount spell because C++ Spell::CheckCast rejected it"
@@ -101,7 +101,7 @@ impl WorldSession {
                 }
                 RepresentedMountSpellCheckOutcomeLikeCpp::DontReport => {
                     debug!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         spell_id = spell_id,
                         "Failing represented mount spell with C++ SPELL_FAILED_DONT_REPORT"
                     );

@@ -26,7 +26,7 @@ fn gameobject_post_use_spell_records_missing_spell_like_cpp() {
         )
     );
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::OutdoorPvpCustomSpellRequested {
                 gameobject_guid,
@@ -55,6 +55,7 @@ fn gameobject_use_fishing_node_activates_ready_bobber_like_cpp() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 17);
     session
+        .world_entities
         .represented_gameobject_use_states
         .entry(gameobject_guid)
         .or_default()
@@ -64,7 +65,7 @@ fn gameobject_use_fishing_node_activates_ready_bobber_like_cpp() {
         session.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid,)
     );
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::FishingNodeActivated {
                 gameobject_guid,
@@ -74,6 +75,7 @@ fn gameobject_use_fishing_node_activates_ready_bobber_like_cpp() {
         ]
     );
     let state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&gameobject_guid)
         .unwrap();
@@ -89,6 +91,7 @@ fn gameobject_use_fishing_node_records_skill_roll_and_loot_type_like_cpp() {
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 47);
     {
         let state = session
+            .world_entities
             .represented_gameobject_use_states
             .entry(gameobject_guid)
             .or_default();
@@ -101,29 +104,38 @@ fn gameobject_use_fishing_node_records_skill_roll_and_loot_type_like_cpp() {
     assert!(
         session.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid,)
     );
-    assert!(session.represented_gameobject_use_effects.contains(
-        &RepresentedGameObjectUseEffect::FishingSkillUpdated {
-            gameobject_guid,
-            player_guid,
-        },
-    ));
-    assert!(session.represented_gameobject_use_effects.contains(
-        &RepresentedGameObjectUseEffect::FishingLootRoll {
-            gameobject_guid,
-            player_guid,
-            player_fishing_level: 100,
-            area_fishing_level: 200,
-            chance: 25,
-            roll: 30,
-        },
-    ));
-    assert!(session.represented_gameobject_use_effects.contains(
-        &RepresentedGameObjectUseEffect::FishingLootRequested {
-            gameobject_guid,
-            player_guid,
-            loot_type: wow_packet::packets::loot::LOOT_TYPE_FISHING_JUNK_LIKE_CPP,
-        },
-    ));
+    assert!(
+        session
+            .world_entities
+            .represented_gameobject_use_effects
+            .contains(&RepresentedGameObjectUseEffect::FishingSkillUpdated {
+                gameobject_guid,
+                player_guid,
+            },)
+    );
+    assert!(
+        session
+            .world_entities
+            .represented_gameobject_use_effects
+            .contains(&RepresentedGameObjectUseEffect::FishingLootRoll {
+                gameobject_guid,
+                player_guid,
+                player_fishing_level: 100,
+                area_fishing_level: 200,
+                chance: 25,
+                roll: 30,
+            },)
+    );
+    assert!(
+        session
+            .world_entities
+            .represented_gameobject_use_effects
+            .contains(&RepresentedGameObjectUseEffect::FishingLootRequested {
+                gameobject_guid,
+                player_guid,
+                loot_type: wow_packet::packets::loot::LOOT_TYPE_FISHING_JUNK_LIKE_CPP,
+            },)
+    );
 }
 #[test]
 fn gameobject_use_fishing_node_resolves_area_and_skill_from_session_state_like_cpp() {
@@ -190,6 +202,7 @@ fn gameobject_use_fishing_node_resolves_area_and_skill_from_session_state_like_c
     session.record_represented_gameobject_zone_area_like_cpp(gameobject_guid, 1, 901);
     {
         let state = session
+            .world_entities
             .represented_gameobject_use_states
             .entry(gameobject_guid)
             .or_default();
@@ -199,23 +212,29 @@ fn gameobject_use_fishing_node_resolves_area_and_skill_from_session_state_like_c
 
     assert!(session.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid));
 
-    assert!(session.represented_gameobject_use_effects.contains(
-        &RepresentedGameObjectUseEffect::FishingLootRoll {
-            gameobject_guid,
-            player_guid,
-            player_fishing_level: 100,
-            area_fishing_level: 200,
-            chance: 25,
-            roll: 30,
-        },
-    ));
-    assert!(session.represented_gameobject_use_effects.contains(
-        &RepresentedGameObjectUseEffect::FishingLootRequested {
-            gameobject_guid,
-            player_guid,
-            loot_type: wow_packet::packets::loot::LOOT_TYPE_FISHING_JUNK_LIKE_CPP,
-        },
-    ));
+    assert!(
+        session
+            .world_entities
+            .represented_gameobject_use_effects
+            .contains(&RepresentedGameObjectUseEffect::FishingLootRoll {
+                gameobject_guid,
+                player_guid,
+                player_fishing_level: 100,
+                area_fishing_level: 200,
+                chance: 25,
+                roll: 30,
+            },)
+    );
+    assert!(
+        session
+            .world_entities
+            .represented_gameobject_use_effects
+            .contains(&RepresentedGameObjectUseEffect::FishingLootRequested {
+                gameobject_guid,
+                player_guid,
+                loot_type: wow_packet::packets::loot::LOOT_TYPE_FISHING_JUNK_LIKE_CPP,
+            },)
+    );
 }
 #[test]
 fn gameobject_use_fishing_node_resolves_profession_child_skill_like_cpp() {
@@ -276,6 +295,7 @@ fn gameobject_use_fishing_node_resolves_profession_child_skill_like_cpp() {
     session.record_represented_gameobject_zone_area_like_cpp(gameobject_guid, 1, 900);
     {
         let state = session
+            .world_entities
             .represented_gameobject_use_states
             .entry(gameobject_guid)
             .or_default();
@@ -285,16 +305,19 @@ fn gameobject_use_fishing_node_resolves_profession_child_skill_like_cpp() {
 
     assert!(session.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid));
 
-    assert!(session.represented_gameobject_use_effects.contains(
-        &RepresentedGameObjectUseEffect::FishingLootRoll {
-            gameobject_guid,
-            player_guid,
-            player_fishing_level: 100,
-            area_fishing_level: 200,
-            chance: 25,
-            roll: 30,
-        },
-    ));
+    assert!(
+        session
+            .world_entities
+            .represented_gameobject_use_effects
+            .contains(&RepresentedGameObjectUseEffect::FishingLootRoll {
+                gameobject_guid,
+                player_guid,
+                player_fishing_level: 100,
+                area_fishing_level: 200,
+                chance: 25,
+                roll: 30,
+            },)
+    );
 }
 #[test]
 fn gameobject_use_fishing_node_success_clears_canonical_spell_id_like_cpp() {
@@ -306,7 +329,7 @@ fn gameobject_use_fishing_node_success_clears_canonical_spell_id_like_cpp() {
 
     canonical.lock().unwrap().create_world_map(571, 0);
     session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.current_map_id = 571;
+    session.core.current_map_id = 571;
     session.record_represented_gameobject_runtime_state_like_cpp(
         571,
         gameobject_guid,
@@ -317,6 +340,7 @@ fn gameobject_use_fishing_node_success_clears_canonical_spell_id_like_cpp() {
     session.record_represented_gameobject_spell_id_like_cpp(gameobject_guid, 3456);
     {
         let state = session
+            .world_entities
             .represented_gameobject_use_states
             .entry(gameobject_guid)
             .or_default();
@@ -347,7 +371,7 @@ fn gameobject_use_fishing_node_junk_keeps_canonical_spell_id_like_cpp() {
 
     canonical.lock().unwrap().create_world_map(571, 0);
     session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.current_map_id = 571;
+    session.core.current_map_id = 571;
     session.record_represented_gameobject_runtime_state_like_cpp(
         571,
         gameobject_guid,
@@ -358,6 +382,7 @@ fn gameobject_use_fishing_node_junk_keeps_canonical_spell_id_like_cpp() {
     session.record_represented_gameobject_spell_id_like_cpp(gameobject_guid, 3456);
     {
         let state = session
+            .world_entities
             .represented_gameobject_use_states
             .entry(gameobject_guid)
             .or_default();
@@ -389,7 +414,7 @@ fn gameobject_use_fishing_node_wrong_owner_keeps_canonical_spell_id_like_cpp() {
 
     canonical.lock().unwrap().create_world_map(571, 0);
     session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.current_map_id = 571;
+    session.core.current_map_id = 571;
     session.record_represented_gameobject_owner_guid_like_cpp(gameobject_guid, owner_guid);
     session.record_represented_gameobject_runtime_state_like_cpp(
         571,
@@ -424,6 +449,7 @@ fn gameobject_use_fishing_node_delegates_to_known_fishing_hole_like_cpp() {
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 49);
     {
         let state = session
+            .world_entities
             .represented_gameobject_use_states
             .entry(gameobject_guid)
             .or_default();
@@ -437,15 +463,19 @@ fn gameobject_use_fishing_node_delegates_to_known_fishing_hole_like_cpp() {
     assert!(
         session.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid,)
     );
-    assert!(session.represented_gameobject_use_effects.contains(
-        &RepresentedGameObjectUseEffect::FishingHoleDelegated {
-            gameobject_guid,
-            player_guid,
-            fishing_hole_guid,
-        },
-    ));
+    assert!(
+        session
+            .world_entities
+            .represented_gameobject_use_effects
+            .contains(&RepresentedGameObjectUseEffect::FishingHoleDelegated {
+                gameobject_guid,
+                player_guid,
+                fishing_hole_guid,
+            },)
+    );
     assert_eq!(
         session
+            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)
             .and_then(|state| state.loot_state),
@@ -488,6 +518,7 @@ fn gameobject_use_fishing_node_finds_nearest_represented_fishing_hole_like_cpp()
     session.record_represented_fishing_hole_radius_like_cpp(nearest_hole_guid, 20);
     {
         let state = session
+            .world_entities
             .represented_gameobject_use_states
             .entry(gameobject_guid)
             .or_default();
@@ -500,20 +531,26 @@ fn gameobject_use_fishing_node_finds_nearest_represented_fishing_hole_like_cpp()
     assert!(
         session.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid,)
     );
-    assert!(session.represented_gameobject_use_effects.contains(
-        &RepresentedGameObjectUseEffect::FishingHoleDelegated {
-            gameobject_guid,
-            player_guid,
-            fishing_hole_guid: nearest_hole_guid,
-        },
-    ));
-    assert!(!session.represented_gameobject_use_effects.contains(
-        &RepresentedGameObjectUseEffect::FishingLootRequested {
-            gameobject_guid,
-            player_guid,
-            loot_type: wow_packet::packets::loot::LOOT_TYPE_FISHING_JUNK_LIKE_CPP,
-        },
-    ));
+    assert!(
+        session
+            .world_entities
+            .represented_gameobject_use_effects
+            .contains(&RepresentedGameObjectUseEffect::FishingHoleDelegated {
+                gameobject_guid,
+                player_guid,
+                fishing_hole_guid: nearest_hole_guid,
+            },)
+    );
+    assert!(
+        !session
+            .world_entities
+            .represented_gameobject_use_effects
+            .contains(&RepresentedGameObjectUseEffect::FishingLootRequested {
+                gameobject_guid,
+                player_guid,
+                loot_type: wow_packet::packets::loot::LOOT_TYPE_FISHING_JUNK_LIKE_CPP,
+            },)
+    );
 }
 #[test]
 fn gameobject_use_fishing_node_requires_fishing_hole_radius_like_cpp() {
@@ -541,6 +578,7 @@ fn gameobject_use_fishing_node_requires_fishing_hole_radius_like_cpp() {
     session.record_represented_fishing_hole_radius_like_cpp(fishing_hole_guid, 5);
     {
         let state = session
+            .world_entities
             .represented_gameobject_use_states
             .entry(gameobject_guid)
             .or_default();
@@ -555,6 +593,7 @@ fn gameobject_use_fishing_node_requires_fishing_hole_radius_like_cpp() {
     );
     assert!(
         !session
+            .world_entities
             .represented_gameobject_use_effects
             .iter()
             .any(|effect| matches!(
@@ -562,13 +601,16 @@ fn gameobject_use_fishing_node_requires_fishing_hole_radius_like_cpp() {
                 RepresentedGameObjectUseEffect::FishingHoleDelegated { .. }
             ))
     );
-    assert!(session.represented_gameobject_use_effects.contains(
-        &RepresentedGameObjectUseEffect::FishingLootRequested {
-            gameobject_guid,
-            player_guid,
-            loot_type: wow_packet::packets::loot::LOOT_TYPE_FISHING_JUNK_LIKE_CPP,
-        },
-    ));
+    assert!(
+        session
+            .world_entities
+            .represented_gameobject_use_effects
+            .contains(&RepresentedGameObjectUseEffect::FishingLootRequested {
+                gameobject_guid,
+                player_guid,
+                loot_type: wow_packet::packets::loot::LOOT_TYPE_FISHING_JUNK_LIKE_CPP,
+            },)
+    );
 }
 #[test]
 fn gameobject_use_fishing_node_rejects_known_wrong_owner_like_cpp() {
@@ -578,6 +620,7 @@ fn gameobject_use_fishing_node_rejects_known_wrong_owner_like_cpp() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 17);
     session
+        .world_entities
         .represented_gameobject_use_states
         .entry(gameobject_guid)
         .or_default()
@@ -587,7 +630,7 @@ fn gameobject_use_fishing_node_rejects_known_wrong_owner_like_cpp() {
         !session.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid,)
     );
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![RepresentedGameObjectUseEffect::FishingNodeOwnerRejected {
             gameobject_guid,
             player_guid,
@@ -602,6 +645,7 @@ fn gameobject_use_fishing_node_not_ready_sends_not_hooked_like_cpp() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 17);
     session
+        .world_entities
         .represented_gameobject_use_states
         .entry(gameobject_guid)
         .or_default()
@@ -611,7 +655,7 @@ fn gameobject_use_fishing_node_not_ready_sends_not_hooked_like_cpp() {
         session.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid,)
     );
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::FishNotHooked {
                 gameobject_guid,
@@ -622,6 +666,7 @@ fn gameobject_use_fishing_node_not_ready_sends_not_hooked_like_cpp() {
     );
     assert_eq!(
         session
+            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)
             .and_then(|state| state.loot_state),
@@ -646,7 +691,7 @@ fn gameobject_use_questgiver_sends_gossip_like_cpp() {
         wow_entities::QuestgiverUseSource { gossip_id: 123 },
     ));
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![RepresentedGameObjectUseEffect::SendGossip {
             gameobject_guid,
             player_guid,
@@ -667,7 +712,7 @@ fn gameobject_use_questgiver_single_gameobject_starter_auto_opens_quest_details_
     quest.log_title = "GO starter".into();
     let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([quest]);
     assert!(quest_store.insert_gameobject_starter_relation_like_cpp(777, 9_001));
-    session.quests.store = Some(Arc::new(quest_store));
+    session.catalogs.quests.store = Some(Arc::new(quest_store));
 
     assert!(session.use_represented_gameobject_questgiver_like_cpp(
         gameobject_guid,
@@ -677,7 +722,7 @@ fn gameobject_use_questgiver_single_gameobject_starter_auto_opens_quest_details_
     ));
 
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![RepresentedGameObjectUseEffect::SendGossip {
             gameobject_guid,
             player_guid,
@@ -706,19 +751,23 @@ fn gameobject_use_questgiver_ender_relation_precedes_starter_like_cpp() {
     let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([ender, starter]);
     assert!(quest_store.insert_gameobject_ender_relation_like_cpp(777, 9_001));
     assert!(quest_store.insert_gameobject_starter_relation_like_cpp(777, 9_002));
-    session.quests.store = Some(Arc::new(quest_store));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        9_001,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: 9_001,
-            status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
-    );
+    session.catalogs.quests.store = Some(Arc::new(quest_store));
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
+            9_001,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id: 9_001,
+                status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
 
     assert!(session.use_represented_gameobject_questgiver_like_cpp(
         gameobject_guid,
@@ -757,7 +806,7 @@ fn quest_giver_query_gameobject_inactive_ender_falls_through_to_same_starter_lik
     let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([quest]);
     assert!(quest_store.insert_gameobject_ender_relation_like_cpp(778, 9_004));
     assert!(quest_store.insert_gameobject_starter_relation_like_cpp(778, 9_004));
-    session.quests.store = Some(Arc::new(quest_store));
+    session.catalogs.quests.store = Some(Arc::new(quest_store));
 
     assert!(session.send_represented_quest_giver_query_quest_like_cpp(source_guid, 9_004));
 
@@ -778,19 +827,23 @@ fn gameobject_use_questgiver_single_incomplete_ender_auto_opens_request_items_li
     ender.log_title = "GO incomplete ender".into();
     let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([ender]);
     assert!(quest_store.insert_gameobject_ender_relation_like_cpp(777, 9_003));
-    session.quests.store = Some(Arc::new(quest_store));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        9_003,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: 9_003,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
-    );
+    session.catalogs.quests.store = Some(Arc::new(quest_store));
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
+            9_003,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id: 9_003,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
 
     assert!(session.use_represented_gameobject_questgiver_like_cpp(
         gameobject_guid,
@@ -824,7 +877,7 @@ fn gameobject_use_questgiver_without_gameobject_relations_keeps_only_gossip_like
     let mut quest_store =
         wow_data::quest::QuestStore::from_quests_like_cpp([test_quest_template(9_001)]);
     quest_store.starter_quests.insert(777, vec![9_001]);
-    session.quests.store = Some(Arc::new(quest_store));
+    session.catalogs.quests.store = Some(Arc::new(quest_store));
 
     assert!(session.use_represented_gameobject_questgiver_like_cpp(
         gameobject_guid,
@@ -834,7 +887,7 @@ fn gameobject_use_questgiver_without_gameobject_relations_keeps_only_gossip_like
     ));
 
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![RepresentedGameObjectUseEffect::SendGossip {
             gameobject_guid,
             player_guid,
@@ -853,7 +906,7 @@ fn creature_questgiver_single_starter_auto_opens_quest_details_like_cpp() {
     quest.log_title = "Creature starter".into();
     let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([quest]);
     quest_store.starter_quests.insert(777, vec![9_101]);
-    session.quests.store = Some(Arc::new(quest_store));
+    session.catalogs.quests.store = Some(Arc::new(quest_store));
 
     assert!(session.use_represented_creature_questgiver_like_cpp(creature_guid, 777));
 

@@ -13,6 +13,7 @@ impl WorldSession {
         status: &PlayerQuestStatus,
     ) -> wow_persistence::QuestStatusPersistenceLikeCpp {
         let objectives = self
+            .catalogs
             .quests
             .store
             .as_ref()

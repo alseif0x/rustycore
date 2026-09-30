@@ -9,13 +9,13 @@ use super::*;
 impl WorldSession {
     /// Inject the shared map manager. Call once at session creation, before login.
     pub fn set_map_manager(&mut self, mgr: crate::map_manager::SharedMapManager) {
-        self.map_manager = Some(mgr);
+        self.core.map_manager = Some(mgr);
     }
     pub fn set_canonical_map_manager(&mut self, mgr: SharedCanonicalMapManager) {
-        if let Some(registry) = &self.player_registry {
+        if let Some(registry) = &self.core.player_registry {
             let _ = registry.bind_canonical_map_manager(Arc::clone(&mgr));
         }
-        self.canonical_map_manager = Some(mgr);
+        self.core.canonical_map_manager = Some(mgr);
     }
     /// Resolve the one canonical Player identity and move that exact value to
     /// the selected map. Existing map records predate Player handles, so the
@@ -28,11 +28,11 @@ impl WorldSession {
         if !self.ensure_canonical_player_owner_exists_like_cpp(key) {
             return false;
         }
-        let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone) else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref().map(Arc::clone) else {
             return false;
         };
 
-        let Some(handle) = self.player_handle_like_cpp else {
+        let Some(handle) = self.core.player_handle_like_cpp else {
             return false;
         };
         let Ok(mut manager) = manager.lock() else {
@@ -60,13 +60,13 @@ impl WorldSession {
         &mut self,
         pathfinder: Arc<WorldMMapPathfinderWorkerLikeCpp>,
     ) {
-        self.mmap_pathfinder_like_cpp = Some(pathfinder);
+        self.core.mmap_pathfinder_like_cpp = Some(pathfinder);
     }
     pub(crate) fn has_canonical_map_manager_like_cpp(&self) -> bool {
-        self.canonical_map_manager.is_some()
+        self.core.canonical_map_manager.is_some()
     }
     pub(crate) fn has_world_map_manager_like_cpp(&self) -> bool {
-        self.map_manager.is_some()
+        self.core.map_manager.is_some()
     }
     /// Snapshot every in-world transport on the player's canonical map that
     /// survives the viewer phase check.  C++ `Map::SendInitTransports` and the
@@ -79,7 +79,7 @@ impl WorldSession {
         let requested_map_id = u32::from(map_id);
         let player_map_key = self.current_canonical_player_map_key_like_cpp();
         let viewer_phase_shift = self.represented_player_phase_shift_like_cpp();
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
         };
@@ -120,7 +120,7 @@ impl WorldSession {
         let requested_map_id = u32::from(map_id);
         let player_map_key = self.current_canonical_player_map_key_like_cpp();
         let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
         };
@@ -180,7 +180,7 @@ impl WorldSession {
         let player_map_key = self.current_canonical_player_map_key_like_cpp();
         let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
         let viewer_phase_shift = self.represented_player_phase_shift_like_cpp();
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
         };
@@ -249,7 +249,7 @@ impl WorldSession {
         let player_map_key = self.current_canonical_player_map_key_like_cpp();
         let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
         let viewer_phase_shift = self.represented_player_phase_shift_like_cpp();
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
         };
@@ -320,7 +320,7 @@ impl WorldSession {
                     || {
                         crate::entity_update_bridge::conversation_create_data_from_entity_like_cpp(
                             conversation,
-                            &self.locale,
+                            &self.core.locale,
                         )
                     },
                 )
@@ -336,9 +336,9 @@ impl WorldSession {
     }
     pub(crate) fn current_canonical_player_map_key_like_cpp(&self) -> Option<wow_map::MapKey> {
         let guid = self.player_guid()?;
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let manager = manager.lock().ok()?;
-        if let Some(handle) = self.player_handle_like_cpp
+        if let Some(handle) = self.core.player_handle_like_cpp
             && handle.guid() == guid
         {
             return match manager.player_residence_like_cpp(handle)? {
@@ -376,7 +376,7 @@ impl WorldSession {
             return Some(map_key);
         }
 
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let manager = manager.lock().ok()?;
         if let Some(player_guid) = self.player_guid() {
             let mut player_map_count = 0usize;
@@ -389,7 +389,7 @@ impl WorldSession {
             // transfer boundary, not permission to choose one by iteration
             // order. Object-owned mutations fail closed until ownership is
             // unambiguous.
-            if player_map_count != 0 || self.state == SessionState::LoggedIn {
+            if player_map_count != 0 || self.core.state == SessionState::LoggedIn {
                 return None;
             }
         }
@@ -420,7 +420,7 @@ impl WorldSession {
         let Some(key) = self.current_canonical_player_map_key_like_cpp() else {
             return false;
         };
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
             return false;
         };
         let Ok(manager) = manager.lock() else {

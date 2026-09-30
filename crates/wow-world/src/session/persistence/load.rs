@@ -14,8 +14,8 @@ impl WorldSession {
             return;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_void_storage_loaded_like_cpp = true;
+        if self.core.player_handle_like_cpp.is_none() {
+            self.inventory.represented_void_storage_loaded_like_cpp = true;
         }
     }
     /// Match C++ `Player::LoadFromDB`: locked characters do not consume the
@@ -50,8 +50,8 @@ impl WorldSession {
             None => {
                 #[cfg(test)]
                 {
-                    if self.player_handle_like_cpp.is_none() {
-                        let items = &mut self.represented_void_storage_items_like_cpp;
+                    if self.core.player_handle_like_cpp.is_none() {
+                        let items = &mut self.inventory.represented_void_storage_items_like_cpp;
                         if items[slot_index].is_none()
                             && !items
                                 .iter()
@@ -91,9 +91,12 @@ impl WorldSession {
         &mut self,
         rows: impl IntoIterator<Item = (u32, u64)>,
     ) {
-        self.represented_instance_reset_times_like_cpp.clear();
+        self.instances
+            .represented_instance_reset_times_like_cpp
+            .clear();
         for (instance_id, release_time) in rows {
-            self.represented_instance_reset_times_like_cpp
+            self.instances
+                .represented_instance_reset_times_like_cpp
                 .entry(instance_id)
                 .or_insert(release_time);
         }
@@ -103,7 +106,7 @@ impl WorldSession {
 
         let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "LoadInstanceTimeRestrictions skipped: Player lifecycle port unavailable"
             );
             return;
@@ -112,7 +115,7 @@ impl WorldSession {
         let rows = match port
             .load_login_auxiliary_like_cpp(
                 wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::InstanceTimeRestrictions {
-                    account_id: self.account_id,
+                    account_id: self.core.account_id,
                 },
             )
             .await
@@ -122,14 +125,14 @@ impl WorldSession {
             ) => rows,
             wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "LoadInstanceTimeRestrictions query failed: {reason}"
                 );
                 return;
             }
             wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(_) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "Player lifecycle port returned the wrong auxiliary login data for instance time restrictions"
                 );
                 return;
@@ -148,7 +151,7 @@ impl WorldSession {
     ) {
         let mut heirlooms = BTreeMap::new();
         for (item_id, flags) in heirloom_rows {
-            let bonus_id = match self.heirloom_store.as_ref() {
+            let bonus_id = match self.catalogs.heirloom_store.as_ref() {
                 Some(store) => {
                     let Some(heirloom) = store.get_by_item_id_like_cpp(item_id) else {
                         continue;
@@ -191,7 +194,7 @@ impl WorldSession {
             return false;
         };
         let friendship_rep_reaction_store = self.friendship_rep_reaction_store().cloned();
-        let paragon_reputation_store = self.paragon_reputation_store.as_ref().cloned();
+        let paragon_reputation_store = self.catalogs.paragon_reputation_store.as_ref().cloned();
         let race = self.player_race_like_cpp();
         let class = self.player_class_like_cpp();
 
@@ -242,7 +245,7 @@ impl WorldSession {
     pub(crate) fn load_represented_group_difficulties_like_cpp(&mut self) -> bool {
         let (Some(group_guid), Some(group_registry)) = (
             self.resolved_group_guid_like_cpp(),
-            self.directory.group_registry.as_ref(),
+            self.core.directory.group_registry.as_ref(),
         ) else {
             return false;
         };
@@ -270,7 +273,7 @@ impl WorldSession {
         let (Some(group_guid), Some(player_guid), Some(group_registry)) = (
             self.resolved_group_guid_like_cpp(),
             self.player_guid(),
-            self.directory.group_registry.as_ref(),
+            self.core.directory.group_registry.as_ref(),
         ) else {
             let _ = self.set_owned_player_group_like_cpp(None);
             return false;
@@ -294,7 +297,7 @@ impl WorldSession {
         &mut self,
         db_store_id: u32,
     ) -> bool {
-        let Some(group_registry) = self.directory.group_registry.as_ref() else {
+        let Some(group_registry) = self.core.directory.group_registry.as_ref() else {
             let _ = self.set_owned_player_group_like_cpp(None);
             return false;
         };
@@ -340,7 +343,7 @@ impl WorldSession {
             REST_STATE_NORMAL_LIKE_CPP
         };
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             self.clear_represented_rest_flags_for_character_load_like_cpp();
             let _ = self.mutate_player_rest_state_like_cpp(|state| {
                 state.install_loaded_rest_like_cpp(rest_state, rest_bonus);
@@ -367,18 +370,24 @@ impl WorldSession {
             }
         });
         #[cfg(test)]
-        if _canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            self.rest_mgr_test_fixture_like_cpp
+        if _canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            self.progression
+                .rest_mgr_test_fixture_like_cpp
                 .represented_rest_flag_mask_like_cpp = 0;
-            self.rest_mgr_test_fixture_like_cpp
+            self.progression
+                .rest_mgr_test_fixture_like_cpp
                 .represented_rest_location_initialized_like_cpp = false;
-            self.rest_mgr_test_fixture_like_cpp
+            self.progression
+                .rest_mgr_test_fixture_like_cpp
                 .represented_defer_rest_flag_sync_like_cpp = false;
-            self.rest_mgr_test_fixture_like_cpp
+            self.progression
+                .rest_mgr_test_fixture_like_cpp
                 .represented_deferred_rest_flag_update_dirty_like_cpp = false;
-            self.rest_mgr_test_fixture_like_cpp
+            self.progression
+                .rest_mgr_test_fixture_like_cpp
                 .represented_inn_area_trigger_id_like_cpp = 0;
-            self.rest_mgr_test_fixture_like_cpp
+            self.progression
+                .rest_mgr_test_fixture_like_cpp
                 .represented_rest_time_secs_like_cpp = 0;
         }
     }
@@ -399,8 +408,8 @@ impl WorldSession {
             })
             .flatten();
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_explored_zones_like_cpp = blocks;
+        if self.core.player_handle_like_cpp.is_none() {
+            self.instances.represented_explored_zones_like_cpp = blocks;
         }
         if let Some(update) = canonical {
             self.send_player_values_update_like_cpp(&update);
@@ -542,19 +551,19 @@ impl WorldSession {
             .clone()
         else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "LoadTutorialsData skipped: session account-state port unavailable"
             );
             return;
         };
 
-        match port.load_tutorials_like_cpp(self.account_id).await {
+        match port.load_tutorials_like_cpp(self.core.account_id).await {
             wow_persistence::SessionTutorialsLoadOutcomeLikeCpp::Loaded(values) => {
                 self.load_tutorials_data_values_like_cpp(values);
             }
             wow_persistence::SessionTutorialsLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "LoadTutorialsData query failed: {reason}"
                 );
             }
@@ -582,7 +591,7 @@ impl WorldSession {
 
         let scope = if mask == GLOBAL_CACHE_MASK_LIKE_CPP {
             wow_persistence::SessionAccountDataScopeLikeCpp::Global {
-                account_id: self.account_id,
+                account_id: self.core.account_id,
             }
         } else {
             wow_persistence::SessionAccountDataScopeLikeCpp::Character {
@@ -598,7 +607,7 @@ impl WorldSession {
             .clone()
         else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 mask, "LoadAccountData skipped: session account-state port unavailable"
             );
             return;
@@ -608,7 +617,7 @@ impl WorldSession {
             wow_persistence::SessionAccountDataLoadOutcomeLikeCpp::Loaded(rows) => rows,
             wow_persistence::SessionAccountDataLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     mask, "LoadAccountData query failed: {reason}"
                 );
                 return;
@@ -646,19 +655,20 @@ impl WorldSession {
             })
             .is_some();
         if canonical {
-            self.player_identity_bootstrap_like_cpp = None;
+            self.core.player_identity_bootstrap_like_cpp = None;
             return;
         }
         #[cfg(not(test))]
-        if self.player_handle_like_cpp.is_some() {
+        if self.core.player_handle_like_cpp.is_some() {
             return;
         }
-        self.player_identity_bootstrap_like_cpp
+        self.core
+            .player_identity_bootstrap_like_cpp
             .get_or_insert_default()
             .name = Some(name.clone());
         #[cfg(test)]
         {
-            self.player_name = Some(name);
+            self.identity.player_name = Some(name);
         }
     }
     pub(crate) fn set_loaded_player_identity_like_cpp(
@@ -683,7 +693,7 @@ impl WorldSession {
         {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
-        self.current_map_id = map_id;
+        self.core.current_map_id = map_id;
         let gray_level = self.gray_level(level);
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| {
@@ -692,25 +702,26 @@ impl WorldSession {
             })
             .is_some();
         if canonical {
-            self.player_identity_bootstrap_like_cpp = None;
+            self.core.player_identity_bootstrap_like_cpp = None;
         } else {
             #[cfg(not(test))]
-            if self.player_handle_like_cpp.is_some() {
+            if self.core.player_handle_like_cpp.is_some() {
                 return;
             }
-            self.player_identity_bootstrap_like_cpp = Some(super::PlayerIdentityBootstrapLikeCpp {
-                name: self.player_name_like_cpp(),
-                race,
-                class,
-                level,
-                gender,
-            });
+            self.core.player_identity_bootstrap_like_cpp =
+                Some(super::PlayerIdentityBootstrapLikeCpp {
+                    name: self.player_name_like_cpp(),
+                    race,
+                    class,
+                    level,
+                    gender,
+                });
             #[cfg(test)]
             {
-                self.player_race = race;
-                self.player_class = class;
-                self.player_level = level;
-                self.player_gender = gender;
+                self.identity.player_race = race;
+                self.identity.player_class = class;
+                self.identity.player_level = level;
+                self.identity.player_gender = gender;
             }
         }
         self.set_player_faction_for_race_like_cpp(race);
@@ -728,12 +739,15 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         {
-            self.player_flags_test_fixture_like_cpp
+            self.lifecycle
+                .player_flags_test_fixture_like_cpp
                 .represented_loaded_player_flags_like_cpp = Some(player_flags);
-            self.player_flags_test_fixture_like_cpp
+            self.lifecycle
+                .player_flags_test_fixture_like_cpp
                 .represented_loaded_player_flags_ex_like_cpp
                 .get_or_insert(0);
-            self.player_flags_test_fixture_like_cpp
+            self.lifecycle
+                .player_flags_test_fixture_like_cpp
                 .represented_loaded_player_flags_applied_like_cpp = _canonical;
         }
     }
@@ -746,21 +760,25 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         {
-            self.player_flags_test_fixture_like_cpp
+            self.lifecycle
+                .player_flags_test_fixture_like_cpp
                 .represented_loaded_player_flags_ex_like_cpp = Some(player_flags_ex);
-            self.player_flags_test_fixture_like_cpp
+            self.lifecycle
+                .player_flags_test_fixture_like_cpp
                 .represented_loaded_player_flags_applied_like_cpp = _canonical;
         }
     }
     #[cfg(test)]
     pub(crate) fn apply_loaded_player_flags_to_canonical_like_cpp(&mut self) {
         let Some(player_flags) = self
+            .lifecycle
             .player_flags_test_fixture_like_cpp
             .represented_loaded_player_flags_like_cpp
         else {
             return;
         };
         let player_flags_ex = self
+            .lifecycle
             .player_flags_test_fixture_like_cpp
             .represented_loaded_player_flags_ex_like_cpp
             .unwrap_or(0);
@@ -771,7 +789,8 @@ impl WorldSession {
             })
             .is_some()
         {
-            self.player_flags_test_fixture_like_cpp
+            self.lifecycle
+                .player_flags_test_fixture_like_cpp
                 .represented_loaded_player_flags_applied_like_cpp = true;
         }
     }
@@ -786,17 +805,18 @@ impl WorldSession {
                 .replace_create_power_arrays_like_cpp(powers.map(|value| value.max(0)), max_power);
         });
         #[cfg(test)]
-        if _canonical.is_some() || self.player_handle_like_cpp.is_none() {
-            self.represented_player_powers_like_cpp =
+        if _canonical.is_some() || self.core.player_handle_like_cpp.is_none() {
+            self.combat.represented_player_powers_like_cpp =
                 loaded_character_power_snapshot_like_cpp(powers);
         }
     }
     pub(crate) fn resolved_player_skill_records_loaded_like_cpp(&self) -> Option<bool> {
         let canonical = self.with_owned_player_like_cpp(Player::skill_records_loaded_like_cpp);
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.player_skill_test_fixture_like_cpp
+                self.progression
+                    .player_skill_test_fixture_like_cpp
                     .player_skill_records_loaded_like_cpp,
             );
         }
@@ -812,8 +832,8 @@ impl WorldSession {
             .with_owned_player_mut_like_cpp(Player::mark_action_buttons_loaded_like_cpp)
             .is_some();
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_action_buttons_loaded_like_cpp = true;
+        if self.core.player_handle_like_cpp.is_none() {
+            self.presentation.represented_action_buttons_loaded_like_cpp = true;
         }
     }
     pub(crate) fn loaded_action_buttons_snapshot_like_cpp(
@@ -828,10 +848,10 @@ impl WorldSession {
             .flatten();
         #[cfg(test)]
         if canonical.is_none()
-            && self.player_handle_like_cpp.is_none()
-            && self.represented_action_buttons_loaded_like_cpp
+            && self.core.player_handle_like_cpp.is_none()
+            && self.presentation.represented_action_buttons_loaded_like_cpp
         {
-            return Some(self.represented_action_buttons_like_cpp);
+            return Some(self.presentation.represented_action_buttons_like_cpp);
         }
         canonical
     }
@@ -854,8 +874,8 @@ impl WorldSession {
             return;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.cuf_profiles_loaded_like_cpp = true;
+        if self.core.player_handle_like_cpp.is_none() {
+            self.presentation.cuf_profiles_loaded_like_cpp = true;
         }
     }
     pub(crate) fn load_represented_cuf_profile_like_cpp(
@@ -879,14 +899,14 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            if self.cuf_profiles_like_cpp.len()
+        if self.core.player_handle_like_cpp.is_none() {
+            if self.presentation.cuf_profiles_like_cpp.len()
                 != wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP
             {
-                self.cuf_profiles_like_cpp =
+                self.presentation.cuf_profiles_like_cpp =
                     vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
             }
-            self.cuf_profiles_like_cpp[index] = Some(fixture_profile);
+            self.presentation.cuf_profiles_like_cpp[index] = Some(fixture_profile);
             return true;
         }
         false
@@ -910,9 +930,10 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return Some(wow_packet::packets::misc::LoadCufProfiles {
                 profiles: self
+                    .presentation
                     .cuf_profiles_like_cpp
                     .iter()
                     .filter_map(Clone::clone)
@@ -937,7 +958,7 @@ impl WorldSession {
         });
         #[cfg(test)]
         {
-            self.loaded_player_customizations_like_cpp = Box::new(customizations);
+            self.lifecycle.loaded_player_customizations_like_cpp = Box::new(customizations);
         }
     }
     /// C++ `Player::LoadFromDB` parses `knownTitles` as 32-bit words and
@@ -970,10 +991,12 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if !_canonical && self.player_handle_like_cpp.is_none() {
-            self.quest_test_fixture_like_cpp
+        if !_canonical && self.core.player_handle_like_cpp.is_none() {
+            self.quest_state
+                .quest_test_fixture_like_cpp
                 .represented_known_titles_like_cpp = known_title_ids.into_iter().collect();
-            self.quest_test_fixture_like_cpp
+            self.quest_state
+                .quest_test_fixture_like_cpp
                 .represented_chosen_title_like_cpp = chosen_title;
         }
     }

@@ -19,13 +19,13 @@ impl WorldSession {
         let Some(guid) = self.player_guid() else {
             return false;
         };
-        let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone) else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref().map(Arc::clone) else {
             return false;
         };
         let Ok(mut manager) = manager.lock() else {
             return false;
         };
-        let handle = match self.player_handle_like_cpp {
+        let handle = match self.core.player_handle_like_cpp {
             Some(handle) if handle.guid() == guid => handle,
             Some(_) => return false,
             None => {
@@ -34,7 +34,7 @@ impl WorldSession {
                 let Ok(handle) = manager.adopt_active_player_like_cpp(guid) else {
                     return false;
                 };
-                self.player_handle_like_cpp = Some(handle);
+                self.core.player_handle_like_cpp = Some(handle);
                 handle
             }
         };
@@ -62,14 +62,14 @@ impl WorldSession {
         self.set_player_position_like_cpp(status.position);
         self.update_registry_position();
         #[cfg(test)]
-        self.represented_vehicle_dismiss_movements_like_cpp.push(
-            RepresentedVehicleDismissMovementLikeCpp {
+        self.movement
+            .represented_vehicle_dismiss_movements_like_cpp
+            .push(RepresentedVehicleDismissMovementLikeCpp {
                 vehicle_guid,
                 sanitized_flags: status.flags,
                 position: status.position,
                 time: status.time,
-            },
-        );
+            });
 
         if !self.set_player_vehicle_seat_state_like_cpp(None, None) {
             return false;
@@ -128,7 +128,10 @@ impl WorldSession {
 
     /// Remove a GUID from the legit characters list.
     pub fn remove_legit_character(&mut self, guid: &ObjectGuid) {
-        self.account_state.legit_characters.retain(|g| g != guid);
+        self.core
+            .account_state
+            .legit_characters
+            .retain(|g| g != guid);
     }
 
     pub(in crate::session) fn current_player_movement_info_like_cpp(
@@ -183,14 +186,14 @@ impl WorldSession {
     }
 
     pub(crate) fn adjust_client_movement_time_like_cpp(&self, time: u32) -> u32 {
-        let movement_time = i64::from(time) + self.driver.time_synchronization.clock_delta;
-        if self.driver.time_synchronization.clock_delta == 0
+        let movement_time = i64::from(time) + self.core.driver.time_synchronization.clock_delta;
+        if self.core.driver.time_synchronization.clock_delta == 0
             || !(0..=i64::from(u32::MAX)).contains(&movement_time)
         {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 client_time = time,
-                clock_delta = self.driver.time_synchronization.clock_delta,
+                clock_delta = self.core.driver.time_synchronization.clock_delta,
                 "The computed movement time using clockDelta is erroneous. Using fallback instead"
             );
             crate::session::game_time_ms_like_cpp()
@@ -204,7 +207,7 @@ impl WorldSession {
     ) -> Option<wow_map::map::RemoveAllDynamicObjectsForCasterOutcomeLikeCpp> {
         let player_guid = self.player_guid()?;
         let map_key = self.current_canonical_player_map_key_like_cpp()?;
-        let canonical = self.canonical_map_manager.as_ref()?;
+        let canonical = self.core.canonical_map_manager.as_ref()?;
         let mut manager = canonical.lock().ok()?;
         let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
         Some(
@@ -219,7 +222,7 @@ impl WorldSession {
     ) -> Option<wow_map::map::RemoveAllAreaTriggersForCasterOutcomeLikeCpp> {
         let player_guid = self.player_guid()?;
         let map_key = self.current_canonical_player_map_key_like_cpp()?;
-        let canonical = self.canonical_map_manager.as_ref()?;
+        let canonical = self.core.canonical_map_manager.as_ref()?;
         let mut manager = canonical.lock().ok()?;
         let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
         Some(
@@ -237,13 +240,13 @@ impl WorldSession {
         if self.player_map_id_like_cpp() != map_id {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
-        self.current_map_id = map_id;
+        self.core.current_map_id = map_id;
         self.sync_canonical_player_position_if_same_or_detached_like_cpp(map_id, position);
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none()
+        if self.core.player_handle_like_cpp.is_none()
             || self.player_position_like_cpp() == Some(position)
         {
-            self.player_position = Some(position);
+            self.movement.player_position = Some(position);
         }
     }
 
@@ -253,8 +256,8 @@ impl WorldSession {
         position: Position,
     ) {
         let (Some(manager), Some(handle)) = (
-            self.canonical_map_manager.as_ref().map(Arc::clone),
-            self.player_handle_like_cpp,
+            self.core.canonical_map_manager.as_ref().map(Arc::clone),
+            self.core.player_handle_like_cpp,
         ) else {
             return;
         };
@@ -277,7 +280,7 @@ impl WorldSession {
     }
 
     pub(crate) fn set_player_position_like_cpp(&mut self, position: wow_core::Position) {
-        self.set_player_map_position_like_cpp(self.current_map_id, position);
+        self.set_player_map_position_like_cpp(self.core.current_map_id, position);
     }
 
     /// Apply the server-side facing update used by C++ `Unit::SetOrientation`
@@ -297,10 +300,10 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.player_position = Some(position);
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.movement.player_position = Some(position);
         }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
 
     pub(crate) fn set_player_movement_time_like_cpp(&mut self, time: u32) {
@@ -310,8 +313,8 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if _canonical || self.player_handle_like_cpp.is_none() {
-            self.player_movement_time_like_cpp = time;
+        if _canonical || self.core.player_handle_like_cpp.is_none() {
+            self.movement.player_movement_time_like_cpp = time;
         }
     }
 
@@ -322,8 +325,8 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if _canonical || self.player_handle_like_cpp.is_none() {
-            self.player_movement_flags_like_cpp = flags;
+        if _canonical || self.core.player_handle_like_cpp.is_none() {
+            self.movement.player_movement_flags_like_cpp = flags;
         }
     }
 
@@ -334,8 +337,9 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if _canonical || self.player_handle_like_cpp.is_none() {
-            self.represented_mover_fixed_position_vehicle_like_cpp = fixed;
+        if _canonical || self.core.player_handle_like_cpp.is_none() {
+            self.movement
+                .represented_mover_fixed_position_vehicle_like_cpp = fixed;
         }
     }
 
@@ -347,9 +351,10 @@ impl WorldSession {
             player.unit_mut().next_movement_counter_like_cpp()
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            let sequence_index = self.movement_counter_like_cpp;
-            self.movement_counter_like_cpp = self.movement_counter_like_cpp.wrapping_add(1);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            let sequence_index = self.movement.movement_counter_like_cpp;
+            self.movement.movement_counter_like_cpp =
+                self.movement.movement_counter_like_cpp.wrapping_add(1);
             return Some(sequence_index);
         }
         canonical
@@ -364,10 +369,10 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.movement_counter_like_cpp = 0;
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.movement.movement_counter_like_cpp = 0;
         }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
 
     /// Current `Unit::m_movementCounter` value (read without advancing). C++ reads this for
@@ -377,8 +382,8 @@ impl WorldSession {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.unit().movement_counter_like_cpp());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.movement_counter_like_cpp);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.movement.movement_counter_like_cpp);
         }
         canonical
     }
@@ -386,8 +391,8 @@ impl WorldSession {
     pub(crate) fn player_position_like_cpp(&self) -> Option<wow_core::Position> {
         let canonical = self.with_owned_player_like_cpp(|player| player.unit().world().position());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return self.player_position;
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return self.movement.player_position;
         }
         canonical
     }
@@ -398,8 +403,8 @@ impl WorldSession {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.unit().movement_flags_like_cpp());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.player_movement_flags_like_cpp);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.movement.player_movement_flags_like_cpp);
         }
         canonical
     }
@@ -420,8 +425,11 @@ impl WorldSession {
                 .mover_fixed_position_vehicle
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.represented_mover_fixed_position_vehicle_like_cpp);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(
+                self.movement
+                    .represented_mover_fixed_position_vehicle_like_cpp,
+            );
         }
         canonical
     }
@@ -429,7 +437,8 @@ impl WorldSession {
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn calendar_remove_event_like_cpp(&mut self, event_id: u64) {
         #[cfg(test)]
-        self.calendar_test_fixture_like_cpp
+        self.social
+            .calendar_test_fixture_like_cpp
             .represented_calendar_remove_events_like_cpp
             .push(RepresentedCalendarRemoveEventLikeCpp { event_id });
     }
@@ -439,6 +448,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedCalendarRemoveEventLikeCpp] {
         &self
+            .social
             .calendar_test_fixture_like_cpp
             .represented_calendar_remove_events_like_cpp
     }
@@ -448,11 +458,11 @@ impl WorldSession {
             player.unit().subsystems().control.unit_moved_by_me
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            let guid = if self.player_moved_unit_guid_like_cpp.is_empty() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            let guid = if self.movement.player_moved_unit_guid_like_cpp.is_empty() {
                 self.player_guid()?
             } else {
-                self.player_moved_unit_guid_like_cpp
+                self.movement.player_moved_unit_guid_like_cpp
             };
             return Some(guid);
         }
@@ -473,7 +483,7 @@ impl WorldSession {
                 player.unit().subsystems().motion.spline.finalized
             });
             #[cfg(test)]
-            if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
                 // Handle-less movement fixtures have no materialized Player;
                 // C++'s freshly constructed MoveSpline is finalized.
                 return Some(true);
@@ -482,7 +492,7 @@ impl WorldSession {
         }
 
         let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        if let Some(manager) = self.map_manager.as_ref().cloned() {
+        if let Some(manager) = self.core.map_manager.as_ref().cloned() {
             let manager = manager
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -492,7 +502,7 @@ impl WorldSession {
         }
 
         let key = self.current_canonical_player_map_key_like_cpp()?;
-        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
         manager
             .find_map(key.map_id, key.instance_id)
             .and_then(|managed| {
@@ -518,7 +528,7 @@ impl WorldSession {
         }
 
         let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        if let Some(manager) = self.map_manager.as_ref().cloned() {
+        if let Some(manager) = self.core.map_manager.as_ref().cloned() {
             let manager = manager
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -528,7 +538,7 @@ impl WorldSession {
         }
 
         let key = self.current_canonical_player_map_key_like_cpp()?;
-        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
         manager
             .find_map(key.map_id, key.instance_id)
             .and_then(|managed| {
@@ -553,14 +563,14 @@ impl WorldSession {
                 player.unit().movement_force_mod_magnitude_like_cpp()
             });
             #[cfg(test)]
-            if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-                return Some(self.movement_force_mod_magnitude_like_cpp);
+            if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+                return Some(self.movement.movement_force_mod_magnitude_like_cpp);
             }
             return canonical;
         }
 
         let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        if let Some(manager) = self.map_manager.as_ref().cloned() {
+        if let Some(manager) = self.core.map_manager.as_ref().cloned() {
             let manager = manager
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -575,7 +585,7 @@ impl WorldSession {
         }
 
         let key = self.current_canonical_player_map_key_like_cpp()?;
-        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
         manager
             .find_map(key.map_id, key.instance_id)
             .and_then(|managed| {
@@ -606,7 +616,7 @@ impl WorldSession {
             #[cfg(not(test))]
             return MovementTransportMembershipLikeCpp::Detached;
         };
-        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
             return MovementTransportMembershipLikeCpp::Detached;
         };
         let Ok(mut manager) = manager.lock() else {
@@ -663,8 +673,8 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.player_moved_unit_guid_like_cpp = guid;
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.movement.player_moved_unit_guid_like_cpp = guid;
         }
     }
 
@@ -672,14 +682,14 @@ impl WorldSession {
     pub(crate) fn represented_vehicle_dismiss_movements_like_cpp(
         &self,
     ) -> &[RepresentedVehicleDismissMovementLikeCpp] {
-        &self.represented_vehicle_dismiss_movements_like_cpp
+        &self.movement.represented_vehicle_dismiss_movements_like_cpp
     }
 
     #[cfg(test)]
     pub(crate) fn represented_vehicle_base_movements_like_cpp(
         &self,
     ) -> &[RepresentedVehicleBaseMovementLikeCpp] {
-        &self.represented_vehicle_base_movements_like_cpp
+        &self.movement.represented_vehicle_base_movements_like_cpp
     }
 
     pub(crate) fn represented_move_change_vehicle_seats_like_cpp(
@@ -718,14 +728,14 @@ impl WorldSession {
         );
 
         #[cfg(test)]
-        self.represented_vehicle_base_movements_like_cpp.push(
-            RepresentedVehicleBaseMovementLikeCpp {
+        self.movement
+            .represented_vehicle_base_movements_like_cpp
+            .push(RepresentedVehicleBaseMovementLikeCpp {
                 vehicle_guid: vehicle_base_guid,
                 sanitized_flags: status.flags,
                 position: status.position,
                 time: status.time,
-            },
-        );
+            });
         let _ = self.record_represented_vehicle_seat_action_like_cpp(action);
         true
     }
@@ -784,7 +794,7 @@ impl WorldSession {
             .with_owned_player_mut_like_cpp(|player| player.remove_at_login_flags_like_cpp(flags));
         #[cfg(test)]
         let removed = canonical.or_else(|| {
-            self.player_handle_like_cpp.is_none().then(|| {
+            self.core.player_handle_like_cpp.is_none().then(|| {
                 self.mutate_player_persistent_capability_state_like_cpp(|state| {
                     let removed = (state.at_login_flags & flags) != 0;
                     state.at_login_flags &= !flags;
@@ -803,13 +813,13 @@ impl WorldSession {
         }
         if persist {
             #[cfg(test)]
-            self.represented_at_login_flag_removals_like_cpp.push(
-                RepresentedAtLoginFlagRemovalLikeCpp {
+            self.lifecycle
+                .represented_at_login_flag_removals_like_cpp
+                .push(RepresentedAtLoginFlagRemovalLikeCpp {
                     flags,
                     persist,
                     db_statement_unrepresented: true,
-                },
-            );
+                });
         }
         true
     }
@@ -818,8 +828,8 @@ impl WorldSession {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.unit().movement_time_like_cpp());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.player_movement_time_like_cpp);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.movement.player_movement_time_like_cpp);
         }
         canonical
     }
@@ -837,8 +847,8 @@ impl WorldSession {
             player.movement_force_mod_magnitude_changes_like_cpp()
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.movement_force_mod_magnitude_changes_like_cpp);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.movement.movement_force_mod_magnitude_changes_like_cpp);
         }
         canonical
     }
@@ -848,8 +858,8 @@ impl WorldSession {
             player.unit().movement_force_mod_magnitude_like_cpp()
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.movement_force_mod_magnitude_like_cpp);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.movement.movement_force_mod_magnitude_like_cpp);
         }
         canonical
     }
@@ -861,22 +871,23 @@ impl WorldSession {
             player.consume_movement_force_mod_magnitude_change_like_cpp()
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            if self.movement_force_mod_magnitude_changes_like_cpp > 0 {
-                self.movement_force_mod_magnitude_changes_like_cpp = self
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            if self.movement.movement_force_mod_magnitude_changes_like_cpp > 0 {
+                self.movement.movement_force_mod_magnitude_changes_like_cpp = self
+                    .movement
                     .movement_force_mod_magnitude_changes_like_cpp
                     .saturating_sub(1);
             }
-            return Some(self.movement_force_mod_magnitude_changes_like_cpp);
+            return Some(self.movement.movement_force_mod_magnitude_changes_like_cpp);
         }
         canonical
     }
 
     pub(crate) fn set_player_transport_position_like_cpp(&mut self, position: Option<Position>) {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             if let (Some(state), Some(position)) = (
-                self.player_transport_login_state_like_cpp.as_mut(),
+                self.vehicles.player_transport_login_state_like_cpp.as_mut(),
                 position,
             ) {
                 state.info.x = position.x;
@@ -906,8 +917,8 @@ impl WorldSession {
                 player.set_movement_force_mod_magnitude_changes_like_cpp(count);
             })
             .is_some();
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.movement_force_mod_magnitude_changes_like_cpp = count;
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.movement.movement_force_mod_magnitude_changes_like_cpp = count;
         }
     }
 
@@ -920,8 +931,8 @@ impl WorldSession {
                     .set_movement_force_mod_magnitude_like_cpp(magnitude);
             })
             .is_some();
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.movement_force_mod_magnitude_like_cpp = magnitude;
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.movement.movement_force_mod_magnitude_like_cpp = magnitude;
         }
     }
 
@@ -940,7 +951,7 @@ impl WorldSession {
         let Some(key) = self.current_canonical_player_map_key_like_cpp() else {
             return Some(player_position);
         };
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
             return Some(player_position);
         };
         let Ok(manager) = manager.lock() else {

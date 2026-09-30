@@ -34,7 +34,7 @@ impl WorldSession {
         self.set_instance_link_rx(Some(rx));
         info!(
             "Fallback: direct login scheduled for account {}",
-            self.account_id
+            self.core.account_id
         );
     }
 
@@ -46,7 +46,7 @@ impl WorldSession {
     pub async fn handle_player_login(&mut self, pkt: PlayerLogin) {
         if self.player_loading().is_some() || self.player_guid().is_some() {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Player tried to login while another character is loading or active"
             );
             self.kick("WorldSession::HandlePlayerLoginOpcode Another client logging in");
@@ -57,7 +57,7 @@ impl WorldSession {
         if !self.is_legit_character(&pkt.guid) {
             warn!(
                 "Account {} tried to login with non-owned character {:?}",
-                self.account_id, pkt.guid
+                self.core.account_id, pkt.guid
             );
             return;
         }
@@ -67,7 +67,7 @@ impl WorldSession {
         // two sessions cannot become independent save authorities.
         if !self.try_claim_character_login_like_cpp(pkt.guid) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 guid = ?pkt.guid,
                 "Rejecting duplicate live-character login"
             );
@@ -103,7 +103,7 @@ impl WorldSession {
     ) {
         trace!(
             "TimeSyncResponse: seq={}, client_time={} for account {}",
-            resp.sequence_index, resp.client_time, self.account_id
+            resp.sequence_index, resp.client_time, self.core.account_id
         );
         self.record_time_sync_response_like_cpp(resp.sequence_index, resp.client_time);
     }
@@ -123,10 +123,10 @@ impl WorldSession {
         }
         info!(
             "LogoutRequest (idle={}) from account {}",
-            req.idle_logout, self.account_id
+            req.idle_logout, self.core.account_id
         );
 
-        if !self.active_loot_guid.is_empty() {
+        if !self.loot.active_loot_guid.is_empty() {
             self.send_packet(&LootReleaseAll);
         }
 
@@ -143,7 +143,7 @@ impl WorldSession {
             return;
         }
 
-        info!("Player logged out for account {}", self.account_id);
+        info!("Player logged out for account {}", self.core.account_id);
     }
 
     #[cfg(test)]
@@ -155,7 +155,7 @@ impl WorldSession {
 
     /// Handle CMSG_LOGOUT_CANCEL — player cancels a pending logout.
     pub async fn handle_logout_cancel(&mut self) {
-        info!("LogoutCancel from account {}", self.account_id);
+        info!("LogoutCancel from account {}", self.core.account_id);
         self.lifecycle.logout_time = None;
         self.send_packet(&LogoutCancelAck);
     }

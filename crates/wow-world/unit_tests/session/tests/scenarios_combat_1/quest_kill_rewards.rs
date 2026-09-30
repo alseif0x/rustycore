@@ -25,18 +25,22 @@ async fn player_kill_tracking_event_objective_auto_rewards_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![0],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.killed_player_credit_like_cpp(victim_guid).await;
@@ -95,24 +99,28 @@ async fn player_kill_same_faction_objective_skips_opposite_team_victim_like_cpp(
         progress_bar_weight: 0.0,
         description: String::new(),
     });
-    session.player_race = 1;
+    session.identity.player_race = 1;
     session.set_player_guid(Some(player_guid));
     session.set_player_registry(registry);
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![0],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.killed_player_credit_like_cpp(victim_guid).await;

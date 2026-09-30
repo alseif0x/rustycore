@@ -75,7 +75,10 @@ fn canonical_player_recent_instances_follow_active_detached_and_stale_ownership_
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     assert!(session.set_represented_player_recent_instance_like_cpp(631, 9_001));
     assert_eq!(
@@ -137,6 +140,7 @@ fn create_map_player_context_uses_solo_recent_instance_like_cpp() {
         represented_map_entry_for_create_map_context_like_cpp(631, wow_data::map::MAP_INSTANCE);
 
     session
+        .instances
         .instance_test_fixture_like_cpp
         .represented_dungeon_difficulty_id_like_cpp = 2;
     session.set_represented_player_recent_instance_like_cpp(631, 9001);
@@ -166,7 +170,7 @@ fn create_map_player_context_uses_group_recent_instance_like_cpp() {
     let map_entry =
         represented_map_entry_for_create_map_context_like_cpp(631, wow_data::map::MAP_INSTANCE);
 
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     let context = session
@@ -190,9 +194,11 @@ fn create_map_player_context_uses_legacy_raid_difficulty_like_cpp() {
         represented_map_entry_for_create_map_context_like_cpp(249, wow_data::map::MAP_RAID);
 
     session
+        .instances
         .instance_test_fixture_like_cpp
         .represented_raid_difficulty_id_like_cpp = 15;
     session
+        .instances
         .instance_test_fixture_like_cpp
         .represented_legacy_raid_difficulty_id_like_cpp = 4;
     install_create_map_difficulty_stores_like_cpp(
@@ -345,7 +351,7 @@ fn create_map_difficulty_context_rejects_unrepresentable_inputs_like_cpp() {
 fn create_map_active_instance_lock_context_uses_solo_owner_like_cpp() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 42);
-    session.player_guid = Some(player_guid);
+    session.core.player_guid = Some(player_guid);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     let expected_token =
         install_active_instance_lock_mgr_like_cpp(&mut session, player_guid, 631, 3, 9001);
@@ -378,8 +384,8 @@ fn create_map_active_instance_lock_context_uses_group_recent_owner_like_cpp() {
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
 
-    session.player_guid = Some(member);
-    session.group_guid = Some(group_guid);
+    session.core.player_guid = Some(member);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     let expected_token =
@@ -411,7 +417,7 @@ fn create_map_instance_lock_token_distinguishes_owner_like_cpp() {
 fn create_map_active_instance_lock_context_rejects_missing_lock_inputs_like_cpp() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 42);
-    session.player_guid = Some(player_guid);
+    session.core.player_guid = Some(player_guid);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
 
     assert!(
@@ -478,7 +484,7 @@ fn create_map_side_effects_set_group_recent_instance_like_cpp() {
     let group = GroupInfo::new(leader);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
     let decision = wow_map::CreateMapDecision::Create {
         key: wow_map::MapKey::new(631, 9001),
@@ -509,7 +515,7 @@ fn create_map_side_effects_set_group_recent_instance_like_cpp() {
 fn create_map_side_effects_create_instance_lock_for_new_instance_like_cpp() {
     let (mut session, _, _) = make_session();
     let owner = ObjectGuid::create_player(1, 77);
-    session.player_guid = Some(owner);
+    session.core.player_guid = Some(owner);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     session.set_instance_lock_mgr(Arc::new(std::sync::RwLock::new(
         wow_instances::InstanceLockMgr::default(),
@@ -549,7 +555,7 @@ fn create_map_side_effects_create_instance_lock_for_new_instance_like_cpp() {
 fn create_map_side_effects_set_instance_lock_instance_id_like_cpp() {
     let (mut session, _, _) = make_session();
     let owner = ObjectGuid::create_player(1, 77);
-    session.player_guid = Some(owner);
+    session.core.player_guid = Some(owner);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     install_active_instance_lock_mgr_like_cpp(&mut session, owner, 631, 3, 9001);
     let decision = wow_map::CreateMapDecision::Create {
@@ -679,9 +685,12 @@ fn represented_player_reset_cannot_reset_keeps_recent_instance_like_cpp() {
 async fn send_if_visible_command_rejected_on_wrong_map_id_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let source_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1003);
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_player_map_position_like_cpp(571, Position::ZERO);
-    session.client_visible_guids_like_cpp.insert(source_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(source_guid);
 
     session
         .session_command_tx()
@@ -741,10 +750,13 @@ async fn send_if_visible_explicit_player_delivers_to_session_on_non_zero_map_lik
     );
     // Session is on map 571 (non-zero) — the same map ExplicitPlayer routing now
     // reads from the registry entry and places in the command.
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_map_manager(manager);
     session.set_player_map_position_like_cpp(571, Position::ZERO);
-    session.client_visible_guids_like_cpp.insert(source_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(source_guid);
 
     session
         .session_command_tx()

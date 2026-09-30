@@ -428,6 +428,7 @@ async fn quest_bound_loot_credits_objective_without_physical_item_like_cpp() {
         "C++ StoreNewItem returns nullptr for quest-bound objective credit"
     );
     let status = first
+        .quest_state
         .quest_test_fixture_like_cpp
         .player_quests
         .get(&quest_id)
@@ -504,6 +505,7 @@ async fn quest_bound_loot_still_requires_can_store_new_item_like_cpp() {
 
     assert_eq!(grants.load(Ordering::SeqCst), 0);
     let status = first
+        .quest_state
         .quest_test_fixture_like_cpp
         .player_quests
         .get(&quest_id)
@@ -764,12 +766,12 @@ async fn durable_item_completion_auto_releases_only_after_items_and_coins_are_em
 
         assert!(!session.is_disconnecting());
         assert_eq!(
-            session.loot_table.contains_key(&owner_guid),
+            session.loot.loot_table.contains_key(&owner_guid),
             !should_release
         );
         assert_eq!(session.is_active_loot_guid(owner_guid), !should_release);
         if !should_release {
-            let loot = session.loot_table.get(&owner_guid).unwrap();
+            let loot = session.loot.loot_table.get(&owner_guid).unwrap();
             assert!(loot.items[0].taken);
             assert_eq!(loot.coins, coins);
         }
@@ -824,7 +826,7 @@ async fn cancelled_item_handler_after_commit_releases_and_forces_inventory_reloa
     session.wait_for_active_loot_persistence_like_cpp().await;
 
     assert!(session.is_disconnecting());
-    assert!(!session.loot_table.contains_key(&owner_guid));
+    assert!(!session.loot.loot_table.contains_key(&owner_guid));
     assert!(!session.is_active_loot_guid(owner_guid));
     assert_eq!(
         drain_server_opcodes_like_cpp(&send_rx)

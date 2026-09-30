@@ -74,7 +74,10 @@ async fn map_send_object_updates_player_values_observer_requires_committed_visib
         571,
         0,
     );
-    session.client_visible_guids_like_cpp.insert(source_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(source_guid);
 
     {
         let mut manager = canonical.lock().unwrap();
@@ -146,7 +149,10 @@ async fn map_send_object_updates_creature_values_reaches_visible_client_like_cpp
         571,
         0,
     );
-    session.client_visible_guids_like_cpp.insert(creature_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(creature_guid);
 
     {
         let mut manager = canonical.lock().unwrap();

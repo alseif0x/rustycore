@@ -212,7 +212,8 @@ impl WorldSession {
         let mut completed_bit_skipped_zero_unique_bit = 0;
         let mut completed_bit_no_change_or_noop = 0;
         for quest_id in &removed_quest_ids {
-            let Some(quest_v2_store) = self.quests.v2_store.as_ref().map(Arc::clone) else {
+            let Some(quest_v2_store) = self.catalogs.quests.v2_store.as_ref().map(Arc::clone)
+            else {
                 completed_bit_skipped_no_quest_v2_store += 1;
                 continue;
             };
@@ -272,7 +273,7 @@ impl WorldSession {
                 0,
             ) else {
                 debug!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?source_guid,
                     quest_id,
                     "QuestGiverCompleteReward: represented Creature source missing or not interactable"
@@ -288,7 +289,7 @@ impl WorldSession {
                 self.represented_gameobject_questgiver_can_interact_with_like_cpp(source_guid)
             else {
                 debug!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?source_guid,
                     quest_id,
                     "QuestGiverCompleteReward: represented GameObject source missing or not interactable"
@@ -302,7 +303,7 @@ impl WorldSession {
         // Player and Item questgiver branches are not involved-quest sources in this represented slice.
         // Match the C++ early-return shape by failing closed with no packet and no mutation.
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             ?source_guid,
             quest_id,
             "QuestGiverCompleteReward: unsupported represented source type"
@@ -322,7 +323,7 @@ impl WorldSession {
                 0,
             ) else {
                 debug!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?source_guid,
                     quest_id,
                     "QuestGiverAcceptQuest: represented Creature source missing or not interactable"
@@ -338,7 +339,7 @@ impl WorldSession {
                 self.represented_gameobject_questgiver_can_interact_with_like_cpp(source_guid)
             else {
                 debug!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?source_guid,
                     quest_id,
                     "QuestGiverAcceptQuest: represented GameObject source missing or not interactable"
@@ -352,7 +353,7 @@ impl WorldSession {
         // Player quest sharing and Item questgiver branches are not represented in this slice.
         // Match the C++ early-return shape by failing closed with no packet and no mutation.
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             ?source_guid,
             quest_id,
             "QuestGiverAcceptQuest: unsupported represented source type"
@@ -364,9 +365,9 @@ impl WorldSession {
         source_guid: ObjectGuid,
         quest_id: u32,
     ) -> bool {
-        let Some(quest_store) = self.quests.store.as_ref().map(Arc::clone) else {
+        let Some(quest_store) = self.catalogs.quests.store.as_ref().map(Arc::clone) else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 ?source_guid,
                 quest_id,
                 "QuestGiverQueryQuest: missing quest store"
@@ -375,7 +376,7 @@ impl WorldSession {
         };
         let Some(quest) = quest_store.get(quest_id).cloned() else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 ?source_guid,
                 quest_id,
                 "QuestGiverQueryQuest: unknown quest"
@@ -390,7 +391,7 @@ impl WorldSession {
                 0,
             ) else {
                 debug!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?source_guid,
                     quest_id,
                     "QuestGiverQueryQuest: represented Creature source missing or not interactable"
@@ -408,7 +409,7 @@ impl WorldSession {
                 self.represented_gameobject_questgiver_can_interact_with_like_cpp(source_guid)
             else {
                 debug!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?source_guid,
                     quest_id,
                     "QuestGiverQueryQuest: represented GameObject source missing or not interactable"
@@ -423,7 +424,7 @@ impl WorldSession {
             )
         } else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 ?source_guid,
                 quest_id,
                 "QuestGiverQueryQuest: unsupported represented source type"
@@ -433,7 +434,7 @@ impl WorldSession {
 
         let Some(menu_item) = menu_item else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 ?source_guid,
                 quest_id,
                 "QuestGiverQueryQuest: source has no represented starter/involved relation for quest"

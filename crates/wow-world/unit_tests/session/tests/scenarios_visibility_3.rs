@@ -48,7 +48,7 @@ fn player_attack_uses_canonical_invisibility_detection_like_cpp() {
         session.start_player_attack_like_cpp(victim),
         PlayerAttackStartLikeCppResult::Rejected
     );
-    assert_eq!(session.combat_target, None);
+    assert_eq!(session.combat.combat_target, None);
 
     session
         .mutate_canonical_player_by_guid_like_cpp(attacker, |player| {
@@ -429,7 +429,7 @@ fn player_attack_waits_for_active_mover_visibility_flag_like_cpp() {
         session.start_player_attack_like_cpp(victim),
         PlayerAttackStartLikeCppResult::Rejected
     );
-    assert_eq!(session.combat_target, None);
+    assert_eq!(session.combat.combat_target, None);
 
     session.apply_move_init_active_mover_complete_like_cpp(0);
     assert_eq!(
@@ -519,7 +519,7 @@ fn player_attack_rejects_object_id_visibility_conditions_like_cpp() {
         session.start_player_attack_like_cpp(victim),
         PlayerAttackStartLikeCppResult::Rejected
     );
-    assert_eq!(session.combat_target, None);
+    assert_eq!(session.combat.combat_target, None);
 }
 #[test]
 fn send_update_world_state_like_cpp_visible_preserves_field_order_and_signed_value() {
@@ -556,9 +556,9 @@ fn far_sight_enable_existing_viewpoint_sets_seer_without_mutating_farsight_like_
 
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_player_guid(Some(player_guid));
-    session.player_name = Some("FarSight".into());
-    session.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
-    session.current_map_id = 571;
+    session.identity.player_name = Some("FarSight".into());
+    session.movement.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
+    session.core.current_map_id = 571;
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
     add_canonical_test_creature(
         &canonical,
@@ -594,12 +594,13 @@ async fn far_sight_empty_or_missing_viewpoint_keeps_seer_and_forces_visibility_l
     let pos = Position::new(10.0, 10.0, 0.0, 0.0);
 
     session.set_player_guid(Some(player_guid));
-    session.player_position = Some(pos);
-    session.current_map_id = 571;
+    session.movement.player_position = Some(pos);
+    session.core.current_map_id = 571;
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(original_seer);
-    session.last_visibility_pos = Some(pos);
+    session.visibility.last_visibility_pos = Some(pos);
 
     let mut pkt = WorldPacket::new_empty();
     pkt.write_bit(true);
@@ -611,5 +612,5 @@ async fn far_sight_empty_or_missing_viewpoint_keeps_seer_and_forces_visibility_l
         session.represented_seer_guid_like_cpp(),
         Some(original_seer)
     );
-    assert_eq!(session.last_visibility_pos, None);
+    assert_eq!(session.visibility.last_visibility_pos, None);
 }

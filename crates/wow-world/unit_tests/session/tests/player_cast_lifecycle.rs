@@ -192,7 +192,7 @@ fn detached_or_stale_player_handles_consume_no_cast_ids_like_cpp() {
             .unwrap();
         replacement
     };
-    assert_ne!(replacement, session.player_handle_like_cpp.unwrap());
+    assert_ne!(replacement, session.core.player_handle_like_cpp.unwrap());
     assert!(
         session
             .next_represented_spell_cast_guid_like_cpp(TEST_SPELL_ID)
@@ -217,7 +217,7 @@ fn reentry_changes_residence_revision_and_denies_prepared_cast_like_cpp() {
     let canonical = shared_canonical_map_manager();
     let guid = ObjectGuid::create_player(1, 58_905);
     install_canonical_player(&mut session, &canonical, guid, 571, 0, Position::ZERO);
-    let handle = session.player_handle_like_cpp.unwrap();
+    let handle = session.core.player_handle_like_cpp.unwrap();
     let first_revision = canonical
         .lock()
         .unwrap()
@@ -537,7 +537,7 @@ fn player_cast_publication_fences_visibility_generation_and_map_like_cpp() {
     let source_revision = canonical
         .lock()
         .unwrap()
-        .player_active_residence_revision_like_cpp(source.player_handle_like_cpp.unwrap())
+        .player_active_residence_revision_like_cpp(source.core.player_handle_like_cpp.unwrap())
         .unwrap()
         .1;
     let packet = spell_start_bytes(source_guid);
@@ -609,7 +609,7 @@ fn player_cast_publication_fences_visibility_generation_and_map_like_cpp() {
     receiver.set_state(SessionState::LoggedIn);
     let receiver_visibility = SharedClientVisibleGuidsLikeCpp::default();
     receiver_visibility.insert(source_guid);
-    receiver.client_visible_guids_like_cpp = receiver_visibility.clone();
+    receiver.core.client_visible_guids_like_cpp = receiver_visibility.clone();
     receiver.handle_player_cast_publication_like_cpp(SendPlayerSpellIfVisibleLikeCppCommand {
         map_id: 571,
         instance_id: 0,
@@ -641,7 +641,7 @@ async fn prepared_late_power_failure_keeps_gcd_and_orders_interruption_like_cpp(
     let canonical = shared_canonical_map_manager();
     let guid = ObjectGuid::create_player(1, 58_913);
     install_canonical_player(&mut session, &canonical, guid, 571, 0, Position::ZERO);
-    let handle = session.player_handle_like_cpp.unwrap();
+    let handle = session.core.player_handle_like_cpp.unwrap();
     let revision = canonical
         .lock()
         .unwrap()
@@ -701,7 +701,7 @@ fn prepared_cancel_orders_interruption_before_result_and_clears_gcd_like_cpp() {
     let canonical = shared_canonical_map_manager();
     let guid = ObjectGuid::create_player(1, 58_914);
     install_canonical_player(&mut session, &canonical, guid, 571, 0, Position::ZERO);
-    let handle = session.player_handle_like_cpp.unwrap();
+    let handle = session.core.player_handle_like_cpp.unwrap();
     let revision = canonical
         .lock()
         .unwrap()

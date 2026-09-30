@@ -33,6 +33,6 @@ fn talent_tab_validation_uses_the_supplied_catalog_for_active_and_detached_playe
         assert_eq!(after[0].get(&101), Some(&2));
         assert!(!after[1].contains_key(&101));
     }
-    session.canonical_map_manager = None;
+    session.core.canonical_map_manager = None;
     assert!(!session.load_represented_talent_row_like_cpp(&tabs, 101, 2, 0));
 }

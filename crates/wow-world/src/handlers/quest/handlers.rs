@@ -289,7 +289,7 @@ impl WorldSession {
             return;
         };
 
-        let Some(quest_store) = self.quests.store.clone() else {
+        let Some(quest_store) = self.catalogs.quests.store.clone() else {
             return;
         };
         let Some(quest) = quest_store.get(quest_id) else {
@@ -328,7 +328,7 @@ impl WorldSession {
             Ok(quest_id) => quest_id,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?error,
                     "QuestGiverCloseQuest: failed to read QuestID"
                 );
@@ -359,7 +359,7 @@ impl WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?error,
                     "QuestPushResult: failed to read SenderGUID/QuestID/Result"
                 );
@@ -369,7 +369,7 @@ impl WorldSession {
 
         let Some(pending) = self.represented_pending_quest_sharing_like_cpp() else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 sender_guid = ?packet.sender_guid,
                 quest_id = packet.quest_id,
                 result = packet.result,
@@ -383,7 +383,7 @@ impl WorldSession {
         if pending.sender_guid != packet.sender_guid {
             self.record_represented_quest_push_result_sender_mismatch_like_cpp();
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 pending_sender_guid = ?pending.sender_guid,
                 packet_sender_guid = ?packet.sender_guid,
                 "QuestPushResult: represented sender mismatch, pending state cleared"
@@ -393,7 +393,7 @@ impl WorldSession {
 
         let Some(receiver_guid) = self.player_guid() else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 sender_guid = ?packet.sender_guid,
                 "QuestPushResult: represented sender matched but no local receiver guid is available"
             );
@@ -421,7 +421,7 @@ impl WorldSession {
             Ok(slot) => slot,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?error,
                     "QuestLogRemoveQuest: failed to read Entry"
                 );
@@ -430,13 +430,13 @@ impl WorldSession {
         };
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             slot, "QuestLogRemoveQuest: represented slot-backed abandon request"
         );
 
         if slot >= MAX_QUEST_LOG_SIZE_LIKE_CPP {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 slot, "QuestLogRemoveQuest: slot outside MAX_QUEST_LOG_SIZE"
             );
             return;
@@ -444,7 +444,7 @@ impl WorldSession {
 
         let Some(qid) = self.get_quest_slot_quest_id_like_cpp(slot) else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 slot,
                 "QuestLogRemoveQuest: valid slot empty; criteria update remains an explicit gap"
             );
@@ -457,7 +457,7 @@ impl WorldSession {
         self.sync_player_registry_state_like_cpp();
         self.send_represented_quest_log_slot_update_like_cpp(slot);
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             quest_id = qid,
             slot,
             "Quest abandoned via represented explicit quest-log slot"

@@ -90,7 +90,7 @@ impl WorldSession {
     pub(crate) async fn mark_character_account_offline_like_cpp(&mut self) -> FinalizationOutcome {
         let Some(port) = self.player_lifecycle_port_like_cpp() else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Character account offline save skipped: lifecycle persistence port unavailable"
             );
             return FinalizationOutcome::Unavailable;
@@ -98,25 +98,25 @@ impl WorldSession {
 
         let outcome = port
             .mark_offline_like_cpp(PlayerOfflineMarkLikeCpp::CharacterAccount {
-                account_id: self.account_id,
+                account_id: self.core.account_id,
             })
             .await;
         match &outcome {
             PersistenceOutcomeLikeCpp::Applied { rows } => {
                 info!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     rows, "Marked character account offline like C++"
                 );
             }
             PersistenceOutcomeLikeCpp::Failed { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "Failed to mark character account offline like C++: {reason}"
                 );
             }
             PersistenceOutcomeLikeCpp::Unknown { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "Character account offline mark outcome is unknown: {reason}"
                 );
             }
@@ -131,7 +131,7 @@ impl WorldSession {
     ) -> FinalizationOutcome {
         let Some(port) = self.player_lifecycle_port_like_cpp() else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Disconnect account offline save skipped: lifecycle persistence port unavailable"
             );
             return FinalizationOutcome::Unavailable;
@@ -139,25 +139,25 @@ impl WorldSession {
 
         let outcome = port
             .mark_offline_like_cpp(PlayerOfflineMarkLikeCpp::LoginAccount {
-                account_id: self.account_id,
+                account_id: self.core.account_id,
             })
             .await;
         match &outcome {
             PersistenceOutcomeLikeCpp::Applied { .. } => {
                 info!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "Marked login account offline on disconnect"
                 );
             }
             PersistenceOutcomeLikeCpp::Failed { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "Failed to mark login account offline on disconnect: {reason}"
                 );
             }
             PersistenceOutcomeLikeCpp::Unknown { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "Login account offline mark outcome is unknown: {reason}"
                 );
             }
@@ -171,7 +171,7 @@ impl WorldSession {
         };
         if self.player_collection_state_snapshot_like_cpp().is_none() {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Skipping account mount save because canonical Player collection ownership is unresolved"
             );
             return FinalizationOutcome::Unavailable;
@@ -199,12 +199,12 @@ impl WorldSession {
         match &outcome {
             PersistenceOutcomeLikeCpp::Applied { .. } => {}
             PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 bnet_account = self.battlenet_account_id(),
                 "Failed to save account mount flags: {reason}"
             ),
             PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 bnet_account = self.battlenet_account_id(),
                 "Account mount flags save outcome is unknown: {reason}"
             ),
@@ -218,7 +218,7 @@ impl WorldSession {
         };
         if self.player_collection_state_snapshot_like_cpp().is_none() {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Skipping account toy save because canonical Player collection ownership is unresolved"
             );
             return FinalizationOutcome::Unavailable;
@@ -247,12 +247,12 @@ impl WorldSession {
         match &outcome {
             PersistenceOutcomeLikeCpp::Applied { .. } => {}
             PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 bnet_account = self.battlenet_account_id(),
                 "Failed to save account toy flags: {reason}"
             ),
             PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 bnet_account = self.battlenet_account_id(),
                 "Account toy flags save outcome is unknown: {reason}"
             ),
@@ -266,7 +266,7 @@ impl WorldSession {
         };
         if self.player_collection_state_snapshot_like_cpp().is_none() {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Skipping account heirloom save because canonical Player collection ownership is unresolved"
             );
             return FinalizationOutcome::Unavailable;
@@ -294,12 +294,12 @@ impl WorldSession {
         match &outcome {
             PersistenceOutcomeLikeCpp::Applied { .. } => {}
             PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 bnet_account = self.battlenet_account_id(),
                 "Failed to save account heirloom flags: {reason}"
             ),
             PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 bnet_account = self.battlenet_account_id(),
                 "Account heirloom flags save outcome is unknown: {reason}"
             ),
@@ -313,7 +313,7 @@ impl WorldSession {
         };
         if self.player_collection_state_snapshot_like_cpp().is_none() {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Skipping account appearance save because canonical Player collection ownership is unresolved"
             );
             return FinalizationOutcome::Unavailable;
@@ -344,12 +344,12 @@ impl WorldSession {
         match &outcome {
             PersistenceOutcomeLikeCpp::Applied { .. } => {}
             PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 bnet_account = bnet_account_id,
                 "Failed to save account item appearances: {reason}"
             ),
             PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 bnet_account = bnet_account_id,
                 "Account item appearance save outcome is unknown: {reason}"
             ),
@@ -363,7 +363,7 @@ impl WorldSession {
         };
         if self.player_collection_state_snapshot_like_cpp().is_none() {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Skipping account illusion save because canonical Player collection ownership is unresolved"
             );
             return FinalizationOutcome::Unavailable;
@@ -392,12 +392,12 @@ impl WorldSession {
         match &outcome {
             PersistenceOutcomeLikeCpp::Applied { .. } => {}
             PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 bnet_account = bnet_account_id,
                 "Failed to save account transmog illusions: {reason}"
             ),
             PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 bnet_account = bnet_account_id,
                 "Account transmog illusion save outcome is unknown: {reason}"
             ),

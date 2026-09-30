@@ -51,7 +51,7 @@ impl WorldSession {
         mut pkt: wow_packet::WorldPacket,
         policy: &GroupInvitePolicyLikeCpp,
     ) {
-        info!(account = self.account_id, "handle_party_invite called");
+        info!(account = self.core.account_id, "handle_party_invite called");
         // — parse —
         let has_party_index = pkt.read_bit().unwrap_or(false);
         let _ = pkt.reset_bits(); // ResetBitPos / flush partial byte
@@ -93,7 +93,7 @@ impl WorldSession {
         } else {
             None
         };
-        info!(account = self.account_id, target_name = %target_name, "PartyInvite parsed");
+        info!(account = self.core.account_id, target_name = %target_name, "PartyInvite parsed");
 
         // — setup —
         let my_guid = match self.player_guid() {
@@ -185,7 +185,7 @@ impl WorldSession {
             social_port.clone(),
             real_target_guid,
             my_guid,
-            self.account_id,
+            self.core.account_id,
         )
         .await
         {
@@ -250,7 +250,7 @@ impl WorldSession {
                     inviter_bnet_account_guid: ObjectGuid::create_global(
                         HighGuid::WowAccount,
                         0,
-                        self.account_id as i64,
+                        self.core.account_id as i64,
                     ),
                     virtual_realm_address: vra,
                     realm_name: realm_name.clone(),
@@ -286,7 +286,7 @@ impl WorldSession {
             inviter_bnet_account_guid: ObjectGuid::create_global(
                 HighGuid::WowAccount,
                 0,
-                self.account_id as i64,
+                self.core.account_id as i64,
             ),
             virtual_realm_address: vra,
             realm_name,

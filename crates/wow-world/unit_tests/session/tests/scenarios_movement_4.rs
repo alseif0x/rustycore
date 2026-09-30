@@ -26,7 +26,10 @@ fn canonical_player_movement_control_follows_active_detached_and_stale_ownership
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     assert!(session.set_fall_information_like_cpp(1_200, 87.5));
     session.set_forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run, 2);
@@ -213,7 +216,10 @@ fn canonical_player_teleport_follows_active_detached_and_stale_ownership_like_cp
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     assert!(session.update_player_teleport_state_like_cpp(|state| *state = owned));
     assert_eq!(session.pending_teleport_like_cpp(), owned.far_destination);
@@ -364,6 +370,7 @@ fn canonical_player_dungeon_missing_map_difficulty_sends_transfer_abort_like_cpp
         0,
     ));
     session
+        .instances
         .instance_test_fixture_like_cpp
         .represented_raid_difficulty_id_like_cpp = 3;
 
@@ -407,6 +414,7 @@ fn canonical_player_existing_raid_in_progress_sends_transfer_abort_like_cpp() {
         0,
     ));
     session
+        .instances
         .instance_test_fixture_like_cpp
         .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 0);
@@ -418,7 +426,7 @@ fn canonical_player_existing_raid_in_progress_sends_transfer_abort_like_cpp() {
     group.set_recent_instance_like_cpp(631, leader, 9001);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     {
@@ -546,9 +554,10 @@ fn represented_move_dismiss_vehicle_uses_charmed_guid_gate_like_cpp() {
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
-    session.player_name = Some("MoveDismissVehicleTester".to_string());
-    session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
-    session.player_vehicle_seat_id_like_cpp = Some(1004);
+    session.identity.player_name = Some("MoveDismissVehicleTester".to_string());
+    session.vehicles.player_vehicle_seat_flags_like_cpp =
+        Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
+    session.vehicles.player_vehicle_seat_id_like_cpp = Some(1004);
     session.set_player_registry(Arc::clone(&registry));
     add_canonical_test_player_on_map(&canonical, guid, position, 571, 0);
     {
@@ -577,17 +586,24 @@ fn represented_move_dismiss_vehicle_uses_charmed_guid_gate_like_cpp() {
 
     assert!(session.represented_move_dismiss_vehicle_like_cpp(&mut status));
 
-    assert!(session.player_vehicle_seat_flags_like_cpp.is_none());
-    assert!(session.player_vehicle_seat_id_like_cpp.is_none());
+    assert!(
+        session
+            .vehicles
+            .player_vehicle_seat_flags_like_cpp
+            .is_none()
+    );
+    assert!(session.vehicles.player_vehicle_seat_id_like_cpp.is_none());
     assert_eq!(session.player_movement_time_like_cpp(), 12_345);
     assert_eq!(session.player_position_like_cpp(), Some(dismiss_position));
     assert!(
         !session
+            .movement
             .player_movement_flags_like_cpp
             .contains(MovementFlag::ROOT)
     );
     assert!(
         session
+            .movement
             .player_movement_flags_like_cpp
             .contains(MovementFlag::FORWARD),
         "C++ ValidateMovementInfo removes ROOT first, so FORWARD remains"
@@ -615,7 +631,7 @@ fn represented_move_dismiss_vehicle_uses_charm_not_seat_gate_like_cpp() {
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
-    session.player_name = Some("MoveDismissVehicleCharmOnlyTester".to_string());
+    session.identity.player_name = Some("MoveDismissVehicleCharmOnlyTester".to_string());
     add_canonical_test_player_on_map(&canonical, guid, position, 571, 0);
     {
         let mut guard = canonical.lock().unwrap();
@@ -644,7 +660,7 @@ fn represented_move_dismiss_vehicle_uses_charm_not_seat_gate_like_cpp() {
     assert_eq!(session.player_movement_time_like_cpp(), 7_777);
     assert_eq!(session.player_position_like_cpp(), Some(dismiss_position));
     assert_eq!(
-        session.player_movement_flags_like_cpp,
+        session.movement.player_movement_flags_like_cpp,
         MovementFlag::FORWARD
     );
     assert_eq!(
@@ -667,9 +683,10 @@ async fn move_dismiss_vehicle_handler_copies_status_like_cpp() {
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
-    session.player_name = Some("MoveDismissVehicleHandlerTester".to_string());
-    session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
-    session.player_vehicle_seat_id_like_cpp = Some(1006);
+    session.identity.player_name = Some("MoveDismissVehicleHandlerTester".to_string());
+    session.vehicles.player_vehicle_seat_flags_like_cpp =
+        Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
+    session.vehicles.player_vehicle_seat_id_like_cpp = Some(1006);
     add_canonical_test_player_on_map(&canonical, guid, position, 571, 0);
     {
         let mut guard = canonical.lock().unwrap();
@@ -698,11 +715,16 @@ async fn move_dismiss_vehicle_handler_copies_status_like_cpp() {
         })
         .await;
 
-    assert!(session.player_vehicle_seat_flags_like_cpp.is_none());
+    assert!(
+        session
+            .vehicles
+            .player_vehicle_seat_flags_like_cpp
+            .is_none()
+    );
     assert_eq!(session.player_movement_time_like_cpp(), 45_678);
     assert_eq!(session.player_position_like_cpp(), Some(dismiss_position));
     assert_eq!(
-        session.player_movement_flags_like_cpp,
+        session.movement.player_movement_flags_like_cpp,
         MovementFlag::FORWARD
     );
     assert_eq!(
@@ -725,9 +747,10 @@ fn represented_move_dismiss_vehicle_rejects_without_charmed_guid_like_cpp() {
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
-    session.player_name = Some("MoveDismissVehicleRejectTester".to_string());
-    session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_CONTROL);
-    session.player_vehicle_seat_id_like_cpp = Some(1005);
+    session.identity.player_name = Some("MoveDismissVehicleRejectTester".to_string());
+    session.vehicles.player_vehicle_seat_flags_like_cpp =
+        Some(wow_data::VEHICLE_SEAT_FLAG_CAN_CONTROL);
+    session.vehicles.player_vehicle_seat_id_like_cpp = Some(1005);
     session.set_player_registry(Arc::clone(&registry));
     add_canonical_test_player_on_map(&canonical, guid, position, 571, 0);
     session.register_in_player_registry();
@@ -743,10 +766,10 @@ fn represented_move_dismiss_vehicle_rejects_without_charmed_guid_like_cpp() {
     assert!(!session.represented_move_dismiss_vehicle_like_cpp(&mut status));
 
     assert_eq!(
-        session.player_vehicle_seat_flags_like_cpp,
+        session.vehicles.player_vehicle_seat_flags_like_cpp,
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_CONTROL)
     );
-    assert_eq!(session.player_vehicle_seat_id_like_cpp, Some(1005));
+    assert_eq!(session.vehicles.player_vehicle_seat_id_like_cpp, Some(1005));
     assert_eq!(session.player_movement_time_like_cpp(), 0);
     assert_eq!(session.player_position_like_cpp(), Some(position));
     assert!(
@@ -788,9 +811,10 @@ async fn teleport_to_instance_rejects_access_requirements_before_transfer_like_c
                 .add_unit_state(UnitState::ATTACK_PLAYER.bits());
         })
         .unwrap();
-    session.player_contested_pvp_timer_like_cpp = 77;
+    session.combat.player_contested_pvp_timer_like_cpp = 77;
     session.register_in_player_registry();
     session
+        .instances
         .instance_test_fixture_like_cpp
         .represented_raid_difficulty_id_like_cpp = 3;
     session.set_selection_guid_like_cpp(Some(selected_guid));
@@ -824,14 +848,14 @@ async fn teleport_to_instance_rejects_access_requirements_before_transfer_like_c
         "C++ Player::TeleportTo returns before SMSG_TRANSFER_PENDING when Map::PlayerCannotEnter rejects"
     );
     assert_eq!(session.pending_teleport_like_cpp(), None);
-    assert_ne!(session.state, SessionState::Transfer);
+    assert_ne!(session.core.state, SessionState::Transfer);
     assert_eq!(
         session.selection_guid_like_cpp(),
         Some(selected_guid),
         "C++ Player::TeleportTo returns before SetSelection(Empty) when PlayerCannotEnter rejects"
     );
     assert_eq!(
-        session.player_contested_pvp_timer_like_cpp, 77,
+        session.combat.player_contested_pvp_timer_like_cpp, 77,
         "C++ Player::TeleportTo returns before ResetContestedPvP when PlayerCannotEnter rejects"
     );
     {

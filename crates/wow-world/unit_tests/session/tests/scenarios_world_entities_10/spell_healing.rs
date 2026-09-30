@@ -5,8 +5,8 @@ async fn spell_heal_syncs_canonical_creature_health_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let manager = shared_map_manager();
     let guid = test_creature_guid(18_003);
-    session.player_guid = Some(ObjectGuid::create_player(1, 43));
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(ObjectGuid::create_player(1, 43));
+    session.core.client_visible_guids_like_cpp.insert(guid);
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -30,8 +30,8 @@ async fn spell_heal_skips_dead_creature_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let manager = shared_map_manager();
     let guid = test_creature_guid(18_004);
-    session.player_guid = Some(ObjectGuid::create_player(1, 45));
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(ObjectGuid::create_player(1, 45));
+    session.core.client_visible_guids_like_cpp.insert(guid);
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {

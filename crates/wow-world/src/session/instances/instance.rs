@@ -16,13 +16,13 @@ impl WorldSession {
             player.check_instance_count_probe_like_cpp(
                 instance_id,
                 now_secs,
-                self.realm_policy.max_instances_per_hour_like_cpp,
+                self.core.realm_policy.max_instances_per_hour_like_cpp,
             )
         }) {
             return result;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self
                 .instance_reset_times_snapshot_like_cpp()
                 .is_some_and(|times| {
@@ -30,7 +30,7 @@ impl WorldSession {
                         .values()
                         .filter(|release_time| **release_time > now_secs)
                         .count()
-                        < self.realm_policy.max_instances_per_hour_like_cpp as usize
+                        < self.core.realm_policy.max_instances_per_hour_like_cpp as usize
                         || times
                             .get(&instance_id)
                             .is_some_and(|release_time| *release_time > now_secs)
@@ -47,18 +47,18 @@ impl WorldSession {
             player.check_instance_count_like_cpp(
                 instance_id,
                 now_secs,
-                self.realm_policy.max_instances_per_hour_like_cpp,
+                self.core.realm_policy.max_instances_per_hour_like_cpp,
             )
         }) {
             return result;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             self.prune_expired_instance_reset_times_like_cpp(now_secs);
             return self
                 .instance_reset_times_snapshot_like_cpp()
                 .is_some_and(|times| {
-                    times.len() < self.realm_policy.max_instances_per_hour_like_cpp as usize
+                    times.len() < self.core.realm_policy.max_instances_per_hour_like_cpp as usize
                         || times.contains_key(&instance_id)
                 });
         }
@@ -74,8 +74,9 @@ impl WorldSession {
             return;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_instance_reset_times_like_cpp
+        if self.core.player_handle_like_cpp.is_none() {
+            self.instances
+                .represented_instance_reset_times_like_cpp
                 .entry(instance_id)
                 .or_insert(enter_time.saturating_add(HOUR_SECS_LIKE_CPP));
         }
@@ -86,8 +87,12 @@ impl WorldSession {
         let canonical = self
             .with_owned_player_like_cpp(|player| player.instance_reset_times_like_cpp().clone());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.represented_instance_reset_times_like_cpp.clone());
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(
+                self.instances
+                    .represented_instance_reset_times_like_cpp
+                    .clone(),
+            );
         }
         canonical
     }
@@ -103,10 +108,13 @@ impl WorldSession {
             return true;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_instance_reset_times_like_cpp.clear();
+        if self.core.player_handle_like_cpp.is_none() {
+            self.instances
+                .represented_instance_reset_times_like_cpp
+                .clear();
             for (instance_id, release_time) in rows {
-                self.represented_instance_reset_times_like_cpp
+                self.instances
+                    .represented_instance_reset_times_like_cpp
                     .entry(instance_id)
                     .or_insert(release_time);
             }
@@ -123,18 +131,24 @@ impl WorldSession {
         // ownership through the authority so a member removed while a
         // notification is still queued cannot keep the group's instance.
         self.authoritative_group_membership_like_cpp()
-            .and_then(|group_guid| self.directory.group_registry.as_ref()?.get(&group_guid))
+            .and_then(|group_guid| {
+                self.core
+                    .directory
+                    .group_registry
+                    .as_ref()?
+                    .get(&group_guid)
+            })
             .map(|group| group.recent_instance_owner_like_cpp(map_id))
-            .or(self.player_guid)
+            .or(self.core.player_guid)
     }
     pub fn set_instance_ignore_raid_like_cpp(&mut self, ignore: bool) {
-        self.realm_policy.instance_ignore_raid_like_cpp = ignore;
+        self.core.realm_policy.instance_ignore_raid_like_cpp = ignore;
     }
     pub fn set_instance_ignore_level_like_cpp(&mut self, ignore: bool) {
-        self.realm_policy.instance_ignore_level_like_cpp = ignore;
+        self.core.realm_policy.instance_ignore_level_like_cpp = ignore;
     }
     pub fn set_max_instances_per_hour_like_cpp(&mut self, max_instances: u32) {
-        self.realm_policy.max_instances_per_hour_like_cpp = max_instances;
+        self.core.realm_policy.max_instances_per_hour_like_cpp = max_instances;
     }
     /// C++ `Player::GetRecentInstanceId`.
     pub(crate) fn resolved_player_recent_instance_id_like_cpp(&self, map_id: u32) -> Option<u32> {
@@ -147,9 +161,10 @@ impl WorldSession {
                 .unwrap_or(0)
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.instance_test_fixture_like_cpp
+                self.instances
+                    .instance_test_fixture_like_cpp
                     .represented_player_recent_instances_like_cpp
                     .get(&map_id)
                     .copied()
@@ -175,8 +190,9 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.instance_test_fixture_like_cpp
+        if self.core.player_handle_like_cpp.is_none() {
+            self.instances
+                .instance_test_fixture_like_cpp
                 .represented_player_recent_instances_like_cpp
                 .insert(map_id, instance_id);
             return true;
@@ -191,8 +207,9 @@ impl WorldSession {
             player.forget_recent_instance_like_cpp(map_id)
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return self
+                .instances
                 .instance_test_fixture_like_cpp
                 .represented_player_recent_instances_like_cpp
                 .remove(&map_id)

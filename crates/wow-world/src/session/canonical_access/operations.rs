@@ -22,8 +22,8 @@ impl WorldSession {
         &self,
         f: impl FnOnce(&Player) -> R,
     ) -> Option<R> {
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
-        let handle = self.player_handle_like_cpp?;
+        let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
+        let handle = self.core.player_handle_like_cpp?;
         let manager = manager.lock().ok()?;
         let result = manager.with_player_like_cpp(handle, f);
         drop(manager);
@@ -34,8 +34,8 @@ impl WorldSession {
         &self,
         f: impl FnOnce(&mut Player) -> R,
     ) -> Option<R> {
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
-        let handle = self.player_handle_like_cpp?;
+        let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
+        let handle = self.core.player_handle_like_cpp?;
         let mut manager = manager.lock().ok()?;
         let result = manager.with_player_mut_like_cpp(handle, f);
         drop(manager);
@@ -46,7 +46,7 @@ impl WorldSession {
         f: impl FnOnce(&Player) -> R,
     ) -> Option<R> {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self.canonical_player_snapshot_like_cpp(f);
         }
         self.with_owned_player_like_cpp(f)
@@ -56,7 +56,7 @@ impl WorldSession {
         f: impl FnOnce(&mut Player) -> R,
     ) -> Option<R> {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self.mutate_canonical_player_like_cpp(f);
         }
         self.with_owned_player_mut_like_cpp(f)
@@ -66,9 +66,9 @@ impl WorldSession {
         guid: ObjectGuid,
         f: impl FnOnce(&mut Player) -> R,
     ) -> Option<R> {
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
         let mut manager = manager.lock().ok()?;
-        if let Some(handle) = self.player_handle_like_cpp
+        if let Some(handle) = self.core.player_handle_like_cpp
             && handle.guid() == guid
         {
             return manager.with_player_mut_like_cpp(handle, f);
@@ -97,12 +97,12 @@ impl WorldSession {
             #[cfg(not(test))]
             return None;
             #[cfg(test)]
-            if self.player_handle_like_cpp.is_some() {
+            if self.core.player_handle_like_cpp.is_some() {
                 return None;
             }
         }
         let map_id = u32::from(self.player_map_id_like_cpp());
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
         let manager = manager.lock().ok()?;
         let mut result = None;
         manager.do_for_all_maps_with_map_id(map_id, |managed| {
@@ -118,7 +118,7 @@ impl WorldSession {
     pub(in crate::session) fn canonical_player_display_ids_like_cpp(&self) -> Option<(u32, u32)> {
         let guid = self.player_guid()?;
         let map_id = u32::from(self.player_map_id_like_cpp());
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
         let manager = manager.lock().ok()?;
         let mut result = None;
         manager.do_for_all_maps_with_map_id(map_id, |managed| {
@@ -146,19 +146,19 @@ impl WorldSession {
             )
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             let mut state = self
                 .player_world_local_state_like_cpp()
                 .expect("handle-less fixture world-local state");
             let result = mutate.take().expect("world-local mutation runs once")(&mut state);
-            self.player_zone_id_like_cpp = state.zone_id_like_cpp();
-            self.player_area_id_like_cpp = state.area_id_like_cpp();
-            self.player_zone_area_authority_complete_like_cpp =
+            self.identity.player_zone_id_like_cpp = state.zone_id_like_cpp();
+            self.identity.player_area_id_like_cpp = state.area_id_like_cpp();
+            self.identity.player_zone_area_authority_complete_like_cpp =
                 state.has_zone_area_authority_like_cpp();
-            self.player_pvp_hostile_like_cpp = state.is_pvp_hostile_like_cpp();
-            self.player_pvp_end_timer_like_cpp = state.pvp_end_timer_like_cpp();
-            self.player_contested_pvp_timer_like_cpp = state.contested_pvp_timer_like_cpp();
-            self.represented_is_outdoors_like_cpp = state.is_outdoors_like_cpp();
+            self.combat.player_pvp_hostile_like_cpp = state.is_pvp_hostile_like_cpp();
+            self.combat.player_pvp_end_timer_like_cpp = state.pvp_end_timer_like_cpp();
+            self.combat.player_contested_pvp_timer_like_cpp = state.contested_pvp_timer_like_cpp();
+            self.identity.represented_is_outdoors_like_cpp = state.is_outdoors_like_cpp();
             return Some(result);
         }
         canonical
@@ -168,7 +168,7 @@ impl WorldSession {
             .with_owned_player_mut_like_cpp(|player| player.set_zone_id_like_cpp(zone_id))
             .is_some();
         #[cfg(test)]
-        if !canonical && self.player_handle_like_cpp.is_none() {
+        if !canonical && self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_world_local_state_like_cpp(|state| {
                     state.set_zone_id_like_cpp(zone_id);
@@ -182,7 +182,7 @@ impl WorldSession {
             .with_owned_player_mut_like_cpp(|player| player.set_area_id_like_cpp(area_id))
             .is_some();
         #[cfg(test)]
-        if !canonical && self.player_handle_like_cpp.is_none() {
+        if !canonical && self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_world_local_state_like_cpp(|state| {
                     state.set_area_id_like_cpp(area_id);
@@ -202,7 +202,7 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if !canonical && self.player_handle_like_cpp.is_none() {
+        if !canonical && self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_world_local_state_like_cpp(|state| {
                     state.set_zone_area_like_cpp(zone_id, area_id);
@@ -221,7 +221,7 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if !canonical && self.player_handle_like_cpp.is_none() {
+        if !canonical && self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_world_local_state_like_cpp(|state| {
                     state.set_zone_area_authority_like_cpp(complete);
@@ -235,7 +235,7 @@ impl WorldSession {
             .with_owned_player_mut_like_cpp(|player| player.set_pvp_hostile_like_cpp(hostile))
             .is_some();
         #[cfg(test)]
-        if !canonical && self.player_handle_like_cpp.is_none() {
+        if !canonical && self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_world_local_state_like_cpp(|state| {
                     state.set_pvp_hostile_like_cpp(hostile);
@@ -252,7 +252,7 @@ impl WorldSession {
             .with_owned_player_mut_like_cpp(|player| player.set_pvp_end_timer_like_cpp(end_timer))
             .is_some();
         #[cfg(test)]
-        if !canonical && self.player_handle_like_cpp.is_none() {
+        if !canonical && self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_world_local_state_like_cpp(|state| {
                     state.set_pvp_end_timer_like_cpp(end_timer);
@@ -269,7 +269,7 @@ impl WorldSession {
             .with_owned_player_mut_like_cpp(|player| player.set_is_outdoors_like_cpp(is_outdoors))
             .is_some();
         #[cfg(test)]
-        if !canonical && self.player_handle_like_cpp.is_none() {
+        if !canonical && self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_world_local_state_like_cpp(|state| {
                     state.set_is_outdoors_like_cpp(Some(is_outdoors));
@@ -289,11 +289,11 @@ impl WorldSession {
         let Some(guid) = self.player_guid() else {
             return false;
         };
-        let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone) else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref().map(Arc::clone) else {
             return false;
         };
 
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             let adopted = {
                 let Ok(mut manager) = manager.lock() else {
                     return false;
@@ -301,7 +301,7 @@ impl WorldSession {
                 manager.adopt_active_player_like_cpp(guid)
             };
             match adopted {
-                Ok(handle) => self.player_handle_like_cpp = Some(handle),
+                Ok(handle) => self.core.player_handle_like_cpp = Some(handle),
                 Err(wow_map::PlayerOwnerError::ActivePlayerMissing { .. }) => {
                     // Initial Player construction resolves map difficulty through
                     // MapManager, so it must run outside the manager lock.
@@ -322,13 +322,13 @@ impl WorldSession {
                         }
                         Err(_) => return false,
                     };
-                    self.player_handle_like_cpp = Some(handle);
+                    self.core.player_handle_like_cpp = Some(handle);
                 }
                 Err(_) => return false,
             }
         }
 
-        let Some(handle) = self.player_handle_like_cpp else {
+        let Some(handle) = self.core.player_handle_like_cpp else {
             return false;
         };
         let Ok(manager) = manager.lock() else {
@@ -337,8 +337,14 @@ impl WorldSession {
         let owner_ready = manager.player_residence_like_cpp(handle).is_some();
         drop(manager);
         #[cfg(test)]
-        if owner_ready && !self.represented_instance_reset_times_like_cpp.is_empty() {
-            let rows = std::mem::take(&mut self.represented_instance_reset_times_like_cpp);
+        if owner_ready
+            && !self
+                .instances
+                .represented_instance_reset_times_like_cpp
+                .is_empty()
+        {
+            let rows =
+                std::mem::take(&mut self.instances.represented_instance_reset_times_like_cpp);
             let _ = self.with_owned_player_mut_like_cpp(|player| {
                 player.replace_instance_reset_times_like_cpp(rows);
             });
@@ -372,14 +378,14 @@ impl WorldSession {
     ) -> Option<R> {
         let guid = self.player_guid()?;
         if let (Some(manager), Some(handle)) = (
-            self.canonical_map_manager.as_ref(),
-            self.player_handle_like_cpp,
+            self.core.canonical_map_manager.as_ref(),
+            self.core.player_handle_like_cpp,
         ) && handle.guid() == guid
         {
             return manager.lock().ok()?.with_player_like_cpp(handle, f);
         }
         let key = self.current_canonical_player_map_key_like_cpp();
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let map_id = key
             .as_ref()
             .map(|key| key.map_id)
@@ -440,8 +446,8 @@ impl WorldSession {
             return canonical;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            let result = apply(&mut self.represented_cinematic_state_like_cpp);
+        if self.core.player_handle_like_cpp.is_none() {
+            let result = apply(&mut self.presentation.represented_cinematic_state_like_cpp);
             return Some(result);
         }
         None
@@ -452,7 +458,7 @@ impl WorldSession {
         f: impl FnOnce(&mut wow_entities::PlayerRestState) -> R,
     ) -> Option<R> {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             let mut state = self.player_rest_state_snapshot_like_cpp()?;
             let result = f(&mut state);
             return self
@@ -476,7 +482,7 @@ impl WorldSession {
             return changed;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_rest_state_like_cpp(|state| {
                     state.set_flag_like_cpp(rest_flag, trigger_id, || {
@@ -495,7 +501,7 @@ impl WorldSession {
             return changed;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_rest_state_like_cpp(|state| state.remove_flag_like_cpp(rest_flag))
                 .unwrap_or(false);
@@ -511,7 +517,7 @@ impl WorldSession {
             return true;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_rest_state_like_cpp(|state| state.defer_flag_sync_like_cpp())
                 .is_some();
@@ -526,7 +532,7 @@ impl WorldSession {
             return dirty;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_rest_state_like_cpp(|state| state.end_deferred_flag_sync_like_cpp())
                 .unwrap_or(false);
@@ -544,7 +550,7 @@ impl WorldSession {
             return true;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_rest_state_like_cpp(|state| {
                     state.clear_deferred_flag_update_like_cpp()
@@ -564,7 +570,7 @@ impl WorldSession {
             return dirty;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_rest_state_like_cpp(|state| {
                     state.take_deferred_flag_update_like_cpp()
@@ -582,16 +588,16 @@ impl WorldSession {
         &mut self,
         bootstrap_position: Position,
     ) -> bool {
-        if self.player_handle_like_cpp.is_some() {
+        if self.core.player_handle_like_cpp.is_some() {
             return true;
         }
-        let Some(guid) = self.player_guid else {
+        let Some(guid) = self.core.player_guid else {
             return false;
         };
-        let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone) else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref().map(Arc::clone) else {
             return false;
         };
-        let key = wow_map::MapKey::new(u32::from(self.current_map_id), 0);
+        let key = wow_map::MapKey::new(u32::from(self.core.current_map_id), 0);
         let Some(player) = self
             .build_initial_player_for_owner_like_cpp(key, Some(bootstrap_position))
             .map(Box::new)
@@ -611,8 +617,8 @@ impl WorldSession {
             }
             Err(_) => return false,
         };
-        self.player_handle_like_cpp = Some(handle);
-        self.player_identity_bootstrap_like_cpp = None;
+        self.core.player_handle_like_cpp = Some(handle);
+        self.core.player_identity_bootstrap_like_cpp = None;
         true
     }
     /// Apply a heal to the canonical Player owner and return
@@ -636,14 +642,14 @@ impl WorldSession {
             (before, after, max_health, after.saturating_sub(before))
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            let max_health = self.player_max_health_like_cpp.max(1);
-            let before = self.player_health_like_cpp.min(max_health);
-            if !self.player_alive_like_cpp || before == 0 {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            let max_health = self.combat.player_max_health_like_cpp.max(1);
+            let before = self.combat.player_health_like_cpp.min(max_health);
+            if !self.combat.player_alive_like_cpp || before == 0 {
                 return Some((before, before, max_health, 0));
             }
             let after = before.saturating_add(requested_heal).min(max_health);
-            self.player_health_like_cpp = after;
+            self.combat.player_health_like_cpp = after;
             return Some((before, after, max_health, after.saturating_sub(before)));
         }
         canonical
@@ -655,11 +661,16 @@ impl WorldSession {
     ) -> Option<R> {
         let mut state = self.player_battleground_state_snapshot_like_cpp()?;
         let result = mutate(&mut state);
-        self.player_battleground_type_id_like_cpp = state.battleground_type_id_like_cpp();
-        self.player_battleground_map_id_like_cpp = state.battleground_map_id_like_cpp();
-        self.represented_battleground_status_like_cpp = state.battleground_status_like_cpp();
-        self.represented_battleground_queue_slots_like_cpp = state.queue_slots_like_cpp().to_vec();
-        self.represented_arena_team_id_invited_like_cpp = state.arena_team_id_invited_like_cpp();
+        self.battleground.player_battleground_type_id_like_cpp =
+            state.battleground_type_id_like_cpp();
+        self.battleground.player_battleground_map_id_like_cpp =
+            state.battleground_map_id_like_cpp();
+        self.battleground.represented_battleground_status_like_cpp =
+            state.battleground_status_like_cpp();
+        self.battleground
+            .represented_battleground_queue_slots_like_cpp = state.queue_slots_like_cpp().to_vec();
+        self.battleground.represented_arena_team_id_invited_like_cpp =
+            state.arena_team_id_invited_like_cpp();
         Some(result)
     }
     pub(crate) fn owned_player_cuf_profiles_like_cpp(
@@ -674,13 +685,14 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return Some((
-                self.cuf_profiles_like_cpp
+                self.presentation
+                    .cuf_profiles_like_cpp
                     .iter()
                     .map(|profile| profile.clone().map(player_cuf_profile_from_packet_like_cpp))
                     .collect(),
-                self.cuf_profiles_loaded_like_cpp,
+                self.presentation.cuf_profiles_loaded_like_cpp,
             ));
         }
         None

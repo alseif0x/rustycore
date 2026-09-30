@@ -14,7 +14,7 @@ impl WorldSession {
             None => {
                 warn!(
                     "No character enumeration persistence port for account {}",
-                    self.account_id
+                    self.core.account_id
                 );
                 self.send_packet(&EnumCharactersResult {
                     success: false,
@@ -26,7 +26,7 @@ impl WorldSession {
         };
 
         let request = CharacterEnumerationRequestLikeCpp {
-            account_id: self.account_id,
+            account_id: self.core.account_id,
             declined_names_used: policy.declined_names_used,
         };
         let (rows, cleanup_error) = match port.load_character_enumeration_like_cpp(request).await {
@@ -41,12 +41,12 @@ impl WorldSession {
                 if let Some(error) = expired_ban_cleanup_error {
                     warn!(
                         "Failed to expire elapsed character bans before enum for account {}: {error}",
-                        self.account_id
+                        self.core.account_id
                     );
                 }
                 warn!(
                     "Failed to query characters for account {}: {reason}",
-                    self.account_id
+                    self.core.account_id
                 );
                 self.send_packet(&EnumCharactersResult {
                     success: false,
@@ -59,7 +59,7 @@ impl WorldSession {
         if let Some(error) = cleanup_error {
             warn!(
                 "Failed to expire elapsed character bans before enum for account {}: {error}",
-                self.account_id
+                self.core.account_id
             );
         }
 
@@ -138,13 +138,13 @@ impl WorldSession {
         debug!(
             "Sending {} characters to account {}",
             characters.len(),
-            self.account_id
+            self.core.account_id
         );
 
         // Build RaceUnlockData — from race_unlock_requirement table.
         // All WotLK races: expansion 0 (Classic) or 1 (TBC).
         // HasExpansion = true if account expansion >= required expansion.
-        let account_exp = self.account_expansion;
+        let account_exp = self.core.account_expansion;
         let race_unlock_data: Vec<RaceUnlock> = [
             (1u8, 0u8), // Human — Classic
             (2, 0),     // Orc

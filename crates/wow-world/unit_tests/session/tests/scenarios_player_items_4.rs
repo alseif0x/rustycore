@@ -26,7 +26,10 @@ fn canonical_player_pvp_item_level_mode_follows_detached_and_stale_handle_owners
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
     assert!(session.set_represented_using_pvp_item_levels_like_cpp(true));
     assert_eq!(
         session.resolved_using_pvp_item_levels_like_cpp(),
@@ -91,7 +94,10 @@ fn canonical_player_item_modifier_runtime_follows_detached_and_stale_ownership_l
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     assert!(
         session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
@@ -206,7 +212,10 @@ fn canonical_player_inventory_capacity_follows_detached_and_stale_ownership_like
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     assert!(session.set_player_inventory_slot_count_like_cpp(24));
     assert!(session.set_player_bank_bag_slot_count_like_cpp(3));
@@ -305,7 +314,10 @@ fn canonical_player_inventory_runtime_follows_active_detached_and_stale_ownershi
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     let inventory_item = InventoryItem {
         guid: item_guid,
@@ -441,6 +453,7 @@ fn canonical_access_requirement_item_or_item2_matches_cpp() {
         0,
     ));
     session
+        .instances
         .instance_test_fixture_like_cpp
         .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
@@ -520,6 +533,7 @@ fn canonical_access_requirement_missing_item_sends_notification_like_cpp() {
         0,
     ));
     session
+        .instances
         .instance_test_fixture_like_cpp
         .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
@@ -663,7 +677,10 @@ fn canonical_player_saved_equipment_and_void_storage_follow_handle_generation_li
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     session.clear_represented_equipment_sets_like_cpp();
     assert!(session.load_represented_equipment_set_row_like_cpp(
@@ -793,7 +810,7 @@ fn canonical_player_saved_equipment_and_void_storage_follow_handle_generation_li
 #[test]
 fn player_currency_item_refund_ignores_caps_and_total_counters_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.player_race = 1;
+    session.identity.player_race = 1;
     session.set_currency_types_store(Arc::new(wow_data::CurrencyTypesStore::from_entries([
         wow_data::CurrencyTypesEntry {
             max_qty: 100,
@@ -803,7 +820,7 @@ fn player_currency_item_refund_ignores_caps_and_total_counters_like_cpp() {
             ..currency_entry(395)
         },
     ])));
-    session.player_currencies.insert(
+    session.inventory.player_currencies.insert(
         395,
         PlayerCurrency {
             state: PlayerCurrencyState::Unchanged,
@@ -824,7 +841,7 @@ fn player_currency_item_refund_ignores_caps_and_total_counters_like_cpp() {
     assert_eq!(delta.max_quantity, Some(100));
     assert_eq!(delta.total_earned, Some(12));
 
-    let currency = session.player_currencies.get(&395).unwrap();
+    let currency = session.inventory.player_currencies.get(&395).unwrap();
     assert_eq!(currency.quantity, 115);
     assert_eq!(currency.weekly_quantity, 49);
     assert_eq!(currency.tracked_quantity, 11);

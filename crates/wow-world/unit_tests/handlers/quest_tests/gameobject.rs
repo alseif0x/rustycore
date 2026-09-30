@@ -26,18 +26,22 @@ async fn quest_giver_status_query_canonical_gameobject_completed_ender_uses_go_r
     let mut store = store_with_quests(&[1004]);
     assert!(store.insert_gameobject_ender_relation_like_cpp(9104, 1004));
     session.set_quest_store(Arc::new(store));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        1004,
-        PlayerQuestStatus {
-            quest_id: 1004,
-            status: QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
-    );
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
+            1004,
+            PlayerQuestStatus {
+                quest_id: 1004,
+                status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
     let guid = gameobject_guid(9104, 4);
     let mut manager = wow_map::MapManager::default();
     insert_gameobject(&mut manager, guid, 9104);

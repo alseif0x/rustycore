@@ -13,7 +13,7 @@ async fn lfg_uninvite_in_combat_returns_code_without_removal_like_cpp() {
     let group = lfg_group_like_cpp(leader, 5);
     let (mut session, send_rx, group_registry, group_guid) =
         lfg_uninvite_session_like_cpp(group, sender);
-    session.in_combat = true;
+    session.combat.in_combat = true;
 
     session
         .handle_party_uninvite(party_uninvite_packet(target, None, "boot"))
@@ -57,7 +57,7 @@ async fn lfg_uninvite_member_in_combat_returns_code_without_removal_like_cpp() {
         .unit_mut()
         .set_unit_flags_like_cpp(wow_constants::UnitFlags::IN_COMBAT);
     session.set_player_registry(Arc::clone(&player_registry));
-    assert!(!session.in_combat);
+    assert!(!session.combat.in_combat);
 
     session
         .handle_party_uninvite(party_uninvite_packet(target, None, "boot"))

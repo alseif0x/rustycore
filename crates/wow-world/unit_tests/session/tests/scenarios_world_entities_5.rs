@@ -60,9 +60,11 @@ async fn gameobject_visual_despawn_creature_shared_vision_out_of_world_target_no
             .remove_from_world();
     }
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(target_guid);
 
@@ -73,11 +75,13 @@ async fn gameobject_visual_despawn_creature_shared_vision_out_of_world_target_no
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&gameobject_guid)
     );
     assert!(
         session
+            .visibility
             .represented_gameobject_visual_despawns_delivered_like_cpp
             .is_empty()
     );
@@ -105,6 +109,7 @@ async fn gameobject_visual_despawn_creature_shared_vision_out_of_world_target_no
     );
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&gameobject_guid)
     );
@@ -152,9 +157,11 @@ async fn gameobject_visual_despawn_creature_shared_vision_requires_session_seer_
     );
     assert_eq!(canonical.lock().unwrap().update(60_000), Some(60_000));
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(other_seer_guid);
 
@@ -165,6 +172,7 @@ async fn gameobject_visual_despawn_creature_shared_vision_requires_session_seer_
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
+            .visibility
             .represented_gameobject_visual_despawns_delivered_like_cpp
             .is_empty()
     );
@@ -204,9 +212,11 @@ async fn gameobject_visual_despawn_creature_shared_vision_requires_target_list_v
     );
     assert_eq!(canonical.lock().unwrap().update(60_000), Some(60_000));
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(target_guid);
 
@@ -217,6 +227,7 @@ async fn gameobject_visual_despawn_creature_shared_vision_requires_target_list_v
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
+            .visibility
             .represented_gameobject_visual_despawns_delivered_like_cpp
             .is_empty()
     );
@@ -306,25 +317,35 @@ async fn gameobject_visual_despawn_creature_shared_vision_phase_range_and_have_a
     );
     assert_eq!(canonical.lock().unwrap().update(60_000), Some(60_000));
     session
+        .world_entities
         .represented_gameobject_phase_shifts
         .insert(incompatible_phase_guid, PhaseShift::from_phases([20]));
     session
+        .world_entities
         .represented_gameobject_phase_shifts
         .insert(out_of_range_guid, PhaseShift::from_phases([10]));
     session
+        .world_entities
         .represented_gameobject_phase_shifts
         .insert(not_visible_guid, PhaseShift::from_phases([10]));
     session
+        .world_entities
         .represented_gameobject_phase_shifts
         .insert(sendable_guid, PhaseShift::from_phases([10]));
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(incompatible_phase_guid);
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(out_of_range_guid);
-    session.client_visible_guids_like_cpp.insert(sendable_guid);
     session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(sendable_guid);
+    session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(target_guid);
 
@@ -338,27 +359,32 @@ async fn gameobject_visual_despawn_creature_shared_vision_phase_range_and_have_a
     );
     assert_eq!(
         session
+            .visibility
             .represented_gameobject_visual_despawns_delivered_like_cpp
             .len(),
         1
     );
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&incompatible_phase_guid)
     );
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&out_of_range_guid)
     );
     assert!(
         !session
+            .core
             .client_visible_guids_like_cpp
             .contains(&not_visible_guid)
     );
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&sendable_guid)
     );
@@ -407,9 +433,11 @@ async fn gameobject_visual_despawn_dynamic_object_caster_viewer_receives_once_li
     );
     assert_eq!(canonical.lock().unwrap().update(60_000), Some(60_000));
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(dynamic_object_guid);
 
@@ -423,6 +451,7 @@ async fn gameobject_visual_despawn_dynamic_object_caster_viewer_receives_once_li
     );
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&gameobject_guid)
     );
@@ -434,6 +463,7 @@ async fn gameobject_visual_despawn_dynamic_object_caster_viewer_receives_once_li
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert_eq!(
         session
+            .visibility
             .represented_gameobject_visual_despawns_delivered_like_cpp
             .len(),
         1
@@ -484,9 +514,11 @@ async fn gameobject_visual_despawn_dynamic_object_requires_session_seer_target_l
     );
     assert_eq!(canonical.lock().unwrap().update(60_000), Some(60_000));
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(other_seer_guid);
 
@@ -497,6 +529,7 @@ async fn gameobject_visual_despawn_dynamic_object_requires_session_seer_target_l
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
+            .visibility
             .represented_gameobject_visual_despawns_delivered_like_cpp
             .is_empty()
     );
@@ -546,9 +579,11 @@ async fn gameobject_visual_despawn_dynamic_object_requires_player_caster_like_cp
     );
     assert_eq!(canonical.lock().unwrap().update(60_000), Some(60_000));
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(dynamic_object_guid);
 
@@ -559,6 +594,7 @@ async fn gameobject_visual_despawn_dynamic_object_requires_player_caster_like_cp
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
+            .visibility
             .represented_gameobject_visual_despawns_delivered_like_cpp
             .is_empty()
     );
@@ -580,6 +616,7 @@ async fn gameobject_visual_despawn_dynamic_object_requires_player_caster_like_cp
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
+            .visibility
             .represented_gameobject_visual_despawns_delivered_like_cpp
             .is_empty()
     );
@@ -658,25 +695,35 @@ async fn gameobject_visual_despawn_dynamic_object_phase_range_and_have_at_client
     );
     assert_eq!(canonical.lock().unwrap().update(60_000), Some(60_000));
     session
+        .world_entities
         .represented_gameobject_phase_shifts
         .insert(incompatible_phase_guid, PhaseShift::from_phases([20]));
     session
+        .world_entities
         .represented_gameobject_phase_shifts
         .insert(out_of_range_guid, PhaseShift::from_phases([10]));
     session
+        .world_entities
         .represented_gameobject_phase_shifts
         .insert(not_visible_guid, PhaseShift::from_phases([10]));
     session
+        .world_entities
         .represented_gameobject_phase_shifts
         .insert(sendable_guid, PhaseShift::from_phases([10]));
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(incompatible_phase_guid);
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(out_of_range_guid);
-    session.client_visible_guids_like_cpp.insert(sendable_guid);
     session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(sendable_guid);
+    session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(dynamic_object_guid);
 
@@ -690,27 +737,32 @@ async fn gameobject_visual_despawn_dynamic_object_phase_range_and_have_at_client
     );
     assert_eq!(
         session
+            .visibility
             .represented_gameobject_visual_despawns_delivered_like_cpp
             .len(),
         1
     );
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&incompatible_phase_guid)
     );
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&out_of_range_guid)
     );
     assert!(
         !session
+            .core
             .client_visible_guids_like_cpp
             .contains(&not_visible_guid)
     );
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&sendable_guid)
     );
@@ -756,9 +808,11 @@ async fn gameobject_visual_despawn_shared_vision_requires_session_seer_target_li
     );
     assert_eq!(canonical.lock().unwrap().update(60_000), Some(60_000));
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(other_seer_guid);
 
@@ -770,6 +824,7 @@ async fn gameobject_visual_despawn_shared_vision_requires_session_seer_target_li
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
+            .visibility
             .represented_gameobject_visual_despawns_delivered_like_cpp
             .is_empty()
     );
@@ -807,9 +862,11 @@ async fn gameobject_visual_despawn_shared_vision_requires_target_list_viewer_lik
     );
     assert_eq!(canonical.lock().unwrap().update(60_000), Some(60_000));
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(target_guid);
 
@@ -821,6 +878,7 @@ async fn gameobject_visual_despawn_shared_vision_requires_target_list_viewer_lik
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
+            .visibility
             .represented_gameobject_visual_despawns_delivered_like_cpp
             .is_empty()
     );

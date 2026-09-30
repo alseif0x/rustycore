@@ -61,7 +61,7 @@ inventory::submit! {
 
 impl crate::session::WorldSession {
     pub async fn handle_request_raid_info(&mut self, _pkt: wow_packet::WorldPacket) {
-        let locks = match (self.player_guid(), self.instance_lock_mgr.as_ref()) {
+        let locks = match (self.player_guid(), self.core.instance_lock_mgr.as_ref()) {
             (Some(player_guid), Some(instance_lock_mgr)) => {
                 let now = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -165,7 +165,7 @@ impl crate::session::WorldSession {
         reset_owner_guid: ObjectGuid,
         method: RepresentedInstanceResetMethodLikeCpp,
     ) -> bool {
-        let Some(instance_lock_mgr) = self.instance_lock_mgr.as_ref().cloned() else {
+        let Some(instance_lock_mgr) = self.core.instance_lock_mgr.as_ref().cloned() else {
             return false;
         };
 
@@ -218,7 +218,7 @@ impl crate::session::WorldSession {
                     port.commit_plan_like_cpp(persistence_plan).await
             {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     player_guid = ?reset_owner_guid,
                     error = %reason,
                     "failed to commit represented instance lock reset transaction"
@@ -252,9 +252,9 @@ impl crate::session::WorldSession {
             return;
         };
 
-        let Some(pending_bind) = self.pending_bind.take() else {
+        let Some(pending_bind) = self.instances.pending_bind.take() else {
             info!(
-                account = self.account_id,
+                account = self.core.account_id,
                 player_guid = ?self.player_guid(),
                 "InstanceLockResponse without pending bind"
             );
@@ -264,14 +264,17 @@ impl crate::session::WorldSession {
         if response.accept_lock {
             if self.confirm_pending_bind_like_cpp(pending_bind).await {
                 #[cfg(test)]
-                self.represented_confirmed_pending_binds
+                self.instances
+                    .represented_confirmed_pending_binds
                     .push(pending_bind.instance_id);
             }
         } else {
             #[cfg(test)]
             {
-                self.represented_repop_at_graveyard_count =
-                    self.represented_repop_at_graveyard_count.saturating_add(1);
+                self.combat.represented_repop_at_graveyard_count = self
+                    .combat
+                    .represented_repop_at_graveyard_count
+                    .saturating_add(1);
             }
         }
     }
@@ -292,7 +295,7 @@ impl crate::session::WorldSession {
         }
 
         let difficulty_id = {
-            let Some(manager) = self.canonical_map_manager.as_ref() else {
+            let Some(manager) = self.core.canonical_map_manager.as_ref() else {
                 return false;
             };
             let Ok(manager) = manager.lock() else {
@@ -319,7 +322,7 @@ impl crate::session::WorldSession {
         else {
             return false;
         };
-        let Some(instance_lock_mgr) = self.instance_lock_mgr.as_ref().cloned() else {
+        let Some(instance_lock_mgr) = self.core.instance_lock_mgr.as_ref().cloned() else {
             return false;
         };
 
@@ -362,7 +365,7 @@ impl crate::session::WorldSession {
                     port.commit_plan_like_cpp(persistence_plan).await
             {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     player_guid = ?player_guid,
                     instance_id = pending_bind.instance_id,
                     error = %reason,
@@ -416,7 +419,7 @@ impl crate::session::WorldSession {
         });
 
         if !warning_only {
-            self.pending_bind = Some(crate::session::RepresentedPendingBind {
+            self.instances.pending_bind = Some(crate::session::RepresentedPendingBind {
                 map_id: u32::from(self.player_map_id_like_cpp()),
                 instance_id,
                 completed_mask,
@@ -444,7 +447,7 @@ impl crate::session::WorldSession {
         let Some(entries) = self.create_map_db2_entries_like_cpp(map_id, difficulty_id) else {
             return;
         };
-        let Some(instance_lock_mgr) = self.instance_lock_mgr.as_ref().cloned() else {
+        let Some(instance_lock_mgr) = self.core.instance_lock_mgr.as_ref().cloned() else {
             return;
         };
 
@@ -476,7 +479,7 @@ impl crate::session::WorldSession {
                 port.commit_plan_like_cpp(persistence_plan).await
         {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 player_guid = ?player_guid,
                 map_id,
                 difficulty_id,

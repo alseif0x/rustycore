@@ -97,7 +97,7 @@ impl WorldSession {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.gameplay_state().collections.clone());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(self.represented_player_collection_state_like_cpp());
         }
         canonical
@@ -110,14 +110,26 @@ impl WorldSession {
         &self,
     ) -> wow_entities::PlayerCollectionStateLikeCpp {
         wow_entities::PlayerCollectionStateLikeCpp::from_loaded_account_parts_like_cpp(
-            self.account_mounts_like_cpp.clone(),
-            self.represented_account_heirlooms_like_cpp.clone(),
-            self.represented_account_toys_like_cpp.clone(),
-            self.represented_item_appearances_like_cpp.clone(),
-            self.represented_item_appearance_blocks_like_cpp.clone(),
-            self.represented_temporary_item_appearances_like_cpp.clone(),
-            self.represented_favorite_item_appearances_like_cpp.clone(),
-            self.represented_transmog_illusions_like_cpp.clone(),
+            self.collections.account_mounts_like_cpp.clone(),
+            self.collections
+                .represented_account_heirlooms_like_cpp
+                .clone(),
+            self.collections.represented_account_toys_like_cpp.clone(),
+            self.collections
+                .represented_item_appearances_like_cpp
+                .clone(),
+            self.collections
+                .represented_item_appearance_blocks_like_cpp
+                .clone(),
+            self.collections
+                .represented_temporary_item_appearances_like_cpp
+                .clone(),
+            self.collections
+                .represented_favorite_item_appearances_like_cpp
+                .clone(),
+            self.collections
+                .represented_transmog_illusions_like_cpp
+                .clone(),
         )
     }
 
@@ -132,19 +144,23 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         {
-            self.account_mounts_like_cpp = state.mounts_like_cpp().clone();
-            self.represented_account_heirlooms_like_cpp = state.heirlooms_like_cpp().clone();
-            self.represented_account_toys_like_cpp = state.toys_like_cpp().clone();
-            self.represented_item_appearances_like_cpp = state.item_appearances_like_cpp().clone();
-            self.represented_item_appearance_blocks_like_cpp =
+            self.collections.account_mounts_like_cpp = state.mounts_like_cpp().clone();
+            self.collections.represented_account_heirlooms_like_cpp =
+                state.heirlooms_like_cpp().clone();
+            self.collections.represented_account_toys_like_cpp = state.toys_like_cpp().clone();
+            self.collections.represented_item_appearances_like_cpp =
+                state.item_appearances_like_cpp().clone();
+            self.collections.represented_item_appearance_blocks_like_cpp =
                 state.item_appearance_blocks_snapshot_like_cpp();
-            self.represented_temporary_item_appearances_like_cpp =
+            self.collections
+                .represented_temporary_item_appearances_like_cpp =
                 state.temporary_item_appearances_like_cpp().clone();
-            self.represented_favorite_item_appearances_like_cpp =
+            self.collections
+                .represented_favorite_item_appearances_like_cpp =
                 state.favorite_item_appearances_like_cpp().clone();
-            self.represented_transmog_illusions_like_cpp =
+            self.collections.represented_transmog_illusions_like_cpp =
                 state.transmog_illusions_like_cpp().clone();
-            if self.player_handle_like_cpp.is_none() {
+            if self.core.player_handle_like_cpp.is_none() {
                 return true;
             }
         }
@@ -167,7 +183,8 @@ impl WorldSession {
 
     /// C++ `DB2Manager::IsToyItem`.
     pub(crate) fn is_toy_item_like_cpp(&self, item_id: u32) -> bool {
-        self.toy_store
+        self.catalogs
+            .toy_store
             .as_ref()
             .and_then(|store| store.get_by_item_id_like_cpp(item_id))
             .is_some()
@@ -175,7 +192,8 @@ impl WorldSession {
 
     /// C++ `std::find_if(item->Effects, spellId)` in `HandleUseToy`.
     pub(crate) fn toy_item_has_spell_effect_like_cpp(&self, item_id: u32, spell_id: i32) -> bool {
-        self.items
+        self.catalogs
+            .items
             .effect_store
             .as_ref()
             .and_then(|store| store.effect_for_item_spell_like_cpp(item_id, spell_id))
@@ -195,6 +213,7 @@ impl WorldSession {
         spell_info: &wow_data::SpellInfo,
     ) -> u32 {
         if let Some(effect) = self
+            .catalogs
             .items
             .effect_store
             .as_ref()

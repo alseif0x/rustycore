@@ -83,6 +83,7 @@ async fn or_db_missing_row_positive_radius_offsets_and_applies_facing_like_cpp()
     let manager = canonical.lock().unwrap();
     let managed = manager.find_map(571, 0).expect("canonical map");
     let summoned_guid = session
+        .core
         .client_visible_guids_like_cpp
         .snapshot_like_cpp()
         .into_iter()
@@ -213,6 +214,7 @@ async fn db_implicit_destination_or_db_missing_row_uses_nearest_represented_entr
     let manager = canonical.lock().unwrap();
     let managed = manager.find_map(571, 0).expect("canonical map");
     let summoned_guid = session
+        .core
         .client_visible_guids_like_cpp
         .snapshot_like_cpp()
         .into_iter()
@@ -374,6 +376,7 @@ async fn or_db_missing_row_filters_represented_nearby_entry_conditions_like_cpp(
     let manager = canonical.lock().unwrap();
     let managed = manager.find_map(571, 0).expect("canonical map");
     let summoned_guid = session
+        .core
         .client_visible_guids_like_cpp
         .snapshot_like_cpp()
         .into_iter()
@@ -490,6 +493,7 @@ async fn nearby_entry_destination_uses_represented_nearby_entry_like_cpp() {
     let manager = canonical.lock().unwrap();
     let managed = manager.find_map(571, 0).expect("canonical map");
     let summoned_guid = session
+        .core
         .client_visible_guids_like_cpp
         .snapshot_like_cpp()
         .into_iter()
@@ -571,6 +575,7 @@ async fn nearby_entry_destination_without_target_fails_bad_implicit_targets_like
 
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .snapshot_like_cpp()
             .into_iter()
@@ -751,7 +756,7 @@ fn represented_mount_liquid_state_uses_cpp_liquid_bits_and_swimming_flag() {
     let player_guid = ObjectGuid::create_player(1, 21_861);
     let canonical = shared_canonical_map_manager();
     session.set_player_guid(Some(player_guid));
-    session.player_position = Some(Position::ZERO);
+    session.movement.player_position = Some(Position::ZERO);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, Position::ZERO, 0, 0);
 
@@ -786,6 +791,7 @@ fn time_sync_response_sets_initial_clock_delta_like_cpp() {
     std::thread::sleep(std::time::Duration::from_millis(2));
     let sent_time = crate::session::game_time_ms_like_cpp();
     session
+        .core
         .driver
         .time_synchronization
         .pending_requests
@@ -795,17 +801,23 @@ fn time_sync_response_sets_initial_clock_delta_like_cpp() {
 
     assert!(
         session
+            .core
             .driver
             .time_synchronization
             .pending_requests
             .is_empty()
     );
     assert_eq!(
-        session.driver.time_synchronization.clock_delta_queue.len(),
+        session
+            .core
+            .driver
+            .time_synchronization
+            .clock_delta_queue
+            .len(),
         1
     );
     assert!(
-        session.driver.time_synchronization.clock_delta >= 1,
+        session.core.driver.time_synchronization.clock_delta >= 1,
         "expected initial fallback delta from first sample"
     );
 }
@@ -814,10 +826,11 @@ fn send_time_sync_uses_cpp_timer_sequence() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
 
     session.send_time_sync();
-    assert_eq!(session.driver.time_synchronization.next_counter, 1);
-    assert_eq!(session.driver.time_synchronization.timer_ms, 5_000);
+    assert_eq!(session.core.driver.time_synchronization.next_counter, 1);
+    assert_eq!(session.core.driver.time_synchronization.timer_ms, 5_000);
     assert!(
         session
+            .core
             .driver
             .time_synchronization
             .pending_requests
@@ -825,10 +838,11 @@ fn send_time_sync_uses_cpp_timer_sequence() {
     );
 
     session.send_time_sync();
-    assert_eq!(session.driver.time_synchronization.next_counter, 2);
-    assert_eq!(session.driver.time_synchronization.timer_ms, 10_000);
+    assert_eq!(session.core.driver.time_synchronization.next_counter, 2);
+    assert_eq!(session.core.driver.time_synchronization.timer_ms, 10_000);
     assert!(
         session
+            .core
             .driver
             .time_synchronization
             .pending_requests
@@ -871,7 +885,10 @@ async fn dynamic_object_values_snapshot_not_in_world_player_no_send_like_cpp() {
         .world_mut()
         .object_mut()
         .remove_from_world();
-    session.client_visible_guids_like_cpp.insert(dynamic_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(dynamic_guid);
 
     assert_eq!(
         session.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(),
@@ -881,6 +898,7 @@ async fn dynamic_object_values_snapshot_not_in_world_player_no_send_like_cpp() {
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&dynamic_guid)
     );

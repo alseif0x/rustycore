@@ -207,7 +207,8 @@ impl WorldSession {
         honorless_target_cast: bool,
     ) -> MoveSplineDoneTaxiActionLikeCpp {
         #[cfg(test)]
-        self.move_spline_done_taxi_events_like_cpp
+        self.teleport
+            .move_spline_done_taxi_events_like_cpp
             .push(MoveSplineDoneTaxiEventLikeCpp {
                 spline_id,
                 action,
@@ -231,6 +232,6 @@ impl WorldSession {
     pub(crate) fn move_spline_done_taxi_events_like_cpp(
         &self,
     ) -> &[MoveSplineDoneTaxiEventLikeCpp] {
-        &self.move_spline_done_taxi_events_like_cpp
+        &self.teleport.move_spline_done_taxi_events_like_cpp
     }
 }

@@ -65,7 +65,8 @@ impl WorldSession {
         if self.create_player_mount_vehicle_kit_like_cpp(vehicle_id, creature_entry) {
             #[cfg(test)]
             {
-                self.mount_vehicle_create_requests_like_cpp = self
+                self.vehicles.mount_vehicle_create_requests_like_cpp = self
+                    .vehicles
                     .mount_vehicle_create_requests_like_cpp
                     .saturating_add(1);
             }
@@ -74,7 +75,8 @@ impl WorldSession {
         }
         #[cfg(test)]
         {
-            self.mount_pet_control_disable_requests_like_cpp = self
+            self.pets.mount_pet_control_disable_requests_like_cpp = self
+                .pets
                 .mount_pet_control_disable_requests_like_cpp
                 .saturating_add(1);
         }
@@ -84,7 +86,9 @@ impl WorldSession {
         );
         #[cfg(test)]
         {
-            self.mount_collision_height_update_requests_like_cpp = self
+            self.vehicles
+                .mount_collision_height_update_requests_like_cpp = self
+                .vehicles
                 .mount_collision_height_update_requests_like_cpp
                 .saturating_add(1);
         }
@@ -229,10 +233,13 @@ impl WorldSession {
             let _ = self.clear_player_mount_vehicle_kit_like_cpp();
             #[cfg(test)]
             {
-                self.player_mount_vehicle_id_like_cpp = 0;
-                self.player_mount_vehicle_accessories_like_cpp.clear();
-                self.player_mount_vehicle_seat_count_like_cpp = 0;
-                self.player_mount_vehicle_usable_seat_count_like_cpp = 0;
+                self.vehicles.player_mount_vehicle_id_like_cpp = 0;
+                self.vehicles
+                    .player_mount_vehicle_accessories_like_cpp
+                    .clear();
+                self.vehicles.player_mount_vehicle_seat_count_like_cpp = 0;
+                self.vehicles
+                    .player_mount_vehicle_usable_seat_count_like_cpp = 0;
             }
         }
         true

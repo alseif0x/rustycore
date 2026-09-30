@@ -20,8 +20,8 @@ impl WorldSession {
             return canonical;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(f(&self.represented_equipment_sets_like_cpp));
+        if self.core.player_handle_like_cpp.is_none() {
+            return Some(f(&self.inventory.represented_equipment_sets_like_cpp));
         }
         None
     }
@@ -36,8 +36,8 @@ impl WorldSession {
             return canonical;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(f(&mut self.represented_equipment_sets_like_cpp));
+        if self.core.player_handle_like_cpp.is_none() {
+            return Some(f(&mut self.inventory.represented_equipment_sets_like_cpp));
         }
         None
     }
@@ -336,18 +336,18 @@ impl WorldSession {
         &mut self,
         generator: Arc<EquipmentSetGuidGeneratorLikeCpp>,
     ) {
-        self.equipment_set_guid_generator_like_cpp = Some(generator);
+        self.core.equipment_set_guid_generator_like_cpp = Some(generator);
     }
     #[cfg(test)]
     pub(crate) fn equipment_set_guid_generator_for_test_like_cpp(
         &self,
     ) -> Option<Arc<EquipmentSetGuidGeneratorLikeCpp>> {
-        self.equipment_set_guid_generator_like_cpp.clone()
+        self.core.equipment_set_guid_generator_like_cpp.clone()
     }
     /// Set `ItemChildEquipment.db2`, used by C++ `CanEquipChildItem` and
     /// `EquipChildItem` to move a linked child into its visible equipment slot.
     pub fn set_item_child_equipment_store(&mut self, store: Arc<ItemChildEquipmentStore>) {
-        self.items.child_equipment_store = Some(store);
+        self.catalogs.items.child_equipment_store = Some(store);
     }
     pub(crate) fn apply_initial_equipped_item_set_auras_like_cpp(&mut self) -> Option<usize> {
         let mut equipped: Vec<_> = self
@@ -369,10 +369,10 @@ impl WorldSession {
         &mut self,
         store: Arc<CreatureEquipmentStoreLikeCpp>,
     ) {
-        self.creature_equipment_store_like_cpp = Some(store);
+        self.catalogs.creature_equipment_store_like_cpp = Some(store);
     }
     pub fn set_spell_equipped_items_store(&mut self, store: Arc<SpellEquippedItemsStore>) {
-        self.spell_catalogs.spell_equipped_items_store = Some(store);
+        self.catalogs.spell_catalogs.spell_equipped_items_store = Some(store);
     }
     /// Builds the represented statement sequence for C++ `Player::_SaveSpells`.
     ///

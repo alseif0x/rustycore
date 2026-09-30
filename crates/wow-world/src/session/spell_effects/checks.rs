@@ -37,7 +37,7 @@ impl WorldSession {
             return;
         };
         let player_detected_range_aura_mod = player_detected_range_aura_mod as f32;
-        let aggro_config = self.legacy_creature_aggro_config_like_cpp.clone();
+        let aggro_config = self.config.legacy_creature_aggro_config_like_cpp.clone();
 
         for guid in guids {
             let aggroed = self
@@ -168,6 +168,7 @@ impl WorldSession {
         for effect in spell_info.effects() {
             if effect.is_mod_shapeshift_aura_like_cpp() {
                 if let Some(form) = self
+                    .catalogs
                     .spell_catalogs
                     .spell_shapeshift_form_store
                     .as_ref()
@@ -192,7 +193,7 @@ impl WorldSession {
                             )
                     {
                         info!(
-                            account = self.account_id,
+                            account = self.core.account_id,
                             spell_id = spell_info.spell_id,
                             form_id = effect.effect_misc_value_1,
                             mount_type_id = form.mount_type_id,
@@ -219,7 +220,7 @@ impl WorldSession {
                 )
             {
                 info!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     spell_id = spell_info.spell_id,
                     "Rejecting represented flying mount cast while in water"
                 );
@@ -233,7 +234,7 @@ impl WorldSession {
                     result: MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP,
                 });
                 info!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     spell_id = spell_info.spell_id,
                     disallowed_source_id,
                     "Rejecting represented mount cast: player is in a disallowed shapeshift form"
@@ -242,7 +243,7 @@ impl WorldSession {
             }
 
             let mut mount_type_id = u16::try_from(effect.effect_misc_value_2).unwrap_or_default();
-            if let Some(mount_entry) = self.mount_store.as_ref().and_then(|store| {
+            if let Some(mount_entry) = self.catalogs.mount_store.as_ref().and_then(|store| {
                 u32::try_from(spell_info.spell_id)
                     .ok()
                     .and_then(|spell_id| store.get_by_source_spell_id_like_cpp(spell_id))
@@ -266,7 +267,7 @@ impl WorldSession {
                     )
                 {
                     info!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         spell_id = spell_info.spell_id,
                         mount_type_id,
                         riding_skill,
@@ -282,7 +283,7 @@ impl WorldSession {
                     ));
                 }
                 info!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     spell_id = spell_info.spell_id,
                     mount_type_id,
                     riding_skill,

@@ -157,7 +157,7 @@ impl WorldSession {
             .statuses_like_cpp()
             .keys()
             .filter(|quest_id| {
-                let store = self.quests.store.as_ref();
+                let store = self.catalogs.quests.store.as_ref();
                 state.rewarded_quest_ids_like_cpp().contains(quest_id)
                     && store
                         .and_then(|store| store.get(**quest_id))
@@ -201,15 +201,15 @@ impl WorldSession {
         // ScriptMgr::OnQuestAcknowledgeAutoAccept(player, quest).
         if self.find_quest_slot_like_cpp(quest_id).is_none() {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id, "QuestGiverCloseQuest: represented active quest log miss"
             );
             return false;
         }
 
-        let Some(quest_store) = &self.quests.store else {
+        let Some(quest_store) = &self.catalogs.quests.store else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id, "QuestGiverCloseQuest: missing represented quest store"
             );
             return false;
@@ -217,14 +217,15 @@ impl WorldSession {
 
         if quest_store.get(quest_id).is_none() {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id, "QuestGiverCloseQuest: represented quest template miss"
             );
             return false;
         }
 
         #[cfg(test)]
-        self.quest_test_fixture_like_cpp
+        self.quest_state
+            .quest_test_fixture_like_cpp
             .represented_auto_accept_acknowledged_quests_like_cpp
             .push(quest_id);
         true
@@ -270,7 +271,8 @@ impl WorldSession {
         if removed {
             #[cfg(test)]
             {
-                self.quest_test_fixture_like_cpp
+                self.quest_state
+                    .quest_test_fixture_like_cpp
                     .represented_timed_quest_removals_like_cpp
                     .push(quest_id);
             }
@@ -356,7 +358,7 @@ impl WorldSession {
                     return (0, 0, 0, [0; 24]);
                 };
 
-                let store = self.quests.store.as_ref();
+                let store = self.catalogs.quests.store.as_ref();
                 let quest = store.and_then(|store| store.get(qs.quest_id));
                 let mut state_flags: u32 = match qs.status {
                     QUEST_STATUS_COMPLETE_LIKE_CPP => QUEST_STATE_COMPLETE_LIKE_CPP,

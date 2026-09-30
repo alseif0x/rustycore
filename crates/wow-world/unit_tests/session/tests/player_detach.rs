@@ -8,7 +8,7 @@ fn legacy_record() -> (WorldSession, SharedCanonicalMapManager, ObjectGuid) {
     session.set_player_guid(Some(guid));
     session.set_canonical_map_manager(Arc::clone(&manager));
     add_canonical_test_player_on_map(&manager, guid, Position::new(1.0, 2.0, 3.0, 0.5), 571, 7);
-    assert!(session.player_handle_like_cpp.is_none());
+    assert!(session.core.player_handle_like_cpp.is_none());
     (session, manager, guid)
 }
 
@@ -27,10 +27,10 @@ fn detach_adopts_the_unique_legacy_record_without_discarding_its_player() {
         player as *const Player as usize
     };
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
-    let handle = session.player_handle_like_cpp.unwrap();
+    let handle = session.core.player_handle_like_cpp.unwrap();
     for _ in 0..2 {
         assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
-        assert_eq!(session.player_handle_like_cpp, Some(handle));
+        assert_eq!(session.core.player_handle_like_cpp, Some(handle));
         let manager = manager.lock().unwrap();
         assert_eq!(
             manager.player_residence_like_cpp(handle),
@@ -60,7 +60,7 @@ fn detach_rejects_ambiguous_legacy_records_without_removing_either() {
     let (mut session, manager, guid) = legacy_record();
     add_canonical_test_player_on_map(&manager, guid, Position::default(), 0, 0);
     assert!(!session.remove_current_player_from_canonical_current_map_like_cpp());
-    assert!(session.player_handle_like_cpp.is_none());
+    assert!(session.core.player_handle_like_cpp.is_none());
     let manager = manager.lock().unwrap();
     for (map, instance) in [(571, 7), (0, 0)] {
         assert!(
@@ -78,7 +78,7 @@ fn detach_rejects_ambiguous_legacy_records_without_removing_either() {
 fn detach_with_a_stale_handle_cannot_adopt_or_remove_its_replacement() {
     let (mut session, manager, guid) = legacy_record();
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
-    let original = session.player_handle_like_cpp;
+    let original = session.core.player_handle_like_cpp;
     let replacement = {
         let mut manager = manager.lock().unwrap();
         let mut player = Box::new(Player::new(Some(1), false));
@@ -91,7 +91,7 @@ fn detach_with_a_stale_handle_cannot_adopt_or_remove_its_replacement() {
         handle
     };
     assert!(!session.remove_current_player_from_canonical_current_map_like_cpp());
-    assert_eq!(session.player_handle_like_cpp, original);
+    assert_eq!(session.core.player_handle_like_cpp, original);
     let manager = manager.lock().unwrap();
     assert_eq!(
         manager.player_residence_like_cpp(replacement),

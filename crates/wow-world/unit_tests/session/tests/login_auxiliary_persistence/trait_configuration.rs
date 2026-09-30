@@ -4,7 +4,7 @@ use super::*;
 async fn trait_config_load_does_not_authorize_stale_or_missing_player_owner() {
     let (mut session, _, _) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
@@ -20,7 +20,7 @@ async fn trait_config_load_does_not_authorize_stale_or_missing_player_owner() {
         .with_player_like_cpp(handle, projection);
     for missing in [false, true] {
         if missing {
-            session.canonical_map_manager = None;
+            session.core.canonical_map_manager = None;
         }
         session.set_player_lifecycle_port_like_cpp(AuxiliaryLoadPortLikeCpp::new([
             PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
@@ -420,11 +420,13 @@ async fn malformed_trait_entry_keeps_authority_incomplete_without_suppressing_co
     assert!(configs[0].entries.is_empty());
     assert!(
         !session
+            .spell_state
             .player_spell_test_fixture_like_cpp
             .represented_trait_config_rows_complete_like_cpp
     );
     assert!(
         !session
+            .spell_state
             .player_spell_test_fixture_like_cpp
             .represented_trait_entry_rows_complete_like_cpp
     );
@@ -465,6 +467,7 @@ async fn failed_trait_entries_do_not_suppress_the_independent_config_query_like_
     assert_eq!(configs[0].trait_system_id, 7);
     assert!(
         !session
+            .spell_state
             .player_spell_test_fixture_like_cpp
             .represented_trait_config_rows_complete_like_cpp
     );

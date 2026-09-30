@@ -10,22 +10,22 @@ use super::{WorldSession, debug, registry};
 impl WorldSession {
     /// Set the shared player registry (used for broadcast).
     pub fn set_player_registry(&mut self, registry: Arc<PlayerRegistry>) {
-        if let Some(manager) = &self.canonical_map_manager {
+        if let Some(manager) = &self.core.canonical_map_manager {
             let _ = registry.bind_canonical_map_manager(Arc::clone(manager));
         } else if let Some(manager) = registry.canonical_map_manager_like_cpp() {
-            self.canonical_map_manager = Some(manager);
+            self.core.canonical_map_manager = Some(manager);
         }
-        self.player_registry = Some(registry);
+        self.core.player_registry = Some(registry);
     }
 
     /// Get a reference to the shared player registry.
     pub fn player_registry(&self) -> Option<&Arc<PlayerRegistry>> {
-        self.player_registry.as_ref()
+        self.core.player_registry.as_ref()
     }
 
     /// Get a reference to the shared pending invites map.
     pub fn pending_invites(&self) -> Option<&Arc<PendingInvites>> {
-        self.directory.pending_invites.as_ref()
+        self.core.directory.pending_invites.as_ref()
     }
 
     pub(crate) fn player_is_in_world_for_registry_like_cpp(&self) -> bool {
@@ -33,7 +33,7 @@ impl WorldSession {
             return false;
         };
 
-        if let Some(manager) = &self.canonical_map_manager
+        if let Some(manager) = &self.core.canonical_map_manager
             && let Ok(manager) = manager.lock()
         {
             let mut canonical_in_world = None;
@@ -59,6 +59,7 @@ impl WorldSession {
             return false;
         };
         let Some(manager) = self
+            .core
             .canonical_map_manager
             .as_ref()
             .and_then(|manager| manager.lock().ok())
@@ -90,7 +91,7 @@ impl WorldSession {
             self.player_guid(),
             self.player_position_like_cpp(),
             self.player_name_like_cpp(),
-            &self.player_registry,
+            &self.core.player_registry,
         ) else {
             return;
         };
@@ -109,6 +110,7 @@ impl WorldSession {
             .map(|k| k.instance_id)
             .unwrap_or(0);
         let active_loot_rolls = self
+            .loot
             .represented_loot_rolls
             .values()
             .map(|state| state.command_identity.clone())
@@ -118,13 +120,13 @@ impl WorldSession {
             PlayerSessionRegistrationLikeCpp {
                 identity: crate::session::directory::PlayerDirectoryIdentityLikeCpp::new_with_bnet(
                     name.clone(),
-                    self.account_id,
+                    self.core.account_id,
                     self.battlenet_account_id(),
-                    self.account_state.recruiter_id_like_cpp,
+                    self.core.account_state.recruiter_id_like_cpp,
                     race,
                     class,
                     gender,
-                    self.expansion,
+                    self.core.expansion,
                 ),
                 placement: crate::session::directory::PlayerDirectoryPlacementLikeCpp {
                     map_id,
@@ -137,18 +139,21 @@ impl WorldSession {
                 active_loot_rolls,
                 send_tx: self.send_tx().clone(),
                 realm_send_tx: self.realm_route_tx().clone(),
-                command_tx: self.session_command_tx.clone(),
+                command_tx: self.core.session_command_tx.clone(),
                 session_phase_tx: self.phase.tx.clone(),
                 durable_creature_runtime_commands_like_cpp: Arc::clone(
-                    &self.durable_creature_runtime_commands_like_cpp,
+                    &self.core.durable_creature_runtime_commands_like_cpp,
                 ),
-                client_visible_guids_like_cpp: self.client_visible_guids_like_cpp.clone(),
-                client_visible_transports_like_cpp: self.client_visible_transports_like_cpp.clone(),
+                client_visible_guids_like_cpp: self.core.client_visible_guids_like_cpp.clone(),
+                client_visible_transports_like_cpp: self
+                    .visibility
+                    .client_visible_transports_like_cpp
+                    .clone(),
                 advanced_combat_logging_enabled_like_cpp: Arc::clone(
-                    &self.flags.advanced_combat_logging_enabled_like_cpp,
+                    &self.core.flags.advanced_combat_logging_enabled_like_cpp,
                 ),
                 visibility_refresh_pending_like_cpp: Arc::clone(
-                    &self.flags.visibility_refresh_pending_like_cpp,
+                    &self.core.flags.visibility_refresh_pending_like_cpp,
                 ),
             },
             Arc::clone(&self.lifecycle.durable_loot_money_persistence_like_cpp),
@@ -166,7 +171,7 @@ impl WorldSession {
     }
 
     pub(crate) fn sync_player_registry_state_like_cpp(&self) {
-        let (Some(guid), Some(registry)) = (self.player_guid(), &self.player_registry) else {
+        let (Some(guid), Some(registry)) = (self.player_guid(), &self.core.player_registry) else {
             return;
         };
         self.update_registry_position();
@@ -174,8 +179,9 @@ impl WorldSession {
         crate::canonical_player_sync::hydrate_player_directory_fixture_like_cpp(self);
         registry.replace_loot_rolls_for_control_channel(
             guid,
-            &self.session_command_tx,
-            self.represented_loot_rolls
+            &self.core.session_command_tx,
+            self.loot
+                .represented_loot_rolls
                 .values()
                 .map(|state| state.command_identity.clone())
                 .collect(),

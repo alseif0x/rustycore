@@ -63,8 +63,8 @@ impl WorldSession {
     /// and CONFIG_MAX_PLAYER_LEVEL. RestMgr deliberately uses the config-only
     /// check above instead, so keep these two concepts separate.
     pub(crate) fn player_active_max_level_like_cpp(&self) -> u32 {
-        let expansion_max = u32::from(max_level_for_expansion_like_cpp(self.expansion));
-        let configured_max = self.max_player_level_config_like_cpp;
+        let expansion_max = u32::from(max_level_for_expansion_like_cpp(self.core.expansion));
+        let configured_max = self.config.max_player_level_config_like_cpp;
         if expansion_max == 80 || expansion_max >= configured_max {
             configured_max
         } else {
@@ -100,24 +100,32 @@ impl WorldSession {
         let canonical =
             self.with_owned_player_for_rest_like_cpp(|player| player.rest_state_like_cpp().clone());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
                 wow_entities::PlayerRestState::from_represented_parts_like_cpp(
-                    self.rest_mgr_test_fixture_like_cpp
+                    self.progression
+                        .rest_mgr_test_fixture_like_cpp
                         .represented_rest_state_xp_like_cpp,
-                    self.rest_mgr_test_fixture_like_cpp
+                    self.progression
+                        .rest_mgr_test_fixture_like_cpp
                         .represented_rest_bonus_xp_like_cpp,
-                    self.rest_mgr_test_fixture_like_cpp
+                    self.progression
+                        .rest_mgr_test_fixture_like_cpp
                         .represented_rest_flag_mask_like_cpp,
-                    self.rest_mgr_test_fixture_like_cpp
+                    self.progression
+                        .rest_mgr_test_fixture_like_cpp
                         .represented_rest_location_initialized_like_cpp,
-                    self.rest_mgr_test_fixture_like_cpp
+                    self.progression
+                        .rest_mgr_test_fixture_like_cpp
                         .represented_defer_rest_flag_sync_like_cpp,
-                    self.rest_mgr_test_fixture_like_cpp
+                    self.progression
+                        .rest_mgr_test_fixture_like_cpp
                         .represented_deferred_rest_flag_update_dirty_like_cpp,
-                    self.rest_mgr_test_fixture_like_cpp
+                    self.progression
+                        .rest_mgr_test_fixture_like_cpp
                         .represented_inn_area_trigger_id_like_cpp,
-                    self.rest_mgr_test_fixture_like_cpp
+                    self.progression
+                        .rest_mgr_test_fixture_like_cpp
                         .represented_rest_time_secs_like_cpp,
                 ),
             );
@@ -147,24 +155,32 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.rest_mgr_test_fixture_like_cpp
+        if self.core.player_handle_like_cpp.is_none() {
+            self.progression
+                .rest_mgr_test_fixture_like_cpp
                 .represented_rest_bonus_xp_like_cpp = state.rest_bonus_like_cpp();
-            self.rest_mgr_test_fixture_like_cpp
+            self.progression
+                .rest_mgr_test_fixture_like_cpp
                 .represented_rest_state_xp_like_cpp = state.rest_state_like_cpp();
-            self.rest_mgr_test_fixture_like_cpp
+            self.progression
+                .rest_mgr_test_fixture_like_cpp
                 .represented_rest_flag_mask_like_cpp = state.rest_flag_mask_like_cpp();
-            self.rest_mgr_test_fixture_like_cpp
+            self.progression
+                .rest_mgr_test_fixture_like_cpp
                 .represented_rest_location_initialized_like_cpp =
                 state.is_location_initialized_like_cpp();
-            self.rest_mgr_test_fixture_like_cpp
+            self.progression
+                .rest_mgr_test_fixture_like_cpp
                 .represented_defer_rest_flag_sync_like_cpp = state.defers_flag_sync_like_cpp();
-            self.rest_mgr_test_fixture_like_cpp
+            self.progression
+                .rest_mgr_test_fixture_like_cpp
                 .represented_deferred_rest_flag_update_dirty_like_cpp =
                 state.deferred_flag_update_dirty_like_cpp();
-            self.rest_mgr_test_fixture_like_cpp
+            self.progression
+                .rest_mgr_test_fixture_like_cpp
                 .represented_inn_area_trigger_id_like_cpp = state.inn_trigger_id_like_cpp();
-            self.rest_mgr_test_fixture_like_cpp
+            self.progression
+                .rest_mgr_test_fixture_like_cpp
                 .represented_rest_time_secs_like_cpp = state.rest_time_secs_like_cpp();
             return true;
         }
@@ -177,7 +193,7 @@ impl WorldSession {
         rest_bonus: f32,
     ) -> u8 {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self.fixture_set_xp_rest_bonus_like_cpp(rest_bonus);
         }
         let at_max = self.player_is_at_configured_max_level_like_cpp();
@@ -190,7 +206,7 @@ impl WorldSession {
 
     pub(crate) fn add_represented_xp_rest_bonus_like_cpp(&mut self, rest_bonus: f32) -> u8 {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             let Some(current) = self.resolved_xp_rest_bonus_like_cpp() else {
                 return 0;
             };
@@ -257,6 +273,7 @@ impl WorldSession {
     #[cfg(test)]
     pub(in crate::session) fn revalidate_represented_tavern_resting_like_cpp(&mut self) {
         let db2 = self
+            .catalogs
             .area_trigger_db2_store
             .clone()
             .unwrap_or_else(|| Arc::new(AreaTriggerDb2Store::from_entries([])));
@@ -271,8 +288,9 @@ impl WorldSession {
             return value;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self
+                .lifecycle
                 .player_flags_test_fixture_like_cpp
                 .represented_loaded_player_flags_like_cpp
                 .is_some_and(|flags| (flags & flag) != 0);
@@ -284,8 +302,9 @@ impl WorldSession {
         let canonical =
             self.canonical_player_snapshot_like_cpp(|player| player.data().player_flags);
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return self
+                .lifecycle
                 .player_flags_test_fixture_like_cpp
                 .represented_loaded_player_flags_like_cpp;
         }
@@ -305,7 +324,7 @@ impl WorldSession {
             return (0, 0);
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self.fixture_take_xp_rest_bonus_like_cpp(xp, victim);
         }
         let Some(pct) = self.resolved_total_represented_aura_modifier_like_cpp(
@@ -405,8 +424,9 @@ impl WorldSession {
             self.with_owned_player_for_rest_like_cpp(|player| player.data().player_flags_ex);
         #[cfg(test)]
         let canonical_flags_ex =
-            if canonical_flags_ex.is_none() && self.player_handle_like_cpp.is_none() {
-                self.player_flags_test_fixture_like_cpp
+            if canonical_flags_ex.is_none() && self.core.player_handle_like_cpp.is_none() {
+                self.lifecycle
+                    .player_flags_test_fixture_like_cpp
                     .represented_loaded_player_flags_ex_like_cpp
                     .or(Some(0))
             } else {
@@ -421,10 +441,12 @@ impl WorldSession {
         self.resolved_player_flags_for_create_like_cpp()
             .unwrap_or_else(|| {
                 (
-                    self.player_flags_test_fixture_like_cpp
+                    self.lifecycle
+                        .player_flags_test_fixture_like_cpp
                         .represented_loaded_player_flags_like_cpp
                         .unwrap_or(0),
-                    self.player_flags_test_fixture_like_cpp
+                    self.lifecycle
+                        .player_flags_test_fixture_like_cpp
                         .represented_loaded_player_flags_ex_like_cpp
                         .unwrap_or(0),
                 )

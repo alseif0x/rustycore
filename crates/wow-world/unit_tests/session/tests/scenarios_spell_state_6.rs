@@ -77,6 +77,7 @@ async fn db_implicit_destination_or_db_invalid_row_zero_radius_keeps_caster_like
     let manager = canonical.lock().unwrap();
     let managed = manager.find_map(571, 0).expect("canonical map");
     let summoned_guid = session
+        .core
         .client_visible_guids_like_cpp
         .snapshot_like_cpp()
         .into_iter()
@@ -190,6 +191,7 @@ async fn or_db_invalid_row_positive_radius_offsets_from_caster_like_cpp() {
     let manager = canonical.lock().unwrap();
     let managed = manager.find_map(571, 0).expect("canonical map");
     let summoned_guid = session
+        .core
         .client_visible_guids_like_cpp
         .snapshot_like_cpp()
         .into_iter()
@@ -303,6 +305,7 @@ async fn db_implicit_destination_or_db_missing_row_zero_radius_keeps_caster_like
     let manager = canonical.lock().unwrap();
     let managed = manager.find_map(571, 0).expect("canonical map");
     let summoned_guid = session
+        .core
         .client_visible_guids_like_cpp
         .snapshot_like_cpp()
         .into_iter()
@@ -399,6 +402,7 @@ async fn db_implicit_caster_destination_uses_spell_target_position_same_map_like
     let manager = canonical.lock().unwrap();
     let managed = manager.find_map(571, 0).expect("canonical map");
     let summoned_guid = session
+        .core
         .client_visible_guids_like_cpp
         .snapshot_like_cpp()
         .into_iter()
@@ -490,6 +494,7 @@ async fn db_implicit_caster_destination_ignores_other_map_for_non_teleport_bind_
     let manager = canonical.lock().unwrap();
     let managed = manager.find_map(571, 0).expect("canonical map");
     let summoned_guid = session
+        .core
         .client_visible_guids_like_cpp
         .snapshot_like_cpp()
         .into_iter()
@@ -855,6 +860,7 @@ async fn db_implicit_caster_destination_missing_row_uses_object_target_like_cpp(
     let manager = canonical.lock().unwrap();
     let managed = manager.find_map(571, 0).expect("canonical map");
     let summoned_guid = session
+        .core
         .client_visible_guids_like_cpp
         .snapshot_like_cpp()
         .into_iter()

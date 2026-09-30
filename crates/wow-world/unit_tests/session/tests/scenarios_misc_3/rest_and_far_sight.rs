@@ -68,6 +68,7 @@ async fn post_add_flushes_deferred_rest_flag_update_after_world_states_like_cpp(
     assert!(rest_update_indices[0] > init_world_states_index);
     assert_eq!(
         session
+            .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_rest_flag_mask_like_cpp,
         0
@@ -96,15 +97,16 @@ async fn far_sight_process_pending_canonical_clear_resets_session_seer_like_cpp(
     ));
     add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(stale_dynamic_object_guid);
-    session.last_visibility_pos = Some(player_position);
+    session.visibility.last_visibility_pos = Some(player_position);
 
     session.process_pending().await;
 
     assert_eq!(session.represented_seer_guid_like_cpp(), Some(player_guid));
     assert_eq!(
-        session.last_visibility_pos, None,
+        session.visibility.last_visibility_pos, None,
         "live tick consumption should invalidate the visibility throttle without requiring update_visibility"
     );
     let expected_farsight_clear = expected_active_player_farsight_object_values_update_like_cpp(
@@ -149,9 +151,10 @@ async fn far_sight_process_pending_non_logged_in_keeps_session_seer_like_cpp() {
     ));
     add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(stale_dynamic_object_guid);
-    session.last_visibility_pos = Some(player_position);
+    session.visibility.last_visibility_pos = Some(player_position);
 
     session.process_pending().await;
 
@@ -160,7 +163,10 @@ async fn far_sight_process_pending_non_logged_in_keeps_session_seer_like_cpp() {
         Some(stale_dynamic_object_guid),
         "non-logged-in process_pending must not consume canonical farsight clear"
     );
-    assert_eq!(session.last_visibility_pos, Some(player_position));
+    assert_eq!(
+        session.visibility.last_visibility_pos,
+        Some(player_position)
+    );
     let expected_farsight_clear = expected_active_player_farsight_object_values_update_like_cpp(
         player_guid,
         session.player_map_id_like_cpp(),
@@ -198,9 +204,10 @@ async fn far_sight_process_pending_non_empty_canonical_keeps_session_seer_like_c
     add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
     set_canonical_player_farsight_object_like_cpp(&canonical, player_guid, dynamic_object_guid);
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(dynamic_object_guid);
-    session.last_visibility_pos = Some(player_position);
+    session.visibility.last_visibility_pos = Some(player_position);
 
     session.process_pending().await;
 
@@ -209,7 +216,10 @@ async fn far_sight_process_pending_non_empty_canonical_keeps_session_seer_like_c
         Some(dynamic_object_guid),
         "non-empty canonical FarsightObject must preserve represented m_seer"
     );
-    assert_eq!(session.last_visibility_pos, Some(player_position));
+    assert_eq!(
+        session.visibility.last_visibility_pos,
+        Some(player_position)
+    );
     let expected_farsight_clear = expected_active_player_farsight_object_values_update_like_cpp(
         player_guid,
         session.player_map_id_like_cpp(),

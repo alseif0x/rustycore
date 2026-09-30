@@ -33,11 +33,12 @@ impl WorldSession {
     /// `World::KickAll`; session state is still mutated only by the session
     /// task when it drains the channel.
     pub fn session_command_tx(&self) -> flume::Sender<SessionCommand> {
-        self.session_command_tx.clone()
+        self.core.session_command_tx.clone()
     }
 
     pub(crate) fn drain_session_commands(&self) -> Vec<SessionCommand> {
         let durable_commands = self
+            .core
             .durable_creature_runtime_commands_like_cpp
             .lock()
             .map(|mut pending| pending.drain_like_cpp())
@@ -53,7 +54,7 @@ impl WorldSession {
             .unwrap_or(durable_commands.len());
         let mut commands = durable_commands;
         let deferred_durable_suffix = commands.split_off(first_visible);
-        while let Ok(command) = self.session_command_rx.try_recv() {
+        while let Ok(command) = self.core.session_command_rx.try_recv() {
             commands.push(command);
         }
         commands.extend(deferred_durable_suffix);
@@ -61,7 +62,8 @@ impl WorldSession {
     }
 
     pub(crate) fn take_durable_creature_runtime_overflow_like_cpp(&self) -> bool {
-        self.durable_creature_runtime_commands_like_cpp
+        self.core
+            .durable_creature_runtime_commands_like_cpp
             .lock()
             .map(|mut pending| pending.take_overflowed_and_discard_like_cpp())
             .unwrap_or(true)

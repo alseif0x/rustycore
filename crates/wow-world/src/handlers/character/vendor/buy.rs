@@ -409,7 +409,7 @@ impl WorldSession {
             flags2,
             self.player_class_like_cpp(),
             self.player_race_like_cpp(),
-            self.security > 0,
+            self.core.security > 0,
         ) {
             match block {
                 VendorBuyTemplateBlock::BuyError(result) => {

@@ -211,7 +211,7 @@ impl crate::session::WorldSession {
         // C++ logs the CaseID and otherwise has only a TODO for future survey persistence.
         if let Err(error) = GmTicketAcknowledgeSurvey::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "GmTicketAcknowledgeSurvey parse failed: {error}"
             );
         }
@@ -221,7 +221,10 @@ impl crate::session::WorldSession {
         let complaint = match Complaint::read(&mut pkt) {
             Ok(complaint) => complaint,
             Err(error) => {
-                warn!(account = self.account_id, "Complaint parse failed: {error}");
+                warn!(
+                    account = self.core.account_id,
+                    "Complaint parse failed: {error}"
+                );
                 return;
             }
         };
@@ -241,7 +244,7 @@ impl crate::session::WorldSession {
             Ok(feedback) => feedback,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "SubmitUserFeedback parse failed: {error}"
                 );
                 return;
@@ -270,7 +273,7 @@ impl crate::session::WorldSession {
             Ok(bug) => bug,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "SupportTicketSubmitBug parse failed: {error}"
                 );
                 return;
@@ -297,7 +300,7 @@ impl crate::session::WorldSession {
             Ok(complaint) => complaint,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "SupportTicketSubmitComplaint parse failed: {error}"
                 );
                 return;
@@ -323,7 +326,7 @@ impl crate::session::WorldSession {
             Ok(suggestion) => suggestion,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "SupportTicketSubmitSuggestion parse failed: {error}"
                 );
                 return;
@@ -348,7 +351,10 @@ impl crate::session::WorldSession {
         let report = match BugReport::read(&mut pkt) {
             Ok(report) => report,
             Err(error) => {
-                warn!(account = self.account_id, "BugReport parse failed: {error}");
+                warn!(
+                    account = self.core.account_id,
+                    "BugReport parse failed: {error}"
+                );
                 return;
             }
         };
@@ -369,7 +375,7 @@ impl crate::session::WorldSession {
             wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
             | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     error = %reason,
                     "failed to persist represented CMSG_BUG_REPORT"
                 );
@@ -424,7 +430,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "ObjectUpdateFailed parse failed: {error}"
                 );
                 return;
@@ -436,7 +442,8 @@ impl crate::session::WorldSession {
             return;
         }
 
-        self.client_visible_guids_like_cpp
+        self.core
+            .client_visible_guids_like_cpp
             .remove(&packet.object_guid);
     }
 
@@ -445,14 +452,15 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "ObjectUpdateRescued parse failed: {error}"
                 );
                 return;
             }
         };
 
-        self.client_visible_guids_like_cpp
+        self.core
+            .client_visible_guids_like_cpp
             .insert(packet.object_guid);
     }
 }

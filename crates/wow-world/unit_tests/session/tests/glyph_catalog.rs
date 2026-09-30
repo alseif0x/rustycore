@@ -46,6 +46,6 @@ fn glyph_load_uses_supplied_catalog_for_active_and_detached_canonical_player() {
             0
         );
     }
-    session.canonical_map_manager = None;
+    session.core.canonical_map_manager = None;
     assert!(!session.load_represented_glyph_row_like_cpp(&catalog, 0, 0, 123));
 }

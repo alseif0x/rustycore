@@ -15,7 +15,7 @@ impl WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "RequestStabledPets parse failed: {error}"
                 );
                 return;
@@ -26,7 +26,7 @@ impl WorldSession {
         // The live stable-master validation and Player::SetStableMaster update
         // fields are not ported here yet, so preserve that observable branch.
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             stable_master = ?request.stable_master,
             "RequestStabledPets ignored without represented stable-master runtime"
         );

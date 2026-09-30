@@ -5,8 +5,8 @@ async fn spell_damage_skips_dead_creature_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let manager = shared_map_manager();
     let guid = test_creature_guid(18_010);
-    session.player_guid = Some(ObjectGuid::create_player(1, 53));
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(ObjectGuid::create_player(1, 53));
+    session.core.client_visible_guids_like_cpp.insert(guid);
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -34,7 +34,7 @@ async fn spell_instakill_effect_row_kills_creature_and_logs_like_cpp() {
     let spell_id = 728_i32;
     let guid = test_creature_guid(18_013);
     let player_guid = ObjectGuid::create_player(1, 56);
-    session.player_guid = Some(player_guid);
+    session.core.player_guid = Some(player_guid);
     session.set_player_level_like_cpp(80);
     register_test_creature(&mut session, manager.clone(), guid, 40);
 

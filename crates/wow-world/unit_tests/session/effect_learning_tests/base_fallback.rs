@@ -45,6 +45,7 @@ fn base_learn_spell_fallback_keeps_known_lower_rank_inactive_like_cpp() {
 
     assert_eq!(
         session
+            .spell_state
             .player_spell_test_fixture_like_cpp
             .represented_player_spell_rows_like_cpp
             .get(&lower_spell_id)
@@ -90,6 +91,7 @@ fn base_learn_spell_fallback_rejects_ranked_insertion_before_partial_mutation() 
 
     assert_eq!(
         session
+            .spell_state
             .player_spell_test_fixture_like_cpp
             .represented_player_spell_rows_like_cpp
             .get(&lower_spell_id),
@@ -97,6 +99,7 @@ fn base_learn_spell_fallback_rejects_ranked_insertion_before_partial_mutation() 
     );
     assert!(
         !session
+            .spell_state
             .player_spell_test_fixture_like_cpp
             .represented_player_spell_rows_like_cpp
             .contains_key(&higher_spell_id)
@@ -137,6 +140,7 @@ fn base_learn_spell_fallback_allows_first_rank_insertion_like_cpp() {
 
     assert_eq!(
         session
+            .spell_state
             .player_spell_test_fixture_like_cpp
             .represented_player_spell_rows_like_cpp[&first_rank],
         RepresentedPlayerSpellLikeCpp {
@@ -214,6 +218,7 @@ fn base_learn_spell_fallback_reactivates_disabled_cpp_closure_in_order() {
     assert!(apply_base_learning_like_cpp(&mut session, root_spell));
 
     let rows = &session
+        .spell_state
         .player_spell_test_fixture_like_cpp
         .represented_player_spell_rows_like_cpp;
     assert!(rows.values().all(|row| !row.disabled));
@@ -292,18 +297,21 @@ fn base_learn_spell_fallback_clears_trait_override_before_reactivation_like_cpp(
 
     assert!(
         !session
+            .spell_state
             .player_spell_test_fixture_like_cpp
             .represented_spell_trait_definition_ids_like_cpp
             .contains_key(&spell_id)
     );
     assert!(
         !session
+            .spell_state
             .represented_override_spells_like_cpp
             .get(&overridden_spell_id)
             .is_some_and(|spells| spells.contains(&spell_id))
     );
     assert!(
         !session
+            .spell_state
             .player_spell_test_fixture_like_cpp
             .represented_player_spell_rows_like_cpp[&spell_id]
             .disabled
@@ -353,6 +361,7 @@ fn base_learn_spell_fallback_replaces_temporary_row_with_durable_new_row_like_cp
 
     assert_eq!(
         session
+            .spell_state
             .player_spell_test_fixture_like_cpp
             .represented_player_spell_rows_like_cpp
             .get(&spell_id),
@@ -409,6 +418,7 @@ fn base_learn_spell_fallback_rejects_disabled_row_without_dependency_authority()
 
     assert_eq!(
         session
+            .spell_state
             .player_spell_test_fixture_like_cpp
             .represented_player_spell_rows_like_cpp
             .get(&spell_id),

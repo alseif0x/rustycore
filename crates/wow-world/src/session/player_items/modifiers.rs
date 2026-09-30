@@ -8,14 +8,14 @@ use super::*;
 impl WorldSession {
     /// Set the C++ ItemLimitCategory.db2 store for this session.
     pub fn set_item_limit_category_store(&mut self, store: Arc<ItemLimitCategoryStore>) {
-        self.items.limit_category_store = Some(store);
+        self.catalogs.items.limit_category_store = Some(store);
     }
     /// Set the C++ ItemLimitCategoryCondition.db2 store for this session.
     pub fn set_item_limit_category_condition_store(
         &mut self,
         store: Arc<ItemLimitCategoryConditionStore>,
     ) {
-        self.items.limit_category_condition_store = Some(store);
+        self.catalogs.items.limit_category_condition_store = Some(store);
     }
     /// C++ `sItemLimitCategoryStore.LookupEntry(limitCategory)`.
     pub(crate) fn item_limit_category_template_like_cpp(
@@ -27,17 +27,19 @@ impl WorldSession {
         }
 
         let entry = self
+            .catalogs
             .items
             .limit_category_store
             .as_ref()
             .and_then(|store| store.get(limit_category_id))?;
 
         let mut quantity = entry.quantity;
-        if let Some(condition_store) = self.items.limit_category_condition_store.as_ref() {
+        if let Some(condition_store) = self.catalogs.items.limit_category_condition_store.as_ref() {
             let context_holder = self.represented_player_condition_context_like_cpp()?;
             let context = context_holder.as_context(self)?;
             for condition in condition_store.conditions_for_parent_like_cpp(entry.id) {
                 let player_condition = self
+                    .catalogs
                     .player_condition_store
                     .as_ref()
                     .and_then(|store| store.get(condition.player_condition_id));
@@ -57,19 +59,20 @@ impl WorldSession {
     }
     /// Set the item stats store for this session.
     pub fn set_item_bonus_db2_store(&mut self, store: Arc<ItemBonusDb2Store>) {
-        self.items.bonus_db2_store = Some(store);
+        self.catalogs.items.bonus_db2_store = Some(store);
     }
     pub fn set_item_set_store(&mut self, store: Arc<ItemSetStore>) {
-        self.items.set_store = Some(store);
+        self.catalogs.items.set_store = Some(store);
     }
     pub fn set_item_set_spell_store(&mut self, store: Arc<ItemSetSpellStore>) {
-        self.spell_catalogs.item_set_spell_store = Some(store);
+        self.catalogs.spell_catalogs.item_set_spell_store = Some(store);
     }
     pub(crate) fn item_set_for_item_id_like_cpp(
         &self,
         item_id: u32,
     ) -> Option<&wow_data::ItemSetEntry> {
-        self.items
+        self.catalogs
+            .items
             .set_store
             .as_ref()
             .and_then(|store| store.item_set_for_item_id_like_cpp(item_id))
@@ -78,7 +81,8 @@ impl WorldSession {
         &self,
         item_set_id: u32,
     ) -> Vec<&wow_data::ItemSetSpellEntry> {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .item_set_spell_store
             .as_ref()
             .map(|store| store.item_set_spells_like_cpp(item_set_id))
@@ -90,9 +94,10 @@ impl WorldSession {
         let canonical = self
             .with_owned_player_like_cpp(|player| player.item_modifier_runtime_snapshot_like_cpp());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.player_item_test_fixture_like_cpp
+                self.inventory
+                    .player_item_test_fixture_like_cpp
                     .represented_item_modifier_runtime_like_cpp
                     .clone(),
             );
@@ -112,9 +117,10 @@ impl WorldSession {
             return canonical;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.player_item_test_fixture_like_cpp
+                self.inventory
+                    .player_item_test_fixture_like_cpp
                     .represented_item_modifier_runtime_like_cpp
                     .add_item_set_item_like_cpp(item_set_id, item_guid),
             );
@@ -134,9 +140,10 @@ impl WorldSession {
             return canonical;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.player_item_test_fixture_like_cpp
+                self.inventory
+                    .player_item_test_fixture_like_cpp
                     .represented_item_modifier_runtime_like_cpp
                     .add_item_set_bonus_like_cpp(item_set_id, spell_entry_id),
             );
@@ -156,9 +163,10 @@ impl WorldSession {
             return canonical;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.player_item_test_fixture_like_cpp
+                self.inventory
+                    .player_item_test_fixture_like_cpp
                     .represented_item_modifier_runtime_like_cpp
                     .remove_item_set_item_like_cpp(item_set_id, item_guid),
             );
@@ -178,9 +186,10 @@ impl WorldSession {
             return canonical;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.player_item_test_fixture_like_cpp
+                self.inventory
+                    .player_item_test_fixture_like_cpp
                     .represented_item_modifier_runtime_like_cpp
                     .remove_item_set_bonus_like_cpp(item_set_id, spell_entry_id),
             );
@@ -199,9 +208,10 @@ impl WorldSession {
             return canonical;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.player_item_test_fixture_like_cpp
+                self.inventory
+                    .player_item_test_fixture_like_cpp
                     .represented_item_modifier_runtime_like_cpp
                     .drop_empty_item_set_effect_like_cpp(item_set_id),
             );
@@ -220,8 +230,9 @@ impl WorldSession {
             return true;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.player_item_test_fixture_like_cpp
+        if self.core.player_handle_like_cpp.is_none() {
+            self.inventory
+                .player_item_test_fixture_like_cpp
                 .represented_item_modifier_runtime_like_cpp
                 .set_item_level_caps_like_cpp(caps);
             return true;
@@ -245,7 +256,8 @@ impl WorldSession {
     ) -> usize {
         #[cfg(test)]
         {
-            self.player_item_test_fixture_like_cpp
+            self.inventory
+                .player_item_test_fixture_like_cpp
                 .represented_item_mod_reapply_events_like_cpp
                 .push(RepresentedItemModsReapplyEventLikeCpp {
                     item_guid,
@@ -260,7 +272,7 @@ impl WorldSession {
         else {
             return 0;
         };
-        let Some(item_stats_store) = self.items.stats_store.as_ref().cloned() else {
+        let Some(item_stats_store) = self.catalogs.items.stats_store.as_ref().cloned() else {
             return 0;
         };
         let mut planned_actions = Vec::new();
@@ -385,7 +397,8 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        self.player_item_test_fixture_like_cpp
+        self.inventory
+            .player_item_test_fixture_like_cpp
             .represented_item_bonus_actions_like_cpp
             .extend(planned_actions.iter().cloned());
         let action_count = planned_actions.len();
@@ -401,7 +414,8 @@ impl WorldSession {
         let Ok(spell_id) = i32::try_from(spell_id) else {
             return false;
         };
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_store
             .as_ref()
             .is_none_or(|store| store.get(spell_id).is_some())
@@ -417,6 +431,7 @@ impl WorldSession {
             return false;
         };
         if !self
+            .catalogs
             .heirloom_store
             .as_ref()
             .is_some_and(|store| store.get_by_item_id_like_cpp(item_entry).is_some())
@@ -425,6 +440,7 @@ impl WorldSession {
         }
 
         let Some(template) = self
+            .catalogs
             .items
             .stats_store
             .as_ref()
@@ -438,9 +454,10 @@ impl WorldSession {
         }
 
         let Some((curve_store, curve_point_store)) = self
+            .catalogs
             .curve_store
             .as_ref()
-            .zip(self.curve_point_store.as_ref())
+            .zip(self.catalogs.curve_point_store.as_ref())
         else {
             return false;
         };
@@ -454,10 +471,17 @@ impl WorldSession {
         }
         let mut max_level = max_level as u32;
 
-        if let Some(content_tuning) = self.content_tuning_store.as_ref().and_then(|store| {
-            store
-                .content_tuning_data_like_cpp(template.scaling_stat_content_tuning_like_cpp(), true)
-        }) {
+        if let Some(content_tuning) =
+            self.catalogs
+                .content_tuning_store
+                .as_ref()
+                .and_then(|store| {
+                    store.content_tuning_data_like_cpp(
+                        template.scaling_stat_content_tuning_like_cpp(),
+                        true,
+                    )
+                })
+        {
             max_level = max_level.min(u32::try_from(content_tuning.max_level).unwrap_or(0));
         }
 
@@ -469,7 +493,8 @@ impl WorldSession {
     ) -> usize {
         let events = self.plan_represented_update_item_set_auras_like_cpp(form_change);
         #[cfg(test)]
-        self.player_item_test_fixture_like_cpp
+        self.inventory
+            .player_item_test_fixture_like_cpp
             .represented_item_set_aura_refresh_events_like_cpp
             .extend(events.iter().cloned());
         events.len()
@@ -635,7 +660,8 @@ impl WorldSession {
     ) -> usize {
         let events = self.plan_represented_update_item_set_auras_like_cpp(form_change);
         #[cfg(test)]
-        self.player_item_test_fixture_like_cpp
+        self.inventory
+            .player_item_test_fixture_like_cpp
             .represented_item_set_aura_refresh_events_like_cpp
             .extend(events.iter().cloned());
         let recorded = events.len();
@@ -714,8 +740,9 @@ impl WorldSession {
             return true;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.player_item_test_fixture_like_cpp
+        if self.core.player_handle_like_cpp.is_none() {
+            self.inventory
+                .player_item_test_fixture_like_cpp
                 .represented_item_modifier_runtime_like_cpp
                 .apply_enchantment_effect_action_like_cpp(action);
             return true;
@@ -727,7 +754,8 @@ impl WorldSession {
         // item modifiers from a previous character cannot survive into the
         // next login on the same session.
         #[cfg(test)]
-        self.player_item_test_fixture_like_cpp
+        self.inventory
+            .player_item_test_fixture_like_cpp
             .represented_item_bonus_actions_like_cpp
             .clear();
         let canonical_missing = self
@@ -738,8 +766,9 @@ impl WorldSession {
         #[cfg(not(test))]
         let _ = canonical_missing;
         #[cfg(test)]
-        if canonical_missing && self.player_handle_like_cpp.is_none() {
-            self.player_item_test_fixture_like_cpp
+        if canonical_missing && self.core.player_handle_like_cpp.is_none() {
+            self.inventory
+                .player_item_test_fixture_like_cpp
                 .represented_item_modifier_runtime_like_cpp
                 .reset_bonuses_like_cpp();
         }
@@ -821,6 +850,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedItemBonusActionLikeCpp] {
         &self
+            .inventory
             .player_item_test_fixture_like_cpp
             .represented_item_bonus_actions_like_cpp
     }
@@ -829,6 +859,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedItemSetSpellEventLikeCpp] {
         &self
+            .inventory
             .player_item_test_fixture_like_cpp
             .represented_item_set_spell_events_like_cpp
     }
@@ -837,6 +868,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedItemSetAuraRefreshEventLikeCpp] {
         &self
+            .inventory
             .player_item_test_fixture_like_cpp
             .represented_item_set_aura_refresh_events_like_cpp
     }
@@ -876,6 +908,7 @@ impl WorldSession {
             return Some(0);
         }
         let Some(faction) = self
+            .catalogs
             .factions
             .store
             .as_ref()
@@ -894,7 +927,7 @@ impl WorldSession {
             reputation_to_rank_like_cpp(
                 faction,
                 standing,
-                self.friendship_rep_reaction_store.as_deref(),
+                self.catalogs.friendship_rep_reaction_store.as_deref(),
             )
             .as_u8(),
         ))
@@ -908,6 +941,7 @@ impl WorldSession {
         item_id: u32,
     ) -> Vec<(u8, i32)> {
         let mut effects: Vec<(u8, i32)> = self
+            .catalogs
             .items
             .effect_store
             .as_ref()

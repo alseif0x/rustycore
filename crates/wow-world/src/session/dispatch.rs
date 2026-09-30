@@ -17,18 +17,18 @@ impl super::WorldSession {
             None => {
                 info!(
                     "Unknown client opcode 0x{opcode_raw:04X} from account {}",
-                    self.account_id
+                    self.core.account_id
                 );
                 return;
             }
         };
 
-        let entry = match self.admission.dispatch_table.get(&opcode) {
+        let entry = match self.core.admission.dispatch_table.get(&opcode) {
             Some(e) => *e,
             None => {
                 info!(
                     "No handler for {:?} (0x{opcode_raw:04X}) from account {}",
-                    opcode, self.account_id
+                    opcode, self.core.account_id
                 );
                 return;
             }
@@ -39,8 +39,8 @@ impl super::WorldSession {
             && opcode == ClientOpcodes::RequestCemeteryList
         {
             info!(
-                account = self.account_id,
-                state = ?self.state,
+                account = self.core.account_id,
+                state = ?self.core.state,
                 required = ?entry.status,
                 handler = entry.handler_name,
                 "RUST_CEMETERY_TRACE dispatch reached status gate"
@@ -49,14 +49,14 @@ impl super::WorldSession {
         if !self.is_status_allowed(entry.status) {
             warn!(
                 "Handler {} rejected: session state {:?} doesn't match required {:?}",
-                entry.handler_name, self.state, entry.status
+                entry.handler_name, self.core.state, entry.status
             );
             return;
         }
 
         debug!(
             "Dispatching {:?} via {} for account {}",
-            opcode, entry.handler_name, self.account_id
+            opcode, entry.handler_name, self.core.account_id
         );
 
         // Skip opcode before reading payload
@@ -65,8 +65,8 @@ impl super::WorldSession {
             && opcode == ClientOpcodes::RequestCemeteryList
         {
             info!(
-                account = self.account_id,
-                state = ?self.state,
+                account = self.core.account_id,
+                state = ?self.core.state,
                 packet_size = pkt.size(),
                 remaining = pkt.remaining(),
                 read_position = pkt.read_position(),
@@ -78,8 +78,8 @@ impl super::WorldSession {
             && opcode == ClientOpcodes::RequestCemeteryList;
         if cemetery_trace {
             info!(
-                account = self.account_id,
-                state = ?self.state,
+                account = self.core.account_id,
+                state = ?self.core.state,
                 "RUST_CEMETERY_TRACE before handler call"
             );
         }
@@ -90,8 +90,8 @@ impl super::WorldSession {
 
         if cemetery_trace {
             info!(
-                account = self.account_id,
-                state = ?self.state,
+                account = self.core.account_id,
+                state = ?self.core.state,
                 "RUST_CEMETERY_TRACE after handler call"
             );
         }
@@ -107,10 +107,11 @@ impl super::WorldSession {
     fn is_status_allowed(&self, required: SessionStatus) -> bool {
         match required {
             SessionStatus::Authed => true, // C++ STATUS_AUTHED
-            SessionStatus::LoggedIn => self.state == SessionState::LoggedIn,
-            SessionStatus::Transfer => self.state == SessionState::Transfer,
+            SessionStatus::LoggedIn => self.core.state == SessionState::LoggedIn,
+            SessionStatus::Transfer => self.core.state == SessionState::Transfer,
             SessionStatus::LoggedInOrRecentlyLogout => {
-                self.state == SessionState::LoggedIn || self.state == SessionState::Disconnecting
+                self.core.state == SessionState::LoggedIn
+                    || self.core.state == SessionState::Disconnecting
             }
         }
     }

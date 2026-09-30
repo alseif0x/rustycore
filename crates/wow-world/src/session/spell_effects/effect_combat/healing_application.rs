@@ -40,7 +40,7 @@ impl WorldSession {
             };
             if effective_heal == 0 && self.resolved_player_is_alive_like_cpp() != Some(true) {
                 debug!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     heal = heal_amount,
                     "Skipping self heal because C++ EffectHeal requires alive target"
                 );
@@ -56,7 +56,11 @@ impl WorldSession {
                 effective_heal,
                 absorbed,
             );
-            info!(account = self.account_id, heal = heal_amount, "Healed self");
+            info!(
+                account = self.core.account_id,
+                heal = heal_amount,
+                "Healed self"
+            );
             if healed != current {
                 self.sync_player_registry_state_like_cpp();
                 self.send_player_health_values_update_like_cpp(player_guid, u64::from(healed));
@@ -65,7 +69,7 @@ impl WorldSession {
             return Ok(());
         }
 
-        let account_id = self.account_id;
+        let account_id = self.core.account_id;
         let heal_outcome = self
             .mutate_world_creature(target_guid, |creature| {
                 if !creature.is_alive() {
@@ -110,7 +114,10 @@ impl WorldSession {
             0,
         );
 
-        if self.client_visible_guids_like_cpp.contains(&target_guid)
+        if self
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&target_guid)
             && let Some(update) = self.represented_unit_values_update_to_update_object_like_cpp(
                 target_guid,
                 self.player_map_id_like_cpp(),
@@ -301,7 +308,7 @@ impl WorldSession {
     ) -> Result<(), &'static str> {
         if damage < 0 {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 heal_pct = damage,
                 "Skipping SPELL_EFFECT_HEAL_PCT because C++ EffectHealPct returns when damage < 0"
             );
@@ -346,7 +353,7 @@ impl WorldSession {
     ) -> Result<(), &'static str> {
         if damage < 0 {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 leech_damage = damage,
                 "Skipping SPELL_EFFECT_HEALTH_LEECH because C++ EffectHealthLeech returns when damage < 0"
             );

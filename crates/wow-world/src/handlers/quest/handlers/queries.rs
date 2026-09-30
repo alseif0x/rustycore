@@ -30,7 +30,7 @@ impl WorldSession {
 
         let Some(source) = self.represented_quest_giver_status_query_source_like_cpp(guid) else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 ?guid,
                 "QuestGiverStatusQuery: represented ObjectAccessor mask UNIT|GAMEOBJECT miss"
             );
@@ -40,7 +40,7 @@ impl WorldSession {
             self.get_represented_quest_giver_status_with_catalog_like_cpp(Some(quest_info), source);
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             ?guid,
             source_entry = source.entry(),
             source_kind = source.kind_name(),
@@ -71,7 +71,7 @@ impl WorldSession {
             self.represented_npc_can_interact_with_like_cpp(guid, NPCFlags1::QUEST_GIVER.bits(), 0)
         else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 ?guid,
                 "QuestGiverHello: NPC not found or not interactable as questgiver"
             );
@@ -86,7 +86,7 @@ impl WorldSession {
                 .await
         {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 creature_entry = access.entry,
                 "QuestGiverHello sent catalog-backed prepared gossip menu like C++"
             );
@@ -100,7 +100,7 @@ impl WorldSession {
             access.npc_flags,
         ) {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 creature_entry = access.entry,
                 "QuestGiverHello sent trainer fallback prepared gossip menu like C++"
             );
@@ -109,7 +109,7 @@ impl WorldSession {
 
         if self.use_represented_creature_questgiver_like_cpp(guid, access.entry) {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 creature_entry = access.entry,
                 "QuestGiverHello represented Creature questgiver seam consumed"
             );
@@ -130,7 +130,7 @@ impl WorldSession {
             };
 
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             ?guid,
             quest_id,
             respond_to_giver,
@@ -138,7 +138,7 @@ impl WorldSession {
         );
         if !self.send_represented_quest_giver_query_quest_like_cpp(guid, quest_id) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 ?guid,
                 quest_id,
                 "QuestGiverQueryQuest produced no represented response"
@@ -157,7 +157,7 @@ impl WorldSession {
         let quest_id: u32 = pkt.read_uint32().unwrap_or(0);
         let _guid = pkt.read_packed_guid(); // requester GUID (usually player)
 
-        let quest_store = match &self.quests.store {
+        let quest_store = match &self.catalogs.quests.store {
             Some(s) => Arc::clone(s),
             None => {
                 self.send_packet(&QueryQuestInfoResponse {
@@ -235,7 +235,7 @@ impl WorldSession {
     /// - `WorldSession::HandleQueryQuestCompletionNPCs`, QueryHandler.cpp:252-278.
     /// - `QuestCompletionNPCResponse::Write`, QueryPackets.cpp:451-462.
     pub async fn handle_query_quest_completion_npcs(&mut self, query: QueryQuestCompletionNpcs) {
-        let store = self.quests.store.as_deref();
+        let store = self.catalogs.quests.store.as_deref();
         let quests = store.map_or_else(Vec::new, |quest_store| {
             represented_quest_completion_npc_response_like_cpp(quest_store, &query.quest_ids)
         });

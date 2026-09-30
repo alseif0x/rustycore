@@ -65,8 +65,8 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if _canonical || self.player_handle_like_cpp.is_none() {
-            self.player_stand_state_like_cpp = state;
+        if _canonical || self.core.player_handle_like_cpp.is_none() {
+            self.presentation.player_stand_state_like_cpp = state;
         }
     }
 
@@ -91,7 +91,8 @@ impl WorldSession {
         ) {
             debug!(?intent, ?outcome, "represented->live intent applied");
             #[cfg(test)]
-            self.represented_live_applications_like_cpp
+            self.presentation
+                .represented_live_applications_like_cpp
                 .push(RepresentedLiveApplicationLikeCpp { intent, outcome });
         }
 
@@ -111,8 +112,13 @@ impl WorldSession {
         };
 
         let state = change.state;
-        let spell_store = self.spell_catalogs.spell_store.as_ref().map(Arc::clone);
-        let difficulty_store = self.difficulty_store.as_ref().map(Arc::clone);
+        let spell_store = self
+            .catalogs
+            .spell_catalogs
+            .spell_store
+            .as_ref()
+            .map(Arc::clone);
+        let difficulty_store = self.catalogs.difficulty_store.as_ref().map(Arc::clone);
         let Some(represented_visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
             return RepresentedLiveIntentApplyOutcomeLikeCpp::RejectedMissingCanonicalPlayer;
         };
@@ -376,7 +382,7 @@ impl WorldSession {
     pub(crate) fn represented_live_applications_like_cpp(
         &self,
     ) -> &[RepresentedLiveApplicationLikeCpp] {
-        &self.represented_live_applications_like_cpp
+        &self.presentation.represented_live_applications_like_cpp
     }
 
     pub(in crate::session) fn resolved_player_stand_state_like_cpp(
@@ -385,8 +391,8 @@ impl WorldSession {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.unit().stand_state_like_cpp());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.player_stand_state_like_cpp);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.presentation.player_stand_state_like_cpp);
         }
         canonical
     }
@@ -422,7 +428,8 @@ impl WorldSession {
             return false;
         };
 
-        self.represented_gameobject_use_effects
+        self.world_entities
+            .represented_gameobject_use_effects
             .iter()
             .rev()
             .any(|effect| {
@@ -442,6 +449,7 @@ impl WorldSession {
         &self,
     ) -> &[TitanGripPenaltyAction] {
         &self
+            .inventory
             .player_item_test_fixture_like_cpp
             .represented_titan_grip_penalty_actions_like_cpp
     }

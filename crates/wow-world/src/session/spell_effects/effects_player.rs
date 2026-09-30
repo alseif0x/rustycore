@@ -31,7 +31,7 @@ impl WorldSession {
         let Some(guid) = self.player_guid() else {
             return;
         };
-        let Some(registry) = &self.player_registry else {
+        let Some(registry) = &self.core.player_registry else {
             return;
         };
         let Some(pos) = self.player_position_like_cpp() else {
@@ -207,10 +207,10 @@ impl WorldSession {
             .flatten();
         #[cfg(test)]
         let outcome = canonical.or_else(|| {
-            if self.player_handle_like_cpp.is_some() || self.player_alive_like_cpp {
+            if self.core.player_handle_like_cpp.is_some() || self.combat.player_alive_like_cpp {
                 return None;
             }
-            let max_health = self.player_max_health_like_cpp.max(1);
+            let max_health = self.combat.player_max_health_like_cpp.max(1);
             let health = if damage < 0 {
                 damage.saturating_abs() as u32
             } else {
@@ -219,8 +219,8 @@ impl WorldSession {
                     .saturating_div(100)
             }
             .min(max_health);
-            self.player_health_like_cpp = health;
-            self.player_alive_like_cpp = true;
+            self.combat.player_health_like_cpp = health;
+            self.combat.player_alive_like_cpp = true;
             Some((health, None))
         });
         #[cfg(not(test))]

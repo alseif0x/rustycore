@@ -89,7 +89,7 @@ pub(in crate::session::tests) fn register_test_creature(
     hp: u32,
 ) {
     session.set_map_manager(manager);
-    session.current_map_id = 0;
+    session.core.current_map_id = 0;
     if session.player_position_like_cpp().is_none() {
         session.set_player_map_position_like_cpp(0, Position::new(10.0, 10.0, 0.0, 0.0));
     }
@@ -314,7 +314,7 @@ pub(in crate::session::tests) fn configure_two_player_group_for_reputation_test(
     group.add_member(other_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 }

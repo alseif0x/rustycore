@@ -6,7 +6,7 @@ use super::*;
 fn rest_accrual_rejects_stale_and_missing_owner_without_touching_replacement() {
     let (mut session, _, _) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
@@ -29,7 +29,7 @@ fn rest_accrual_rejects_stale_and_missing_owner_without_touching_replacement() {
     };
     for missing in [false, true] {
         if missing {
-            session.canonical_map_manager = None;
+            session.core.canonical_map_manager = None;
         }
         assert_eq!(
             session.apply_offline_xp_rest_bonus_with_policy_like_cpp(&policy, 1, 86401, true),
@@ -287,7 +287,7 @@ fn rest_load_resets_transient_location_but_preserves_loaded_flags_and_unrelated_
 fn rest_mutation_runs_once_under_active_and_detached_owner_and_matches_old_projection() {
     let (mut session, _, send_rx) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     for detached in [false, true] {
         if detached {
             assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
@@ -416,7 +416,7 @@ fn rest_queries_preserve_loaded_flags_and_initialized_masks_on_active_and_detach
 fn rest_queries_reject_stale_and_missing_owner_even_with_populated_fixtures() {
     let (mut session, _, _) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
@@ -426,12 +426,15 @@ fn rest_queries_reject_stale_and_missing_owner_even_with_populated_fixtures() {
         .install_detached_player_like_cpp(replacement)
         .unwrap();
     session
+        .lifecycle
         .player_flags_test_fixture_like_cpp
         .represented_loaded_player_flags_like_cpp = Some(PLAYER_FLAGS_RESTING_LIKE_CPP);
     session
+        .progression
         .rest_mgr_test_fixture_like_cpp
         .represented_rest_location_initialized_like_cpp = true;
     session
+        .progression
         .rest_mgr_test_fixture_like_cpp
         .represented_rest_flag_mask_like_cpp = REST_FLAG_IN_CITY_LIKE_CPP;
     assert_eq!(session.resolved_visible_resting_like_cpp(), None);
@@ -445,7 +448,7 @@ fn rest_queries_reject_stale_and_missing_owner_even_with_populated_fixtures() {
         session.resolved_player_flags_for_rest_state_save_like_cpp(),
         None
     );
-    session.canonical_map_manager = None;
+    session.core.canonical_map_manager = None;
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 99.0);
     assert_eq!(
         session.mutate_player_rest_state_like_cpp(|_| panic!("missing owner")),

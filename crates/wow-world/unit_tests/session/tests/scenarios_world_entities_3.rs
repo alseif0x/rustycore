@@ -31,18 +31,22 @@ async fn talked_to_creature_tracking_event_objective_auto_rewards_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![0],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session
@@ -157,6 +161,7 @@ async fn summon_object_wild_live_spell_without_focus_creates_visible_gameobject_
         .expect("live non-focus wild GameObject summon should execute");
 
     let summoned_guid = session
+        .core
         .client_visible_guids_like_cpp
         .snapshot_like_cpp()
         .into_iter()
@@ -502,6 +507,7 @@ async fn creature_cast_db_destination_without_row_keeps_effective_caster_like_cp
     let manager = canonical.lock().unwrap();
     let managed = manager.find_map(571, 0).expect("canonical map");
     let summoned = session
+        .core
         .client_visible_guids_like_cpp
         .snapshot_like_cpp()
         .into_iter()
@@ -579,15 +585,16 @@ fn represented_mount_aura_keeps_creature_vehicle_with_mount_display_like_cpp() {
         .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
         .unwrap();
 
-    assert_eq!(session.player_mount_display_id_like_cpp, 1000);
-    assert_eq!(session.player_mount_vehicle_id_like_cpp, 55);
-    assert!(session.player_mounted_like_cpp);
+    assert_eq!(session.vehicles.player_mount_display_id_like_cpp, 1000);
+    assert_eq!(session.vehicles.player_mount_vehicle_id_like_cpp, 55);
+    assert!(session.vehicles.player_mounted_like_cpp);
     assert!(
         session
+            .presentation
             .player_unit_flags_like_cpp
             .contains(UnitFlags::PLAYER_CONTROLLED | UnitFlags::MOUNT)
     );
-    assert_eq!(session.mount_vehicle_create_requests_like_cpp, 1);
+    assert_eq!(session.vehicles.mount_vehicle_create_requests_like_cpp, 1);
 }
 #[tokio::test]
 async fn dynamic_object_values_snapshot_creature_shared_vision_sends_like_cpp() {
@@ -643,7 +650,10 @@ async fn dynamic_object_values_snapshot_creature_shared_vision_sends_like_cpp() 
         7,
     );
     prepare_dynamic_object_values_snapshot_like_cpp(&canonical, 571, 7, dynamic_guid, 42.5);
-    session.client_visible_guids_like_cpp.insert(dynamic_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(dynamic_guid);
 
     assert_eq!(
         session.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(),
@@ -655,6 +665,7 @@ async fn dynamic_object_values_snapshot_creature_shared_vision_sends_like_cpp() 
     );
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&dynamic_guid)
     );
@@ -695,6 +706,7 @@ async fn gameobject_visibility_on_destroy_summary_visible_sends_destroy_once_lik
         &[gameobject_guid]
     );
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
 
@@ -706,6 +718,7 @@ async fn gameobject_visibility_on_destroy_summary_visible_sends_destroy_once_lik
     );
     assert!(
         !session
+            .core
             .client_visible_guids_like_cpp
             .contains(&gameobject_guid)
     );
@@ -726,8 +739,8 @@ async fn gameobject_visibility_on_destroy_includes_dead_player_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 50_565);
     let gameobject_guid = test_gameobject_guid(605_065, 50_566);
 
-    session.player_alive_like_cpp = false;
-    session.player_health_like_cpp = 0;
+    session.combat.player_alive_like_cpp = false;
+    session.combat.player_health_like_cpp = 0;
     configure_dynamic_object_values_snapshot_session_like_cpp(
         &mut session,
         &canonical,
@@ -768,6 +781,7 @@ async fn gameobject_visibility_on_destroy_includes_dead_player_like_cpp() {
         &[gameobject_guid]
     );
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
 
@@ -779,6 +793,7 @@ async fn gameobject_visibility_on_destroy_includes_dead_player_like_cpp() {
     );
     assert!(
         !session
+            .core
             .client_visible_guids_like_cpp
             .contains(&gameobject_guid)
     );
@@ -832,6 +847,7 @@ async fn gameobject_visibility_on_destroy_not_in_world_player_no_send_like_cpp()
             .remove_from_world();
     }
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
 
@@ -842,6 +858,7 @@ async fn gameobject_visibility_on_destroy_not_in_world_player_no_send_like_cpp()
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&gameobject_guid)
     );

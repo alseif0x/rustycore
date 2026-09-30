@@ -47,8 +47,11 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
     let second_player = ObjectGuid::create_player(1, 70_002);
     let trainer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 100, 1);
     session.set_player_guid(Some(first_player));
-    session.visible_auras.insert(0, test_visible_aura(0, 999));
-    session.player_aura_authority_complete_like_cpp = true;
+    session
+        .auras
+        .visible_auras
+        .insert(0, test_visible_aura(0, 999));
+    session.auras.player_aura_authority_complete_like_cpp = true;
     assert!(session.set_complete_player_skill_records_like_cpp(
         HashMap::from([(
             95,
@@ -65,6 +68,7 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
     ));
     assert!(
         session
+            .progression
             .player_skill_test_fixture_like_cpp
             .player_skill_non_durable_tombstones_like_cpp
             .contains(&95)
@@ -75,7 +79,7 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
             skill_id: u32::from(SKILL_RIDING_LIKE_CPP),
         },
     );
-    session.gossip_options.push(GossipOptionInfo {
+    session.interaction.gossip_options.push(GossipOptionInfo {
         gossip_option_id: 1,
         menu_id: 2,
         order_index: 3,
@@ -88,14 +92,19 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
         session.player_trainer_interaction_matches_like_cpp(trainer, 77),
         "reasserting the same Player identity must not reset its PlayerMenu"
     );
-    assert_eq!(session.gossip_options.len(), 1);
+    assert_eq!(session.interaction.gossip_options.len(), 1);
     assert_eq!(
-        session.visible_auras.get(&0).map(|aura| aura.spell_id),
+        session
+            .auras
+            .visible_auras
+            .get(&0)
+            .map(|aura| aura.spell_id),
         Some(999)
     );
     assert!(session.player_aura_authority_complete_like_cpp());
     assert!(
         session
+            .progression
             .player_skill_test_fixture_like_cpp
             .player_skill_non_durable_tombstones_like_cpp
             .contains(&95),
@@ -106,9 +115,9 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
 
     assert!(session.player_interaction_source_guid_like_cpp().is_none());
     assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
-    assert!(session.gossip_options.is_empty());
+    assert!(session.interaction.gossip_options.is_empty());
     assert!(
-        session.visible_auras.is_empty(),
+        session.auras.visible_auras.is_empty(),
         "active auras cannot cross a C++ Player lifetime"
     );
     assert!(
@@ -117,6 +126,7 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
     );
     assert!(
         session
+            .progression
             .player_skill_test_fixture_like_cpp
             .player_skill_non_durable_tombstones_like_cpp
             .is_empty(),
@@ -131,8 +141,8 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
 
     session.set_player_guid(Some(second_player));
     assert!(session.player_interaction_source_guid_like_cpp().is_none());
-    assert!(session.gossip_options.is_empty());
-    assert!(session.visible_auras.is_empty());
+    assert!(session.interaction.gossip_options.is_empty());
+    assert!(session.auras.visible_auras.is_empty());
     assert!(!session.player_aura_authority_complete_like_cpp());
 }
 #[test]
@@ -184,6 +194,7 @@ fn reset_seasonal_keeps_equal_and_newer_completions_like_cpp() {
     assert_eq!(bucket.get(&1002), Some(&101));
     assert_eq!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .represented_quest_completed_bits_like_cpp,
         BTreeSet::from([65, 66])
@@ -207,6 +218,7 @@ fn reset_seasonal_zero_or_missing_unique_bit_removes_without_inventing_bit_like_
     assert_eq!(session.seasonal_quest_bucket_like_cpp(7), None);
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .represented_quest_completed_bits_like_cpp
             .is_empty()
@@ -294,18 +306,22 @@ async fn criteria_tree_tracking_event_objective_auto_rewards_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![0],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session
@@ -342,7 +358,7 @@ async fn criteria_tree_tracking_event_objective_auto_rewards_like_cpp() {
 #[test]
 fn represented_player_condition_id_matches_cpp_lookup_semantics() {
     let (mut session, _, _) = make_session();
-    session.player_class = 1;
+    session.identity.player_class = 1;
     assert!(!session.represented_meets_player_condition_id_like_cpp(42));
 
     session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries([
@@ -401,7 +417,7 @@ fn represented_player_condition_explored_uses_area_bit_blocks_like_cpp() {
 
     assert!(!session.represented_meets_player_condition_id_like_cpp(42));
 
-    session.represented_explored_zones_like_cpp[1] = 2;
+    session.instances.represented_explored_zones_like_cpp[1] = 2;
     assert!(session.represented_meets_player_condition_id_like_cpp(42));
     assert!(!session.represented_meets_player_condition_id_like_cpp(43));
 }
@@ -448,7 +464,7 @@ fn represented_player_condition_area_uses_parent_chain_like_cpp() {
 #[test]
 fn represented_taxi_edge_distance_matches_cpp_condition_filter() {
     let (mut session, _, _) = make_session();
-    session.player_class = 1;
+    session.identity.player_class = 1;
     session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries([
         wow_data::PlayerConditionEntry {
             id: 42,
@@ -482,7 +498,7 @@ fn represented_taxi_edge_distance_matches_cpp_condition_filter() {
 #[test]
 fn represented_mount_x_display_usable_matches_cpp_condition_filter() {
     let (mut session, _, _) = make_session();
-    session.player_class = 1;
+    session.identity.player_class = 1;
     session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries([
         wow_data::PlayerConditionEntry {
             id: 42,
@@ -504,7 +520,7 @@ fn represented_mount_x_display_usable_matches_cpp_condition_filter() {
 #[test]
 fn represented_taxi_usable_mount_displays_match_cpp_filter() {
     let (mut session, _, _) = make_session();
-    session.player_class = 1;
+    session.identity.player_class = 1;
     session.set_known_spells_like_cpp(vec![100]);
     session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
         wow_data::MountEntry {
@@ -771,6 +787,7 @@ async fn summon_object_wild_focus_implicit_destination_uses_focus_position_like_
     let manager = canonical.lock().unwrap();
     let managed = manager.find_map(571, 0).expect("canonical map");
     let summoned_guid = session
+        .core
         .client_visible_guids_like_cpp
         .snapshot_like_cpp()
         .into_iter()
@@ -848,6 +865,7 @@ async fn summon_object_slot_focus_implicit_destination_uses_focus_position_like_
     let manager = canonical.lock().unwrap();
     let managed = manager.find_map(571, 0).expect("canonical map");
     let summoned_guid = session
+        .core
         .client_visible_guids_like_cpp
         .snapshot_like_cpp()
         .into_iter()

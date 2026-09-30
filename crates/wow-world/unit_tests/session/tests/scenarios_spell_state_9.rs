@@ -20,14 +20,16 @@ fn cancel_mount_aura_removes_represented_mounted_aura_like_cpp() {
         .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
         .unwrap();
 
-    assert!(session.player_mounted_like_cpp);
+    assert!(session.vehicles.player_mounted_like_cpp);
     assert!(
         session
+            .presentation
             .player_unit_flags_like_cpp
             .contains(UnitFlags::MOUNT)
     );
     assert!(
         session
+            .auras
             .visible_auras
             .values()
             .any(|aura| { aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted) })
@@ -38,14 +40,16 @@ fn cancel_mount_aura_removes_represented_mounted_aura_like_cpp() {
         1
     );
 
-    assert!(!session.player_mounted_like_cpp);
+    assert!(!session.vehicles.player_mounted_like_cpp);
     assert!(
         !session
+            .presentation
             .player_unit_flags_like_cpp
             .contains(UnitFlags::MOUNT)
     );
     assert!(
         !session
+            .auras
             .visible_auras
             .values()
             .any(|aura| { aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted) })
@@ -58,7 +62,7 @@ fn cancel_mount_aura_removes_represented_mounted_aura_like_cpp() {
 #[test]
 fn represented_mount_source_spell_usable_matches_cpp_mount_condition_filter() {
     let (mut session, _, _) = make_session();
-    session.player_class = 1;
+    session.identity.player_class = 1;
     session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
         wow_data::MountEntry {
             id: 1,
@@ -101,7 +105,7 @@ fn represented_mount_source_spell_usable_matches_cpp_mount_condition_filter() {
 #[test]
 fn account_mount_load_learns_mount_spells_before_use_condition_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.player_class = 1;
+    session.identity.player_class = 1;
     session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
         wow_data::MountEntry {
             id: 1,
@@ -381,9 +385,13 @@ async fn dynamic_object_values_snapshot_dynamic_object_seer_wrong_caster_no_send
     );
     prepare_dynamic_object_values_snapshot_like_cpp(&canonical, 571, 7, dynamic_guid, 40.5);
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(seer_guid);
-    session.client_visible_guids_like_cpp.insert(dynamic_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(dynamic_guid);
 
     assert_eq!(
         session.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(),
@@ -393,6 +401,7 @@ async fn dynamic_object_values_snapshot_dynamic_object_seer_wrong_caster_no_send
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&dynamic_guid)
     );

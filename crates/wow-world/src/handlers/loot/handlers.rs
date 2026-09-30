@@ -224,7 +224,7 @@ impl WorldSession {
             None => return,
         };
 
-        debug!(account = self.account_id, target = ?req.unit, "CMSG_LOOT_UNIT");
+        debug!(account = self.core.account_id, target = ?req.unit, "CMSG_LOOT_UNIT");
 
         if self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
@@ -326,6 +326,7 @@ impl WorldSession {
             .unwrap_or(0);
         if instance_id != command.instance_id
             || !self
+                .core
                 .client_visible_guids_like_cpp
                 .contains(&command.creature_guid)
         {
@@ -360,7 +361,7 @@ impl WorldSession {
         let viewer_update = self.creature_loot_release_values_for_viewer_like_cpp(
             command.creature_guid,
             viewer_guid,
-            self.pending_bind.is_some(),
+            self.instances.pending_bind.is_some(),
             Some(expected_authority),
             command.unit_values_update,
         );
@@ -404,7 +405,7 @@ impl WorldSession {
         }
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             loot_obj = ?roll.loot_obj,
             loot_list_id = roll.loot_list_id,
             roll_type = roll.roll_type,
@@ -508,7 +509,7 @@ impl WorldSession {
                     .reconcile_represented_loot_cache_like_cpp(owner_guid, master_loot_item.target);
             }
 
-            let Some(loot) = self.loot_table.get(&owner_guid) else {
+            let Some(loot) = self.loot.loot_table.get(&owner_guid) else {
                 return;
             };
             let dungeon_encounter_id = loot.dungeon_encounter_id;
@@ -554,6 +555,7 @@ impl WorldSession {
             let mut entry = item.clone();
             let claim = if let Some(authority) = authority {
                 let Some(expected_generation) = self
+                    .loot
                     .active_loot_view_generations_like_cpp
                     .get(&owner_guid)
                     .copied()
@@ -673,7 +675,7 @@ impl WorldSession {
         }
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             target = ?master_loot_item.target,
             request_count = master_loot_item.loot.len(),
             current_session_assignments,
@@ -735,6 +737,7 @@ impl WorldSession {
         // Visibility gates only the attacker-facing combat packet, never the
         // authoritative victim health/death reconciliation.
         if self
+            .core
             .client_visible_guids_like_cpp
             .contains(&command.attacker_guid)
         {
@@ -770,7 +773,7 @@ impl WorldSession {
         command: LootRollVoteCommand,
     ) {
         let roll_key = (command.loot_obj, command.loot_list_id);
-        let Some(current_roll) = self.represented_loot_rolls.get(&roll_key) else {
+        let Some(current_roll) = self.loot.represented_loot_rolls.get(&roll_key) else {
             return;
         };
         if !command.targets_identity_like_cpp(&current_roll.command_identity) {
@@ -850,7 +853,7 @@ impl WorldSession {
         };
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             master = ?command.master_guid,
             owner = ?command.loot_owner,
             loot_obj = ?command.loot_obj,
@@ -946,7 +949,7 @@ impl WorldSession {
         };
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             owner = ?command.loot_owner,
             loot_obj = ?command.loot_obj,
             loot_list_id = command.loot_list_id,

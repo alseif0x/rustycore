@@ -163,6 +163,7 @@ impl WorldSession {
     ) -> Result<(), &'static str> {
         let _ = self.player_guid().ok_or("No player GUID")?;
         let Some(equipped) = self
+            .catalogs
             .spell_catalogs
             .spell_equipped_items_store
             .as_ref()
@@ -185,7 +186,7 @@ impl WorldSession {
             });
             #[cfg(test)]
             let canonical = canonical.or_else(|| {
-                self.player_handle_like_cpp.is_none().then(|| {
+                self.core.player_handle_like_cpp.is_none().then(|| {
                     self.mutate_player_persistent_capability_state_like_cpp(|state| {
                         if state.weapon_proficiency & sub_class_mask == 0 {
                             state.weapon_proficiency |= sub_class_mask;
@@ -206,7 +207,7 @@ impl WorldSession {
             });
             #[cfg(test)]
             let canonical = canonical.or_else(|| {
-                self.player_handle_like_cpp.is_none().then(|| {
+                self.core.player_handle_like_cpp.is_none().then(|| {
                     self.mutate_player_persistent_capability_state_like_cpp(|state| {
                         if state.armor_proficiency & sub_class_mask == 0 {
                             state.armor_proficiency |= sub_class_mask;
@@ -250,7 +251,7 @@ impl WorldSession {
 
         let Ok(quest_id) = u32::try_from(quest_id) else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Skipping represented quest-complete spell effect with negative MiscValue"
             );
             return Ok(());
@@ -260,6 +261,7 @@ impl WorldSession {
         }
 
         let Some(quest) = self
+            .catalogs
             .quests
             .store
             .as_deref()
@@ -292,6 +294,7 @@ impl WorldSession {
                 return Ok(());
             }
             let quest_bit = self
+                .catalogs
                 .quests
                 .v2_store
                 .as_deref()

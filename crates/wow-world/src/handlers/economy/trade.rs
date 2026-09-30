@@ -178,7 +178,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "AcceptTrade parse failed: {error}"
                 );
                 return;
@@ -193,7 +193,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "ClearTradeItem parse failed: {error}"
                 );
                 return;
@@ -208,7 +208,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "SetTradeItem parse failed: {error}"
                 );
                 return;
@@ -227,7 +227,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "SetTradeGold parse failed: {error}"
                 );
                 return;
@@ -242,7 +242,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "SetTradeSpell parse failed: {error}"
                 );
                 return;
@@ -261,7 +261,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "SignPetition parse failed: {error}"
                 );
                 return;
@@ -276,7 +276,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "DeclinePetition parse failed: {error}"
                 );
                 return;
@@ -291,7 +291,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "QueryPetition parse failed: {error}"
                 );
                 return;
@@ -305,7 +305,7 @@ impl crate::session::WorldSession {
     pub async fn handle_unaccept_trade(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = UnacceptTrade::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "UnacceptTrade parse failed: {error}"
             );
             return;
@@ -316,7 +316,10 @@ impl crate::session::WorldSession {
 
     pub async fn handle_busy_trade(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = BusyTrade::read(&mut pkt) {
-            warn!(account = self.account_id, "BusyTrade parse failed: {error}");
+            warn!(
+                account = self.core.account_id,
+                "BusyTrade parse failed: {error}"
+            );
             return;
         }
 
@@ -329,7 +332,7 @@ impl crate::session::WorldSession {
     pub async fn handle_begin_trade(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = BeginTrade::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "BeginTrade parse failed: {error}"
             );
             return;
@@ -342,7 +345,10 @@ impl crate::session::WorldSession {
         let packet = match CanDuel::read(&mut pkt) {
             Ok(packet) => packet,
             Err(error) => {
-                warn!(account = self.account_id, "CanDuel parse failed: {error}");
+                warn!(
+                    account = self.core.account_id,
+                    "CanDuel parse failed: {error}"
+                );
                 return;
             }
         };
@@ -355,7 +361,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "DuelResponse parse failed: {error}"
                 );
                 return;
@@ -368,7 +374,7 @@ impl crate::session::WorldSession {
     pub async fn handle_ignore_trade(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = IgnoreTrade::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "IgnoreTrade parse failed: {error}"
             );
             return;

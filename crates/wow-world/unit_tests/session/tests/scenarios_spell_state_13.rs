@@ -144,7 +144,7 @@ async fn spell_duel_effect_requests_duel_and_sets_challenged_state_like_cpp() {
     raw.copy_from_slice(&account_bytes);
     assert_eq!(
         ObjectGuid::from_raw_bytes(&raw),
-        ObjectGuid::create_global(HighGuid::WowAccount, 0, session.account_id as i64)
+        ObjectGuid::create_global(HighGuid::WowAccount, 0, session.core.account_id as i64)
     );
     assert!(!reader.read_bit().unwrap());
     assert_eq!(reader.remaining(), 0);
@@ -599,19 +599,19 @@ fn login_pet_talent_reset_clears_pet_spells_and_specs_without_clearing_flag_like
         "C++ deletes pet_spell rows for all pets owned by the player"
     );
     assert_eq!(
-        session.represented_pet_stable_like_cpp.active_pets[0]
+        session.pets.represented_pet_stable_like_cpp.active_pets[0]
             .as_ref()
             .map(|pet| pet.specialization_id),
         Some(0)
     );
     assert_eq!(
-        session.represented_pet_stable_like_cpp.stabled_pets[0]
+        session.pets.represented_pet_stable_like_cpp.stabled_pets[0]
             .as_ref()
             .map(|pet| pet.specialization_id),
         Some(0)
     );
     assert_eq!(
-        session.represented_pet_stable_like_cpp.unslotted_pets[0].specialization_id,
+        session.pets.represented_pet_stable_like_cpp.unslotted_pets[0].specialization_id,
         0
     );
     assert!(
@@ -645,7 +645,7 @@ fn login_pet_talent_reset_clears_pet_spells_and_specs_without_clearing_flag_like
 async fn first_login_cast_spells_use_player_create_mode_before_other_first_login_work_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let player_guid = ObjectGuid::create_player(1, 0xC501);
-    session.player_guid = Some(player_guid);
+    session.core.player_guid = Some(player_guid);
     session.set_loaded_player_identity_like_cpp(0, 1, 1, 1, 0);
     session.set_player_create_mode_like_cpp(wow_data::PLAYER_CREATE_MODE_NPE_LIKE_CPP);
     session.set_player_create_cast_spell_store_like_cpp(Arc::new(
@@ -687,7 +687,7 @@ async fn first_login_cast_spells_noop_without_store_or_player_like_cpp() {
     );
     assert!(send_rx.try_recv().is_err());
 
-    session.player_guid = Some(ObjectGuid::create_player(1, 0xC502));
+    session.core.player_guid = Some(ObjectGuid::create_player(1, 0xC502));
     session.set_loaded_player_identity_like_cpp(0, 1, 1, 1, 0);
     assert_eq!(
         session

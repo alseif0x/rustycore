@@ -7,8 +7,8 @@ async fn spell_school_damage_applies_damage_done_versus_health_aurastate_like_cp
     let spell_id = 734_i32;
     let guid = test_creature_guid(18_021);
     let player_guid = ObjectGuid::create_player(1, 65);
-    session.player_guid = Some(player_guid);
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(player_guid);
+    session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     register_test_creature(&mut session, manager.clone(), guid, 2_000);
 
@@ -117,7 +117,7 @@ async fn spell_school_damage_applies_damage_done_versus_health_aurastate_like_cp
 fn represented_aura_state_unions_health_and_aura_bits_like_cpp() {
     let (mut session, _, _) = make_session();
     let guid = ObjectGuid::create_player(1, 66);
-    session.player_guid = Some(guid);
+    session.core.player_guid = Some(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
 
     // 50% health keeps every `Unit::Update` wounded/healthy bit clear.
@@ -149,7 +149,7 @@ fn represented_aura_state_unions_health_and_aura_bits_like_cpp() {
 fn login_passive_cast_gate_uses_health_derived_caster_aura_state_like_cpp() {
     let (mut session, _, _) = make_session();
     let guid = ObjectGuid::create_player(1, 67);
-    session.player_guid = Some(guid);
+    session.core.player_guid = Some(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     let spell_id = 60_004_i32;
     let mut spell_store = wow_data::SpellStore::new();

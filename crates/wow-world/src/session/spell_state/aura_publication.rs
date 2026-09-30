@@ -97,13 +97,19 @@ impl WorldSession {
         {
             return false;
         }
-        let Some(effects) = self.spell_catalogs.spell_store.as_ref().and_then(|store| {
-            store.effects_for_difficulty_like_cpp(
-                aura.spell_id,
-                aura.difficulty_id,
-                self.difficulty_store.as_deref(),
-            )
-        }) else {
+        let Some(effects) = self
+            .catalogs
+            .spell_catalogs
+            .spell_store
+            .as_ref()
+            .and_then(|store| {
+                store.effects_for_difficulty_like_cpp(
+                    aura.spell_id,
+                    aura.difficulty_id,
+                    self.catalogs.difficulty_store.as_deref(),
+                )
+            })
+        else {
             return false;
         };
 
@@ -160,7 +166,7 @@ impl WorldSession {
             return true;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             let inserted = self
                 .mutate_player_aura_subsystem_like_cpp(|auras| {
                     auras.insert_runtime_application_like_cpp(_fallback);
@@ -272,7 +278,7 @@ impl WorldSession {
         if !world_local.has_zone_area_authority_like_cpp() {
             return false;
         }
-        let Some(areas) = self.area_table_store.as_ref() else {
+        let Some(areas) = self.catalogs.area_table_store.as_ref() else {
             return false;
         };
         let mut area_id = world_local.area_id_like_cpp();
@@ -300,7 +306,9 @@ impl WorldSession {
     pub(in crate::session) fn send_on_cancel_expected_vehicle_ride_aura_like_cpp(&mut self) {
         #[cfg(test)]
         {
-            self.mount_cancel_expected_vehicle_aura_packets_like_cpp = self
+            self.vehicles
+                .mount_cancel_expected_vehicle_aura_packets_like_cpp = self
+                .vehicles
                 .mount_cancel_expected_vehicle_aura_packets_like_cpp
                 .saturating_add(1);
         }

@@ -33,6 +33,7 @@ impl WorldSession {
                 pool.loot_guid = self.next_represented_loot_object_guid_like_cpp(owner_guid)?;
             }
             pool.coins = self
+                .loot
                 .represented_personal_loot_money
                 .get(&(owner_guid, looter))
                 .copied()
@@ -120,7 +121,7 @@ impl WorldSession {
         target: ObjectGuid,
     ) {
         {
-            let Some(loot) = self.loot_table.get_mut(&owner_guid) else {
+            let Some(loot) = self.loot.loot_table.get_mut(&owner_guid) else {
                 return;
             };
 
@@ -215,7 +216,7 @@ impl WorldSession {
             false
         };
 
-        let loot = self.loot_table.get(&owner_guid)?;
+        let loot = self.loot.loot_table.get(&owner_guid)?;
         if loot.loot_method != LOOT_METHOD_MASTER_LIKE_CPP || !is_master_looter {
             return None;
         }

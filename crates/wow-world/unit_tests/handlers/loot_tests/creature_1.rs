@@ -11,7 +11,7 @@ async fn creature_spell_cast_command_sends_start_then_basic_go_after_one_gate_li
     let (mut session, send_rx, source_guid) = make_visible_creature_spell_session_like_cpp();
     let command = creature_spell_cast_command_like_cpp(
         source_guid,
-        session.client_visible_guids_like_cpp.clone(),
+        session.core.client_visible_guids_like_cpp.clone(),
         0xBB,
     );
     let expected_start = command.start_packet_bytes.clone();
@@ -38,7 +38,7 @@ async fn advanced_combat_logging_receives_the_committed_full_creature_spell_go_l
     session.represented_set_advanced_combat_logging_like_cpp(true);
     let command = creature_spell_cast_command_like_cpp(
         source_guid,
-        session.client_visible_guids_like_cpp.clone(),
+        session.core.client_visible_guids_like_cpp.clone(),
         0xCC,
     );
     let expected_start = command.start_packet_bytes.clone();
@@ -66,7 +66,7 @@ async fn creature_spell_go_keeps_the_committed_frame_after_a_preference_toggle_l
     let (mut session, send_rx, source_guid) = make_visible_creature_spell_session_like_cpp();
     let command = creature_spell_cast_command_like_cpp(
         source_guid,
-        session.client_visible_guids_like_cpp.clone(),
+        session.core.client_visible_guids_like_cpp.clone(),
         0xBB,
     );
     let expected_go = command.go_packet_bytes.clone();
@@ -98,7 +98,7 @@ async fn creature_spell_cast_honors_commit_time_visibility_after_exit_like_cpp()
     let (mut session, send_rx, source_guid) = make_visible_creature_spell_session_like_cpp();
     let command = creature_spell_cast_command_like_cpp(
         source_guid,
-        session.client_visible_guids_like_cpp.clone(),
+        session.core.client_visible_guids_like_cpp.clone(),
         0xBB,
     );
     let expected_start = command.start_packet_bytes.clone();
@@ -110,7 +110,10 @@ async fn creature_spell_cast_honors_commit_time_visibility_after_exit_like_cpp()
         ))
         .expect("atomic spell command queued");
     assert!(
-        session.client_visible_guids_like_cpp.remove(&source_guid),
+        session
+            .core
+            .client_visible_guids_like_cpp
+            .remove(&source_guid),
         "the caster leaves the client's visible set before the drain"
     );
 
@@ -132,6 +135,7 @@ async fn creature_spell_cast_rejects_command_committed_for_another_session_like_
     previous_incarnation.insert(source_guid);
     assert!(
         !session
+            .core
             .client_visible_guids_like_cpp
             .shares_storage_like_cpp(&previous_incarnation),
         "the fixture models two distinct session incarnations"
@@ -257,7 +261,7 @@ async fn durable_item_completion_never_auto_releases_creature_or_gameobject_owne
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 0, 0, 1, 61_822),
     ] {
         session.set_active_loot_guid(owner_guid);
-        session.loot_table.insert(
+        session.loot.loot_table.insert(
             owner_guid,
             CreatureLoot {
                 loot_guid: owner_guid,
@@ -303,7 +307,13 @@ async fn durable_item_completion_never_auto_releases_creature_or_gameobject_owne
     session.wait_for_active_loot_persistence_like_cpp().await;
 
     assert!(!session.is_disconnecting());
-    assert!(session.loot_table.values().all(|loot| !loot.items[0].taken));
+    assert!(
+        session
+            .loot
+            .loot_table
+            .values()
+            .all(|loot| !loot.items[0].taken)
+    );
     assert!(
         !drain_server_opcodes_like_cpp(&send_rx)
             .contains(&(wow_constants::ServerOpcodes::LootRelease as u16))
@@ -358,6 +368,7 @@ async fn quest_required_creature_loot_is_not_generated_after_completion_like_cpp
     install_limited_test_item_template(&mut session, item_id, 0);
     install_quest_bound_loot_objective_like_cpp(&mut session, quest_id, item_id, 6, 6);
     session
+        .quest_state
         .quest_test_fixture_like_cpp
         .player_quests
         .get_mut(&quest_id)
@@ -397,6 +408,7 @@ async fn quest_required_creature_loot_is_not_generated_after_completion_like_cpp
     );
 
     let status = session
+        .quest_state
         .quest_test_fixture_like_cpp
         .player_quests
         .get_mut(&quest_id)
@@ -634,7 +646,7 @@ async fn loot_unit_non_creature_guid_returns_silently_like_cpp() {
 
     assert!(send_rx.try_recv().is_err());
     assert!(!session.is_active_loot_guid(loot_guid));
-    assert!(!session.loot_table.contains_key(&loot_guid));
+    assert!(!session.loot.loot_table.contains_key(&loot_guid));
 }
 #[tokio::test]
 async fn loot_unit_creature_too_far_returns_silently_like_cpp() {
@@ -651,7 +663,7 @@ async fn loot_unit_creature_too_far_returns_silently_like_cpp() {
 
     assert!(send_rx.try_recv().is_err());
     assert!(!session.is_active_loot_guid(loot_guid));
-    assert!(!session.loot_table.contains_key(&loot_guid));
+    assert!(!session.loot.loot_table.contains_key(&loot_guid));
 }
 #[tokio::test]
 async fn loot_money_non_allowed_active_creature_does_not_take_coins_like_cpp() {
@@ -667,7 +679,7 @@ async fn loot_money_non_allowed_active_creature_does_not_take_coins_like_cpp() {
 
     assert!(send_rx.try_recv().is_err());
     assert_eq!(session.player_gold_like_cpp(), 0);
-    assert_eq!(session.loot_table.get(&loot_guid).unwrap().coins, 7);
+    assert_eq!(session.loot.loot_table.get(&loot_guid).unwrap().coins, 7);
 }
 #[tokio::test]
 async fn loot_item_creature_too_far_uses_cpp_error() {
@@ -681,7 +693,7 @@ async fn loot_item_creature_too_far_uses_cpp_error() {
     let mut creature = test_creature(loot_guid, false);
     creature.current_pos = Position::new(31.0, 0.0, 0.0, 0.0);
     register_test_creature_like_cpp(&mut session, creature);
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -721,7 +733,7 @@ async fn loot_item_creature_too_far_uses_cpp_error() {
         loot_response_failure_reason(&sent),
         LOOT_ERROR_TOO_FAR_LIKE_CPP
     );
-    assert!(!session.loot_table.get(&loot_guid).unwrap().items[0].taken);
+    assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
     assert!(session.is_active_loot_guid(loot_guid));
 }
 #[tokio::test]
@@ -737,7 +749,7 @@ async fn loot_item_creature_distance_can_use_canonical_map_object_like_cpp() {
         AccessorObjectKind::Creature,
         canonical_world_object(loot_guid, 0, Position::new(31.0, 0.0, 0.0, 0.0)),
     );
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -777,7 +789,7 @@ async fn loot_item_creature_distance_can_use_canonical_map_object_like_cpp() {
         loot_response_failure_reason(&sent),
         LOOT_ERROR_TOO_FAR_LIKE_CPP
     );
-    assert!(!session.loot_table.get(&loot_guid).unwrap().items[0].taken);
+    assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
     assert!(session.is_active_loot_guid(loot_guid));
 }
 #[tokio::test]
@@ -789,7 +801,7 @@ async fn loot_item_creature_pickup_refreshes_canonical_owned_loot_like_cpp() {
     creature.set_shared_loot_like_cpp(CreatureOwnedLoot::new(0, 1));
     attach_canonical_creature(&mut session, creature);
     session.set_player_guid(Some(player_guid));
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -809,13 +821,13 @@ async fn loot_item_creature_pickup_refreshes_canonical_owned_loot_like_cpp() {
     );
 
     mark_loot_item_looted_for_player_like_cpp(
-        session.loot_table.get_mut(&loot_guid).unwrap(),
+        session.loot.loot_table.get_mut(&loot_guid).unwrap(),
         0,
         player_guid,
     );
     session.refresh_represented_loot_owner_canonical_summary_like_cpp(loot_guid, player_guid);
 
-    let loot = session.loot_table.get(&loot_guid).unwrap();
+    let loot = session.loot.loot_table.get(&loot_guid).unwrap();
     assert!(loot.items[0].is_looted_for_player_like_cpp(player_guid));
     assert_eq!(loot.unlooted_count, 0);
     let canonical = canonical_creature_snapshot(&session, loot_guid).unwrap();
@@ -832,7 +844,7 @@ async fn loot_item_missing_creature_uses_cpp_no_loot_error() {
     let loot_guid = test_creature_guid(19_009);
     session.set_player_guid(Some(player_guid));
     session.set_active_loot_guid(loot_guid);
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -872,6 +884,6 @@ async fn loot_item_missing_creature_uses_cpp_no_loot_error() {
         loot_response_failure_reason(&sent),
         LOOT_ERROR_NO_LOOT_LIKE_CPP
     );
-    assert!(!session.loot_table.get(&loot_guid).unwrap().items[0].taken);
+    assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
     assert!(session.is_active_loot_guid(loot_guid));
 }

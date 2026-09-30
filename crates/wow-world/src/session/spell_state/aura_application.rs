@@ -16,7 +16,7 @@ impl WorldSession {
             })
             .flatten();
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_aura_subsystem_like_cpp(|auras| {
                     auras.remove_runtime_application_like_cpp(slot)
@@ -29,7 +29,8 @@ impl WorldSession {
         &self,
         group_id: u32,
     ) -> Option<&BTreeSet<i32>> {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_group_stack_rule_store
             .as_ref()
             .and_then(|store| store.same_effect_stack_rule_aura_types_like_cpp(group_id))
@@ -37,7 +38,7 @@ impl WorldSession {
     pub(in crate::session) fn remove_indoor_outdoor_auras_for_current_position_represented_like_cpp(
         &mut self,
     ) -> usize {
-        if !self.vmap_indoor_check_like_cpp {
+        if !self.config.vmap_indoor_check_like_cpp {
             return 0;
         }
 
@@ -295,7 +296,7 @@ impl WorldSession {
             // then folds their modifiers into UpdateAllStats and the initial
             // CreateObject. Do not publish a VALUES delta for a GUID the
             // client has not created yet.
-            if modifies_total_stats && self.state == SessionState::LoggedIn {
+            if modifies_total_stats && self.core.state == SessionState::LoggedIn {
                 self.send_total_stat_percentage_update_like_cpp(preserve_health_pct);
             }
         }
@@ -346,6 +347,7 @@ impl WorldSession {
             }
 
             if let Some(equipped) = self
+                .catalogs
                 .spell_catalogs
                 .spell_equipped_items_store
                 .as_ref()
@@ -552,7 +554,7 @@ impl WorldSession {
                 .unwrap_or(0);
             #[cfg(test)]
             let vehicle_id = if vehicle_id == 0 {
-                self.player_mount_vehicle_id_like_cpp
+                self.vehicles.player_mount_vehicle_id_like_cpp
             } else {
                 vehicle_id
             };
@@ -560,16 +562,20 @@ impl WorldSession {
             let _ = self.remove_player_mount_vehicle_kit_like_cpp();
             #[cfg(test)]
             {
-                self.player_mount_vehicle_id_like_cpp = 0;
-                self.player_mount_vehicle_accessories_like_cpp.clear();
-                self.player_mount_vehicle_seat_count_like_cpp = 0;
-                self.player_mount_vehicle_usable_seat_count_like_cpp = 0;
+                self.vehicles.player_mount_vehicle_id_like_cpp = 0;
+                self.vehicles
+                    .player_mount_vehicle_accessories_like_cpp
+                    .clear();
+                self.vehicles.player_mount_vehicle_seat_count_like_cpp = 0;
+                self.vehicles
+                    .player_mount_vehicle_usable_seat_count_like_cpp = 0;
             }
             if was_mounted {
                 if vehicle_id != 0 {
                     #[cfg(test)]
                     {
-                        self.mount_vehicle_remove_requests_like_cpp = self
+                        self.vehicles.mount_vehicle_remove_requests_like_cpp = self
+                            .vehicles
                             .mount_vehicle_remove_requests_like_cpp
                             .saturating_add(1);
                     }
@@ -577,16 +583,21 @@ impl WorldSession {
                 }
                 #[cfg(test)]
                 {
-                    self.mount_pet_control_enable_requests_like_cpp = self
+                    self.pets.mount_pet_control_enable_requests_like_cpp = self
+                        .pets
                         .mount_pet_control_enable_requests_like_cpp
                         .saturating_add(1);
                 }
                 self.enable_pet_controls_on_dismount_like_cpp();
                 #[cfg(test)]
                 {
-                    self.mount_pet_resummon_requests_like_cpp =
-                        self.mount_pet_resummon_requests_like_cpp.saturating_add(1);
-                    self.mount_collision_height_update_requests_like_cpp = self
+                    self.pets.mount_pet_resummon_requests_like_cpp = self
+                        .pets
+                        .mount_pet_resummon_requests_like_cpp
+                        .saturating_add(1);
+                    self.vehicles
+                        .mount_collision_height_update_requests_like_cpp = self
+                        .vehicles
                         .mount_collision_height_update_requests_like_cpp
                         .saturating_add(1);
                 }
@@ -662,7 +673,7 @@ impl WorldSession {
         if aura.spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP {
             let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
         }
-        if self.state == SessionState::LoggedIn
+        if self.core.state == SessionState::LoggedIn
             && self.aura_has_total_stat_percentage_effect_like_cpp(&aura)
         {
             let preserve_health_pct =
@@ -688,7 +699,7 @@ impl WorldSession {
         &mut self,
         attribute: u32,
     ) -> usize {
-        let Some(spell_store) = self.spell_catalogs.spell_store.as_ref() else {
+        let Some(spell_store) = self.catalogs.spell_catalogs.spell_store.as_ref() else {
             return 0;
         };
         let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
@@ -762,6 +773,7 @@ impl WorldSession {
                 // represented effects model positive player-cancelable paths;
                 // SpellMisc attributes preserve the C++ no-player-cancel gate.
                 if self
+                    .catalogs
                     .spell_catalogs
                     .spell_store
                     .as_ref()
@@ -786,7 +798,7 @@ impl WorldSession {
         spell_id: i32,
         caster_guid: ObjectGuid,
     ) -> usize {
-        let Some(spell_store) = self.spell_catalogs.spell_store.as_ref() else {
+        let Some(spell_store) = self.catalogs.spell_catalogs.spell_store.as_ref() else {
             return 0;
         };
         if spell_store.get(spell_id).is_none()
@@ -888,7 +900,7 @@ impl WorldSession {
             let spell_id = visible_auras.get(&slot).map(|a| a.spell_id).unwrap_or(0);
             let _ = self.remove_aura(slot);
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 slot = slot,
                 spell_id = spell_id,
                 "Aura expired"

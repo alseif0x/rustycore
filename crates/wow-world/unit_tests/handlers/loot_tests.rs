@@ -213,7 +213,10 @@ fn make_visible_creature_spell_session_like_cpp()
     session.set_state(SessionState::LoggedIn);
     session.set_map_manager(manager);
     session.set_player_map_position_like_cpp(571, Position::ZERO);
-    session.client_visible_guids_like_cpp.insert(source_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(source_guid);
     (session, send_rx, source_guid)
 }
 
@@ -231,11 +234,15 @@ fn transport_values_command_uses_visible_transport_membership_like_cpp() {
     session.handle_send_visible_object_values_update_command_like_cpp(command());
     assert!(send_rx.try_recv().is_err());
     session
+        .visibility
         .client_visible_transports_like_cpp
         .insert(transport_guid);
     session.handle_send_visible_object_values_update_command_like_cpp(command());
     assert_eq!(send_rx.try_recv().unwrap(), vec![0x52, 0x26]);
-    session.client_visible_transports_like_cpp.clear();
+    session
+        .visibility
+        .client_visible_transports_like_cpp
+        .clear();
     session.handle_send_visible_object_values_update_command_like_cpp(command());
     assert!(send_rx.try_recv().is_err());
 }
@@ -372,7 +379,7 @@ fn install_active_item_loot_completion_fixture_like_cpp(
     assert!(owner_guid.is_item());
     session.set_player_guid(Some(player_guid));
     session.set_active_loot_guid(owner_guid);
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         owner_guid,
         CreatureLoot {
             loot_guid: owner_guid,
@@ -455,7 +462,7 @@ fn test_creature(guid: ObjectGuid, is_alive: bool) -> CreatureAI {
 }
 
 fn register_test_creature_like_cpp(session: &mut WorldSession, creature: CreatureAI) {
-    if session.map_manager.is_none() {
+    if session.core.map_manager.is_none() {
         session.set_map_manager(Arc::new(RwLock::new(crate::map_manager::MapManager::new())));
     }
 
@@ -558,18 +565,22 @@ fn install_quest_bound_loot_objective_like_cpp(
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![current_count],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![current_count],
+                slot: 0,
+            },
+        );
 }
 
 fn tap_test_creature_like_cpp(
@@ -767,7 +778,7 @@ fn install_visible_aura_with_interrupt_flags(
     caster_guid: ObjectGuid,
     aura_interrupt_flags: u32,
 ) {
-    session.visible_auras.insert(
+    session.auras.visible_auras.insert(
         slot,
         AuraApplication {
             spell_id,
@@ -814,7 +825,12 @@ async fn open_test_ae_pair_like_cpp(
         .await;
 
     assert!(session.is_active_loot_guid(primary_guid));
-    assert!(session.active_loot_view_owners.contains(&secondary_guid));
+    assert!(
+        session
+            .loot
+            .active_loot_view_owners
+            .contains(&secondary_guid)
+    );
     let authority = session
         .represented_owned_loot_authority_like_cpp(secondary_guid)
         .expect("the secondary AE owner must expose its object-owned authority");

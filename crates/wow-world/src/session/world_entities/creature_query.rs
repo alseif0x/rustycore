@@ -10,7 +10,7 @@ impl WorldSession {
         &self,
         faction_template_id: u32,
     ) -> bool {
-        let Some(faction_template_store) = self.factions.template_store.as_ref() else {
+        let Some(faction_template_store) = self.catalogs.factions.template_store.as_ref() else {
             // Transitional compatibility for legacy DB-only creature loading.
             // C++ uses FactionTemplate.db2; when the store is absent, keep the
             // previous Rust no-aggro behavior for the canonical neutral faction.
@@ -24,7 +24,7 @@ impl WorldSession {
             return true;
         }
 
-        if let Some(faction_store) = self.factions.store.as_ref()
+        if let Some(faction_store) = self.catalogs.factions.store.as_ref()
             && let Some(raw_faction) = faction_store.get(u32::from(faction_template.faction))
             && raw_faction.can_have_reputation_like_cpp()
         {
@@ -43,7 +43,7 @@ impl WorldSession {
         }
         let map_key = self
             .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
         };
@@ -77,7 +77,7 @@ impl WorldSession {
             return Vec::new();
         };
 
-        if let Some(manager) = &self.map_manager {
+        if let Some(manager) = &self.core.map_manager {
             let (_, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
             let visibility_range = self.player_map_visibility_range_like_cpp(map_id);
             // Materialize the legacy candidates and release its map-manager
@@ -148,7 +148,7 @@ impl WorldSession {
         let source_combat_reach =
             self.with_owned_player_like_cpp(|player| player.unit().world().combat_reach())?;
         let player_phase_shift = self.represented_player_phase_shift_like_cpp()?;
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
         };
@@ -220,66 +220,69 @@ impl WorldSession {
         &mut self,
         store: Arc<CreatureOnKillReputationStoreLikeCpp>,
     ) {
-        self.creatures.onkill_reputation_store = Some(store);
+        self.catalogs.creatures.onkill_reputation_store = Some(store);
     }
     pub(crate) fn creature_onkill_reputation_store(
         &self,
     ) -> Option<&Arc<CreatureOnKillReputationStoreLikeCpp>> {
-        self.creatures.onkill_reputation_store.as_ref()
+        self.catalogs.creatures.onkill_reputation_store.as_ref()
     }
     pub fn set_creature_template_mount_store(
         &mut self,
         store: Arc<CreatureTemplateMountStoreLikeCpp>,
     ) {
-        self.creatures.template_mount_store = Some(store);
+        self.catalogs.creatures.template_mount_store = Some(store);
     }
     pub fn set_creature_template_lifecycle_store_like_cpp(
         &mut self,
         store: Arc<CreatureTemplateLifecycleStoreLikeCpp>,
     ) {
-        self.creatures.template_lifecycle_store_like_cpp = Some(store);
+        self.catalogs.creatures.template_lifecycle_store_like_cpp = Some(store);
     }
     pub(crate) fn creature_template_lifecycle_store_like_cpp(
         &self,
     ) -> Option<&Arc<CreatureTemplateLifecycleStoreLikeCpp>> {
-        self.creatures.template_lifecycle_store_like_cpp.as_ref()
+        self.catalogs
+            .creatures
+            .template_lifecycle_store_like_cpp
+            .as_ref()
     }
     pub fn set_creature_display_info_store(&mut self, store: Arc<CreatureDisplayInfoStore>) {
-        self.creatures.display_info_store = Some(store);
+        self.catalogs.creatures.display_info_store = Some(store);
     }
     pub fn set_creature_display_info_extra_store(
         &mut self,
         store: Arc<CreatureDisplayInfoExtraStore>,
     ) {
-        self.creatures.display_info_extra_store = Some(store);
+        self.catalogs.creatures.display_info_extra_store = Some(store);
     }
     pub fn set_creature_model_info_store(
         &mut self,
         store: Arc<wow_data::CreatureModelInfoStoreLikeCpp>,
     ) {
-        self.creatures.model_info_store = Some(store);
+        self.catalogs.creatures.model_info_store = Some(store);
     }
     #[cfg(test)]
     pub fn set_creature_addon_store_like_cpp(&mut self, store: Arc<CreatureAddonStoreLikeCpp>) {
-        self.creature_addon_store_like_cpp = Some(store);
+        self.catalogs.creature_addon_store_like_cpp = Some(store);
     }
     #[cfg(test)]
     pub(crate) fn creature_addon_store_like_cpp(&self) -> Option<&Arc<CreatureAddonStoreLikeCpp>> {
-        self.creature_addon_store_like_cpp.as_ref()
+        self.catalogs.creature_addon_store_like_cpp.as_ref()
     }
     #[cfg(test)]
     pub fn set_creature_difficulty_store_like_cpp(
         &mut self,
         store: Arc<CreatureDifficultyStoreLikeCpp>,
     ) {
-        self.creature_difficulty_store_like_cpp = Some(store);
+        self.catalogs.creature_difficulty_store_like_cpp = Some(store);
     }
     #[cfg(test)]
     pub fn set_creature_base_stats_store_like_cpp(
         &mut self,
         store: Arc<CreatureBaseStatsStoreLikeCpp>,
     ) {
-        self.creature_base_stats_store_like_cpp = Some(store);
+        self.catalogs.creature_base_stats_store_like_cpp = Some(store);
     }
     pub(crate) fn creature_create_stats_with_catalogs_like_cpp(
         &self,
@@ -336,7 +339,7 @@ impl WorldSession {
         }
     }
     pub fn set_creature_model_data_store(&mut self, store: Arc<CreatureModelDataStore>) {
-        self.creatures.model_data_store = Some(store);
+        self.catalogs.creatures.model_data_store = Some(store);
     }
     #[allow(dead_code)]
     pub(crate) fn represented_mount_creature_template_fallback_like_cpp(
@@ -344,12 +347,13 @@ impl WorldSession {
         creature_entry: u32,
     ) -> Option<(i32, u32)> {
         let template = self
+            .catalogs
             .creatures
             .template_mount_store
             .as_ref()?
             .get(creature_entry)?;
         let display_id = template
-            .choose_display_id_like_cpp(&mut self.driver.represented_runtime_rng_like_cpp)?;
+            .choose_display_id_like_cpp(&mut self.core.driver.represented_runtime_rng_like_cpp)?;
         Some((i32::try_from(display_id).unwrap_or(0), template.vehicle_id))
     }
 }

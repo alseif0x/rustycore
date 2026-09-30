@@ -134,7 +134,7 @@ impl crate::session::WorldSession {
         };
         let sent = self.send_packet(&player_pkt);
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             map = player_pkt.map_id,
             accepted = sent,
             "[FAR_TELEPORT] prepared SendInitSelf (player ActivePlayer create) for destination map"
@@ -171,7 +171,7 @@ impl crate::session::WorldSession {
         }
         self.recovery_new_world_sent_like_cpp();
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             map = new_map,
             "[FAR_TELEPORT] SuspendTokenResponse -> sent SMSG_NEW_WORLD (client now loads destination map)"
         );
@@ -199,14 +199,14 @@ impl crate::session::WorldSession {
         if !self.represented_far_teleport_pending_like_cpp() {
             warn!(
                 "WorldPortResponse from account {} but far teleport semaphore is not set",
-                self.account_id
+                self.core.account_id
             );
             return;
         }
         let Some((new_map, new_pos)) = self.pending_teleport_like_cpp() else {
             warn!(
                 "WorldPortResponse from account {} but no pending teleport",
-                self.account_id
+                self.core.account_id
             );
             return;
         };
@@ -216,7 +216,7 @@ impl crate::session::WorldSession {
         // paired with the old map or publish a false LoggedIn transition.
         if !self.try_attach_worldport_destination_like_cpp(new_map, new_pos) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "WorldPortResponse could not attach its Player; transfer remains pending"
             );
             self.recover_rejected_worldport_like_cpp().await;
@@ -228,7 +228,7 @@ impl crate::session::WorldSession {
         }
 
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             "WorldPortResponse: completing teleport to map {} ({:.2}, {:.2}, {:.2})",
             new_map,
             new_pos.x,
@@ -254,7 +254,7 @@ impl crate::session::WorldSession {
             reason: 1,
         });
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             map = new_map,
             resume_seq,
             "[FAR_TELEPORT] worldport ack: sent ResumeToken(reason=1); NewWorld was sent at SuspendTokenResponse #NEXT.R8.ENTITIES.1229"
@@ -302,9 +302,9 @@ impl crate::session::WorldSession {
         self.send_nearby_gameobjects(new_map as u16, &new_pos, 0)
             .await;
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             map = new_map,
-            visible = self.client_visible_guids_like_cpp.len(),
+            visible = self.core.client_visible_guids_like_cpp.len(),
             "[FAR_TELEPORT] replayed before-add (MoveSetActiveMover + TimeSync) + refreshed \
              nearby objects; now sending after-add init"
         );
@@ -360,7 +360,7 @@ impl crate::session::WorldSession {
             return;
         }
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             map = new_map,
             zone = zone_id,
             area = area_id,
@@ -395,21 +395,21 @@ impl crate::session::WorldSession {
     ) {
         let Ok(trigger_id) = pkt.read_uint32() else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "AreaTrigger packet missing trigger ID"
             );
             return;
         };
         let Ok(entered) = pkt.read_bit() else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 trigger_id, "AreaTrigger packet missing Entered bit"
             );
             return;
         };
         let Ok(_from_client) = pkt.read_bit() else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 trigger_id, "AreaTrigger packet missing FromClient bit"
             );
             return;
@@ -417,7 +417,7 @@ impl crate::session::WorldSession {
 
         info!(
             "AreaTrigger: account {} trigger_id={} entered={}",
-            self.account_id, trigger_id, entered
+            self.core.account_id, trigger_id, entered
         );
 
         if self.resolved_is_in_taxi_flight_like_cpp() != Some(false) {
@@ -688,7 +688,7 @@ impl crate::session::WorldSession {
         let status: u8 = if is_flight_master { 2 } else { 0 };
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             ?unit_guid,
             status,
             "TaxiNodeStatusQuery"
@@ -701,7 +701,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "SetTaxiBenchmarkMode parse failed: {error}"
                 );
                 return;

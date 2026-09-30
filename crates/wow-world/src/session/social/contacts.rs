@@ -7,10 +7,10 @@ use super::*;
 
 impl WorldSession {
     pub fn set_friendship_rep_reaction_store(&mut self, store: Arc<FriendshipRepReactionStore>) {
-        self.friendship_rep_reaction_store = Some(store);
+        self.catalogs.friendship_rep_reaction_store = Some(store);
     }
     pub(crate) fn friendship_rep_reaction_store(&self) -> Option<&Arc<FriendshipRepReactionStore>> {
-        self.friendship_rep_reaction_store.as_ref()
+        self.catalogs.friendship_rep_reaction_store.as_ref()
     }
     pub(in crate::session) fn represented_recruit_a_friend_xp_rest_state_applies_like_cpp(
         &self,
@@ -24,7 +24,7 @@ impl WorldSession {
         // C++ `WorldObject::IsInMap` requires both players to be in world.
         // In particular, offline rest accrual runs during LoadFromDB before
         // `AddPlayerToMap` and must not normalize the state as RAF-linked.
-        if self.state != SessionState::LoggedIn {
+        if self.core.state != SessionState::LoggedIn {
             return false;
         }
         let player_level = u32::from(self.player_level_like_cpp());
@@ -34,8 +34,8 @@ impl WorldSession {
         let (Some(player_guid), Some(group_guid), Some(group_registry), Some(player_registry)) = (
             self.player_guid(),
             self.resolved_group_guid_like_cpp(),
-            self.directory.group_registry.as_ref(),
-            self.player_registry.as_ref(),
+            self.core.directory.group_registry.as_ref(),
+            self.core.player_registry.as_ref(),
         ) else {
             return false;
         };
@@ -98,7 +98,7 @@ impl WorldSession {
                 }
             }
 
-            let member_recruited_self = member.recruiter_id == self.account_id;
+            let member_recruited_self = member.recruiter_id == self.core.account_id;
             let self_recruited_member = self.recruiter_id_like_cpp() == member.account_id;
             if member_recruited_self || self_recruited_member {
                 return true;

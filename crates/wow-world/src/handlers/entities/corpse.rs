@@ -74,7 +74,7 @@ impl crate::session::WorldSession {
     ) {
         if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some() {
             info!(
-                account = self.account_id,
+                account = self.core.account_id,
                 state = ?self.state(),
                 "RUST_CEMETERY_TRACE handler entry"
             );
@@ -84,7 +84,7 @@ impl crate::session::WorldSession {
         };
         if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some() {
             info!(
-                account = self.account_id,
+                account = self.core.account_id,
                 state = ?self.state(),
                 zone = zone_id,
                 area = area_id,
@@ -230,7 +230,7 @@ impl crate::session::WorldSession {
             Ok(response) => response,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "ResurrectResponse parse failed: {error}"
                 );
                 return;
@@ -271,7 +271,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "RepopRequest parse failed: {error}"
                 );
                 return;
@@ -292,8 +292,10 @@ impl crate::session::WorldSession {
         self.set_player_ghost_flag_like_cpp(true);
         #[cfg(test)]
         {
-            self.represented_repop_at_graveyard_count =
-                self.represented_repop_at_graveyard_count.saturating_add(1);
+            self.combat.represented_repop_at_graveyard_count = self
+                .combat
+                .represented_repop_at_graveyard_count
+                .saturating_add(1);
         }
     }
 
@@ -318,8 +320,10 @@ impl crate::session::WorldSession {
         // release and instance-lock decline paths.
         #[cfg(test)]
         {
-            self.represented_repop_at_graveyard_count =
-                self.represented_repop_at_graveyard_count.saturating_add(1);
+            self.combat.represented_repop_at_graveyard_count = self
+                .combat
+                .represented_repop_at_graveyard_count
+                .saturating_add(1);
         }
         true
     }
@@ -332,7 +336,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "ReclaimCorpse parse failed: {error}"
                 );
                 return;

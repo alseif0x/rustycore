@@ -145,7 +145,7 @@ impl crate::session::WorldSession {
     pub async fn handle_battle_pet_request_journal(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = BattlePetRequestJournal::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "BattlePetRequestJournal parse failed: {error}"
             );
             return;
@@ -185,7 +185,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "BattlePetClearFanfare parse failed: {error}"
                 );
                 return;
@@ -212,7 +212,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "BattlePetDeletePet parse failed: {error}"
                 );
                 return;
@@ -242,7 +242,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "CageBattlePet parse failed: {error}"
                 );
                 return;
@@ -268,7 +268,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "BattlePetModifyName parse failed: {error}"
                 );
                 return;
@@ -296,7 +296,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "BattlePetSetFlags parse failed: {error}"
                 );
                 return;
@@ -324,7 +324,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "BattlePetSetBattleSlot parse failed: {error}"
                 );
                 return;
@@ -347,7 +347,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "BattlePetSummon parse failed: {error}"
                 );
                 return;
@@ -368,7 +368,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "BattlePetUpdateNotify parse failed: {error}"
                 );
                 return;
@@ -397,7 +397,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "DismissCritter parse failed: {error}"
                 );
                 return;
@@ -419,7 +419,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "QueryBattlePetName parse failed: {error}"
                 );
                 return;

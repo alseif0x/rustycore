@@ -69,7 +69,7 @@ impl WorldSession {
         let Ok(movie_id) = u32::try_from(movie_id) else {
             return;
         };
-        let Some(movie_store) = self.movie_store.as_ref() else {
+        let Some(movie_store) = self.catalogs.movie_store.as_ref() else {
             return;
         };
         if movie_store.get(movie_id).is_none() {
@@ -179,7 +179,10 @@ impl WorldSession {
 
         if let (Some(spell_store), Some(shapeshift_form_store)) = (
             self.spell_store(),
-            self.spell_catalogs.spell_shapeshift_form_store.as_ref(),
+            self.catalogs
+                .spell_catalogs
+                .spell_shapeshift_form_store
+                .as_ref(),
         ) {
             for aura in visible_auras.values() {
                 let Some(spell_info) = spell_store.get(aura.spell_id) else {
@@ -209,10 +212,11 @@ impl WorldSession {
             return Some(None);
         }
 
-        let Some(display_store) = self.creatures.display_info_store.as_ref() else {
+        let Some(display_store) = self.catalogs.creatures.display_info_store.as_ref() else {
             return Some(None);
         };
-        let Some(display_extra_store) = self.creatures.display_info_extra_store.as_ref() else {
+        let Some(display_extra_store) = self.catalogs.creatures.display_info_extra_store.as_ref()
+        else {
             return Some(None);
         };
         let Some(display) = display_store.get(display_id) else {
@@ -226,8 +230,8 @@ impl WorldSession {
         };
 
         if let (Some(model_store), Some(chr_races_store)) = (
-            self.creatures.model_data_store.as_ref(),
-            self.chr.races_store.as_ref(),
+            self.catalogs.creatures.model_data_store.as_ref(),
+            self.catalogs.chr.races_store.as_ref(),
         ) {
             let model_cannot_mount =
                 model_store
@@ -295,8 +299,8 @@ impl WorldSession {
             return canonical;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return self.represented_homebind_like_cpp;
+        if self.core.player_handle_like_cpp.is_none() {
+            return self.teleport.represented_homebind_like_cpp;
         }
         None
     }
@@ -311,8 +315,8 @@ impl WorldSession {
             return true;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_homebind_like_cpp = Some(homebind);
+        if self.core.player_handle_like_cpp.is_none() {
+            self.teleport.represented_homebind_like_cpp = Some(homebind);
             return true;
         }
         false
@@ -326,7 +330,7 @@ impl WorldSession {
             return None;
         }
         let player_map_key = self.current_canonical_player_map_key_like_cpp()?;
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let manager = manager.lock().ok()?;
         let map = manager.find_map(player_map_key.map_id, player_map_key.instance_id)?;
         if let Some(player) = map.map().get_typed_player(target_guid) {
@@ -361,7 +365,7 @@ impl WorldSession {
         else {
             return true;
         };
-        let Some(condition_store) = self.condition_store.as_ref() else {
+        let Some(condition_store) = self.catalogs.condition_store.as_ref() else {
             return false;
         };
 
@@ -405,7 +409,8 @@ impl WorldSession {
         spell_id: i32,
         effect_index: u32,
     ) -> Option<Arc<wow_data::ConditionContainer>> {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_store
             .as_deref()
             .and_then(|store| store.implicit_target_conditions_like_cpp(spell_id, effect_index))
@@ -434,6 +439,7 @@ impl WorldSession {
         dynamic_object_guid: ObjectGuid,
     ) -> bool {
         if self
+            .core
             .client_visible_guids_like_cpp
             .contains(&dynamic_object_guid)
         {
@@ -446,7 +452,7 @@ impl WorldSession {
         let Ok(packet_map_id) = u16::try_from(player_map_key.map_id) else {
             return false;
         };
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
             return false;
         };
         let Ok(manager) = manager.lock() else {
@@ -476,7 +482,8 @@ impl WorldSession {
                 packet_map_id,
             ),
         );
-        self.client_visible_guids_like_cpp
+        self.core
+            .client_visible_guids_like_cpp
             .insert(dynamic_object_guid);
         true
     }
@@ -519,10 +526,11 @@ impl WorldSession {
         // before the next visibility read derives the seer from canonical
         // Player state.
         self.send_set_viewpoint_target_visibility_like_cpp(dynamic_object_guid);
-        self.last_observed_farsight_object_like_cpp = dynamic_object_guid;
+        self.visibility.last_observed_farsight_object_like_cpp = dynamic_object_guid;
         #[cfg(test)]
         {
-            self.visibility_test_fixture_like_cpp
+            self.visibility
+                .visibility_test_fixture_like_cpp
                 .represented_seer_guid_like_cpp = Some(dynamic_object_guid);
         }
         player_set_viewpoint.update_visibility_requested
@@ -612,9 +620,9 @@ impl WorldSession {
         let _ = self.set_player_pet_guid_like_cpp(None);
         #[cfg(test)]
         {
-            self.represented_pet_react_state_like_cpp =
+            self.pets.represented_pet_react_state_like_cpp =
                 wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
-            self.represented_pet_command_state_like_cpp =
+            self.pets.represented_pet_command_state_like_cpp =
                 wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
         }
         true
@@ -641,7 +649,8 @@ impl WorldSession {
             let clear_target_packet_bytes =
                 wow_packet::packets::spell::ClearTarget { guid: caster_guid }.to_bytes();
 
-            self.duel_test_fixture_like_cpp
+            self.social
+                .duel_test_fixture_like_cpp
                 .represented_force_deselects_like_cpp
                 .push(RepresentedForceDeselectLikeCpp {
                     caster_guid,
@@ -775,7 +784,8 @@ impl WorldSession {
     /// Resolve the current map's C++ `MapEntry::IsDungeon` classification
     /// without conflating missing Map.db2 metadata with an overworld map.
     pub(crate) fn current_map_dungeon_state_like_cpp(&self) -> Option<bool> {
-        self.maps
+        self.catalogs
+            .maps
             .store
             .as_ref()
             .and_then(|store| store.get(u32::from(self.player_map_id_like_cpp())))
@@ -871,7 +881,7 @@ impl WorldSession {
 
         let Ok(creature_entry) = u32::try_from(creature_entry) else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Skipping represented kill-credit spell effect with negative MiscValue"
             );
             return Ok(());
@@ -882,7 +892,7 @@ impl WorldSession {
 
         if group_reward_like_cpp {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 creature_entry,
                 "Represented SPELL_EFFECT_KILL_CREDIT2 applies current-session credit only; C++ group fanout remains unrepresented"
             );

@@ -6,7 +6,7 @@ async fn durable_creature_runtime_rail_is_drained_by_session_update_like_cpp() {
     let attacker_guid =
         ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1011);
     let victim_guid = ObjectGuid::create_player(1, 7005);
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_player_guid(Some(victim_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session.set_player_health_like_cpp(100, 100);
@@ -18,6 +18,7 @@ async fn durable_creature_runtime_rail_is_drained_by_session_update_like_cpp() {
     );
     assert!(
         session
+            .core
             .durable_creature_runtime_commands_like_cpp
             .lock()
             .unwrap()
@@ -69,7 +70,7 @@ async fn durable_creature_runtime_overflow_disconnects_desynchronized_session() 
     let attacker_guid =
         ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1012);
     let victim_guid = ObjectGuid::create_player(1, 7006);
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_player_guid(Some(victim_guid));
     let command = CreatureAttackStartLikeCppCommand {
         attacker_guid,
@@ -81,6 +82,7 @@ async fn durable_creature_runtime_overflow_disconnects_desynchronized_session() 
     };
     {
         let mut pending = session
+            .core
             .durable_creature_runtime_commands_like_cpp
             .lock()
             .unwrap();
@@ -97,6 +99,7 @@ async fn durable_creature_runtime_overflow_disconnects_desynchronized_session() 
     assert!(session.is_disconnecting());
     assert!(
         session
+            .core
             .durable_creature_runtime_commands_like_cpp
             .lock()
             .unwrap()

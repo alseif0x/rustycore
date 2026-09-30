@@ -7,17 +7,22 @@ fn has_item_appearance_reports_permanent_before_temporary_like_cpp() {
     assert_eq!(session.has_item_appearance_like_cpp(65), (false, false));
 
     session
+        .collections
         .represented_temporary_item_appearances_like_cpp
         .insert(65, HashSet::from([ObjectGuid::create_item(1, 900)]));
     assert_eq!(session.has_item_appearance_like_cpp(65), (true, true));
 
-    session.represented_item_appearances_like_cpp.insert(65);
+    session
+        .collections
+        .represented_item_appearances_like_cpp
+        .insert(65);
     assert_eq!(session.has_item_appearance_like_cpp(65), (true, false));
 }
 #[test]
 fn account_transmog_update_is_not_sent_while_opcode_is_unresolved_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     session
+        .collections
         .represented_favorite_item_appearances_like_cpp
         .insert(65, FavoriteAppearanceStateLikeCpp::Unchanged);
 

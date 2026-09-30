@@ -106,7 +106,7 @@ impl WorldSession {
             self.ensure_represented_player_looting_like_cpp(owner_guid, player_guid);
 
             let Some((cached_entry, dungeon_encounter_id)) =
-                self.loot_table.get(&owner_guid).and_then(|loot| {
+                self.loot.loot_table.get(&owner_guid).and_then(|loot| {
                     loot.items
                         .iter()
                         .find(|entry| {
@@ -142,6 +142,7 @@ impl WorldSession {
 
             let (entry, claim) = if let Some(authority) = authority {
                 let Some(expected_generation) = self
+                    .loot
                     .active_loot_view_generations_like_cpp
                     .get(&owner_guid)
                     .copied()
@@ -215,7 +216,7 @@ impl WorldSession {
                 )
                 .await;
                 debug!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     item = entry.item_id,
                     quantity = entry.quantity,
                     "Looted item"
@@ -225,7 +226,7 @@ impl WorldSession {
 
             if claim.is_some() {
                 debug!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     item = entry.item_id,
                     quantity = entry.quantity,
                     "Looted item"
@@ -233,7 +234,7 @@ impl WorldSession {
                 continue;
             }
 
-            if let Some(loot) = self.loot_table.get_mut(&owner_guid) {
+            if let Some(loot) = self.loot.loot_table.get_mut(&owner_guid) {
                 if let Some(entry) = loot
                     .items
                     .iter()
@@ -276,7 +277,7 @@ impl WorldSession {
                 self.represented_notify_loot_item_removed_like_cpp(owner_guid, list_id);
             }
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 item = item_id,
                 quantity,
                 "Looted item"

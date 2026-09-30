@@ -254,7 +254,7 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
     assert!(command.absorb_consumptions[0].removed);
     assert_eq!(victim_health(), 100);
     let _ = drain_server_opcodes(&send_rx);
-    session.state = crate::session::SessionState::LoggedIn;
+    session.core.state = crate::session::SessionState::LoggedIn;
     session.handle_apply_creature_melee_damage_like_cpp_command_like_cpp(command);
     assert_eq!(
         shield_amount(&session),
@@ -527,7 +527,7 @@ fn legacy_creature_melee_tick_once_drains_player_mana_shield_like_cpp() {
     assert_eq!(victim_mana(&session), 90);
     assert_eq!(shield_amount(&session).expect("shield").1, Some(20));
     let _ = drain_server_opcodes(&send_rx);
-    session.state = crate::session::SessionState::LoggedIn;
+    session.core.state = crate::session::SessionState::LoggedIn;
     session.handle_apply_creature_melee_damage_like_cpp_command_like_cpp(command);
     let opcodes = drain_server_opcodes(&send_rx);
     assert!(

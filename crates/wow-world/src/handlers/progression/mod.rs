@@ -78,7 +78,7 @@ impl crate::session::WorldSession {
     pub async fn handle_request_forced_reactions(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = RequestForcedReactions::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "RequestForcedReactions parse failed: {error}"
             );
             return;
@@ -110,7 +110,7 @@ impl crate::session::WorldSession {
                 Ok(request) => request.faction_index,
                 Err(error) => {
                     warn!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         "SetFactionAtWar parse failed: {error}"
                     );
                     return;
@@ -121,7 +121,7 @@ impl crate::session::WorldSession {
                 Ok(request) => request.faction_index,
                 Err(error) => {
                     warn!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         "SetFactionNotAtWar parse failed: {error}"
                     );
                     return;
@@ -131,7 +131,7 @@ impl crate::session::WorldSession {
 
         let Some(faction_store) = self.faction_store().cloned() else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 faction_index, "SetFactionAtWar ignored without Faction.db2 store"
             );
             return;
@@ -157,7 +157,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "SetFactionInactive parse failed: {error}"
                 );
                 return;
@@ -174,7 +174,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "SetWatchedFaction parse failed: {error}"
                 );
                 return;

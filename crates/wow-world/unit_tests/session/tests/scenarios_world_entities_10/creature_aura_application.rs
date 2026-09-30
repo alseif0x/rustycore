@@ -135,7 +135,11 @@ async fn spell_apply_aura_on_creature_target_lands_on_the_creature_like_cpp() {
 
     // C++ `Creature::Update` expires the aura when its duration elapses.
     let _ = drain_server_packet_bytes(&send_rx);
-    for tracked in session.represented_creature_auras_like_cpp.iter_mut() {
+    for tracked in session
+        .world_entities
+        .represented_creature_auras_like_cpp
+        .iter_mut()
+    {
         tracked.applied_at = std::time::Instant::now() - std::time::Duration::from_secs(60);
     }
     session.tick_auras();
@@ -152,7 +156,12 @@ async fn spell_apply_aura_on_creature_target_lands_on_the_creature_like_cpp() {
         })
         .expect("canonical creature");
     assert_eq!(remaining, 0, "the elapsed duration removes the auras");
-    assert!(session.represented_creature_auras_like_cpp.is_empty());
+    assert!(
+        session
+            .world_entities
+            .represented_creature_auras_like_cpp
+            .is_empty()
+    );
     let after_expiry = drain_server_opcodes(&send_rx);
     let removals = after_expiry
         .iter()
@@ -270,7 +279,11 @@ async fn spell_apply_aura_on_creature_keeps_each_effect_slot_amount_like_cpp() {
     // The elapsed duration removes every slot of the application, not only the
     // last registered one.
     let _ = drain_server_packet_bytes(&send_rx);
-    for tracked in session.represented_creature_auras_like_cpp.iter_mut() {
+    for tracked in session
+        .world_entities
+        .represented_creature_auras_like_cpp
+        .iter_mut()
+    {
         tracked.applied_at = std::time::Instant::now() - std::time::Duration::from_secs(60);
     }
     session.tick_auras();

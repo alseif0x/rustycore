@@ -105,7 +105,7 @@ pub(in crate::session::tests) fn seasonal_quest_store_like_cpp(
 pub(in crate::session::tests) fn adopt_player_quest_fixture_into_canonical_owner_like_cpp(
     session: &mut WorldSession,
 ) {
-    assert!(session.player_handle_like_cpp.is_none());
+    assert!(session.core.player_handle_like_cpp.is_none());
     let quests = session
         .player_quest_gameplay_snapshot_like_cpp()
         .expect("handle-less quest fixture");

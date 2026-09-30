@@ -17,16 +17,19 @@ impl WorldSession {
         authoritative_release: Option<&AuthoritativeLootReleaseLikeCpp>,
     ) {
         let go_type = self
+            .world_entities
             .represented_gameobject_use_states
             .get(&guid)
             .and_then(|state| state.go_type)
             .map(u32::from);
         let represented_chest_restock_time_secs = self
+            .world_entities
             .represented_gameobject_use_states
             .get(&guid)
             .and_then(|state| state.chest_restock_time_secs)
             .unwrap_or_default();
         let represented_personal_loot_uses_after_release = self
+            .world_entities
             .represented_gameobject_use_states
             .get(&guid)
             .map(|state| state.personal_loot_uses.saturating_add(1))
@@ -35,6 +38,7 @@ impl WorldSession {
         // GO value; the use counter source-of-truth is canonical `GameObject::use_times`
         // when the canonical GameObject can be mutated.
         let represented_fishing_hole_max_opens = self
+            .world_entities
             .represented_gameobject_use_states
             .get(&guid)
             .and_then(|state| state.fishing_hole_max_opens);
@@ -146,6 +150,7 @@ impl WorldSession {
             });
 
         let state = self
+            .world_entities
             .represented_gameobject_use_states
             .entry(guid)
             .or_default();
@@ -254,6 +259,7 @@ impl WorldSession {
         guid: ObjectGuid,
     ) {
         let Some(map_id) = self
+            .world_entities
             .represented_gameobject_use_states
             .get(&guid)
             .and_then(|state| state.per_player_despawn_until.map(|_| state.map_id))
@@ -261,7 +267,7 @@ impl WorldSession {
         else {
             return;
         };
-        if !self.client_visible_guids_like_cpp.remove(&guid) {
+        if !self.core.client_visible_guids_like_cpp.remove(&guid) {
             return;
         }
         self.send_packet(&UpdateObject::out_of_range_objects(vec![guid], map_id));
@@ -271,13 +277,17 @@ impl WorldSession {
         &self,
         guid: ObjectGuid,
     ) {
-        if !self.client_visible_guids_like_cpp.contains(&guid) {
+        if !self.core.client_visible_guids_like_cpp.contains(&guid) {
             return;
         }
         let Some(access) = self.canonical_gameobject_access_like_cpp(guid) else {
             return;
         };
-        let Some(state) = self.represented_gameobject_use_states.get(&guid) else {
+        let Some(state) = self
+            .world_entities
+            .represented_gameobject_use_states
+            .get(&guid)
+        else {
             return;
         };
         if state.go_type.map(u32::from) != Some(GAMEOBJECT_TYPE_GATHERING_NODE) {
@@ -327,9 +337,9 @@ impl WorldSession {
 
     pub(crate) async fn do_loot_release_all_like_cpp(&mut self, player_guid: ObjectGuid) {
         let mut active_owners: Vec<ObjectGuid> =
-            self.active_loot_view_owners.iter().copied().collect();
-        if active_owners.is_empty() && !self.active_loot_guid.is_empty() {
-            active_owners.push(self.active_loot_guid);
+            self.loot.active_loot_view_owners.iter().copied().collect();
+        if active_owners.is_empty() && !self.loot.active_loot_guid.is_empty() {
+            active_owners.push(self.loot.active_loot_guid);
         }
         active_owners.sort_by_key(|guid| (guid.high_value(), guid.low_value()));
 
@@ -344,7 +354,7 @@ impl WorldSession {
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> bool {
-        if !self.active_loot_view_owners.contains(&owner_guid)
+        if !self.loot.active_loot_view_owners.contains(&owner_guid)
             && !self.is_active_loot_guid(owner_guid)
         {
             return false;
@@ -354,6 +364,7 @@ impl WorldSession {
             self.prepare_owned_loot_authority_for_active_request_like_cpp(owner_guid, player_guid)
         {
             if !self
+                .loot
                 .active_loot_view_authorities_like_cpp
                 .get(&owner_guid)
                 .is_some_and(|opened| opened.shares_storage_like_cpp(&authority))
@@ -362,6 +373,7 @@ impl WorldSession {
                 return true;
             }
             let Some(active_generation) = self
+                .loot
                 .active_loot_view_generations_like_cpp
                 .get(&owner_guid)
                 .copied()
@@ -402,7 +414,7 @@ impl WorldSession {
         let Some(loot) = authoritative_release
             .as_ref()
             .map(|release| &release.loot)
-            .or_else(|| self.loot_table.get(&owner_guid))
+            .or_else(|| self.loot.loot_table.get(&owner_guid))
         else {
             return false;
         };
@@ -426,7 +438,7 @@ impl WorldSession {
             selected_pool_looted
         };
 
-        if let Some(loot) = self.loot_table.get_mut(&owner_guid) {
+        if let Some(loot) = self.loot.loot_table.get_mut(&owner_guid) {
             loot.players_looting.retain(|looter| *looter != player_guid);
         }
 
@@ -459,6 +471,7 @@ impl WorldSession {
             );
             let _ = self.queue_chest_gameobject_state_refresh_for_same_map_like_cpp(owner_guid);
             let go_type = self
+                .world_entities
                 .represented_gameobject_use_states
                 .get(&owner_guid)
                 .and_then(|state| state.go_type)
@@ -488,7 +501,7 @@ impl WorldSession {
                     player_guid,
                 );
             } else {
-                self.loot_table.remove(&owner_guid);
+                self.loot.loot_table.remove(&owner_guid);
             }
             return true;
         }
@@ -503,7 +516,7 @@ impl WorldSession {
             // source items for prospecting/milling, even if the window closes
             // before every generated entry was taken.
             self.clear_active_loot_guid_if(owner_guid);
-            self.loot_table.remove(&owner_guid);
+            self.loot.loot_table.remove(&owner_guid);
             let _ = self.apply_inventory_item_object_updates_like_cpp(
                 owner_guid,
                 &[ItemObjectUpdateLikeCpp::SetLootGenerated(false)],
@@ -537,18 +550,23 @@ impl WorldSession {
                         player_guid,
                     )
                     .is_some_and(|outcome| {
-                        self.loot_table.insert(owner_guid, outcome.snapshot.loot);
+                        self.loot
+                            .loot_table
+                            .insert(owner_guid, outcome.snapshot.loot);
                         outcome.cleared
                     })
             } else {
-                self.loot_table.get_mut(&owner_guid).is_some_and(|loot| {
-                    if loot.round_robin_player == player_guid {
-                        loot.round_robin_player = ObjectGuid::EMPTY;
-                        true
-                    } else {
-                        false
-                    }
-                })
+                self.loot
+                    .loot_table
+                    .get_mut(&owner_guid)
+                    .is_some_and(|loot| {
+                        if loot.round_robin_player == player_guid {
+                            loot.round_robin_player = ObjectGuid::EMPTY;
+                            true
+                        } else {
+                            false
+                        }
+                    })
             };
             if round_robin_released {
                 self.represented_notify_loot_list_like_cpp(owner_guid);
@@ -578,7 +596,7 @@ impl WorldSession {
         }
 
         // Remove loot entry from memory once the represented loot is consumed.
-        self.loot_table.remove(&owner_guid);
+        self.loot.loot_table.remove(&owner_guid);
 
         if owner_guid.is_item() && selected_pool_looted {
             self.destroy_fully_looted_direct_item(owner_guid).await;

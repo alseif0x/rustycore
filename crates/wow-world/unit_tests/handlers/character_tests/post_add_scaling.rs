@@ -61,7 +61,7 @@ async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
     set_priest_level80_stats(&mut session, 1000, 20);
     assert!(session.player_stat_changes_like_cpp().is_some());
     assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
-    let canonical = session.canonical_map_manager.as_ref().unwrap().clone();
+    let canonical = session.core.canonical_map_manager.as_ref().unwrap().clone();
     let port = CollectionLoadPortLikeCpp::for_initial_world_states([]);
     let observed = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let observation = observed.clone();

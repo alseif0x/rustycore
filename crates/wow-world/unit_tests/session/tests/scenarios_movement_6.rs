@@ -30,7 +30,7 @@ async fn teleport_to_far_map_clears_transport_server_time_override_like_cpp() {
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.set_active_player_transport_server_time_like_cpp(42_000);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -83,7 +83,7 @@ async fn teleport_to_preflight_abort_preserves_transport_server_time_override_li
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.set_active_player_transport_server_time_like_cpp(43_000);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -146,7 +146,7 @@ async fn teleport_to_valid_seamless_suppresses_transfer_pending_and_uses_reason_
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.set_active_player_transport_server_time_like_cpp(44_000);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -227,7 +227,7 @@ async fn teleport_to_invalid_seamless_falls_back_to_normal_transfer_like_cpp() {
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.set_active_player_transport_server_time_like_cpp(45_000);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -293,7 +293,7 @@ async fn teleport_to_player_logout_suppresses_transfer_packets_like_cpp() {
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.set_active_player_transport_server_time_like_cpp(46_000);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -357,7 +357,7 @@ async fn teleport_to_far_map_removes_current_player_dynamic_objects_like_cpp() {
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportRemoveDynObjects".to_string(),
@@ -442,7 +442,7 @@ async fn teleport_to_far_map_removes_current_player_area_triggers_like_cpp() {
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportRemoveAreaTriggers".to_string(),
@@ -511,7 +511,7 @@ async fn teleport_to_blocks_unescaped_death_knight_leaving_start_map_like_cpp() 
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportDkReject".to_string(),
@@ -540,7 +540,7 @@ async fn teleport_to_blocks_unescaped_death_knight_leaving_start_map_like_cpp() 
         "C++ Player::TeleportTo returns before SMSG_TRANSFER_PENDING for unescaped DKs leaving map 609"
     );
     assert_eq!(session.pending_teleport_like_cpp(), None);
-    assert_ne!(session.state, SessionState::Transfer);
+    assert_ne!(session.core.state, SessionState::Transfer);
 }
 #[tokio::test]
 async fn teleport_to_dk_escape_abort_still_masks_movement_flags_like_cpp() {
@@ -558,7 +558,7 @@ async fn teleport_to_dk_escape_abort_still_masks_movement_flags_like_cpp() {
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportDkRejectMovementReset".to_string(),
@@ -612,7 +612,7 @@ async fn teleport_to_dk_escape_abort_still_masks_movement_flags_like_cpp() {
         "C++ Player::TeleportTo returns before SMSG_TRANSFER_PENDING for unescaped DKs leaving map 609"
     );
     assert_eq!(session.pending_teleport_like_cpp(), None);
-    assert_ne!(session.state, SessionState::Transfer);
+    assert_ne!(session.core.state, SessionState::Transfer);
 }
 #[tokio::test]
 async fn teleport_to_same_map_sends_move_teleport_and_sets_near_pending_like_cpp() {
@@ -633,7 +633,7 @@ async fn teleport_to_same_map_sends_move_teleport_and_sets_near_pending_like_cpp
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "NearTeleport".to_string(),
@@ -676,7 +676,7 @@ async fn teleport_to_same_map_sends_move_teleport_and_sets_near_pending_like_cpp
     );
     assert!(session.near_teleport_pending_like_cpp());
     assert_eq!(session.pending_teleport_like_cpp(), None);
-    assert_ne!(session.state, SessionState::Transfer);
+    assert_ne!(session.core.state, SessionState::Transfer);
     assert_eq!(session.fall_information_like_cpp(), (0, source.z));
 }
 #[tokio::test]
@@ -697,7 +697,7 @@ async fn teleport_to_same_map_masks_movement_flags_before_near_teleport_like_cpp
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -794,7 +794,7 @@ async fn teleport_to_same_map_forces_vehicle_exit_before_near_teleport_like_cpp(
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.set_player_registry(Arc::clone(&registry));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -806,8 +806,9 @@ async fn teleport_to_same_map_forces_vehicle_exit_before_near_teleport_like_cpp(
         80,
         0,
     ));
-    session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
-    session.player_vehicle_seat_id_like_cpp = Some(1004);
+    session.vehicles.player_vehicle_seat_flags_like_cpp =
+        Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
+    session.vehicles.player_vehicle_seat_id_like_cpp = Some(1004);
     session.register_in_player_registry();
 
     session.teleport_to(571, destination).await;
@@ -817,10 +818,13 @@ async fn teleport_to_same_map_forces_vehicle_exit_before_near_teleport_like_cpp(
         vec![ServerOpcodes::CancelCombat, ServerOpcodes::MoveTeleport]
     );
     assert!(
-        session.player_vehicle_seat_flags_like_cpp.is_none(),
+        session
+            .vehicles
+            .player_vehicle_seat_flags_like_cpp
+            .is_none(),
         "C++ Player::TeleportTo calls ExitVehicle directly; this is not gated by client seat-exit permissions"
     );
-    assert!(session.player_vehicle_seat_id_like_cpp.is_none());
+    assert!(session.vehicles.player_vehicle_seat_id_like_cpp.is_none());
     let info = registry
         .party_member(player_guid)
         .expect("registered player");

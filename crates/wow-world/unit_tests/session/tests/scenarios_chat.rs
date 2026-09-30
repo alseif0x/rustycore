@@ -63,7 +63,7 @@ fn update_zone_linked_chat_sets_city_rest_only_when_not_hostile_like_cpp() {
     assert!(session.update_zone_represented_like_cpp(20, 101));
     assert!(session.represented_is_resting_like_cpp());
     assert!(
-        !session.player_pvp_hostile_like_cpp,
+        !session.combat.player_pvp_hostile_like_cpp,
         "C++ Player::UpdateZone recalculates pvpInfo.IsHostile before city rest"
     );
 
@@ -72,7 +72,7 @@ fn update_zone_linked_chat_sets_city_rest_only_when_not_hostile_like_cpp() {
         session.represented_is_resting_like_cpp(),
         "C++ leaves an existing city-rest flag untouched in hostile LinkedChat zones"
     );
-    assert!(session.player_pvp_hostile_like_cpp);
+    assert!(session.combat.player_pvp_hostile_like_cpp);
 
     assert!(session.update_zone_represented_like_cpp(50, 103));
     assert!(session.represented_is_resting_like_cpp());

@@ -63,7 +63,7 @@ impl WorldSession {
         if !self.set_represented_far_teleport_pending_like_cpp(true) {
             return;
         }
-        self.state = SessionState::Transfer;
+        self.core.state = SessionState::Transfer;
 
         if !self.lifecycle.player_logout_like_cpp {
             if options & TELE_TO_SEAMLESS_LIKE_CPP == 0

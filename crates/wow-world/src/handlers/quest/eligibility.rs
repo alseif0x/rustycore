@@ -45,7 +45,7 @@ impl WorldSession {
         source: RepresentedQuestGiverStatusSourceLikeCpp,
     ) -> u64 {
         self.get_represented_quest_giver_status_with_catalog_like_cpp(
-            self.quests.info_store.as_deref(),
+            self.catalogs.quests.info_store.as_deref(),
             source,
         )
     }
@@ -55,7 +55,7 @@ impl WorldSession {
         quest_info: Option<&wow_data::progression_rewards::QuestInfoStore>,
         source: RepresentedQuestGiverStatusSourceLikeCpp,
     ) -> u64 {
-        let Some(store) = &self.quests.store else {
+        let Some(store) = &self.catalogs.quests.store else {
             return quest_giver_status::NONE;
         };
 
@@ -176,7 +176,7 @@ impl WorldSession {
                 },
             )
             .collect();
-        let store = self.quests.store.as_ref();
+        let store = self.catalogs.quests.store.as_ref();
         let quest_objective_progress: Vec<_> = store
             .map(|store| {
                 recurrence
@@ -368,7 +368,7 @@ impl WorldSession {
             return true;
         }
 
-        let Some(quest_store) = &self.quests.store else {
+        let Some(quest_store) = &self.catalogs.quests.store else {
             return true;
         };
         let Some(recurrence) = self.player_quest_gameplay_snapshot_like_cpp() else {
@@ -444,7 +444,7 @@ impl WorldSession {
     ) -> bool {
         WorldSession::represented_quest_dialog_classification_like_cpp(
             quest,
-            self.quests.info_store.as_deref(),
+            self.catalogs.quests.info_store.as_deref(),
         )
         .is_important()
     }
@@ -545,7 +545,7 @@ impl WorldSession {
     pub fn can_take_quest(&self, quest: &wow_data::quest::QuestTemplate) -> bool {
         if self.is_quest_disabled_like_cpp(quest.id) {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id = quest.id,
                 "CanTakeQuest: quest disabled"
             );
@@ -559,7 +559,7 @@ impl WorldSession {
         // If quest is already rewarded (non-repeatable), cannot take again.
         if recurrence.rewarded_quest_ids_like_cpp().contains(&quest.id) && !quest.is_repeatable() {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id = quest.id,
                 "CanTakeQuest: already rewarded"
             );
@@ -568,7 +568,7 @@ impl WorldSession {
         // If quest is already active, cannot accept again.
         if recurrence.statuses_like_cpp().contains_key(&quest.id) {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id = quest.id,
                 "CanTakeQuest: already active"
             );
@@ -579,7 +579,7 @@ impl WorldSession {
         // Inserted here to match C++ CanTakeQuest evaluation order: status → exclusive group.
         if !self.satisfy_quest_exclusive_group_like_cpp(quest) {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id = quest.id,
                 "CanTakeQuest: exclusive group blocked"
             );
@@ -598,7 +598,7 @@ impl WorldSession {
         // SatisfyQuestSkill — Player.cpp:14098, 15015-15037
         if !self.satisfy_quest_skill_like_cpp(quest) {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id = quest.id,
                 "CanTakeQuest: skill requirement not met"
             );
@@ -608,7 +608,7 @@ impl WorldSession {
         // SatisfyQuestReputation — Player.cpp:14098, 15262-15289
         if !self.satisfy_quest_reputation_like_cpp(quest) {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id = quest.id,
                 "CanTakeQuest: reputation requirement not met"
             );
@@ -623,7 +623,7 @@ impl WorldSession {
             if quest.prev_quest_id > 0 {
                 if !recurrence.rewarded_quest_ids_like_cpp().contains(&prev_id) {
                     debug!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         quest_id = quest.id,
                         prev_id,
                         "CanTakeQuest: prev quest not rewarded"
@@ -638,7 +638,7 @@ impl WorldSession {
                     .is_some_and(|qs| qs.status == QUEST_STATUS_INCOMPLETE_LIKE_CPP);
                 if !active {
                     debug!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         quest_id = quest.id,
                         prev_id,
                         "CanTakeQuest: negative prev quest not active"
@@ -652,7 +652,7 @@ impl WorldSession {
         // Blocks acceptance if the scalar dependent-previous list is not satisfied.
         // Per C++ SatisfyQuestDependentQuests (Player.cpp:15088-15092), this cluster runs
         // after SatisfyQuestReputation, not before Race/Class/Level.
-        if let Some(quest_store) = &self.quests.store {
+        if let Some(quest_store) = &self.catalogs.quests.store {
             if represented_satisfy_quest_dependent_previous_quests_failed_like_cpp(
                 quest_store,
                 quest,
@@ -663,7 +663,7 @@ impl WorldSession {
                     .collect(),
             ) {
                 debug!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     quest_id = quest.id,
                     "CanTakeQuest: dependent previous quests not satisfied"
                 );
@@ -686,7 +686,7 @@ impl WorldSession {
                 quest, &statuses,
             ) {
                 debug!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     quest_id = quest.id,
                     "CanTakeQuest: dependent breadcrumb in log"
                 );
@@ -701,7 +701,7 @@ impl WorldSession {
         if quest.is_df_quest_like_cpp() {
             if recurrence.df_quest_ids_like_cpp().contains(&quest.id) {
                 debug!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     quest_id = quest.id,
                     "CanTakeQuest: DF quest already completed"
                 );
@@ -711,7 +711,7 @@ impl WorldSession {
             && recurrence.daily_quest_ids_like_cpp().contains(&quest.id)
         {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id = quest.id,
                 "CanTakeQuest: daily quest already completed"
             );
@@ -722,7 +722,7 @@ impl WorldSession {
         if quest.is_weekly_like_cpp() && recurrence.weekly_quest_ids_like_cpp().contains(&quest.id)
         {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id = quest.id,
                 "CanTakeQuest: weekly quest on cooldown"
             );
@@ -734,7 +734,7 @@ impl WorldSession {
             && recurrence.monthly_quest_ids_like_cpp().contains(&quest.id)
         {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id = quest.id,
                 "CanTakeQuest: monthly quest on cooldown"
             );
@@ -754,7 +754,7 @@ impl WorldSession {
             {
                 if !bucket.is_empty() && bucket.contains_key(&quest.id) {
                     debug!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         quest_id = quest.id,
                         event_id = quest.event_id_for_quest_like_cpp(),
                         "CanTakeQuest: seasonal quest cooldown"
@@ -767,7 +767,7 @@ impl WorldSession {
         // SatisfyQuestConditions — C++ Player.cpp:14102
         if !self.represented_quest_available_conditions_meet_like_cpp(quest.id) {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id = quest.id,
                 "CanTakeQuest: quest available conditions not met"
             );
@@ -775,9 +775,9 @@ impl WorldSession {
         }
 
         // SatisfyQuestExpansion — Player.cpp:15431-15443 (CanTakeQuest term Player.cpp:14102)
-        if i32::from(self.expansion) < quest.expansion {
+        if i32::from(self.core.expansion) < quest.expansion {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id = quest.id,
                 "CanTakeQuest: required expansion"
             );

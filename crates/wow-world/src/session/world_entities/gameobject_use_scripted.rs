@@ -13,7 +13,10 @@ impl WorldSession {
         source: wow_entities::RitualUseSource,
     ) -> bool {
         let (owner_guid, ritual_owner_guid, owner_current_channeled_spell_active) = {
-            let state = self.represented_gameobject_use_states.get(&gameobject_guid);
+            let state = self
+                .world_entities
+                .represented_gameobject_use_states
+                .get(&gameobject_guid);
             (
                 state.and_then(|state| state.owner_guid),
                 state.and_then(|state| state.ritual_owner_guid),
@@ -36,7 +39,8 @@ impl WorldSession {
             owner_guid
         } else {
             let ritual_owner_guid = ritual_owner_guid.unwrap_or_else(|| {
-                self.represented_gameobject_use_states
+                self.world_entities
+                    .represented_gameobject_use_states
                     .get(&gameobject_guid)
                     .and_then(|state| state.unique_users.first().copied())
                     .unwrap_or(player_guid)
@@ -48,7 +52,8 @@ impl WorldSession {
             {
                 return false;
             }
-            self.represented_gameobject_use_states
+            self.world_entities
+                .represented_gameobject_use_states
                 .entry(gameobject_guid)
                 .or_default()
                 .ritual_owner_guid
@@ -58,6 +63,7 @@ impl WorldSession {
 
         let unique_user_count = {
             let state = self
+                .world_entities
                 .represented_gameobject_use_states
                 .entry(gameobject_guid)
                 .or_default();
@@ -68,7 +74,7 @@ impl WorldSession {
         };
 
         if source.anim_spell_id != 0 {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::CastSpell {
                     gameobject_guid,
                     player_guid,
@@ -78,7 +84,7 @@ impl WorldSession {
         }
 
         if unique_user_count != source.casters_required {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::RitualWaitingForParticipants {
                     gameobject_guid,
                     player_guid,
@@ -98,11 +104,12 @@ impl WorldSession {
 
         if source.caster_target_spell_id != 0 && source.caster_target_spell_id != 1 {
             let unique_users = self
+                .world_entities
                 .represented_gameobject_use_states
                 .get(&gameobject_guid)
                 .map(|state| state.unique_users.clone())
                 .unwrap_or_default();
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::RitualCasterTargetSpellRequested {
                     gameobject_guid,
                     player_guid,
@@ -112,19 +119,20 @@ impl WorldSession {
             );
             for _ in 0..source.caster_target_spell_targets {
                 let Some(target_guid) = unique_users
-                    .choose(&mut self.driver.represented_runtime_rng_like_cpp)
+                    .choose(&mut self.core.driver.represented_runtime_rng_like_cpp)
                     .copied()
                 else {
                     continue;
                 };
                 if !self
+                    .core
                     .player_registry
                     .as_ref()
                     .is_some_and(|registry| registry.group_presence(target_guid).is_some())
                 {
                     continue;
                 }
-                self.represented_gameobject_use_effects.push(
+                self.world_entities.represented_gameobject_use_effects.push(
                     RepresentedGameObjectUseEffect::RitualCasterTargetSpellCast {
                         gameobject_guid,
                         caster_guid: ritual_spell_caster_guid,
@@ -137,7 +145,7 @@ impl WorldSession {
         }
 
         if let Some(owner_guid) = owner_guid {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::FinishChanneledSpell {
                     player_guid: owner_guid,
                 },
@@ -146,6 +154,7 @@ impl WorldSession {
 
         if source.persistent {
             let state = self
+                .world_entities
                 .represented_gameobject_use_states
                 .entry(gameobject_guid)
                 .or_default();
@@ -153,13 +162,14 @@ impl WorldSession {
             state.unique_users.clear();
             state.use_count = 0;
         } else {
-            self.represented_gameobject_use_states
+            self.world_entities
+                .represented_gameobject_use_states
                 .entry(gameobject_guid)
                 .or_default()
                 .loot_state = Some(wow_entities::LootState::JustDeactivated);
         }
 
-        self.represented_gameobject_use_effects.push(
+        self.world_entities.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::RitualCompleted {
                 gameobject_guid,
                 player_guid,
@@ -194,11 +204,12 @@ impl WorldSession {
             target_guid != player_guid
                 && self.represented_player_is_same_raid_with_like_cpp(player_guid, target_guid)
                 && self
+                    .core
                     .player_registry
                     .as_ref()
                     .is_some_and(|registry| registry.group_presence(target_guid).is_some())
         }) {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::MeetingStoneTargetRejected {
                     gameobject_guid,
                     player_guid,
@@ -209,12 +220,14 @@ impl WorldSession {
         }
         let target_guid = target_guid.expect("checked above");
         if let Some(content_tuning) = self
+            .catalogs
             .content_tuning_store
             .as_ref()
             .and_then(|store| store.get(source.content_tuning_id))
         {
             let player_level = self.player_level_like_cpp();
             let target_level = self
+                .core
                 .player_registry
                 .as_ref()
                 .and_then(|registry| {
@@ -226,7 +239,7 @@ impl WorldSession {
             if i32::from(player_level) < content_tuning.max_level
                 || i32::from(target_level) < content_tuning.max_level
             {
-                self.represented_gameobject_use_effects.push(
+                self.world_entities.represented_gameobject_use_effects.push(
                     RepresentedGameObjectUseEffect::MeetingStoneLevelRejected {
                         gameobject_guid,
                         player_guid,
@@ -245,7 +258,7 @@ impl WorldSession {
             59782
         };
 
-        self.represented_gameobject_use_effects.push(
+        self.world_entities.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::MeetingStoneSummonRequested {
                 gameobject_guid,
                 player_guid,
@@ -276,12 +289,13 @@ impl WorldSession {
         player_guid: ObjectGuid,
     ) -> bool {
         let known_owner = self
+            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)
             .and_then(|state| state.owner_guid);
         if let Some(owner_guid) = known_owner {
             if owner_guid != player_guid {
-                self.represented_gameobject_use_effects.push(
+                self.world_entities.represented_gameobject_use_effects.push(
                     RepresentedGameObjectUseEffect::FishingNodeOwnerRejected {
                         gameobject_guid,
                         player_guid,
@@ -293,6 +307,7 @@ impl WorldSession {
         }
 
         let current_loot_state = self
+            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)
             .and_then(|state| state.loot_state)
@@ -311,6 +326,7 @@ impl WorldSession {
                     let represented_player_fishing_level = self
                         .player_profession_skill_value_for_exp_like_cpp(SKILL_FISHING_LIKE_CPP, 0);
                     let state = self
+                        .world_entities
                         .represented_gameobject_use_states
                         .entry(gameobject_guid)
                         .or_default();
@@ -330,14 +346,14 @@ impl WorldSession {
                 let fishing_hole_guid = explicit_fishing_hole_guid.or_else(|| {
                     self.lookup_represented_fishing_hole_around_like_cpp(gameobject_guid)
                 });
-                self.represented_gameobject_use_effects.push(
+                self.world_entities.represented_gameobject_use_effects.push(
                     RepresentedGameObjectUseEffect::FishingNodeActivated {
                         gameobject_guid,
                         player_guid,
                     },
                 );
                 if let Some(area_fishing_level) = area_fishing_level {
-                    self.represented_gameobject_use_effects.push(
+                    self.world_entities.represented_gameobject_use_effects.push(
                         RepresentedGameObjectUseEffect::FishingSkillUpdated {
                             gameobject_guid,
                             player_guid,
@@ -353,7 +369,7 @@ impl WorldSession {
                         } else {
                             100
                         };
-                    self.represented_gameobject_use_effects.push(
+                    self.world_entities.represented_gameobject_use_effects.push(
                         RepresentedGameObjectUseEffect::FishingLootRoll {
                             gameobject_guid,
                             player_guid,
@@ -374,11 +390,12 @@ impl WorldSession {
                     }
 
                     if let Some(fishing_hole_guid) = fishing_hole_guid {
-                        self.represented_gameobject_use_states
+                        self.world_entities
+                            .represented_gameobject_use_states
                             .entry(gameobject_guid)
                             .or_default()
                             .loot_state = Some(wow_entities::LootState::JustDeactivated);
-                        self.represented_gameobject_use_effects.push(
+                        self.world_entities.represented_gameobject_use_effects.push(
                             RepresentedGameObjectUseEffect::FishingHoleDelegated {
                                 gameobject_guid,
                                 player_guid,
@@ -391,7 +408,7 @@ impl WorldSession {
                         } else {
                             wow_packet::packets::loot::LOOT_TYPE_FISHING_JUNK_LIKE_CPP
                         };
-                        self.represented_gameobject_use_effects.push(
+                        self.world_entities.represented_gameobject_use_effects.push(
                             RepresentedGameObjectUseEffect::FishingLootRequested {
                                 gameobject_guid,
                                 player_guid,
@@ -403,11 +420,12 @@ impl WorldSession {
             }
             wow_entities::LootState::JustDeactivated => {}
             _ => {
-                self.represented_gameobject_use_states
+                self.world_entities
+                    .represented_gameobject_use_states
                     .entry(gameobject_guid)
                     .or_default()
                     .loot_state = Some(wow_entities::LootState::JustDeactivated);
-                self.represented_gameobject_use_effects.push(
+                self.world_entities.represented_gameobject_use_effects.push(
                     RepresentedGameObjectUseEffect::FishNotHooked {
                         gameobject_guid,
                         player_guid,
@@ -417,7 +435,8 @@ impl WorldSession {
             }
         }
 
-        self.represented_gameobject_use_effects
+        self.world_entities
+            .represented_gameobject_use_effects
             .push(RepresentedGameObjectUseEffect::FinishChanneledSpell { player_guid });
 
         true
@@ -433,7 +452,7 @@ impl WorldSession {
     ) -> bool {
         if source.page_id != 0 {
             self.send_packet(&wow_packet::packets::misc::PageText { gameobject_guid });
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::ShowPageText {
                     gameobject_guid,
                     player_guid,
@@ -441,7 +460,7 @@ impl WorldSession {
                 },
             );
         } else if source.gossip_id != 0 {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::SendGossip {
                     gameobject_guid,
                     player_guid,
@@ -451,7 +470,7 @@ impl WorldSession {
         }
 
         if source.event_id != 0 {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::TriggerGameEvent {
                     gameobject_guid,
                     player_guid,
@@ -462,6 +481,7 @@ impl WorldSession {
 
         if source.quest_id != 0
             && self
+                .catalogs
                 .quests
                 .store
                 .as_ref()
@@ -472,7 +492,7 @@ impl WorldSession {
                     status != Some(wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
                 })
         {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::GooberQuestGateRejected {
                     gameobject_guid,
                     player_guid,
@@ -485,7 +505,7 @@ impl WorldSession {
         let mut credit_guids = Vec::new();
         if let (Some(group_guid), Some(group_registry)) = (
             self.resolved_group_guid_like_cpp(),
-            &self.directory.group_registry,
+            &self.core.directory.group_registry,
         ) {
             if let Some(group) = group_registry.get(&group_guid) {
                 if group.members.contains(&player_guid) {
@@ -503,7 +523,7 @@ impl WorldSession {
                 self.player_map_id_like_cpp(),
                 gameobject_position,
             ) {
-                self.represented_gameobject_use_effects.push(
+                self.world_entities.represented_gameobject_use_effects.push(
                     RepresentedGameObjectUseEffect::KillCreditGo {
                         gameobject_guid,
                         player_guid: credit_guid,
@@ -522,7 +542,7 @@ impl WorldSession {
         }
 
         if source.linked_trap_entry != 0 {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::TriggerLinkedTrap {
                     gameobject_guid,
                     player_guid,
@@ -565,6 +585,7 @@ impl WorldSession {
                 let default_map_id = self.player_map_id_like_cpp();
                 let (despawn_secs, map_id) = {
                     let state = self
+                        .world_entities
                         .represented_gameobject_use_states
                         .entry(gameobject_guid)
                         .or_default();
@@ -577,7 +598,7 @@ impl WorldSession {
                     state.per_player_state_player_guid = Some(player_guid);
                     (despawn_secs, state.map_id.unwrap_or(default_map_id))
                 };
-                self.represented_gameobject_use_effects.push(
+                self.world_entities.represented_gameobject_use_effects.push(
                     RepresentedGameObjectUseEffect::GooberDespawnForPlayer {
                         gameobject_guid,
                         player_guid,
@@ -585,7 +606,10 @@ impl WorldSession {
                     },
                 );
                 if self.player_guid() == Some(player_guid)
-                    && self.client_visible_guids_like_cpp.remove(&gameobject_guid)
+                    && self
+                        .core
+                        .client_visible_guids_like_cpp
+                        .remove(&gameobject_guid)
                 {
                     self.send_represented_gameobject_out_of_range_for_player_like_cpp(
                         gameobject_guid,
@@ -594,6 +618,7 @@ impl WorldSession {
                 }
             } else {
                 let state = self
+                    .world_entities
                     .represented_gameobject_use_states
                     .entry(gameobject_guid)
                     .or_default();
@@ -604,7 +629,7 @@ impl WorldSession {
                 state.per_player_go_state = Some(wow_entities::GoState::Active);
                 state.per_player_go_state_until =
                     Some(Instant::now() + Duration::from_secs(u64::from(respawn_secs)));
-                self.represented_gameobject_use_effects.push(
+                self.world_entities.represented_gameobject_use_effects.push(
                     RepresentedGameObjectUseEffect::GooberSetGoStateForPlayer {
                         gameobject_guid,
                         player_guid,
@@ -621,6 +646,7 @@ impl WorldSession {
         } else {
             let (go_state, custom_anim_progress) = {
                 let state = self
+                    .world_entities
                     .represented_gameobject_use_states
                     .entry(gameobject_guid)
                     .or_default();
@@ -658,7 +684,7 @@ impl WorldSession {
                     packet.to_bytes(),
                 );
             }
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::GooberUsed {
                     gameobject_guid,
                     user_guid: player_guid,

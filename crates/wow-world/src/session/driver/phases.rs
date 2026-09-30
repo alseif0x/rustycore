@@ -63,7 +63,7 @@ impl super::super::WorldSession {
     #[inline]
     pub(crate) fn record_driver_phase_like_cpp(&mut self, phase: SessionDriverPhaseLikeCpp) {
         #[cfg(test)]
-        self.driver_phase_trace_like_cpp.push(phase);
+        self.core.driver_phase_trace_like_cpp.push(phase);
         #[cfg(not(test))]
         let _ = phase;
     }
@@ -71,12 +71,12 @@ impl super::super::WorldSession {
     /// The phases recorded since the last reset, in execution order.
     #[cfg(test)]
     pub(crate) fn driver_phase_trace_like_cpp(&self) -> &[SessionDriverPhaseLikeCpp] {
-        &self.driver_phase_trace_like_cpp
+        &self.core.driver_phase_trace_like_cpp
     }
 
     /// Clear the recorded trace so one test can assert per pass.
     #[cfg(test)]
     pub(crate) fn reset_driver_phase_trace_like_cpp(&mut self) {
-        self.driver_phase_trace_like_cpp.clear();
+        self.core.driver_phase_trace_like_cpp.clear();
     }
 }

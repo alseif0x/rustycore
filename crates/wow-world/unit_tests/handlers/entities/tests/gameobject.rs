@@ -51,6 +51,7 @@ fn game_obj_use_test_session_like_cpp(
         wow_entities::GAMEOBJECT_TYPE_DOOR as u8,
     );
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session.set_object_mgr_catalogs_like_cpp(Arc::new(crate::session::ObjectMgrCatalogsLikeCpp {
@@ -106,6 +107,7 @@ async fn game_obj_use_loaded_template_dispatches_door_without_concrete_db_like_c
 
     assert!(
         session
+            .world_entities
             .represented_gameobject_use_effects
             .iter()
             .any(|effect| {
@@ -120,7 +122,7 @@ async fn game_obj_use_loaded_template_dispatches_door_without_concrete_db_like_c
                 )
             }),
         "effects: {:?}",
-        session.represented_gameobject_use_effects
+        session.world_entities.represented_gameobject_use_effects
     );
 }
 
@@ -132,7 +134,12 @@ async fn game_obj_use_missing_template_is_noop_like_cpp() {
         .handle_game_obj_use(game_obj_use_packet_like_cpp(gameobject_guid))
         .await;
 
-    assert!(session.represented_gameobject_use_effects.is_empty());
+    assert!(
+        session
+            .world_entities
+            .represented_gameobject_use_effects
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -151,6 +158,7 @@ async fn game_obj_use_missing_catalog_capability_is_noop_before_template_read_li
         wow_entities::GAMEOBJECT_TYPE_DOOR as u8,
     );
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
 
@@ -158,7 +166,12 @@ async fn game_obj_use_missing_catalog_capability_is_noop_before_template_read_li
         .handle_game_obj_use(game_obj_use_packet_like_cpp(gameobject_guid))
         .await;
 
-    assert!(session.represented_gameobject_use_effects.is_empty());
+    assert!(
+        session
+            .world_entities
+            .represented_gameobject_use_effects
+            .is_empty()
+    );
 }
 
 #[test]
@@ -215,7 +228,9 @@ async fn game_obj_report_use_records_use_criteria_from_canonical_go_like_cpp() {
     session.handle_game_obj_report_use(pkt).await;
 
     assert_eq!(
-        session.represented_gameobject_criteria_events,
+        session
+            .world_entities
+            .represented_gameobject_criteria_events,
         vec![
             crate::session::RepresentedGameObjectCriteriaEvent::UseGameobject {
                 player_guid,
@@ -269,7 +284,12 @@ async fn game_obj_report_use_ignores_remote_control_like_cpp() {
     pkt.write_packed_guid(&gameobject_guid);
     session.handle_game_obj_report_use(pkt).await;
 
-    assert!(session.represented_gameobject_criteria_events.is_empty());
+    assert!(
+        session
+            .world_entities
+            .represented_gameobject_criteria_events
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -292,6 +312,7 @@ async fn game_obj_report_use_ai_can_consume_criteria_like_cpp() {
         3,
     );
     session
+        .world_entities
         .represented_gameobject_use_states
         .get_mut(&gameobject_guid)
         .unwrap()
@@ -320,7 +341,7 @@ async fn game_obj_report_use_ai_can_consume_criteria_like_cpp() {
     session.handle_game_obj_report_use(pkt).await;
 
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             crate::session::RepresentedGameObjectUseEffect::ReportUseAi {
                 gameobject_guid,
@@ -329,7 +350,12 @@ async fn game_obj_report_use_ai_can_consume_criteria_like_cpp() {
             }
         ]
     );
-    assert!(session.represented_gameobject_criteria_events.is_empty());
+    assert!(
+        session
+            .world_entities
+            .represented_gameobject_criteria_events
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -338,6 +364,7 @@ async fn close_interaction_matching_source_resets_provenance_not_menu_like_cpp()
     let source_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 1, 42);
     session.set_player_trainer_interaction_like_cpp(source_guid, 77);
     session
+        .interaction
         .gossip_options
         .push(crate::session::GossipOptionInfo {
             gossip_option_id: 1,
@@ -355,7 +382,7 @@ async fn close_interaction_matching_source_resets_provenance_not_menu_like_cpp()
     assert!(session.player_interaction_source_guid_like_cpp().is_none());
     assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
     assert_eq!(
-        session.gossip_options.len(),
+        session.interaction.gossip_options.len(),
         1,
         "C++ InteractionData::Reset is distinct from PlayerMenu::ClearMenus"
     );
@@ -369,6 +396,7 @@ async fn close_interaction_nonmatching_source_preserves_gossip_like_cpp() {
     let other_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 1, 44);
     session.set_player_trainer_interaction_like_cpp(active_guid, 77);
     session
+        .interaction
         .gossip_options
         .push(crate::session::GossipOptionInfo {
             gossip_option_id: 1,
@@ -388,6 +416,6 @@ async fn close_interaction_nonmatching_source_preserves_gossip_like_cpp() {
         Some(active_guid)
     );
     assert_eq!(session.player_interaction_trainer_id_like_cpp(), 77);
-    assert_eq!(session.gossip_options.len(), 1);
+    assert_eq!(session.interaction.gossip_options.len(), 1);
     assert!(send_rx.try_recv().is_err());
 }

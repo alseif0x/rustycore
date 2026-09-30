@@ -48,8 +48,8 @@ impl Fixture {
             outgoing,
         );
         let (command_tx, command_rx) = flume::bounded(1);
-        session.session_command_tx = command_tx;
-        session.session_command_rx = command_rx;
+        session.core.session_command_tx = command_tx;
+        session.core.session_command_rx = command_rx;
         let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
         let registry = Arc::new(PlayerRegistry::new());
         let legacy = Arc::new(RwLock::new(crate::map_manager::MapManager::new()));
@@ -113,7 +113,7 @@ impl Fixture {
         session
             .ensure_canonical_world_map_for_current_player_like_cpp()
             .expect("canonical active viewer");
-        session.state = SessionState::LoggedIn;
+        session.core.state = SessionState::LoggedIn;
         session.set_active_player_local_flags_like_cpp(0);
         session.register_in_player_registry();
         assert!(
@@ -121,7 +121,7 @@ impl Fixture {
                 .control_address(session.player_guid().unwrap())
                 .is_some()
         );
-        session.last_visibility_pos = Some(position);
+        session.visibility.last_visibility_pos = Some(position);
         // Login setup is outside the action window tested below.
         while output.try_recv().is_ok() {}
         Self {
@@ -153,7 +153,7 @@ impl Fixture {
     fn acknowledge(&mut self) -> PlayerVisibilityRefreshIntentLikeCpp {
         self.session
             .apply_move_init_active_mover_complete_like_cpp(25);
-        let handle = self.session.player_handle_like_cpp.unwrap();
+        let handle = self.session.core.player_handle_like_cpp.unwrap();
         assert_eq!(
             self.canonical
                 .lock()
@@ -199,6 +199,7 @@ impl Fixture {
     fn assert_created_once(&self) {
         assert!(
             self.session
+                .core
                 .client_visible_guids_like_cpp
                 .contains(&self.creature)
         );
@@ -215,18 +216,25 @@ impl Fixture {
             1,
             "exactly one creature CREATE from deferred publication"
         );
-        assert_eq!(self.session.last_visibility_pos, Some(self.position));
+        assert_eq!(
+            self.session.visibility.last_visibility_pos,
+            Some(self.position)
+        );
     }
 
     fn assert_unpublished(&self) {
         assert!(
             !self
                 .session
+                .core
                 .client_visible_guids_like_cpp
                 .contains(&self.creature)
         );
         assert!(self.output.try_recv().is_err());
-        assert_eq!(self.session.last_visibility_pos, Some(self.position));
+        assert_eq!(
+            self.session.visibility.last_visibility_pos,
+            Some(self.position)
+        );
     }
 }
 
@@ -316,6 +324,7 @@ async fn directed_creature_and_corpse_destroy_remove_visible_ledger_like_cpp() {
     assert!(
         !fixture
             .session
+            .core
             .client_visible_guids_like_cpp
             .contains(&fixture.creature)
     );
@@ -328,6 +337,7 @@ async fn directed_creature_and_corpse_destroy_remove_visible_ledger_like_cpp() {
     let corpse_guid = ObjectGuid::create_world_object(HighGuid::Corpse, 0, 1, 571, 0, 901, 588_903);
     fixture
         .session
+        .core
         .client_visible_guids_like_cpp
         .insert(corpse_guid);
     fixture
@@ -339,6 +349,7 @@ async fn directed_creature_and_corpse_destroy_remove_visible_ledger_like_cpp() {
     assert!(
         !fixture
             .session
+            .core
             .client_visible_guids_like_cpp
             .contains(&corpse_guid)
     );
@@ -367,6 +378,7 @@ async fn directed_creature_destroy_rejects_stale_incarnation_like_cpp() {
     assert!(
         fixture
             .session
+            .core
             .client_visible_guids_like_cpp
             .contains(&fixture.creature)
     );
@@ -394,6 +406,7 @@ async fn repeated_ack_refreshes_current_ledger_without_duplicate_create() {
     assert!(
         fixture
             .session
+            .core
             .client_visible_guids_like_cpp
             .contains(&fixture.creature)
     );
@@ -425,7 +438,7 @@ async fn full_general_queue_retains_and_coalesces_deferred_visibility() {
         );
     }
     assert_eq!(
-        fixture.session.session_command_rx.len(),
+        fixture.session.core.session_command_rx.len(),
         1,
         "bounded queue stays full and untouched"
     );
@@ -474,7 +487,7 @@ async fn consumer_rejects_detached_reattached_retired_and_changed_viewpoint_inte
                         })
                         .unwrap();
                 }
-                "missing_handle" => fixture.session.player_handle_like_cpp = None,
+                "missing_handle" => fixture.session.core.player_handle_like_cpp = None,
                 _ => unreachable!(),
             }
         }
@@ -496,7 +509,7 @@ async fn consumer_rejects_non_logged_in_and_disconnecting_sessions() {
     ] {
         let mut fixture = Fixture::new();
         let intent = fixture.acknowledge();
-        fixture.session.state = state;
+        fixture.session.core.state = state;
         let catalogs = fixture.session.creature_spawn_catalogs_for_test_like_cpp();
         fixture
             .session
@@ -561,7 +574,7 @@ async fn retained_request_is_rechecked_after_transfer_before_pump() {
 #[test]
 fn detached_ack_does_not_mark_map_visibility_notification() {
     let mut fixture = Fixture::new();
-    let handle = fixture.session.player_handle_like_cpp.unwrap();
+    let handle = fixture.session.core.player_handle_like_cpp.unwrap();
     fixture
         .canonical
         .lock()
@@ -608,6 +621,7 @@ fn retained_visibility_preserves_committed_prefix_before_presentation() {
     {
         let mut rail = fixture
             .session
+            .core
             .durable_creature_runtime_commands_like_cpp
             .lock()
             .unwrap();

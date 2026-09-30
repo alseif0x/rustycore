@@ -4,7 +4,7 @@ use super::*;
 async fn represented_haste_aura_scales_attack_time_multiplier_like_cpp() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 76);
-    session.player_guid = Some(player_guid);
+    session.core.player_guid = Some(player_guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     let mut spell_store = wow_data::SpellStore::new();
     // `SPELL_AURA_MOD_MELEE_HASTE` and `SPELL_AURA_MOD_SPEED_SLOW_ALL` with
@@ -92,7 +92,7 @@ async fn represented_haste_aura_scales_attack_time_multiplier_like_cpp() {
 async fn represented_shapeshift_combat_round_time_sets_form_attack_time_like_cpp() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 77);
-    session.player_guid = Some(player_guid);
+    session.core.player_guid = Some(player_guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     let form_id = 8_u32;
     let spell_id = 90_993_i32;

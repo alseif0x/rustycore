@@ -8,8 +8,8 @@ async fn spell_school_damage_applies_bonus_coefficient_from_ap_like_cpp() {
     let ap_spell_id = 742_i32;
     let guid = test_creature_guid(18_027);
     let player_guid = ObjectGuid::create_player(1, 73);
-    session.player_guid = Some(player_guid);
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(player_guid);
+    session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     // `Unit::GetTotalAttackPowerValue(BASE_ATTACK)` = 100.
@@ -76,8 +76,8 @@ async fn spell_direct_heal_applies_bonus_coefficient_from_ap_like_cpp() {
     let spell_id = 743_i32;
     let guid = test_creature_guid(18_028);
     let player_guid = ObjectGuid::create_player(1, 74);
-    session.player_guid = Some(player_guid);
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(player_guid);
+    session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     session
@@ -129,8 +129,8 @@ async fn spell_school_damage_ignores_the_flat_benefit_of_ignore_caster_modifiers
     let gated_spell_id = 745_i32;
     let guid = test_creature_guid(18_029);
     let player_guid = ObjectGuid::create_player(1, 75);
-    session.player_guid = Some(player_guid);
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(player_guid);
+    session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     // `SpellBaseDamageBonusDone` = 100 spell power.

@@ -91,7 +91,7 @@ impl WorldSession {
         map_id: u32,
         publish: bool,
     ) -> Option<wow_map::CreateMapDecision> {
-        let map_entry = self.maps.store.as_ref()?.get(map_id).copied()?;
+        let map_entry = self.catalogs.maps.store.as_ref()?.get(map_id).copied()?;
         if map_entry.is_battleground_or_arena() {
             return None;
         }
@@ -99,11 +99,11 @@ impl WorldSession {
         // client expansion before calling `MapManager::CreateMap`
         // (Player.cpp:17577-17587). The login handler observes the missing
         // canonical key and performs the same homebind recovery.
-        if self.expansion < map_entry.expansion_like_cpp() {
+        if self.core.expansion < map_entry.expansion_like_cpp() {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 map_id,
-                session_expansion = self.expansion,
+                session_expansion = self.core.expansion,
                 required_expansion = map_entry.expansion_like_cpp(),
                 "Login map rejected by C++ client expansion gate"
             );
@@ -112,7 +112,7 @@ impl WorldSession {
             });
         }
 
-        let player_guid = self.player_guid?;
+        let player_guid = self.core.player_guid?;
         let player = self.create_map_player_context_like_cpp(map_id, map_entry, player_guid)?;
         let is_dungeon = map_entry.is_dungeon();
         let requested_difficulty = player
@@ -153,8 +153,8 @@ impl WorldSession {
         if is_dungeon
             && !bypass_player_cannot_enter_like_cpp
             && map_entry.instance_type == wow_data::map::MAP_RAID
-            && map_entry.expansion_like_cpp() >= self.realm_policy.server_expansion_like_cpp
-            && !self.realm_policy.instance_ignore_raid_like_cpp
+            && map_entry.expansion_like_cpp() >= self.core.realm_policy.server_expansion_like_cpp
+            && !self.core.realm_policy.instance_ignore_raid_like_cpp
             && !self.current_player_is_in_raid_group_like_cpp()
         {
             if publish {
@@ -186,7 +186,7 @@ impl WorldSession {
             })
             .flatten();
 
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
         let mut manager = manager.lock().ok()?;
         let decision = manager.create_map_decision_like_cpp(
             Some(entry),
@@ -339,7 +339,7 @@ impl WorldSession {
             && let Some(lock) =
                 self.create_map_active_instance_lock_context_like_cpp(map_id, difficulty_id)
         {
-            let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+            let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
             if let Ok(mut manager) = manager.lock()
                 && let Some(map) = manager.find_map_mut(key.map_id, key.instance_id)
             {

@@ -100,14 +100,16 @@ impl WorldSession {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.battleground_state_like_cpp());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
                 wow_entities::PlayerBattlegroundState::from_represented_parts_like_cpp(
-                    self.player_battleground_type_id_like_cpp,
-                    self.player_battleground_map_id_like_cpp,
-                    self.represented_battleground_status_like_cpp,
-                    self.represented_battleground_queue_slots_like_cpp.clone(),
-                    self.represented_arena_team_id_invited_like_cpp,
+                    self.battleground.player_battleground_type_id_like_cpp,
+                    self.battleground.player_battleground_map_id_like_cpp,
+                    self.battleground.represented_battleground_status_like_cpp,
+                    self.battleground
+                        .represented_battleground_queue_slots_like_cpp
+                        .clone(),
+                    self.battleground.represented_arena_team_id_invited_like_cpp,
                 ),
             );
         }
@@ -121,7 +123,7 @@ impl WorldSession {
                 player.set_battleground_type_id_like_cpp(bg_type_id)
             })
             .is_some();
-        if !canonical && self.player_handle_like_cpp.is_none() {
+        if !canonical && self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_battleground_state_like_cpp(|state| {
                     state.set_battleground_type_id_like_cpp(bg_type_id);
@@ -142,7 +144,7 @@ impl WorldSession {
                 player.set_battleground_context_like_cpp(bg_type_id, bg_map_id)
             })
             .is_some();
-        if !canonical && self.player_handle_like_cpp.is_none() {
+        if !canonical && self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_battleground_state_like_cpp(|state| {
                     state.set_battleground_context_like_cpp(bg_type_id, bg_map_id);
@@ -160,7 +162,7 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if !canonical && self.player_handle_like_cpp.is_none() {
+        if !canonical && self.core.player_handle_like_cpp.is_none() {
             let _ = self.mutate_player_battleground_state_like_cpp(|state| {
                 state.set_battleground_status_like_cpp(status);
             });
@@ -190,7 +192,8 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        self.represented_battlemaster_hellos_like_cpp
+        self.battleground
+            .represented_battlemaster_hellos_like_cpp
             .push(RepresentedBattlemasterHelloLikeCpp { unit, entry });
         true
     }
@@ -209,7 +212,8 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        self.represented_battlefield_lists_like_cpp
+        self.battleground
+            .represented_battlefield_lists_like_cpp
             .push(RepresentedBattlefieldListLikeCpp { list_id });
         true
     }
@@ -235,6 +239,7 @@ impl WorldSession {
             return false;
         }
         if self
+            .catalogs
             .disable_mgr
             .as_ref()
             .map(|disable_mgr| {
@@ -255,7 +260,8 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        self.represented_battlemaster_joins_like_cpp
+        self.battleground
+            .represented_battlemaster_joins_like_cpp
             .push(RepresentedBattlemasterJoinLikeCpp {
                 packed_queue_id,
                 queue_type_id,
@@ -289,6 +295,7 @@ impl WorldSession {
             return false;
         }
         if self
+            .catalogs
             .disable_mgr
             .as_ref()
             .map(|disable_mgr| {
@@ -308,7 +315,7 @@ impl WorldSession {
         let (Some(player_guid), Some(group_guid), Some(group_registry)) = (
             self.player_guid(),
             self.resolved_group_guid_like_cpp(),
-            self.directory.group_registry.as_ref(),
+            self.core.directory.group_registry.as_ref(),
         ) else {
             return false;
         };
@@ -328,15 +335,15 @@ impl WorldSession {
         // so the bounded port records the accepted intent after the representable
         // gates above without pretending that the queue was live.
         #[cfg(test)]
-        self.represented_battlemaster_join_arenas_like_cpp.push(
-            RepresentedBattlemasterJoinArenaLikeCpp {
+        self.battleground
+            .represented_battlemaster_join_arenas_like_cpp
+            .push(RepresentedBattlemasterJoinArenaLikeCpp {
                 team_size_index,
                 roles,
                 arena_type,
                 group_guid,
                 queue_type_id,
-            },
-        );
+            });
         true
     }
 
@@ -361,6 +368,7 @@ impl WorldSession {
             return false;
         }
         if self
+            .catalogs
             .disable_mgr
             .as_ref()
             .map(|disable_mgr| {
@@ -382,7 +390,7 @@ impl WorldSession {
             let (Some(player_guid), Some(group_guid), Some(group_registry)) = (
                 self.player_guid(),
                 self.resolved_group_guid_like_cpp(),
-                self.directory.group_registry.as_ref(),
+                self.core.directory.group_registry.as_ref(),
             ) else {
                 return false;
             };
@@ -412,8 +420,9 @@ impl WorldSession {
         // fanout and ScheduleQueueUpdate. Rust records the bounded intent after
         // the currently represented gates without pretending that live queueing exists.
         #[cfg(test)]
-        self.represented_battlemaster_join_skirmishes_like_cpp.push(
-            RepresentedBattlemasterJoinSkirmishLikeCpp {
+        self.battleground
+            .represented_battlemaster_join_skirmishes_like_cpp
+            .push(RepresentedBattlemasterJoinSkirmishLikeCpp {
                 bg_type_id,
                 bracket_id,
                 as_group: join_as_group,
@@ -421,8 +430,7 @@ impl WorldSession {
                 arena_type,
                 group_guid,
                 queue_type_id,
-            },
-        );
+            });
         true
     }
 
@@ -443,7 +451,7 @@ impl WorldSession {
                 player.install_battleground_queue_slot_like_cpp(queue_slot)
             })
             .is_some();
-        if !canonical && self.player_handle_like_cpp.is_none() {
+        if !canonical && self.core.player_handle_like_cpp.is_none() {
             let _ = self.mutate_player_battleground_state_like_cpp(|state| {
                 state.install_queue_slot_like_cpp(queue_slot);
             });
@@ -475,7 +483,8 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        self.represented_battlefield_ports_like_cpp
+        self.battleground
+            .represented_battlefield_ports_like_cpp
             .push(RepresentedBattlefieldPortLikeCpp {
                 ticket,
                 accepted_invite,
@@ -519,42 +528,46 @@ impl WorldSession {
     pub(crate) fn represented_battlemaster_hellos_like_cpp(
         &self,
     ) -> &[RepresentedBattlemasterHelloLikeCpp] {
-        &self.represented_battlemaster_hellos_like_cpp
+        &self.battleground.represented_battlemaster_hellos_like_cpp
     }
 
     #[cfg(test)]
     pub(crate) fn represented_battlefield_lists_like_cpp(
         &self,
     ) -> &[RepresentedBattlefieldListLikeCpp] {
-        &self.represented_battlefield_lists_like_cpp
+        &self.battleground.represented_battlefield_lists_like_cpp
     }
 
     #[cfg(test)]
     pub(crate) fn represented_battlemaster_joins_like_cpp(
         &self,
     ) -> &[RepresentedBattlemasterJoinLikeCpp] {
-        &self.represented_battlemaster_joins_like_cpp
+        &self.battleground.represented_battlemaster_joins_like_cpp
     }
 
     #[cfg(test)]
     pub(crate) fn represented_battlemaster_join_arenas_like_cpp(
         &self,
     ) -> &[RepresentedBattlemasterJoinArenaLikeCpp] {
-        &self.represented_battlemaster_join_arenas_like_cpp
+        &self
+            .battleground
+            .represented_battlemaster_join_arenas_like_cpp
     }
 
     #[cfg(test)]
     pub(crate) fn represented_battlemaster_join_skirmishes_like_cpp(
         &self,
     ) -> &[RepresentedBattlemasterJoinSkirmishLikeCpp] {
-        &self.represented_battlemaster_join_skirmishes_like_cpp
+        &self
+            .battleground
+            .represented_battlemaster_join_skirmishes_like_cpp
     }
 
     #[cfg(test)]
     pub(crate) fn represented_battlefield_ports_like_cpp(
         &self,
     ) -> &[RepresentedBattlefieldPortLikeCpp] {
-        &self.represented_battlefield_ports_like_cpp
+        &self.battleground.represented_battlefield_ports_like_cpp
     }
 
     #[cfg_attr(not(test), allow(unused_variables))]
@@ -567,8 +580,8 @@ impl WorldSession {
         ) = (
             self.player_guid(),
             self.resolved_group_guid_like_cpp(),
-            self.player_registry.as_ref(),
-            self.directory.group_registry.as_ref(),
+            self.core.player_registry.as_ref(),
+            self.core.directory.group_registry.as_ref(),
         )
         else {
             return;
@@ -603,22 +616,24 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        self.represented_wargame_invite_acceptances_like_cpp.push(
-            RepresentedWargameInviteAcceptanceLikeCpp {
+        self.battleground
+            .represented_wargame_invite_acceptances_like_cpp
+            .push(RepresentedWargameInviteAcceptanceLikeCpp {
                 inviter_name: inviter_name.to_string(),
                 inviter_guid,
                 player_group_guid,
                 inviter_group_guid,
                 group_size: player_group_size,
-            },
-        );
+            });
     }
 
     #[cfg(test)]
     pub(crate) fn represented_wargame_invite_acceptances_like_cpp(
         &self,
     ) -> &[RepresentedWargameInviteAcceptanceLikeCpp] {
-        &self.represented_wargame_invite_acceptances_like_cpp
+        &self
+            .battleground
+            .represented_wargame_invite_acceptances_like_cpp
     }
 
     pub(in crate::session) fn has_recently_dropped_flag_debuff_like_cpp(&self) -> Option<bool> {
@@ -644,18 +659,19 @@ impl WorldSession {
         player_guid: ObjectGuid,
     ) -> bool {
         let gameobject_faction = self
+            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)
             .and_then(|state| state.faction_template);
         if let (Some(player_faction), Some(gameobject_faction), Some(store)) = (
             self.player_faction_template_id_like_cpp(),
             gameobject_faction,
-            self.factions.template_store.as_ref(),
+            self.catalogs.factions.template_store.as_ref(),
         ) && let (Some(player_entry), Some(gameobject_entry)) =
             (store.get(player_faction), store.get(gameobject_faction))
             && !player_entry.is_friendly_to_like_cpp(gameobject_entry)
         {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                     gameobject_guid,
                     player_guid,
@@ -670,7 +686,7 @@ impl WorldSession {
             return false;
         };
         if player_unit_flags.contains(UnitFlags::IMMUNE) {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                     gameobject_guid,
                     player_guid,
@@ -686,7 +702,7 @@ impl WorldSession {
             return false;
         };
         if has_recently_dropped_flag_debuff {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                     gameobject_guid,
                     player_guid,
@@ -700,7 +716,7 @@ impl WorldSession {
             return false;
         };
         if !player_is_alive {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                     gameobject_guid,
                     player_guid,
@@ -723,7 +739,7 @@ impl WorldSession {
             return Some(bg_type_id);
         }
 
-        self.represented_gameobject_use_effects.push(
+        self.world_entities.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                 gameobject_guid,
                 player_guid,
@@ -744,6 +760,7 @@ impl WorldSession {
     ) {
         let (custom_anim, spell_visual_id) = state.custom_anim_and_spell_visual_like_cpp(source);
         if let Some(position) = self
+            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)
             .and_then(|state| state.position)
@@ -756,7 +773,7 @@ impl WorldSession {
                 capture_total_duration_ms: source.capture_time_ms,
             });
         }
-        self.represented_gameobject_use_effects.push(
+        self.world_entities.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::CapturePointUpdated {
                 gameobject_guid,
                 state,
@@ -778,6 +795,7 @@ impl WorldSession {
         respawn_time_ms: u32,
     ) -> bool {
         let state = self
+            .world_entities
             .represented_gameobject_use_states
             .entry(gameobject_guid)
             .or_default();
@@ -810,7 +828,7 @@ impl WorldSession {
         state.new_flag_respawn_until = (new_state == RepresentedNewFlagStateRequest::Respawning)
             .then(|| Instant::now() + Duration::from_millis(u64::from(respawn_time_ms)));
 
-        self.represented_gameobject_use_effects.push(
+        self.world_entities.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::NewFlagOwnerStateRequested {
                 gameobject_guid,
                 player_guid: player_guid.unwrap_or(ObjectGuid::EMPTY),

@@ -184,7 +184,7 @@ impl WorldSession {
         let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
             return;
         };
-        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
             return;
         };
         let Ok(mut manager) = manager.lock() else {
@@ -328,7 +328,7 @@ impl WorldSession {
         let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
             return Vec::new();
         };
-        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
             return Vec::new();
         };
         let Ok(manager) = manager.lock() else {
@@ -364,7 +364,7 @@ impl WorldSession {
         let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
             return;
         };
-        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
             return;
         };
         let Ok(mut manager) = manager.lock() else {

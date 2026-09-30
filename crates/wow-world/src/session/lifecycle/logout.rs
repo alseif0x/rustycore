@@ -32,14 +32,14 @@ impl WorldSession {
     /// The session supervisor executes the same obligation coordinator; the
     /// timed route retains disconnect semantics after its logout publication.
     pub(in crate::session) fn complete_logout(&mut self) {
-        info!("Timed logout admitted for account {}", self.account_id);
+        info!("Timed logout admitted for account {}", self.core.account_id);
         if self.lifecycle.finalization.is_none() {
             self.lifecycle.finalization = Some(SessionFinalization::new(
                 FinalizationMode::TimedLogout,
                 self.player_guid().is_some(),
-                self.player_handle_like_cpp,
+                self.core.player_handle_like_cpp,
             ));
         }
-        self.state = SessionState::Disconnecting;
+        self.core.state = SessionState::Disconnecting;
     }
 }

@@ -27,14 +27,14 @@ impl WorldSession {
         bootstrap_position: Option<Position>,
     ) -> Option<Player> {
         #[cfg(not(test))]
-        if self.player_handle_like_cpp.is_some() {
+        if self.core.player_handle_like_cpp.is_some() {
             return None;
         }
 
         let guid = self.player_guid()?;
         let position = bootstrap_position.or_else(|| self.player_position_like_cpp())?;
         let name = self.player_name_like_cpp()?;
-        let mut player = Player::new(Some(u64::from(self.account_id)), false);
+        let mut player = Player::new(Some(u64::from(self.core.account_id)), false);
         player.unit_mut().world_mut().object_mut().create(guid);
         player.unit_mut().world_mut().set_name(name);
         player
@@ -50,6 +50,7 @@ impl WorldSession {
         let bootstrap_phase_shift = PhaseShift::default();
         #[cfg(test)]
         let bootstrap_phase_shift = self
+            .visibility
             .visibility_test_fixture_like_cpp
             .represented_player_phase_shift
             .clone();
@@ -79,8 +80,8 @@ impl WorldSession {
         {
             player
                 .unit_mut()
-                .set_max_health(u64::from(self.player_max_health_like_cpp.max(1)));
-            if !self.player_alive_like_cpp || self.player_health_like_cpp == 0 {
+                .set_max_health(u64::from(self.combat.player_max_health_like_cpp.max(1)));
+            if !self.combat.player_alive_like_cpp || self.combat.player_health_like_cpp == 0 {
                 player
                     .unit_mut()
                     .set_death_state(wow_constants::DeathState::Corpse);
@@ -91,7 +92,7 @@ impl WorldSession {
             }
             player
                 .unit_mut()
-                .set_health(u64::from(self.player_health_like_cpp));
+                .set_health(u64::from(self.combat.player_health_like_cpp));
         }
         #[cfg(test)]
         self.apply_represented_player_powers_to_canonical_like_cpp(&mut player);
@@ -134,11 +135,13 @@ impl WorldSession {
         #[cfg(test)]
         {
             player.set_inventory_slot_count(
-                self.player_item_test_fixture_like_cpp
+                self.inventory
+                    .player_item_test_fixture_like_cpp
                     .player_inventory_slot_count_like_cpp,
             );
             player.set_bank_bag_slot_count(
-                self.player_item_test_fixture_like_cpp
+                self.inventory
+                    .player_item_test_fixture_like_cpp
                     .player_bank_bag_slot_count_like_cpp,
             );
         }
@@ -151,6 +154,7 @@ impl WorldSession {
         }
         #[cfg(test)]
         for (index, value) in self
+            .inventory
             .represented_bank_bag_slot_flags_like_cpp
             .iter()
             .copied()
@@ -161,54 +165,61 @@ impl WorldSession {
         #[cfg(not(test))]
         player.set_watched_faction_index_like_cpp(-1);
         #[cfg(test)]
-        player.set_watched_faction_index_like_cpp(self.watched_faction_index_like_cpp);
+        player.set_watched_faction_index_like_cpp(self.progression.watched_faction_index_like_cpp);
         #[cfg(test)]
         for quest_bit in &self
+            .quest_state
             .quest_test_fixture_like_cpp
             .represented_quest_completed_bits_like_cpp
         {
             player.set_quest_completed_bit_like_cpp(*quest_bit, true);
         }
         #[cfg(test)]
-        player.set_explored_zones_blocks_like_cpp(&self.represented_explored_zones_like_cpp);
+        player.set_explored_zones_blocks_like_cpp(
+            &self.instances.represented_explored_zones_like_cpp,
+        );
         #[cfg(test)]
         {
             player.gameplay_state_mut().world_local =
                 wow_entities::PlayerWorldLocalState::from_represented_parts_like_cpp(
-                    self.player_zone_id_like_cpp,
-                    self.player_area_id_like_cpp,
-                    self.player_zone_area_authority_complete_like_cpp,
-                    self.player_pvp_hostile_like_cpp,
-                    self.player_pvp_end_timer_like_cpp,
-                    self.player_contested_pvp_timer_like_cpp,
-                    self.represented_is_outdoors_like_cpp,
+                    self.identity.player_zone_id_like_cpp,
+                    self.identity.player_area_id_like_cpp,
+                    self.identity.player_zone_area_authority_complete_like_cpp,
+                    self.combat.player_pvp_hostile_like_cpp,
+                    self.combat.player_pvp_end_timer_like_cpp,
+                    self.combat.player_contested_pvp_timer_like_cpp,
+                    self.identity.represented_is_outdoors_like_cpp,
                 );
             player.gameplay_state_mut().vehicle_seat_flags =
-                self.player_vehicle_seat_flags_like_cpp;
-            player.gameplay_state_mut().vehicle_seat_id = self.player_vehicle_seat_id_like_cpp;
+                self.vehicles.player_vehicle_seat_flags_like_cpp;
+            player.gameplay_state_mut().vehicle_seat_id =
+                self.vehicles.player_vehicle_seat_id_like_cpp;
             player.gameplay_state_mut().active_local_flags =
-                self.active_player_local_flags_like_cpp;
-            player.gameplay_state_mut().active_transport_server_time =
-                self.active_player_transport_server_time_like_cpp;
+                self.presentation.active_player_local_flags_like_cpp;
+            player.gameplay_state_mut().active_transport_server_time = self
+                .presentation
+                .active_player_transport_server_time_like_cpp;
             player.gameplay_state_mut().multi_action_bars =
-                self.active_player_multi_action_bars_like_cpp;
+                self.presentation.active_player_multi_action_bars_like_cpp;
             player
                 .unit_mut()
                 .subsystems_mut()
                 .control
-                .set_moved_unit(Some(if self.player_moved_unit_guid_like_cpp.is_empty() {
-                    guid
-                } else {
-                    self.player_moved_unit_guid_like_cpp
-                }));
-            player
-                .unit_mut()
-                .world_mut()
-                .set_zone_and_area(self.player_zone_id_like_cpp, self.player_area_id_like_cpp);
-            if self.player_pvp_enabled_like_cpp {
+                .set_moved_unit(Some(
+                    if self.movement.player_moved_unit_guid_like_cpp.is_empty() {
+                        guid
+                    } else {
+                        self.movement.player_moved_unit_guid_like_cpp
+                    },
+                ));
+            player.unit_mut().world_mut().set_zone_and_area(
+                self.identity.player_zone_id_like_cpp,
+                self.identity.player_area_id_like_cpp,
+            );
+            if self.combat.player_pvp_enabled_like_cpp {
                 player.unit_mut().set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
             }
-            if self.player_in_pvp_flag_like_cpp {
+            if self.combat.player_in_pvp_flag_like_cpp {
                 player.set_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
             }
         }
@@ -219,116 +230,155 @@ impl WorldSession {
             .control
             .set_moved_unit(Some(guid));
         #[cfg(test)]
-        player.set_game_master_like_cpp(self.player_game_master_like_cpp);
+        player.set_game_master_like_cpp(self.combat.player_game_master_like_cpp);
         #[cfg(test)]
         {
-            player.set_cheat_god_like_cpp(self.player_cheat_god_like_cpp);
-            player.set_normal_damage_immune_like_cpp(self.player_normal_damage_immune_like_cpp);
+            player.set_cheat_god_like_cpp(self.combat.player_cheat_god_like_cpp);
+            player.set_normal_damage_immune_like_cpp(
+                self.combat.player_normal_damage_immune_like_cpp,
+            );
             player.set_environmental_damage_immune_like_cpp(
-                self.player_environmental_damage_immune_like_cpp,
+                self.combat.player_environmental_damage_immune_like_cpp,
             );
             *player.resurrection_state_mut_like_cpp() = PlayerResurrectionStateLikeCpp {
-                request: self.represented_resurrection_request_like_cpp,
+                request: self.combat.represented_resurrection_request_like_cpp,
                 delayed_after_teleport: self
+                    .combat
                     .represented_delayed_resurrection_after_teleport_like_cpp,
-                self_res_spells: self.represented_self_res_spells_like_cpp.clone(),
-                death_timer_active: self.represented_death_timer_active_like_cpp,
-                area_spirit_healer_guid: self.area_spirit_healer_guid_like_cpp,
+                self_res_spells: self
+                    .spell_state
+                    .represented_self_res_spells_like_cpp
+                    .clone(),
+                death_timer_active: self.combat.represented_death_timer_active_like_cpp,
+                area_spirit_healer_guid: self.combat.area_spirit_healer_guid_like_cpp,
             };
             *player.teleport_state_mut_like_cpp() = PlayerTeleportStateLikeCpp {
                 recovery: Default::default(),
-                far_destination: self.pending_teleport,
+                far_destination: self.teleport.pending_teleport,
                 post_add: None,
-                can_delay: self.represented_can_delay_teleport_like_cpp,
-                has_delayed: self.represented_has_delayed_teleport_like_cpp,
-                near_pending: self.near_teleport_pending_like_cpp,
-                far_pending: self.represented_far_teleport_pending_like_cpp,
-                near_destination: self.near_teleport_destination_like_cpp,
-                delayed: self.represented_delayed_teleport_like_cpp,
-                near_destination_zone_area: self.near_teleport_destination_zone_area_like_cpp,
+                can_delay: self.teleport.represented_can_delay_teleport_like_cpp,
+                has_delayed: self.teleport.represented_has_delayed_teleport_like_cpp,
+                near_pending: self.teleport.near_teleport_pending_like_cpp,
+                far_pending: self.teleport.represented_far_teleport_pending_like_cpp,
+                near_destination: self.teleport.near_teleport_destination_like_cpp,
+                delayed: self.teleport.represented_delayed_teleport_like_cpp,
+                near_destination_zone_area: self
+                    .teleport
+                    .near_teleport_destination_zone_area_like_cpp,
             };
             *player.pet_lifecycle_state_mut_like_cpp() = PlayerPetLifecycleStateLikeCpp {
-                stable: self.represented_pet_stable_like_cpp.clone(),
+                stable: self.pets.represented_pet_stable_like_cpp.clone(),
                 character_rows_empty_authority_complete: self
+                    .pets
                     .represented_character_pet_rows_empty_authority_complete_like_cpp,
                 temporary_unsummoned_pet_number: self
+                    .pets
                     .represented_temporary_unsummoned_pet_number_like_cpp,
-                old_pet_spell: self.represented_old_pet_spell_like_cpp,
-                temporary_mount_react_state: self.temporary_mount_pet_react_state_like_cpp,
+                old_pet_spell: self.pets.represented_old_pet_spell_like_cpp,
+                temporary_mount_react_state: self.pets.temporary_mount_pet_react_state_like_cpp,
             };
         }
         crate::canonical_player_sync::hydrate_player_presentation_like_cpp(self, &mut player)?;
         #[cfg(test)]
         {
-            player.set_create_mode_like_cpp(self.player_create_mode_like_cpp);
-            player.set_shapeshift_form_id_like_cpp(self.represented_shapeshift_form_like_cpp);
-            player.set_loot_specialization_id_like_cpp(self.loot_specialization_id);
-            player.set_primary_specialization(self.represented_primary_specialization_id_like_cpp);
+            player.set_create_mode_like_cpp(self.identity.player_create_mode_like_cpp);
+            player.set_shapeshift_form_id_like_cpp(self.auras.represented_shapeshift_form_like_cpp);
+            player.set_loot_specialization_id_like_cpp(self.loot.loot_specialization_id);
+            player.set_primary_specialization(
+                self.progression
+                    .represented_primary_specialization_id_like_cpp,
+            );
             player.replace_spell_runtime_like_cpp(canonical_player_spell_runtime_like_cpp(
                 RepresentedPlayerSpellRuntimeLikeCpp {
-                    known_spells: self.player_spell_test_fixture_like_cpp.known_spells.clone(),
+                    known_spells: self
+                        .spell_state
+                        .player_spell_test_fixture_like_cpp
+                        .known_spells
+                        .clone(),
                     rows: self
+                        .spell_state
                         .player_spell_test_fixture_like_cpp
                         .represented_player_spell_rows_like_cpp
                         .clone(),
                     rows_loaded: self
+                        .spell_state
                         .player_spell_test_fixture_like_cpp
                         .represented_player_spell_rows_loaded_like_cpp,
                     rows_complete: self
+                        .spell_state
                         .player_spell_test_fixture_like_cpp
                         .represented_player_spell_rows_complete_like_cpp,
                     fallback_rows: self
+                        .spell_state
                         .player_spell_test_fixture_like_cpp
                         .represented_fallback_player_spell_rows_like_cpp
                         .clone(),
                     dependent_known_spells: self
+                        .spell_state
                         .player_spell_test_fixture_like_cpp
                         .represented_dependent_known_spells_like_cpp
                         .clone(),
                     removed_known_spells: self
+                        .spell_state
                         .player_spell_test_fixture_like_cpp
                         .represented_removed_known_spells_like_cpp
                         .clone(),
                     favorite_known_spells: self
+                        .spell_state
                         .player_spell_test_fixture_like_cpp
                         .represented_favorite_known_spells_like_cpp
                         .clone(),
                     trait_definition_ids: self
+                        .spell_state
                         .player_spell_test_fixture_like_cpp
                         .represented_spell_trait_definition_ids_like_cpp
                         .clone(),
                     trait_definition_ids_complete: self
+                        .spell_state
                         .player_spell_test_fixture_like_cpp
                         .represented_spell_trait_definition_ids_complete_like_cpp,
                     trait_config_rows: self
+                        .spell_state
                         .player_spell_test_fixture_like_cpp
                         .represented_trait_config_rows_like_cpp
                         .clone(),
                     trait_config_rows_complete: self
+                        .spell_state
                         .player_spell_test_fixture_like_cpp
                         .represented_trait_config_rows_complete_like_cpp,
                     trait_entry_rows_complete: self
+                        .spell_state
                         .player_spell_test_fixture_like_cpp
                         .represented_trait_entry_rows_complete_like_cpp,
                     trait_entry_rows_empty: self
+                        .spell_state
                         .player_spell_test_fixture_like_cpp
                         .represented_trait_entry_rows_empty_like_cpp,
-                    override_spells: self.represented_override_spells_like_cpp.clone(),
-                    override_spells_complete: self.represented_override_spells_complete_like_cpp,
+                    override_spells: self
+                        .spell_state
+                        .represented_override_spells_like_cpp
+                        .clone(),
+                    override_spells_complete: self
+                        .spell_state
+                        .represented_override_spells_complete_like_cpp,
                 },
             ));
             player.gameplay_state_mut().cuf_profiles = self
+                .presentation
                 .cuf_profiles_like_cpp
                 .iter()
                 .map(|profile| profile.clone().map(player_cuf_profile_from_packet_like_cpp))
                 .collect();
-            player.gameplay_state_mut().cuf_profiles_loaded = self.cuf_profiles_loaded_like_cpp;
+            player.gameplay_state_mut().cuf_profiles_loaded =
+                self.presentation.cuf_profiles_loaded_like_cpp;
             player.gameplay_state_mut().equipment_sets =
-                self.represented_equipment_sets_like_cpp.clone();
-            player.gameplay_state_mut().void_storage_items =
-                self.represented_void_storage_items_like_cpp.to_vec();
+                self.inventory.represented_equipment_sets_like_cpp.clone();
+            player.gameplay_state_mut().void_storage_items = self
+                .inventory
+                .represented_void_storage_items_like_cpp
+                .to_vec();
             player.gameplay_state_mut().void_storage_loaded =
-                self.represented_void_storage_loaded_like_cpp;
+                self.inventory.represented_void_storage_loaded_like_cpp;
             player.gameplay_state_mut().collections =
                 self.represented_player_collection_state_like_cpp();
         }
@@ -342,7 +392,7 @@ impl WorldSession {
         #[cfg(test)]
         player
             .unit_mut()
-            .set_unit_flags_like_cpp(self.player_unit_flags_like_cpp);
+            .set_unit_flags_like_cpp(self.presentation.player_unit_flags_like_cpp);
         if let Some(selection) = self.selection_guid_like_cpp() {
             player.set_selection(selection);
         }
@@ -363,15 +413,17 @@ impl WorldSession {
         player: &mut Player,
     ) {
         let powers = self
+            .combat
             .represented_player_powers_like_cpp
             .map(|value| value.unwrap_or(0));
         let max_powers = self
+            .combat
             .represented_player_max_powers_like_cpp
             .map(|value| value.unwrap_or(0));
         player
             .unit_mut()
             .replace_create_power_arrays_like_cpp(powers, max_powers);
-        let Some(current) = self.represented_player_powers_like_cpp[0] else {
+        let Some(current) = self.combat.represented_player_powers_like_cpp[0] else {
             return;
         };
         let primary_power_type =
@@ -383,8 +435,8 @@ impl WorldSession {
         player.unit_mut().set_display_power(primary_power_type);
         player
             .unit_mut()
-            .set_create_mana_like_cpp(self.represented_player_base_mana_like_cpp.max(0));
-        if let Some(max) = self.represented_player_max_powers_like_cpp[0] {
+            .set_create_mana_like_cpp(self.combat.represented_player_base_mana_like_cpp.max(0));
+        if let Some(max) = self.combat.represented_player_max_powers_like_cpp[0] {
             player.unit_mut().set_max_power(primary_power_type, max);
             player.unit_mut().set_power(primary_power_type, current);
         }
@@ -401,20 +453,21 @@ impl WorldSession {
         #[cfg(not(test))]
         let mount_display_id = 0;
         #[cfg(test)]
-        let mount_display_id = u32::try_from(self.player_mount_display_id_like_cpp).unwrap_or(0);
+        let mount_display_id =
+            u32::try_from(self.vehicles.player_mount_display_id_like_cpp).unwrap_or(0);
         let unit = player.unit_mut();
         unit.set_display_id(display_id, true);
         unit.set_mount_display_id(mount_display_id);
         #[cfg(not(test))]
         unit.set_collision_height_like_cpp(1.0);
         #[cfg(test)]
-        unit.set_collision_height_like_cpp(self.player_collision_height_like_cpp);
+        unit.set_collision_height_like_cpp(self.movement.player_collision_height_like_cpp);
         #[cfg(not(test))]
         unit.world_mut().object_mut().set_scale(1.0);
         #[cfg(test)]
         unit.world_mut()
             .object_mut()
-            .set_scale(self.player_object_scale_like_cpp);
+            .set_scale(self.presentation.player_object_scale_like_cpp);
     }
 
     #[inline(never)]

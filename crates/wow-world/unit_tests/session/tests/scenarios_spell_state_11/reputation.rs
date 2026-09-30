@@ -6,7 +6,7 @@ use super::*;
 fn quest_reputation_gain_respects_no_quest_bonus_aura_gate_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
-    session.visible_auras.insert(
+    session.auras.visible_auras.insert(
         1,
         reputation_aura_for_test(1, RepresentedAuraEffectLikeCpp::ModReputationGain, 25, None),
     );
@@ -61,7 +61,7 @@ fn reputation_gain_applies_recruit_a_friend_bonus_for_non_spell_sources_like_cpp
     group.add_member(recruit_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_state(SessionState::LoggedIn);

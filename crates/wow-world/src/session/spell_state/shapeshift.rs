@@ -116,6 +116,7 @@ impl WorldSession {
         &self,
     ) -> Option<wow_constants::PowerType> {
         let class_display_power = self
+            .catalogs
             .chr
             .classes_store
             .as_ref()

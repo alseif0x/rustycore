@@ -24,6 +24,7 @@ impl WorldSession {
         }
         #[cfg(test)]
         return self
+            .pets
             .battle_pet_test_fixture_like_cpp
             .battle_pet_species_store
             .as_ref()
@@ -34,7 +35,8 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub fn set_battle_pet_breed_quality_store(&mut self, store: Arc<BattlePetBreedQualityStore>) {
-        self.battle_pet_test_fixture_like_cpp
+        self.pets
+            .battle_pet_test_fixture_like_cpp
             .battle_pet_breed_quality_store = Some(store);
     }
     pub(in crate::session) fn battle_pet_xp_per_level_like_cpp(&self, level: u16) -> Option<u16> {
@@ -45,12 +47,14 @@ impl WorldSession {
             .and_then(|attachment| attachment.owner_like_cpp().xp_per_level_like_cpp(level));
         #[cfg(test)]
         return canonical.or_else(|| {
-            self.battle_pet_test_fixture_like_cpp
+            self.pets
+                .battle_pet_test_fixture_like_cpp
                 .battle_pet_xp_game_table
                 .as_ref()
                 .and_then(|table| table.xp_per_level_like_cpp(level))
                 .or_else(|| {
-                    self.battle_pet_test_fixture_like_cpp
+                    self.pets
+                        .battle_pet_test_fixture_like_cpp
                         .represented_battle_pet_xp_per_level_like_cpp
                         .get(&level)
                         .copied()
@@ -66,6 +70,7 @@ impl WorldSession {
         }
         #[cfg(test)]
         return self
+            .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pet_journal_lock_like_cpp;
         #[cfg(not(test))]
@@ -85,7 +90,8 @@ impl WorldSession {
         }
         #[cfg(test)]
         {
-            self.battle_pet_test_fixture_like_cpp
+            self.pets
+                .battle_pet_test_fixture_like_cpp
                 .represented_battle_pet_journal_lock_like_cpp = true;
             self.send_packet_realm(&wow_packet::packets::misc::BattlePetJournalLockAcquired);
         }
@@ -107,6 +113,7 @@ impl WorldSession {
         }
 
         let Some(pet) = self
+            .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pets_like_cpp
             .get_mut(&pet_guid)
@@ -159,7 +166,8 @@ impl WorldSession {
         }
         #[cfg(test)]
         return Some(
-            self.battle_pet_test_fixture_like_cpp
+            self.pets
+                .battle_pet_test_fixture_like_cpp
                 .represented_battle_pets_like_cpp
                 .values()
                 .filter(|pet| pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::Removed)
@@ -184,6 +192,7 @@ impl WorldSession {
         }
 
         let Some(pet) = self
+            .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pets_like_cpp
             .get(&pet_guid)
@@ -213,6 +222,7 @@ impl WorldSession {
             self.battle_pet_calculate_stats_like_cpp(breed, species, quality, level);
 
         let pet = self
+            .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pets_like_cpp
             .get_mut(&pet_guid)
@@ -302,6 +312,7 @@ impl WorldSession {
         }
 
         let Some(pet) = self
+            .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pets_like_cpp
             .get(&pet_guid)
@@ -333,7 +344,8 @@ impl WorldSession {
             level += 1;
             remaining_levels -= 1;
             #[cfg(test)]
-            self.battle_pet_test_fixture_like_cpp
+            self.pets
+                .battle_pet_test_fixture_like_cpp
                 .represented_battle_pet_level_criteria_like_cpp
                 .push(RepresentedBattlePetLevelCriteriaLikeCpp { species, level });
         }
@@ -342,6 +354,7 @@ impl WorldSession {
             self.battle_pet_calculate_stats_like_cpp(breed, species, quality, level);
 
         let pet = self
+            .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pets_like_cpp
             .get_mut(&pet_guid)
@@ -416,7 +429,8 @@ impl WorldSession {
         {
             Ok(((), packet)) => {
                 #[cfg(test)]
-                self.battle_pet_test_fixture_like_cpp
+                self.pets
+                    .battle_pet_test_fixture_like_cpp
                     .represented_battle_pet_level_criteria_like_cpp
                     .extend(criteria);
                 self.send_packet(&wow_packet::packets::misc::BattlePetUpdates {
@@ -444,7 +458,8 @@ impl WorldSession {
         level: u16,
         xp_per_level: u16,
     ) {
-        self.battle_pet_test_fixture_like_cpp
+        self.pets
+            .battle_pet_test_fixture_like_cpp
             .represented_battle_pet_xp_per_level_like_cpp
             .insert(level, xp_per_level);
     }
@@ -453,6 +468,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedBattlePetLevelCriteriaLikeCpp] {
         &self
+            .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pet_level_criteria_like_cpp
     }
@@ -461,6 +477,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedBattlePetLevelCriteriaLikeCpp] {
         &self
+            .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pet_active_level_criteria_like_cpp
     }
@@ -488,6 +505,7 @@ impl WorldSession {
             };
 
             for (pet_guid, pet) in &self
+                .pets
                 .battle_pet_test_fixture_like_cpp
                 .represented_battle_pets_like_cpp
             {
@@ -506,6 +524,7 @@ impl WorldSession {
             }
 
             for slot in &self
+                .pets
                 .battle_pet_test_fixture_like_cpp
                 .represented_battle_pet_slots_like_cpp
             {
@@ -513,6 +532,7 @@ impl WorldSession {
                 if packet_slot.pet_guid
                     != wow_packet::packets::misc::empty_battle_pet_guid_like_cpp()
                     && !self
+                        .pets
                         .battle_pet_test_fixture_like_cpp
                         .represented_battle_pets_like_cpp
                         .contains_key(&packet_slot.pet_guid)

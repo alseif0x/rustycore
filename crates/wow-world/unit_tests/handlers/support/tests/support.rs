@@ -426,13 +426,21 @@ fn support_ticket_submit_complaint_handler_metadata_matches_cpp() {
 async fn object_update_failed_removes_seen_object_like_cpp() {
     let (mut session, send_rx) = make_session();
     let object_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 7, 9);
-    session.client_visible_guids_like_cpp.insert(object_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(object_guid);
 
     session
         .handle_object_update_failed(object_update_recovery_packet(object_guid))
         .await;
 
-    assert!(!session.client_visible_guids_like_cpp.contains(&object_guid));
+    assert!(
+        !session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&object_guid)
+    );
     assert!(!session.player_logout_like_cpp());
     assert!(send_rx.try_recv().is_err());
 }
@@ -442,14 +450,22 @@ async fn object_update_failed_for_player_marks_logout_like_cpp() {
     let (mut session, send_rx) = make_session();
     let player_guid = ObjectGuid::create_player(1, 9001);
     session.set_player_guid(Some(player_guid));
-    session.client_visible_guids_like_cpp.insert(player_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(player_guid);
 
     session
         .handle_object_update_failed(object_update_recovery_packet(player_guid))
         .await;
 
     assert!(session.player_logout_like_cpp());
-    assert!(session.client_visible_guids_like_cpp.contains(&player_guid));
+    assert!(
+        session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&player_guid)
+    );
     assert!(send_rx.try_recv().is_err());
 }
 
@@ -457,13 +473,23 @@ async fn object_update_failed_for_player_marks_logout_like_cpp() {
 async fn object_update_rescued_reinserts_seen_object_like_cpp() {
     let (mut session, send_rx) = make_session();
     let object_guid = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 8, 3);
-    assert!(!session.client_visible_guids_like_cpp.contains(&object_guid));
+    assert!(
+        !session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&object_guid)
+    );
 
     session
         .handle_object_update_rescued(object_update_recovery_packet(object_guid))
         .await;
 
-    assert!(session.client_visible_guids_like_cpp.contains(&object_guid));
+    assert!(
+        session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&object_guid)
+    );
     assert!(send_rx.try_recv().is_err());
 }
 

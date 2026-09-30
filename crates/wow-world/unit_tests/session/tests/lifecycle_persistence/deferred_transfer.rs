@@ -84,8 +84,8 @@ async fn exercise(outcome: PersistenceOutcomeLikeCpp, cancel: bool, periodic: bo
         session.with_owned_player_like_cpp(|p| p.has_deferred_player_save_like_cpp()),
         Some(!periodic)
     );
-    let handle = session.player_handle_like_cpp.unwrap();
-    let manager = session.canonical_map_manager.as_ref().unwrap().clone();
+    let handle = session.core.player_handle_like_cpp.unwrap();
+    let manager = session.core.canonical_map_manager.as_ref().unwrap().clone();
     *port.during_save.lock().unwrap() = Some(Box::new(move || {
         manager
             .try_lock()
@@ -212,8 +212,8 @@ async fn deferred_save_newer_intent_survives_an_older_transaction_receipt() {
     let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
     install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let handle = session.player_handle_like_cpp.unwrap();
-    let manager = session.canonical_map_manager.as_ref().unwrap().clone();
+    let handle = session.core.player_handle_like_cpp.unwrap();
+    let manager = session.core.canonical_map_manager.as_ref().unwrap().clone();
     session.update_player_teleport_state_like_cpp(|s| s.far_pending = true);
     assert_eq!(
         session.save_current_player_to_db_like_cpp().await,

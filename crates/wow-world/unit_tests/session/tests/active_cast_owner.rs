@@ -19,7 +19,7 @@ fn cast(guid: ObjectGuid) -> SpellCastState {
 fn active_cast_and_timestamps_mutate_once_under_active_and_detached_unit_owner() {
     let (mut session, _, _) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     let stamp = Instant::now();
     for detached in [false, true] {
         if detached {
@@ -55,11 +55,16 @@ fn active_cast_and_timestamps_mutate_once_under_active_and_detached_unit_owner()
             Some(Some(stamp))
         );
         assert!(
-            session.active_spell_cast.is_none(),
+            session.spell_state.active_spell_cast.is_none(),
             "do not mirror the canonical owner"
         );
-        assert!(session.last_spell_cast_time.is_none());
-        assert!(session.last_spell_cast_time_per_spell.is_empty());
+        assert!(session.spell_state.last_spell_cast_time.is_none());
+        assert!(
+            session
+                .spell_state
+                .last_spell_cast_time_per_spell
+                .is_empty()
+        );
         assert!(session.interrupt_non_melee_spell_cast_for_loot_like_cpp());
         assert!(!session.interrupt_non_melee_spell_cast_for_loot_like_cpp());
         assert_eq!(session.last_spell_cast_time_like_cpp(), Some(Some(stamp)));
@@ -96,7 +101,7 @@ async fn ready_canonical_cast_is_taken_once_before_execution_and_failure_publica
 async fn stale_or_missing_unit_owner_cannot_complete_cancel_or_replace_a_cast() {
     let (mut session, _, send_rx) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
@@ -132,7 +137,7 @@ async fn stale_or_missing_unit_owner_cannot_complete_cancel_or_replace_a_cast() 
             }),
         Some(Some(expected))
     );
-    session.canonical_map_manager = None;
+    session.core.canonical_map_manager = None;
     assert_eq!(
         session.mutate_cast_execution_like_cpp(|_| panic!("missing owner")),
         None::<()>

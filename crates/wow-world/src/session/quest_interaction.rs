@@ -20,7 +20,10 @@ impl WorldSession {
         // is registered/consumed here; standalone paths without represented type state
         // fail closed instead of treating canonical existence as interactability.
         let access = self.canonical_gameobject_access_like_cpp(guid)?;
-        let state = self.represented_gameobject_use_states.get(&guid)?;
+        let state = self
+            .world_entities
+            .represented_gameobject_use_states
+            .get(&guid)?;
         if state.go_type.map(u32::from) != Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER) {
             return None;
         }
@@ -41,7 +44,7 @@ impl WorldSession {
         &self,
         gameobject_entry: u32,
     ) -> bool {
-        let Some(store) = self.quests.store.as_ref() else {
+        let Some(store) = self.catalogs.quests.store.as_ref() else {
             return false;
         };
         let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
@@ -82,6 +85,7 @@ impl WorldSession {
         template: &wow_entities::GameObjectTemplateData,
     ) {
         let state = self
+            .world_entities
             .represented_gameobject_use_states
             .entry(guid)
             .or_default();

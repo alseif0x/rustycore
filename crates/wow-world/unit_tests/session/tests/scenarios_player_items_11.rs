@@ -110,6 +110,7 @@ fn direct_inventory_store_plan_counts_represented_bag_contents_for_limit_categor
     ])));
 
     session
+        .inventory
         .player_item_test_fixture_like_cpp
         .inventory_items
         .insert(
@@ -234,6 +235,7 @@ fn direct_inventory_store_plan_allocates_represented_bag_slot_like_cpp() {
     ])));
 
     session
+        .inventory
         .player_item_test_fixture_like_cpp
         .inventory_items
         .insert(
@@ -261,6 +263,7 @@ fn direct_inventory_store_plan_allocates_represented_bag_slot_like_cpp() {
         let db_guid = 900 + u64::from(slot_offset);
         let guid = ObjectGuid::create_item(1, db_guid as i64);
         session
+            .inventory
             .player_item_test_fixture_like_cpp
             .inventory_items
             .insert(

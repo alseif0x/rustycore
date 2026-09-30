@@ -64,7 +64,7 @@ fn battleground_object_use_guard_matches_cpp_faction_and_player_state() {
             .represented_player_can_use_battleground_object_like_cpp(gameobject_guid, player_guid,)
     );
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                 gameobject_guid,
@@ -74,15 +74,21 @@ fn battleground_object_use_guard_matches_cpp_faction_and_player_state() {
         ]
     );
 
-    session.represented_gameobject_use_effects.clear();
+    session
+        .world_entities
+        .represented_gameobject_use_effects
+        .clear();
     session.record_represented_gameobject_faction_template_like_cpp(gameobject_guid, 0);
-    session.player_unit_flags_like_cpp.insert(UnitFlags::IMMUNE);
+    session
+        .presentation
+        .player_unit_flags_like_cpp
+        .insert(UnitFlags::IMMUNE);
     assert!(
         !session
             .represented_player_can_use_battleground_object_like_cpp(gameobject_guid, player_guid,)
     );
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                 gameobject_guid,
@@ -92,15 +98,24 @@ fn battleground_object_use_guard_matches_cpp_faction_and_player_state() {
         ]
     );
 
-    session.represented_gameobject_use_effects.clear();
-    session.player_unit_flags_like_cpp.remove(UnitFlags::IMMUNE);
+    session
+        .world_entities
+        .represented_gameobject_use_effects
+        .clear();
+    session
+        .presentation
+        .player_unit_flags_like_cpp
+        .remove(UnitFlags::IMMUNE);
     session.apply_aura(50_327, player_guid, 30_000, 0).unwrap();
     assert!(
         !session
             .represented_player_can_use_battleground_object_like_cpp(gameobject_guid, player_guid,)
     );
     assert_eq!(
-        session.represented_gameobject_use_effects.last(),
+        session
+            .world_entities
+            .represented_gameobject_use_effects
+            .last(),
         Some(
             &RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                 gameobject_guid,
@@ -110,15 +125,18 @@ fn battleground_object_use_guard_matches_cpp_faction_and_player_state() {
         )
     );
 
-    session.visible_auras.clear();
-    session.represented_gameobject_use_effects.clear();
+    session.auras.visible_auras.clear();
+    session
+        .world_entities
+        .represented_gameobject_use_effects
+        .clear();
     session.set_player_alive_like_cpp(false);
     assert!(
         !session
             .represented_player_can_use_battleground_object_like_cpp(gameobject_guid, player_guid,)
     );
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                 gameobject_guid,
@@ -143,6 +161,7 @@ async fn process_pending_ticks_expired_door_or_button_like_cpp_update() {
     ));
     {
         let state = session
+            .world_entities
             .represented_gameobject_use_states
             .get_mut(&door_guid)
             .unwrap();
@@ -151,6 +170,7 @@ async fn process_pending_ticks_expired_door_or_button_like_cpp_update() {
     }
     {
         let state = session
+            .world_entities
             .represented_gameobject_use_states
             .entry(trap_guid)
             .or_default();
@@ -163,6 +183,7 @@ async fn process_pending_ticks_expired_door_or_button_like_cpp_update() {
     session.process_pending().await;
 
     let door_state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&door_guid)
         .unwrap();
@@ -177,6 +198,7 @@ async fn process_pending_ticks_expired_door_or_button_like_cpp_update() {
     assert!(door_state.cooldown_until.is_none());
     assert!(
         session
+            .world_entities
             .represented_gameobject_use_effects
             .iter()
             .any(|effect| matches!(
@@ -189,6 +211,7 @@ async fn process_pending_ticks_expired_door_or_button_like_cpp_update() {
     );
 
     let trap_state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&trap_guid)
         .unwrap();
@@ -211,6 +234,7 @@ async fn process_pending_ticks_bomb_trap_update_like_cpp() {
     session.set_state(SessionState::LoggedIn);
     {
         let state = session
+            .world_entities
             .represented_gameobject_use_states
             .entry(gameobject_guid)
             .or_default();
@@ -227,6 +251,7 @@ async fn process_pending_ticks_bomb_trap_update_like_cpp() {
     session.process_pending().await;
 
     let state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&gameobject_guid)
         .unwrap();
@@ -234,9 +259,15 @@ async fn process_pending_ticks_bomb_trap_update_like_cpp() {
     assert!(state.cooldown_until.is_some_and(|cooldown_until| {
         cooldown_until > Instant::now() + Duration::from_secs(9)
     }));
-    assert!(session.represented_gameobject_use_effects.is_empty());
+    assert!(
+        session
+            .world_entities
+            .represented_gameobject_use_effects
+            .is_empty()
+    );
 
     session
+        .world_entities
         .represented_gameobject_use_states
         .get_mut(&gameobject_guid)
         .unwrap()
@@ -244,15 +275,22 @@ async fn process_pending_ticks_bomb_trap_update_like_cpp() {
     session.process_pending().await;
 
     let state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&gameobject_guid)
         .unwrap();
     assert_eq!(state.loot_state, Some(wow_entities::LootState::Activated));
-    assert!(session.represented_gameobject_use_effects.is_empty());
+    assert!(
+        session
+            .world_entities
+            .represented_gameobject_use_effects
+            .is_empty()
+    );
 
     session.process_pending().await;
 
     let state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&gameobject_guid)
         .unwrap();
@@ -261,7 +299,7 @@ async fn process_pending_ticks_bomb_trap_update_like_cpp() {
         Some(wow_entities::LootState::JustDeactivated)
     );
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![RepresentedGameObjectUseEffect::TrapBombSpellCast {
             gameobject_guid,
             spell_id: 1234,
@@ -279,6 +317,7 @@ async fn process_pending_ticks_non_bomb_trap_not_ready_start_delay_like_cpp() {
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 77);
     for (guid, owner_in_combat) in [(combat_trap_guid, true), (idle_trap_guid, false)] {
         let state = session
+            .world_entities
             .represented_gameobject_use_states
             .entry(guid)
             .or_default();
@@ -296,6 +335,7 @@ async fn process_pending_ticks_non_bomb_trap_not_ready_start_delay_like_cpp() {
     session.process_pending().await;
 
     let combat_state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&combat_trap_guid)
         .unwrap();
@@ -308,6 +348,7 @@ async fn process_pending_ticks_non_bomb_trap_not_ready_start_delay_like_cpp() {
     }));
 
     let idle_state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&idle_trap_guid)
         .unwrap();
@@ -329,6 +370,7 @@ async fn process_pending_ticks_non_bomb_trap_target_like_cpp() {
     session.set_player_map_position_like_cpp(571, Position::new(3.0, 0.0, 0.0, 0.0));
     {
         let state = session
+            .world_entities
             .represented_gameobject_use_states
             .entry(environmental_trap_guid)
             .or_default();
@@ -346,6 +388,7 @@ async fn process_pending_ticks_non_bomb_trap_target_like_cpp() {
     }
     {
         let state = session
+            .world_entities
             .represented_gameobject_use_states
             .entry(owned_trap_guid)
             .or_default();
@@ -367,6 +410,7 @@ async fn process_pending_ticks_non_bomb_trap_target_like_cpp() {
 
     assert_eq!(
         session
+            .world_entities
             .represented_gameobject_use_states
             .get(&environmental_trap_guid)
             .unwrap()
@@ -375,6 +419,7 @@ async fn process_pending_ticks_non_bomb_trap_target_like_cpp() {
     );
     assert_eq!(
         session
+            .world_entities
             .represented_gameobject_use_states
             .get(&environmental_trap_guid)
             .unwrap()
@@ -383,6 +428,7 @@ async fn process_pending_ticks_non_bomb_trap_target_like_cpp() {
     );
     assert_eq!(
         session
+            .world_entities
             .represented_gameobject_use_states
             .get(&owned_trap_guid)
             .unwrap()
@@ -390,7 +436,7 @@ async fn process_pending_ticks_non_bomb_trap_target_like_cpp() {
         target_guid
     );
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::TrapTargetActivated {
                 gameobject_guid: environmental_trap_guid,
@@ -406,6 +452,7 @@ async fn process_pending_ticks_non_bomb_trap_target_like_cpp() {
     session.process_pending().await;
 
     let environmental_state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&environmental_trap_guid)
         .unwrap();
@@ -422,6 +469,7 @@ async fn process_pending_ticks_non_bomb_trap_target_like_cpp() {
     );
 
     let owned_state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&owned_trap_guid)
         .unwrap();
@@ -433,7 +481,7 @@ async fn process_pending_ticks_non_bomb_trap_target_like_cpp() {
         cooldown_until > Instant::now() + Duration::from_secs(3)
     }));
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::TrapTargetActivated {
                 gameobject_guid: environmental_trap_guid,
@@ -472,6 +520,7 @@ async fn process_pending_ticks_fishing_bobber_ready_like_cpp() {
         (waiting_bobber_guid, Instant::now() + Duration::from_secs(5)),
     ] {
         let state = session
+            .world_entities
             .represented_gameobject_use_states
             .entry(guid)
             .or_default();
@@ -484,6 +533,7 @@ async fn process_pending_ticks_fishing_bobber_ready_like_cpp() {
     session.process_pending().await;
 
     let ready_state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&ready_bobber_guid)
         .unwrap();
@@ -491,6 +541,7 @@ async fn process_pending_ticks_fishing_bobber_ready_like_cpp() {
     assert_eq!(ready_state.fishing_bobber_ready_at, None);
 
     let waiting_state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&waiting_bobber_guid)
         .unwrap();
@@ -500,7 +551,7 @@ async fn process_pending_ticks_fishing_bobber_ready_like_cpp() {
     );
     assert!(waiting_state.fishing_bobber_ready_at.is_some());
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![RepresentedGameObjectUseEffect::FishingBobberReady {
             gameobject_guid: ready_bobber_guid,
             owner_guid: player_guid,
@@ -515,6 +566,7 @@ async fn process_pending_ticks_capture_point_assault_timer_like_cpp_update() {
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 434);
     {
         let state = session
+            .world_entities
             .represented_gameobject_use_states
             .entry(gameobject_guid)
             .or_default();
@@ -532,6 +584,7 @@ async fn process_pending_ticks_capture_point_assault_timer_like_cpp_update() {
     session.process_pending().await;
 
     let state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&gameobject_guid)
         .unwrap();
@@ -543,6 +596,7 @@ async fn process_pending_ticks_capture_point_assault_timer_like_cpp_update() {
     assert_eq!(state.capture_point_assault_until, None);
     assert!(
         session
+            .world_entities
             .represented_gameobject_use_effects
             .iter()
             .any(|effect| matches!(
@@ -568,6 +622,7 @@ async fn process_pending_ticks_guardpost_charges_like_cpp_get_charges() {
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 212);
     {
         let state = session
+            .world_entities
             .represented_gameobject_use_states
             .entry(gameobject_guid)
             .or_default();
@@ -579,6 +634,7 @@ async fn process_pending_ticks_guardpost_charges_like_cpp_get_charges() {
     session.process_pending().await;
 
     let state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&gameobject_guid)
         .unwrap();
@@ -588,7 +644,7 @@ async fn process_pending_ticks_guardpost_charges_like_cpp_get_charges() {
         Some(wow_entities::LootState::JustDeactivated)
     );
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![RepresentedGameObjectUseEffect::GameObjectChargesDepleted {
             gameobject_guid,
             max_charges: 2,
@@ -618,17 +674,22 @@ async fn process_pending_ticks_goober_autoclose_then_cleanup_like_cpp_update() {
     ));
     {
         let state = session
+            .world_entities
             .represented_gameobject_use_states
             .get_mut(&gameobject_guid)
             .unwrap();
         state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_GOOBER as u8);
         state.cooldown_until = Some(Instant::now() - Duration::from_millis(1));
     }
-    session.represented_gameobject_use_effects.clear();
+    session
+        .world_entities
+        .represented_gameobject_use_effects
+        .clear();
 
     session.process_pending().await;
 
     let state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&gameobject_guid)
         .unwrap();
@@ -639,7 +700,12 @@ async fn process_pending_ticks_goober_autoclose_then_cleanup_like_cpp_update() {
     assert_eq!(state.gameobject_flags & wow_entities::GO_FLAG_IN_USE, 0);
     assert!(state.cooldown_until.is_none());
     assert_eq!(state.goober_use_source, Some(source));
-    assert!(session.represented_gameobject_use_effects.is_empty());
+    assert!(
+        session
+            .world_entities
+            .represented_gameobject_use_effects
+            .is_empty()
+    );
 
     let (same_command_tx, same_command_rx) = flume::bounded(2);
     let (same_send_tx, _same_send_rx) = flume::bounded::<Vec<u8>>(1);
@@ -655,6 +721,7 @@ async fn process_pending_ticks_goober_autoclose_then_cleanup_like_cpp_update() {
     session.process_pending().await;
 
     let state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&gameobject_guid)
         .unwrap();
@@ -662,7 +729,7 @@ async fn process_pending_ticks_goober_autoclose_then_cleanup_like_cpp_update() {
     assert_eq!(state.go_state, Some(wow_entities::GoState::Ready));
     assert_eq!(state.goober_use_source, None);
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![RepresentedGameObjectUseEffect::GooberCleared {
             gameobject_guid,
             loot_state: wow_entities::LootState::Ready,
@@ -804,7 +871,7 @@ fn run_tick_returns_output_without_sending() {
     });
     let guid_c = test_creature_guid(90_005);
     register_test_creature(&mut session_c, manager.clone(), guid_c, 25);
-    session_c.client_visible_guids_like_cpp.insert(guid_c);
+    session_c.core.client_visible_guids_like_cpp.insert(guid_c);
     session_c
         .mutate_world_creature(guid_c, |creature| {
             creature
@@ -841,10 +908,10 @@ fn run_tick_returns_output_without_sending() {
     let (mut session_m, _, recv_m) = make_session();
     let guid_m = test_creature_guid(90_006);
     let player_m = ObjectGuid::create_player(1, 90_006);
-    session_m.player_guid = Some(player_m);
-    session_m.combat_target = Some(guid_m);
-    session_m.in_combat = true;
-    session_m.client_visible_guids_like_cpp.insert(guid_m);
+    session_m.core.player_guid = Some(player_m);
+    session_m.combat.combat_target = Some(guid_m);
+    session_m.combat.in_combat = true;
+    session_m.core.client_visible_guids_like_cpp.insert(guid_m);
     register_test_creature(&mut session_m, manager.clone(), guid_m, 40);
     session_m
         .mutate_world_creature(guid_m, |creature| {

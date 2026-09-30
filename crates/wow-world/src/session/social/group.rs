@@ -17,7 +17,7 @@ impl WorldSession {
         if ObjectGuid::create_group(group_guid) != group_owner {
             return false;
         }
-        let Some(group_registry) = self.directory.group_registry.as_ref() else {
+        let Some(group_registry) = self.core.directory.group_registry.as_ref() else {
             return false;
         };
         let Some(player_guid) = self.player_guid() else {
@@ -34,7 +34,7 @@ impl WorldSession {
     ) -> bool {
         let (Some(group_guid), Some(group_registry), Some(player_guid)) = (
             current_group_guid,
-            self.directory.group_registry.as_ref(),
+            self.core.directory.group_registry.as_ref(),
             self.player_guid(),
         ) else {
             return false;
@@ -46,7 +46,7 @@ impl WorldSession {
     pub(in crate::session) fn current_player_is_in_raid_group_like_cpp(&self) -> bool {
         let (Some(group_guid), Some(group_registry), Some(player_guid)) = (
             self.resolved_group_guid_like_cpp(),
-            self.directory.group_registry.as_ref(),
+            self.core.directory.group_registry.as_ref(),
             self.player_guid(),
         ) else {
             return false;
@@ -63,7 +63,7 @@ impl WorldSession {
     ) -> bool {
         let (Some(group_guid), Some(group_registry)) = (
             self.resolved_group_guid_like_cpp(),
-            self.directory.group_registry.as_ref(),
+            self.core.directory.group_registry.as_ref(),
         ) else {
             return false;
         };
@@ -80,7 +80,7 @@ impl WorldSession {
         // removal notification still in flight cannot keep granting them.
         let (Some(group_guid), Some(group_registry)) = (
             self.authoritative_group_membership_like_cpp(),
-            self.directory.group_registry.as_ref(),
+            self.core.directory.group_registry.as_ref(),
         ) else {
             return Vec::new();
         };
@@ -99,42 +99,42 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn group_invite_policy_for_test_like_cpp(&self) -> GroupInvitePolicyLikeCpp {
         GroupInvitePolicyLikeCpp {
-            allow_gm_group: self.allow_gm_group_like_cpp,
-            allow_two_side_interaction: self.allow_two_side_interaction_group_like_cpp,
-            minimum_level: self.party_level_req_like_cpp,
+            allow_gm_group: self.config.allow_gm_group_like_cpp,
+            allow_two_side_interaction: self.config.allow_two_side_interaction_group_like_cpp,
+            minimum_level: self.config.party_level_req_like_cpp,
         }
     }
     #[cfg(test)]
     pub fn set_party_raid_warnings_like_cpp(&mut self, enabled: bool) {
-        self.party_raid_warnings_like_cpp = enabled;
+        self.config.party_raid_warnings_like_cpp = enabled;
     }
     #[cfg(test)]
     pub fn set_allow_gm_group_like_cpp(&mut self, enabled: bool) {
-        self.allow_gm_group_like_cpp = enabled;
+        self.config.allow_gm_group_like_cpp = enabled;
     }
     #[cfg(test)]
     pub fn set_allow_two_side_interaction_group_like_cpp(&mut self, enabled: bool) {
-        self.allow_two_side_interaction_group_like_cpp = enabled;
+        self.config.allow_two_side_interaction_group_like_cpp = enabled;
     }
     #[cfg(test)]
     pub fn set_party_level_req_like_cpp(&mut self, level: u32) {
-        self.party_level_req_like_cpp = level;
+        self.config.party_level_req_like_cpp = level;
     }
     #[cfg(test)]
     pub(crate) fn party_raid_warnings_like_cpp(&self) -> bool {
-        self.party_raid_warnings_like_cpp
+        self.config.party_raid_warnings_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn allow_gm_group_like_cpp(&self) -> bool {
-        self.allow_gm_group_like_cpp
+        self.config.allow_gm_group_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn allow_two_side_interaction_group_like_cpp(&self) -> bool {
-        self.allow_two_side_interaction_group_like_cpp
+        self.config.allow_two_side_interaction_group_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn party_level_req_like_cpp(&self) -> u32 {
-        self.party_level_req_like_cpp
+        self.config.party_level_req_like_cpp
     }
     pub(crate) fn canonical_player_party_power_snapshot_like_cpp(&self) -> Option<(u8, u16, u16)> {
         self.canonical_player_snapshot_like_cpp(|player| {
@@ -183,8 +183,8 @@ impl WorldSession {
                 .map(|group| group.group_guid.counter() as u64)
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return self.group_guid;
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return self.social.group_guid;
         }
         canonical.flatten()
     }
@@ -197,8 +197,8 @@ impl WorldSession {
                 .map(|group| group.subgroup)
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return self.represented_subgroup_like_cpp;
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return self.social.represented_subgroup_like_cpp;
         }
         canonical.flatten()
     }
@@ -209,9 +209,9 @@ impl WorldSession {
         membership: Option<(u64, u8)>,
     ) -> bool {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.group_guid = membership.map(|(group_guid, _)| group_guid);
-            self.represented_subgroup_like_cpp = membership.map(|(_, subgroup)| subgroup);
+        if self.core.player_handle_like_cpp.is_none() {
+            self.social.group_guid = membership.map(|(group_guid, _)| group_guid);
+            self.social.represented_subgroup_like_cpp = membership.map(|(_, subgroup)| subgroup);
             return true;
         }
 
@@ -221,7 +221,7 @@ impl WorldSession {
                 let Some(player_guid) = self.player_guid() else {
                     return false;
                 };
-                let Some(group_registry) = self.directory.group_registry.as_ref() else {
+                let Some(group_registry) = self.core.directory.group_registry.as_ref() else {
                     return false;
                 };
                 let Some(group) = group_registry.get(&group_guid) else {
@@ -257,11 +257,15 @@ impl WorldSession {
         }
     }
     pub(crate) fn sync_player_registry_party_member_party_type_like_cpp(&self) {
-        let (Some(guid), Some(registry)) = (self.player_guid(), &self.player_registry) else {
+        let (Some(guid), Some(registry)) = (self.player_guid(), &self.core.player_registry) else {
             return;
         };
         let party_type = self.party_member_party_type_like_cpp();
-        registry.publish_party_type_for_control_channel(guid, &self.session_command_tx, party_type);
+        registry.publish_party_type_for_control_channel(
+            guid,
+            &self.core.session_command_tx,
+            party_type,
+        );
     }
     /// #743: converge the owned group snapshot on `GroupRegistry`.
     ///
@@ -280,7 +284,7 @@ impl WorldSession {
     pub(crate) fn reconcile_group_state_like_cpp(&mut self) -> bool {
         let (Some(player_guid), Some(player_registry)) = (
             self.player_guid(),
-            self.player_registry.as_ref().map(Arc::clone),
+            self.core.player_registry.as_ref().map(Arc::clone),
         ) else {
             return false;
         };
@@ -294,7 +298,8 @@ impl WorldSession {
             player_registry.mark_group_state_reconciliation_like_cpp(player_guid);
             return false;
         }
-        let Some(group_registry) = self.directory.group_registry.as_ref().map(Arc::clone) else {
+        let Some(group_registry) = self.core.directory.group_registry.as_ref().map(Arc::clone)
+        else {
             return false;
         };
         let applied = self.apply_authoritative_group_state_like_cpp(player_guid, &group_registry);
@@ -313,7 +318,7 @@ impl WorldSession {
     /// ordering guard prevents applying a delivered state change.
     pub(crate) fn defer_group_state_reconciliation_like_cpp(&self) {
         let (Some(player_guid), Some(player_registry)) =
-            (self.player_guid(), self.player_registry.as_ref())
+            (self.player_guid(), self.core.player_registry.as_ref())
         else {
             return;
         };
@@ -408,7 +413,7 @@ impl WorldSession {
     pub(crate) fn authoritative_group_membership_like_cpp(&self) -> Option<u64> {
         let (Some(group_guid), Some(group_registry), Some(player_guid)) = (
             self.resolved_group_guid_like_cpp(),
-            self.directory.group_registry.as_ref(),
+            self.core.directory.group_registry.as_ref(),
             self.player_guid(),
         ) else {
             return None;
@@ -431,7 +436,7 @@ impl WorldSession {
     pub(crate) fn reset_group_update_sequence_if_needed_like_cpp(&mut self) -> bool {
         let (Some(group_guid), Some(group_registry)) = (
             self.resolved_group_guid_like_cpp(),
-            self.directory.group_registry.as_ref(),
+            self.core.directory.group_registry.as_ref(),
         ) else {
             return false;
         };
@@ -448,9 +453,9 @@ impl WorldSession {
             player.reset_group_update_sequence_if_needed_like_cpp(usize::from(category), group_guid)
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             let sequence =
-                &mut self.represented_group_update_sequences_like_cpp[usize::from(category)];
+                &mut self.social.represented_group_update_sequences_like_cpp[usize::from(category)];
             if sequence.group_guid == Some(group_guid) {
                 return false;
             }
@@ -474,9 +479,9 @@ impl WorldSession {
             player.next_group_update_sequence_number_like_cpp(usize::from(category))
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             let sequence =
-                &mut self.represented_group_update_sequences_like_cpp[usize::from(category)];
+                &mut self.social.represented_group_update_sequences_like_cpp[usize::from(category)];
             let current = sequence.update_sequence_number;
             sequence.update_sequence_number = sequence.update_sequence_number.saturating_add(1);
             return Some(current);
@@ -517,14 +522,16 @@ impl WorldSession {
             return false;
         };
 
-        let is_group_leader =
-            self.resolved_group_guid_like_cpp()
-                .and_then(|group_guid| {
-                    self.directory.group_registry.as_ref().and_then(|registry| {
-                        registry.get(&group_guid).map(|group| group.leader_guid)
-                    })
-                })
-                .is_some_and(|leader_guid| leader_guid == player_guid);
+        let is_group_leader = self
+            .resolved_group_guid_like_cpp()
+            .and_then(|group_guid| {
+                self.core
+                    .directory
+                    .group_registry
+                    .as_ref()
+                    .and_then(|registry| registry.get(&group_guid).map(|group| group.leader_guid))
+            })
+            .is_some_and(|leader_guid| leader_guid == player_guid);
 
         let updated = self
             .mutate_canonical_player_like_cpp(|player| {
@@ -543,7 +550,7 @@ impl WorldSession {
         updated
     }
     pub fn set_phase_group_store(&mut self, store: Arc<PhaseGroupStore>) {
-        self.phase_group_store = Some(store);
+        self.catalogs.phase_group_store = Some(store);
     }
     pub(in crate::session) fn represented_player_group_reward_state_like_cpp(
         &self,
@@ -557,7 +564,7 @@ impl WorldSession {
                 self.resolved_player_is_alive_like_cpp()?,
             ));
         }
-        self.player_registry.as_ref().and_then(|registry| {
+        self.core.player_registry.as_ref().and_then(|registry| {
             registry
                 .group_reward_snapshot(player_guid)
                 .map(|entry| (entry.level, entry.map_id, entry.position, entry.is_alive))
@@ -565,17 +572,17 @@ impl WorldSession {
     }
     /// Set the shared group registry and pending invites.
     pub fn set_group_registry(&mut self, reg: Arc<GroupRegistry>, invites: Arc<PendingInvites>) {
-        self.directory.group_registry = Some(reg);
-        self.directory.pending_invites = Some(invites);
+        self.core.directory.group_registry = Some(reg);
+        self.core.directory.pending_invites = Some(invites);
     }
     /// Get a reference to the shared group registry.
     pub fn group_registry(&self) -> Option<&Arc<GroupRegistry>> {
-        self.directory.group_registry.as_ref()
+        self.core.directory.group_registry.as_ref()
     }
     pub(crate) fn party_member_party_type_like_cpp(&self) -> [u8; 2] {
         let mut party_type = [wow_social::group::GROUP_TYPE_NONE_LIKE_CPP; 2];
         let (Some(group_registry), Some(player_guid)) =
-            (&self.directory.group_registry, self.player_guid())
+            (&self.core.directory.group_registry, self.player_guid())
         else {
             return party_type;
         };
@@ -601,7 +608,7 @@ impl WorldSession {
             self.player_position_like_cpp()
                 .map(|position| (self.player_map_id_like_cpp(), position))
         } else {
-            self.player_registry.as_ref().and_then(|registry| {
+            self.core.player_registry.as_ref().and_then(|registry| {
                 registry
                     .loot_presence(player_guid)
                     .map(|entry| (entry.map_id, entry.position))
@@ -614,6 +621,7 @@ impl WorldSession {
             return false;
         }
         if self
+            .catalogs
             .maps
             .store
             .as_ref()
@@ -630,7 +638,8 @@ impl WorldSession {
         silent: bool,
     ) {
         #[cfg(test)]
-        self.represented_silence_party_talker_like_cpp
+        self.social
+            .represented_silence_party_talker_like_cpp
             .push(RepresentedSilencePartyTalkerLikeCpp { target, silent });
         #[cfg(not(test))]
         let _ = (target, silent);
@@ -639,7 +648,7 @@ impl WorldSession {
     pub(crate) fn represented_silence_party_talker_like_cpp(
         &self,
     ) -> &[RepresentedSilencePartyTalkerLikeCpp] {
-        &self.represented_silence_party_talker_like_cpp
+        &self.social.represented_silence_party_talker_like_cpp
     }
 }
 

@@ -9,7 +9,10 @@ async fn spell_heal_max_health_zero_damage_uses_caster_max_health_like_cpp() {
     let creature_guid = test_creature_guid(18_014);
     session.set_player_guid(Some(player_guid));
     session.set_player_health_like_cpp(65, 100);
-    session.client_visible_guids_like_cpp.insert(creature_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(creature_guid);
     register_test_creature(&mut session, manager.clone(), creature_guid, 40);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -77,7 +80,10 @@ async fn spell_heal_pct_effect_row_heals_percent_of_target_max_health_like_cpp()
     let creature_guid = test_creature_guid(18_016);
     session.set_player_guid(Some(player_guid));
     session.set_player_health_like_cpp(65, 100);
-    session.client_visible_guids_like_cpp.insert(creature_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(creature_guid);
     register_test_creature(&mut session, manager.clone(), creature_guid, 40);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -186,7 +192,10 @@ async fn spell_health_leech_effect_row_damages_target_and_heals_caster_like_cpp(
     let creature_guid = test_creature_guid(18_035);
     session.set_player_guid(Some(player_guid));
     session.set_player_health_like_cpp(50, 100);
-    session.client_visible_guids_like_cpp.insert(creature_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(creature_guid);
     register_test_creature(&mut session, manager.clone(), creature_guid, 40);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -257,7 +266,10 @@ async fn spell_health_leech_lethal_damage_heals_only_effective_damage_like_cpp()
     let creature_guid = test_creature_guid(18_036);
     session.set_player_guid(Some(player_guid));
     session.set_player_health_like_cpp(50, 100);
-    session.client_visible_guids_like_cpp.insert(creature_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(creature_guid);
     register_test_creature(&mut session, manager.clone(), creature_guid, 40);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -329,7 +341,10 @@ async fn spell_health_leech_negative_amount_is_noop_like_cpp() {
     let creature_guid = test_creature_guid(18_037);
     session.set_player_guid(Some(player_guid));
     session.set_player_health_like_cpp(50, 100);
-    session.client_visible_guids_like_cpp.insert(creature_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(creature_guid);
     register_test_creature(&mut session, manager.clone(), creature_guid, 40);
     session
         .mutate_world_creature(creature_guid, |creature| {

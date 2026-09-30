@@ -15,7 +15,7 @@ impl WorldSession {
         f: impl FnOnce(&mut Player) -> R,
     ) -> Option<R> {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self.mutate_canonical_player_like_cpp(f);
         }
         self.with_owned_player_mut_like_cpp(f)
@@ -40,8 +40,8 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if synced || self.player_handle_like_cpp.is_none() {
-            self.represented_player_base_mana_like_cpp = base_mana.max(0);
+        if synced || self.core.player_handle_like_cpp.is_none() {
+            self.combat.represented_player_base_mana_like_cpp = base_mana.max(0);
             self.set_represented_player_power_slot_like_cpp(0, current, Some(max));
         }
         synced
@@ -67,12 +67,12 @@ impl WorldSession {
         });
         #[cfg(test)]
         if let Some((current, max)) = result.or_else(|| {
-            (self.player_handle_like_cpp.is_none()).then_some((
-                self.represented_player_powers_like_cpp[0].unwrap_or(0),
+            (self.core.player_handle_like_cpp.is_none()).then_some((
+                self.combat.represented_player_powers_like_cpp[0].unwrap_or(0),
                 max.max(0),
             ))
         }) {
-            self.represented_player_base_mana_like_cpp = base_mana.max(0);
+            self.combat.represented_player_base_mana_like_cpp = base_mana.max(0);
             self.set_represented_player_power_slot_like_cpp(0, current, Some(max));
         }
         result
@@ -92,7 +92,7 @@ impl WorldSession {
         });
         #[cfg(test)]
         let result = canonical.or_else(|| {
-            if self.player_handle_like_cpp.is_some() {
+            if self.core.player_handle_like_cpp.is_some() {
                 return None;
             }
             self.mutate_canonical_player_like_cpp(|player| {
@@ -102,15 +102,20 @@ impl WorldSession {
                     player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
                 )
             })
-            .or_else(|| Some((self.player_health_like_cpp.min(max_health), max_health)))
+            .or_else(|| {
+                Some((
+                    self.combat.player_health_like_cpp.min(max_health),
+                    max_health,
+                ))
+            })
         });
         #[cfg(not(test))]
         let result = canonical;
         #[cfg(test)]
         if let Some((current, max)) = result {
-            self.player_health_like_cpp = current;
-            self.player_max_health_like_cpp = max;
-            self.player_alive_like_cpp = current > 0;
+            self.combat.player_health_like_cpp = current;
+            self.combat.player_max_health_like_cpp = max;
+            self.combat.player_alive_like_cpp = current > 0;
         }
         result
     }
@@ -143,7 +148,7 @@ impl WorldSession {
         });
         #[cfg(test)]
         let result = canonical.or_else(|| {
-            if self.player_handle_like_cpp.is_some() {
+            if self.core.player_handle_like_cpp.is_some() {
                 return None;
             }
             self.mutate_canonical_player_like_cpp(|player| {
@@ -165,9 +170,9 @@ impl WorldSession {
         #[cfg(test)]
         {
             let (current, max) = result.unwrap_or((health, max_health));
-            self.player_health_like_cpp = current;
-            self.player_max_health_like_cpp = max;
-            self.player_alive_like_cpp = current > 0;
+            self.combat.player_health_like_cpp = current;
+            self.combat.player_max_health_like_cpp = max;
+            self.combat.player_alive_like_cpp = current > 0;
         }
         result
     }
@@ -253,10 +258,10 @@ impl WorldSession {
     /// `CreatureSpawnCatalogsLikeCpp`, so this slot is the session's read-only
     /// handle for the spell-effect chain.
     pub fn set_power_type_store(&mut self, store: Arc<PowerTypeStore>) {
-        self.power_type_store = Some(store);
+        self.catalogs.power_type_store = Some(store);
     }
     pub(crate) fn power_type_store_like_cpp(&self) -> Option<&PowerTypeStore> {
-        self.power_type_store.as_deref()
+        self.catalogs.power_type_store.as_deref()
     }
     #[cfg(test)]
     pub(crate) fn set_represented_player_power_slot_like_cpp(
@@ -268,9 +273,9 @@ impl WorldSession {
         if slot >= MAX_POWERS_PER_CLASS {
             return;
         }
-        self.represented_player_powers_like_cpp[slot] = Some(current.max(0));
+        self.combat.represented_player_powers_like_cpp[slot] = Some(current.max(0));
         if let Some(max) = max {
-            self.represented_player_max_powers_like_cpp[slot] = Some(max.max(0));
+            self.combat.represented_player_max_powers_like_cpp[slot] = Some(max.max(0));
         }
     }
     pub(crate) fn represented_player_power_values_like_cpp(
@@ -278,9 +283,9 @@ impl WorldSession {
     ) -> Option<[i32; MAX_POWERS_PER_CLASS]> {
         let canonical = self.resolved_player_power_values_like_cpp();
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return character_power_snapshot_values_like_cpp(
-                &self.represented_player_powers_like_cpp,
+                &self.combat.represented_player_powers_like_cpp,
             );
         }
         canonical
@@ -288,7 +293,7 @@ impl WorldSession {
     fn resolved_player_power_values_like_cpp(&self) -> Option<[i32; MAX_POWERS_PER_CLASS]> {
         let canonical = self.with_owned_player_like_cpp(|player| player.unit().data().power);
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return self.mutate_canonical_player_like_cpp(|player| player.unit().data().power);
         }
         canonical
@@ -300,8 +305,8 @@ impl WorldSession {
             .resolved_player_power_values_like_cpp()
             .map(loaded_character_power_snapshot_like_cpp);
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.represented_player_powers_like_cpp);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.combat.represented_player_powers_like_cpp);
         }
         canonical
     }

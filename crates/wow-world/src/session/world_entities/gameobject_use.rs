@@ -20,7 +20,8 @@ impl WorldSession {
         guid: ObjectGuid,
         interact_radius_override: u32,
     ) {
-        self.represented_gameobject_use_states
+        self.world_entities
+            .represented_gameobject_use_states
             .entry(guid)
             .or_default()
             .interact_radius_override =
@@ -31,7 +32,8 @@ impl WorldSession {
         guid: ObjectGuid,
         allows_interaction: bool,
     ) {
-        self.represented_gameobject_use_states
+        self.world_entities
+            .represented_gameobject_use_states
             .entry(guid)
             .or_default()
             .icon_name_allows_interaction_like_cpp = Some(allows_interaction);
@@ -75,16 +77,18 @@ impl WorldSession {
         player_guid: ObjectGuid,
     ) -> bool {
         let handled = self
+            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)
             .map(|state| state.report_use_ai_returns_true)
             .unwrap_or(false);
-        self.represented_gameobject_use_effects
-            .push(RepresentedGameObjectUseEffect::ReportUseAi {
+        self.world_entities.represented_gameobject_use_effects.push(
+            RepresentedGameObjectUseEffect::ReportUseAi {
                 gameobject_guid,
                 player_guid,
                 handled,
-            });
+            },
+        );
         handled
     }
     pub(crate) fn apply_represented_gameobject_player_use_preamble_like_cpp(
@@ -99,7 +103,7 @@ impl WorldSession {
             return false;
         };
         if no_damage_immune && player_unit_flags.contains(UnitFlags::IMMUNE) {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::UseRejectedNoDamageImmune {
                     gameobject_guid,
                     player_guid,
@@ -112,7 +116,7 @@ impl WorldSession {
             if !self.remove_represented_mounted_auras_by_type_like_cpp() {
                 return false;
             }
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::RemoveMountedAuras {
                     gameobject_guid,
                     player_guid,
@@ -120,7 +124,7 @@ impl WorldSession {
             );
         }
 
-        self.represented_gameobject_use_effects.push(
+        self.world_entities.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::ClearPlayerTalkMenus {
                 gameobject_guid,
                 player_guid,
@@ -128,11 +132,12 @@ impl WorldSession {
         );
 
         let handled = self
+            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)
             .map(|state| state.gossip_hello_ai_returns_true)
             .unwrap_or(false);
-        self.represented_gameobject_use_effects.push(
+        self.world_entities.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::GossipHelloAi {
                 gameobject_guid,
                 player_guid,
@@ -186,7 +191,7 @@ impl WorldSession {
             .spell_store()
             .is_some_and(|store| store.get(spell_id as i32).is_none());
 
-        self.represented_gameobject_use_effects.push(
+        self.world_entities.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::OutdoorPvpCustomSpellRequested {
                 gameobject_guid,
                 player_guid,
@@ -199,7 +204,7 @@ impl WorldSession {
         );
 
         if spell_info_missing {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::GameObjectPostUseSpellMissing {
                     gameobject_guid,
                     player_guid,
@@ -212,7 +217,7 @@ impl WorldSession {
             return false;
         }
 
-        self.represented_gameobject_use_effects.push(
+        self.world_entities.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::GameObjectPostUseSpellCast {
                 gameobject_guid,
                 target_guid: player_guid,
@@ -244,6 +249,7 @@ impl WorldSession {
         source: wow_entities::GooberUseSource,
     ) -> bool {
         let linked_trap_guid = self
+            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)
             .and_then(|state| state.linked_trap_guid);
@@ -251,7 +257,7 @@ impl WorldSession {
             if let Some(trap_guid) = linked_trap_guid {
                 self.despawn_represented_linked_trap_by_guid_like_cpp(trap_guid);
             }
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::GooberLinkedTrapDespawn {
                     gameobject_guid,
                     trap_entry: source.linked_trap_entry,
@@ -263,6 +269,7 @@ impl WorldSession {
         let mut send_despawn_at_action = false;
         {
             let state = self
+                .world_entities
                 .represented_gameobject_use_states
                 .entry(gameobject_guid)
                 .or_default();
@@ -296,7 +303,7 @@ impl WorldSession {
 
         if source.spell_id != 0 {
             for player_guid in unique_users {
-                self.represented_gameobject_use_effects.push(
+                self.world_entities.represented_gameobject_use_effects.push(
                     RepresentedGameObjectUseEffect::GooberUniqueUserSpell {
                         gameobject_guid,
                         player_guid,
@@ -306,8 +313,12 @@ impl WorldSession {
             }
         }
 
-        if let Some(state) = self.represented_gameobject_use_states.get(&gameobject_guid) {
-            self.represented_gameobject_use_effects.push(
+        if let Some(state) = self
+            .world_entities
+            .represented_gameobject_use_states
+            .get(&gameobject_guid)
+        {
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::GooberCleared {
                     gameobject_guid,
                     loot_state: state

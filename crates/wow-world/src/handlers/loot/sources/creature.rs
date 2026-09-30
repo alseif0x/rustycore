@@ -15,11 +15,12 @@ impl WorldSession {
     ) -> Option<()> {
         let Some(authority) = self.represented_owned_loot_authority_like_cpp(creature_guid) else {
             return (represented_local_loot_fixture_allowed_like_cpp()
-                && self.loot_table.contains_key(&creature_guid))
+                && self.loot.loot_table.contains_key(&creature_guid))
             .then_some(());
         };
-        let loot = self.loot_table.get(&creature_guid)?.clone();
+        let loot = self.loot.loot_table.get(&creature_guid)?.clone();
         let is_personal = self
+            .loot
             .represented_personal_loot_owners
             .contains(&creature_guid);
         let (shared, personal) = self.represented_loot_authority_pools_like_cpp(
@@ -36,8 +37,9 @@ impl WorldSession {
                 .snapshot_for_player_like_cpp(_player_guid)
                 .is_none()
         {
-            self.loot_table.remove(&creature_guid);
-            self.represented_loot_cache_generations_like_cpp
+            self.loot.loot_table.remove(&creature_guid);
+            self.loot
+                .represented_loot_cache_generations_like_cpp
                 .remove(&creature_guid);
             return None;
         }
@@ -104,11 +106,11 @@ impl WorldSession {
             // active object-owned generation and fail closed if kill-time
             // generation is absent or the corpse lifetime was retired.
             if !self.reconcile_represented_loot_cache_like_cpp(owner_guid, player_guid) {
-                self.loot_table.remove(&owner_guid);
+                self.loot.loot_table.remove(&owner_guid);
                 continue;
             }
 
-            if self.loot_table.get(&owner_guid).is_some_and(|loot| {
+            if self.loot.loot_table.get(&owner_guid).is_some_and(|loot| {
                 self.represented_loot_can_be_opened_by_player_like_cpp(
                     owner_guid,
                     loot,
@@ -163,7 +165,7 @@ impl WorldSession {
             )
             .is_none()
         {
-            self.loot_table.remove(&creature_guid);
+            self.loot.loot_table.remove(&creature_guid);
         }
     }
 
@@ -233,17 +235,19 @@ impl WorldSession {
     ) {
         let authority = self.represented_owned_loot_authority_like_cpp(creature_guid);
         if authority.is_none() && !represented_local_loot_fixture_allowed_like_cpp() {
-            self.loot_table.remove(&creature_guid);
+            self.loot.loot_table.remove(&creature_guid);
             return;
         }
         let mut retired_object_generation = None;
         if let Some(authority) = authority.as_ref() {
             #[cfg(test)]
-            if authority.is_pristine_like_cpp() && self.loot_table.contains_key(&creature_guid) {
+            if authority.is_pristine_like_cpp() && self.loot.loot_table.contains_key(&creature_guid)
+            {
                 if !self
+                    .loot
                     .represented_personal_loot_owners
                     .contains(&creature_guid)
-                    && let Some(loot) = self.loot_table.get_mut(&creature_guid)
+                    && let Some(loot) = self.loot.loot_table.get_mut(&creature_guid)
                 {
                     prepare_represented_shared_creature_loot_generation_like_cpp(
                         loot,
@@ -281,12 +285,13 @@ impl WorldSession {
                 return;
             }
             if !authority.is_retired_like_cpp() {
-                self.loot_table.remove(&creature_guid);
+                self.loot.loot_table.remove(&creature_guid);
                 return;
             }
             retired_object_generation = Some(authority.generation_like_cpp());
-            self.loot_table.remove(&creature_guid);
-            self.represented_loot_cache_generations_like_cpp
+            self.loot.loot_table.remove(&creature_guid);
+            self.loot
+                .represented_loot_cache_generations_like_cpp
                 .remove(&creature_guid);
         }
 
@@ -314,7 +319,7 @@ impl WorldSession {
                 })
                 .collect::<Vec<_>>();
             if personal_tappers.is_empty() {
-                self.loot_table.remove(&creature_guid);
+                self.loot.loot_table.remove(&creature_guid);
                 return;
             }
 
@@ -352,19 +357,19 @@ impl WorldSession {
                     let _ =
                         self.reconcile_represented_loot_cache_like_cpp(creature_guid, cache_player);
                 } else {
-                    self.loot_table.remove(&creature_guid);
+                    self.loot.loot_table.remove(&creature_guid);
                 }
             } else if represented_local_loot_fixture_allowed_like_cpp()
                 && let Some(pool) = personal.get(&cache_player).cloned()
             {
-                self.loot_table.insert(creature_guid, pool);
+                self.loot.loot_table.insert(creature_guid, pool);
             }
             return;
         }
 
         if map_is_dungeon == Some(true) {
             if connected_tappers.is_empty() {
-                self.loot_table.remove(&creature_guid);
+                self.loot.loot_table.remove(&creature_guid);
                 return;
             }
             let selected_looter =
@@ -405,12 +410,12 @@ impl WorldSession {
                         self.advance_represented_dungeon_trash_looter_like_cpp(&connected_tappers);
                     }
                 } else {
-                    self.loot_table.remove(&creature_guid);
+                    self.loot.loot_table.remove(&creature_guid);
                 }
             } else if represented_local_loot_fixture_allowed_like_cpp()
                 && let Some(pool) = personal.get(&selected_looter).cloned()
             {
-                self.loot_table.insert(creature_guid, pool);
+                self.loot.loot_table.insert(creature_guid, pool);
             }
             return;
         }
@@ -418,7 +423,7 @@ impl WorldSession {
         // Missing Map.db2 metadata is not proof of either overworld or
         // dungeon. Preserve the represented shared fallback for legacy test
         // fixtures, but still bind its async install to the exact death token.
-        if !self.loot_table.contains_key(&creature_guid) {
+        if !self.loot.loot_table.contains_key(&creature_guid) {
             let Some(mut loot) = self
                 .generate_represented_creature_loot_like_cpp(
                     creature_guid,
@@ -452,10 +457,10 @@ impl WorldSession {
                     let _ = self
                         .reconcile_represented_loot_cache_like_cpp(creature_guid, loot_owner_guid);
                 } else {
-                    self.loot_table.remove(&creature_guid);
+                    self.loot.loot_table.remove(&creature_guid);
                 }
             } else if represented_local_loot_fixture_allowed_like_cpp() {
-                self.loot_table.insert(creature_guid, loot);
+                self.loot.loot_table.insert(creature_guid, loot);
             }
         }
     }

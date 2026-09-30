@@ -293,31 +293,31 @@ impl WorldSession {
         &mut self,
         table: Arc<ShieldBlockRegularGameTableLikeCpp>,
     ) {
-        self.shield_block_regular_game_table = Some(table);
+        self.catalogs.shield_block_regular_game_table = Some(table);
     }
 
     /// Set the player stats store for this session.
     pub fn set_player_stats(&mut self, store: Arc<PlayerStatsStore>) {
-        self.player_stats = Some(store);
+        self.catalogs.player_stats = Some(store);
     }
 
     /// Get the player stats store reference.
     pub fn player_stats(&self) -> Option<&Arc<PlayerStatsStore>> {
-        self.player_stats.as_ref()
+        self.catalogs.player_stats.as_ref()
     }
 
     pub(in crate::session) fn represented_scaling_stat_context_like_cpp(
         &self,
         item_entry: u32,
     ) -> Option<RepresentedScalingStatContextLikeCpp> {
-        let item_store = self.items.store.as_ref()?;
+        let item_store = self.catalogs.items.store.as_ref()?;
         let scaling_stat_distribution_id = item_store.scaling_stat_distribution_id(item_entry);
         let scaling_stat_value = item_store.scaling_stat_value(item_entry);
         if scaling_stat_distribution_id == 0 || scaling_stat_value == 0 {
             return None;
         }
-        let distribution_store = self.scaling_stat_distribution_store.as_ref()?;
-        let values_store = self.scaling_stat_values_store.as_ref()?;
+        let distribution_store = self.catalogs.scaling_stat_distribution_store.as_ref()?;
+        let values_store = self.catalogs.scaling_stat_values_store.as_ref()?;
         let distribution = distribution_store.get(u32::from(scaling_stat_distribution_id))?;
         let character_level = self.represented_scaling_stat_character_level_like_cpp(distribution);
         let values = values_store.get_for_character_level_like_cpp(character_level)?;
@@ -363,6 +363,7 @@ impl WorldSession {
                 let penalty_spell_id = player.titan_grip_penalty_spell_id();
                 let has_penalty_aura = penalty_spell_id > 0
                     && self
+                        .auras
                         .visible_auras
                         .values()
                         .any(|aura| aura.spell_id == penalty_spell_id as i32);
@@ -376,7 +377,8 @@ impl WorldSession {
             };
 
             if action != TitanGripPenaltyAction::None {
-                self.player_item_test_fixture_like_cpp
+                self.inventory
+                    .player_item_test_fixture_like_cpp
                     .represented_titan_grip_penalty_actions_like_cpp
                     .push(action);
             }

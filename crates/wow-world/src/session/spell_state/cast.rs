@@ -125,7 +125,8 @@ impl WorldSession {
         &mut self,
         store: Arc<PlayerCreateInfoCastSpellStoreLikeCpp>,
     ) {
-        self.player_bootstrap_catalog_test_fixture_like_cpp
+        self.catalogs
+            .player_bootstrap_catalog_test_fixture_like_cpp
             .player_create_cast_spell_store_like_cpp = Some(store);
     }
     /// Conservative C++ `SpellArea::IsFitToRequirements` projection used only
@@ -209,7 +210,8 @@ impl WorldSession {
     pub(in crate::session) fn represented_spell_area_autocast_source_is_empty_like_cpp(
         &self,
     ) -> bool {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_area_store
             .as_ref()
             .is_some_and(|store| {
@@ -348,7 +350,7 @@ impl WorldSession {
         &self,
         spell_id: i32,
     ) -> bool {
-        let Some(spell_store) = self.spell_catalogs.spell_store.as_ref() else {
+        let Some(spell_store) = self.catalogs.spell_catalogs.spell_store.as_ref() else {
             return false;
         };
         let (stances, _) = spell_store.shapeshift_masks_like_cpp(spell_id);
@@ -375,6 +377,7 @@ impl WorldSession {
             return false;
         };
         let caster_aura_state = self
+            .catalogs
             .spell_catalogs
             .spell_aura_restrictions_store
             .as_ref()
@@ -412,6 +415,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedCanDuelSpellCastLikeCpp] {
         &self
+            .social
             .duel_test_fixture_like_cpp
             .represented_can_duel_spell_casts_like_cpp
     }
@@ -421,13 +425,16 @@ impl WorldSession {
         cast: RepresentedTalentRespecVisualSpellCastLikeCpp,
     ) {
         #[cfg(test)]
-        self.represented_talent_respec_visual_spell_casts_like_cpp
+        self.progression
+            .represented_talent_respec_visual_spell_casts_like_cpp
             .push(cast);
     }
     #[cfg(test)]
     pub(crate) fn represented_talent_respec_visual_spell_casts_like_cpp(
         &self,
     ) -> &[RepresentedTalentRespecVisualSpellCastLikeCpp] {
-        &self.represented_talent_respec_visual_spell_casts_like_cpp
+        &self
+            .progression
+            .represented_talent_respec_visual_spell_casts_like_cpp
     }
 }

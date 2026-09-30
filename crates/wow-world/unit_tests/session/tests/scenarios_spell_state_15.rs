@@ -40,7 +40,7 @@ async fn teleport_to_far_map_removes_moving_and_turning_interrupt_auras_like_cpp
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportRemoveInterruptAuras".to_string(),
@@ -64,7 +64,7 @@ async fn teleport_to_far_map_removes_moving_and_turning_interrupt_auras_like_cpp
         ),
         (represented_kept_slot, 62_819, 0),
     ] {
-        session.visible_auras.insert(
+        session.auras.visible_auras.insert(
             slot,
             AuraApplication {
                 spell_id,
@@ -118,13 +118,24 @@ async fn teleport_to_far_map_removes_moving_and_turning_interrupt_auras_like_cpp
         ]
     );
     assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
-    assert!(!session.visible_auras.contains_key(&represented_moving_slot));
     assert!(
         !session
+            .auras
+            .visible_auras
+            .contains_key(&represented_moving_slot)
+    );
+    assert!(
+        !session
+            .auras
             .visible_auras
             .contains_key(&represented_turning_slot)
     );
-    assert!(session.visible_auras.contains_key(&represented_kept_slot));
+    assert!(
+        session
+            .auras
+            .visible_auras
+            .contains_key(&represented_kept_slot)
+    );
     session.mutate_canonical_player_like_cpp(|player| {
         let auras = &player.unit().subsystems().auras;
         assert!(
@@ -154,7 +165,7 @@ async fn teleport_to_allows_death_knight_after_escape_spell_like_cpp() {
             flags2: 0,
         },
     ])));
-    session.expansion = 1;
+    session.core.expansion = 1;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
         "TeleportDkAllow".to_string(),
@@ -181,7 +192,7 @@ async fn teleport_to_allows_death_knight_after_escape_spell_like_cpp() {
         session.pending_teleport_like_cpp(),
         Some((571, destination))
     );
-    assert_eq!(session.state, SessionState::Transfer);
+    assert_eq!(session.core.state, SessionState::Transfer);
 }
 #[tokio::test]
 async fn spell_stuck_kills_player_when_hearthstone_has_cooldown_like_cpp() {
@@ -253,7 +264,7 @@ async fn spell_stuck_dead_player_without_death_timer_repops_like_cpp() {
         .await
         .expect("represented stuck spell dead branch should execute");
 
-    assert_eq!(session.represented_repop_at_graveyard_count, 1);
+    assert_eq!(session.combat.represented_repop_at_graveyard_count, 1);
     assert!(session.player_has_ghost_flag_like_cpp());
     assert_eq!(
         drain_server_opcodes(&send_rx),
@@ -649,8 +660,8 @@ async fn spell_sanctuary_outside_dungeon_stops_player_pve_combat_like_cpp() {
         80,
     );
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
-    session.combat_target = Some(creature_guid);
-    session.in_combat = true;
+    session.combat.combat_target = Some(creature_guid);
+    session.combat.in_combat = true;
     assert!(session.begin_canonical_player_combat_ref_like_cpp(
         player_guid,
         creature_guid,
@@ -685,8 +696,8 @@ async fn spell_sanctuary_outside_dungeon_stops_player_pve_combat_like_cpp() {
         .await
         .expect("represented EffectSanctuary should execute");
 
-    assert_eq!(session.combat_target, None);
-    assert!(!session.in_combat);
+    assert_eq!(session.combat.combat_target, None);
+    assert!(!session.combat.in_combat);
     {
         let canonical_guard = canonical.lock().unwrap();
         let map = canonical_guard.find_map(0, 0).unwrap().map();

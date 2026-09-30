@@ -32,7 +32,7 @@ impl WorldSession {
         if self.state() != crate::session::SessionState::LoggedIn {
             if is_monster_move {
                 tracing::info!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     source_guid = ?source_guid,
                     "RUST_MONSTER_MOVE_DELIVERY rejected: session not logged in"
                 );
@@ -44,10 +44,13 @@ impl WorldSession {
         // a sessionless world tick, so drop only movement commands that were
         // queued before the login burst completed.
         if is_monster_move {
-            if let Some(cutoff) = self.suppress_creature_movement_queued_at_or_before_like_cpp {
+            if let Some(cutoff) = self
+                .world_entities
+                .suppress_creature_movement_queued_at_or_before_like_cpp
+            {
                 if queued_at <= cutoff {
                     tracing::info!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         source_guid = ?source_guid,
                         queued_before_cutoff_ms =
                             cutoff.saturating_duration_since(queued_at).as_millis(),
@@ -61,7 +64,7 @@ impl WorldSession {
         if self.player_map_id_like_cpp() != map_id {
             if is_monster_move {
                 tracing::info!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     source_guid = ?source_guid,
                     player_map = self.player_map_id_like_cpp(),
                     command_map = map_id,
@@ -78,7 +81,7 @@ impl WorldSession {
         if session_instance_id != instance_id {
             if is_monster_move {
                 tracing::info!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     source_guid = ?source_guid,
                     session_instance_id,
                     command_instance_id = instance_id,
@@ -88,12 +91,16 @@ impl WorldSession {
             return false;
         }
         // Gate 4: source GUID must be in client's visible set (HaveAtClient).
-        if !self.client_visible_guids_like_cpp.contains(&source_guid) {
+        if !self
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&source_guid)
+        {
             if is_monster_move {
                 tracing::info!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     source_guid = ?source_guid,
-                    visible_count = self.client_visible_guids_like_cpp.len(),
+                    visible_count = self.core.client_visible_guids_like_cpp.len(),
                     "RUST_MONSTER_MOVE_DELIVERY rejected: source not visible"
                 );
             }
@@ -116,9 +123,9 @@ impl WorldSession {
                 Some(false) => {
                     if is_monster_move {
                         tracing::info!(
-                            account = self.account_id,
+                            account = self.core.account_id,
                             source_guid = ?source_guid,
-                            visible_count = self.client_visible_guids_like_cpp.len(),
+                            visible_count = self.core.client_visible_guids_like_cpp.len(),
                             "RUST_MONSTER_MOVE_DELIVERY rejected: source failed current creature phase/range gate"
                         );
                     }
@@ -127,9 +134,9 @@ impl WorldSession {
                 None => {
                     if is_monster_move {
                         tracing::info!(
-                            account = self.account_id,
+                            account = self.core.account_id,
                             source_guid = ?source_guid,
-                            visible_count = self.client_visible_guids_like_cpp.len(),
+                            visible_count = self.core.client_visible_guids_like_cpp.len(),
                             "RUST_MONSTER_MOVE_DELIVERY rejected: source creature missing"
                         );
                     }
@@ -145,7 +152,7 @@ impl WorldSession {
             return;
         }
 
-        let Some(loot) = self.loot_table.get(&owner_guid) else {
+        let Some(loot) = self.loot.loot_table.get(&owner_guid) else {
             return;
         };
 
@@ -196,11 +203,12 @@ impl WorldSession {
         owner_guid: ObjectGuid,
         loot_list_id: u8,
     ) {
-        let Some(loot) = self.loot_table.get(&owner_guid).cloned() else {
+        let Some(loot) = self.loot.loot_table.get(&owner_guid).cloned() else {
             return;
         };
         let snapshot = wow_loot::OwnedLootSnapshot {
             generation: self
+                .loot
                 .represented_loot_cache_generations_like_cpp
                 .get(&owner_guid)
                 .copied()
@@ -278,7 +286,7 @@ impl WorldSession {
         }
 
         if !stale_looters.is_empty()
-            && let Some(loot) = self.loot_table.get_mut(&owner_guid)
+            && let Some(loot) = self.loot.loot_table.get_mut(&owner_guid)
         {
             loot.players_looting
                 .retain(|looter| !stale_looters.contains(looter));

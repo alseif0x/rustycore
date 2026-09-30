@@ -25,7 +25,7 @@ async fn loot_release_keeps_unlooted_creature_loot_like_cpp() {
         })
         .unwrap()
         .expect("C++ arms corpse removal when the creature reaches JUST_DIED");
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -58,14 +58,19 @@ async fn loot_release_keeps_unlooted_creature_loot_like_cpp() {
     assert_eq!(sent.read_packed_guid().unwrap(), player_guid);
     assert!(!session.is_active_loot_guid(loot_guid));
     assert!(
-        !session.loot_table.contains_key(&loot_guid),
+        !session.loot.loot_table.contains_key(&loot_guid),
         "the closed session view is a discardable cache; the creature authority keeps loot"
     );
     assert!(session.reconcile_represented_loot_cache_like_cpp(loot_guid, player_guid));
-    assert_eq!(session.loot_table[&loot_guid].coins, 7);
-    assert!(session.loot_table.contains_key(&loot_guid));
+    assert_eq!(session.loot.loot_table[&loot_guid].coins, 7);
+    assert!(session.loot.loot_table.contains_key(&loot_guid));
     assert_eq!(
-        session.loot_table.get(&loot_guid).unwrap().players_looting,
+        session
+            .loot
+            .loot_table
+            .get(&loot_guid)
+            .unwrap()
+            .players_looting,
         vec![other_guid]
     );
     assert_eq!(
@@ -95,7 +100,7 @@ async fn creature_owned_loot_release_partial_uses_canonical_is_fully_looted_like
         })
         .unwrap()
         .expect("C++ arms corpse removal when the creature reaches JUST_DIED");
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -120,7 +125,7 @@ async fn creature_owned_loot_release_partial_uses_canonical_is_fully_looted_like
 
     assert!(send_rx.try_recv().is_ok());
     assert!(!session.is_active_loot_guid(loot_guid));
-    assert!(!session.loot_table.contains_key(&loot_guid));
+    assert!(!session.loot.loot_table.contains_key(&loot_guid));
     let canonical = canonical_creature_snapshot(&session, loot_guid).unwrap();
     assert_eq!(
         canonical.shared_loot_like_cpp(),
@@ -133,8 +138,8 @@ async fn creature_owned_loot_release_partial_uses_canonical_is_fully_looted_like
     );
     assert!(!canonical.is_fully_looted_like_cpp());
     assert!(session.reconcile_represented_loot_cache_like_cpp(loot_guid, player_guid));
-    assert_eq!(session.loot_table[&loot_guid].coins, 7);
-    assert!(session.loot_table.contains_key(&loot_guid));
+    assert_eq!(session.loot.loot_table[&loot_guid].coins, 7);
+    assert!(session.loot.loot_table.contains_key(&loot_guid));
     assert_eq!(
         session
             .mutate_world_creature(loot_guid, |creature| {
@@ -168,7 +173,7 @@ async fn creature_owned_loot_release_fully_consumed_uses_canonical_is_fully_loot
             .unwrap(),
         120
     );
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -193,7 +198,7 @@ async fn creature_owned_loot_release_fully_consumed_uses_canonical_is_fully_loot
 
     assert!(send_rx.try_recv().is_ok());
     assert!(!session.is_active_loot_guid(loot_guid));
-    assert!(!session.loot_table.contains_key(&loot_guid));
+    assert!(!session.loot.loot_table.contains_key(&loot_guid));
     let canonical = canonical_creature_snapshot(&session, loot_guid).unwrap();
     assert_eq!(
         canonical.shared_loot_like_cpp(),
@@ -264,7 +269,7 @@ async fn personal_creature_release_starts_decay_only_after_every_pool_is_looted_
     session.set_active_loot_guid(owner_guid);
     let response = authoritative_test_loot_response_like_cpp(
         owner_guid,
-        &session.loot_table[&owner_guid],
+        &session.loot.loot_table[&owner_guid],
         first_player,
     );
     session.represented_on_loot_opened_like_cpp(owner_guid, first_player, response);
@@ -291,7 +296,7 @@ async fn personal_creature_release_starts_decay_only_after_every_pool_is_looted_
     session.set_active_loot_guid(owner_guid);
     let response = authoritative_test_loot_response_like_cpp(
         owner_guid,
-        &session.loot_table[&owner_guid],
+        &session.loot.loot_table[&owner_guid],
         second_player,
     );
     session.represented_on_loot_opened_like_cpp(owner_guid, second_player, response);
@@ -455,7 +460,7 @@ async fn creature_owned_loot_release_does_not_extend_expired_corpse_like_cpp() {
             .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_due_like_cpp())
             .unwrap()
     );
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -479,7 +484,7 @@ async fn creature_owned_loot_release_does_not_extend_expired_corpse_like_cpp() {
         .await;
 
     assert!(send_rx.try_recv().is_ok());
-    assert!(!session.loot_table.contains_key(&loot_guid));
+    assert!(!session.loot.loot_table.contains_key(&loot_guid));
     let deadline_after = session
         .mutate_world_creature(loot_guid, |creature| {
             creature.corpse_despawn_deadline_ms_like_cpp()
@@ -502,7 +507,7 @@ async fn creature_owned_loot_release_fully_consumed_removes_lootable_dynflag_lik
     attach_canonical_creature(&mut session, creature);
     session.set_player_guid(Some(player_guid));
     session.set_active_loot_guid(loot_guid);
-    session.client_visible_guids_like_cpp.insert(loot_guid);
+    session.core.client_visible_guids_like_cpp.insert(loot_guid);
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
     let _ = session.mutate_world_creature(loot_guid, |creature| {
         creature.apply_corpse_loot_flags_after_death_state_like_cpp(true, false);
@@ -513,7 +518,7 @@ async fn creature_owned_loot_release_fully_consumed_removes_lootable_dynflag_lik
                 .has_lootable_dynamic_flag_like_cpp())
             .unwrap()
     );
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -569,7 +574,7 @@ async fn creature_skinning_loot_release_despawns_corpse_immediately_like_cpp() {
     let _ = session.mutate_world_creature(loot_guid, |creature| {
         creature.creature.set_corpse_delay(120, false);
     });
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -637,10 +642,12 @@ async fn authoritative_partial_personal_creature_release_drops_cache_and_reopen_
     fixture.session.set_active_loot_guid(fixture.owner_guid);
     fixture
         .session
+        .loot
         .active_loot_view_generations_like_cpp
         .insert(fixture.owner_guid, opened.generation);
     fixture
         .session
+        .loot
         .active_loot_view_authorities_like_cpp
         .insert(fixture.owner_guid, authority.clone());
 
@@ -650,16 +657,24 @@ async fn authoritative_partial_personal_creature_release_drops_cache_and_reopen_
             .do_loot_release_owner_like_cpp(fixture.owner_guid, fixture.first_tapper)
             .await
     );
-    assert!(!fixture.session.loot_table.contains_key(&fixture.owner_guid));
     assert!(
         !fixture
             .session
+            .loot
+            .loot_table
+            .contains_key(&fixture.owner_guid)
+    );
+    assert!(
+        !fixture
+            .session
+            .loot
             .represented_loot_cache_generations_like_cpp
             .contains_key(&fixture.owner_guid)
     );
     assert!(
         !fixture
             .session
+            .loot
             .represented_personal_loot_money
             .contains_key(&(fixture.owner_guid, fixture.first_tapper))
     );
@@ -689,12 +704,14 @@ async fn authoritative_partial_personal_creature_release_drops_cache_and_reopen_
     assert!(
         fixture
             .session
+            .loot
             .represented_personal_loot_owners
             .contains(&fixture.owner_guid)
     );
     assert_eq!(
         fixture
             .session
+            .loot
             .represented_personal_loot_money
             .get(&(fixture.owner_guid, fixture.first_tapper)),
         Some(&7)

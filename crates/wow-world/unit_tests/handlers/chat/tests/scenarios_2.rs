@@ -222,7 +222,7 @@ async fn dead_player_party_chat_is_not_rejected_by_say_alive_gate_like_cpp() {
     let group_guid = group.group_guid;
     let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_alive_like_cpp(false);
 
@@ -421,7 +421,7 @@ async fn gm_silence_aura_rejects_non_whisper_chat_like_cpp() {
         broadcast_info(nearby, nearby_tx),
         Default::default(),
     );
-    session.visible_auras.insert(1, gm_silence_aura(1));
+    session.auras.visible_auras.insert(1, gm_silence_aura(1));
 
     session
         .handle_chat_message(
@@ -587,7 +587,7 @@ async fn chat_flood_addon_mutes_after_limit_for_next_generic_addon_like_cpp() {
     let group_guid = group.group_guid;
     let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_chat_flood_config_like_cpp(ChatFloodConfigLikeCpp {
         message_count: 10,
@@ -634,7 +634,7 @@ fn secs_to_full_time_string_matches_cpp_full_text_shape() {
 async fn gm_silence_aura_rejects_afk_toggle_like_cpp() {
     let sender = ObjectGuid::create_player(1, 363);
     let (mut session, _, sender_rx) = session_for_chat_routing_like_cpp(sender);
-    session.visible_auras.insert(1, gm_silence_aura(1));
+    session.auras.visible_auras.insert(1, gm_silence_aura(1));
 
     session.handle_chat_afk(chat_away_packet("away")).await;
 
@@ -650,7 +650,7 @@ async fn gm_silence_aura_rejects_afk_toggle_like_cpp() {
 async fn gm_silence_aura_rejects_dnd_toggle_like_cpp() {
     let sender = ObjectGuid::create_player(1, 430);
     let (mut session, _, sender_rx) = session_for_chat_routing_like_cpp(sender);
-    session.visible_auras.insert(1, gm_silence_aura(1));
+    session.auras.visible_auras.insert(1, gm_silence_aura(1));
 
     session.handle_chat_dnd(chat_away_packet("busy")).await;
 
@@ -673,7 +673,7 @@ async fn gm_silence_aura_rejects_chat_emote_with_notification_like_cpp() {
         broadcast_info(nearby, nearby_tx),
         Default::default(),
     );
-    session.visible_auras.insert(1, gm_silence_aura(1));
+    session.auras.visible_auras.insert(1, gm_silence_aura(1));
 
     session
         .handle_chat_emote(chat_emote_packet("muted emote"))
@@ -697,7 +697,7 @@ async fn gm_silence_aura_rejects_whisper_to_non_gm_like_cpp() {
     target_info.identity.player_name = "Target".to_string();
     player_registry.register_or_replace(target, target_info, Default::default());
     bind_canonical_player_like_cpp(&player_registry, target, |_| {});
-    session.visible_auras.insert(1, gm_silence_aura(1));
+    session.auras.visible_auras.insert(1, gm_silence_aura(1));
 
     session
         .handle_chat_whisper(chat_whisper_packet("Target", "muted"))
@@ -723,7 +723,7 @@ async fn gm_silence_aura_allows_whisper_to_gm_like_cpp() {
     bind_canonical_player_like_cpp(&player_registry, target, |player| {
         player.set_game_master_like_cpp(true);
     });
-    session.visible_auras.insert(1, gm_silence_aura(1));
+    session.auras.visible_auras.insert(1, gm_silence_aura(1));
 
     session
         .handle_chat_whisper(chat_whisper_packet("Target", "gm only"))
@@ -840,7 +840,7 @@ async fn party_addon_routes_to_same_subgroup_except_sender_like_cpp() {
     let group_guid = group.group_guid;
     let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     session
@@ -872,7 +872,7 @@ async fn addon_channel_config_blocks_addon_delivery_like_cpp() {
     let group_guid = group.group_guid;
     let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     let chat_policy = ChatPolicyCatalogsLikeCpp {
         addon_channel: false,

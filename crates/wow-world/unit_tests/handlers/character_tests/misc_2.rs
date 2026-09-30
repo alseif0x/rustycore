@@ -332,7 +332,7 @@ async fn binder_activate_rejects_player_missing_from_canonical_world_like_cpp() 
 #[tokio::test]
 async fn gossip_catalog_port_preserves_read_order_and_localized_projection_like_cpp() {
     let (mut session, _) = make_quest_status_session();
-    session.locale = "esES".to_owned();
+    session.core.locale = "esES".to_owned();
     let menu_id = 700;
     let npc_guid = creature_guid(9001, 701);
     let port = GossipCatalogPortFixtureLikeCpp::new(
@@ -358,7 +358,7 @@ async fn gossip_catalog_port_preserves_read_order_and_localized_projection_like_
     assert_eq!(message.gossip_options.len(), 1);
     assert_eq!(message.gossip_options[0].text, "Opción localizada");
     assert_eq!(message.gossip_options[0].gossip_option_id, 77);
-    assert_eq!(session.gossip_options.len(), 1);
+    assert_eq!(session.interaction.gossip_options.len(), 1);
     assert_eq!(
         port.requests(),
         vec![
@@ -386,7 +386,7 @@ async fn gossip_catalog_port_preserves_read_order_and_localized_projection_like_
 #[tokio::test]
 async fn gossip_catalog_required_read_failure_stops_before_locale_like_cpp() {
     let (mut session, _) = make_quest_status_session();
-    session.locale = "esES".to_owned();
+    session.core.locale = "esES".to_owned();
     let port = GossipCatalogPortFixtureLikeCpp::new(
         [GossipCatalogReadOutcomeLikeCpp::Found(701)],
         [GossipCatalogReadOutcomeLikeCpp::Found(vec![21])],
@@ -425,7 +425,7 @@ async fn gossip_catalog_required_read_failure_stops_before_locale_like_cpp() {
 #[tokio::test]
 async fn gossip_catalog_optional_reads_fail_to_existing_fallbacks_like_cpp() {
     let (mut session, _) = make_quest_status_session();
-    session.locale = "esES".to_owned();
+    session.core.locale = "esES".to_owned();
     let menu_id = 702;
     let port = GossipCatalogPortFixtureLikeCpp::new(
         [GossipCatalogReadOutcomeLikeCpp::Found(menu_id)],
@@ -477,6 +477,7 @@ async fn invalid_gossip_hello_preserves_active_player_menu_state_like_cpp() {
     let invalid_source = creature_guid(9306, 999);
     session.set_player_trainer_interaction_like_cpp(active_source, 77);
     session
+        .interaction
         .gossip_options
         .push(crate::session::GossipOptionInfo {
             gossip_option_id: 31,
@@ -501,7 +502,7 @@ async fn invalid_gossip_hello_preserves_active_player_menu_state_like_cpp() {
         "invalid hello must not replace InteractionData"
     );
     assert_eq!(
-        session.gossip_options.len(),
+        session.interaction.gossip_options.len(),
         1,
         "C++ clears PlayerMenu only after validating the source"
     );
@@ -520,6 +521,7 @@ async fn valid_direct_service_hello_replaces_stale_trainer_provenance_like_cpp()
     );
     session.set_player_trainer_interaction_like_cpp(old_trainer, 77);
     session
+        .interaction
         .gossip_options
         .push(crate::session::GossipOptionInfo {
             gossip_option_id: 21,
@@ -538,7 +540,7 @@ async fn valid_direct_service_hello_replaces_stale_trainer_provenance_like_cpp()
         "C++ removes fake death before dispatching the selected direct service"
     );
     assert!(
-        !session.visible_auras.contains_key(&FEIGN_SLOT),
+        !session.auras.visible_auras.contains_key(&FEIGN_SLOT),
         "the direct-service shortcut represents a successful C++ gossip selection"
     );
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));
@@ -552,7 +554,7 @@ async fn valid_direct_service_hello_replaces_stale_trainer_provenance_like_cpp()
         0,
         "opening another valid service invalidates an earlier trainer window"
     );
-    assert!(session.gossip_options.is_empty());
+    assert!(session.interaction.gossip_options.is_empty());
 }
 #[tokio::test]
 async fn gossip_hello_mixed_direct_service_keeps_service_like_cpp() {
@@ -565,6 +567,7 @@ async fn gossip_hello_mixed_direct_service_keeps_service_like_cpp() {
     session.set_quest_store(Arc::new(store));
     session.set_player_trainer_interaction_like_cpp(stale_source, 77);
     session
+        .interaction
         .gossip_options
         .push(crate::session::GossipOptionInfo {
             gossip_option_id: 91,
@@ -592,7 +595,7 @@ async fn gossip_hello_mixed_direct_service_keeps_service_like_cpp() {
     );
     assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
     assert!(
-        session.gossip_options.is_empty(),
+        session.interaction.gossip_options.is_empty(),
         "C++ HandleGossipHelloOpcode clears the prior menu before opening a direct service"
     );
 }
@@ -647,7 +650,7 @@ async fn gossip_hello_trainer_fallback_uses_canonical_access_like_cpp() {
     );
     assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
     assert_eq!(
-        session.gossip_options[0].option_npc,
+        session.interaction.gossip_options[0].option_npc,
         GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP
     );
     assert!(send_rx.try_recv().is_err());
@@ -726,6 +729,7 @@ async fn gossip_select_trainer_only_source_opens_resolved_trainer_without_close_
     );
     assert_eq!(gossip_message_counts(&menu_packet, guid), (1, 0));
     let option = session
+        .interaction
         .gossip_options
         .first()
         .cloned()
@@ -760,7 +764,7 @@ async fn gossip_select_trainer_only_source_opens_resolved_trainer_without_close_
         "the target fork's trainer-only generated option must be usable and must not pre-send GossipComplete"
     );
     assert!(session.player_trainer_interaction_matches_like_cpp(guid, TRAINER_ID as i32));
-    assert!(!session.visible_auras.contains_key(&FEIGN_SLOT));
+    assert!(!session.auras.visible_auras.contains_key(&FEIGN_SLOT));
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));
 }
 #[tokio::test]
@@ -786,6 +790,7 @@ async fn gossip_select_requires_exact_active_source_and_routes_exact_match_like_
             session.set_player_trainer_interaction_like_cpp(active_source, 77);
         }
         session
+            .interaction
             .gossip_options
             .push(crate::session::GossipOptionInfo {
                 gossip_option_id: 41,
@@ -805,7 +810,7 @@ async fn gossip_select_requires_exact_active_source_and_routes_exact_match_like_
             .await;
 
         assert_eq!(drain_server_opcodes(&send_rx), expected_opcodes);
-        assert_eq!(session.gossip_options.len(), 1);
+        assert_eq!(session.interaction.gossip_options.len(), 1);
         if active_source == Some(requested) {
             assert_eq!(
                 session.player_interaction_source_guid_like_cpp(),
@@ -837,6 +842,7 @@ async fn gossip_select_requires_exact_active_menu_id_like_cpp() {
     );
     session.set_player_trainer_interaction_like_cpp(banker, 77);
     session
+        .interaction
         .gossip_options
         .push(crate::session::GossipOptionInfo {
             gossip_option_id: 61,
@@ -865,7 +871,7 @@ async fn gossip_select_requires_exact_active_menu_id_like_cpp() {
         session.player_trainer_interaction_matches_like_cpp(banker, 77),
         "a mismatched packet GossipID must not route or replace InteractionData"
     );
-    assert_eq!(session.gossip_options.len(), 1);
-    assert!(!session.visible_auras.contains_key(&FEIGN_SLOT));
+    assert_eq!(session.interaction.gossip_options.len(), 1);
+    assert!(!session.auras.visible_auras.contains_key(&FEIGN_SLOT));
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));
 }

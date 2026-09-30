@@ -12,7 +12,7 @@ impl WorldSession {
         opponent: ObjectGuid,
     ) -> Option<bool> {
         let map_id = u32::from(self.player_map_id_like_cpp());
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
         let manager = manager.lock().ok()?;
         let mut result = None;
         manager.do_for_all_maps_with_map_id(map_id, |managed| {
@@ -26,7 +26,7 @@ impl WorldSession {
         result
     }
     fn represented_target_can_duel_like_cpp(&self, target_guid: ObjectGuid) -> Option<bool> {
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
         };
@@ -60,7 +60,8 @@ impl WorldSession {
                 SPELL_DUEL_LIKE_CPP
             };
             #[cfg(test)]
-            self.duel_test_fixture_like_cpp
+            self.social
+                .duel_test_fixture_like_cpp
                 .represented_can_duel_spell_casts_like_cpp
                 .push(RepresentedCanDuelSpellCastLikeCpp {
                     target_guid,
@@ -76,8 +77,9 @@ impl WorldSession {
             .with_owned_player_mut_like_cpp(|player| player.set_duel_arbiter_like_cpp(guid))
             .is_some();
         #[cfg(test)]
-        if !canonical && self.player_handle_like_cpp.is_none() {
-            self.duel_test_fixture_like_cpp
+        if !canonical && self.core.player_handle_like_cpp.is_none() {
+            self.social
+                .duel_test_fixture_like_cpp
                 .represented_duel_arbiter_guid_like_cpp = guid;
         }
         #[cfg(not(test))]
@@ -91,9 +93,10 @@ impl WorldSession {
             return canonical;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.duel_test_fixture_like_cpp
+                self.social
+                    .duel_test_fixture_like_cpp
                     .represented_duel_arbiter_guid_like_cpp,
             );
         }
@@ -198,7 +201,7 @@ impl WorldSession {
             i64::from(spell_id.max(0) as u32),
         );
         let requested_by_wow_account =
-            ObjectGuid::create_global(HighGuid::WowAccount, 0, self.account_id as i64);
+            ObjectGuid::create_global(HighGuid::WowAccount, 0, self.core.account_id as i64);
 
         self.set_represented_duel_state_like_cpp(
             player_guid,
@@ -229,7 +232,8 @@ impl WorldSession {
 
         #[cfg(test)]
         {
-            self.duel_test_fixture_like_cpp
+            self.social
+                .duel_test_fixture_like_cpp
                 .represented_duel_requests_like_cpp
                 .push(RepresentedDuelRequestedLikeCpp {
                     target_guid,
@@ -283,7 +287,8 @@ impl WorldSession {
         self.send_raw_packet(&packet_bytes);
         self.send_represented_duel_countdown_to_opponent_like_cpp(opponent_guid, packet_bytes);
         #[cfg(test)]
-        self.duel_test_fixture_like_cpp
+        self.social
+            .duel_test_fixture_like_cpp
             .represented_duel_accepts_like_cpp
             .push(RepresentedDuelAcceptedLikeCpp {
                 opponent_guid,
@@ -317,7 +322,8 @@ impl WorldSession {
         self.clear_represented_duel_like_cpp(player_guid);
         self.clear_represented_duel_like_cpp(opponent_guid);
         #[cfg(test)]
-        self.duel_test_fixture_like_cpp
+        self.social
+            .duel_test_fixture_like_cpp
             .represented_duel_cancels_like_cpp
             .push(RepresentedDuelCancelledLikeCpp {
                 opponent_guid,
@@ -341,12 +347,14 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_duel_accepts_like_cpp(&self) -> &[RepresentedDuelAcceptedLikeCpp] {
         &self
+            .social
             .duel_test_fixture_like_cpp
             .represented_duel_accepts_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn represented_duel_cancels_like_cpp(&self) -> &[RepresentedDuelCancelledLikeCpp] {
         &self
+            .social
             .duel_test_fixture_like_cpp
             .represented_duel_cancels_like_cpp
     }

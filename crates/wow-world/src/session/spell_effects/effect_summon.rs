@@ -46,7 +46,10 @@ impl WorldSession {
                 map_outcome: None,
             });
         };
-        let Some(template_store) = self.gameobject_template_lifecycle_store_like_cpp.as_deref()
+        let Some(template_store) = self
+            .catalogs
+            .gameobject_template_lifecycle_store_like_cpp
+            .as_deref()
         else {
             return Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
                 status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingTemplateStore,
@@ -114,7 +117,7 @@ impl WorldSession {
                 None,
             )
         };
-        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
             return Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
                 status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingCanonicalMapManager,
                 template_entry: Some(template_entry),
@@ -139,6 +142,7 @@ impl WorldSession {
         };
         let spell_id_u32 = u32::try_from(spell_id).unwrap_or(0);
         let duration_index = self
+            .catalogs
             .spell_catalogs
             .spell_misc_store
             .as_deref()
@@ -147,7 +151,7 @@ impl WorldSession {
             .unwrap_or(0);
         let duration_ms = spell_duration_ms_like_cpp(
             duration_index,
-            self.spell_catalogs.spell_duration_store.as_deref(),
+            self.catalogs.spell_catalogs.spell_duration_store.as_deref(),
         );
         let lifecycle_record = wow_data::gameobject_template_lifecycle_record_like_cpp(template);
         let Ok(mut manager) = manager.lock() else {
@@ -232,7 +236,10 @@ impl WorldSession {
                 map_outcome: None,
             });
         };
-        let Some(template_store) = self.gameobject_template_lifecycle_store_like_cpp.as_deref()
+        let Some(template_store) = self
+            .catalogs
+            .gameobject_template_lifecycle_store_like_cpp
+            .as_deref()
         else {
             return Some(ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp {
                 status: ApplyEffectSummonObjectSlotSessionStatusLikeCpp::MissingTemplateStore,
@@ -296,7 +303,7 @@ impl WorldSession {
                 None,
             )
         };
-        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
             return Some(ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp {
                 status: ApplyEffectSummonObjectSlotSessionStatusLikeCpp::MissingCanonicalMapManager,
                 slot: Some(slot),
@@ -322,6 +329,7 @@ impl WorldSession {
         };
         let spell_id_u32 = u32::try_from(spell_id).unwrap_or(0);
         let duration_index = self
+            .catalogs
             .spell_catalogs
             .spell_misc_store
             .as_deref()
@@ -330,7 +338,7 @@ impl WorldSession {
             .unwrap_or(0);
         let duration_ms = spell_duration_ms_like_cpp(
             duration_index,
-            self.spell_catalogs.spell_duration_store.as_deref(),
+            self.catalogs.spell_catalogs.spell_duration_store.as_deref(),
         );
         let lifecycle_record = wow_data::gameobject_template_lifecycle_record_like_cpp(template);
         let Ok(mut manager) = manager.lock() else {
