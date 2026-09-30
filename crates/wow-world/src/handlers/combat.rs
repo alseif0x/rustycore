@@ -121,7 +121,10 @@ impl WorldSession {
 
         if let (Some(values_update), Some(victim_guid)) =
             (command.victim_values_update.as_ref(), command.victim_guid)
-            && self.client_visible_guids_like_cpp.contains(&victim_guid)
+            && self
+                .core
+                .client_visible_guids_like_cpp
+                .contains(&victim_guid)
             && let Some(update) = self.represented_unit_values_update_to_update_object_like_cpp(
                 victim_guid,
                 command.map_id,
@@ -174,7 +177,10 @@ impl WorldSession {
         let swing = match AttackSwing::read(&mut pkt) {
             Ok(s) => s,
             Err(e) => {
-                warn!(account = self.account_id, "Failed to read AttackSwing: {e}");
+                warn!(
+                    account = self.core.account_id,
+                    "Failed to read AttackSwing: {e}"
+                );
                 return;
             }
         };
@@ -185,7 +191,7 @@ impl WorldSession {
         };
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             target = ?swing.victim,
             "CMSG_ATTACK_SWING"
         );
@@ -243,7 +249,7 @@ impl WorldSession {
             None => return,
         };
 
-        debug!(account = self.account_id, "CMSG_ATTACK_STOP");
+        debug!(account = self.core.account_id, "CMSG_ATTACK_STOP");
 
         if let Some(target) = self.stop_player_attack_like_cpp() {
             let stop = SAttackStop {
@@ -261,7 +267,7 @@ impl WorldSession {
     pub fn handle_set_sheathed(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Ok(sheathed) = SetSheathed::read(&mut pkt) {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 state = sheathed.current_sheath_state,
                 "SetSheathed"
             );

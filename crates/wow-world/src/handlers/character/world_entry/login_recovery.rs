@@ -146,7 +146,7 @@ impl WorldSession {
         if !usable_character_homebind_like_cpp(
             homebind,
             self.map_store().map(Arc::as_ref),
-            self.expansion,
+            self.core.expansion,
         ) {
             return false;
         }

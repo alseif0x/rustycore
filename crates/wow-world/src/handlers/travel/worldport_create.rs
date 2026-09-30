@@ -159,7 +159,7 @@ impl crate::session::WorldSession {
         };
         player_pkt.set_player_rest_info_like_cpp(0, rest_threshold, rest_state);
         player_pkt.set_player_account_guids_like_cpp(
-            ObjectGuid::create_global(HighGuid::WowAccount, 0, self.account_id as i64),
+            ObjectGuid::create_global(HighGuid::WowAccount, 0, self.core.account_id as i64),
             ObjectGuid::create_global(HighGuid::BNetAccount, 0, self.battlenet_account_id() as i64),
         );
         player_pkt.set_player_collection_dynamic_fields_like_cpp(

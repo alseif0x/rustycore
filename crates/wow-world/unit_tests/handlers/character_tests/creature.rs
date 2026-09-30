@@ -139,7 +139,7 @@ async fn quest_giver_status_tracked_supplied_creature_not_visible_sends_availabl
     let mut manager = wow_map::MapManager::default();
     insert_creature(&mut manager, guid, 9301);
     attach_map_manager(&mut session, manager);
-    assert!(!session.client_visible_guids_like_cpp.contains(&guid));
+    assert!(!session.core.client_visible_guids_like_cpp.contains(&guid));
 
     session
         .handle_quest_giver_status_tracked_query(tracked_query_packet(&[guid]))

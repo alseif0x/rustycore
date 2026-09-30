@@ -6,7 +6,7 @@ use super::*;
 fn taxi_mutation_runs_once_on_active_and_detached_owner_and_rejects_stale_handle() {
     let (mut session, _, _) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     for detached in [false, true] {
         if detached {
             assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
@@ -60,7 +60,7 @@ fn taxi_mutation_runs_once_on_active_and_detached_owner_and_rejects_stale_handle
             }),
         Some(vec![42])
     );
-    session.canonical_map_manager = None;
+    session.core.canonical_map_manager = None;
     assert_eq!(
         session.mutate_player_taxi_state_like_cpp(|_| panic!("missing owner")),
         None::<()>

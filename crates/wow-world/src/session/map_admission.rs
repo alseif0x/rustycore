@@ -130,6 +130,7 @@ impl WorldSession {
         let downscaled_entries = self
             .create_map_db2_entries_like_cpp(map_id, requested_difficulty as wow_map::Difficulty)?;
         let map_difficulty_id = self
+            .catalogs
             .maps
             .difficulty_store
             .as_ref()
@@ -137,6 +138,7 @@ impl WorldSession {
             .map(|entry| entry.id)
             .unwrap_or(0);
         let map_difficulty_has_message = self
+            .catalogs
             .maps
             .difficulty_store
             .as_ref()
@@ -145,13 +147,14 @@ impl WorldSession {
             .unwrap_or(false);
 
         let failed_map_difficulty_x_condition =
-            if self.realm_policy.instance_ignore_level_like_cpp || map_difficulty_id == 0 {
+            if self.core.realm_policy.instance_ignore_level_like_cpp || map_difficulty_id == 0 {
                 0
             } else {
-                self.maps
+                self.catalogs
+                    .maps
                     .difficulty_x_condition_store
                     .as_ref()
-                    .zip(self.player_condition_store.as_ref())
+                    .zip(self.catalogs.player_condition_store.as_ref())
                     .and_then(|(difficulty_conditions, player_conditions)| {
                         difficulty_conditions.failed_condition_like_cpp(
                             map_difficulty_id,
@@ -170,6 +173,7 @@ impl WorldSession {
             };
 
         let access_requirement = self
+            .catalogs
             .access_requirement_store
             .as_ref()
             .and_then(|store| store.get(map_id, requested_difficulty));
@@ -181,7 +185,7 @@ impl WorldSession {
         let mut missing_achievement = 0;
 
         if let Some(access_requirement) = access_requirement {
-            if !self.realm_policy.instance_ignore_level_like_cpp {
+            if !self.core.realm_policy.instance_ignore_level_like_cpp {
                 if access_requirement.level_min != 0
                     && self.player_level_like_cpp() < access_requirement.level_min
                 {

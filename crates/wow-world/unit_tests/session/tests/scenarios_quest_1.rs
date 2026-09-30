@@ -161,6 +161,7 @@ fn reset_seasonal_missing_quest_v2_store_removes_without_inventing_bit_like_cpp(
     assert_eq!(session.seasonal_quest_bucket_like_cpp(7), None);
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .represented_quest_completed_bits_like_cpp
             .is_empty()
@@ -221,7 +222,10 @@ fn canonical_player_quest_rewarded_talent_points_follow_detached_and_stale_owner
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     assert!(session.add_represented_quest_reward_talent_points_like_cpp(10_001, 2));
     assert_eq!(
@@ -288,6 +292,7 @@ fn canonical_access_requirement_uses_team_quest_reward_like_cpp() {
         0,
     ));
     session
+        .instances
         .instance_test_fixture_like_cpp
         .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
@@ -314,6 +319,7 @@ fn canonical_access_requirement_uses_team_quest_reward_like_cpp() {
     );
 
     session
+        .quest_state
         .quest_test_fixture_like_cpp
         .rewarded_quests
         .insert(200);
@@ -341,6 +347,7 @@ fn canonical_access_requirement_quest_failed_text_sends_system_message_like_cpp(
         0,
     ));
     session
+        .instances
         .instance_test_fixture_like_cpp
         .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
@@ -403,9 +410,10 @@ fn represented_request_vehicle_exit_accepts_control_seat_like_cpp() {
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
-    session.player_name = Some("VehicleControlExitTester".to_string());
-    session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_CONTROL);
-    session.player_vehicle_seat_id_like_cpp = Some(1003);
+    session.identity.player_name = Some("VehicleControlExitTester".to_string());
+    session.vehicles.player_vehicle_seat_flags_like_cpp =
+        Some(wow_data::VEHICLE_SEAT_FLAG_CAN_CONTROL);
+    session.vehicles.player_vehicle_seat_id_like_cpp = Some(1003);
     session.set_player_registry(Arc::clone(&registry));
     session.register_in_player_registry();
 
@@ -426,7 +434,8 @@ fn represented_adjacent_vehicle_seat_request_records_cpp_change_seat_plan() {
             .is_empty()
     );
 
-    session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
+    session.vehicles.player_vehicle_seat_flags_like_cpp =
+        Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
     assert!(!session.represented_request_adjacent_vehicle_seat_like_cpp(true));
     assert!(
         session
@@ -434,7 +443,8 @@ fn represented_adjacent_vehicle_seat_request_records_cpp_change_seat_plan() {
             .is_empty()
     );
 
-    session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
+    session.vehicles.player_vehicle_seat_flags_like_cpp =
+        Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
     assert!(session.represented_request_adjacent_vehicle_seat_like_cpp(false));
     assert!(session.represented_request_adjacent_vehicle_seat_like_cpp(true));
     assert_eq!(
@@ -454,7 +464,8 @@ fn represented_adjacent_vehicle_seat_request_records_cpp_change_seat_plan() {
 #[tokio::test]
 async fn request_vehicle_prev_next_handlers_record_represented_change_seat_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
+    session.vehicles.player_vehicle_seat_flags_like_cpp =
+        Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
 
     session
         .handle_request_vehicle_prev_seat(wow_packet::packets::vehicle::RequestVehiclePrevSeat)
@@ -486,19 +497,20 @@ fn represented_request_vehicle_exit_rejects_non_exit_seat_like_cpp() {
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
-    session.player_name = Some("VehicleExitRejectTester".to_string());
-    session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
-    session.player_vehicle_seat_id_like_cpp = Some(1002);
+    session.identity.player_name = Some("VehicleExitRejectTester".to_string());
+    session.vehicles.player_vehicle_seat_flags_like_cpp =
+        Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
+    session.vehicles.player_vehicle_seat_id_like_cpp = Some(1002);
     session.set_player_registry(Arc::clone(&registry));
     session.register_in_player_registry();
 
     assert!(!session.represented_request_vehicle_exit_like_cpp());
 
     assert_eq!(
-        session.player_vehicle_seat_flags_like_cpp,
+        session.vehicles.player_vehicle_seat_flags_like_cpp,
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK)
     );
-    assert_eq!(session.player_vehicle_seat_id_like_cpp, Some(1002));
+    assert_eq!(session.vehicles.player_vehicle_seat_id_like_cpp, Some(1002));
     let info = registry.party_member(guid).expect("registered player");
     assert!(info.in_vehicle);
     assert_eq!(info.party_member_vehicle_seat, 1002);
@@ -645,7 +657,7 @@ fn questgiver_quest_list_leaves_level_fields_zero_like_cpp() {
     let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([first, second]);
     assert!(quest_store.insert_gameobject_starter_relation_like_cpp(777, 9_001));
     assert!(quest_store.insert_gameobject_starter_relation_like_cpp(777, 9_002));
-    session.quests.store = Some(Arc::new(quest_store));
+    session.catalogs.quests.store = Some(Arc::new(quest_store));
 
     assert!(session.use_represented_gameobject_questgiver_like_cpp(
         gameobject_guid,
@@ -688,7 +700,13 @@ fn quest_giver_accept_missing_or_player_source_rejects_like_cpp() {
             &quest_store,
         )
     );
-    assert!(session.quest_test_fixture_like_cpp.player_quests.is_empty());
+    assert!(
+        session
+            .quest_state
+            .quest_test_fixture_like_cpp
+            .player_quests
+            .is_empty()
+    );
     assert!(send_rx.try_recv().is_err());
 }
 #[test]
@@ -749,7 +767,7 @@ async fn quest_reward_money_crossing_cap_leaves_balance_unchanged_like_cpp() {
     quest.reward_money_difficulty = 2;
     let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([quest]);
     quest_store.ender_quests.insert(792, vec![quest_id]);
-    session.quests.store = Some(Arc::new(quest_store));
+    session.catalogs.quests.store = Some(Arc::new(quest_store));
     session.set_player_gold_like_cpp(MAX_MONEY_AMOUNT - 1);
     session
         .mutate_player_quest_gameplay_like_cpp(|quests| {
@@ -794,21 +812,25 @@ async fn quest_giver_choose_reward_missing_source_rejects_before_mutation_like_c
     session.set_player_gold_like_cpp(5);
     let mut quest = test_quest_template(9_224);
     quest.reward_money_difficulty = 37;
-    session.quests.store = Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
-        [quest],
-    )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        9_224,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: 9_224,
-            status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
-    );
+    session.catalogs.quests.store = Some(Arc::new(
+        wow_data::quest::QuestStore::from_quests_like_cpp([quest]),
+    ));
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
+            9_224,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id: 9_224,
+                status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
 
     session
         .handle_quest_giver_choose_reward(quest_giver_choose_reward_packet_like_cpp(
@@ -821,6 +843,7 @@ async fn quest_giver_choose_reward_missing_source_rejects_before_mutation_like_c
 
     assert_eq!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .get(&9_224)
@@ -829,6 +852,7 @@ async fn quest_giver_choose_reward_missing_source_rejects_before_mutation_like_c
     );
     assert!(
         !session
+            .quest_state
             .quest_test_fixture_like_cpp
             .rewarded_quests
             .contains(&9_224)
@@ -846,21 +870,25 @@ async fn quest_giver_choose_reward_auto_complete_player_source_is_not_blocked_li
     let mut quest = test_quest_template(9_226);
     quest.flags = crate::handlers::quest::QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP;
     quest.reward_money_difficulty = 37;
-    session.quests.store = Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
-        [quest],
-    )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        9_226,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: 9_226,
-            status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
-    );
+    session.catalogs.quests.store = Some(Arc::new(
+        wow_data::quest::QuestStore::from_quests_like_cpp([quest]),
+    ));
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
+            9_226,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id: 9_226,
+                status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
 
     session
         .handle_quest_giver_choose_reward(quest_giver_choose_reward_packet_like_cpp(
@@ -873,12 +901,14 @@ async fn quest_giver_choose_reward_auto_complete_player_source_is_not_blocked_li
 
     assert!(
         !session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .contains_key(&9_226)
     );
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .rewarded_quests
             .contains(&9_226)

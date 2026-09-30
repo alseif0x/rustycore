@@ -293,7 +293,7 @@ impl WorldSession {
             }
             wow_persistence::PlayerUncageItemStateLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     item_guid = item_db_guid,
                     %reason,
                     "Failed to inspect the uncaged battle-pet item"
@@ -303,7 +303,7 @@ impl WorldSession {
         };
         if owner_guid.is_some_and(|owner_guid| owner_guid != player_db_guid) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 item_guid = item_db_guid,
                 durable_owner = ?owner_guid,
                 player_guid = player_db_guid,
@@ -358,7 +358,8 @@ impl WorldSession {
         }
         #[cfg(test)]
         {
-            self.battle_pet_test_fixture_like_cpp
+            self.pets
+                .battle_pet_test_fixture_like_cpp
                 .represented_critter_guid_like_cpp = guid;
         }
     }
@@ -371,7 +372,8 @@ impl WorldSession {
         }
         #[cfg(test)]
         {
-            self.battle_pet_test_fixture_like_cpp
+            self.pets
+                .battle_pet_test_fixture_like_cpp
                 .represented_critter_guid_like_cpp
         }
         #[cfg(not(test))]
@@ -403,7 +405,8 @@ impl WorldSession {
 
         self.set_represented_critter_guid_like_cpp(None);
         #[cfg(test)]
-        self.battle_pet_test_fixture_like_cpp
+        self.pets
+            .battle_pet_test_fixture_like_cpp
             .represented_dismissed_critter_guids_like_cpp
             .push(critter_guid);
         true
@@ -412,6 +415,7 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_dismissed_critter_guids_like_cpp(&self) -> &[ObjectGuid] {
         &self
+            .pets
             .battle_pet_test_fixture_like_cpp
             .represented_dismissed_critter_guids_like_cpp
     }

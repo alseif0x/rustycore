@@ -16,7 +16,7 @@ impl WorldSession {
             min_amount,
             max_amount,
             rate,
-            &mut self.driver.represented_runtime_rng_like_cpp,
+            &mut self.core.driver.represented_runtime_rng_like_cpp,
         )
     }
     pub(crate) fn canonical_gameobject_is_fully_looted_like_cpp(
@@ -38,7 +38,7 @@ impl WorldSession {
         let map_key = self
             .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
         let game_time_secs = i64::try_from(wow_core::GameTime::now().as_secs()).unwrap_or(i64::MAX);
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
         let mut manager = manager.lock().ok()?;
         let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
         Some(managed.map_mut().set_gameobject_loot_state_like_cpp(
@@ -69,7 +69,7 @@ impl WorldSession {
         let map_key = self
             .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
         let game_time_secs = i64::try_from(wow_core::GameTime::now().as_secs()).unwrap_or(i64::MAX);
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
         let mut manager = manager.lock().ok()?;
         let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
         let object_authority = managed
@@ -113,7 +113,7 @@ impl WorldSession {
         let map_key = self
             .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
         let game_time_secs = i64::try_from(wow_core::GameTime::now().as_secs()).unwrap_or(i64::MAX);
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
         let mut manager = manager.lock().ok()?;
         let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
         let object_authority = managed
@@ -144,7 +144,7 @@ impl WorldSession {
         &self,
         loot_ids: impl IntoIterator<Item = u32>,
     ) -> bool {
-        let Some(stores) = self.loot_stores.as_ref() else {
+        let Some(stores) = self.catalogs.loot_stores.as_ref() else {
             return false;
         };
         let Some(store) = stores.get(&LootStoreKind::Gameobject) else {
@@ -159,7 +159,7 @@ impl WorldSession {
         &self,
         loot_ids: impl IntoIterator<Item = u32>,
     ) -> bool {
-        let Some(stores) = self.loot_stores.as_ref() else {
+        let Some(stores) = self.catalogs.loot_stores.as_ref() else {
             return false;
         };
         let Some(store) = stores.get(&LootStoreKind::Gameobject) else {
@@ -187,7 +187,7 @@ impl WorldSession {
         map_key: wow_map::MapKey,
     ) -> Option<OwnedLootAuthority> {
         let map_id = u16::try_from(map_key.map_id).ok()?;
-        let manager = self.map_manager.as_ref()?;
+        let manager = self.core.map_manager.as_ref()?;
         manager
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -219,7 +219,7 @@ impl WorldSession {
         authority: OwnedLootAuthority,
     ) -> Option<bool> {
         let map_id = u16::try_from(map_key.map_id).ok()?;
-        let manager = self.map_manager.as_ref()?;
+        let manager = self.core.map_manager.as_ref()?;
         manager
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -243,7 +243,7 @@ impl WorldSession {
         guid: ObjectGuid,
         map_key: wow_map::MapKey,
     ) -> Option<OwnedLootAuthority> {
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let manager = manager.lock().ok()?;
         manager
             .find_map(map_key.map_id, map_key.instance_id)?
@@ -275,7 +275,7 @@ impl WorldSession {
         expected_stamp: OwnedLootAuthorityStamp,
         authority: OwnedLootAuthority,
     ) -> Option<bool> {
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let mut manager = manager.lock().ok()?;
         manager
             .find_map_mut(map_key.map_id, map_key.instance_id)?
@@ -302,7 +302,7 @@ impl WorldSession {
         guid: ObjectGuid,
         map_key: wow_map::MapKey,
     ) -> Option<OwnedLootAuthority> {
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let manager = manager.lock().ok()?;
         manager
             .find_map(map_key.map_id, map_key.instance_id)?
@@ -319,7 +319,7 @@ impl WorldSession {
     ) -> Option<bool> {
         let map_key = self
             .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let mut manager = manager.lock().ok()?;
         manager
             .find_map_mut(map_key.map_id, map_key.instance_id)?
@@ -345,7 +345,7 @@ impl WorldSession {
         F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
     {
         let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        let manager = self.map_manager.as_ref().cloned()?;
+        let manager = self.core.map_manager.as_ref().cloned()?;
         let guarded_result = {
             let mut manager = manager
                 .write()
@@ -386,7 +386,7 @@ impl WorldSession {
         F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
     {
         let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        let manager = self.map_manager.as_ref().cloned()?;
+        let manager = self.core.map_manager.as_ref().cloned()?;
         let guarded_result = {
             let mut manager = manager
                 .write()
@@ -431,71 +431,77 @@ impl WorldSession {
             .clone()
     }
     pub fn set_loot_drop_rates_like_cpp(&mut self, rates: LootDropRatesLikeCpp) {
-        self.loot_drop_rates = rates;
+        self.config.loot_drop_rates = rates;
     }
     pub fn set_enable_ae_loot_like_cpp(&mut self, enabled: bool) {
-        self.enable_ae_loot_like_cpp = enabled;
+        self.config.enable_ae_loot_like_cpp = enabled;
     }
     pub(crate) fn enable_ae_loot_like_cpp(&self) -> bool {
-        self.enable_ae_loot_like_cpp
+        self.config.enable_ae_loot_like_cpp
     }
     pub fn loot_drop_rates_like_cpp(&self) -> LootDropRatesLikeCpp {
-        self.loot_drop_rates
+        self.config.loot_drop_rates
     }
     pub(crate) fn set_active_loot_guid(&mut self, guid: ObjectGuid) {
-        self.active_loot_guid = ObjectGuid::EMPTY;
-        self.active_loot_view_owners.clear();
-        self.active_loot_view_generations_like_cpp.clear();
-        self.active_loot_view_authorities_like_cpp.clear();
+        self.loot.active_loot_guid = ObjectGuid::EMPTY;
+        self.loot.active_loot_view_owners.clear();
+        self.loot.active_loot_view_generations_like_cpp.clear();
+        self.loot.active_loot_view_authorities_like_cpp.clear();
         self.add_active_loot_view_owner_like_cpp(guid);
     }
     pub(crate) fn has_active_loot_views_like_cpp(&self) -> bool {
-        !self.active_loot_guid.is_empty() || !self.active_loot_view_owners.is_empty()
+        !self.loot.active_loot_guid.is_empty() || !self.loot.active_loot_view_owners.is_empty()
     }
     pub(crate) fn add_active_loot_view_owner_like_cpp(&mut self, guid: ObjectGuid) {
         if guid.is_empty() {
             return;
         }
 
-        if self.active_loot_guid.is_empty() {
-            self.active_loot_guid = guid;
+        if self.loot.active_loot_guid.is_empty() {
+            self.loot.active_loot_guid = guid;
         }
 
-        self.active_loot_view_owners.insert(guid);
+        self.loot.active_loot_view_owners.insert(guid);
         if let Some(generation) = self
+            .loot
             .represented_loot_cache_generations_like_cpp
             .get(&guid)
             .copied()
         {
-            self.active_loot_view_generations_like_cpp
+            self.loot
+                .active_loot_view_generations_like_cpp
                 .insert(guid, generation);
         }
     }
     pub(crate) fn clear_active_loot_guid_if(&mut self, guid: ObjectGuid) {
-        self.active_loot_view_owners.remove(&guid);
-        self.active_loot_view_generations_like_cpp.remove(&guid);
-        self.active_loot_view_authorities_like_cpp.remove(&guid);
-        if self.active_loot_guid == guid {
-            self.active_loot_guid = ObjectGuid::EMPTY;
+        self.loot.active_loot_view_owners.remove(&guid);
+        self.loot
+            .active_loot_view_generations_like_cpp
+            .remove(&guid);
+        self.loot
+            .active_loot_view_authorities_like_cpp
+            .remove(&guid);
+        if self.loot.active_loot_guid == guid {
+            self.loot.active_loot_guid = ObjectGuid::EMPTY;
         }
     }
     pub(crate) fn is_active_loot_guid(&self, guid: ObjectGuid) -> bool {
-        !guid.is_empty() && self.active_loot_guid == guid
+        !guid.is_empty() && self.loot.active_loot_guid == guid
     }
     /// Set the C++ LootTemplates_* foundation stores for this session.
     pub fn set_loot_stores(&mut self, stores: Arc<LootStores>) {
-        self.loot_stores = Some(stores);
+        self.catalogs.loot_stores = Some(stores);
     }
     /// Get the C++ LootTemplates_* foundation stores.
     pub fn loot_stores(&self) -> Option<&Arc<LootStores>> {
-        self.loot_stores.as_ref()
+        self.catalogs.loot_stores.as_ref()
     }
     pub(crate) fn resolved_pass_on_group_loot_like_cpp(&self) -> Option<bool> {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.pass_on_group_loot_like_cpp());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.pass_on_group_loot);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.loot.pass_on_group_loot);
         }
         canonical
     }
@@ -504,8 +510,8 @@ impl WorldSession {
             .with_owned_player_mut_like_cpp(|player| player.set_pass_on_group_loot_like_cpp(value))
             .is_some();
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.pass_on_group_loot = value;
+        if self.core.player_handle_like_cpp.is_none() {
+            self.loot.pass_on_group_loot = value;
             return true;
         }
         canonical
@@ -576,7 +582,7 @@ impl WorldSession {
         &self,
         creature_guid: wow_core::ObjectGuid,
     ) -> Option<bool> {
-        if let Some(manager) = self.map_manager.as_ref() {
+        if let Some(manager) = self.core.map_manager.as_ref() {
             let manager = manager
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -593,7 +599,7 @@ impl WorldSession {
                 u32::from(self.player_map_id_like_cpp()),
                 0,
             ));
-        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
         manager
             .find_map(key.map_id, key.instance_id)?
             .map()
@@ -608,8 +614,8 @@ impl WorldSession {
     pub(crate) fn loot_specialization_id_like_cpp(&self) -> Option<u32> {
         let canonical = self.with_owned_player_like_cpp(Player::loot_specialization_id_like_cpp);
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.loot_specialization_id);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.loot.loot_specialization_id);
         }
         canonical
     }
@@ -620,8 +626,8 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.loot_specialization_id = spec_id;
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.loot.loot_specialization_id = spec_id;
             return true;
         }
         canonical
@@ -638,7 +644,7 @@ impl WorldSession {
         if canonical_player_was_present {
             return self.current_canonical_player_map_key_like_cpp() == Some(map_key);
         }
-        if self.canonical_map_manager.is_some() {
+        if self.core.canonical_map_manager.is_some() {
             return self.canonical_object_lookup_map_key_like_cpp(map_key.map_id) == Some(map_key);
         }
         let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();

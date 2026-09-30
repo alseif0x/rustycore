@@ -45,7 +45,7 @@ async fn authoritative_partial_gameobject_release_drops_cache_and_reopen_rehydra
     session.set_active_loot_guid(owner_guid);
     let response = authoritative_test_loot_response_like_cpp(
         owner_guid,
-        &session.loot_table[&owner_guid],
+        &session.loot.loot_table[&owner_guid],
         player_guid,
     );
     session.represented_on_loot_opened_like_cpp(owner_guid, player_guid, response);
@@ -56,14 +56,16 @@ async fn authoritative_partial_gameobject_release_drops_cache_and_reopen_rehydra
             .do_loot_release_owner_like_cpp(owner_guid, player_guid)
             .await
     );
-    assert!(!session.loot_table.contains_key(&owner_guid));
+    assert!(!session.loot.loot_table.contains_key(&owner_guid));
     assert!(
         !session
+            .loot
             .represented_loot_cache_generations_like_cpp
             .contains_key(&owner_guid)
     );
     assert!(
         !session
+            .loot
             .represented_personal_loot_money
             .contains_key(&(owner_guid, player_guid))
     );
@@ -76,14 +78,16 @@ async fn authoritative_partial_gameobject_release_drops_cache_and_reopen_rehydra
     session
         .open_represented_gameobject_chest_like_cpp(owner_guid, source)
         .await;
-    assert!(session.loot_table.contains_key(&owner_guid));
+    assert!(session.loot.loot_table.contains_key(&owner_guid));
     assert!(
         session
+            .loot
             .represented_personal_loot_owners
             .contains(&owner_guid)
     );
     assert_eq!(
         session
+            .loot
             .represented_personal_loot_money
             .get(&(owner_guid, player_guid)),
         Some(&11)
@@ -165,7 +169,7 @@ async fn personal_gameobject_release_deactivates_only_after_every_pool_is_looted
     session.set_active_loot_guid(owner_guid);
     let response = authoritative_test_loot_response_like_cpp(
         owner_guid,
-        &session.loot_table[&owner_guid],
+        &session.loot.loot_table[&owner_guid],
         first_player,
     );
     session.represented_on_loot_opened_like_cpp(owner_guid, first_player, response);
@@ -187,6 +191,7 @@ async fn personal_gameobject_release_deactivates_only_after_every_pool_is_looted
     assert!(!authority.is_fully_looted_like_cpp());
     assert_eq!(
         session
+            .world_entities
             .represented_gameobject_use_states
             .get(&owner_guid)
             .unwrap()
@@ -200,7 +205,7 @@ async fn personal_gameobject_release_deactivates_only_after_every_pool_is_looted
     session.set_active_loot_guid(owner_guid);
     let response = authoritative_test_loot_response_like_cpp(
         owner_guid,
-        &session.loot_table[&owner_guid],
+        &session.loot.loot_table[&owner_guid],
         second_player,
     );
     session.represented_on_loot_opened_like_cpp(owner_guid, second_player, response);
@@ -226,7 +231,7 @@ async fn personal_gameobject_release_deactivates_only_after_every_pool_is_looted
     assert!(authority.is_fully_looted_like_cpp());
     assert!(!authority.is_retired_like_cpp());
 
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     let mut manager = manager.lock().unwrap();
     manager
         .find_map_mut(u32::from(session.player_map_id_like_cpp()), 0)
@@ -416,7 +421,7 @@ async fn loot_release_fishing_gameobjects_follow_cpp_state_branches() {
             Position::ZERO,
             go_type,
         );
-        session.loot_table.insert(
+        session.loot.loot_table.insert(
             guid,
             CreatureLoot {
                 loot_guid: guid,
@@ -459,6 +464,7 @@ async fn loot_release_fishing_gameobjects_follow_cpp_state_branches() {
     assert!(send_rx.try_recv().is_ok());
     assert_eq!(
         session
+            .world_entities
             .represented_gameobject_use_states
             .get(&fishing_node)
             .unwrap()
@@ -466,6 +472,7 @@ async fn loot_release_fishing_gameobjects_follow_cpp_state_branches() {
         Some(LootState::JustDeactivated)
     );
     let hole_state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&fishing_hole)
         .unwrap();
@@ -496,7 +503,7 @@ async fn gameobject_loot_release_fishing_hole_uses_canonical_use_count_when_repr
         GAMEOBJECT_TYPE_FISHING_HOLE as u8,
     );
     session.record_represented_fishing_hole_max_opens_like_cpp(fishing_hole, 2);
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         fishing_hole,
         CreatureLoot {
             loot_guid: fishing_hole,
@@ -536,6 +543,7 @@ async fn gameobject_loot_release_fishing_hole_uses_canonical_use_count_when_repr
     assert_eq!(canonical.use_times(), 2);
     assert_eq!(canonical.loot_state(), LootState::JustDeactivated);
     let hole_state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&fishing_hole)
         .unwrap();
@@ -553,9 +561,13 @@ async fn loot_release_personal_chest_records_per_player_despawn_like_cpp() {
     session.set_active_loot_guid(restocked_chest);
     session.add_active_loot_view_owner_like_cpp(fallback_chest);
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(restocked_chest);
-    session.client_visible_guids_like_cpp.insert(fallback_chest);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(fallback_chest);
 
     for (guid, restock_time) in [(restocked_chest, 45), (fallback_chest, 0)] {
         session.record_represented_gameobject_runtime_state_like_cpp(
@@ -574,7 +586,7 @@ async fn loot_release_personal_chest_records_per_player_despawn_like_cpp() {
                 ..Default::default()
             },
         );
-        session.loot_table.insert(
+        session.loot.loot_table.insert(
             guid,
             CreatureLoot {
                 loot_guid: guid,
@@ -607,16 +619,19 @@ async fn loot_release_personal_chest_records_per_player_despawn_like_cpp() {
     assert!(send_rx.try_recv().is_ok());
     assert!(
         !session
+            .core
             .client_visible_guids_like_cpp
             .contains(&restocked_chest)
     );
     assert!(
         !session
+            .core
             .client_visible_guids_like_cpp
             .contains(&fallback_chest)
     );
     assert_eq!(
         session
+            .world_entities
             .represented_gameobject_use_states
             .get(&restocked_chest)
             .unwrap()
@@ -625,6 +640,7 @@ async fn loot_release_personal_chest_records_per_player_despawn_like_cpp() {
     );
     assert_eq!(
         session
+            .world_entities
             .represented_gameobject_use_states
             .get(&fallback_chest)
             .unwrap()
@@ -633,6 +649,7 @@ async fn loot_release_personal_chest_records_per_player_despawn_like_cpp() {
     );
     assert!(
         session
+            .world_entities
             .represented_gameobject_use_states
             .get(&restocked_chest)
             .unwrap()
@@ -665,7 +682,7 @@ async fn loot_release_personal_chest_without_have_at_client_sends_no_out_of_rang
             ..Default::default()
         },
     );
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         chest_guid,
         CreatureLoot {
             loot_guid: chest_guid,
@@ -696,6 +713,7 @@ async fn loot_release_personal_chest_without_have_at_client_sends_no_out_of_rang
     );
     assert!(send_rx.try_recv().is_err());
     let state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&chest_guid)
         .unwrap();
@@ -731,7 +749,7 @@ async fn loot_release_shared_chest_restock_starts_like_cpp() {
             },
         );
     }
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         partial_chest,
         CreatureLoot {
             loot_guid: partial_chest,
@@ -761,7 +779,7 @@ async fn loot_release_shared_chest_restock_starts_like_cpp() {
             looted_by_player: false,
         },
     );
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         full_chest,
         CreatureLoot {
             loot_guid: full_chest,
@@ -788,20 +806,22 @@ async fn loot_release_shared_chest_restock_starts_like_cpp() {
         .await;
 
     let partial_state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&partial_chest)
         .unwrap();
     assert_eq!(partial_state.loot_state, Some(LootState::Activated));
     assert!(partial_state.chest_restock_until.is_some());
-    assert!(session.loot_table.contains_key(&partial_chest));
+    assert!(session.loot.loot_table.contains_key(&partial_chest));
 
     let full_state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&full_chest)
         .unwrap();
     assert_eq!(full_state.loot_state, Some(LootState::NotReady));
     assert!(full_state.chest_restock_until.is_some());
-    assert!(!session.loot_table.contains_key(&full_chest));
+    assert!(!session.loot.loot_table.contains_key(&full_chest));
 }
 #[tokio::test]
 async fn process_pending_shared_chest_restock_clears_loot_like_cpp() {
@@ -817,13 +837,14 @@ async fn process_pending_shared_chest_restock_clears_loot_like_cpp() {
     );
     {
         let state = session
+            .world_entities
             .represented_gameobject_use_states
             .get_mut(&chest_guid)
             .unwrap();
         state.loot_state = Some(LootState::Activated);
         state.chest_restock_until = Some(Instant::now() - Duration::from_secs(1));
     }
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         chest_guid,
         CreatureLoot {
             loot_guid: chest_guid,
@@ -845,10 +866,11 @@ async fn process_pending_shared_chest_restock_clears_loot_like_cpp() {
     session.process_pending().await;
 
     let state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&chest_guid)
         .unwrap();
     assert_eq!(state.loot_state, Some(LootState::Ready));
     assert!(state.chest_restock_until.is_none());
-    assert!(!session.loot_table.contains_key(&chest_guid));
+    assert!(!session.loot.loot_table.contains_key(&chest_guid));
 }

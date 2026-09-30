@@ -390,6 +390,7 @@ async fn push_quest_to_party_reputation_precedes_previous_prerequisite_like_cpp(
     receiver_session.sync_player_registry_state_like_cpp();
     set_canonical_party_reputation_like_cpp(
         receiver_session
+            .core
             .canonical_map_manager
             .as_ref()
             .expect("canonical map manager"),
@@ -441,6 +442,7 @@ async fn push_quest_to_party_class_precedes_reputation_like_cpp() {
     receiver_session.sync_player_registry_state_like_cpp();
     set_canonical_party_reputation_like_cpp(
         receiver_session
+            .core
             .canonical_map_manager
             .as_ref()
             .expect("canonical map manager"),
@@ -647,7 +649,7 @@ async fn push_quest_to_party_low_receiver_expansion_emits_expansion_pair_like_cp
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
     receiver_session.unregister_from_player_registry();
-    receiver_session.expansion = 1;
+    receiver_session.core.expansion = 1;
     receiver_session.register_in_player_registry();
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;

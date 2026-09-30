@@ -27,8 +27,13 @@ impl WorldSession {
         quality: u32,
         item_level: u32,
     ) -> Option<(u32, bool)> {
-        let basic = self.items.store.as_ref()?.get(item_id)?;
-        let sparse = self.items.stats_store.as_ref()?.sparse_template(item_id)?;
+        let basic = self.catalogs.items.store.as_ref()?.get(item_id)?;
+        let sparse = self
+            .catalogs
+            .items
+            .stats_store
+            .as_ref()?
+            .sparse_template(item_id)?;
         let flags2 = sparse.flags[1];
         let standard_price = false;
 
@@ -144,8 +149,13 @@ impl WorldSession {
         quality: u32,
         item_level: u32,
     ) -> Option<u32> {
-        let basic = self.items.store.as_ref()?.get(item_id)?;
-        let sparse = self.items.stats_store.as_ref()?.sparse_template(item_id)?;
+        let basic = self.catalogs.items.store.as_ref()?.get(item_id)?;
+        let sparse = self
+            .catalogs
+            .items
+            .stats_store
+            .as_ref()?
+            .sparse_template(item_id)?;
 
         if (sparse.flags[1] & ItemFlags2::OverrideGoldCost as u32) != 0 {
             return Some(sparse.sell_price);
@@ -167,19 +177,19 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn item_valuation_catalogs_for_test_like_cpp(&self) -> ItemValuationCatalogsLikeCpp {
         let mut catalogs = ItemValuationCatalogsLikeCpp::default();
-        if let Some(store) = &self.import_price_stores {
+        if let Some(store) = &self.catalogs.import_price_stores {
             catalogs.import_prices = Arc::clone(store);
         }
-        if let Some(store) = &self.item_price_base_store {
+        if let Some(store) = &self.catalogs.item_price_base_store {
             catalogs.price_base = Arc::clone(store);
         }
-        if let Some(store) = &self.item_class_store {
+        if let Some(store) = &self.catalogs.item_class_store {
             catalogs.item_classes = Arc::clone(store);
         }
-        if let Some(store) = &self.item_currency_cost_store {
+        if let Some(store) = &self.catalogs.item_currency_cost_store {
             catalogs.currency_costs = Arc::clone(store);
         }
-        if let Some(store) = &self.item_disenchant_loot_store {
+        if let Some(store) = &self.catalogs.item_disenchant_loot_store {
             catalogs.disenchant_loot = Arc::clone(store);
         }
         catalogs
@@ -228,8 +238,8 @@ impl WorldSession {
             return true;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_using_pvp_item_levels_like_cpp = active;
+        if self.core.player_handle_like_cpp.is_none() {
+            self.inventory.represented_using_pvp_item_levels_like_cpp = active;
             return true;
         }
         false
@@ -241,8 +251,8 @@ impl WorldSession {
             return canonical;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(self.represented_using_pvp_item_levels_like_cpp);
+        if self.core.player_handle_like_cpp.is_none() {
+            return Some(self.inventory.represented_using_pvp_item_levels_like_cpp);
         }
         None
     }
@@ -467,7 +477,7 @@ impl WorldSession {
         let caps = self
             .player_item_modifier_runtime_snapshot_like_cpp()?
             .item_level_caps_like_cpp();
-        let item_stats_store = self.items.stats_store.as_ref()?;
+        let item_stats_store = self.catalogs.items.stats_store.as_ref()?;
         let random_property_template = item_stats_store.random_property_template(entry_id)?;
         let sparse_template = item_stats_store.sparse_template(entry_id);
         let template_item_level = i64::from(random_property_template.item_level);
@@ -547,21 +557,26 @@ impl WorldSession {
         };
 
         if fixed_level == 0
-            && let Some(levels) = self.content_tuning_store.as_ref().and_then(|store| {
-                store.content_tuning_data_like_cpp(
-                    template.scaling_stat_content_tuning_like_cpp(),
-                    true,
-                )
-            })
+            && let Some(levels) = self
+                .catalogs
+                .content_tuning_store
+                .as_ref()
+                .and_then(|store| {
+                    store.content_tuning_data_like_cpp(
+                        template.scaling_stat_content_tuning_like_cpp(),
+                        true,
+                    )
+                })
         {
             let clamped = (level as i32).clamp(levels.min_level, levels.max_level);
             level = u32::try_from(clamped).unwrap_or(level);
         }
 
         let Some((curve_store, curve_point_store)) = self
+            .catalogs
             .curve_store
             .as_ref()
-            .zip(self.curve_point_store.as_ref())
+            .zip(self.catalogs.curve_point_store.as_ref())
         else {
             return Some(0);
         };
@@ -574,7 +589,7 @@ impl WorldSession {
         let Some(item) = runtime_item else {
             return 0;
         };
-        let Some(store) = self.items.bonus_db2_store.as_ref() else {
+        let Some(store) = self.catalogs.items.bonus_db2_store.as_ref() else {
             return 0;
         };
 
@@ -592,7 +607,8 @@ impl WorldSession {
             .sum()
     }
     fn represented_pvp_item_level_bonus_like_cpp(&self, entry_id: u32) -> u8 {
-        self.pvp_item_store
+        self.catalogs
+            .pvp_item_store
             .as_ref()
             .map(|store| store.item_level_bonus_like_cpp(entry_id))
             .unwrap_or(0)

@@ -122,20 +122,20 @@ impl WorldSession {
     }
 
     pub fn set_realm_id(&mut self, realm_id: u16) {
-        self.realm_id = realm_id;
+        self.core.realm_id = realm_id;
     }
 
     pub fn set_realm_handle_like_cpp(&mut self, region: u8, battlegroup: u8, realm_id: u16) {
-        self.realm_policy.realm_region = region;
-        self.realm_policy.realm_battlegroup = battlegroup;
-        self.realm_id = realm_id;
+        self.core.realm_policy.realm_region = region;
+        self.core.realm_policy.realm_battlegroup = battlegroup;
+        self.core.realm_id = realm_id;
     }
 
     pub fn set_realm_names_like_cpp(
         &mut self,
         names: impl IntoIterator<Item = (u32, String, String)>,
     ) {
-        self.realm_policy.realm_names_like_cpp = names
+        self.core.realm_policy.realm_names_like_cpp = names
             .into_iter()
             .map(|(address, actual, normalized)| (address, (actual, normalized)))
             .collect();
@@ -146,16 +146,17 @@ impl WorldSession {
     /// Region and Battlegroup come from the active `realmlist` row, matching C++
     /// `Battlenet::RealmHandle{ realm.Id.Region, realm.Id.Site, realm.Id.Realm }.GetAddress()`.
     pub(crate) fn virtual_realm_address(&self) -> u32 {
-        (u32::from(self.realm_policy.realm_region) << 24)
-            | (u32::from(self.realm_policy.realm_battlegroup) << 16)
-            | u32::from(self.realm_id)
+        (u32::from(self.core.realm_policy.realm_region) << 24)
+            | (u32::from(self.core.realm_policy.realm_battlegroup) << 16)
+            | u32::from(self.core.realm_id)
     }
 
     pub(crate) fn realm_names_for_address_like_cpp(
         &self,
         realm_address: u32,
     ) -> Option<(&str, &str)> {
-        self.realm_policy
+        self.core
+            .realm_policy
             .realm_names_like_cpp
             .get(&realm_address)
             .map(|(actual, normalized)| (actual.as_str(), normalized.as_str()))
@@ -164,7 +165,7 @@ impl WorldSession {
     /// Set the GUID generator for new characters.
     #[cfg(test)]
     pub fn set_guid_generator(&mut self, generator: Arc<ObjectGuidGenerator>) {
-        self.guid_generator = Some(generator);
+        self.core.guid_generator = Some(generator);
     }
 
     /// Install the process-wide C++ `sObjectMgr->GenerateVoidStorageItemId()` mirror.
@@ -173,7 +174,7 @@ impl WorldSession {
         &mut self,
         generator: Arc<VoidStorageItemIdGeneratorLikeCpp>,
     ) {
-        self.void_storage_item_id_generator_like_cpp = Some(generator);
+        self.core.void_storage_item_id_generator_like_cpp = Some(generator);
     }
 
     /// Install the Player lifecycle persistence port. Composition supplies the
@@ -199,23 +200,24 @@ impl WorldSession {
     }
 
     pub(crate) fn set_realm_list_secret_like_cpp(&mut self, secret: [u8; 32]) {
-        self.realm_policy.realm_list_secret_like_cpp = secret;
+        self.core.realm_policy.realm_list_secret_like_cpp = secret;
     }
 
     pub(crate) fn realm_list_secret_like_cpp(&self) -> &[u8; 32] {
-        &self.realm_policy.realm_list_secret_like_cpp
+        &self.core.realm_policy.realm_list_secret_like_cpp
     }
 
     pub fn set_mute_time_like_cpp(&mut self, mute_time: i64) {
-        self.account_state.mute_time_like_cpp = mute_time;
+        self.core.account_state.mute_time_like_cpp = mute_time;
     }
 
     pub(crate) fn can_speak_like_cpp(&self) -> bool {
-        self.account_state.mute_time_like_cpp <= unix_now()
+        self.core.account_state.mute_time_like_cpp <= unix_now()
     }
 
     pub(crate) fn mute_time_remaining_secs_like_cpp(&self) -> Option<u64> {
         let remaining = self
+            .core
             .account_state
             .mute_time_like_cpp
             .saturating_sub(unix_now());
@@ -223,55 +225,60 @@ impl WorldSession {
     }
 
     pub fn set_recruiter_id_like_cpp(&mut self, recruiter_id: u32) {
-        self.account_state.recruiter_id_like_cpp = recruiter_id;
+        self.core.account_state.recruiter_id_like_cpp = recruiter_id;
     }
 
     pub(crate) fn recruiter_id_like_cpp(&self) -> u32 {
-        self.account_state.recruiter_id_like_cpp
+        self.core.account_state.recruiter_id_like_cpp
     }
 
     pub fn set_is_a_recruiter_like_cpp(&mut self, is_a_recruiter: bool) {
-        self.account_state.is_a_recruiter_like_cpp = is_a_recruiter;
+        self.core.account_state.is_a_recruiter_like_cpp = is_a_recruiter;
     }
 
     pub(crate) fn is_a_recruiter_like_cpp(&self) -> bool {
-        self.account_state.is_a_recruiter_like_cpp
+        self.core.account_state.is_a_recruiter_like_cpp
     }
 
     pub(crate) fn session_locale_name_like_cpp(&self) -> &str {
-        &self.locale
+        &self.core.locale
     }
 
     /// Get the realm ID.
     pub fn realm_id(&self) -> u16 {
-        self.realm_id
+        self.core.realm_id
     }
 
     /// Get the GUID generator test fixture.
     #[cfg(test)]
     pub fn guid_generator(&self) -> Option<&Arc<ObjectGuidGenerator>> {
-        self.guid_generator.as_ref()
+        self.core.guid_generator.as_ref()
     }
 
     /// Set the session manager for ConnectTo flow.
     pub fn set_session_mgr(&mut self, mgr: Arc<SessionManager>) {
-        self.transport.session_mgr = Some(mgr);
+        self.core.transport.session_mgr = Some(mgr);
     }
 
     /// Get the session manager reference.
     pub fn session_mgr(&self) -> Option<&Arc<SessionManager>> {
-        self.transport.session_mgr.as_ref()
+        self.core.transport.session_mgr.as_ref()
     }
 
     pub(crate) fn is_addon_registered_like_cpp(&self, prefix: &str) -> bool {
         // C++ WorldSession::IsAddonRegistered: if the registration filter is
         // disabled (initial state or softcap exceeded), all prefixes pass.
-        if !self.addon_filter.filter_addon_messages {
+        if !self.social.addon_filter.filter_addon_messages {
             return true;
         }
 
-        !self.addon_filter.registered_addon_prefixes.is_empty()
+        !self
+            .social
+            .addon_filter
+            .registered_addon_prefixes
+            .is_empty()
             && self
+                .social
                 .addon_filter
                 .registered_addon_prefixes
                 .iter()
@@ -285,23 +292,24 @@ impl WorldSession {
 
     /// Set the list of legitimate characters for this account.
     pub fn set_legit_characters(&mut self, guids: Vec<ObjectGuid>) {
-        self.account_state.legit_characters = guids;
+        self.core.account_state.legit_characters = guids;
     }
 
     /// Check if a GUID is in the legit characters list.
     pub fn is_legit_character(&self, guid: &ObjectGuid) -> bool {
-        self.account_state.legit_characters.contains(guid)
+        self.core.account_state.legit_characters.contains(guid)
     }
 
     /// Get the current session state.
     pub fn state(&self) -> SessionState {
-        self.state
+        self.core.state
     }
 
     /// Set the session state (e.g., after character login).
     pub fn set_state(&mut self, state: SessionState) {
-        let entered_world = state == SessionState::LoggedIn && self.state != SessionState::LoggedIn;
-        self.state = state;
+        let entered_world =
+            state == SessionState::LoggedIn && self.core.state != SessionState::LoggedIn;
+        self.core.state = state;
         if entered_world {
             self.apply_represented_ffa_pvp_login_state_like_cpp();
         }
@@ -309,11 +317,11 @@ impl WorldSession {
 
     /// Time since the last packet was received.
     pub fn idle_time(&self) -> std::time::Duration {
-        self.admission.last_packet_time.elapsed()
+        self.core.admission.last_packet_time.elapsed()
     }
 
     /// Whether the session is disconnecting.
     pub fn is_disconnecting(&self) -> bool {
-        self.state == SessionState::Disconnecting
+        self.core.state == SessionState::Disconnecting
     }
 }

@@ -10,13 +10,13 @@ impl WorldSession {
         &mut self,
         sender: flume::Sender<GameEventQuestCompleteCommandLikeCpp>,
     ) {
-        self.directory.game_event_quest_complete_tx = Some(sender);
+        self.core.directory.game_event_quest_complete_tx = Some(sender);
     }
     pub async fn notify_game_event_quest_complete_like_cpp(
         &self,
         quest_id: u32,
     ) -> GameEventQuestCompleteClientOutcomeLikeCpp {
-        let Some(sender) = self.directory.game_event_quest_complete_tx.as_ref() else {
+        let Some(sender) = self.core.directory.game_event_quest_complete_tx.as_ref() else {
             return GameEventQuestCompleteClientOutcomeLikeCpp::SenderMissing { quest_id };
         };
 
@@ -52,6 +52,7 @@ impl WorldSession {
         }
 
         let Some(entry) = self
+            .catalogs
             .currency_types_store
             .as_ref()
             .and_then(|store| store.get(currency_id))
@@ -162,7 +163,7 @@ impl WorldSession {
     }
     /// Set the QuestFactionReward store used by C++ quest reputation reward lookup.
     pub fn set_quest_faction_reward_store(&mut self, store: Arc<QuestFactionRewardStore>) {
-        self.quests.faction_reward_store = Some(store);
+        self.catalogs.quests.faction_reward_store = Some(store);
     }
     /// Represented C++ `Player::LearnQuestRewardedSpells`.
     ///
@@ -173,7 +174,7 @@ impl WorldSession {
     /// learned-spell side effect; full `CastSpell` runtime semantics remain in
     /// the spell-system roadmap.
     pub(crate) fn apply_represented_quest_rewarded_spells_like_cpp(&mut self) -> usize {
-        let Some(quest_store) = self.quests.store.clone() else {
+        let Some(quest_store) = self.catalogs.quests.store.clone() else {
             return 0;
         };
 
@@ -269,9 +270,10 @@ impl WorldSession {
             player.gameplay_state().quest_rewarded_talent_points
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.quest_test_fixture_like_cpp
+                self.quest_state
+                    .quest_test_fixture_like_cpp
                     .represented_quest_reward_talent_points_like_cpp
                     .iter()
                     .map(|reward| reward.points)
@@ -294,8 +296,9 @@ impl WorldSession {
             return true;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.quest_test_fixture_like_cpp
+        if self.core.player_handle_like_cpp.is_none() {
+            self.quest_state
+                .quest_test_fixture_like_cpp
                 .represented_quest_reward_talent_points_like_cpp
                 .push(RepresentedQuestRewardTalentPointsLikeCpp {
                     quest_id,
@@ -309,7 +312,7 @@ impl WorldSession {
     }
     /// Set the QuestMoneyReward store (loaded from QuestMoneyReward.db2).
     pub fn set_quest_money_reward_store(&mut self, store: Arc<QuestMoneyRewardStore>) {
-        self.quests.money_reward_store = Some(store);
+        self.catalogs.quests.money_reward_store = Some(store);
     }
     pub(in crate::session) fn set_loaded_quest_completed_bit_like_cpp(
         &mut self,
@@ -330,8 +333,9 @@ impl WorldSession {
             })
             .unwrap_or(false);
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self
+                .quest_state
                 .quest_test_fixture_like_cpp
                 .represented_quest_completed_bits_like_cpp
                 .insert(quest_bit);
@@ -357,8 +361,9 @@ impl WorldSession {
             })
             .unwrap_or(false);
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self
+                .quest_state
                 .quest_test_fixture_like_cpp
                 .represented_quest_completed_bits_like_cpp
                 .remove(&quest_bit);
@@ -386,7 +391,7 @@ impl WorldSession {
         &self,
         quest: &wow_data::quest::QuestTemplate,
     ) -> u32 {
-        let Some(store) = &self.quests.money_reward_store else {
+        let Some(store) = &self.catalogs.quests.money_reward_store else {
             return 0;
         };
         let quest_level = self.player_quest_level_like_cpp(quest).max(0) as u32;
@@ -512,7 +517,9 @@ impl WorldSession {
     pub(crate) fn represented_confirm_barbers_choice_requests_like_cpp(
         &self,
     ) -> &[RepresentedConfirmBarbersChoiceLikeCpp] {
-        &self.represented_confirm_barbers_choice_requests_like_cpp
+        &self
+            .presentation
+            .represented_confirm_barbers_choice_requests_like_cpp
     }
     pub(crate) fn set_represented_daily_quest_completed_like_cpp_for_test(
         &mut self,
@@ -531,6 +538,7 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_quest_reward_skill_updates_like_cpp(&self) -> &[(u32, u32)] {
         &self
+            .quest_state
             .quest_test_fixture_like_cpp
             .represented_quest_reward_skill_updates_like_cpp
     }
@@ -539,6 +547,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedQuestRewardSpellCastLikeCpp] {
         &self
+            .quest_state
             .quest_test_fixture_like_cpp
             .represented_quest_reward_spell_casts_like_cpp
     }
@@ -547,6 +556,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedQuestRewardTitleLikeCpp] {
         &self
+            .quest_state
             .quest_test_fixture_like_cpp
             .represented_quest_reward_titles_like_cpp
     }
@@ -555,6 +565,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedQuestRewardTalentPointsLikeCpp] {
         &self
+            .quest_state
             .quest_test_fixture_like_cpp
             .represented_quest_reward_talent_points_like_cpp
     }
@@ -563,6 +574,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedQuestRewardMailLikeCpp] {
         &self
+            .quest_state
             .quest_test_fixture_like_cpp
             .represented_quest_reward_mails_like_cpp
     }
@@ -571,6 +583,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedQuestRewardReputationLikeCpp] {
         &self
+            .quest_state
             .quest_test_fixture_like_cpp
             .represented_quest_reward_reputations_like_cpp
     }

@@ -41,7 +41,8 @@ impl WorldSession {
                         .resolved_group_guid_like_cpp()
                         .zip(owner_guid)
                         .and_then(|(group_guid, owner_guid)| {
-                            self.directory
+                            self.core
+                                .directory
                                 .group_registry
                                 .as_ref()?
                                 .set_recent_instance_transition_like_cpp(
@@ -118,7 +119,13 @@ impl WorldSession {
 
         let group = self
             .resolved_group_guid_like_cpp()
-            .and_then(|group_guid| self.directory.group_registry.as_ref()?.get(&group_guid))
+            .and_then(|group_guid| {
+                self.core
+                    .directory
+                    .group_registry
+                    .as_ref()?
+                    .get(&group_guid)
+            })
             .map(|group| {
                 let difficulty_id = self.represented_group_difficulty_id_for_map_entry_like_cpp(
                     map_id, map_entry, &group,
@@ -156,51 +163,54 @@ impl WorldSession {
         )
     }
     pub(crate) fn player_map_visibility_range_like_cpp(&self, map_id: u16) -> f32 {
-        self.legacy_creature_aggro_config_like_cpp
+        self.config
+            .legacy_creature_aggro_config_like_cpp
             .map_visibility_range_like_cpp(map_id)
     }
     pub fn set_vmap_indoor_check_like_cpp(&mut self, enabled: bool) {
-        self.vmap_indoor_check_like_cpp = enabled;
+        self.config.vmap_indoor_check_like_cpp = enabled;
     }
     pub fn set_mmap_runtime_config_like_cpp(&mut self, config: MMapRuntimeConfigLikeCpp) {
-        self.mmap_runtime_config_like_cpp = config;
+        self.config.mmap_runtime_config_like_cpp = config;
     }
     pub fn mmap_runtime_config_like_cpp(&self) -> &MMapRuntimeConfigLikeCpp {
-        &self.mmap_runtime_config_like_cpp
+        &self.config.mmap_runtime_config_like_cpp
     }
     /// Set the C++ AdventureMapPOI.db2 store for this session.
     #[cfg(test)]
     pub fn set_adventure_map_poi_store(&mut self, store: Arc<AdventureMapPoiStore>) {
-        self.adventure_map_poi_store = Some(store);
+        self.catalogs.adventure_map_poi_store = Some(store);
     }
     #[cfg(test)]
     pub fn adventure_map_poi_store(&self) -> Option<&Arc<AdventureMapPoiStore>> {
-        self.adventure_map_poi_store.as_ref()
+        self.catalogs.adventure_map_poi_store.as_ref()
     }
     pub fn set_map_store(&mut self, store: Arc<MapStore>) {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.maps.store = Some(store);
+        self.catalogs.maps.store = Some(store);
     }
     /// Set the immutable C++ `sDungeonEncounterStore` catalog used by
     /// `Player::IsLockedToDungeonEncounter`.
     pub fn set_dungeon_encounter_store(&mut self, store: Arc<DungeonEncounterStore>) {
-        self.dungeon_encounter_store = Some(store);
+        self.catalogs.dungeon_encounter_store = Some(store);
     }
     pub(crate) fn dungeon_encounter_store(&self) -> Option<&Arc<DungeonEncounterStore>> {
-        self.dungeon_encounter_store.as_ref()
+        self.catalogs.dungeon_encounter_store.as_ref()
     }
     pub(crate) fn map_store(&self) -> Option<&Arc<MapStore>> {
-        self.maps.store.as_ref()
+        self.catalogs.maps.store.as_ref()
     }
     #[cfg(test)]
     pub(crate) fn represented_reveal_world_map_overlay_criteria_like_cpp(&self) -> &[u32] {
-        &self.represented_reveal_world_map_overlay_criteria_like_cpp
+        &self
+            .instances
+            .represented_reveal_world_map_overlay_criteria_like_cpp
     }
     pub(in crate::session) fn player_cannot_enter_target_map_like_cpp(
         &self,
         map_id: u32,
     ) -> Option<(u32, u8, i32)> {
-        let Some(map_store) = self.maps.store.as_ref() else {
+        let Some(map_store) = self.catalogs.maps.store.as_ref() else {
             return None;
         };
         let Some(map_entry) = map_store.get(map_id).copied() else {
@@ -210,7 +220,7 @@ impl WorldSession {
             return None;
         }
 
-        let player_guid = self.player_guid?;
+        let player_guid = self.core.player_guid?;
         let player = self.create_map_player_context_like_cpp(map_id, map_entry, player_guid)?;
         let requested_difficulty = player
             .group
@@ -235,14 +245,14 @@ impl WorldSession {
         }
 
         if map_entry.instance_type == wow_data::map::MAP_RAID
-            && map_entry.expansion_like_cpp() >= self.realm_policy.server_expansion_like_cpp
-            && !self.realm_policy.instance_ignore_raid_like_cpp
+            && map_entry.expansion_like_cpp() >= self.core.realm_policy.server_expansion_like_cpp
+            && !self.core.realm_policy.instance_ignore_raid_like_cpp
             && !self.current_player_is_in_raid_group_like_cpp()
         {
             return Some((TRANSFER_ABORT_NEED_GROUP_LIKE_CPP, 0, 0));
         }
 
-        let Some(canonical_map_manager) = self.canonical_map_manager.as_ref() else {
+        let Some(canonical_map_manager) = self.core.canonical_map_manager.as_ref() else {
             return None;
         };
         let entry = wow_map::CreateMapEntryContext {
@@ -368,7 +378,7 @@ impl WorldSession {
         self.is_disabled_map_type_for_player_like_cpp(DISABLE_TYPE_MAP, map_id)
     }
     pub(crate) fn player_map_id_like_cpp(&self) -> u16 {
-        self.current_map_id
+        self.core.current_map_id
     }
     pub(crate) fn handle_under_map_like_cpp(
         &mut self,
@@ -378,7 +388,7 @@ impl WorldSession {
         if movement_info.position.z >= min_height {
             #[cfg(test)]
             {
-                self.player_out_of_bounds_like_cpp = false;
+                self.movement.player_out_of_bounds_like_cpp = false;
             }
             return None;
         }
@@ -391,7 +401,7 @@ impl WorldSession {
 
         #[cfg(test)]
         {
-            self.player_out_of_bounds_like_cpp = true;
+            self.movement.player_out_of_bounds_like_cpp = true;
         }
         let damage = max_health;
         let (_, health_after, _, _, killed_player) =
@@ -425,12 +435,12 @@ impl WorldSession {
             damage,
         };
         #[cfg(test)]
-        self.under_map_damage_events_like_cpp.push(event);
+        self.movement.under_map_damage_events_like_cpp.push(event);
         Some(event)
     }
     #[cfg(test)]
     pub(crate) fn under_map_damage_events_like_cpp(&self) -> &[MovementUnderMapDamageEvent] {
-        &self.under_map_damage_events_like_cpp
+        &self.movement.under_map_damage_events_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn set_taxi_node_map_id_like_cpp(&mut self, node_id: u32, map_id: u16) {
@@ -468,7 +478,7 @@ impl WorldSession {
         let Ok(packet_map_id) = u16::try_from(key.map_id) else {
             return 0;
         };
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
             return 0;
         };
         let Some(player_guid) = self.player_guid() else {
@@ -606,7 +616,7 @@ impl WorldSession {
         let mut sent = 0;
         for represented_update in updates {
             let guid = represented_update.guid;
-            if !self.client_visible_guids_like_cpp.contains(&guid) {
+            if !self.core.client_visible_guids_like_cpp.contains(&guid) {
                 continue;
             }
             let Some(update) = dynamic_object_values_update_to_update_object(
@@ -622,6 +632,7 @@ impl WorldSession {
                     guid, &bytes,
                 );
             if !self
+                .visibility
                 .represented_dynamic_object_values_updates_delivered_like_cpp
                 .insert((
                     key.map_id,

@@ -34,7 +34,7 @@ impl WorldSession {
 
         let Some(msg_type) = chat_msg_from_i32_like_cpp(packet.msg_type) else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 ty = packet.msg_type,
                 "Unknown addon chat message type ignored"
             );
@@ -56,7 +56,7 @@ impl WorldSession {
             }
             ChatMsg::Guild | ChatMsg::Officer | ChatMsg::Channel => {
                 debug!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ty = ?msg_type,
                     prefix = %packet.prefix,
                     logged = packet.is_logged,
@@ -65,7 +65,7 @@ impl WorldSession {
             }
             _ => {
                 debug!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ty = ?msg_type,
                     "Unsupported addon chat message type ignored"
                 );
@@ -83,7 +83,10 @@ impl WorldSession {
         let packet = match ChatAddonMessageWhisper::read(&mut pkt) {
             Ok(packet) => packet,
             Err(e) => {
-                tracing::warn!(account = self.account_id, "Bad addon whisper packet: {e}");
+                tracing::warn!(
+                    account = self.core.account_id,
+                    "Bad addon whisper packet: {e}"
+                );
                 return;
             }
         };

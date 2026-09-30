@@ -18,8 +18,8 @@ impl WorldSession {
         });
         #[cfg(test)]
         {
-            self.player_health_like_cpp = 0;
-            self.player_alive_like_cpp = false;
+            self.combat.player_health_like_cpp = 0;
+            self.combat.player_alive_like_cpp = false;
         }
         self.sync_player_registry_state_like_cpp();
     }
@@ -43,14 +43,18 @@ impl WorldSession {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.resurrection_state_like_cpp().clone());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(PlayerResurrectionStateLikeCpp {
-                request: self.represented_resurrection_request_like_cpp,
+                request: self.combat.represented_resurrection_request_like_cpp,
                 delayed_after_teleport: self
+                    .combat
                     .represented_delayed_resurrection_after_teleport_like_cpp,
-                self_res_spells: self.represented_self_res_spells_like_cpp.clone(),
-                death_timer_active: self.represented_death_timer_active_like_cpp,
-                area_spirit_healer_guid: self.area_spirit_healer_guid_like_cpp,
+                self_res_spells: self
+                    .spell_state
+                    .represented_self_res_spells_like_cpp
+                    .clone(),
+                death_timer_active: self.combat.represented_death_timer_active_like_cpp,
+                area_spirit_healer_guid: self.combat.area_spirit_healer_guid_like_cpp,
             });
         }
         canonical

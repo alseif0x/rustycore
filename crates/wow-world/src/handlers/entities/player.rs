@@ -209,7 +209,7 @@ impl crate::session::WorldSession {
         self.set_selection_guid_like_cpp(Some(target_guid));
         info!(
             "SetSelection: account {} → {:?}",
-            self.account_id, target_guid
+            self.core.account_id, target_guid
         );
     }
 
@@ -218,7 +218,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "StandStateChange parse failed: {error}"
                 );
                 return;
@@ -309,7 +309,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "SetActionButton parse failed: {error}"
                 );
                 return;
@@ -324,7 +324,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "SetDifficultyId parse failed: {error}"
                 );
                 return;
@@ -338,7 +338,7 @@ impl crate::session::WorldSession {
     pub async fn handle_toggle_difficulty(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = ToggleDifficulty::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "ToggleDifficulty parse failed: {error}"
             );
             return;
@@ -346,7 +346,7 @@ impl crate::session::WorldSession {
 
         let Some(difficulty_id) = self.represented_toggle_difficulty_target_like_cpp() else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "ToggleDifficulty has no represented toggle difficulty available"
             );
             return;
@@ -361,7 +361,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "SetDungeonDifficulty parse failed: {error}"
                 );
                 return;
@@ -377,7 +377,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "SetRaidDifficulty parse failed: {error}"
                 );
                 return;
@@ -423,7 +423,7 @@ impl crate::session::WorldSession {
             RepresentedGroupPersistenceOutcomeLikeCpp::Applied { .. }
         ) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 player_guid = ?self.player_guid(),
                 ?outcome,
                 "failed to persist represented group difficulty change"
@@ -435,7 +435,10 @@ impl crate::session::WorldSession {
         let mut packet = match SetTitle::read(&mut pkt) {
             Ok(packet) => packet,
             Err(error) => {
-                warn!(account = self.account_id, "SetTitle parse failed: {error}");
+                warn!(
+                    account = self.core.account_id,
+                    "SetTitle parse failed: {error}"
+                );
                 return;
             }
         };

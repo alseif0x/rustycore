@@ -145,7 +145,7 @@ fn acquisition_install_matches_previous_validation_and_owner_state() {
 fn acquisition_install_rejects_stale_and_missing_owner_without_partial_replacement() {
     let (mut session, _, _) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
@@ -175,7 +175,7 @@ fn acquisition_install_rejects_stale_and_missing_owner_without_partial_replaceme
         .with_player_like_cpp(handle, projection);
     for missing in [false, true] {
         if missing {
-            session.canonical_map_manager = None;
+            session.core.canonical_map_manager = None;
         }
         assert!(
             !session.replace_complete_spell_acquisition_runtime_like_cpp(
@@ -288,7 +288,7 @@ fn skill_replacement_matches_previous_route_with_malformed_keys_and_tombstones()
 fn skill_replacement_rejects_stale_and_missing_owner_without_replacing_tombstones() {
     let (mut session, _, _) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
@@ -306,7 +306,7 @@ fn skill_replacement_rejects_stale_and_missing_owner_without_replacing_tombstone
         .unwrap();
     for missing in [false, true] {
         if missing {
-            session.canonical_map_manager = None;
+            session.core.canonical_map_manager = None;
         }
         assert!(!session.replace_player_skill_records_like_cpp(HashMap::new(), true, true));
         assert_eq!(
@@ -410,7 +410,7 @@ fn skill_lifecycle_finalization_matches_previous_route_on_active_and_detached_pl
 fn skill_lifecycle_finalization_rejects_stale_and_missing_owner() {
     let (mut session, _, _) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
@@ -428,7 +428,7 @@ fn skill_lifecycle_finalization_rejects_stale_and_missing_owner() {
         .unwrap();
     for missing in [false, true] {
         if missing {
-            session.canonical_map_manager = None;
+            session.core.canonical_map_manager = None;
         }
         session.clear_player_skill_tombstones_like_cpp();
         session.mark_current_player_save_to_db_committed_like_cpp(
@@ -517,7 +517,7 @@ fn occupied_skill_slot_authority_matches_previous_route_for_active_and_detached_
 fn occupied_skill_slot_authority_rejects_stale_and_missing_owner() {
     let (mut session, _, _) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
@@ -529,7 +529,7 @@ fn occupied_skill_slot_authority_rejects_stale_and_missing_owner() {
         .unwrap();
     for missing in [false, true] {
         if missing {
-            session.canonical_map_manager = None;
+            session.core.canonical_map_manager = None;
         }
         assert!(!session.set_player_skill_occupied_slots_like_cpp(0));
         assert_eq!(

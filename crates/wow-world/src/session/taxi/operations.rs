@@ -14,10 +14,10 @@ impl WorldSession {
             (state.vehicle_seat_flags, state.vehicle_seat_id)
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some((
-                self.player_vehicle_seat_flags_like_cpp,
-                self.player_vehicle_seat_id_like_cpp,
+                self.vehicles.player_vehicle_seat_flags_like_cpp,
+                self.vehicles.player_vehicle_seat_id_like_cpp,
             ));
         }
         canonical
@@ -33,9 +33,9 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.player_vehicle_seat_flags_like_cpp = flags;
-            self.player_vehicle_seat_id_like_cpp = seat_id;
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.vehicles.player_vehicle_seat_flags_like_cpp = flags;
+            self.vehicles.player_vehicle_seat_id_like_cpp = seat_id;
             return true;
         }
         canonical
@@ -46,8 +46,8 @@ impl WorldSession {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.mount_vehicle_kit_snapshot_like_cpp());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.player_mount_vehicle_kit_like_cpp.clone());
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.vehicles.player_mount_vehicle_kit_like_cpp.clone());
         }
         canonical
     }
@@ -70,8 +70,8 @@ impl WorldSession {
             return true;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.player_mount_vehicle_kit_like_cpp = vehicle_kit;
+        if self.core.player_handle_like_cpp.is_none() {
+            self.vehicles.player_mount_vehicle_kit_like_cpp = vehicle_kit;
             return true;
         }
         canonical
@@ -85,8 +85,8 @@ impl WorldSession {
             return true;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.player_mount_vehicle_kit_like_cpp = None;
+        if self.core.player_handle_like_cpp.is_none() {
+            self.vehicles.player_mount_vehicle_kit_like_cpp = None;
             return true;
         }
         canonical
@@ -100,11 +100,11 @@ impl WorldSession {
             return true;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            if let Some(vehicle_kit) = self.player_mount_vehicle_kit_like_cpp.as_mut() {
+        if self.core.player_handle_like_cpp.is_none() {
+            if let Some(vehicle_kit) = self.vehicles.player_mount_vehicle_kit_like_cpp.as_mut() {
                 vehicle_kit.uninstall();
             }
-            self.player_mount_vehicle_kit_like_cpp = None;
+            self.vehicles.player_mount_vehicle_kit_like_cpp = None;
             return true;
         }
         canonical
@@ -122,8 +122,9 @@ impl WorldSession {
             })
             .unwrap_or(false);
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self
+                .vehicles
                 .player_mount_vehicle_kit_like_cpp
                 .as_mut()
                 .is_some_and(|vehicle_kit| {
@@ -154,25 +155,25 @@ impl WorldSession {
         &mut self,
         update: impl FnOnce(&mut Option<Vehicle>) -> R,
     ) -> Option<R> {
-        if self.player_handle_like_cpp.is_none() {
-            return Some(update(&mut self.player_mount_vehicle_kit_like_cpp));
+        if self.core.player_handle_like_cpp.is_none() {
+            return Some(update(&mut self.vehicles.player_mount_vehicle_kit_like_cpp));
         }
         self.with_owned_player_mut_like_cpp(|player| {
             update(&mut player.gameplay_state_mut().mount_vehicle_kit)
         })
     }
     pub fn set_vehicle_store(&mut self, store: Arc<VehicleStore>) {
-        self.vehicle_store = Some(store);
+        self.catalogs.vehicle_store = Some(store);
     }
     pub fn set_vehicle_seat_store(&mut self, store: Arc<VehicleSeatStore>) {
-        self.vehicle_seat_store = Some(store);
+        self.catalogs.vehicle_seat_store = Some(store);
     }
     #[cfg(test)]
     pub fn set_vehicle_template_store(&mut self, store: Arc<VehicleTemplateStoreLikeCpp>) {
-        self.vehicle_template_store = Some(store);
+        self.catalogs.vehicle_template_store = Some(store);
     }
     pub fn set_vehicle_accessory_store(&mut self, store: Arc<VehicleAccessoryStoreLikeCpp>) {
-        self.vehicle_accessory_store = Some(store);
+        self.catalogs.vehicle_accessory_store = Some(store);
     }
     pub(in crate::session) fn create_player_mount_vehicle_kit_like_cpp(
         &mut self,
@@ -187,6 +188,7 @@ impl WorldSession {
         };
 
         let Some(vehicle) = self
+            .catalogs
             .vehicle_store
             .as_ref()
             .and_then(|store| store.get(vehicle_id))
@@ -195,24 +197,27 @@ impl WorldSession {
             return false;
             #[cfg(test)]
             {
-                if self.vehicle_store.is_some() {
+                if self.catalogs.vehicle_store.is_some() {
                     return false;
                 }
-                self.player_mount_vehicle_id_like_cpp = vehicle_id;
+                self.vehicles.player_mount_vehicle_id_like_cpp = vehicle_id;
                 let _ = self.clear_player_mount_vehicle_kit_like_cpp();
-                self.player_mount_vehicle_accessories_like_cpp = self
+                self.vehicles.player_mount_vehicle_accessories_like_cpp = self
+                    .catalogs
                     .vehicle_accessory_store
                     .as_ref()
                     .and_then(|store| store.accessories_for_vehicle_like_cpp(None, creature_entry))
                     .map(<[VehicleAccessory]>::to_vec)
                     .unwrap_or_default();
-                self.player_mount_vehicle_seat_count_like_cpp = 0;
-                self.player_mount_vehicle_usable_seat_count_like_cpp = 0;
+                self.vehicles.player_mount_vehicle_seat_count_like_cpp = 0;
+                self.vehicles
+                    .player_mount_vehicle_usable_seat_count_like_cpp = 0;
                 return true;
             }
         };
 
         let seat_defs = self
+            .catalogs
             .vehicle_seat_store
             .as_ref()
             .map(|store| store.seat_defs_for_vehicle_like_cpp(vehicle))
@@ -230,6 +235,7 @@ impl WorldSession {
         );
         vehicle_kit.install();
         let accessories = self
+            .catalogs
             .vehicle_accessory_store
             .as_ref()
             .and_then(|store| store.accessories_for_vehicle_like_cpp(None, creature_entry))
@@ -239,12 +245,13 @@ impl WorldSession {
             vehicle_kit.install_all_accessories_plan_like_cpp(false, &accessories);
         #[cfg(test)]
         {
-            self.player_mount_vehicle_id_like_cpp = vehicle_id;
-            self.player_mount_vehicle_seat_count_like_cpp =
+            self.vehicles.player_mount_vehicle_id_like_cpp = vehicle_id;
+            self.vehicles.player_mount_vehicle_seat_count_like_cpp =
                 vehicle_kit.seats().len().min(u8::MAX as usize) as u8;
-            self.player_mount_vehicle_usable_seat_count_like_cpp =
+            self.vehicles
+                .player_mount_vehicle_usable_seat_count_like_cpp =
                 vehicle_kit.usable_seat_num().min(u32::from(u8::MAX)) as u8;
-            self.player_mount_vehicle_accessories_like_cpp = _accessory_plan.accessories;
+            self.vehicles.player_mount_vehicle_accessories_like_cpp = _accessory_plan.accessories;
         }
         self.install_player_mount_vehicle_kit_like_cpp(vehicle_kit)
     }
@@ -290,6 +297,7 @@ impl WorldSession {
         flying_mount_id: u32,
     ) -> Vec<i32> {
         let Some(mount) = self
+            .catalogs
             .mount_store
             .as_ref()
             .and_then(|store| store.get_by_id(flying_mount_id))
@@ -305,6 +313,7 @@ impl WorldSession {
         }
 
         let Some(displays) = self
+            .catalogs
             .mount_x_display_store
             .as_ref()
             .and_then(|store| store.displays_for_mount_like_cpp(mount.id))
@@ -352,7 +361,8 @@ impl WorldSession {
         match action {
             crate::handlers::vehicle::VehicleHandlerAction::ChangeSeat { seat_id, next } => {
                 #[cfg(test)]
-                self.represented_vehicle_seat_change_requests_like_cpp
+                self.vehicles
+                    .represented_vehicle_seat_change_requests_like_cpp
                     .push(RepresentedVehicleSeatChangeRequestLikeCpp { seat_id, next });
                 #[cfg(not(test))]
                 let _ = (seat_id, next);
@@ -362,7 +372,8 @@ impl WorldSession {
                 next,
             } => {
                 #[cfg(test)]
-                self.represented_vehicle_seat_change_requests_like_cpp
+                self.vehicles
+                    .represented_vehicle_seat_change_requests_like_cpp
                     .push(RepresentedVehicleSeatChangeRequestLikeCpp { seat_id: -1, next });
                 #[cfg(not(test))]
                 let _ = next;
@@ -378,7 +389,8 @@ impl WorldSession {
                     return false;
                 }
                 #[cfg(test)]
-                self.represented_vehicle_seat_spell_click_requests_like_cpp
+                self.vehicles
+                    .represented_vehicle_seat_spell_click_requests_like_cpp
                     .push(RepresentedVehicleSeatSpellClickRequestLikeCpp {
                         vehicle_guid: vehicle,
                         seat_id,
@@ -440,11 +452,11 @@ impl WorldSession {
         match action {
             crate::handlers::vehicle::VehicleHandlerAction::EnterVehicle { vehicle } => {
                 #[cfg(test)]
-                self.represented_vehicle_enter_requests_like_cpp.push(
-                    RepresentedVehicleEnterRequestLikeCpp {
+                self.vehicles
+                    .represented_vehicle_enter_requests_like_cpp
+                    .push(RepresentedVehicleEnterRequestLikeCpp {
                         vehicle_guid: vehicle,
-                    },
-                );
+                    });
                 #[cfg(not(test))]
                 let _ = vehicle;
                 true
@@ -465,7 +477,7 @@ impl WorldSession {
             return false;
         }
 
-        self.represented_gameobject_use_effects.push(
+        self.world_entities.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                 gameobject_guid,
                 player_guid,
@@ -549,14 +561,15 @@ impl WorldSession {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.taxi_state_like_cpp().clone());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
                 wow_entities::PlayerTaxiState::from_represented_parts_like_cpp(
-                    self.taxi_destinations_like_cpp.clone(),
-                    self.taxi_flight_state_like_cpp
+                    self.vehicles.taxi_destinations_like_cpp.clone(),
+                    self.vehicles
+                        .taxi_flight_state_like_cpp
                         .map(canonical_taxi_flight_state_like_cpp),
-                    self.taxi_unit_flags_like_cpp.bits(),
-                    self.taxi_mounted_like_cpp,
+                    self.vehicles.taxi_unit_flags_like_cpp.bits(),
+                    self.vehicles.taxi_mounted_like_cpp,
                 ),
             );
         }
@@ -573,14 +586,14 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.taxi_destinations_like_cpp = state.destinations_like_cpp().to_vec();
-            self.taxi_flight_state_like_cpp = state
+        if self.core.player_handle_like_cpp.is_none() {
+            self.vehicles.taxi_destinations_like_cpp = state.destinations_like_cpp().to_vec();
+            self.vehicles.taxi_flight_state_like_cpp = state
                 .flight_like_cpp()
                 .map(represented_taxi_flight_state_like_cpp);
-            self.taxi_unit_flags_like_cpp =
+            self.vehicles.taxi_unit_flags_like_cpp =
                 UnitFlags::from_bits_retain(state.unit_flags_like_cpp());
-            self.taxi_mounted_like_cpp = state.mounted_like_cpp();
+            self.vehicles.taxi_mounted_like_cpp = state.mounted_like_cpp();
             return true;
         }
         canonical
@@ -591,7 +604,7 @@ impl WorldSession {
         f: impl FnOnce(&mut wow_entities::PlayerTaxiState) -> R,
     ) -> Option<R> {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             let mut state = self.player_taxi_state_snapshot_like_cpp()?;
             let result = f(&mut state);
             return self
@@ -611,7 +624,7 @@ impl WorldSession {
             return result;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_taxi_state_like_cpp(|taxi| {
                     taxi.advance_taxi_flight_after_teleport_like_cpp()
@@ -631,7 +644,7 @@ impl WorldSession {
             return true;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_taxi_state_like_cpp(|taxi| {
                     taxi.cleanup_after_taxi_flight_like_cpp(taxi_unit_flags);
@@ -658,7 +671,8 @@ impl WorldSession {
         request: RepresentedActivateTaxiLikeCpp,
     ) {
         #[cfg(test)]
-        self.represented_activate_taxi_requests_like_cpp
+        self.vehicles
+            .represented_activate_taxi_requests_like_cpp
             .push(request);
     }
     pub(crate) fn resolved_is_in_taxi_flight_like_cpp(&self) -> Option<bool> {
@@ -722,9 +736,9 @@ impl WorldSession {
     ) {
         let info = info.filter(|info| !info.guid.is_empty());
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.player_on_transport_like_cpp = info.is_some();
-            self.player_transport_login_state_like_cpp =
+        if self.core.player_handle_like_cpp.is_none() {
+            self.vehicles.player_on_transport_like_cpp = info.is_some();
+            self.vehicles.player_transport_login_state_like_cpp =
                 info.map(|info| Box::new(PlayerTransportLoginStateLikeCpp { info }));
             return;
         }
@@ -769,9 +783,10 @@ impl WorldSession {
         &self,
     ) -> Option<Option<wow_entities::PlayerTransportState>> {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.player_transport_login_state_like_cpp
+                self.vehicles
+                    .player_transport_login_state_like_cpp
                     .as_ref()
                     .map(|state| wow_entities::PlayerTransportState {
                         guid: state.info.guid,
@@ -790,8 +805,8 @@ impl WorldSession {
     }
     pub(in crate::session) fn player_on_transport_state_like_cpp(&self) -> Option<bool> {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(self.player_on_transport_like_cpp);
+        if self.core.player_handle_like_cpp.is_none() {
+            return Some(self.vehicles.player_on_transport_like_cpp);
         }
         self.with_owned_player_like_cpp(|player| player.gameplay_state().transport.is_some())
     }
@@ -805,7 +820,7 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn set_player_on_transport_like_cpp(&mut self, on_transport: bool) {
-        self.player_on_transport_like_cpp = on_transport;
+        self.vehicles.player_on_transport_like_cpp = on_transport;
     }
     pub(in crate::session) fn represented_player_has_active_vehicle_like_cpp(&self) -> bool {
         self.player_mount_vehicle_kit_snapshot_like_cpp()

@@ -9,8 +9,8 @@ impl WorldSession {
     pub(in crate::session) fn player_pet_guid_state_like_cpp(&self) -> Option<Option<ObjectGuid>> {
         let canonical = self.with_owned_player_like_cpp(|player| player.gameplay_state().pet_guid);
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.represented_pet_guid_like_cpp);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.pets.represented_pet_guid_like_cpp);
         }
         canonical
     }
@@ -24,8 +24,8 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.represented_pet_guid_like_cpp = pet_guid;
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.pets.represented_pet_guid_like_cpp = pet_guid;
             return true;
         }
         canonical
@@ -86,7 +86,7 @@ impl WorldSession {
         pet_guid: ObjectGuid,
         inspect: impl FnOnce(&Pet) -> R,
     ) -> Option<R> {
-        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
         let mut inspect = Some(inspect);
         let mut result = None;
         manager.do_for_all_maps(|managed| {
@@ -104,7 +104,7 @@ impl WorldSession {
         pet_guid: ObjectGuid,
         mutate: impl FnOnce(&mut Pet) -> R,
     ) -> Option<R> {
-        let mut manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let mut manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
         let mut mutate = Some(mutate);
         let mut result = None;
         manager.do_for_all_maps_mut(|managed| {
@@ -134,10 +134,10 @@ impl WorldSession {
             (react_state, command_state)
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some((
-                self.represented_pet_react_state_like_cpp,
-                self.represented_pet_command_state_like_cpp,
+                self.pets.represented_pet_react_state_like_cpp,
+                self.pets.represented_pet_command_state_like_cpp,
             ));
         }
         canonical
@@ -163,9 +163,9 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if !canonical && self.player_handle_like_cpp.is_none() {
-            self.represented_pet_react_state_like_cpp = react_state;
-            self.represented_pet_command_state_like_cpp = command_state;
+        if !canonical && self.core.player_handle_like_cpp.is_none() {
+            self.pets.represented_pet_react_state_like_cpp = react_state;
+            self.pets.represented_pet_command_state_like_cpp = command_state;
             return true;
         }
         canonical
@@ -176,15 +176,17 @@ impl WorldSession {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.pet_lifecycle_state_like_cpp().clone());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(PlayerPetLifecycleStateLikeCpp {
-                stable: self.represented_pet_stable_like_cpp.clone(),
+                stable: self.pets.represented_pet_stable_like_cpp.clone(),
                 character_rows_empty_authority_complete: self
+                    .pets
                     .represented_character_pet_rows_empty_authority_complete_like_cpp,
                 temporary_unsummoned_pet_number: self
+                    .pets
                     .represented_temporary_unsummoned_pet_number_like_cpp,
-                old_pet_spell: self.represented_old_pet_spell_like_cpp,
-                temporary_mount_react_state: self.temporary_mount_pet_react_state_like_cpp,
+                old_pet_spell: self.pets.represented_old_pet_spell_like_cpp,
+                temporary_mount_react_state: self.pets.temporary_mount_pet_react_state_like_cpp,
             });
         }
         canonical
@@ -193,7 +195,7 @@ impl WorldSession {
         &mut self,
         update: impl FnOnce(&mut PlayerPetLifecycleStateLikeCpp),
     ) -> bool {
-        if self.player_handle_like_cpp.is_some() {
+        if self.core.player_handle_like_cpp.is_some() {
             return self
                 .with_owned_player_mut_like_cpp(|player| {
                     update(player.pet_lifecycle_state_mut_like_cpp())
@@ -206,13 +208,15 @@ impl WorldSession {
                 .player_pet_lifecycle_state_snapshot_like_cpp()
                 .unwrap_or_default();
             update(&mut state);
-            self.represented_pet_stable_like_cpp = state.stable;
-            self.represented_character_pet_rows_empty_authority_complete_like_cpp =
+            self.pets.represented_pet_stable_like_cpp = state.stable;
+            self.pets
+                .represented_character_pet_rows_empty_authority_complete_like_cpp =
                 state.character_rows_empty_authority_complete;
-            self.represented_temporary_unsummoned_pet_number_like_cpp =
+            self.pets
+                .represented_temporary_unsummoned_pet_number_like_cpp =
                 state.temporary_unsummoned_pet_number;
-            self.represented_old_pet_spell_like_cpp = state.old_pet_spell;
-            self.temporary_mount_pet_react_state_like_cpp = state.temporary_mount_react_state;
+            self.pets.represented_old_pet_spell_like_cpp = state.old_pet_spell;
+            self.pets.temporary_mount_pet_react_state_like_cpp = state.temporary_mount_react_state;
             true
         }
         #[cfg(not(test))]
@@ -284,7 +288,7 @@ impl WorldSession {
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
         let pet_guid = self.player_pet_guid_state_like_cpp().flatten();
         if let Some(pet_guid) = pet_guid
-            && let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone)
+            && let Some(manager) = self.core.canonical_map_manager.as_ref().map(Arc::clone)
             && let Ok(mut manager) = manager.lock()
         {
             let mut removed = false;
@@ -304,10 +308,10 @@ impl WorldSession {
             let _ = self.set_player_pet_guid_like_cpp(None);
             #[cfg(test)]
             {
-                self.represented_pet_created_by_spell_like_cpp = 0;
-                self.represented_pet_react_state_like_cpp =
+                self.pets.represented_pet_created_by_spell_like_cpp = 0;
+                self.pets.represented_pet_react_state_like_cpp =
                     wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
-                self.represented_pet_command_state_like_cpp =
+                self.pets.represented_pet_command_state_like_cpp =
                     wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
             }
             let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
@@ -315,7 +319,7 @@ impl WorldSession {
             });
             #[cfg(test)]
             {
-                self.represented_pet_movement_speed_rates_like_cpp =
+                self.pets.represented_pet_movement_speed_rates_like_cpp =
                     [1.0; UnitMoveTypeLikeCpp::COUNT];
             }
         }
@@ -362,6 +366,7 @@ impl WorldSession {
             }
 
             if self
+                .catalogs
                 .spell_catalogs
                 .spell_misc_store()
                 .is_some_and(|store| !store.is_autocastable_like_cpp(action))
@@ -380,7 +385,8 @@ impl WorldSession {
         choice: u8,
     ) {
         #[cfg(test)]
-        self.represented_sign_petitions_like_cpp
+        self.social
+            .represented_sign_petitions_like_cpp
             .push(RepresentedSignPetitionLikeCpp {
                 petition_guid,
                 choice,
@@ -388,7 +394,7 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn represented_sign_petitions_like_cpp(&self) -> &[RepresentedSignPetitionLikeCpp] {
-        &self.represented_sign_petitions_like_cpp
+        &self.social.represented_sign_petitions_like_cpp
     }
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_decline_petition_like_cpp(
@@ -396,14 +402,15 @@ impl WorldSession {
         petition_guid: ObjectGuid,
     ) {
         #[cfg(test)]
-        self.represented_decline_petitions_like_cpp
+        self.social
+            .represented_decline_petitions_like_cpp
             .push(RepresentedDeclinePetitionLikeCpp { petition_guid });
     }
     #[cfg(test)]
     pub(crate) fn represented_decline_petitions_like_cpp(
         &self,
     ) -> &[RepresentedDeclinePetitionLikeCpp] {
-        &self.represented_decline_petitions_like_cpp
+        &self.social.represented_decline_petitions_like_cpp
     }
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_query_petition_like_cpp(
@@ -412,7 +419,8 @@ impl WorldSession {
         item_guid: ObjectGuid,
     ) {
         #[cfg(test)]
-        self.represented_query_petitions_like_cpp
+        self.social
+            .represented_query_petitions_like_cpp
             .push(RepresentedQueryPetitionLikeCpp {
                 petition_id,
                 item_guid,
@@ -422,7 +430,7 @@ impl WorldSession {
     pub(crate) fn represented_query_petitions_like_cpp(
         &self,
     ) -> &[RepresentedQueryPetitionLikeCpp] {
-        &self.represented_query_petitions_like_cpp
+        &self.social.represented_query_petitions_like_cpp
     }
     #[cfg(test)]
     pub(in crate::session) fn record_represented_tapper_pet_killed_unit_hooks_like_cpp(
@@ -443,13 +451,13 @@ impl WorldSession {
         if !tapper_has_current_player {
             return;
         }
-        self.represented_creature_kill_events_like_cpp.push(
-            RepresentedCreatureKillEventLikeCpp::TapperPetKilledUnitAi {
+        self.world_entities
+            .represented_creature_kill_events_like_cpp
+            .push(RepresentedCreatureKillEventLikeCpp::TapperPetKilledUnitAi {
                 tapper_guid: player_guid,
                 pet_guid,
                 victim_guid: creature_guid,
-            },
-        );
+            });
     }
     fn represented_pet_position_like_cpp(&self, pet_guid: ObjectGuid) -> Option<Position> {
         let map_id = u32::from(self.player_map_id_like_cpp());
@@ -457,7 +465,7 @@ impl WorldSession {
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
-        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
         let managed = manager.find_map(map_id, instance_id)?;
         managed.map().with_world_object_by_kinds_like_cpp(
             pet_guid,
@@ -488,10 +496,10 @@ impl WorldSession {
             .map(|key| key.instance_id)
             .unwrap_or(0);
 
-        if self.client_visible_guids_like_cpp.contains(&pet_guid)
+        if self.core.client_visible_guids_like_cpp.contains(&pet_guid)
             && self.send_tx().send(packet_bytes.clone()).is_err()
         {
-            warn!("Send channel closed for account {}", self.account_id);
+            warn!("Send channel closed for account {}", self.core.account_id);
         }
 
         let (Some(player_guid), Some(registry)) = (self.player_guid(), self.player_registry())
@@ -549,11 +557,11 @@ impl WorldSession {
             None => {
                 #[cfg(test)]
                 {
-                    if self.player_handle_like_cpp.is_none() {
-                        if self.represented_pet_movement_speed_rates_like_cpp[index] == rate {
+                    if self.core.player_handle_like_cpp.is_none() {
+                        if self.pets.represented_pet_movement_speed_rates_like_cpp[index] == rate {
                             return;
                         }
-                        self.represented_pet_movement_speed_rates_like_cpp[index] = rate;
+                        self.pets.represented_pet_movement_speed_rates_like_cpp[index] = rate;
                         true
                     } else {
                         false
@@ -570,7 +578,8 @@ impl WorldSession {
         }
         #[cfg(test)]
         {
-            self.represented_pet_speed_propagations_like_cpp = self
+            self.pets.represented_pet_speed_propagations_like_cpp = self
+                .pets
                 .represented_pet_speed_propagations_like_cpp
                 .saturating_add(1);
         }
@@ -592,10 +601,11 @@ impl WorldSession {
                 })
                 .flatten()
             });
-        canonical.unwrap_or(self.represented_pet_movement_speed_rates_like_cpp[move_type.index()])
+        canonical
+            .unwrap_or(self.pets.represented_pet_movement_speed_rates_like_cpp[move_type.index()])
     }
     #[cfg(test)]
     pub(crate) fn represented_pet_speed_propagations_like_cpp(&self) -> u32 {
-        self.represented_pet_speed_propagations_like_cpp
+        self.pets.represented_pet_speed_propagations_like_cpp
     }
 }

@@ -72,6 +72,7 @@ impl WorldSession {
         });
         let duration_ms = {
             let duration_index = self
+                .catalogs
                 .spell_catalogs
                 .spell_misc_store
                 .as_deref()
@@ -85,7 +86,7 @@ impl WorldSession {
                 .unwrap_or(0);
             spell_duration_ms_like_cpp(
                 duration_index,
-                self.spell_catalogs.spell_duration_store.as_deref(),
+                self.catalogs.spell_catalogs.spell_duration_store.as_deref(),
             )
         };
 
@@ -176,7 +177,7 @@ impl WorldSession {
         // represented threat-list slice.
         if spell_id == 62124 {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 target = ?target_guid,
                 "represented EffectTaunt does not yet cast Hand of Reckoning damage spell 67485"
             );
@@ -240,7 +241,7 @@ impl WorldSession {
         use wow_packet::packets::movement::MonsterMoveStop;
 
         let player_guid = self.player_guid().ok_or("No player GUID")?;
-        let account_id = self.account_id;
+        let account_id = self.core.account_id;
         let caster_is_session_player = caster_guid == player_guid;
         let controlling_player_guid = if caster_guid.is_player() {
             Some(caster_guid)
@@ -502,7 +503,10 @@ impl WorldSession {
             }
         }
 
-        if self.client_visible_guids_like_cpp.contains(&target_guid)
+        if self
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&target_guid)
             && let Some(update) = self.represented_unit_values_update_to_update_object_like_cpp(
                 target_guid,
                 self.player_map_id_like_cpp(),

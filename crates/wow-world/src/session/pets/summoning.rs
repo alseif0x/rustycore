@@ -24,7 +24,7 @@ impl WorldSession {
             .unwrap_or(0);
 
         let should_unsummon = {
-            let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+            let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
                 return;
             };
             let Ok(manager) = manager.lock() else {
@@ -146,7 +146,7 @@ impl WorldSession {
 
         self.request_temporary_pet_unsummon_like_cpp();
 
-        if let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone)
+        if let Some(manager) = self.core.canonical_map_manager.as_ref().map(Arc::clone)
             && let Ok(mut manager) = manager.lock()
         {
             let mut removed = false;
@@ -190,10 +190,10 @@ impl WorldSession {
         let _ = self.set_player_pet_guid_like_cpp(None);
         #[cfg(test)]
         {
-            self.represented_pet_created_by_spell_like_cpp = 0;
-            self.represented_pet_react_state_like_cpp =
+            self.pets.represented_pet_created_by_spell_like_cpp = 0;
+            self.pets.represented_pet_react_state_like_cpp =
                 wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
-            self.represented_pet_command_state_like_cpp =
+            self.pets.represented_pet_command_state_like_cpp =
                 wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
         }
         let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
@@ -232,7 +232,8 @@ impl WorldSession {
     pub(crate) fn resummon_pet_temporary_unsummoned_like_cpp(&mut self) {
         #[cfg(test)]
         {
-            self.temporary_pet_resummon_requests_like_cpp = self
+            self.pets.temporary_pet_resummon_requests_like_cpp = self
+                .pets
                 .temporary_pet_resummon_requests_like_cpp
                 .saturating_add(1);
         }
@@ -489,7 +490,7 @@ impl WorldSession {
                 }));
             }
 
-            let manager = self.canonical_map_manager.as_ref().map(Arc::clone)?;
+            let manager = self.core.canonical_map_manager.as_ref().map(Arc::clone)?;
             let mut manager = manager.lock().ok()?;
             if manager.find_map_mut(map_id, instance_id).is_none() {
                 manager.create_world_map(map_id, instance_id);
@@ -511,8 +512,8 @@ impl WorldSession {
             let _ = self.set_player_pet_guid_like_cpp(Some(pet_guid));
             #[cfg(test)]
             if let Some(info) = self.represented_pet_stable_info_by_number_like_cpp(pet_number) {
-                self.represented_pet_created_by_spell_like_cpp = info.created_by_spell_id;
-                self.represented_pet_react_state_like_cpp = info.react_state as u8;
+                self.pets.represented_pet_created_by_spell_like_cpp = info.created_by_spell_id;
+                self.pets.represented_pet_react_state_like_cpp = info.react_state as u8;
             }
         }
     }

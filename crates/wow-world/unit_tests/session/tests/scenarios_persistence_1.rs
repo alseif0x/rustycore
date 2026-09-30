@@ -166,7 +166,7 @@ fn load_represented_group_difficulties_overrides_player_values_like_cpp() {
         ),
     ])));
     session.load_represented_player_difficulties_like_cpp(1, 14, 3);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     assert!(session.load_represented_group_difficulties_like_cpp());
@@ -208,7 +208,7 @@ fn load_represented_group_difficulties_missing_registry_entry_preserves_values_l
         ),
     ])));
     session.load_represented_player_difficulties_like_cpp(2, 15, 4);
-    session.group_guid = Some(77);
+    session.social.group_guid = Some(77);
     session.set_group_registry(
         Arc::new(GroupRegistry::default()),
         Arc::new(PendingInvites::default()),
@@ -250,7 +250,7 @@ fn load_represented_group_by_db_store_id_sets_group_and_difficulties_like_cpp() 
 
     assert!(session.load_represented_group_by_db_store_id_like_cpp(80_928));
 
-    assert_eq!(session.group_guid, Some(group_guid));
+    assert_eq!(session.social.group_guid, Some(group_guid));
     assert_eq!(session.represented_subgroup_like_cpp(), Some(3));
     assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 2);
     assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 15);
@@ -259,14 +259,14 @@ fn load_represented_group_by_db_store_id_sets_group_and_difficulties_like_cpp() 
 #[test]
 fn load_represented_group_by_db_store_id_clears_missing_group_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.group_guid = Some(123);
+    session.social.group_guid = Some(123);
     session.set_group_registry(
         Arc::new(GroupRegistry::default()),
         Arc::new(PendingInvites::default()),
     );
 
     assert!(!session.load_represented_group_by_db_store_id_like_cpp(80_929));
-    assert_eq!(session.group_guid, None);
+    assert_eq!(session.social.group_guid, None);
     assert_eq!(session.represented_subgroup_like_cpp(), None);
 }
 #[test]
@@ -342,6 +342,7 @@ fn load_seasonal_quest_status_clears_stale_state_and_resets_changed_on_empty_lik
     let (mut session, _, _) = make_session();
     session.seed_seasonal_quest_status_like_cpp(9, 12_345, 100);
     session
+        .quest_state
         .quest_test_fixture_like_cpp
         .seasonal_quest_changed_like_cpp = true;
     let quest_store = seasonal_quest_store_like_cpp([12_345]);
@@ -350,12 +351,14 @@ fn load_seasonal_quest_status_clears_stale_state_and_resets_changed_on_empty_lik
 
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .seasonal_quests_like_cpp
             .is_empty()
     );
     assert!(
         !session
+            .quest_state
             .quest_test_fixture_like_cpp
             .seasonal_quest_changed_like_cpp
     );
@@ -383,12 +386,14 @@ fn load_seasonal_quest_status_valid_row_populates_and_blocks_can_take_like_cpp()
     assert_eq!(outcome.completed_bit_set, 1);
     assert_eq!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .represented_quest_completed_bits_like_cpp,
         BTreeSet::from([65])
     );
     assert_eq!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .seasonal_quests_like_cpp
             .get(&9)
@@ -416,6 +421,7 @@ fn load_seasonal_quest_status_missing_quest_v2_store_inserts_but_skips_bit_like_
     assert_eq!(outcome.completed_bit_skipped_no_quest_v2_store, 1);
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .represented_quest_completed_bits_like_cpp
             .is_empty()
@@ -441,6 +447,7 @@ fn load_seasonal_quest_status_zero_unique_bit_inserts_but_skips_bit_like_cpp() {
     assert_eq!(outcome.completed_bit_skipped_zero_unique_bit, 1);
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .represented_quest_completed_bits_like_cpp
             .is_empty()
@@ -477,7 +484,7 @@ fn initial_canonical_player_preserves_loaded_seasonal_unique_bit_like_cpp() {
     let (mut session, _, _) = make_session();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 12_345)));
     session.set_loaded_player_name_like_cpp("SeasonalBit".to_string());
-    session.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
+    session.movement.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
     let quest_store = seasonal_quest_store_like_cpp([12_345]);
     let quest_v2_store = seasonal_quest_v2_store_like_cpp([(12_345, 65)]);
 
@@ -516,12 +523,14 @@ fn load_seasonal_quest_status_skips_missing_quest_like_cpp() {
     assert_eq!(outcome.skipped_missing_quest, 1);
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .seasonal_quests_like_cpp
             .is_empty()
     );
     assert!(
         !session
+            .quest_state
             .quest_test_fixture_like_cpp
             .seasonal_quest_changed_like_cpp
     );
@@ -552,6 +561,7 @@ fn load_seasonal_quest_status_duplicate_event_quest_last_row_wins_like_cpp() {
     assert_eq!(outcome.replaced, 1);
     assert_eq!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .seasonal_quests_like_cpp
             .get(&9)
@@ -577,6 +587,7 @@ fn load_seasonal_quest_status_event_out_of_range_is_skipped_not_truncated_like_c
     assert_eq!(outcome.skipped_event_out_of_range, 1);
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .seasonal_quests_like_cpp
             .is_empty()
@@ -600,6 +611,7 @@ fn load_seasonal_quest_status_negative_completed_time_is_skipped_like_cpp() {
     assert_eq!(outcome.skipped_negative_completed_time, 1);
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .seasonal_quests_like_cpp
             .is_empty()
@@ -622,12 +634,14 @@ fn load_seasonal_quest_status_without_quest_store_skips_rows_like_cpp() {
     assert_eq!(outcome.skipped_no_quest_store, 1);
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .seasonal_quests_like_cpp
             .is_empty()
     );
     assert!(
         !session
+            .quest_state
             .quest_test_fixture_like_cpp
             .seasonal_quest_changed_like_cpp
     );
@@ -721,7 +735,10 @@ fn canonical_player_persistent_capabilities_follow_detached_and_stale_ownership_
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     assert!(session.set_represented_at_login_flags_like_cpp(0x24));
     assert_eq!(

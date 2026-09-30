@@ -72,7 +72,8 @@ impl WorldSession {
     ) {
         #[cfg(test)]
         {
-            self.represented_confirm_barbers_choice_requests_like_cpp
+            self.presentation
+                .represented_confirm_barbers_choice_requests_like_cpp
                 .push(request);
         }
     }
@@ -83,13 +84,14 @@ impl WorldSession {
         request: RepresentedConfirmRespecWipeLikeCpp,
     ) {
         #[cfg(test)]
-        self.represented_confirm_respec_wipe_requests_like_cpp
+        self.progression
+            .represented_confirm_respec_wipe_requests_like_cpp
             .push(request);
     }
 
     #[cfg(test)]
     pub(crate) fn delayed_operations_processed_like_cpp(&self) -> u32 {
-        self.delayed_operations_processed_like_cpp
+        self.movement.delayed_operations_processed_like_cpp
     }
 
     pub(crate) fn represented_learn_title_like_cpp(&mut self, title_id: u32) {
@@ -97,8 +99,9 @@ impl WorldSession {
             .with_owned_player_mut_like_cpp(|player| player.learn_title_like_cpp(title_id))
             .is_some();
         #[cfg(test)]
-        if !_canonical && self.player_handle_like_cpp.is_none() {
-            self.quest_test_fixture_like_cpp
+        if !_canonical && self.core.player_handle_like_cpp.is_none() {
+            self.quest_state
+                .quest_test_fixture_like_cpp
                 .represented_known_titles_like_cpp
                 .insert(title_id);
         }
@@ -108,8 +111,9 @@ impl WorldSession {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.has_title_like_cpp(title_id));
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return self
+                .quest_state
                 .quest_test_fixture_like_cpp
                 .represented_known_titles_like_cpp
                 .contains(&title_id);
@@ -122,8 +126,9 @@ impl WorldSession {
             .with_owned_player_mut_like_cpp(|player| player.set_chosen_title_like_cpp(title_id))
             .is_some();
         #[cfg(test)]
-        if !_canonical && self.player_handle_like_cpp.is_none() {
-            self.quest_test_fixture_like_cpp
+        if !_canonical && self.core.player_handle_like_cpp.is_none() {
+            self.quest_state
+                .quest_test_fixture_like_cpp
                 .represented_chosen_title_like_cpp = title_id;
         }
     }
@@ -131,8 +136,9 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_chosen_title_like_cpp(&self) -> i32 {
         let canonical = self.with_owned_player_like_cpp(|player| player.data().player_title);
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return self
+                .quest_state
                 .quest_test_fixture_like_cpp
                 .represented_chosen_title_like_cpp;
         }

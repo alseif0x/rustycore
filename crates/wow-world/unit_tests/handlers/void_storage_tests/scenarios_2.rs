@@ -597,7 +597,7 @@ async fn deposit_definite_rollback_retains_active_item_loot_view_atomically() {
             inventory_type: Some(InventoryType::NonEquip as u8),
         },
     );
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         item_guid,
         CreatureLoot {
             loot_guid: item_guid,
@@ -644,7 +644,7 @@ async fn deposit_definite_rollback_retains_active_item_loot_view_atomically() {
     session.handle_void_storage_transfer(packet).await;
 
     assert!(session.has_active_loot_views_like_cpp());
-    assert!(session.loot_table.contains_key(&item_guid));
+    assert!(session.loot.loot_table.contains_key(&item_guid));
     assert!(
         session
             .get_inventory_item_by_guid_like_cpp(item_guid)
@@ -671,7 +671,7 @@ fn committed_void_deposit_retires_only_its_destroyed_item_loot_like_cpp() {
     let destroyed_item = ObjectGuid::create_item(1, 501);
     let unrelated_item = ObjectGuid::create_item(1, 502);
     for item_guid in [destroyed_item, unrelated_item] {
-        session.loot_table.insert(
+        session.loot.loot_table.insert(
             item_guid,
             CreatureLoot {
                 loot_guid: item_guid,
@@ -694,10 +694,20 @@ fn committed_void_deposit_retires_only_its_destroyed_item_loot_like_cpp() {
 
     session.retire_committed_destroyed_item_loot_like_cpp(destroyed_item, player_guid);
 
-    assert!(!session.active_loot_view_owners.contains(&destroyed_item));
-    assert!(!session.loot_table.contains_key(&destroyed_item));
-    assert!(session.active_loot_view_owners.contains(&unrelated_item));
-    assert!(session.loot_table.contains_key(&unrelated_item));
+    assert!(
+        !session
+            .loot
+            .active_loot_view_owners
+            .contains(&destroyed_item)
+    );
+    assert!(!session.loot.loot_table.contains_key(&destroyed_item));
+    assert!(
+        session
+            .loot
+            .active_loot_view_owners
+            .contains(&unrelated_item)
+    );
+    assert!(session.loot.loot_table.contains_key(&unrelated_item));
     assert_eq!(
         send_rx
             .try_iter()

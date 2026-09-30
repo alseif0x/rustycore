@@ -160,7 +160,7 @@ async fn binder_activate_rejects_instanceable_map_like_cpp() {
         .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
         .unwrap();
     const FEIGN_DEATH_SLOT: u8 = 7;
-    session.visible_auras.insert(
+    session.auras.visible_auras.insert(
         FEIGN_DEATH_SLOT,
         AuraApplication {
             spell_id: 5384,
@@ -204,7 +204,7 @@ async fn binder_activate_rejects_instanceable_map_like_cpp() {
         vec![ServerOpcodes::AuraUpdate],
         "C++ removes feign death before SendBindPoint rejects an instanceable map"
     );
-    assert!(!session.visible_auras.contains_key(&FEIGN_DEATH_SLOT));
+    assert!(!session.auras.visible_auras.contains_key(&FEIGN_DEATH_SLOT));
     assert_eq!(
         session
             .mutate_canonical_player_like_cpp(|player| player

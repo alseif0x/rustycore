@@ -7,30 +7,30 @@ use super::*;
 #[test]
 fn movement_landing_and_jump_remove_cpp_interruptible_auras() {
     let mut session = make_session();
-    session.visible_auras.insert(
+    session.auras.visible_auras.insert(
         1,
         visible_aura(1, SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP, 0),
     );
-    session.visible_auras.insert(
+    session.auras.visible_auras.insert(
         2,
         visible_aura(2, 0, SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP),
     );
-    session.visible_auras.insert(3, visible_aura(3, 0, 0));
+    session.auras.visible_auras.insert(3, visible_aura(3, 0, 0));
 
     session.apply_movement_side_effects_like_cpp(
         Some(ClientOpcodes::MoveFallLand),
         &MovementInfo::default(),
     );
-    assert!(!session.visible_auras.contains_key(&1));
-    assert!(session.visible_auras.contains_key(&2));
-    assert!(session.visible_auras.contains_key(&3));
+    assert!(!session.auras.visible_auras.contains_key(&1));
+    assert!(session.auras.visible_auras.contains_key(&2));
+    assert!(session.auras.visible_auras.contains_key(&3));
 
     session.apply_movement_side_effects_like_cpp(
         Some(ClientOpcodes::MoveJump),
         &MovementInfo::default(),
     );
-    assert!(!session.visible_auras.contains_key(&2));
-    assert!(session.visible_auras.contains_key(&3));
+    assert!(!session.auras.visible_auras.contains_key(&2));
+    assert!(session.auras.visible_auras.contains_key(&3));
     assert_eq!(session.movement_jump_proc_requests_like_cpp(), 1);
 }
 
@@ -129,7 +129,8 @@ async fn vehicle_passenger_turning_updates_facing_without_relocating_or_broadcas
     session.set_player_moved_unit_guid_like_cpp(guid);
     session.set_player_position_like_cpp(initial);
     session.set_time_sync_clock_delta_for_test_like_cpp(1);
-    session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_ALLOW_TURNING);
+    session.vehicles.player_vehicle_seat_flags_like_cpp =
+        Some(wow_data::VEHICLE_SEAT_FLAG_ALLOW_TURNING);
     drain_server_opcodes(&send_rx);
 
     session
@@ -422,11 +423,11 @@ fn movement_fall_damage_applies_cpp_aura_modifiers_and_guards() {
     let mut session = make_session();
     session.set_player_health_like_cpp(1_000, 1_000);
     session.set_fall_information_like_cpp(1_200, 150.0);
-    session.visible_auras.insert(
+    session.auras.visible_auras.insert(
         4,
         fall_aura(4, RepresentedAuraEffectLikeCpp::SafeFall, 10, 1.0),
     );
-    session.visible_auras.insert(
+    session.auras.visible_auras.insert(
         5,
         fall_aura(5, RepresentedAuraEffectLikeCpp::ModifyFallDamagePct, 0, 0.5),
     );
@@ -445,7 +446,7 @@ fn movement_fall_damage_applies_cpp_aura_modifiers_and_guards() {
     let mut guarded = make_session();
     guarded.set_player_health_like_cpp(1_000, 1_000);
     guarded.set_fall_information_like_cpp(1_200, 150.0);
-    guarded.visible_auras.insert(
+    guarded.auras.visible_auras.insert(
         6,
         fall_aura(6, RepresentedAuraEffectLikeCpp::FeatherFall, 0, 1.0),
     );

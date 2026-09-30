@@ -128,9 +128,9 @@ impl WorldSession {
                 count,
             );
         #[cfg(test)]
-        if let Some(grants) = self.loot_item_store_test_grants_like_cpp.clone() {
-            let success = self.loot_item_store_test_success_like_cpp;
-            let commit_gate = self.loot_item_store_test_commit_gate_like_cpp.clone();
+        if let Some(grants) = self.loot.loot_item_store_test_grants_like_cpp.clone() {
+            let success = self.loot.loot_item_store_test_success_like_cpp;
+            let commit_gate = self.loot.loot_item_store_test_commit_gate_like_cpp.clone();
             let materializes_inventory_item = bound_objective_plan.is_none();
             let durable_completion_context = stored_item_loot_source
                 .map(|owner_guid| (owner_guid, loot_entry.loot_list_id, player_guid, true))
@@ -202,7 +202,8 @@ impl WorldSession {
                     .await;
                 debug_assert!(applied.as_ref().is_some_and(|result| result.no_grant));
                 debug_assert!(plan.statuses.iter().all(|planned| {
-                    self.quest_test_fixture_like_cpp
+                    self.quest_state
+                        .quest_test_fixture_like_cpp
                         .player_quests
                         .get(&planned.quest_id)
                         .is_some_and(|actual| {

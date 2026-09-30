@@ -473,7 +473,7 @@ fn legacy_creature_combat_ai_rearms_raw_schedule_but_obeys_category_cooldown_lik
     // does. Detach the session mirror afterwards so the later legacy
     // mutations in this test cannot overwrite the canonical spell history
     // whose cooldown deadlines it asserts.
-    session.canonical_map_manager = None;
+    session.core.canonical_map_manager = None;
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature

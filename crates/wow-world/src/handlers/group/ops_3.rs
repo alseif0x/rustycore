@@ -110,7 +110,7 @@ impl WorldSession {
             roller: sender_guid,
             roller_wow_account: ObjectGuid::new(
                 (HighGuid::WowAccount as i64) << 58,
-                i64::from(self.account_id),
+                i64::from(self.core.account_id),
             ),
             min: roll.min,
             max: roll.max,

@@ -65,6 +65,7 @@ impl WorldSession {
         // C++ Player.cpp:1239 validates the catalog map and all four coordinates
         // before movement, combat, pet, ownership or teleport state is changed.
         if self
+            .catalogs
             .maps
             .store
             .as_ref()
@@ -73,14 +74,14 @@ impl WorldSession {
         {
             warn!(
                 "Invalid map or coordinates for teleport to {} from account {}",
-                new_map, self.account_id
+                new_map, self.core.account_id
             );
             return;
         }
 
         if self.is_map_disabled_for_player_like_cpp(new_map) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 map_id = new_map,
                 "Teleport blocked by C++ DisableMgr map gate"
             );
@@ -89,6 +90,7 @@ impl WorldSession {
         }
 
         if let Some(target_map) = self
+            .catalogs
             .maps
             .store
             .as_ref()
@@ -97,7 +99,7 @@ impl WorldSession {
             && !self.player_in_represented_battleground_like_cpp()
         {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 map_id = new_map,
                 "Teleport silently blocked by C++ battleground assignment gate"
             );
@@ -105,16 +107,17 @@ impl WorldSession {
         }
 
         if let Some(target_map) = self
+            .catalogs
             .maps
             .store
             .as_ref()
             .and_then(|store| store.get(new_map).copied())
-            && self.expansion < target_map.expansion_like_cpp()
+            && self.core.expansion < target_map.expansion_like_cpp()
         {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 map_id = new_map,
-                session_expansion = self.expansion,
+                session_expansion = self.core.expansion,
                 required_expansion = target_map.expansion_like_cpp(),
                 "Teleport blocked by C++ client expansion gate"
             );
@@ -130,7 +133,7 @@ impl WorldSession {
         let Some(current_pos) = self.player_position_like_cpp() else {
             warn!(
                 "Cannot teleport account {}: no current position",
-                self.account_id
+                self.core.account_id
             );
             return;
         };
@@ -221,7 +224,7 @@ impl WorldSession {
         }
 
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             old_map = self.player_map_id_like_cpp(),
             new_map = new_map,
             old_pos = format!(
@@ -258,7 +261,7 @@ impl WorldSession {
         if !self.set_represented_far_teleport_pending_like_cpp(true) {
             return;
         }
-        self.state = SessionState::Transfer;
+        self.core.state = SessionState::Transfer;
 
         // 3. SMSG_SUSPEND_TOKEN — pause movement processing on client. C++
         // Player::TeleportTo sets SequenceIndex = m_movementCounter WITHOUT incrementing
@@ -289,7 +292,7 @@ impl WorldSession {
         }
 
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             "Teleport initiated: map {} → {} dest ({:.2}, {:.2}, {:.2}); awaiting WorldPortResponse",
             self.player_map_id_like_cpp(),
             new_map,
@@ -321,7 +324,8 @@ impl WorldSession {
         self.set_player_movement_flags_like_cpp(movement_flags);
         #[cfg(test)]
         {
-            self.player_movement_jump_like_cpp = wow_packet::packets::movement::JumpInfo::default();
+            self.movement.player_movement_jump_like_cpp =
+                wow_packet::packets::movement::JumpInfo::default();
         }
         let _ = self.mutate_canonical_player_like_cpp(|player| {
             let motion = &mut player.unit_mut().subsystems_mut().motion;
@@ -339,7 +343,7 @@ impl WorldSession {
             return options;
         }
 
-        let Some(map_store) = self.maps.store.as_ref() else {
+        let Some(map_store) = self.catalogs.maps.store.as_ref() else {
             return options & !TELE_TO_SEAMLESS_LIKE_CPP;
         };
         let Some(old_map_entry) = map_store
@@ -439,7 +443,7 @@ impl WorldSession {
         }
 
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             map_id,
             new_pos = format!(
                 "({:.2}, {:.2}, {:.2})",
@@ -566,10 +570,11 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.represented_delayed_resurrection_after_teleport_like_cpp = Some(request);
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.combat
+                .represented_delayed_resurrection_after_teleport_like_cpp = Some(request);
         }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
     pub(crate) fn process_represented_delayed_resurrection_after_teleport_like_cpp(&mut self) {
         let canonical = self
@@ -582,9 +587,10 @@ impl WorldSession {
             .flatten();
         #[cfg(test)]
         let request = canonical.or_else(|| {
-            (self.player_handle_like_cpp.is_none())
+            (self.core.player_handle_like_cpp.is_none())
                 .then(|| {
-                    self.represented_delayed_resurrection_after_teleport_like_cpp
+                    self.combat
+                        .represented_delayed_resurrection_after_teleport_like_cpp
                         .take()
                 })
                 .flatten()
@@ -830,8 +836,10 @@ impl WorldSession {
         self.process_represented_delayed_resurrection_after_teleport_like_cpp();
         #[cfg(test)]
         {
-            self.delayed_operations_processed_like_cpp =
-                self.delayed_operations_processed_like_cpp.saturating_add(1);
+            self.movement.delayed_operations_processed_like_cpp = self
+                .movement
+                .delayed_operations_processed_like_cpp
+                .saturating_add(1);
         }
 
         self.record_move_teleport_ack_event_like_cpp(
@@ -868,7 +876,8 @@ impl WorldSession {
         delayed_operations_processed: bool,
     ) -> MoveTeleportAckActionLikeCpp {
         #[cfg(test)]
-        self.move_teleport_ack_events_like_cpp
+        self.teleport
+            .move_teleport_ack_events_like_cpp
             .push(MoveTeleportAckEventLikeCpp {
                 mover_guid,
                 ack_index,
@@ -919,18 +928,20 @@ impl WorldSession {
     ) -> Option<PlayerTeleportStateLikeCpp> {
         let canonical = self.with_owned_player_like_cpp(|player| *player.teleport_state_like_cpp());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(PlayerTeleportStateLikeCpp {
                 recovery: Default::default(),
-                far_destination: self.pending_teleport,
+                far_destination: self.teleport.pending_teleport,
                 post_add: None,
-                can_delay: self.represented_can_delay_teleport_like_cpp,
-                has_delayed: self.represented_has_delayed_teleport_like_cpp,
-                near_pending: self.near_teleport_pending_like_cpp,
-                far_pending: self.represented_far_teleport_pending_like_cpp,
-                near_destination: self.near_teleport_destination_like_cpp,
-                delayed: self.represented_delayed_teleport_like_cpp,
-                near_destination_zone_area: self.near_teleport_destination_zone_area_like_cpp,
+                can_delay: self.teleport.represented_can_delay_teleport_like_cpp,
+                has_delayed: self.teleport.represented_has_delayed_teleport_like_cpp,
+                near_pending: self.teleport.near_teleport_pending_like_cpp,
+                far_pending: self.teleport.represented_far_teleport_pending_like_cpp,
+                near_destination: self.teleport.near_teleport_destination_like_cpp,
+                delayed: self.teleport.represented_delayed_teleport_like_cpp,
+                near_destination_zone_area: self
+                    .teleport
+                    .near_teleport_destination_zone_area_like_cpp,
             });
         }
         canonical
@@ -939,7 +950,7 @@ impl WorldSession {
         &mut self,
         update: impl FnOnce(&mut PlayerTeleportStateLikeCpp),
     ) -> bool {
-        if self.player_handle_like_cpp.is_some() {
+        if self.core.player_handle_like_cpp.is_some() {
             return self
                 .with_owned_player_mut_like_cpp(|player| {
                     update(player.teleport_state_mut_like_cpp())
@@ -952,14 +963,15 @@ impl WorldSession {
                 .player_teleport_state_snapshot_like_cpp()
                 .unwrap_or_default();
             update(&mut state);
-            self.pending_teleport = state.far_destination;
-            self.represented_can_delay_teleport_like_cpp = state.can_delay;
-            self.represented_has_delayed_teleport_like_cpp = state.has_delayed;
-            self.near_teleport_pending_like_cpp = state.near_pending;
-            self.represented_far_teleport_pending_like_cpp = state.far_pending;
-            self.near_teleport_destination_like_cpp = state.near_destination;
-            self.represented_delayed_teleport_like_cpp = state.delayed;
-            self.near_teleport_destination_zone_area_like_cpp = state.near_destination_zone_area;
+            self.teleport.pending_teleport = state.far_destination;
+            self.teleport.represented_can_delay_teleport_like_cpp = state.can_delay;
+            self.teleport.represented_has_delayed_teleport_like_cpp = state.has_delayed;
+            self.teleport.near_teleport_pending_like_cpp = state.near_pending;
+            self.teleport.represented_far_teleport_pending_like_cpp = state.far_pending;
+            self.teleport.near_teleport_destination_like_cpp = state.near_destination;
+            self.teleport.represented_delayed_teleport_like_cpp = state.delayed;
+            self.teleport.near_teleport_destination_zone_area_like_cpp =
+                state.near_destination_zone_area;
             true
         }
         #[cfg(not(test))]
@@ -993,6 +1005,6 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn move_teleport_ack_events_like_cpp(&self) -> &[MoveTeleportAckEventLikeCpp] {
-        &self.move_teleport_ack_events_like_cpp
+        &self.teleport.move_teleport_ack_events_like_cpp
     }
 }

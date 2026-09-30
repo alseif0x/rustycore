@@ -68,18 +68,22 @@ async fn money_changed_tracking_event_objective_auto_rewards_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![],
+                slot: 0,
+            },
+        );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.money_changed_like_cpp(100).await;
@@ -135,18 +139,22 @@ async fn apply_player_money_change_sets_gold_and_drains_objective_queue_like_cpp
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![],
+                slot: 0,
+            },
+        );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.apply_player_money_change_like_cpp(90, 100).await;
@@ -186,18 +194,22 @@ async fn money_changed_loss_marks_complete_money_objective_incomplete_like_cpp()
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![],
+                slot: 0,
+            },
+        );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.money_changed_like_cpp(50).await;
@@ -245,30 +257,38 @@ async fn tracking_event_reward_money_drains_money_objective_queue_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [reward_quest.clone(), money_objective_quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        reward_quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: reward_quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![],
-            slot: 0,
-        },
-    );
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        money_objective_quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: money_objective_quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![],
-            slot: 1,
-        },
-    );
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
+            reward_quest_id,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id: reward_quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![],
+                slot: 0,
+            },
+        );
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
+            money_objective_quest_id,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id: money_objective_quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![],
+                slot: 1,
+            },
+        );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     assert!(
@@ -328,18 +348,22 @@ async fn currency_tracking_event_objective_auto_rewards_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![],
+                slot: 0,
+            },
+        );
     let _ = drain_server_opcodes(&send_rx);
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
@@ -381,18 +405,22 @@ async fn have_currency_tracking_event_objective_auto_rewards_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![0],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.currency_changed_like_cpp(currency_id, 100).await;
@@ -433,18 +461,22 @@ async fn obtain_currency_tracking_event_objective_auto_rewards_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![0],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.currency_changed_like_cpp(currency_id, 100).await;
@@ -482,7 +514,10 @@ async fn canonical_player_money_follows_active_detached_and_stale_handle_ownersh
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
     assert!(session.set_player_gold_like_cpp(123));
     assert_eq!(session.resolved_player_money_like_cpp(), Some(123));
 
@@ -534,7 +569,7 @@ fn player_currency_helpers_match_cpp_storage_lookup() {
     assert_eq!(session.player_currency_quantity(395), Some(0));
     assert!(!session.has_currency(395, 1));
 
-    session.player_currencies.insert(
+    session.inventory.player_currencies.insert(
         395,
         PlayerCurrency {
             state: PlayerCurrencyState::Unchanged,
@@ -557,7 +592,7 @@ fn set_currency_flags_preserves_new_state_like_cpp() {
     session.set_currency_types_store(Arc::new(wow_data::CurrencyTypesStore::from_entries([
         currency_entry(395),
     ])));
-    session.player_currencies.insert(
+    session.inventory.player_currencies.insert(
         395,
         PlayerCurrency {
             state: PlayerCurrencyState::New,
@@ -572,7 +607,7 @@ fn set_currency_flags_preserves_new_state_like_cpp() {
 
     assert!(session.represented_set_currency_flags_like_cpp(395, 0x04));
 
-    let currency = session.player_currencies.get(&395).unwrap();
+    let currency = session.inventory.player_currencies.get(&395).unwrap();
     assert_eq!(currency.flags, 0x04);
     assert_eq!(currency.state, PlayerCurrencyState::New);
     assert_eq!(
@@ -583,7 +618,7 @@ fn set_currency_flags_preserves_new_state_like_cpp() {
 #[test]
 fn player_currency_vendor_add_caps_and_marks_state_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.player_race = 1;
+    session.identity.player_race = 1;
     session.set_currency_types_store(Arc::new(wow_data::CurrencyTypesStore::from_entries([
         wow_data::CurrencyTypesEntry {
             max_qty: 150,
@@ -594,7 +629,7 @@ fn player_currency_vendor_add_caps_and_marks_state_like_cpp() {
         },
         currency_entry(396),
     ])));
-    session.player_currencies.insert(
+    session.inventory.player_currencies.insert(
         395,
         PlayerCurrency {
             state: PlayerCurrencyState::Unchanged,
@@ -617,6 +652,7 @@ fn player_currency_vendor_add_caps_and_marks_state_like_cpp() {
     assert_eq!(session.player_currency_quantity(395), Some(115));
     assert_eq!(
         session
+            .inventory
             .player_currencies
             .get(&395)
             .map(|currency| currency.state),
@@ -627,6 +663,7 @@ fn player_currency_vendor_add_caps_and_marks_state_like_cpp() {
     assert_eq!(delta.quantity, 3);
     assert_eq!(
         session
+            .inventory
             .player_currencies
             .get(&396)
             .map(|currency| currency.state),
@@ -641,8 +678,8 @@ async fn loot_money_consumes_only_current_active_loot_like_cpp() {
     let active_guid = test_creature_guid(19_001);
     let inactive_guid = test_creature_guid(19_002);
     session.set_player_guid(Some(player_guid));
-    session.player_gold = 100;
-    session.loot_table.insert(
+    session.inventory.player_gold = 100;
+    session.loot.loot_table.insert(
         active_guid,
         CreatureLoot {
             loot_guid: active_guid,
@@ -660,7 +697,7 @@ async fn loot_money_consumes_only_current_active_loot_like_cpp() {
             looted_by_player: false,
         },
     );
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         inactive_guid,
         CreatureLoot {
             loot_guid: inactive_guid,
@@ -698,9 +735,12 @@ async fn loot_money_consumes_only_current_active_loot_like_cpp() {
     pkt.reset_read();
     session.handle_loot_money(pkt).await;
 
-    assert_eq!(session.player_gold, 137);
-    assert_eq!(session.loot_table.get(&active_guid).unwrap().coins, 0);
-    assert_eq!(session.loot_table.get(&inactive_guid).unwrap().coins, 91);
+    assert_eq!(session.inventory.player_gold, 137);
+    assert_eq!(session.loot.loot_table.get(&active_guid).unwrap().coins, 0);
+    assert_eq!(
+        session.loot.loot_table.get(&inactive_guid).unwrap().coins,
+        91
+    );
 
     let coin_removed = send_rx.try_recv().unwrap();
     let mut coin_removed = WorldPacket::from_bytes(&coin_removed);

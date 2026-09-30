@@ -22,8 +22,8 @@ fn retired_object_authority_releases_every_session_window_like_cpp() {
     second.close_retired_active_loot_windows_like_cpp(second_guid);
 
     for (session, owner_guid) in [(&first, owner), (&second, owner)] {
-        assert!(!session.active_loot_view_owners.contains(&owner_guid));
-        assert!(!session.loot_table.contains_key(&owner_guid));
+        assert!(!session.loot.active_loot_view_owners.contains(&owner_guid));
+        assert!(!session.loot.loot_table.contains_key(&owner_guid));
     }
     for rx in [&first_rx, &second_rx] {
         assert_eq!(
@@ -51,6 +51,7 @@ async fn represented_personal_encounter_late_session_without_canonical_tap_list_
     attach_canonical_gameobject(&mut first, gameobject);
     second.set_canonical_map_manager(Arc::clone(
         first
+            .core
             .canonical_map_manager
             .as_ref()
             .expect("both sessions share the canonical map owner"),
@@ -151,9 +152,11 @@ async fn authoritative_partial_release_clears_round_robin_for_all_sessions_and_f
     assert_ne!(generation, replacement_generation);
     authority.add_viewer_like_cpp(opened_first).unwrap();
     first
+        .loot
         .active_loot_view_generations_like_cpp
         .insert(owner_guid, replacement_generation);
     first
+        .loot
         .active_loot_view_authorities_like_cpp
         .insert(owner_guid, authority.clone());
     assert!(first.reconcile_represented_loot_cache_like_cpp(owner_guid, opened_first));
@@ -183,6 +186,7 @@ async fn authoritative_partial_release_clears_round_robin_for_all_sessions_and_f
     assert!(second.reconcile_represented_loot_cache_like_cpp(owner_guid, opened_second));
     assert!(
         second
+            .loot
             .loot_table
             .get(&owner_guid)
             .unwrap()

@@ -70,7 +70,7 @@ impl WorldSession {
                         c.creature.ai_ownership().respawn_time_secs
                     );
                 }
-                self.client_visible_guids_like_cpp.remove(g);
+                self.core.client_visible_guids_like_cpp.remove(g);
             }
             let pkt = UpdateObject::destroy_objects(despawn_guids, map_id);
             output.packets.push(pkt.to_bytes());
@@ -149,19 +149,19 @@ impl WorldSession {
             let block = UpdateObject::create_creature_block(viewer_create_data, &respawn_position);
             let pkt = UpdateObject::create_creatures(vec![block], r.map_id);
             output.packets.push(pkt.to_bytes());
-            self.client_visible_guids_like_cpp.insert(guid);
+            self.core.client_visible_guids_like_cpp.insert(guid);
         }
         // ──────────────────────────────────────────────────────────────────
 
-        let mmap_runtime_config = self.mmap_runtime_config_like_cpp.clone();
-        let mmap_pathfinder = self.mmap_pathfinder_like_cpp.clone();
-        let live_terrain = self.map_manager.as_ref().and_then(|manager| {
+        let mmap_runtime_config = self.config.mmap_runtime_config_like_cpp.clone();
+        let mmap_pathfinder = self.core.mmap_pathfinder_like_cpp.clone();
+        let live_terrain = self.core.map_manager.as_ref().and_then(|manager| {
             manager
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
                 .terrain()
         });
-        let visible_guids = self.client_visible_guids_like_cpp.snapshot_like_cpp();
+        let visible_guids = self.core.client_visible_guids_like_cpp.snapshot_like_cpp();
         let player_position = self.player_position_like_cpp();
         let player_map_id = u32::from(self.player_map_id_like_cpp());
         let player_instance_id = self
@@ -404,7 +404,7 @@ impl WorldSession {
         );
         let (canonical_swing_damages, swing_error_update) = match canonical_attack_update {
             Some((damages, swing_error_update)) => (Some(damages), swing_error_update),
-            None if self.canonical_map_manager.is_some() => return output,
+            None if self.core.canonical_map_manager.is_some() => return output,
             None => (None, None),
         };
         if let Some(swing_error) = swing_error_update {
@@ -536,7 +536,10 @@ impl WorldSession {
             output.packets.push(state_update.to_bytes());
         }
 
-        if self.client_visible_guids_like_cpp.contains(&combat_target)
+        if self
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&combat_target)
             && let Some(update) = self.represented_unit_values_update_to_update_object_like_cpp(
                 combat_target,
                 self.player_map_id_like_cpp(),
@@ -592,7 +595,8 @@ impl WorldSession {
     ///
     /// Falls back to `Session` if no map manager is attached.
     pub(crate) fn runtime_tick_owner_like_cpp(&self) -> RuntimeTickOwner {
-        self.map_manager
+        self.core
+            .map_manager
             .as_ref()
             .map(crate::map_manager::shared_runtime_tick_owner_like_cpp)
             .unwrap_or(RuntimeTickOwner::Session)

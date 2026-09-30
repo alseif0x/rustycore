@@ -40,8 +40,8 @@ async fn full_save_reads_native_map_and_level_despite_stale_session_staging() {
         session
             .with_owned_player_mut_like_cpp(|player| player.unit_mut().set_level(73))
             .unwrap();
-        session.current_map_id = 1;
-        session.player_level = 11;
+        session.core.current_map_id = 1;
+        session.identity.player_level = 11;
         let prepared = session.prepare_player_save_like_cpp(123).unwrap();
         assert_eq!((prepared.header.map_id, prepared.header.level), (571, 73));
         assert_eq!(prepared.request.character.position.map_id, 571);
@@ -100,8 +100,8 @@ async fn full_save_ack_cleans_the_reputation_row_the_player_owns_per_list_id() {
 #[tokio::test]
 async fn full_save_ack_rebases_changed_new_spell_for_the_next_transaction() {
     let (mut session, port) = canonical_session(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
-    let handle = session.player_handle_like_cpp.unwrap();
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let handle = session.core.player_handle_like_cpp.unwrap();
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     *port.during_save.lock().unwrap() = Some(Box::new(move || {
         manager
             .try_lock()
@@ -176,7 +176,7 @@ async fn full_save_cancellation_keeps_receipt_unapplied_and_quarantines_unknown_
     let (mut session, port) = canonical_session(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
     port.save_pending
         .store(true, std::sync::atomic::Ordering::SeqCst);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     let mut future = Box::pin(session.save_current_player_to_db_like_cpp());
     assert!(
         std::future::poll_fn(|cx| std::task::Poll::Ready(future.as_mut().poll(cx).is_pending()))
@@ -243,6 +243,7 @@ fn full_save_preparation_is_owned_and_matches_previous_projection_for_loaded_gro
         assert_eq!(prepared.request.character.money, old.character.money);
         assert!(
             session
+                .core
                 .canonical_map_manager
                 .as_ref()
                 .unwrap()
@@ -256,7 +257,7 @@ fn full_save_preparation_is_owned_and_matches_previous_projection_for_loaded_gro
 async fn full_save_ack_does_not_clean_a_spell_added_after_capture() {
     let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
     install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let handle = session.player_handle_like_cpp.unwrap();
+    let handle = session.core.player_handle_like_cpp.unwrap();
     session
         .with_owned_player_mut_like_cpp(|player| {
             let spells = &mut player.gameplay_state_mut().spells;
@@ -264,7 +265,7 @@ async fn full_save_ack_does_not_clean_a_spell_added_after_capture() {
             spells.insert_row_like_cpp(10, new_spell(10));
         })
         .unwrap();
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     *port.during_save.lock().unwrap() = Some(Box::new(move || {
         // Real shared owner remains usable while persistence is pending.
         manager

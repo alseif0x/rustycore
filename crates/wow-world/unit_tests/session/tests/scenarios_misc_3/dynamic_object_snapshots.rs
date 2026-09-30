@@ -38,7 +38,10 @@ async fn dynamic_object_values_snapshot_direct_player_vertical_only_separation_s
         7,
     );
     prepare_dynamic_object_values_snapshot_like_cpp(&canonical, 571, 7, dynamic_guid, 38.5);
-    session.client_visible_guids_like_cpp.insert(dynamic_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(dynamic_guid);
 
     assert_eq!(
         session.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(),
@@ -103,9 +106,13 @@ async fn dynamic_object_values_snapshot_player_shared_vision_no_seer_gate_sends_
     );
     prepare_dynamic_object_values_snapshot_like_cpp(&canonical, 571, 7, dynamic_guid, 41.5);
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(viewer_guid);
-    session.client_visible_guids_like_cpp.insert(dynamic_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(dynamic_guid);
 
     assert_eq!(
         session.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(),
@@ -117,6 +124,7 @@ async fn dynamic_object_values_snapshot_player_shared_vision_no_seer_gate_sends_
     );
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&dynamic_guid)
     );
@@ -171,7 +179,10 @@ async fn dynamic_object_values_snapshot_shared_vision_requires_source_lists_view
         7,
     );
     prepare_dynamic_object_values_snapshot_like_cpp(&canonical, 571, 7, dynamic_guid, 43.5);
-    session.client_visible_guids_like_cpp.insert(dynamic_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(dynamic_guid);
 
     assert_eq!(
         session.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(),
@@ -180,6 +191,7 @@ async fn dynamic_object_values_snapshot_shared_vision_requires_source_lists_view
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&dynamic_guid)
     );
@@ -209,7 +221,10 @@ async fn dynamic_object_values_snapshot_repeated_process_pending_does_not_resend
         7,
     );
     prepare_dynamic_object_values_snapshot_like_cpp(&canonical, 571, 7, dynamic_guid, 37.5);
-    session.client_visible_guids_like_cpp.insert(dynamic_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(dynamic_guid);
 
     session.process_pending().await;
     session.process_pending().await;
@@ -243,7 +258,10 @@ async fn dynamic_object_values_snapshot_later_same_bytes_resends_on_new_generati
         571,
         7,
     );
-    session.client_visible_guids_like_cpp.insert(dynamic_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(dynamic_guid);
 
     prepare_dynamic_object_values_snapshot_like_cpp(&canonical, 571, 7, dynamic_guid, 37.5);
     let first_generation = canonical

@@ -85,32 +85,32 @@ impl WorldSession {
     }
     /// Set the skill store for this session.
     pub fn set_skill_store(&mut self, store: Arc<SkillStore>) {
-        self.skill_store = Some(store);
+        self.catalogs.skill_store = Some(store);
     }
     /// Get the skill store reference.
     pub fn skill_store(&self) -> Option<&Arc<SkillStore>> {
-        self.skill_store.as_ref()
+        self.catalogs.skill_store.as_ref()
     }
     pub fn set_skill_line_store(&mut self, store: Arc<SkillLineStore>) {
-        self.skill_line_store = Some(store);
+        self.catalogs.skill_line_store = Some(store);
     }
     pub(crate) fn skill_line_store(&self) -> Option<&Arc<SkillLineStore>> {
-        self.skill_line_store.as_ref()
+        self.catalogs.skill_line_store.as_ref()
     }
     pub fn set_skill_tiers_store(&mut self, store: Arc<SkillTiersStoreLikeCpp>) {
-        self.skill_tiers_store = Some(store);
+        self.catalogs.skill_tiers_store = Some(store);
     }
     pub(crate) fn skill_tiers_store(&self) -> Option<&Arc<SkillTiersStoreLikeCpp>> {
-        self.skill_tiers_store.as_ref()
+        self.catalogs.skill_tiers_store.as_ref()
     }
     pub fn set_fishing_base_skill_store(&mut self, store: Arc<FishingBaseSkillStoreLikeCpp>) {
-        self.fishing_base_skill_store = Some(store);
+        self.catalogs.fishing_base_skill_store = Some(store);
     }
     pub(crate) fn fishing_base_skill_store(&self) -> Option<&Arc<FishingBaseSkillStoreLikeCpp>> {
-        self.fishing_base_skill_store.as_ref()
+        self.catalogs.fishing_base_skill_store.as_ref()
     }
     pub fn set_max_primary_trade_skills_like_cpp(&mut self, configured: u8) {
-        self.max_primary_trade_skills_like_cpp =
+        self.config.max_primary_trade_skills_like_cpp =
             if configured <= crate::profession::MAX_PRIMARY_TRADE_SKILLS_CONFIG_LIKE_CPP {
                 configured
             } else {
@@ -118,7 +118,7 @@ impl WorldSession {
             };
     }
     pub(crate) fn max_primary_trade_skills_like_cpp(&self) -> u8 {
-        self.max_primary_trade_skills_like_cpp
+        self.config.max_primary_trade_skills_like_cpp
     }
     #[allow(dead_code)]
     pub(crate) fn set_player_skill_values_like_cpp(
@@ -153,7 +153,7 @@ impl WorldSession {
     ) -> bool {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self.fixture_replace_player_skill_records_like_cpp(
                 skill_records,
                 loaded,
@@ -217,23 +217,29 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.player_skill_test_fixture_like_cpp
+        if self.core.player_handle_like_cpp.is_none() {
+            self.progression
+                .player_skill_test_fixture_like_cpp
                 .player_skill_values_like_cpp =
                 represented_skill_values_from_records_like_cpp(&skill_records);
-            self.represented_enchanting_skill = skill_records
+            self.progression.represented_enchanting_skill = skill_records
                 .get(&SKILL_ENCHANTING_LIKE_CPP)
                 .map(|skill| skill.value)
                 .unwrap_or(0);
-            self.player_skill_test_fixture_like_cpp
+            self.progression
+                .player_skill_test_fixture_like_cpp
                 .player_skill_records_like_cpp = skill_records;
-            self.player_skill_test_fixture_like_cpp
+            self.progression
+                .player_skill_test_fixture_like_cpp
                 .player_skill_non_durable_tombstones_like_cpp = tombstones;
-            self.player_skill_test_fixture_like_cpp
+            self.progression
+                .player_skill_test_fixture_like_cpp
                 .player_skill_records_loaded_like_cpp = loaded;
-            self.player_skill_test_fixture_like_cpp
+            self.progression
+                .player_skill_test_fixture_like_cpp
                 .player_skill_records_complete_like_cpp = complete;
-            self.player_skill_test_fixture_like_cpp
+            self.progression
+                .player_skill_test_fixture_like_cpp
                 .player_skill_occupied_slots_like_cpp = None;
             return true;
         }
@@ -265,23 +271,29 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.player_skill_test_fixture_like_cpp
+        if self.core.player_handle_like_cpp.is_none() {
+            self.progression
+                .player_skill_test_fixture_like_cpp
                 .player_skill_values_like_cpp =
                 represented_skill_values_from_records_like_cpp(&skill_records);
-            self.represented_enchanting_skill = skill_records
+            self.progression.represented_enchanting_skill = skill_records
                 .get(&SKILL_ENCHANTING_LIKE_CPP)
                 .map(|skill| skill.value)
                 .unwrap_or(0);
-            self.player_skill_test_fixture_like_cpp
+            self.progression
+                .player_skill_test_fixture_like_cpp
                 .player_skill_records_like_cpp = skill_records;
-            self.player_skill_test_fixture_like_cpp
+            self.progression
+                .player_skill_test_fixture_like_cpp
                 .player_skill_non_durable_tombstones_like_cpp = tombstones;
-            self.player_skill_test_fixture_like_cpp
+            self.progression
+                .player_skill_test_fixture_like_cpp
                 .player_skill_records_loaded_like_cpp = loaded;
-            self.player_skill_test_fixture_like_cpp
+            self.progression
+                .player_skill_test_fixture_like_cpp
                 .player_skill_records_complete_like_cpp = loaded && complete;
-            self.player_skill_test_fixture_like_cpp
+            self.progression
+                .player_skill_test_fixture_like_cpp
                 .player_skill_occupied_slots_like_cpp = occupied_slots;
             return true;
         }
@@ -289,7 +301,7 @@ impl WorldSession {
     }
     pub(in crate::session) fn clear_player_skill_tombstones_like_cpp(&mut self) {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             self.fixture_clear_player_skill_tombstones_like_cpp();
             return;
         }
@@ -318,7 +330,7 @@ impl WorldSession {
     pub(crate) fn set_player_skill_occupied_slots_like_cpp(&mut self, occupied_slots: u16) -> bool {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self.fixture_set_player_skill_occupied_slots_like_cpp(occupied_slots);
         }
         self.with_owned_player_mut_like_cpp(|player| {
@@ -342,8 +354,9 @@ impl WorldSession {
             self.with_owned_player_like_cpp(Player::skill_records_complete_like_cpp);
         #[cfg(test)]
         let canonical_complete = canonical_complete.or_else(|| {
-            self.player_handle_like_cpp.is_none().then_some(
-                self.player_skill_test_fixture_like_cpp
+            self.core.player_handle_like_cpp.is_none().then_some(
+                self.progression
+                    .player_skill_test_fixture_like_cpp
                     .player_skill_records_complete_like_cpp,
             )
         });
@@ -358,8 +371,9 @@ impl WorldSession {
                 player.replace_skill_records_like_cpp(records, loaded, complete, None, tombstones);
             });
             #[cfg(test)]
-            if self.player_handle_like_cpp.is_none() {
-                self.player_skill_test_fixture_like_cpp
+            if self.core.player_handle_like_cpp.is_none() {
+                self.progression
+                    .player_skill_test_fixture_like_cpp
                     .player_skill_occupied_slots_like_cpp = None;
             }
             return false;
@@ -380,8 +394,9 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.player_skill_test_fixture_like_cpp
+        if self.core.player_handle_like_cpp.is_none() {
+            self.progression
+                .player_skill_test_fixture_like_cpp
                 .player_skill_occupied_slots_like_cpp = Some(occupied_slots);
             return true;
         }
@@ -395,12 +410,14 @@ impl WorldSession {
                 .flatten()
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return self
+                .progression
                 .player_skill_test_fixture_like_cpp
                 .player_skill_records_complete_like_cpp
                 .then_some(
-                    self.player_skill_test_fixture_like_cpp
+                    self.progression
+                        .player_skill_test_fixture_like_cpp
                         .player_skill_occupied_slots_like_cpp,
                 )
                 .flatten();
@@ -414,8 +431,9 @@ impl WorldSession {
         let complete = self.with_owned_player_like_cpp(Player::skill_records_complete_like_cpp);
         #[cfg(test)]
         let complete = complete.or_else(|| {
-            self.player_handle_like_cpp.is_none().then_some(
-                self.player_skill_test_fixture_like_cpp
+            self.core.player_handle_like_cpp.is_none().then_some(
+                self.progression
+                    .player_skill_test_fixture_like_cpp
                     .player_skill_records_complete_like_cpp,
             )
         });
@@ -526,9 +544,10 @@ impl WorldSession {
                 .collect()
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.player_skill_test_fixture_like_cpp
+                self.progression
+                    .player_skill_test_fixture_like_cpp
                     .player_skill_records_like_cpp
                     .clone(),
             );
@@ -565,6 +584,7 @@ impl WorldSession {
         gameobject_guid: ObjectGuid,
     ) -> Option<i32> {
         let area_id = self
+            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)
             .and_then(|state| state.area_id)?;

@@ -57,18 +57,22 @@ async fn force_update_visibility_repopulates_client_guids_after_login_clear_like
         ),
     );
 
-    session.last_visibility_pos = Some(player_position);
-    session.client_visible_guids_like_cpp.clear();
+    session.visibility.last_visibility_pos = Some(player_position);
+    session.core.client_visible_guids_like_cpp.clear();
 
     session.force_update_visibility_like_cpp().await;
 
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&creature_guid),
         "C++ SendInitialPacketsAfterAddToMap::UpdateVisibilityForPlayer repopulates m_clientGUIDs after Map::AddPlayerToMap cleared it"
     );
-    assert_eq!(session.last_visibility_pos, Some(player_position));
+    assert_eq!(
+        session.visibility.last_visibility_pos,
+        Some(player_position)
+    );
     let packets = drain_server_packet_bytes(&send_rx);
     assert!(
         packets.iter().any(|packet| {
@@ -157,6 +161,7 @@ async fn far_sight_update_visibility_uses_represented_seer_position_like_cpp() {
 
     set_canonical_player_farsight_object_like_cpp(&canonical, player_guid, seer_guid);
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(seer_guid);
     session.apply_move_init_active_mover_complete_like_cpp(0);
@@ -172,17 +177,19 @@ async fn far_sight_update_visibility_uses_represented_seer_position_like_cpp() {
 
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&visible_creature_guid),
         "visibility should scan around represented m_seer position"
     );
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&visible_go_guid),
         "canonical GO visibility should use represented m_seer position"
     );
-    assert_eq!(session.last_visibility_pos, Some(seer_position));
+    assert_eq!(session.visibility.last_visibility_pos, Some(seer_position));
 }
 #[tokio::test]
 async fn far_sight_update_visibility_canonical_clear_resets_session_seer_like_cpp() {
@@ -207,14 +214,18 @@ async fn far_sight_update_visibility_canonical_clear_resets_session_seer_like_cp
     ));
     add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(stale_dynamic_object_guid);
-    session.last_visibility_pos = Some(player_position);
+    session.visibility.last_visibility_pos = Some(player_position);
 
     session.update_visibility().await;
 
     assert_eq!(session.represented_seer_guid_like_cpp(), Some(player_guid));
-    assert_eq!(session.last_visibility_pos, Some(player_position));
+    assert_eq!(
+        session.visibility.last_visibility_pos,
+        Some(player_position)
+    );
     let expected_farsight_clear = expected_active_player_farsight_object_values_update_like_cpp(
         player_guid,
         session.player_map_id_like_cpp(),
@@ -257,9 +268,10 @@ async fn far_sight_update_visibility_non_empty_canonical_keeps_session_seer_like
     add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
     set_canonical_player_farsight_object_like_cpp(&canonical, player_guid, dynamic_object_guid);
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(dynamic_object_guid);
-    session.last_visibility_pos = Some(player_position);
+    session.visibility.last_visibility_pos = Some(player_position);
 
     session.update_visibility().await;
 
@@ -301,9 +313,10 @@ async fn far_sight_update_visibility_missing_canonical_player_keeps_session_seer
     ));
     canonical.lock().unwrap().create_world_map(571, 0);
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(stale_dynamic_object_guid);
-    session.last_visibility_pos = Some(player_position);
+    session.visibility.last_visibility_pos = Some(player_position);
 
     session.update_visibility().await;
 
@@ -346,7 +359,10 @@ fn canonical_player_phase_shift_follows_active_detached_and_stale_ownership_like
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     let active_phase = PhaseShift::from_phases([10]);
     assert!(session.set_represented_player_phase_shift_like_cpp(active_phase.clone()));
@@ -465,13 +481,14 @@ async fn player_visibility_refresh_survives_full_command_queue_like_cpp() {
     let mut receiver_info =
         broadcast_info_with_command(receiver_guid, receiver_send_tx, full_command_tx);
     receiver_info.visibility_refresh_pending_like_cpp =
-        Arc::clone(&receiver.flags.visibility_refresh_pending_like_cpp);
+        Arc::clone(&receiver.core.flags.visibility_refresh_pending_like_cpp);
     source_registry.register_or_replace(receiver_guid, receiver_info, Default::default());
 
     source.notify_other_players_visibility_changed_like_cpp();
 
     assert!(
         receiver
+            .core
             .flags
             .visibility_refresh_pending_like_cpp
             .load(Ordering::Acquire),
@@ -489,11 +506,15 @@ async fn player_visibility_refresh_survives_full_command_queue_like_cpp() {
 
     assert!(
         !receiver
+            .core
             .flags
             .visibility_refresh_pending_like_cpp
             .load(Ordering::Acquire)
     );
-    assert_eq!(receiver.last_visibility_pos, Some(Position::ZERO));
+    assert_eq!(
+        receiver.visibility.last_visibility_pos,
+        Some(Position::ZERO)
+    );
 }
 #[test]
 fn player_exit_visibility_refresh_uses_same_full_diff_like_cpp() {
@@ -601,7 +622,12 @@ async fn player_visibility_diff_creates_then_removes_registry_player_like_cpp() 
     registry.register_or_replace(target_guid, target_info, Default::default());
 
     session.force_update_visibility_like_cpp().await;
-    assert!(session.client_visible_guids_like_cpp.contains(&target_guid));
+    assert!(
+        session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&target_guid)
+    );
     let create = send_rx.try_recv().expect("player CREATE visibility diff");
     assert_eq!(
         u16::from_le_bytes(create[0..2].try_into().unwrap()),
@@ -611,7 +637,12 @@ async fn player_visibility_diff_creates_then_removes_registry_player_like_cpp() 
     assert!(registry.fixture_remove(target_guid));
     session.force_update_visibility_like_cpp().await;
 
-    assert!(!session.client_visible_guids_like_cpp.contains(&target_guid));
+    assert!(
+        !session
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&target_guid)
+    );
     let out_of_range = send_rx
         .try_recv()
         .expect("player out-of-range visibility diff");

@@ -27,7 +27,7 @@ impl WorldSession {
         };
 
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             ?guid,
             quest_id,
             start_cheat,
@@ -37,7 +37,7 @@ impl WorldSession {
         // Validate represented C++ source/relation before any quest-log mutation or DB save.
         // C++ HandleQuestgiverAcceptQuestOpcode closes gossip and clears sharing info on
         // failure; this represented slice intentionally models that as no packet/no mutation.
-        let quest_store = match &self.quests.store {
+        let quest_store = match &self.catalogs.quests.store {
             Some(s) => Arc::clone(s),
             None => return,
         };
@@ -47,7 +47,7 @@ impl WorldSession {
             &quest_store,
         ) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 ?guid,
                 quest_id,
                 "AcceptQuest: represented source/relation guard rejected quest"
@@ -56,7 +56,7 @@ impl WorldSession {
         }
         let Some(quest) = quest_store.get(quest_id) else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id, "AcceptQuest: unknown quest"
             );
             return;
@@ -66,7 +66,7 @@ impl WorldSession {
         // Legacy non-canonical note: Player.CanTakeQuest(quest, true)
         if !self.can_take_quest(quest) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id,
                 race = self.player_race_like_cpp(),
                 class = self.player_class_like_cpp(),
@@ -78,7 +78,7 @@ impl WorldSession {
 
         // C++ Player::AddQuest uses FindQuestSlot(0) over explicit QuestLog slots.
         let Some(slot) = self.first_free_quest_slot_like_cpp() else {
-            warn!(account = self.account_id, "Quest log full");
+            warn!(account = self.core.account_id, "Quest log full");
             return;
         };
 
@@ -125,7 +125,7 @@ impl WorldSession {
         self.sync_player_registry_state_like_cpp();
         self.send_represented_quest_log_slot_update_like_cpp(slot);
 
-        info!(account = self.account_id, quest_id, "Quest accepted");
+        info!(account = self.core.account_id, quest_id, "Quest accepted");
 
         // Notify client — quest added popup
         self.send_packet(&QuestGiverQuestComplete {
@@ -163,7 +163,7 @@ impl WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?error,
                     "QuestConfirmAccept: failed to read signed QuestID"
                 );
@@ -174,7 +174,7 @@ impl WorldSession {
         let parsed_quest_id = packet.quest_id as u32;
         let Some(pending) = self.represented_pending_quest_sharing_like_cpp() else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 raw_quest_id = packet.quest_id,
                 parsed_quest_id,
                 "QuestConfirmAccept: no represented pending shared quest"
@@ -184,7 +184,7 @@ impl WorldSession {
 
         if pending.quest_id != parsed_quest_id {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 pending_quest_id = pending.quest_id,
                 raw_quest_id = packet.quest_id,
                 parsed_quest_id,
@@ -195,9 +195,9 @@ impl WorldSession {
 
         self.clear_represented_pending_quest_sharing_like_cpp();
 
-        let Some(quest_store) = &self.quests.store else {
+        let Some(quest_store) = &self.catalogs.quests.store else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 parsed_quest_id,
                 "QuestConfirmAccept: pending cleared before missing quest store like C++ order"
             );
@@ -206,7 +206,7 @@ impl WorldSession {
 
         let Some(quest) = quest_store.get(parsed_quest_id).cloned() else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 parsed_quest_id,
                 "QuestConfirmAccept: pending cleared before missing quest template like C++ order"
             );

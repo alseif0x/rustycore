@@ -65,6 +65,7 @@ impl WorldSession {
         weapon_item_id: Option<u32>,
     ) -> bool {
         let Some(equipped) = self
+            .catalogs
             .spell_catalogs
             .spell_equipped_items_store
             .as_ref()
@@ -180,6 +181,7 @@ impl WorldSession {
             return 0.0;
         };
         let delay_seconds = self
+            .catalogs
             .items
             .stats_store
             .as_ref()

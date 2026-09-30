@@ -65,7 +65,7 @@ impl WorldSession {
     }
     pub(crate) fn record_movement_ack_event_like_cpp(&mut self, event: MovementAckEventLikeCpp) {
         #[cfg(test)]
-        self.movement_ack_events_like_cpp.push(event);
+        self.movement.movement_ack_events_like_cpp.push(event);
         #[cfg(not(test))]
         let _ = event;
     }
@@ -173,7 +173,7 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn movement_ack_events_like_cpp(&self) -> &[MovementAckEventLikeCpp] {
-        &self.movement_ack_events_like_cpp
+        &self.movement.movement_ack_events_like_cpp
     }
     pub(crate) fn handle_movement_force_mod_magnitude_ack_like_cpp(
         &mut self,

@@ -45,7 +45,7 @@ impl WorldSession {
             }
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?error,
                     "Battle-pet purchase compensation decision could not be recorded; recovery re-derives it"
                 );
@@ -151,7 +151,7 @@ impl WorldSession {
             Err(error) => {
                 // Absence cannot be proven; refunding blind is forbidden.
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?error,
                     "Battle-pet purchase compensation cannot prove the receipt absent; refund deferred"
                 );
@@ -237,7 +237,7 @@ impl WorldSession {
                 .await;
                 if let Err(error) = marked {
                     warn!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         ?error,
                         "Battle-pet purchase terminal-failure mark did not commit"
                     );
@@ -247,7 +247,7 @@ impl WorldSession {
             }
             Err(BattlePetPurchaseStoreErrorLikeCpp::Indeterminate(error)) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     error,
                     "Battle-pet purchase refund COMMIT outcome is unknown; quarantined the session"
                 );
@@ -259,7 +259,7 @@ impl WorldSession {
             }
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?error,
                     "Battle-pet purchase compensation did not converge"
                 );
@@ -292,7 +292,7 @@ impl WorldSession {
             )))
             .is_ok();
         if !learned_enqueued {
-            warn!("Send channel closed for account {}", self.account_id);
+            warn!("Send channel closed for account {}", self.core.account_id);
         }
         // Where this lands relative to the commit is the crash window, so the
         // trace has to see it -- and each packet separately, because the client

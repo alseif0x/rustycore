@@ -6,8 +6,8 @@ use super::*;
 fn spell_history_mutation_runs_once_under_active_and_detached_owner() {
     let (mut session, _, _) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
-    let handle = session.player_handle_like_cpp.unwrap();
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
+    let handle = session.core.player_handle_like_cpp.unwrap();
     for detached in [false, true] {
         if detached {
             assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
@@ -50,7 +50,7 @@ fn spell_history_mutation_runs_once_under_active_and_detached_owner() {
 fn spell_history_mutation_rejects_stale_or_missing_owner_without_invoking_callback() {
     let (mut session, _, _) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
@@ -90,7 +90,7 @@ fn spell_history_mutation_rejects_stale_or_missing_owner_without_invoking_callba
             }),
         Some(Some(123))
     );
-    session.canonical_map_manager = None;
+    session.core.canonical_map_manager = None;
     assert_eq!(
         session.mutate_player_spell_history_like_cpp(|_| calls.set(calls.get() + 1)),
         None

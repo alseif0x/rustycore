@@ -23,10 +23,11 @@ impl WorldSession {
         &mut self,
     ) -> Option<PlayerSaveOutcomeLikeCpp> {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return None; // Existing ownerless persistence fixtures, never production.
         }
         if self
+            .core
             .player_handle_like_cpp
             .is_none_or(|handle| self.player_guid() != Some(handle.guid()))
         {
@@ -50,6 +51,7 @@ impl WorldSession {
         item_guid_generator: &wow_core::ObjectGuidGenerator,
     ) -> Option<PlayerSaveOutcomeLikeCpp> {
         if self
+            .core
             .player_handle_like_cpp
             .is_some_and(|handle| self.player_guid() != Some(handle.guid()))
         {
@@ -63,7 +65,7 @@ impl WorldSession {
             ),
             None => {
                 #[cfg(test)]
-                if self.player_handle_like_cpp.is_none() {
+                if self.core.player_handle_like_cpp.is_none() {
                     return None;
                 }
                 Some(PlayerSaveOutcomeLikeCpp::Unavailable)

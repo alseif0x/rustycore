@@ -22,10 +22,10 @@ impl WorldSession {
             return canonical;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return Some(f(
-                &self.represented_void_storage_items_like_cpp,
-                self.represented_void_storage_loaded_like_cpp,
+                &self.inventory.represented_void_storage_items_like_cpp,
+                self.inventory.represented_void_storage_loaded_like_cpp,
             ));
         }
         None
@@ -39,9 +39,11 @@ impl WorldSession {
             return;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_void_storage_items_like_cpp.fill(None);
-            self.represented_void_storage_loaded_like_cpp = false;
+        if self.core.player_handle_like_cpp.is_none() {
+            self.inventory
+                .represented_void_storage_items_like_cpp
+                .fill(None);
+            self.inventory.represented_void_storage_loaded_like_cpp = false;
         }
     }
 
@@ -96,9 +98,9 @@ impl WorldSession {
             return slot;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             let slot = self.represented_void_storage_next_free_slot_like_cpp()?;
-            self.represented_void_storage_items_like_cpp[usize::from(slot)] = Some(item);
+            self.inventory.represented_void_storage_items_like_cpp[usize::from(slot)] = Some(item);
             return Some(slot);
         }
         None
@@ -114,8 +116,9 @@ impl WorldSession {
             return item;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self
+                .inventory
                 .represented_void_storage_items_like_cpp
                 .get_mut(usize::from(slot))
                 .and_then(Option::take);
@@ -142,8 +145,9 @@ impl WorldSession {
             return swapped;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_void_storage_items_like_cpp
+        if self.core.player_handle_like_cpp.is_none() {
+            self.inventory
+                .represented_void_storage_items_like_cpp
                 .swap(usize::from(old_slot), usize::from(new_slot));
             return true;
         }
@@ -159,7 +163,8 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn next_represented_void_storage_item_id_like_cpp(&self) -> Option<u64> {
-        self.void_storage_item_id_generator_like_cpp
+        self.core
+            .void_storage_item_id_generator_like_cpp
             .as_deref()
             .map(|generator| {
                 self.next_represented_void_storage_item_id_with_generator_like_cpp(generator)

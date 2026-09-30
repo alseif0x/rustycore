@@ -202,8 +202,8 @@ fn white_swing_applies_victim_melee_damage_taken_like_cpp() {
             unit.set_weapon_damage(WeaponAttackType::BaseAttack, 100.0, 100.0);
         })
         .unwrap();
-    session.combat_target = Some(guid);
-    session.in_combat = true;
+    session.combat.combat_target = Some(guid);
+    session.combat.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {

@@ -40,6 +40,7 @@ fn visible_gameobjects_create_uses_per_player_go_state_like_cpp() {
     );
     {
         let state = session
+            .world_entities
             .represented_gameobject_use_states
             .get_mut(&gameobject_guid)
             .expect("represented state");
@@ -67,6 +68,7 @@ fn visible_gameobjects_create_uses_per_player_go_state_like_cpp() {
     );
 
     session
+        .world_entities
         .represented_gameobject_use_states
         .get_mut(&gameobject_guid)
         .expect("represented state")
@@ -131,6 +133,7 @@ fn visible_gameobjects_falls_back_to_typed_canonical_data_like_cpp() {
     assert_eq!(visible[0].scale, 1.75);
     assert!(
         !session
+            .world_entities
             .represented_gameobject_use_states
             .contains_key(&gameobject_guid),
         "C++ AddToMap-visible GameObjects are real map objects; visibility must not require session-local represented state"
@@ -232,7 +235,10 @@ async fn send_nearby_creatures_empty_map_source_without_world_db_clears_stale_li
     let stale_creature = test_creature_guid(44);
 
     session.set_map_manager(Arc::clone(&manager));
-    session.client_visible_guids_like_cpp.insert(stale_creature);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(stale_creature);
 
     session
         .send_nearby_creatures(571, &player_position, 0)
@@ -240,10 +246,14 @@ async fn send_nearby_creatures_empty_map_source_without_world_db_clears_stale_li
 
     assert!(
         !session
+            .core
             .client_visible_guids_like_cpp
             .contains(&stale_creature)
     );
-    assert_eq!(session.last_visibility_pos, Some(player_position));
+    assert_eq!(
+        session.visibility.last_visibility_pos,
+        Some(player_position)
+    );
     assert!(
         send_rx.try_recv().is_err(),
         "empty map-owned creature source without world DB should not send creates"
@@ -259,6 +269,7 @@ async fn send_nearby_gameobjects_empty_canonical_source_is_authoritative_like_cp
     canonical.lock().unwrap().create_world_map(571, 0);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(stale_gameobject);
 
@@ -268,6 +279,7 @@ async fn send_nearby_gameobjects_empty_canonical_source_is_authoritative_like_cp
 
     assert!(
         !session
+            .core
             .client_visible_guids_like_cpp
             .contains(&stale_gameobject)
     );
@@ -319,6 +331,7 @@ async fn send_nearby_gameobjects_does_not_recreate_known_gameobjects_like_cpp() 
     );
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&gameobject_guid),
         "gameobject should be tracked as known after the first create"

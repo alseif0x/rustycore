@@ -47,7 +47,7 @@ impl WorldSession {
     pub async fn handle_banker_activate(&mut self, hello: Hello) {
         info!(
             "BankerActivate {:?} account {}",
-            hello.unit, self.account_id
+            hello.unit, self.core.account_id
         );
         let Some(_banker) = self.represented_npc_can_interact_with_like_cpp(
             hello.unit,
@@ -56,7 +56,7 @@ impl WorldSession {
         ) else {
             debug!(
                 banker_guid = ?hello.unit,
-                account = self.account_id,
+                account = self.core.account_id,
                 "BankerActivate rejected: NPC missing, out of range, dead, or lacks BANKER flag"
             );
             return;
@@ -81,7 +81,7 @@ impl WorldSession {
             debug!(
                 bag = packet.bag,
                 slot = packet.slot,
-                account = self.account_id,
+                account = self.core.account_id,
                 "AutoBankItem rejected: player cannot use current bank"
             );
             return;
@@ -120,7 +120,7 @@ impl WorldSession {
             debug!(
                 bag = packet.bag,
                 slot = packet.slot,
-                account = self.account_id,
+                account = self.core.account_id,
                 "AutoStoreBankItem rejected: player cannot use current bank"
             );
             return;
@@ -169,7 +169,7 @@ impl WorldSession {
         else {
             debug!(
                 banker_guid = ?buy.guid,
-                account = self.account_id,
+                account = self.core.account_id,
                 "BuyBankSlot rejected: NPC missing, out of range, dead, or lacks BANKER flag"
             );
             return;
@@ -182,7 +182,7 @@ impl WorldSession {
         let Some(price) = prices.get(next_slot).map(|entry| entry.cost) else {
             debug!(
                 next_slot,
-                account = self.account_id,
+                account = self.core.account_id,
                 "BuyBankSlot rejected: missing BankBagSlotPrices.db2 row"
             );
             return;
@@ -220,7 +220,7 @@ impl WorldSession {
                 next_slot,
                 price,
                 old_money,
-                account = self.account_id,
+                account = self.core.account_id,
                 "BuyBankSlot rejected: not enough money"
             );
             return;
@@ -312,7 +312,7 @@ impl WorldSession {
     pub async fn handle_change_bank_bag_slot_flag(&mut self, packet: ChangeBankBagSlotFlag) {
         if !self.represented_can_use_current_bank_like_cpp() {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "ChangeBankBagSlotFlag rejected: player cannot use current bank"
             );
             return;
@@ -324,7 +324,7 @@ impl WorldSession {
         if slot >= 7 {
             debug!(
                 slot = packet.slot,
-                account = self.account_id,
+                account = self.core.account_id,
                 "ChangeBankBagSlotFlag rejected: invalid bank bag slot"
             );
             return;
@@ -332,7 +332,7 @@ impl WorldSession {
         if packet.flag >= u32::BITS {
             debug!(
                 flag = packet.flag,
-                account = self.account_id,
+                account = self.core.account_id,
                 "ChangeBankBagSlotFlag rejected: invalid flag bit"
             );
             return;

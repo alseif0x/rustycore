@@ -51,6 +51,7 @@ impl WorldSession {
 
         {
             let state = self
+                .world_entities
                 .represented_gameobject_use_states
                 .entry(command.gameobject_guid)
                 .or_default();
@@ -103,6 +104,7 @@ impl WorldSession {
 
         {
             let state = self
+                .world_entities
                 .represented_gameobject_use_states
                 .entry(command.gameobject_guid)
                 .or_default();
@@ -177,6 +179,7 @@ impl WorldSession {
 
         {
             let state = self
+                .world_entities
                 .represented_gameobject_use_states
                 .entry(command.gameobject_guid)
                 .or_default();
@@ -215,10 +218,12 @@ impl WorldSession {
         self.record_represented_gameobject_chest_release_metadata_like_cpp(gameobject_guid, source);
 
         let is_first_represented_unique_use = !self
+            .loot
             .represented_unique_gameobject_uses
             .contains(&gameobject_guid);
         if source.loot_id == 0 && is_first_represented_unique_use {
-            self.represented_unique_gameobject_uses
+            self.loot
+                .represented_unique_gameobject_uses
                 .insert(gameobject_guid);
             self.mutate_canonical_gameobject_by_guid_like_cpp(gameobject_guid, |gameobject| {
                 gameobject.add_unique_use_like_cpp(player_guid);
@@ -249,7 +254,7 @@ impl WorldSession {
         }
 
         let should_record_generation_effects =
-            source.loot_id != 0 && !self.loot_table.contains_key(&gameobject_guid);
+            source.loot_id != 0 && !self.loot.loot_table.contains_key(&gameobject_guid);
         let allowed_looters = if source.is_personal_encounter_loot_like_cpp() {
             Vec::new()
         } else if source.uses_personal_loot_like_cpp() {
@@ -269,7 +274,7 @@ impl WorldSession {
             template_money,
         )
         .await;
-        if should_record_generation_effects && self.loot_table.contains_key(&gameobject_guid) {
+        if should_record_generation_effects && self.loot.loot_table.contains_key(&gameobject_guid) {
             self.record_represented_gameobject_use_effects_like_cpp(
                 gameobject_guid,
                 player_guid,
@@ -282,11 +287,11 @@ impl WorldSession {
             .sync_represented_gameobject_loot_to_canonical_like_cpp(gameobject_guid, player_guid)
             .is_none()
         {
-            self.loot_table.remove(&gameobject_guid);
+            self.loot.loot_table.remove(&gameobject_guid);
             return;
         }
 
-        let Some(loot) = self.loot_table.get(&gameobject_guid) else {
+        let Some(loot) = self.loot.loot_table.get(&gameobject_guid) else {
             return;
         };
         // C++ keeps and sends an empty non-encounter
@@ -358,7 +363,7 @@ impl WorldSession {
         .await;
         if should_update_criteria {
             let player_guid = player_guid.expect("checked above");
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::FishingHoleCatchCriteriaUpdated {
                     gameobject_guid,
                     player_guid,
@@ -434,7 +439,7 @@ impl WorldSession {
         else {
             return;
         };
-        self.loot_table.insert(
+        self.loot.loot_table.insert(
             gameobject_guid,
             CreatureLoot {
                 loot_guid,
@@ -453,10 +458,11 @@ impl WorldSession {
             },
         );
 
-        if let Some(loot) = self.loot_table.get_mut(&gameobject_guid) {
+        if let Some(loot) = self.loot.loot_table.get_mut(&gameobject_guid) {
             mark_loot_allowed_for_player_like_cpp(loot, player_guid);
         }
         let upserted = self
+            .loot
             .loot_table
             .get(&gameobject_guid)
             .cloned()
@@ -472,11 +478,11 @@ impl WorldSession {
                 })
             });
         if upserted.is_none() && !represented_local_loot_fixture_allowed_like_cpp() {
-            self.loot_table.remove(&gameobject_guid);
+            self.loot.loot_table.remove(&gameobject_guid);
             return;
         }
 
-        let Some(loot) = self.loot_table.get(&gameobject_guid) else {
+        let Some(loot) = self.loot.loot_table.get(&gameobject_guid) else {
             return;
         };
         if !self.represented_loot_can_be_opened_by_player_like_cpp(
@@ -548,10 +554,12 @@ impl WorldSession {
         }
 
         let is_first_represented_use = !self
+            .loot
             .represented_unique_gameobject_uses
             .contains(&gameobject_guid);
         if is_first_represented_use {
-            self.represented_unique_gameobject_uses
+            self.loot
+                .represented_unique_gameobject_uses
                 .insert(gameobject_guid);
             self.mutate_canonical_gameobject_by_guid_like_cpp(gameobject_guid, |gameobject| {
                 gameobject.add_unique_use_like_cpp(player_guid);
@@ -595,6 +603,7 @@ impl WorldSession {
         gameobject_guid: ObjectGuid,
     ) -> Option<SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand> {
         let state = self
+            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)?;
         Some(SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand {
@@ -621,6 +630,7 @@ impl WorldSession {
         gameobject_guid: ObjectGuid,
     ) -> Option<SyncChestGameobjectStateAndRefreshLikeCppCommand> {
         let state = self
+            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)?;
         let source = state.chest_loot_source?;
@@ -650,6 +660,7 @@ impl WorldSession {
         gameobject_guid: ObjectGuid,
     ) -> Option<SyncGooberGameobjectStateAndRefreshLikeCppCommand> {
         let state = self
+            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)?;
         Some(SyncGooberGameobjectStateAndRefreshLikeCppCommand {
@@ -792,7 +803,7 @@ impl WorldSession {
         creature_guid: ObjectGuid,
     ) -> bool {
         let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        if let Some(manager) = self.map_manager.as_ref()
+        if let Some(manager) = self.core.map_manager.as_ref()
             && let Some(creature) = manager
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -806,7 +817,7 @@ impl WorldSession {
         else {
             return false;
         };
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
             return false;
         };
         let Ok(manager) = manager.lock() else {
@@ -868,6 +879,7 @@ impl WorldSession {
         player_guid: ObjectGuid,
     ) -> bool {
         let state = self
+            .world_entities
             .represented_gameobject_use_states
             .entry(gameobject_guid)
             .or_default();
@@ -890,6 +902,7 @@ impl WorldSession {
     ) {
         {
             let state = self
+                .world_entities
                 .represented_gameobject_use_states
                 .entry(gameobject_guid)
                 .or_default();
@@ -910,6 +923,7 @@ impl WorldSession {
             .set_represented_gameobject_loot_state_activated_like_cpp(gameobject_guid, player_guid);
         if activated_now && source.despawn_delay_secs != 0 {
             if let Some(state) = self
+                .world_entities
                 .represented_gameobject_use_states
                 .get_mut(&gameobject_guid)
             {
@@ -959,7 +973,7 @@ impl WorldSession {
         linked_trap_entry: u32,
     ) {
         if triggered_event_id != 0 {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::TriggerGameEvent {
                     gameobject_guid,
                     player_guid,
@@ -968,7 +982,7 @@ impl WorldSession {
             );
         }
         if linked_trap_entry != 0 {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::TriggerLinkedTrap {
                     gameobject_guid,
                     player_guid,
@@ -983,7 +997,7 @@ impl WorldSession {
             return 0;
         }
 
-        let xp_store = self.quests.xp_store.as_ref();
+        let xp_store = self.catalogs.quests.xp_store.as_ref();
         xp_store
             .map(|store| {
                 store.player_level_difficulty_xp_like_cpp(

@@ -90,16 +90,24 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn buyback_price_like_cpp(&self) -> &[u32; BUYBACK_SLOT_COUNT] {
-        &self.player_item_test_fixture_like_cpp.buyback_price
+        &self
+            .inventory
+            .player_item_test_fixture_like_cpp
+            .buyback_price
     }
 
     #[cfg(test)]
     pub(crate) fn buyback_timestamp_like_cpp(&self) -> &[i64; BUYBACK_SLOT_COUNT] {
-        &self.player_item_test_fixture_like_cpp.buyback_timestamp
+        &self
+            .inventory
+            .player_item_test_fixture_like_cpp
+            .buyback_timestamp
     }
 
     #[cfg(test)]
     pub(crate) fn current_buyback_slot_like_cpp(&self) -> u8 {
-        self.player_item_test_fixture_like_cpp.current_buyback_slot
+        self.inventory
+            .player_item_test_fixture_like_cpp
+            .current_buyback_slot
     }
 }

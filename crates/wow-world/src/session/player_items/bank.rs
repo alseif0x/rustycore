@@ -9,13 +9,13 @@ impl WorldSession {
     /// Set the C++ BankBagSlotPrices.db2 store for this session.
     #[cfg(test)]
     pub fn set_bank_bag_slot_prices_store(&mut self, store: Arc<BankBagSlotPricesStore>) {
-        self.bank_bag_slot_prices_store = Some(store);
+        self.catalogs.bank_bag_slot_prices_store = Some(store);
     }
     #[cfg(test)]
     pub(crate) fn bank_bag_slot_prices_store_for_test_like_cpp(
         &self,
     ) -> Option<&Arc<BankBagSlotPricesStore>> {
-        self.bank_bag_slot_prices_store.as_ref()
+        self.catalogs.bank_bag_slot_prices_store.as_ref()
     }
     /// C++ `Player::DurabilityRepairAll(takeCost=true, guildBank=true)` for represented items.
     pub(crate) async fn repair_all_inventory_item_durability_with_guild_bank_and_generator_like_cpp(
@@ -24,7 +24,8 @@ impl WorldSession {
         discount: f32,
         repair_cost_rate: f32,
     ) -> bool {
-        let Some(guild_bank_state) = self.represented_guild_repair_bank_state_like_cpp else {
+        let Some(guild_bank_state) = self.inventory.represented_guild_repair_bank_state_like_cpp
+        else {
             return false;
         };
         let available_guild_money = guild_bank_state.available_repair_money;
@@ -62,13 +63,13 @@ impl WorldSession {
         #[cfg(test)]
         let withdraw_amount = total_cost.min(MAX_MONEY_AMOUNT);
         #[cfg(test)]
-        self.represented_guild_repair_bank_withdraws_like_cpp.push(
-            RepresentedGuildRepairBankWithdrawLikeCpp {
+        self.inventory
+            .represented_guild_repair_bank_withdraws_like_cpp
+            .push(RepresentedGuildRepairBankWithdrawLikeCpp {
                 amount: withdraw_amount,
                 repair: true,
                 success: guild_bank_state.withdraw_repair_money_allowed,
-            },
-        );
+            });
         repaired_any || total_cost == 0
     }
     #[cfg(test)]
@@ -272,11 +273,12 @@ impl WorldSession {
             .with_owned_player_mut_like_cpp(|player| player.set_bank_bag_slot_count(count))
             .is_some();
         #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.player_item_test_fixture_like_cpp
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.inventory
+                .player_item_test_fixture_like_cpp
                 .player_bank_bag_slot_count_like_cpp = count;
         }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
     pub(crate) fn represented_can_use_current_bank_like_cpp(&self) -> bool {
         let Some(banker_guid) = self.player_interaction_source_guid_like_cpp() else {
@@ -296,12 +298,13 @@ impl WorldSession {
         move_like_cpp: RepresentedBankItemMoveLikeCpp,
     ) {
         #[cfg(test)]
-        self.represented_bank_item_moves_like_cpp
+        self.inventory
+            .represented_bank_item_moves_like_cpp
             .push(move_like_cpp);
     }
     #[cfg(test)]
     pub(crate) fn represented_bank_item_moves_like_cpp(&self) -> &[RepresentedBankItemMoveLikeCpp] {
-        &self.represented_bank_item_moves_like_cpp
+        &self.inventory.represented_bank_item_moves_like_cpp
     }
     pub(crate) fn represented_guild_bank_can_interact_like_cpp(
         &self,
@@ -315,7 +318,10 @@ impl WorldSession {
         &self,
         banker: ObjectGuid,
     ) -> Option<()> {
-        let state = self.represented_gameobject_use_states.get(&banker)?;
+        let state = self
+            .world_entities
+            .represented_gameobject_use_states
+            .get(&banker)?;
         if state.go_type.map(u32::from) != Some(GAMEOBJECT_TYPE_GUILD_BANK) {
             return None;
         }
@@ -334,14 +340,14 @@ impl WorldSession {
             return false;
         };
         #[cfg(test)]
-        self.represented_guild_bank_list_requests_like_cpp.push(
-            RepresentedGuildBankListRequestLikeCpp {
+        self.inventory
+            .represented_guild_bank_list_requests_like_cpp
+            .push(RepresentedGuildBankListRequestLikeCpp {
                 banker,
                 guild_id,
                 tab,
                 full_update,
-            },
-        );
+            });
         true
     }
     #[cfg_attr(not(test), allow(unused_variables))]
@@ -367,8 +373,9 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        self.represented_guild_bank_inventory_moves_like_cpp.push(
-            RepresentedGuildBankInventoryMoveLikeCpp {
+        self.inventory
+            .represented_guild_bank_inventory_moves_like_cpp
+            .push(RepresentedGuildBankInventoryMoveLikeCpp {
                 banker,
                 guild_id,
                 to_char,
@@ -377,8 +384,7 @@ impl WorldSession {
                 player_bag,
                 player_slot,
                 stack_count,
-            },
-        );
+            });
         true
     }
     #[cfg_attr(not(test), allow(unused_variables))]
@@ -405,14 +411,14 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        self.represented_guild_bank_money_moves_like_cpp.push(
-            RepresentedGuildBankMoneyMoveLikeCpp {
+        self.inventory
+            .represented_guild_bank_money_moves_like_cpp
+            .push(RepresentedGuildBankMoneyMoveLikeCpp {
                 banker,
                 guild_id,
                 deposit,
                 money,
-            },
-        );
+            });
         true
     }
     #[cfg_attr(not(test), allow(unused_variables))]
@@ -433,14 +439,14 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        self.represented_guild_bank_tab_actions_like_cpp.push(
-            RepresentedGuildBankTabActionLikeCpp {
+        self.inventory
+            .represented_guild_bank_tab_actions_like_cpp
+            .push(RepresentedGuildBankTabActionLikeCpp {
                 banker: (!banker.is_empty()).then_some(banker),
                 guild_id,
                 tab: i32::from(tab),
                 action: RepresentedGuildBankTabActionKindLikeCpp::Buy,
-            },
-        );
+            });
         true
     }
     #[cfg_attr(not(test), allow(unused_variables))]
@@ -460,14 +466,14 @@ impl WorldSession {
         };
 
         #[cfg(test)]
-        self.represented_guild_bank_tab_actions_like_cpp.push(
-            RepresentedGuildBankTabActionLikeCpp {
+        self.inventory
+            .represented_guild_bank_tab_actions_like_cpp
+            .push(RepresentedGuildBankTabActionLikeCpp {
                 banker: Some(banker),
                 guild_id,
                 tab: i32::from(tab),
                 action: RepresentedGuildBankTabActionKindLikeCpp::Update { name, icon },
-            },
-        );
+            });
         true
     }
     pub(crate) fn guild_bank_log_query_like_cpp(&mut self, tab: i32) -> bool {
@@ -502,47 +508,50 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        self.represented_guild_bank_tab_actions_like_cpp.push(
-            RepresentedGuildBankTabActionLikeCpp {
+        self.inventory
+            .represented_guild_bank_tab_actions_like_cpp
+            .push(RepresentedGuildBankTabActionLikeCpp {
                 banker: None,
                 guild_id,
                 tab,
                 action,
-            },
-        );
+            });
         true
     }
     #[cfg(test)]
     pub(crate) fn represented_guild_bank_inventory_moves_like_cpp(
         &self,
     ) -> &[RepresentedGuildBankInventoryMoveLikeCpp] {
-        &self.represented_guild_bank_inventory_moves_like_cpp
+        &self
+            .inventory
+            .represented_guild_bank_inventory_moves_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn represented_guild_bank_list_requests_like_cpp(
         &self,
     ) -> &[RepresentedGuildBankListRequestLikeCpp] {
-        &self.represented_guild_bank_list_requests_like_cpp
+        &self.inventory.represented_guild_bank_list_requests_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn represented_guild_bank_money_moves_like_cpp(
         &self,
     ) -> &[RepresentedGuildBankMoneyMoveLikeCpp] {
-        &self.represented_guild_bank_money_moves_like_cpp
+        &self.inventory.represented_guild_bank_money_moves_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn represented_guild_bank_tab_actions_like_cpp(
         &self,
     ) -> &[RepresentedGuildBankTabActionLikeCpp] {
-        &self.represented_guild_bank_tab_actions_like_cpp
+        &self.inventory.represented_guild_bank_tab_actions_like_cpp
     }
     pub(crate) fn represented_bank_bag_slot_flag_like_cpp(&self, slot: usize) -> Option<u32> {
         let canonical = self
             .with_owned_player_like_cpp(|player| player.bank_bag_slot_flag_value_like_cpp(slot))
             .flatten();
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return self
+                .inventory
                 .represented_bank_bag_slot_flags_like_cpp
                 .get(slot)
                 .copied();
@@ -560,8 +569,11 @@ impl WorldSession {
             })
             .unwrap_or(false);
         #[cfg(test)]
-        if (canonical || self.player_handle_like_cpp.is_none())
-            && let Some(flag) = self.represented_bank_bag_slot_flags_like_cpp.get_mut(slot)
+        if (canonical || self.core.player_handle_like_cpp.is_none())
+            && let Some(flag) = self
+                .inventory
+                .represented_bank_bag_slot_flags_like_cpp
+                .get_mut(slot)
         {
             *flag = value;
             return true;
@@ -571,9 +583,10 @@ impl WorldSession {
     pub(crate) fn resolved_player_bank_bag_slot_count_like_cpp(&self) -> Option<u8> {
         let canonical = self.with_owned_player_like_cpp(Player::bank_bag_slot_count);
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.player_item_test_fixture_like_cpp
+                self.inventory
+                    .player_item_test_fixture_like_cpp
                     .player_bank_bag_slot_count_like_cpp,
             );
         }
@@ -589,12 +602,14 @@ impl WorldSession {
         &mut self,
         state: Option<RepresentedGuildRepairBankStateLikeCpp>,
     ) {
-        self.represented_guild_repair_bank_state_like_cpp = state;
+        self.inventory.represented_guild_repair_bank_state_like_cpp = state;
     }
     #[cfg(test)]
     pub(crate) fn represented_guild_repair_bank_withdraws_like_cpp(
         &self,
     ) -> &[RepresentedGuildRepairBankWithdrawLikeCpp] {
-        &self.represented_guild_repair_bank_withdraws_like_cpp
+        &self
+            .inventory
+            .represented_guild_repair_bank_withdraws_like_cpp
     }
 }

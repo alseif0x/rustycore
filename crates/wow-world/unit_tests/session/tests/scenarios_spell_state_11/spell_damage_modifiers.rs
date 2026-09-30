@@ -9,8 +9,8 @@ async fn spell_school_damage_applies_damage_done_versus_like_cpp() {
     let spell_id = 728_i32;
     let guid = test_creature_guid(18_015);
     let player_guid = ObjectGuid::create_player(1, 59);
-    session.player_guid = Some(player_guid);
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(player_guid);
+    session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     // `register_test_creature` uses entry 9001; give it creature type 7.
@@ -130,8 +130,8 @@ async fn spell_school_damage_applies_damage_done_versus_aurastate_like_cpp() {
     let spell_id = 730_i32;
     let guid = test_creature_guid(18_017);
     let player_guid = ObjectGuid::create_player(1, 61);
-    session.player_guid = Some(player_guid);
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(player_guid);
+    session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     session
@@ -254,8 +254,8 @@ async fn spell_school_damage_applies_damage_done_for_mechanic_like_cpp() {
     let spell_id = 732_i32;
     let guid = test_creature_guid(18_018);
     let player_guid = ObjectGuid::create_player(1, 63);
-    session.player_guid = Some(player_guid);
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(player_guid);
+    session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
 
@@ -376,8 +376,8 @@ async fn spell_school_damage_applies_damage_percent_done_by_target_aura_mechanic
     let spell_id = 733_i32;
     let guid = test_creature_guid(18_019);
     let player_guid = ObjectGuid::create_player(1, 64);
-    session.player_guid = Some(player_guid);
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(player_guid);
+    session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
 

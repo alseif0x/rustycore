@@ -271,7 +271,8 @@ pub(crate) struct MovementUnderMapDamageEvent {
 impl WorldSession {
     pub(crate) fn player_min_height_like_cpp(&self, position: wow_core::Position) -> f32 {
         let map_id = self.player_map_id_like_cpp();
-        self.map_manager
+        self.core
+            .map_manager
             .as_ref()
             .and_then(|manager| {
                 manager
@@ -284,7 +285,7 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn player_out_of_bounds_like_cpp(&self) -> bool {
-        self.player_out_of_bounds_like_cpp
+        self.movement.player_out_of_bounds_like_cpp
     }
 
     pub(in crate::session) fn set_represented_can_fly_like_cpp(&mut self, enable: bool) -> bool {
@@ -324,12 +325,16 @@ impl WorldSession {
         });
         #[cfg(test)]
         let changed = canonical_changed.unwrap_or_else(|| {
-            if self.player_handle_like_cpp.is_some()
-                || self.represented_can_swim_to_fly_transition_like_cpp == enable
+            if self.core.player_handle_like_cpp.is_some()
+                || self
+                    .movement
+                    .represented_can_swim_to_fly_transition_like_cpp
+                    == enable
             {
                 return false;
             }
-            self.represented_can_swim_to_fly_transition_like_cpp = enable;
+            self.movement
+                .represented_can_swim_to_fly_transition_like_cpp = enable;
             true
         });
         #[cfg(not(test))]
@@ -342,7 +347,8 @@ impl WorldSession {
 
         #[cfg(test)]
         if canonical_changed.is_some() {
-            self.represented_can_swim_to_fly_transition_like_cpp = enable;
+            self.movement
+                .represented_can_swim_to_fly_transition_like_cpp = enable;
         }
         self.send_player_move_set_flag_like_cpp(if enable {
             ServerOpcodes::MoveEnableTransitionBetweenSwimAndFly
@@ -361,7 +367,7 @@ impl WorldSession {
         trace!(
             target: "anticheat.violation",
             rule,
-            account = self.account_id,
+            account = self.core.account_id,
             character = ?self.player_guid(),
             ?opcode,
             severity,

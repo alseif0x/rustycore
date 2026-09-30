@@ -16,7 +16,8 @@ impl WorldSession {
             DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP,
         ) {
             if gameobjects.is_empty() {
-                self.client_visible_guids_like_cpp
+                self.core
+                    .client_visible_guids_like_cpp
                     .retain(|guid| !guid.is_game_object());
                 return;
             }
@@ -26,23 +27,25 @@ impl WorldSession {
             // already in `m_clientGUIDs` (`!HaveAtClient`). Re-creating a known gameobject
             // sends a duplicate CREATE, which the Wrath client rejects by resetting the
             // connection. This function runs on world-port/spawn and must skip known GOs.
-            let known_guids = &self.client_visible_guids_like_cpp;
+            let known_guids = &self.core.client_visible_guids_like_cpp;
             let blocks = gameobjects
                 .into_iter()
                 .filter(|go| !known_guids.contains(&go.guid))
                 .map(UpdateObject::create_gameobject_block)
                 .collect::<Vec<_>>();
             let count = blocks.len();
-            self.client_visible_guids_like_cpp
+            self.core
+                .client_visible_guids_like_cpp
                 .retain(|guid| !guid.is_game_object());
-            self.client_visible_guids_like_cpp
+            self.core
+                .client_visible_guids_like_cpp
                 .extend(go_guids.iter().copied());
             if !blocks.is_empty() {
                 self.send_packet(&UpdateObject::create_world_objects(blocks, map_id));
             }
             debug!(
                 "Sent {} new canonical gameobjects to account {} on map {}",
-                count, self.account_id, map_id
+                count, self.core.account_id, map_id
             );
             return;
         }
@@ -229,16 +232,18 @@ impl WorldSession {
             return;
         }
 
-        self.client_visible_guids_like_cpp
+        self.core
+            .client_visible_guids_like_cpp
             .retain(|guid| !guid.is_game_object());
-        self.client_visible_guids_like_cpp
+        self.core
+            .client_visible_guids_like_cpp
             .extend(go_guids.iter().copied());
         let count = blocks.len();
         let update = UpdateObject::create_world_objects(blocks, map_id);
         self.send_packet(&update);
         debug!(
             "Sent {} gameobjects to account {} on map {}",
-            count, self.account_id, map_id
+            count, self.core.account_id, map_id
         );
     }
 }

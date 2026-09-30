@@ -15,7 +15,7 @@ impl WorldSession {
             Ok(queue) => queue,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "AreaSpiritHealerQueue parse failed: {error}"
                 );
                 return;
@@ -27,7 +27,7 @@ impl WorldSession {
             .is_none()
         {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 healer = ?queue.healer_guid,
                 "AreaSpiritHealerQueue ignored without represented area spirit healer"
             );
@@ -46,7 +46,7 @@ impl WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "SpiritHealerActivate parse failed: {error}"
                 );
                 return;
@@ -59,7 +59,7 @@ impl WorldSession {
             0,
         ) else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 healer = ?request.healer,
                 "SpiritHealerActivate ignored without represented spirit healer"
             );
@@ -70,7 +70,7 @@ impl WorldSession {
         // loss, corpse-bones spawn, and possible graveyard teleport. That player
         // corpse/death runtime is not represented in this handler yet.
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             healer = ?request.healer,
             "SpiritHealerActivate validated; resurrection runtime pending"
         );
@@ -124,7 +124,11 @@ impl WorldSession {
                 let Some(access) = self.canonical_gameobject_access_like_cpp(guid) else {
                     continue;
                 };
-                let Some(state) = self.represented_gameobject_use_states.get(&guid) else {
+                let Some(state) = self
+                    .world_entities
+                    .represented_gameobject_use_states
+                    .get(&guid)
+                else {
                     continue;
                 };
                 if state.go_type.map(u32::from) != Some(GAMEOBJECT_TYPE_QUESTGIVER) {
@@ -172,7 +176,7 @@ impl WorldSession {
             query.table_hash,
             query.queries.len(),
             query.queries,
-            self.account_id
+            self.core.account_id
         );
         for record_id in &query.queries {
             if query.table_hash == TACT_KEY_TABLE_HASH_LIKE_CPP {
@@ -230,7 +234,7 @@ impl WorldSession {
     ) {
         let row = match catalogs
             .creature
-            .resolve_like_cpp(query.creature_id, &self.locale)
+            .resolve_like_cpp(query.creature_id, &self.core.locale)
         {
             Some(row) => row,
             None => {
@@ -312,7 +316,7 @@ impl WorldSession {
     ) {
         let row = match catalogs
             .gameobject
-            .resolve_like_cpp(query.game_object_id, &self.locale)
+            .resolve_like_cpp(query.game_object_id, &self.core.locale)
         {
             Some(row) => row,
             None => {
@@ -376,7 +380,7 @@ impl WorldSession {
     ) {
         let pages = catalogs
             .page_text
-            .resolve_chain_like_cpp(query.page_text_id, &self.locale);
+            .resolve_chain_like_cpp(query.page_text_id, &self.core.locale);
 
         let pages = pages
             .into_iter()
@@ -442,7 +446,7 @@ impl WorldSession {
     ) -> Option<(String, u32)> {
         let player_guid = self.player_guid()?;
         let key = self.current_canonical_player_map_key_like_cpp()?;
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
         let manager = manager.lock().ok()?;
         let managed = manager.find_map(key.map_id, key.instance_id)?;
         let name = managed.map().with_pet_like_cpp(unit_guid, |pet| {
@@ -523,7 +527,7 @@ impl WorldSession {
                         crate::session::directory::PlayerNameQuerySnapshotLikeCpp {
                             guid: *guid,
                             name: self.player_name_like_cpp().unwrap_or_default(),
-                            account_id: self.account_id,
+                            account_id: self.core.account_id,
                             battlenet_account_id: self.battlenet_account_id(),
                             race: self.player_race_like_cpp(),
                             class: self.player_class_like_cpp(),
@@ -591,7 +595,7 @@ impl WorldSession {
             "QueryPlayerNames: {} queries, {} found for account {}",
             query.players.len(),
             results.iter().filter(|r| r.result == 0).count(),
-            self.account_id
+            self.core.account_id
         );
         self.send_packet_realm(&QueryPlayerNamesResponse { players: results });
     }
@@ -640,7 +644,7 @@ impl WorldSession {
             Ok(query) => query,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "AreaSpiritHealerQuery parse failed: {error}"
                 );
                 return;
@@ -650,7 +654,7 @@ impl WorldSession {
         let Some(access) = self.represented_area_spirit_healer_access_like_cpp(query.healer_guid)
         else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 healer = ?query.healer_guid,
                 "AreaSpiritHealerQuery ignored without represented area spirit healer"
             );
@@ -666,7 +670,7 @@ impl WorldSession {
             != 0
         {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 healer = ?query.healer_guid,
                 "AreaSpiritHealerQuery individual aura/channel timer is not represented yet"
             );
@@ -713,10 +717,11 @@ impl WorldSession {
     ) {
         trace!(
             "QuestGiverStatusMultipleQuery from account {}",
-            self.account_id
+            self.core.account_id
         );
 
         let visible_guids: Vec<ObjectGuid> = self
+            .core
             .client_visible_guids_like_cpp
             .snapshot_like_cpp()
             .into_iter()
@@ -743,7 +748,7 @@ impl WorldSession {
     ) {
         trace!(
             "QuestGiverStatusTrackedQuery from account {}",
-            self.account_id
+            self.core.account_id
         );
 
         let guid_count = match pkt.read_uint32() {

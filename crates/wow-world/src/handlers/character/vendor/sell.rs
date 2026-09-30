@@ -21,7 +21,7 @@ impl WorldSession {
 
         debug!(
             "SellItem: item={:?} from account {}",
-            sell.item_guid, self.account_id
+            sell.item_guid, self.core.account_id
         );
 
         let player_guid = match self.player_guid() {

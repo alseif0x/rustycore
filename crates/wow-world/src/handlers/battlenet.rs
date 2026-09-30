@@ -66,7 +66,7 @@ impl WorldSession {
     pub async fn handle_battlenet_request(&mut self, req: BattlenetRequest) {
         debug!(
             "BattlenetRequest from account {}: service=0x{:08X} method={} token={}",
-            self.account_id,
+            self.core.account_id,
             req.method.service_hash(),
             req.method.method_id(),
             req.method.token,

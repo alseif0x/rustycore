@@ -74,58 +74,58 @@ impl WorldSession {
     /// Set the C++ Emotes.db2 store for `Unit::HandleEmoteCommand`.
     #[cfg(test)]
     pub fn set_emotes_store_like_cpp(&mut self, store: Arc<EmotesStore>) {
-        self.emotes_store = Some(store);
+        self.catalogs.emotes_store = Some(store);
     }
     /// Set the C++ EmotesText.db2 store for `HandleTextEmoteOpcode`.
     #[cfg(test)]
     pub fn set_emotes_text_store_like_cpp(&mut self, store: Arc<EmotesTextStore>) {
-        self.emotes_text_store = Some(store);
+        self.catalogs.emotes_text_store = Some(store);
     }
     #[cfg(test)]
     pub fn set_chat_fake_message_preventing_like_cpp(&mut self, enabled: bool) {
-        self.chat_fake_message_preventing_like_cpp = enabled;
+        self.config.chat_fake_message_preventing_like_cpp = enabled;
     }
     #[cfg(test)]
     pub fn set_chat_strict_link_checking_kick_like_cpp(&mut self, enabled: bool) {
-        self.chat_strict_link_checking_kick_like_cpp = enabled;
+        self.config.chat_strict_link_checking_kick_like_cpp = enabled;
     }
     #[cfg(test)]
     pub fn set_chat_level_requirements_like_cpp(
         &mut self,
         requirements: ChatLevelRequirementsLikeCpp,
     ) {
-        self.chat_level_requirements_like_cpp = requirements;
+        self.config.chat_level_requirements_like_cpp = requirements;
     }
     #[cfg(test)]
     pub fn set_chat_listen_ranges_like_cpp(&mut self, ranges: ChatListenRangesLikeCpp) {
-        self.chat_listen_ranges_like_cpp = ranges;
+        self.config.chat_listen_ranges_like_cpp = ranges;
     }
     #[cfg(test)]
     pub fn set_chat_flood_config_like_cpp(&mut self, config: ChatFloodConfigLikeCpp) {
-        self.chat_flood_config_like_cpp = config;
+        self.config.chat_flood_config_like_cpp = config;
     }
     pub fn set_remote_address_like_cpp(&mut self, address: Option<String>) {
-        self.transport.remote_address_like_cpp = address;
+        self.core.transport.remote_address_like_cpp = address;
     }
     #[cfg(test)]
     pub(crate) fn chat_fake_message_preventing_like_cpp(&self) -> bool {
-        self.chat_fake_message_preventing_like_cpp
+        self.config.chat_fake_message_preventing_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn chat_strict_link_checking_kick_like_cpp(&self) -> bool {
-        self.chat_strict_link_checking_kick_like_cpp
+        self.config.chat_strict_link_checking_kick_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn chat_level_requirements_like_cpp(&self) -> ChatLevelRequirementsLikeCpp {
-        self.chat_level_requirements_like_cpp
+        self.config.chat_level_requirements_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn chat_listen_ranges_like_cpp(&self) -> ChatListenRangesLikeCpp {
-        self.chat_listen_ranges_like_cpp
+        self.config.chat_listen_ranges_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn chat_flood_config_like_cpp(&self) -> ChatFloodConfigLikeCpp {
-        self.chat_flood_config_like_cpp
+        self.config.chat_flood_config_like_cpp
     }
     pub(crate) fn set_player_emote_state_like_cpp(
         &mut self,
@@ -141,15 +141,15 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.player_emote_state_like_cpp = emote_state;
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.presentation.player_emote_state_like_cpp = emote_state;
             if !canonical {
                 let _ = self.mutate_canonical_player_like_cpp(|player| {
                     player.unit_mut().set_emote_state_like_cpp(emote_state);
                 });
             }
         }
-        if !canonical && !(cfg!(test) && self.player_handle_like_cpp.is_none()) {
+        if !canonical && !(cfg!(test) && self.core.player_handle_like_cpp.is_none()) {
             return None;
         }
         self.player_emote_state_update_packet_like_cpp(emote_state)
@@ -158,8 +158,8 @@ impl WorldSession {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.unit().emote_state_like_cpp());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.player_emote_state_like_cpp);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.presentation.player_emote_state_like_cpp);
         }
         canonical
     }
@@ -196,10 +196,10 @@ impl WorldSession {
             .with_owned_player_mut_like_cpp(|player| player.clear_gossip_options_like_cpp())
             .is_some();
         #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.gossip_options.clear();
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.interaction.gossip_options.clear();
         }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
     pub(crate) fn replace_player_gossip_options_like_cpp(
         &mut self,
@@ -216,10 +216,10 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.gossip_options = fixture_options;
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.interaction.gossip_options = fixture_options;
         }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
     pub(crate) fn player_gossip_option_like_cpp(
         &self,
@@ -233,8 +233,9 @@ impl WorldSession {
                 .cloned()
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return self
+                .interaction
                 .gossip_options
                 .iter()
                 .find(|option| option.gossip_option_id == gossip_option_id)
@@ -246,7 +247,7 @@ impl WorldSession {
         &self,
         creature_entry: u32,
     ) -> Vec<ClientGossipText> {
-        let Some(quest_store) = self.quests.store.as_ref() else {
+        let Some(quest_store) = self.catalogs.quests.store.as_ref() else {
             return Vec::new();
         };
 

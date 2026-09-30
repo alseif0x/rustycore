@@ -168,7 +168,7 @@ impl WorldSession {
         let Ok(packet_map_id) = u16::try_from(key.map_id) else {
             return 0;
         };
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
             return 0;
         };
         let Some(viewer_guid) = self.player_guid() else {
@@ -202,7 +202,10 @@ impl WorldSession {
                 let source_guid = represented_update.guid;
                 let source_is_viewer = source_guid == viewer_guid;
                 let source_visible = source_is_viewer
-                    || (self.client_visible_guids_like_cpp.contains(&source_guid)
+                    || (self
+                        .core
+                        .client_visible_guids_like_cpp
+                        .contains(&source_guid)
                         && map.get_typed_player(source_guid).is_some_and(|source| {
                             let source_world = source.unit().world();
                             source_world.object().is_in_world()
@@ -236,7 +239,11 @@ impl WorldSession {
 
             for represented_update in summary.unit_values_updates {
                 let source_guid = represented_update.guid;
-                if !self.client_visible_guids_like_cpp.contains(&source_guid) {
+                if !self
+                    .core
+                    .client_visible_guids_like_cpp
+                    .contains(&source_guid)
+                {
                     continue;
                 }
                 let source_visibility = map
@@ -281,7 +288,10 @@ impl WorldSession {
             // Recheck `HaveAtClient` after dropping the map lock.  A queued
             // visibility transition may have retired the source meanwhile.
             if source_guid != viewer_guid
-                && !self.client_visible_guids_like_cpp.contains(&source_guid)
+                && !self
+                    .core
+                    .client_visible_guids_like_cpp
+                    .contains(&source_guid)
             {
                 continue;
             }
@@ -291,6 +301,7 @@ impl WorldSession {
                     &bytes,
                 );
             if !self
+                .visibility
                 .represented_player_unit_values_updates_delivered_like_cpp
                 .insert((
                     key.map_id,

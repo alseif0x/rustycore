@@ -111,7 +111,7 @@ impl WorldSession {
             )
         else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 entry_id,
                 count = new_item_count,
                 "QuestConfirmAccept: process-wide item GUID allocator is unavailable"
@@ -130,7 +130,7 @@ impl WorldSession {
                     self.resolved_inventory_item_object_like_cpp(inv_item.guid)
                 else {
                     warn!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         slot,
                         entry_id,
                         "QuestConfirmAccept: missing runtime item object for source item stack"
@@ -172,7 +172,7 @@ impl WorldSession {
                     (bag_inventory_item.db_guid, bag_inventory_item.guid)
                 } else {
                     warn!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         bag,
                         slot,
                         entry_id,
@@ -184,7 +184,7 @@ impl WorldSession {
 
                 let Some((db_guid, item_guid)) = allocated_new_item_guids.next() else {
                     warn!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         entry_id,
                         "QuestConfirmAccept: preallocated item GUID count did not match store plan"
                     );
@@ -244,13 +244,13 @@ impl WorldSession {
             match outcome {
                 wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
                 wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => {
-                    warn!(account = self.account_id, entry_id, error = %reason,
+                    warn!(account = self.core.account_id, entry_id, error = %reason,
                         "QuestConfirmAccept: source item StoreNewItem transaction failed");
                     self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
                     return None;
                 }
                 wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
-                    warn!(account = self.account_id, entry_id, error = %reason,
+                    warn!(account = self.core.account_id, entry_id, error = %reason,
                         "QuestConfirmAccept: source item StoreNewItem commit outcome is unknown");
                     self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
                     return None;

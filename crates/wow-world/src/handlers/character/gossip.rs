@@ -25,7 +25,7 @@ impl WorldSession {
     ) {
         info!(
             "BinderActivate {:?} account {}",
-            hello.unit, self.account_id
+            hello.unit, self.core.account_id
         );
         if !self.player_is_strictly_in_world_like_cpp()
             || self.resolved_player_is_alive_like_cpp() != Some(true)
@@ -39,7 +39,7 @@ impl WorldSession {
         ) else {
             debug!(
                 innkeeper_guid = ?hello.unit,
-                account = self.account_id,
+                account = self.core.account_id,
                 "BinderActivate rejected: NPC missing, out of range, dead, or lacks INNKEEPER flag"
             );
             return;
@@ -100,7 +100,7 @@ impl WorldSession {
             {
                 warn!(
                     innkeeper_guid = ?hello.unit,
-                    account = self.account_id,
+                    account = self.core.account_id,
                     error,
                     "BinderActivate bind spell failed"
                 );
@@ -165,7 +165,7 @@ impl WorldSession {
     pub async fn handle_gossip_hello(&mut self, hello: Hello) {
         info!(
             "GossipHello for {:?} from account {}",
-            hello.unit, self.account_id
+            hello.unit, self.core.account_id
         );
 
         const GOSSIP_FLAG: u32 = 0x1;
@@ -187,7 +187,7 @@ impl WorldSession {
         };
         let Some(validated_access) = gossip_access.as_ref().or(trainer_access.as_ref()) else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 source = ?hello.unit,
                 "GossipHello rejected before clearing or publishing player-menu state"
             );
@@ -480,7 +480,7 @@ impl WorldSession {
         };
 
         // Resolve localized text for each option via OptionBroadcastTextID.
-        let locale = self.locale.clone();
+        let locale = self.core.locale.clone();
         info!(
             "Gossip locale='{}' for {} options",
             locale,
@@ -549,7 +549,7 @@ impl WorldSession {
                 || opt.box_broadcast_text_id != 0
             {
                 debug!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     menu_id = opt.menu_id,
                     option_id = opt.option_id,
                     action_poi_id = opt.action_poi_id,
@@ -615,7 +615,7 @@ impl WorldSession {
 
         info!(
             "GossipSelectOption: gossip_id={}, option_id={} from account {}",
-            select.gossip_id, select.gossip_option_id, self.account_id
+            select.gossip_id, select.gossip_option_id, self.core.account_id
         );
 
         // Find the selected option in our stored gossip data.
@@ -634,7 +634,7 @@ impl WorldSession {
 
         if self.player_interaction_source_guid_like_cpp() != Some(select.gossip_unit) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 requested_source = ?select.gossip_unit,
                 active_source = ?self.player_interaction_source_guid_like_cpp(),
                 "GossipSelectOption rejected: interaction source mismatch"
@@ -658,7 +658,7 @@ impl WorldSession {
         };
         if !source_is_interactable {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 source = ?npc_guid,
                 option_npc = option_npc,
                 "GossipSelectOption rejected: source no longer interactable"
@@ -672,7 +672,7 @@ impl WorldSession {
         // currently published menu before executing its built-in action.
         if opt.menu_id != select.gossip_id as u32 {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 requested_menu_id = select.gossip_id,
                 active_menu_id = opt.menu_id,
                 "GossipSelectOption rejected: active menu mismatch"
@@ -681,7 +681,7 @@ impl WorldSession {
         }
         if npc_guid.is_game_object() && option_npc != 0 {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 source = ?npc_guid,
                 option_npc,
                 "GossipSelectOption rejected: GameObject option is not C++ OptionNpc::None"
@@ -752,7 +752,7 @@ impl WorldSession {
     pub async fn handle_query_npc_text(&mut self, query: QueryNpcText) {
         debug!(
             "QueryNpcText: text_id={} for account {}",
-            query.text_id, self.account_id
+            query.text_id, self.core.account_id
         );
 
         // For now, respond with a default "found" response.

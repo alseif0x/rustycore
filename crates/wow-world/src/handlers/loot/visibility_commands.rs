@@ -53,10 +53,12 @@ impl WorldSession {
             return;
         }
         let client_has_object = if command.object_guid.is_mo_transport() {
-            self.client_visible_transports_like_cpp
+            self.visibility
+                .client_visible_transports_like_cpp
                 .contains(&command.object_guid)
         } else {
-            self.client_visible_guids_like_cpp
+            self.core
+                .client_visible_guids_like_cpp
                 .contains(&command.object_guid)
         };
         if !client_has_object {
@@ -100,7 +102,7 @@ impl WorldSession {
             == Some(wow_constants::ServerOpcodes::OnMonsterMove as u16)
         {
             tracing::info!(
-                account = self.account_id,
+                account = self.core.account_id,
                 source_guid = ?command.source_guid,
                 "RUST_MONSTER_MOVE_DELIVERY sent"
             );
@@ -146,6 +148,7 @@ impl WorldSession {
         // that the command belongs to this session incarnation and that the
         // session is still on the map it was committed for, then honor it.
         if !self
+            .core
             .client_visible_guids_like_cpp
             .shares_storage_like_cpp(&command.committed_visibility_like_cpp)
         {

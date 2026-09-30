@@ -863,13 +863,14 @@ fn recv_status_multiple(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<(ObjectGuid, 
 }
 
 fn mark_visible(session: &mut WorldSession, guid: ObjectGuid) {
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.client_visible_guids_like_cpp.insert(guid);
 }
 
 fn mark_visible_gameobject_questgiver(session: &mut WorldSession, guid: ObjectGuid) {
     let mut state = crate::session::RepresentedGameObjectUseState::default();
     state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8);
     session
+        .world_entities
         .represented_gameobject_use_states
         .insert(guid, state);
     mark_visible(session, guid);

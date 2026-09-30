@@ -34,7 +34,7 @@ impl WorldSession {
         if current_key.instance_id != command.instance_id {
             return;
         }
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
             return;
         };
         let current_map = manager.lock().ok().is_some_and(|manager| {
@@ -47,6 +47,7 @@ impl WorldSession {
             return;
         }
         if !self
+            .core
             .client_visible_guids_like_cpp
             .remove(&command.object_guid)
         {
@@ -91,15 +92,19 @@ impl WorldSession {
     ) {
         if self.state() != SessionState::LoggedIn
             || self.is_disconnecting()
-            || self.player_handle_like_cpp != Some(intent.handle())
+            || self.core.player_handle_like_cpp != Some(intent.handle())
         {
             return;
         }
-        let current = self.canonical_map_manager.as_ref().is_some_and(|manager| {
-            manager.lock().is_ok_and(|manager| {
-                manager.player_visibility_refresh_intent_is_current_like_cpp(intent)
-            })
-        });
+        let current = self
+            .core
+            .canonical_map_manager
+            .as_ref()
+            .is_some_and(|manager| {
+                manager.lock().is_ok_and(|manager| {
+                    manager.player_visibility_refresh_intent_is_current_like_cpp(intent)
+                })
+            });
         if !current {
             return;
         }

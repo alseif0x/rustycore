@@ -17,11 +17,13 @@ impl WorldSession {
         };
         let proto = self.item_storage_template(item.entry_id);
         let sparse = self
+            .catalogs
             .items
             .stats_store
             .as_ref()
             .and_then(|store| store.sparse_template(item.entry_id));
         let search = self
+            .catalogs
             .items
             .search_name_store
             .as_ref()
@@ -221,8 +223,9 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if !_canonical && self.player_handle_like_cpp.is_none() {
-            self.player_equipment_inventory_authority_complete_like_cpp = false;
+        if !_canonical && self.core.player_handle_like_cpp.is_none() {
+            self.inventory
+                .player_equipment_inventory_authority_complete_like_cpp = false;
         }
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
     }
@@ -235,8 +238,9 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if !_canonical && self.player_handle_like_cpp.is_none() {
-            self.player_equipment_inventory_authority_complete_like_cpp = true;
+        if !_canonical && self.core.player_handle_like_cpp.is_none() {
+            self.inventory
+                .player_equipment_inventory_authority_complete_like_cpp = true;
         }
     }
     pub(crate) fn player_equipment_inventory_authority_complete_like_cpp(&self) -> bool {
@@ -248,8 +252,10 @@ impl WorldSession {
             })
             .unwrap_or(false);
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return self.player_equipment_inventory_authority_complete_like_cpp;
+        if self.core.player_handle_like_cpp.is_none() {
+            return self
+                .inventory
+                .player_equipment_inventory_authority_complete_like_cpp;
         }
         canonical
     }

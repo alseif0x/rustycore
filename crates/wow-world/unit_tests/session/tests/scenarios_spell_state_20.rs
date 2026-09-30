@@ -14,7 +14,7 @@ fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
     };
 
     let (mut session, _, _) = make_session();
-    session.player_race = 1;
+    session.identity.player_race = 1;
     session.set_player_class_like_cpp(1);
     session.set_player_level_like_cpp(40);
     assert!(
@@ -38,10 +38,12 @@ fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
         ])
     );
     session
+        .spell_state
         .player_spell_test_fixture_like_cpp
         .represented_spell_trait_definition_ids_like_cpp
         .insert(100, 7);
     session
+        .spell_state
         .represented_override_spells_like_cpp
         .entry(90)
         .or_default()
@@ -182,6 +184,7 @@ fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
     );
 
     session
+        .progression
         .player_skill_test_fixture_like_cpp
         .player_skill_records_complete_like_cpp = false;
     assert_eq!(
@@ -193,10 +196,12 @@ fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
         Err(SpellAcquisitionSnapshotAdapterErrorLikeCpp::IncompleteSkillRows)
     );
     session
+        .progression
         .player_skill_test_fixture_like_cpp
         .player_skill_records_complete_like_cpp = true;
 
     session
+        .progression
         .player_skill_test_fixture_like_cpp
         .player_skill_occupied_slots_like_cpp = None;
     assert_eq!(
@@ -208,14 +213,17 @@ fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
         Err(SpellAcquisitionSnapshotAdapterErrorLikeCpp::MissingSkillSlotOccupancy)
     );
     session
+        .progression
         .player_skill_test_fixture_like_cpp
         .player_skill_occupied_slots_like_cpp = Some(2);
 
     session
+        .spell_state
         .player_spell_test_fixture_like_cpp
         .represented_spell_trait_definition_ids_like_cpp
         .insert(999, 8);
     session
+        .spell_state
         .player_spell_test_fixture_like_cpp
         .represented_spell_trait_definition_ids_like_cpp
         .insert(998, 9);
@@ -228,15 +236,18 @@ fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
         Err(SpellAcquisitionSnapshotAdapterErrorLikeCpp::OrphanTraitDefinition { spell_id: 998 })
     );
     session
+        .spell_state
         .player_spell_test_fixture_like_cpp
         .represented_spell_trait_definition_ids_like_cpp
         .remove(&999);
     session
+        .spell_state
         .player_spell_test_fixture_like_cpp
         .represented_spell_trait_definition_ids_like_cpp
         .remove(&998);
 
     session
+        .spell_state
         .player_spell_test_fixture_like_cpp
         .represented_spell_trait_definition_ids_like_cpp
         .insert(100, 0);
@@ -254,16 +265,19 @@ fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
         )
     );
     session
+        .spell_state
         .player_spell_test_fixture_like_cpp
         .represented_spell_trait_definition_ids_like_cpp
         .insert(100, 7);
 
     session
+        .spell_state
         .represented_override_spells_like_cpp
         .entry(-1)
         .or_default()
         .insert(100);
     session
+        .spell_state
         .represented_override_spells_like_cpp
         .entry(-2)
         .or_default()
@@ -281,8 +295,14 @@ fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
             }
         )
     );
-    session.represented_override_spells_like_cpp.remove(&-1);
-    session.represented_override_spells_like_cpp.remove(&-2);
+    session
+        .spell_state
+        .represented_override_spells_like_cpp
+        .remove(&-1);
+    session
+        .spell_state
+        .represented_override_spells_like_cpp
+        .remove(&-2);
 
     session.reset_represented_talents_like_cpp();
     assert!(
@@ -380,7 +400,9 @@ fn represented_spell_charge_restore_pops_last_charge_like_cpp() {
     );
 
     assert_eq!(
-        session.represented_character_spell_charges_like_cpp[&7]
+        session
+            .spell_state
+            .represented_character_spell_charges_like_cpp[&7]
             .iter()
             .map(|charge| (
                 charge.recharge_start_unix_secs,
@@ -801,6 +823,7 @@ async fn spell_effect_uncage_battle_pet_rejects_disappeared_cast_item_like_cpp()
 
     assert!(
         session
+            .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pets_like_cpp
             .is_empty()

@@ -93,8 +93,8 @@ fn logout_save_snapshot_ignores_stale_test_fixture_death_and_reads_canonical_pla
 
     // C++ has a single Player object. Deliberately poison the test-only legacy
     // fixture and prove SaveToDB still reads the canonical owner.
-    session.player_health_like_cpp = 0;
-    session.player_alive_like_cpp = false;
+    session.combat.player_health_like_cpp = 0;
+    session.combat.player_alive_like_cpp = false;
 
     let snapshot = session
         .current_player_save_to_db_snapshot_like_cpp()
@@ -140,18 +140,22 @@ fn player_save_transaction_plan_orders_represented_statements_like_cpp() {
         )]),
         1,
     ));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        8_888,
-        crate::handlers::quest::PlayerQuestStatus {
-            quest_id: 8_888,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: true,
-            accept_time_secs: 123,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
-    );
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
+            8_888,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id: 8_888,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: true,
+                accept_time_secs: 123,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
 
     let request = session
         .current_player_character_save_request_like_cpp(&snapshot, 1_000)
@@ -730,12 +734,14 @@ fn load_rest_state_clears_stale_rest_flags_between_characters_like_cpp() {
     assert!(session.represented_is_resting_like_cpp());
     assert_eq!(
         session
+            .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_inn_area_trigger_id_like_cpp,
         42
     );
     assert_ne!(
         session
+            .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_rest_time_secs_like_cpp,
         0
@@ -751,12 +757,14 @@ fn load_rest_state_clears_stale_rest_flags_between_characters_like_cpp() {
     assert!(!session.represented_is_resting_like_cpp());
     assert_eq!(
         session
+            .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_inn_area_trigger_id_like_cpp,
         0
     );
     assert_eq!(
         session
+            .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_rest_time_secs_like_cpp,
         0

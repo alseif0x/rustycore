@@ -207,6 +207,7 @@ impl WorldSession {
         }
 
         let Some(entry) = self
+            .catalogs
             .currency_types_store
             .as_ref()
             .and_then(|store| store.get(currency_id))
@@ -322,7 +323,7 @@ impl WorldSession {
         let new_money = mutation(old_money);
 
         #[cfg(test)]
-        if let Some(success) = self.loot_money_persistence_test_result_like_cpp {
+        if let Some(success) = self.lifecycle.loot_money_persistence_test_result_like_cpp {
             if !success {
                 return None;
             }
@@ -371,7 +372,7 @@ impl WorldSession {
         money: u64,
     ) -> Result<(), LootMoneyPersistenceErrorLikeCpp> {
         #[cfg(test)]
-        if let Some(success) = self.loot_money_persistence_test_result_like_cpp {
+        if let Some(success) = self.lifecycle.loot_money_persistence_test_result_like_cpp {
             return success
                 .then_some(())
                 .ok_or(LootMoneyPersistenceErrorLikeCpp::MissingCharacterDatabase);
@@ -475,7 +476,7 @@ impl WorldSession {
         }
 
         let is_global = (1u32 << data_type) & GLOBAL_CACHE_MASK_LIKE_CPP != 0;
-        let player_guid_low = self.account_state.recent_player_guid_low_like_cpp;
+        let player_guid_low = self.core.account_state.recent_player_guid_low_like_cpp;
 
         if !is_global && player_guid_low == 0 {
             return false;
@@ -483,7 +484,7 @@ impl WorldSession {
 
         let scope = if is_global {
             wow_persistence::SessionAccountDataScopeLikeCpp::Global {
-                account_id: self.account_id,
+                account_id: self.core.account_id,
             }
         } else {
             wow_persistence::SessionAccountDataScopeLikeCpp::Character {
@@ -499,7 +500,7 @@ impl WorldSession {
             .clone()
         else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 data_type, "SetAccountData persisted fallback: account-state port unavailable"
             );
             return self.set_account_data_like_cpp(data_type, time, data);
@@ -516,7 +517,7 @@ impl WorldSession {
             wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
             | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     data_type, "SetAccountData persistence failed: {reason}"
                 );
                 return false;
@@ -531,11 +532,11 @@ impl WorldSession {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.persistent_capability_state_like_cpp());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(wow_entities::PlayerPersistentCapabilityStateLikeCpp {
-                at_login_flags: self.represented_at_login_flags_like_cpp,
-                weapon_proficiency: self.represented_weapon_proficiency_like_cpp,
-                armor_proficiency: self.represented_armor_proficiency_like_cpp,
+                at_login_flags: self.lifecycle.represented_at_login_flags_like_cpp,
+                weapon_proficiency: self.progression.represented_weapon_proficiency_like_cpp,
+                armor_proficiency: self.progression.represented_armor_proficiency_like_cpp,
             });
         }
         canonical
@@ -547,9 +548,9 @@ impl WorldSession {
     ) -> Option<R> {
         let mut state = self.player_persistent_capability_state_snapshot_like_cpp()?;
         let result = mutate(&mut state);
-        self.represented_at_login_flags_like_cpp = state.at_login_flags;
-        self.represented_weapon_proficiency_like_cpp = state.weapon_proficiency;
-        self.represented_armor_proficiency_like_cpp = state.armor_proficiency;
+        self.lifecycle.represented_at_login_flags_like_cpp = state.at_login_flags;
+        self.progression.represented_weapon_proficiency_like_cpp = state.weapon_proficiency;
+        self.progression.represented_armor_proficiency_like_cpp = state.armor_proficiency;
         Some(result)
     }
 }

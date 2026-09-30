@@ -278,8 +278,8 @@ fn combat_tick_base_attack_casts_current_melee_spell_instead_of_damage_like_cpp(
             unit.set_current_cast_spell(wow_entities::CurrentSpellSlot::Melee, melee_spell);
         })
         .unwrap();
-    session.combat_target = Some(guid);
-    session.in_combat = true;
+    session.combat.combat_target = Some(guid);
+    session.combat.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -365,8 +365,8 @@ fn combat_tick_removes_attacking_interrupt_auras_like_cpp() {
             );
         })
         .unwrap();
-    session.combat_target = Some(guid);
-    session.in_combat = true;
+    session.combat.combat_target = Some(guid);
+    session.combat.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -432,8 +432,8 @@ fn combat_tick_casting_player_skips_melee_update_without_reset_like_cpp() {
             unit.set_current_cast_spell(wow_entities::CurrentSpellSlot::Generic, generic_cast);
         })
         .unwrap();
-    session.combat_target = Some(guid);
-    session.in_combat = true;
+    session.combat.combat_target = Some(guid);
+    session.combat.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -516,8 +516,8 @@ fn combat_tick_spell_delay_combat_timer_pauses_attack_timer_like_cpp() {
         .unwrap();
     session.view.combat_tick_last_at_like_cpp =
         Instant::now() - std::time::Duration::from_millis(100);
-    session.combat_target = Some(guid);
-    session.in_combat = true;
+    session.combat.combat_target = Some(guid);
+    session.combat.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 40);
 
     session.tick_combat_sync();
@@ -639,9 +639,18 @@ async fn check_area_explore_removes_indoor_outdoor_auras_like_cpp() {
     outdoor_attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_ONLY_OUTDOORS;
     spell_store.insert_spell_misc_attributes_like_cpp(9_102, outdoor_attributes);
     session.set_spell_store(Arc::new(spell_store));
-    session.visible_auras.insert(1, test_visible_aura(1, 9_101));
-    session.visible_auras.insert(2, test_visible_aura(2, 9_102));
-    session.visible_auras.insert(3, test_visible_aura(3, 9_103));
+    session
+        .auras
+        .visible_auras
+        .insert(1, test_visible_aura(1, 9_101));
+    session
+        .auras
+        .visible_auras
+        .insert(2, test_visible_aura(2, 9_102));
+    session
+        .auras
+        .visible_auras
+        .insert(3, test_visible_aura(3, 9_103));
 
     session.set_vmap_indoor_check_like_cpp(true);
     session.set_represented_is_outdoors_like_cpp(true);
@@ -652,9 +661,9 @@ async fn check_area_explore_removes_indoor_outdoor_auras_like_cpp() {
             .await,
         "C++ still returns after area_id==0, but aura removal already ran"
     );
-    assert!(!session.visible_auras.contains_key(&1));
-    assert!(session.visible_auras.contains_key(&2));
-    assert!(session.visible_auras.contains_key(&3));
+    assert!(!session.auras.visible_auras.contains_key(&1));
+    assert!(session.auras.visible_auras.contains_key(&2));
+    assert!(session.auras.visible_auras.contains_key(&3));
 
     session.set_represented_is_outdoors_like_cpp(false);
     assert!(
@@ -662,8 +671,8 @@ async fn check_area_explore_removes_indoor_outdoor_auras_like_cpp() {
             .check_area_explore_and_outdoor_represented_like_cpp(0)
             .await
     );
-    assert!(!session.visible_auras.contains_key(&2));
-    assert!(session.visible_auras.contains_key(&3));
+    assert!(!session.auras.visible_auras.contains_key(&2));
+    assert!(session.auras.visible_auras.contains_key(&3));
 }
 #[test]
 fn exact_player_spell_rows_preserve_flags_and_active_only_updates_fail_closed() {

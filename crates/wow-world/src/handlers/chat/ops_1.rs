@@ -18,7 +18,7 @@ impl WorldSession {
         }
 
         tracing::warn!(
-            account = self.account_id,
+            account = self.core.account_id,
             context,
             "Chat message rejected: invalid hyperlink/control sequence"
         );
@@ -39,14 +39,14 @@ impl WorldSession {
         let mut msg = match ChatMessage::read(&mut pkt) {
             Ok(m) => m,
             Err(e) => {
-                tracing::warn!(account = self.account_id, "Bad chat packet: {e}");
+                tracing::warn!(account = self.core.account_id, "Bad chat packet: {e}");
                 return;
             }
         };
 
         if msg.language == LANG_UNIVERSAL_LIKE_CPP {
             tracing::warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 ty = ?msg_type,
                 "Chat message rejected: client attempted LANG_UNIVERSAL"
             );
@@ -54,7 +54,7 @@ impl WorldSession {
         }
         if !is_known_language_like_cpp(msg.language) {
             tracing::warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 ty = ?msg_type,
                 language = msg.language,
                 "Chat message rejected: unknown language"
@@ -78,7 +78,7 @@ impl WorldSession {
         }
         if !validate_message_like_cpp(&mut msg.text, chat_policy.fake_message_preventing) {
             tracing::warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 ty = ?msg_type,
                 "Chat message rejected: invalid character/control sequence"
             );
@@ -89,7 +89,7 @@ impl WorldSession {
         }
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             ty = ?msg_type,
             text = %msg.text,
             "Chat message"
@@ -141,7 +141,7 @@ impl WorldSession {
 
         if matches!(msg_type, ChatMsg::Guild | ChatMsg::Officer) {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 ty = ?msg_type,
                 "Guild chat ignored until GuildRegistry/BroadcastToGuild is ported"
             );
@@ -182,21 +182,21 @@ impl WorldSession {
         let mut msg = match ChatMessageWhisper::read(&mut pkt) {
             Ok(m) => m,
             Err(e) => {
-                tracing::warn!(account = self.account_id, "Bad whisper packet: {e}");
+                tracing::warn!(account = self.core.account_id, "Bad whisper packet: {e}");
                 return;
             }
         };
 
         if msg.language == LANG_UNIVERSAL_LIKE_CPP {
             tracing::warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Whisper rejected: client attempted LANG_UNIVERSAL"
             );
             return;
         }
         if !is_known_language_like_cpp(msg.language) {
             tracing::warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 language = msg.language,
                 "Whisper rejected: unknown language"
             );
@@ -217,7 +217,7 @@ impl WorldSession {
         }
         if !validate_message_like_cpp(&mut msg.text, chat_policy.fake_message_preventing) {
             tracing::warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Whisper rejected: invalid character/control sequence"
             );
             return;
@@ -234,7 +234,7 @@ impl WorldSession {
         }
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             target = %msg.target,
             text = %msg.text,
             "Whisper"
@@ -318,21 +318,24 @@ impl WorldSession {
         let mut msg = match ChatMessageChannel::read(&mut pkt) {
             Ok(m) => m,
             Err(e) => {
-                tracing::warn!(account = self.account_id, "Bad channel chat packet: {e}");
+                tracing::warn!(
+                    account = self.core.account_id,
+                    "Bad channel chat packet: {e}"
+                );
                 return;
             }
         };
 
         if msg.language == LANG_UNIVERSAL_LIKE_CPP {
             tracing::warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Channel chat rejected: client attempted LANG_UNIVERSAL"
             );
             return;
         }
         if !is_known_language_like_cpp(msg.language) {
             tracing::warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 language = msg.language,
                 "Channel chat rejected: unknown language"
             );
@@ -350,7 +353,7 @@ impl WorldSession {
         }
         if !validate_message_like_cpp(&mut msg.text, chat_policy.fake_message_preventing) {
             tracing::warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Channel chat rejected: invalid character/control sequence"
             );
             return;
@@ -379,7 +382,7 @@ impl WorldSession {
         }
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             target = %msg.target,
             channel_guid = ?msg.channel_guid,
             secure = ?msg.is_secure,
@@ -393,7 +396,7 @@ impl WorldSession {
     pub async fn handle_update_aadc_status(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(e) = UpdateAadcStatus::read(&mut pkt) {
             tracing::warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Bad update AADC status packet: {e}"
             );
             return;
@@ -413,7 +416,7 @@ impl WorldSession {
         let mut msg = match ChatMessageAfk::read(&mut pkt) {
             Ok(m) => m,
             Err(e) => {
-                tracing::warn!(account = self.account_id, "Bad AFK chat packet: {e}");
+                tracing::warn!(account = self.core.account_id, "Bad AFK chat packet: {e}");
                 return;
             }
         };
@@ -430,7 +433,7 @@ impl WorldSession {
         }
         if !validate_message_like_cpp(&mut msg.text, chat_policy.fake_message_preventing) {
             tracing::warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "AFK message rejected: invalid character/control sequence"
             );
             return;
@@ -457,7 +460,7 @@ impl WorldSession {
         let mut msg = match ChatMessageDnd::read(&mut pkt) {
             Ok(m) => m,
             Err(e) => {
-                tracing::warn!(account = self.account_id, "Bad DND chat packet: {e}");
+                tracing::warn!(account = self.core.account_id, "Bad DND chat packet: {e}");
                 return;
             }
         };
@@ -470,7 +473,7 @@ impl WorldSession {
         }
         if !validate_message_like_cpp(&mut msg.text, chat_policy.fake_message_preventing) {
             tracing::warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "DND message rejected: invalid character/control sequence"
             );
             return;
@@ -498,7 +501,7 @@ impl WorldSession {
             Ok(report) => report,
             Err(e) => {
                 tracing::warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "Bad chat report ignored packet: {e}"
                 );
                 return;
@@ -538,14 +541,14 @@ impl WorldSession {
     pub async fn handle_chat_report_filtered(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(e) = ChatReportFiltered::read(&mut pkt) {
             tracing::warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Bad chat report filtered packet: {e}"
             );
             return;
         }
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             "ChatReportFiltered received; spam reporting is not represented yet"
         );
     }
@@ -558,7 +561,7 @@ impl WorldSession {
         let mut msg = match ChatMessageEmote::read(&mut pkt) {
             Ok(m) => m,
             Err(e) => {
-                tracing::warn!(account = self.account_id, "Bad emote packet: {e}");
+                tracing::warn!(account = self.core.account_id, "Bad emote packet: {e}");
                 return;
             }
         };
@@ -574,7 +577,7 @@ impl WorldSession {
         }
         if !validate_message_like_cpp(&mut msg.text, chat_policy.fake_message_preventing) {
             tracing::warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Text emote rejected: invalid character/control sequence"
             );
             return;
@@ -602,7 +605,7 @@ impl WorldSession {
         }
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             text = %msg.text,
             "Text emote"
         );
@@ -638,7 +641,10 @@ impl WorldSession {
         }
 
         self.publish_player_emote_state_like_cpp(EMOTE_ONESHOT_NONE_LIKE_CPP as u32);
-        debug!(account = self.account_id, "CMSG_EMOTE: clear emote state");
+        debug!(
+            account = self.core.account_id,
+            "CMSG_EMOTE: clear emote state"
+        );
     }
     /// Handle CMSG_SEND_TEXT_EMOTE — player performs a text emote (/wave, /dance…).
     ///
@@ -653,7 +659,10 @@ impl WorldSession {
         let msg = match CTextEmote::read(&mut pkt) {
             Ok(m) => m,
             Err(e) => {
-                tracing::warn!(account = self.account_id, "Bad CMSG_SEND_TEXT_EMOTE: {e}");
+                tracing::warn!(
+                    account = self.core.account_id,
+                    "Bad CMSG_SEND_TEXT_EMOTE: {e}"
+                );
                 return;
             }
         };
@@ -676,7 +685,7 @@ impl WorldSession {
         };
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             emote_id = msg.emote_id,
             sound_index = msg.sound_index,
             "CMSG_SEND_TEXT_EMOTE"
@@ -684,7 +693,7 @@ impl WorldSession {
 
         let (player_guid, _name) = self.player_name_and_guid();
         let account_guid =
-            ObjectGuid::create_global(HighGuid::WowAccount, 0, self.account_id as i64);
+            ObjectGuid::create_global(HighGuid::WowAccount, 0, self.core.account_id as i64);
 
         let text_emote = STextEmote {
             source_guid: player_guid,
@@ -793,20 +802,25 @@ impl WorldSession {
         let packet = match ChatRegisterAddonPrefixes::read(&mut pkt) {
             Ok(packet) => packet,
             Err(e) => {
-                tracing::warn!(account = self.account_id, "Bad addon prefix packet: {e}");
+                tracing::warn!(
+                    account = self.core.account_id,
+                    "Bad addon prefix packet: {e}"
+                );
                 return;
             }
         };
 
-        self.addon_filter
+        self.social
+            .addon_filter
             .registered_addon_prefixes
             .extend(packet.prefixes);
-        self.addon_filter.filter_addon_messages = self.addon_filter.registered_addon_prefixes.len()
-            <= ChatRegisterAddonPrefixes::MAX_PREFIXES;
+        self.social.addon_filter.filter_addon_messages =
+            self.social.addon_filter.registered_addon_prefixes.len()
+                <= ChatRegisterAddonPrefixes::MAX_PREFIXES;
         debug!(
-            account = self.account_id,
-            prefixes = self.addon_filter.registered_addon_prefixes.len(),
-            filter = self.addon_filter.filter_addon_messages,
+            account = self.core.account_id,
+            prefixes = self.social.addon_filter.registered_addon_prefixes.len(),
+            filter = self.social.addon_filter.filter_addon_messages,
             "Registered addon prefixes"
         );
     }
@@ -824,7 +838,7 @@ impl WorldSession {
         let packet = match ChatAddonMessage::read(&mut pkt) {
             Ok(packet) => packet,
             Err(e) => {
-                tracing::warn!(account = self.account_id, "Bad addon chat packet: {e}");
+                tracing::warn!(account = self.core.account_id, "Bad addon chat packet: {e}");
                 return;
             }
         };
@@ -848,7 +862,7 @@ impl WorldSession {
             Ok(packet) => packet,
             Err(e) => {
                 tracing::warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "Bad targeted addon chat packet: {e}"
                 );
                 return;

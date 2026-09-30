@@ -6,8 +6,8 @@ use super::*;
 fn save_request_consumes_frozen_header_without_replaying_or_rereading_runtime() {
     let (mut session, _, _) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);
-    session.current_map_id = 571;
-    session.player_level = 17;
+    session.core.current_map_id = 571;
+    session.identity.player_level = 17;
     session
         .with_owned_player_mut_like_cpp(|player| {
             player.unit_mut().set_level(17);
@@ -18,7 +18,7 @@ fn save_request_consumes_frozen_header_without_replaying_or_rereading_runtime() 
     let snapshot = session
         .current_player_save_to_db_snapshot_like_cpp()
         .unwrap();
-    session.player_level = 70;
+    session.identity.player_level = 70;
     session
         .with_owned_player_mut_like_cpp(|player| {
             player.set_xp(30);
@@ -50,8 +50,8 @@ fn save_request_consumes_frozen_header_without_replaying_or_rereading_runtime() 
 fn save_snapshot_reads_active_and_detached_owner_without_changing_state() {
     let (mut session, _, send_rx) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 7);
-    session.current_map_id = 571;
-    session.player_level = 17;
+    session.core.current_map_id = 571;
+    session.identity.player_level = 17;
     session.set_loaded_player_powers_like_cpp([111, 222, 0, 0, 0, 0, 0, 0, 0, 0]);
     let position = Position::new(1.0, 2.0, 3.0, 0.5);
     session
@@ -65,7 +65,7 @@ fn save_snapshot_reads_active_and_detached_owner_without_changing_state() {
             player.clear_data_changes();
         })
         .unwrap();
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     for detached in [false, true] {
         if detached {
             assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
@@ -108,7 +108,7 @@ fn save_snapshot_reads_active_and_detached_owner_without_changing_state() {
 fn save_snapshot_keeps_pending_destination_precedence_without_relocating_player() {
     let (mut session, _, _) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 7);
-    session.current_map_id = 571;
+    session.core.current_map_id = 571;
     let original = session.player_position_like_cpp().unwrap();
     let near = Position::new(11.0, 22.0, 33.0, 0.5);
     let far = Position::new(44.0, 55.0, 66.0, 1.5);
@@ -183,7 +183,7 @@ fn save_snapshot_preserves_existing_residence_specific_dead_health_projection() 
 fn save_snapshot_cannot_read_replacement_or_fallback_after_owner_loss() {
     let (mut session, _, _) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
@@ -194,7 +194,7 @@ fn save_snapshot_cannot_read_replacement_or_fallback_after_owner_loss() {
         .install_detached_player_like_cpp(replacement)
         .unwrap();
     assert_eq!(session.current_player_save_to_db_snapshot_like_cpp(), None);
-    session.canonical_map_manager = None;
+    session.core.canonical_map_manager = None;
     assert_eq!(session.current_player_save_to_db_snapshot_like_cpp(), None);
     assert_eq!(
         manager

@@ -186,7 +186,12 @@ fn login_load_adds_default_void_item_appearance_like_cpp() {
     assert!(
         session.load_represented_void_storage_row_like_cpp(0, represented_void_item(77, entry),)
     );
-    assert!(session.represented_item_appearances_like_cpp.contains(&65));
+    assert!(
+        session
+            .collections
+            .represented_item_appearances_like_cpp
+            .contains(&65)
+    );
 }
 
 #[test]

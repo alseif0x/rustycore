@@ -111,18 +111,22 @@ async fn quest_giver_status_query_canonical_creature_completed_ender_sends_can_r
     let mut store = store_with_quests(&[1002]);
     store.ender_quests.entry(9002).or_default().push(1002);
     session.set_quest_store(Arc::new(store));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        1002,
-        PlayerQuestStatus {
-            quest_id: 1002,
-            status: QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
-    );
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
+            1002,
+            PlayerQuestStatus {
+                quest_id: 1002,
+                status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
     let guid = creature_guid(9002, 2);
     let mut manager = wow_map::MapManager::default();
     insert_creature(&mut manager, guid, 9002);
@@ -142,18 +146,22 @@ async fn quest_giver_status_query_gameobject_ignores_creature_relation_for_same_
     store.starter_quests.entry(9105).or_default().push(1005);
     store.ender_quests.entry(9105).or_default().push(1005);
     session.set_quest_store(Arc::new(store));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        1005,
-        PlayerQuestStatus {
-            quest_id: 1005,
-            status: QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
-    );
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
+            1005,
+            PlayerQuestStatus {
+                quest_id: 1005,
+                status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
     let guid = gameobject_guid(9105, 5);
     let mut manager = wow_map::MapManager::default();
     insert_gameobject(&mut manager, guid, 9105);

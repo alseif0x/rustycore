@@ -15,8 +15,8 @@ impl WorldSession {
             return canonical;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(self.represented_cinematic_state_like_cpp);
+        if self.core.player_handle_like_cpp.is_none() {
+            return Some(self.presentation.represented_cinematic_state_like_cpp);
         }
         None
     }
@@ -26,12 +26,12 @@ impl WorldSession {
             return None;
         }
 
-        let class_store = self.chr.classes_store.as_ref()?;
+        let class_store = self.catalogs.chr.classes_store.as_ref()?;
         let class_entry = class_store.get(u32::from(self.player_class_like_cpp()))?;
         let cinematic_id = if class_entry.cinematic_sequence_id != 0 {
             u32::from(class_entry.cinematic_sequence_id)
         } else {
-            let race_store = self.chr.races_store.as_ref()?;
+            let race_store = self.catalogs.chr.races_store.as_ref()?;
             race_store
                 .get(u32::from(self.player_race_like_cpp()))
                 .map(|race_entry| race_entry.cinematic_sequence_id as u32)?
@@ -54,7 +54,8 @@ impl WorldSession {
             #[cfg(not(test))]
             let _ = cinematic_id;
             #[cfg(test)]
-            self.represented_cinematic_end_events_like_cpp
+            self.presentation
+                .represented_cinematic_end_events_like_cpp
                 .push(cinematic_id);
         }
     }
@@ -72,7 +73,8 @@ impl WorldSession {
             return;
         }
         #[cfg(test)]
-        self.represented_cinematic_next_camera_events_like_cpp
+        self.presentation
+            .represented_cinematic_next_camera_events_like_cpp
             .push(camera_id);
     }
 
@@ -89,7 +91,8 @@ impl WorldSession {
             #[cfg(not(test))]
             let _ = movie_id;
             #[cfg(test)]
-            self.represented_movie_complete_events_like_cpp
+            self.presentation
+                .represented_movie_complete_events_like_cpp
                 .push(movie_id);
         }
     }
@@ -108,12 +111,14 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn represented_cinematic_next_camera_events_like_cpp(&self) -> &[u16] {
-        &self.represented_cinematic_next_camera_events_like_cpp
+        &self
+            .presentation
+            .represented_cinematic_next_camera_events_like_cpp
     }
 
     #[cfg(test)]
     pub(crate) fn represented_cinematic_end_events_like_cpp(&self) -> &[u32] {
-        &self.represented_cinematic_end_events_like_cpp
+        &self.presentation.represented_cinematic_end_events_like_cpp
     }
 
     #[cfg(test)]
@@ -124,6 +129,6 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn represented_movie_complete_events_like_cpp(&self) -> &[u32] {
-        &self.represented_movie_complete_events_like_cpp
+        &self.presentation.represented_movie_complete_events_like_cpp
     }
 }

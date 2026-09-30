@@ -93,6 +93,7 @@ fn represented_mounted_flight_speed_removal_unsets_can_fly_when_last_source_like
         .unwrap();
     session.update_represented_flight_flags_for_flight_aura_like_cpp(true);
     let slot = session
+        .auras
         .visible_auras
         .iter()
         .find_map(|(&slot, aura)| {
@@ -182,6 +183,7 @@ fn represented_swim_speed_removal_recomputes_like_cpp() {
             < 0.0001
     );
     let swim_slot = session
+        .auras
         .visible_auras
         .iter()
         .find_map(|(&slot, aura)| {
@@ -418,6 +420,7 @@ fn represented_backward_speed_slow_removal_restores_base_speeds_like_cpp() {
     session.recompute_represented_backward_speed_rates_like_cpp();
     let _ = drain_server_opcodes(&send_rx);
     let slow_slot = session
+        .auras
         .visible_auras
         .iter()
         .find_map(|(&slot, aura)| {
@@ -591,6 +594,7 @@ fn represented_dismount_restores_active_normal_run_speed_like_cpp() {
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 14.0).abs() < 0.0001
     );
     let mounted_slot = session
+        .auras
         .visible_auras
         .iter()
         .find_map(|(&slot, aura)| {
@@ -712,6 +716,7 @@ fn represented_run_speed_slow_removal_recomputes_like_cpp() {
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 7.0).abs() < 0.0001
     );
     let slow_slot = session
+        .auras
         .visible_auras
         .iter()
         .find_map(|(&slot, aura)| {
@@ -819,6 +824,7 @@ fn represented_run_speed_use_normal_movement_speed_removal_recomputes_like_cpp()
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 10.0).abs() < 0.0001
     );
     let normal_cap_slot = session
+        .auras
         .visible_auras
         .iter()
         .find_map(|(&slot, aura)| {

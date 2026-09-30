@@ -61,14 +61,28 @@ async fn spell_history_loads_preserve_cpp_order_expiry_and_charge_aggregation() 
     assert_eq!(charges[0].category, 42);
     assert_eq!(charges[0].consumed_charges, 2);
     assert!(charges[0].next_recovery_time_ms > 0);
-    assert!(session.represented_character_spell_cooldowns_loaded_like_cpp);
-    assert!(session.represented_character_spell_charges_loaded_like_cpp);
+    assert!(
+        session
+            .spell_state
+            .represented_character_spell_cooldowns_loaded_like_cpp
+    );
+    assert!(
+        session
+            .spell_state
+            .represented_character_spell_charges_loaded_like_cpp
+    );
     assert_eq!(
-        session.represented_character_spell_cooldowns_like_cpp.len(),
+        session
+            .spell_state
+            .represented_character_spell_cooldowns_like_cpp
+            .len(),
         1
     );
     assert_eq!(
-        session.represented_character_spell_charges_like_cpp[&42].len(),
+        session
+            .spell_state
+            .represented_character_spell_charges_like_cpp[&42]
+            .len(),
         2
     );
     assert_eq!(
@@ -109,6 +123,14 @@ async fn spell_history_cooldown_failure_does_not_suppress_independent_charges_li
 
     assert!(history.is_empty());
     assert_eq!(charges.len(), 1);
-    assert!(!session.represented_character_spell_cooldowns_loaded_like_cpp);
-    assert!(session.represented_character_spell_charges_loaded_like_cpp);
+    assert!(
+        !session
+            .spell_state
+            .represented_character_spell_cooldowns_loaded_like_cpp
+    );
+    assert!(
+        session
+            .spell_state
+            .represented_character_spell_charges_loaded_like_cpp
+    );
 }

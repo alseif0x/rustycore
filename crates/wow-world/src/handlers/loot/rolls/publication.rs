@@ -55,7 +55,7 @@ impl WorldSession {
         _quantity: u32,
     ) {
         #[cfg(test)]
-        self.represented_loot_roll_criteria_events.push(
+        self.loot.represented_loot_roll_criteria_events.push(
             crate::session::RepresentedLootRollCriteriaEvent::RollAnyNeed {
                 player_guid: _player_guid,
                 quantity: _quantity,
@@ -69,7 +69,7 @@ impl WorldSession {
         _quantity: u32,
     ) {
         #[cfg(test)]
-        self.represented_loot_roll_criteria_events.push(
+        self.loot.represented_loot_roll_criteria_events.push(
             crate::session::RepresentedLootRollCriteriaEvent::RollAnyGreed {
                 player_guid: _player_guid,
                 quantity: _quantity,
@@ -84,7 +84,7 @@ impl WorldSession {
         _roll_number: u8,
     ) {
         #[cfg(test)]
-        self.represented_loot_roll_criteria_events.push(
+        self.loot.represented_loot_roll_criteria_events.push(
             crate::session::RepresentedLootRollCriteriaEvent::RollNeed {
                 player_guid: _player_guid,
                 item_id: _item_id,
@@ -100,7 +100,7 @@ impl WorldSession {
         _roll_number: u8,
     ) {
         #[cfg(test)]
-        self.represented_loot_roll_criteria_events.push(
+        self.loot.represented_loot_roll_criteria_events.push(
             crate::session::RepresentedLootRollCriteriaEvent::RollGreed {
                 player_guid: _player_guid,
                 item_id: _item_id,

@@ -71,7 +71,7 @@ async fn quest_confirm_accept_source_item_bound_objective_dont_report_flag_sends
     group.add_member(other_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
@@ -152,6 +152,7 @@ async fn quest_confirm_accept_source_item_multiple_bound_objectives_stops_after_
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
     let status = session
+        .quest_state
         .quest_test_fixture_like_cpp
         .player_quests
         .get(&quest_id)
@@ -241,6 +242,7 @@ async fn quest_confirm_accept_source_item_sequenced_objective_waits_for_previous
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
     let status = session
+        .quest_state
         .quest_test_fixture_like_cpp
         .player_quests
         .get(&quest_id)
@@ -312,6 +314,7 @@ async fn quest_confirm_accept_source_item_optional_previous_allows_sequenced_obj
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
     let status = session
+        .quest_state
         .quest_test_fixture_like_cpp
         .player_quests
         .get(&quest_id)
@@ -366,6 +369,7 @@ async fn quest_confirm_accept_source_item_progress_bar_part_objective_progresses
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
     let status = session
+        .quest_state
         .quest_test_fixture_like_cpp
         .player_quests
         .get(&quest_id)
@@ -413,6 +417,7 @@ async fn quest_confirm_accept_source_item_zero_count_normalizes_to_one_and_fails
     assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
     assert!(
         !session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .contains_key(&quest_id)
@@ -469,6 +474,7 @@ async fn quest_confirm_accept_source_item_at_max_count_allows_can_add_gate_like_
 
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .contains_key(&quest_id)
@@ -572,6 +578,7 @@ async fn quest_confirm_accept_source_item_limit_category_missing_db2_entry_fails
     assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
     assert!(
         !session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .contains_key(&quest_id)
@@ -646,6 +653,7 @@ async fn quest_confirm_accept_source_item_start_quest_still_respects_limit_categ
     assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
     assert!(
         !session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .contains_key(&quest_id)
@@ -707,12 +715,14 @@ async fn quest_confirm_accept_without_source_item_does_not_overclaim_source_gate
     );
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .contains_key(&quest_id)
     );
     assert_eq!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .get(&quest_id)
@@ -882,6 +892,7 @@ async fn quest_giver_status_multiple_skips_missing_player_item_and_non_questgive
     let mut state = crate::session::RepresentedGameObjectUseState::default();
     state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8);
     session
+        .world_entities
         .represented_gameobject_use_states
         .insert(non_questgiver_go, state);
 

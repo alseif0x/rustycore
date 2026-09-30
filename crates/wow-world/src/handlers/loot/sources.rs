@@ -58,12 +58,13 @@ impl WorldSession {
                 .represented_owned_loot_authority_like_cpp(gameobject_guid)
                 .and_then(|authority| authority.snapshot_for_player_like_cpp(player_guid))
         {
-            self.loot_table.insert(gameobject_guid, snapshot.loot);
-            self.represented_loot_cache_generations_like_cpp
+            self.loot.loot_table.insert(gameobject_guid, snapshot.loot);
+            self.loot
+                .represented_loot_cache_generations_like_cpp
                 .insert(gameobject_guid, snapshot.generation);
         }
 
-        if replace_existing || !self.loot_table.contains_key(&gameobject_guid) {
+        if replace_existing || !self.loot.loot_table.contains_key(&gameobject_guid) {
             let items = self
                 .generate_represented_gameobject_loot_items_for_store_like_cpp(
                     loot_id,
@@ -84,7 +85,7 @@ impl WorldSession {
             else {
                 return;
             };
-            self.loot_table.insert(
+            self.loot.loot_table.insert(
                 gameobject_guid,
                 CreatureLoot {
                     loot_guid,
@@ -104,12 +105,13 @@ impl WorldSession {
             );
         }
 
-        if let Some(loot) = self.loot_table.get_mut(&gameobject_guid) {
+        if let Some(loot) = self.loot.loot_table.get_mut(&gameobject_guid) {
             mark_loot_allowed_for_player_like_cpp(loot, player_guid);
         }
-        self.represented_personal_loot_owners
+        self.loot
+            .represented_personal_loot_owners
             .insert(gameobject_guid);
-        if let Some(loot) = self.loot_table.get(&gameobject_guid).cloned() {
+        if let Some(loot) = self.loot.loot_table.get(&gameobject_guid).cloned() {
             let upserted = install_observation.as_ref().and_then(|observation| {
                 self.upsert_represented_personal_gameobject_loot_authority_if_observed_like_cpp(
                     gameobject_guid,
@@ -120,14 +122,15 @@ impl WorldSession {
                 )
             });
             if upserted.is_none() && !represented_local_loot_fixture_allowed_like_cpp() {
-                self.loot_table.remove(&gameobject_guid);
-                self.represented_personal_loot_owners
+                self.loot.loot_table.remove(&gameobject_guid);
+                self.loot
+                    .represented_personal_loot_owners
                     .remove(&gameobject_guid);
                 return;
             }
         }
 
-        let Some(loot) = self.loot_table.get(&gameobject_guid) else {
+        let Some(loot) = self.loot.loot_table.get(&gameobject_guid) else {
             return;
         };
         if !self.represented_loot_can_be_opened_by_player_like_cpp(
@@ -181,14 +184,16 @@ impl WorldSession {
         {
             Some(Some(observation)) => Some(observation),
             Some(None) => {
-                self.loot_table.remove(&gameobject_guid);
-                self.represented_loot_cache_generations_like_cpp
+                self.loot.loot_table.remove(&gameobject_guid);
+                self.loot
+                    .represented_loot_cache_generations_like_cpp
                     .remove(&gameobject_guid);
                 return;
             }
             None if !represented_local_loot_fixture_allowed_like_cpp() => {
-                self.loot_table.remove(&gameobject_guid);
-                self.represented_loot_cache_generations_like_cpp
+                self.loot.loot_table.remove(&gameobject_guid);
+                self.loot
+                    .represented_loot_cache_generations_like_cpp
                     .remove(&gameobject_guid);
                 return;
             }
@@ -200,11 +205,14 @@ impl WorldSession {
         let mut install_single_personal_pool = false;
         if let Some(authority) = authority.as_ref() {
             #[cfg(test)]
-            if authority.is_pristine_like_cpp() && self.loot_table.contains_key(&gameobject_guid) {
+            if authority.is_pristine_like_cpp()
+                && self.loot.loot_table.contains_key(&gameobject_guid)
+            {
                 if !self
+                    .loot
                     .represented_personal_loot_owners
                     .contains(&gameobject_guid)
-                    && let Some(loot) = self.loot_table.get_mut(&gameobject_guid)
+                    && let Some(loot) = self.loot.loot_table.get_mut(&gameobject_guid)
                 {
                     prepare_represented_shared_loot_generation_like_cpp(loot, allowed_looters);
                 }
@@ -244,17 +252,19 @@ impl WorldSession {
                 install_single_personal_pool = true;
             }
             if !authority.is_retired_like_cpp() && !can_add_personal_pool {
-                self.loot_table.remove(&gameobject_guid);
-                self.represented_loot_cache_generations_like_cpp
+                self.loot.loot_table.remove(&gameobject_guid);
+                self.loot
+                    .represented_loot_cache_generations_like_cpp
                     .remove(&gameobject_guid);
                 return;
             }
-            self.loot_table.remove(&gameobject_guid);
-            self.represented_loot_cache_generations_like_cpp
+            self.loot.loot_table.remove(&gameobject_guid);
+            self.loot
+                .represented_loot_cache_generations_like_cpp
                 .remove(&gameobject_guid);
         }
 
-        if !self.loot_table.contains_key(&gameobject_guid) {
+        if !self.loot.loot_table.contains_key(&gameobject_guid) {
             let single_personal_looter = install_single_personal_pool.then_some([player_guid]);
             let generation_allowed_looters = single_personal_looter
                 .as_ref()
@@ -272,6 +282,7 @@ impl WorldSession {
                 return;
             };
             let personal = self
+                .loot
                 .represented_personal_loot_owners
                 .contains(&gameobject_guid);
             if !personal {
@@ -293,8 +304,8 @@ impl WorldSession {
                         )
                         .is_none()
                     {
-                        self.loot_table.remove(&gameobject_guid);
-                        self.represented_loot_cache_generations_like_cpp
+                        self.loot.loot_table.remove(&gameobject_guid);
+                        self.loot.represented_loot_cache_generations_like_cpp
                             .remove(&gameobject_guid);
                     }
                     return;
@@ -305,8 +316,9 @@ impl WorldSession {
                     loot,
                     personal,
                 ) else {
-                    self.loot_table.remove(&gameobject_guid);
-                    self.represented_loot_cache_generations_like_cpp
+                    self.loot.loot_table.remove(&gameobject_guid);
+                    self.loot
+                        .represented_loot_cache_generations_like_cpp
                         .remove(&gameobject_guid);
                     return;
                 };
@@ -319,7 +331,8 @@ impl WorldSession {
                     // `m_personalLoot[player]`, so this filter belongs only to
                     // the encounter topology.
                     personal.retain(|_, pool| !loot_is_looted_like_cpp(pool));
-                    self.represented_personal_loot_money
+                    self.loot
+                        .represented_personal_loot_money
                         .retain(|(owner, player), _| {
                             *owner != gameobject_guid || personal.contains_key(player)
                         });
@@ -328,10 +341,12 @@ impl WorldSession {
                         // loot window.  Keep the authority pristine/retired so
                         // a later `Use` may generate again instead of leaving
                         // an active owner with no selectable pool.
-                        self.represented_personal_loot_owners
+                        self.loot
+                            .represented_personal_loot_owners
                             .remove(&gameobject_guid);
-                        self.loot_table.remove(&gameobject_guid);
-                        self.represented_loot_cache_generations_like_cpp
+                        self.loot.loot_table.remove(&gameobject_guid);
+                        self.loot
+                            .represented_loot_cache_generations_like_cpp
                             .remove(&gameobject_guid);
                         return;
                     }
@@ -351,15 +366,16 @@ impl WorldSession {
                     )
                     .unwrap_or(false);
                 if !installed {
-                    self.loot_table.remove(&gameobject_guid);
-                    self.represented_loot_cache_generations_like_cpp
+                    self.loot.loot_table.remove(&gameobject_guid);
+                    self.loot
+                        .represented_loot_cache_generations_like_cpp
                         .remove(&gameobject_guid);
                     return;
                 }
                 let _ =
                     self.reconcile_represented_loot_cache_like_cpp(gameobject_guid, player_guid);
             } else if represented_local_loot_fixture_allowed_like_cpp() {
-                self.loot_table.insert(gameobject_guid, loot);
+                self.loot.loot_table.insert(gameobject_guid, loot);
             }
         }
     }
@@ -425,9 +441,11 @@ impl WorldSession {
 
         if personal_loot {
             loot.coins = 0;
-            self.represented_personal_loot_owners
+            self.loot
+                .represented_personal_loot_owners
                 .insert(gameobject_guid);
-            self.represented_personal_loot_money
+            self.loot
+                .represented_personal_loot_money
                 .retain(|(owner, _), _| *owner != gameobject_guid);
             let represented_tappers = if personal_encounter && !allowed_looters.is_empty() {
                 let mut tappers = allowed_looters
@@ -462,7 +480,8 @@ impl WorldSession {
                     max_money,
                     self.loot_drop_rates_like_cpp().money,
                 );
-                self.represented_personal_loot_money
+                self.loot
+                    .represented_personal_loot_money
                     .insert((gameobject_guid, *tapper), tapper_money);
             }
             if personal_encounter {
@@ -485,7 +504,8 @@ impl WorldSession {
             }
             rebuild_represented_personal_loot_counts_like_cpp(&mut loot);
             if represented_tappers.is_empty() {
-                self.represented_personal_loot_owners
+                self.loot
+                    .represented_personal_loot_owners
                     .remove(&gameobject_guid);
             }
         }
@@ -545,7 +565,11 @@ impl WorldSession {
         player_guid: ObjectGuid,
         dungeon_encounter_id: u32,
     ) -> Vec<ObjectGuid> {
-        let Some(tappers) = self.represented_gameobject_tap_lists.get(&gameobject_guid) else {
+        let Some(tappers) = self
+            .loot
+            .represented_gameobject_tap_lists
+            .get(&gameobject_guid)
+        else {
             return self
                 .represented_player_unlocked_for_dungeon_encounter_like_cpp(
                     player_guid,
@@ -904,7 +928,7 @@ impl WorldSession {
         else {
             return false;
         };
-        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
             return false;
         };
         let Ok(mut manager) = manager.lock() else {
@@ -933,7 +957,7 @@ impl WorldSession {
         else {
             return false;
         };
-        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
             return false;
         };
         let Ok(mut manager) = manager.lock() else {

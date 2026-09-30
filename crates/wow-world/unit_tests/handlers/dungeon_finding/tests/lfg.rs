@@ -21,7 +21,7 @@ async fn set_difficulty_id_group_lfg_is_silent_like_cpp() {
     group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(leader));
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
     session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
         2,
@@ -179,6 +179,7 @@ fn lfg_lock_status_applies_access_requirement_order_like_cpp() {
     );
 
     session
+        .collections
         .represented_completed_achievements_like_cpp
         .insert(9001);
     install_requirement(
@@ -202,6 +203,7 @@ fn lfg_lock_status_applies_access_requirement_order_like_cpp() {
     );
 
     session
+        .quest_state
         .quest_test_fixture_like_cpp
         .rewarded_quests
         .insert(42);
@@ -241,6 +243,7 @@ fn lfg_reward_uses_other_quest_when_df_first_quest_on_cooldown_like_cpp() {
         other.clone(),
     ])));
     session
+        .quest_state
         .quest_test_fixture_like_cpp
         .df_quests_like_cpp
         .insert(first.id);
@@ -368,7 +371,7 @@ async fn reset_instances_lfg_group_is_silent_like_cpp() {
     );
 
     session.set_player_guid(Some(leader));
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_map_position_like_cpp(0, Position::ZERO);
     session.set_map_store(Arc::new(MapStore::from_entries([

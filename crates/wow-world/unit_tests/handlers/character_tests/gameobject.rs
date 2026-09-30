@@ -20,18 +20,22 @@ async fn gossip_select_accepts_represented_goober_menu_and_removes_feign_like_cp
         GAMEOBJECT_TYPE_GOOBER as u8,
         true,
     );
-    session.represented_gameobject_use_states.insert(
-        goober,
-        RepresentedGameObjectUseState {
-            map_id: Some(571),
-            position: Some(Position::new(1.0, 0.0, 0.0, 0.0)),
-            go_type: Some(GAMEOBJECT_TYPE_GOOBER as u8),
-            icon_name_allows_interaction_like_cpp: Some(true),
-            ..Default::default()
-        },
-    );
+    session
+        .world_entities
+        .represented_gameobject_use_states
+        .insert(
+            goober,
+            RepresentedGameObjectUseState {
+                map_id: Some(571),
+                position: Some(Position::new(1.0, 0.0, 0.0, 0.0)),
+                go_type: Some(GAMEOBJECT_TYPE_GOOBER as u8),
+                icon_name_allows_interaction_like_cpp: Some(true),
+                ..Default::default()
+            },
+        );
     session.set_player_interaction_source_like_cpp(goober);
     session
+        .interaction
         .gossip_options
         .push(crate::session::GossipOptionInfo {
             gossip_option_id: 71,
@@ -56,7 +60,7 @@ async fn gossip_select_accepts_represented_goober_menu_and_removes_feign_like_cp
         vec![ServerOpcodes::AuraUpdate],
         "a valid GOOBER follows the C++ generic GameObject interaction path"
     );
-    assert!(!session.visible_auras.contains_key(&FEIGN_SLOT));
+    assert!(!session.auras.visible_auras.contains_key(&FEIGN_SLOT));
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));
 }
 #[tokio::test]
@@ -139,18 +143,22 @@ async fn gossip_select_gameobject_revalidates_cpp_interaction_boundaries() {
         insert_bank_test_player_in_world(&session, &canonical);
         let gameobject = gameobject_guid(9305, 305);
         insert_gossip_gameobject(&canonical, gameobject, 9305, position, go_type, in_world);
-        session.represented_gameobject_use_states.insert(
-            gameobject,
-            RepresentedGameObjectUseState {
-                map_id: Some(571),
-                position: Some(position),
-                go_type: recorded_type.then_some(go_type),
-                icon_name_allows_interaction_like_cpp: icon_allows,
-                ..Default::default()
-            },
-        );
+        session
+            .world_entities
+            .represented_gameobject_use_states
+            .insert(
+                gameobject,
+                RepresentedGameObjectUseState {
+                    map_id: Some(571),
+                    position: Some(position),
+                    go_type: recorded_type.then_some(go_type),
+                    icon_name_allows_interaction_like_cpp: icon_allows,
+                    ..Default::default()
+                },
+            );
         session.set_player_interaction_source_like_cpp(gameobject);
         session
+            .interaction
             .gossip_options
             .push(crate::session::GossipOptionInfo {
                 gossip_option_id: 81,
@@ -194,7 +202,7 @@ async fn gossip_select_gameobject_revalidates_cpp_interaction_boundaries() {
             "{case}: rejection must precede fake-death removal and action routing"
         );
         assert!(
-            session.visible_auras.contains_key(&FEIGN_SLOT),
+            session.auras.visible_auras.contains_key(&FEIGN_SLOT),
             "{case}: rejected source must preserve fake death"
         );
         assert!(
@@ -222,18 +230,22 @@ async fn gossip_select_gameobject_rejects_npc_service_option_after_feign_like_cp
         GAMEOBJECT_TYPE_GOOBER as u8,
         true,
     );
-    session.represented_gameobject_use_states.insert(
-        goober,
-        RepresentedGameObjectUseState {
-            map_id: Some(571),
-            position: Some(Position::new(1.0, 0.0, 0.0, 0.0)),
-            go_type: Some(GAMEOBJECT_TYPE_GOOBER as u8),
-            icon_name_allows_interaction_like_cpp: Some(true),
-            ..Default::default()
-        },
-    );
+    session
+        .world_entities
+        .represented_gameobject_use_states
+        .insert(
+            goober,
+            RepresentedGameObjectUseState {
+                map_id: Some(571),
+                position: Some(Position::new(1.0, 0.0, 0.0, 0.0)),
+                go_type: Some(GAMEOBJECT_TYPE_GOOBER as u8),
+                icon_name_allows_interaction_like_cpp: Some(true),
+                ..Default::default()
+            },
+        );
     session.set_player_interaction_source_like_cpp(goober);
     session
+        .interaction
         .gossip_options
         .push(crate::session::GossipOptionInfo {
             gossip_option_id: 91,
@@ -262,7 +274,7 @@ async fn gossip_select_gameobject_rejects_npc_service_option_after_feign_like_cp
         session.player_interaction_source_guid_like_cpp(),
         Some(goober)
     );
-    assert!(!session.visible_auras.contains_key(&FEIGN_SLOT));
+    assert!(!session.auras.visible_auras.contains_key(&FEIGN_SLOT));
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));
 }
 #[tokio::test]

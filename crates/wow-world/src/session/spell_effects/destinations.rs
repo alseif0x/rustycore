@@ -45,6 +45,7 @@ impl WorldSession {
         mut position: Position,
     ) -> Position {
         if self
+            .catalogs
             .spell_catalogs
             .spell_misc_store
             .as_deref()
@@ -103,53 +104,61 @@ impl WorldSession {
             .current_canonical_player_map_key_like_cpp()
             .unwrap_or_else(|| wow_map::MapKey::new(u32::from(self.player_map_id_like_cpp()), 0));
         let legacy_map_id = u16::try_from(map_key.map_id).ok()?;
-        let canonical_destination = self.canonical_map_manager.as_ref().and_then(|manager| {
-            let manager = manager.lock().ok()?;
-            let map = manager.find_map(map_key.map_id, map_key.instance_id)?;
-            let map = map.map();
-            let (world_position, vehicle_base_guid) = if Some(caster_guid) == self.player_guid() {
-                let player = map.get_typed_player(caster_guid)?;
-                (
-                    player.unit().world().position(),
-                    player.unit().subsystems().vehicle.vehicle_guid,
-                )
-            } else {
-                map.with_creature_like_cpp(caster_guid, |creature| {
+        let canonical_destination = self
+            .core
+            .canonical_map_manager
+            .as_ref()
+            .and_then(|manager| {
+                let manager = manager.lock().ok()?;
+                let map = manager.find_map(map_key.map_id, map_key.instance_id)?;
+                let map = map.map();
+                let (world_position, vehicle_base_guid) = if Some(caster_guid) == self.player_guid()
+                {
+                    let player = map.get_typed_player(caster_guid)?;
                     (
-                        creature.unit().world().position(),
-                        creature.unit().subsystems().vehicle.vehicle_guid,
+                        player.unit().world().position(),
+                        player.unit().subsystems().vehicle.vehicle_guid,
                     )
-                })?
-            };
-            if let Some(vehicle_base_guid) = vehicle_base_guid {
-                let vehicle_base_position = map
-                    .get_typed_player(vehicle_base_guid)
-                    .map(|player| player.unit().world().position())
-                    .or_else(|| {
-                        map.creature_transform_vitals_snapshot_like_cpp(vehicle_base_guid)
-                            .map(|creature| creature.position)
-                    })?;
-                Some((
-                    vehicle_base_guid,
-                    wow_entities::calculate_passenger_offset(world_position, vehicle_base_position),
-                ))
-            } else if let Some(transport) =
-                map.get_typed_transport_for_passenger_like_cpp(caster_guid)
-            {
-                Some((
-                    transport.world().guid(),
-                    transport.calculate_passenger_offset(world_position),
-                ))
-            } else {
-                Some((ObjectGuid::EMPTY, world_position))
-            }
-        });
+                } else {
+                    map.with_creature_like_cpp(caster_guid, |creature| {
+                        (
+                            creature.unit().world().position(),
+                            creature.unit().subsystems().vehicle.vehicle_guid,
+                        )
+                    })?
+                };
+                if let Some(vehicle_base_guid) = vehicle_base_guid {
+                    let vehicle_base_position = map
+                        .get_typed_player(vehicle_base_guid)
+                        .map(|player| player.unit().world().position())
+                        .or_else(|| {
+                            map.creature_transform_vitals_snapshot_like_cpp(vehicle_base_guid)
+                                .map(|creature| creature.position)
+                        })?;
+                    Some((
+                        vehicle_base_guid,
+                        wow_entities::calculate_passenger_offset(
+                            world_position,
+                            vehicle_base_position,
+                        ),
+                    ))
+                } else if let Some(transport) =
+                    map.get_typed_transport_for_passenger_like_cpp(caster_guid)
+                {
+                    Some((
+                        transport.world().guid(),
+                        transport.calculate_passenger_offset(world_position),
+                    ))
+                } else {
+                    Some((ObjectGuid::EMPTY, world_position))
+                }
+            });
         let (transport, position) = canonical_destination.or_else(|| {
             if Some(caster_guid) == self.player_guid() {
                 self.player_position_like_cpp()
                     .map(|position| (ObjectGuid::EMPTY, position))
             } else {
-                self.map_manager.as_ref().and_then(|manager| {
+                self.core.map_manager.as_ref().and_then(|manager| {
                     manager
                         .read()
                         .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -166,7 +175,7 @@ impl WorldSession {
         transport_offset: Position,
     ) -> Option<Position> {
         let map_key = self.current_canonical_player_map_key_like_cpp()?;
-        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
         let map = manager.find_map(map_key.map_id, map_key.instance_id)?;
         let map = map.map();
         if let Some(transport) = map.get_typed_transport_like_cpp(transport_guid) {
@@ -205,6 +214,7 @@ impl WorldSession {
 
         let spell_id_u32 = u32::try_from(spell_info.spell_id).ok()?;
         let target_position = self
+            .catalogs
             .spell_catalogs
             .spell_target_position_store
             .as_deref()
@@ -281,7 +291,8 @@ impl WorldSession {
             .as_ref()
             .is_some_and(|conditions| !conditions.is_empty());
         let target_position = if is_or_db && !has_implicit_conditions {
-            self.spell_catalogs
+            self.catalogs
+                .spell_catalogs
                 .spell_target_position_store
                 .as_deref()
                 .and_then(|store| store.get(spell_id_u32, effect.effect_index))
@@ -290,12 +301,14 @@ impl WorldSession {
         };
         let caster_position = self.player_position_like_cpp()?;
         let range = self
+            .catalogs
             .spell_catalogs
             .spell_misc_store
             .as_deref()
             .and_then(|store| store.get_by_spell_id(spell_id_u32))
             .and_then(|misc| {
-                self.spell_catalogs
+                self.catalogs
+                    .spell_catalogs
                     .spell_range_store
                     .as_deref()
                     .and_then(|store| store.get(u32::from(misc.range_index)))
@@ -303,7 +316,7 @@ impl WorldSession {
             .map(|range| range.range_max[0].max(range.range_max[1]))?;
         let radius = spell_effect_radius_like_cpp(
             effect.effect_radius_index_1,
-            self.spell_catalogs.spell_radius_store.as_deref(),
+            self.catalogs.spell_catalogs.spell_radius_store.as_deref(),
         );
         let position = if let Some(target_position) = target_position {
             if target_position.target_map_id == self.player_map_id_like_cpp()
@@ -394,6 +407,7 @@ impl WorldSession {
         // radius/direction behavior; terrain raycast/first-collision remains
         // part of the full map/path runtime work.
         let distance = self
+            .core
             .driver
             .represented_runtime_rng_like_cpp
             .gen_range(0.0..=radius);
@@ -437,16 +451,16 @@ impl WorldSession {
             None
         };
         let player_condition_store = if has_implicit_conditions {
-            self.player_condition_store.as_ref().cloned()
+            self.catalogs.player_condition_store.as_ref().cloned()
         } else {
             None
         };
         let area_table_store = if has_implicit_conditions {
-            self.area_table_store.as_ref().cloned()
+            self.catalogs.area_table_store.as_ref().cloned()
         } else {
             None
         };
-        let Some(manager) = &self.canonical_map_manager else {
+        let Some(manager) = &self.core.canonical_map_manager else {
             return None;
         };
         let Ok(manager) = manager.lock() else {

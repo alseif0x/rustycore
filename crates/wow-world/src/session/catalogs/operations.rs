@@ -7,52 +7,53 @@ use super::*;
 
 impl WorldSession {
     pub fn set_trainer_store_like_cpp(&mut self, store: Arc<TrainerStoreLikeCpp>) {
-        self.trainer_store_like_cpp = Some(store);
+        self.catalogs.trainer_store_like_cpp = Some(store);
     }
     pub(crate) fn trainer_store_like_cpp(&self) -> Option<&Arc<TrainerStoreLikeCpp>> {
-        self.trainer_store_like_cpp.as_ref()
+        self.catalogs.trainer_store_like_cpp.as_ref()
     }
     /// Set the C++ ImportPrice*.db2 stores for this session.
     #[cfg(test)]
     pub fn set_import_price_stores(&mut self, stores: Arc<ImportPriceStores>) {
-        self.import_price_stores = Some(stores);
+        self.catalogs.import_price_stores = Some(stores);
     }
     pub fn set_trinity_string_store(&mut self, store: Arc<TrinityStringStoreLikeCpp>) {
-        self.trinity_string_store = Some(store);
+        self.catalogs.trinity_string_store = Some(store);
     }
     pub fn trinity_string_store(&self) -> Option<&Arc<TrinityStringStoreLikeCpp>> {
-        self.trinity_string_store.as_ref()
+        self.catalogs.trinity_string_store.as_ref()
     }
     /// Set the heirloom store for this session.
     pub fn set_heirloom_store(&mut self, store: Arc<HeirloomStore>) {
-        self.heirloom_store = Some(store);
+        self.catalogs.heirloom_store = Some(store);
     }
     /// Get the heirloom store reference.
     pub fn heirloom_store(&self) -> Option<&Arc<HeirloomStore>> {
-        self.heirloom_store.as_ref()
+        self.catalogs.heirloom_store.as_ref()
     }
     /// Set the toy store for this session.
     pub fn set_toy_store(&mut self, store: Arc<ToyStore>) {
-        self.toy_store = Some(store);
+        self.catalogs.toy_store = Some(store);
     }
     /// Get the toy store reference.
     pub fn toy_store(&self) -> Option<&Arc<ToyStore>> {
-        self.toy_store.as_ref()
+        self.catalogs.toy_store.as_ref()
     }
     #[cfg(test)]
     pub fn set_player_create_info_store_like_cpp(
         &mut self,
         store: Arc<PlayerCreateInfoStoreLikeCpp>,
     ) {
-        self.player_bootstrap_catalog_test_fixture_like_cpp
+        self.catalogs
+            .player_bootstrap_catalog_test_fixture_like_cpp
             .player_create_info_store_like_cpp = Some(store);
     }
     pub fn set_packet_spoof_config_like_cpp(&mut self, config: PacketSpoofConfigLikeCpp) {
-        self.admission.packet_spoof_config_like_cpp = config;
+        self.core.admission.packet_spoof_config_like_cpp = config;
     }
     #[cfg(test)]
     pub fn set_feature_system_bpay_store_enabled_like_cpp(&mut self, enabled: bool) {
-        self.feature_system_bpay_store_enabled_like_cpp = enabled;
+        self.config.feature_system_bpay_store_enabled_like_cpp = enabled;
     }
     pub(crate) fn update_speak_time_with_policy_like_cpp(
         &mut self,
@@ -84,8 +85,8 @@ impl WorldSession {
             data.count = data.count.saturating_add(1);
             if data.count >= limit {
                 let new_mute = current.saturating_add(i64::from(config.mute_time_secs));
-                if self.account_state.mute_time_like_cpp < new_mute {
-                    self.account_state.mute_time_like_cpp = new_mute;
+                if self.core.account_state.mute_time_like_cpp < new_mute {
+                    self.core.account_state.mute_time_like_cpp = new_mute;
                 }
                 data.count = 0;
             }
@@ -117,210 +118,210 @@ impl WorldSession {
     }
     /// Set the random property points store for this session.
     pub fn set_rand_prop_points_store(&mut self, store: Arc<RandPropPointsStore>) {
-        self.rand_prop_points_store = Some(store);
+        self.catalogs.rand_prop_points_store = Some(store);
     }
     /// Get the random property points store reference.
     pub fn rand_prop_points_store(&self) -> Option<&Arc<RandPropPointsStore>> {
-        self.rand_prop_points_store.as_ref()
+        self.catalogs.rand_prop_points_store.as_ref()
     }
     /// Set the C++ ConditionMgr store loaded from the `conditions` table.
     pub fn set_condition_store(&mut self, store: Arc<ConditionEntriesByTypeStore>) {
-        self.condition_store = Some(store);
+        self.catalogs.condition_store = Some(store);
     }
     /// Get the loaded ConditionMgr store reference.
     pub fn condition_store(&self) -> Option<&Arc<ConditionEntriesByTypeStore>> {
-        self.condition_store.as_ref()
+        self.catalogs.condition_store.as_ref()
     }
     /// Set the C++ PlayerCondition.db2 store for this session.
     pub fn set_player_condition_store(&mut self, store: Arc<PlayerConditionStore>) {
-        self.player_condition_store = Some(store);
+        self.catalogs.player_condition_store = Some(store);
     }
     pub fn set_content_tuning_store(&mut self, store: Arc<ContentTuningStore>) {
-        self.content_tuning_store = Some(store);
+        self.catalogs.content_tuning_store = Some(store);
     }
     pub fn set_curve_store(&mut self, store: Arc<CurveStore>) {
-        self.curve_store = Some(store);
+        self.catalogs.curve_store = Some(store);
     }
     pub fn set_curve_point_store(&mut self, store: Arc<CurvePointStore>) {
-        self.curve_point_store = Some(store);
+        self.catalogs.curve_point_store = Some(store);
     }
     pub fn set_scaling_stat_distribution_store(
         &mut self,
         store: Arc<ScalingStatDistributionStore>,
     ) {
-        self.scaling_stat_distribution_store = Some(store);
+        self.catalogs.scaling_stat_distribution_store = Some(store);
     }
     pub fn set_scaling_stat_values_store(&mut self, store: Arc<ScalingStatValuesStore>) {
-        self.scaling_stat_values_store = Some(store);
+        self.catalogs.scaling_stat_values_store = Some(store);
     }
     /// Get the loaded PlayerCondition.db2 store reference.
     pub fn player_condition_store(&self) -> Option<&Arc<PlayerConditionStore>> {
-        self.player_condition_store.as_ref()
+        self.catalogs.player_condition_store.as_ref()
     }
     /// Set the lock store for this session.
     pub fn set_lock_store(&mut self, store: Arc<LockStore>) {
-        self.lock_store = Some(store);
+        self.catalogs.lock_store = Some(store);
     }
     pub(crate) fn lock_store(&self) -> Option<&Arc<LockStore>> {
-        self.lock_store.as_ref()
+        self.catalogs.lock_store.as_ref()
     }
     pub fn set_gem_properties_store(&mut self, store: Arc<GemPropertiesStore>) {
-        self.gem_properties_store = Some(store);
+        self.catalogs.gem_properties_store = Some(store);
     }
     /// Set the TactKey.db2 store for typed SMSG_DB_REPLY serialization.
     #[cfg(test)]
     pub fn set_tact_key_store(&mut self, store: Arc<TactKeyStore>) {
-        self.tact_key_store = Some(store);
+        self.catalogs.tact_key_store = Some(store);
     }
     #[cfg(test)]
     pub fn set_graveyard_store(&mut self, store: Arc<GraveyardStore>) {
-        self.graveyard_store = Some(store);
+        self.catalogs.graveyard_store = Some(store);
     }
     #[cfg(test)]
     pub(crate) fn graveyard_store(&self) -> Option<&Arc<GraveyardStore>> {
-        self.graveyard_store.as_ref()
+        self.catalogs.graveyard_store.as_ref()
     }
     /// Set the ChrSpecialization store for this session.
     pub fn set_chr_specialization_store(&mut self, store: Arc<ChrSpecializationStore>) {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.chr.specialization_store = Some(store);
+        self.catalogs.chr.specialization_store = Some(store);
     }
     /// Get the ChrSpecialization store reference.
     pub fn chr_specialization_store(&self) -> Option<&Arc<ChrSpecializationStore>> {
-        self.chr.specialization_store.as_ref()
+        self.catalogs.chr.specialization_store.as_ref()
     }
     pub fn set_world_safe_loc_store_like_cpp(&mut self, store: Arc<WorldSafeLocStore>) {
-        self.world_safe_loc_store_like_cpp = Some(store);
+        self.catalogs.world_safe_loc_store_like_cpp = Some(store);
     }
     pub(crate) fn world_safe_loc_store_like_cpp(&self) -> Option<&Arc<WorldSafeLocStore>> {
-        self.world_safe_loc_store_like_cpp.as_ref()
+        self.catalogs.world_safe_loc_store_like_cpp.as_ref()
     }
     pub fn set_access_requirement_store(&mut self, store: Arc<AccessRequirementStoreLikeCpp>) {
-        self.access_requirement_store = Some(store);
+        self.catalogs.access_requirement_store = Some(store);
     }
     pub(crate) fn access_requirement_store(&self) -> Option<&Arc<AccessRequirementStoreLikeCpp>> {
-        self.access_requirement_store.as_ref()
+        self.catalogs.access_requirement_store.as_ref()
     }
     pub fn set_lfg_dungeons_store(&mut self, store: Arc<LfgDungeonsStore>) {
-        self.lfg_dungeons_store = Some(store);
+        self.catalogs.lfg_dungeons_store = Some(store);
     }
     pub(crate) fn lfg_dungeons_store(&self) -> Option<&Arc<LfgDungeonsStore>> {
-        self.lfg_dungeons_store.as_ref()
+        self.catalogs.lfg_dungeons_store.as_ref()
     }
     #[cfg(test)]
     pub fn set_lfg_dungeon_store_like_cpp(&mut self, store: Arc<LfgDungeonStoreLikeCpp>) {
-        self.lfg_dungeon_store_like_cpp = Some(store);
+        self.catalogs.lfg_dungeon_store_like_cpp = Some(store);
     }
     #[cfg(test)]
     pub(crate) fn lfg_dungeon_store_like_cpp(&self) -> Option<&Arc<LfgDungeonStoreLikeCpp>> {
-        self.lfg_dungeon_store_like_cpp.as_ref()
+        self.catalogs.lfg_dungeon_store_like_cpp.as_ref()
     }
     #[cfg(test)]
     pub fn set_battlemaster_list_store(&mut self, store: Arc<BattlemasterListStore>) {
-        self.battlemaster_list_store = Some(store);
+        self.catalogs.battlemaster_list_store = Some(store);
     }
     pub fn set_faction_store(&mut self, store: Arc<FactionStore>) {
-        self.factions.store = Some(store);
+        self.catalogs.factions.store = Some(store);
         self.initialize_reputation_mgr_like_cpp();
     }
     pub(crate) fn faction_store(&self) -> Option<&Arc<FactionStore>> {
-        self.factions.store.as_ref()
+        self.catalogs.factions.store.as_ref()
     }
     pub fn set_faction_template_store(&mut self, store: Arc<FactionTemplateStore>) {
-        self.factions.template_store = Some(store);
+        self.catalogs.factions.template_store = Some(store);
     }
     pub fn set_mount_store(&mut self, store: Arc<MountStore>) {
-        self.mount_store = Some(store);
+        self.catalogs.mount_store = Some(store);
         self.expand_account_mount_faction_definitions_like_cpp();
         self.learn_account_mount_spells_like_cpp();
     }
     pub(crate) fn mount_store(&self) -> Option<&Arc<MountStore>> {
-        self.mount_store.as_ref()
+        self.catalogs.mount_store.as_ref()
     }
     pub fn set_mount_definition_store_like_cpp(&mut self, store: Arc<MountDefinitionStoreLikeCpp>) {
-        self.mount_definition_store_like_cpp = Some(store);
+        self.catalogs.mount_definition_store_like_cpp = Some(store);
         self.expand_account_mount_faction_definitions_like_cpp();
         self.learn_account_mount_spells_like_cpp();
     }
     pub fn set_mount_capability_store(&mut self, store: Arc<MountCapabilityStore>) {
-        self.mount_capability_store = Some(store);
+        self.catalogs.mount_capability_store = Some(store);
     }
     pub fn set_mount_type_x_capability_store(&mut self, store: Arc<MountTypeXCapabilityStore>) {
-        self.mount_type_x_capability_store = Some(store);
+        self.catalogs.mount_type_x_capability_store = Some(store);
     }
     pub fn set_mount_x_display_store(&mut self, store: Arc<MountXDisplayStore>) {
-        self.mount_x_display_store = Some(store);
+        self.catalogs.mount_x_display_store = Some(store);
     }
     #[allow(dead_code)]
     pub(crate) fn mount_capability_store(&self) -> Option<&Arc<MountCapabilityStore>> {
-        self.mount_capability_store.as_ref()
+        self.catalogs.mount_capability_store.as_ref()
     }
     #[allow(dead_code)]
     pub(crate) fn mount_type_x_capability_store(&self) -> Option<&Arc<MountTypeXCapabilityStore>> {
-        self.mount_type_x_capability_store.as_ref()
+        self.catalogs.mount_type_x_capability_store.as_ref()
     }
     #[allow(dead_code)]
     pub(crate) fn mount_x_display_store(&self) -> Option<&Arc<MountXDisplayStore>> {
-        self.mount_x_display_store.as_ref()
+        self.catalogs.mount_x_display_store.as_ref()
     }
     pub fn set_terrain_swap_store(&mut self, store: Arc<wow_data::TerrainSwapStore>) {
-        self.terrain_swap_store = Some(store);
+        self.catalogs.terrain_swap_store = Some(store);
     }
     pub fn set_trait_definition_store(&mut self, store: Arc<TraitDefinitionStore>) {
-        self.trait_definition_store = Some(store);
+        self.catalogs.trait_definition_store = Some(store);
     }
     pub(crate) fn trait_definition_store(&self) -> Option<&Arc<TraitDefinitionStore>> {
-        self.trait_definition_store.as_ref()
+        self.catalogs.trait_definition_store.as_ref()
     }
     pub fn set_trait_tree_skill_line_index(
         &mut self,
         index: Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>,
     ) {
-        self.trait_tree_skill_line_index = Some(index);
+        self.catalogs.trait_tree_skill_line_index = Some(index);
     }
     pub(crate) fn trait_tree_skill_line_index(
         &self,
     ) -> Option<&Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>> {
-        self.trait_tree_skill_line_index.as_ref()
+        self.catalogs.trait_tree_skill_line_index.as_ref()
     }
     pub fn set_spell_group_store(&mut self, store: Arc<SpellGroupStoreLikeCpp>) {
-        self.spell_catalogs.spell_group_store = Some(store);
+        self.catalogs.spell_catalogs.spell_group_store = Some(store);
     }
     pub fn set_spell_group_stack_rule_store(
         &mut self,
         store: Arc<SpellGroupStackRuleStoreLikeCpp>,
     ) {
-        self.spell_catalogs.spell_group_stack_rule_store = Some(store);
+        self.catalogs.spell_catalogs.spell_group_stack_rule_store = Some(store);
     }
     pub fn set_spell_pet_aura_store(&mut self, store: Arc<SpellPetAuraStoreLikeCpp>) {
-        self.spell_catalogs.spell_pet_aura_store = Some(store);
+        self.catalogs.spell_catalogs.spell_pet_aura_store = Some(store);
     }
     pub(crate) fn spell_pet_aura_store_like_cpp(&self) -> Option<&SpellPetAuraStoreLikeCpp> {
-        self.spell_catalogs.spell_pet_aura_store.as_deref()
+        self.catalogs.spell_catalogs.spell_pet_aura_store.as_deref()
     }
     #[cfg(test)]
     pub fn set_pet_levelup_spell_store(&mut self, store: Arc<PetLevelupSpellStoreLikeCpp>) {
-        self.spell_catalogs.pet_levelup_spell_store = Some(store);
+        self.catalogs.spell_catalogs.pet_levelup_spell_store = Some(store);
     }
     #[cfg(test)]
     pub fn set_pet_default_spell_store(&mut self, store: Arc<PetDefaultSpellStoreLikeCpp>) {
-        self.spell_catalogs.pet_default_spell_store = Some(store);
+        self.catalogs.spell_catalogs.pet_default_spell_store = Some(store);
     }
     #[cfg(test)]
     pub fn set_pet_family_spell_store(&mut self, store: Arc<PetFamilySpellStoreLikeCpp>) {
-        self.spell_catalogs.pet_family_spell_store = Some(store);
+        self.catalogs.spell_catalogs.pet_family_spell_store = Some(store);
     }
     pub fn set_movie_store(&mut self, store: Arc<MovieStore>) {
-        self.movie_store = Some(store);
+        self.catalogs.movie_store = Some(store);
     }
     pub fn set_chr_classes_store(&mut self, store: Arc<ChrClassesStore>) {
-        self.chr.classes_store = Some(store);
+        self.catalogs.chr.classes_store = Some(store);
     }
     pub fn set_chr_races_store(&mut self, store: Arc<ChrRacesStore>) {
-        self.chr.races_store = Some(store);
+        self.catalogs.chr.races_store = Some(store);
     }
     pub fn set_cinematic_sequences_store(&mut self, store: Arc<CinematicSequencesStore>) {
-        self.cinematic_sequences_store = Some(store);
+        self.catalogs.cinematic_sequences_store = Some(store);
     }
     pub(crate) fn feature_system_status_with_policy_like_cpp(
         &self,
@@ -338,19 +339,19 @@ impl WorldSession {
         FeatureSystemStatusGlueScreen::from_config_like_cpp(
             policy.feature_system_config_like_cpp(),
             policy.max_characters_per_realm as i32,
-            i32::from(self.realm_policy.server_expansion_like_cpp),
+            i32::from(self.core.realm_policy.server_expansion_like_cpp),
         )
     }
     #[cfg(test)]
     pub fn set_object_mgr_catalogs_like_cpp(&mut self, catalogs: Arc<ObjectMgrCatalogsLikeCpp>) {
-        self.object_mgr_catalogs_like_cpp = Some(catalogs);
+        self.catalogs.object_mgr_catalogs_like_cpp = Some(catalogs);
     }
     #[cfg(test)]
     pub(crate) fn world_query_catalogs_like_cpp(&self) -> Option<&ObjectMgrCatalogsLikeCpp> {
-        self.object_mgr_catalogs_like_cpp.as_deref()
+        self.catalogs.object_mgr_catalogs_like_cpp.as_deref()
     }
     pub(in crate::session) fn player_is_at_configured_max_level_like_cpp(&self) -> bool {
-        let max_level = self.max_player_level_config_like_cpp;
+        let max_level = self.config.max_player_level_config_like_cpp;
         max_level != 0 && u32::from(self.player_level_like_cpp()) >= max_level
     }
     pub(crate) fn apply_offline_xp_rest_bonus_with_policy_like_cpp(
@@ -361,7 +362,7 @@ impl WorldSession {
         was_logout_resting: bool,
     ) -> f32 {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self.fixture_apply_offline_xp_rest_bonus_like_cpp(
                 policy,
                 logout_time_secs,
@@ -393,7 +394,7 @@ impl WorldSession {
         now_secs: u64,
     ) -> (f32, u8) {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self.fixture_update_online_xp_rest_bonus_like_cpp(policy, now_secs);
         }
         let bubble = REST_ONLINE_INGAME_BUBBLE_LIKE_CPP * policy.ingame;
@@ -466,10 +467,10 @@ impl WorldSession {
         &mut self,
         store: Arc<ExplorationBaseXpStoreLikeCpp>,
     ) {
-        self.exploration_base_xp_store = Some(store);
+        self.catalogs.exploration_base_xp_store = Some(store);
     }
     pub fn set_max_player_level_config_like_cpp(&mut self, max_player_level_config: u32) {
-        self.max_player_level_config_like_cpp = max_player_level_config;
+        self.config.max_player_level_config_like_cpp = max_player_level_config;
     }
     #[cfg(test)]
     pub fn set_rested_xp_config_like_cpp(
@@ -479,12 +480,15 @@ impl WorldSession {
         rest_offline_tavern_or_city_rate: f32,
         rest_ingame_rate: f32,
     ) {
-        self.max_player_level_config_like_cpp = max_player_level_config;
-        self.rest_mgr_test_fixture_like_cpp
+        self.config.max_player_level_config_like_cpp = max_player_level_config;
+        self.progression
+            .rest_mgr_test_fixture_like_cpp
             .rest_offline_wilderness_rate_like_cpp = rest_offline_wilderness_rate;
-        self.rest_mgr_test_fixture_like_cpp
+        self.progression
+            .rest_mgr_test_fixture_like_cpp
             .rest_offline_tavern_or_city_rate_like_cpp = rest_offline_tavern_or_city_rate;
-        self.rest_mgr_test_fixture_like_cpp
+        self.progression
+            .rest_mgr_test_fixture_like_cpp
             .rest_ingame_rate_like_cpp = rest_ingame_rate;
     }
     /// Update player_next_level_xp from the table based on current level.
@@ -504,7 +508,7 @@ impl WorldSession {
             self.set_player_next_level_xp_like_cpp(next_level_xp);
         }
         #[cfg(test)]
-        if !installed && self.player_handle_like_cpp.is_none() {
+        if !installed && self.core.player_handle_like_cpp.is_none() {
             self.set_player_next_level_xp_like_cpp(next_level_xp);
         }
         #[cfg(not(test))]
@@ -552,8 +556,8 @@ impl WorldSession {
                     realm_name_normalized: realm_name_normalized.to_string(),
                 }],
                 time_rested: 0,
-                active_expansion_level: self.expansion,
-                account_expansion_level: self.account_expansion,
+                active_expansion_level: self.core.expansion,
+                account_expansion_level: self.core.account_expansion,
                 time_seconds_until_pc_kick: 0,
                 available_classes: default_available_classes(),
                 templates: vec![],
@@ -587,7 +591,7 @@ impl WorldSession {
         });
 
         let hotfixes = hotfixes
-            .available_hotfix_ids(&self.locale)
+            .available_hotfix_ids(&self.core.locale)
             .into_iter()
             .map(|id| HotfixId {
                 push_id: id.push_id,
@@ -620,7 +624,7 @@ impl WorldSession {
 
         info!(
             "Session init packets sent for account {} (8 packets: AuthResponse → ConnectionStatus)",
-            self.account_id
+            self.core.account_id
         );
     }
 }

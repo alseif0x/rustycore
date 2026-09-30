@@ -24,7 +24,7 @@ impl WorldSession {
             return false;
         }
 
-        let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone) else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref().map(Arc::clone) else {
             return false;
         };
         let Ok(mut manager) = manager.lock() else {
@@ -97,7 +97,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return false;
         };
-        let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone) else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref().map(Arc::clone) else {
             return false;
         };
         let Ok(mut manager) = manager.lock() else {

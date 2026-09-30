@@ -12,7 +12,7 @@ async fn visible_unit_values_update_command_applies_viewer_dependent_spellclick_
     let player_guid = ObjectGuid::create_player(1, 42);
     let creature_guid = test_creature_guid(127);
 
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -38,7 +38,10 @@ async fn visible_unit_values_update_command_applies_viewer_dependent_spellclick_
         Position::new(12.0, 0.0, 0.0, 0.0),
         (UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32) | wow_constants::unit::NPCFlags1::GOSSIP.bits(),
     );
-    session.client_visible_guids_like_cpp.insert(creature_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(creature_guid);
 
     let mut packet_update = wow_packet::packets::update::UnitDataValuesDeltaUpdate::default();
     packet_update.changed_object_type_mask = 1 << TYPEID_UNIT;
@@ -130,7 +133,10 @@ fn update_visible_spell_clicks_sends_conditioned_npcflags_delta_like_cpp() {
         Position::new(12.0, 0.0, 0.0, 0.0),
         (UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32) | wow_constants::unit::NPCFlags1::GOSSIP.bits(),
     );
-    session.client_visible_guids_like_cpp.insert(creature_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(creature_guid);
 
     let mut packet_update = wow_packet::packets::update::UnitDataValuesDeltaUpdate::default();
     packet_update.changed_object_type_mask = 1 << TYPEID_UNIT;
@@ -187,7 +193,10 @@ fn update_visible_spell_clicks_skips_unconditioned_spellclick_rows_like_cpp() {
         Position::new(12.0, 0.0, 0.0, 0.0),
         UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32,
     );
-    session.client_visible_guids_like_cpp.insert(creature_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(creature_guid);
 
     assert_eq!(session.update_visible_spell_clicks_like_cpp(), 0);
     assert!(send_rx.try_recv().is_err());
@@ -285,7 +294,10 @@ async fn complete_quest_triggers_visible_spellclick_refresh_like_cpp() {
         Position::new(12.0, 0.0, 0.0, 0.0),
         UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32,
     );
-    session.client_visible_guids_like_cpp.insert(creature_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(creature_guid);
 
     session.money_changed_like_cpp(100).await;
 
@@ -317,7 +329,7 @@ async fn leave_group_triggers_visible_spellclick_refresh_like_cpp() {
     group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(player_guid));
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_canonical_map_manager(Arc::clone(&canonical));
@@ -359,7 +371,10 @@ async fn leave_group_triggers_visible_spellclick_refresh_like_cpp() {
         Position::new(12.0, 0.0, 0.0, 0.0),
         UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32,
     );
-    session.client_visible_guids_like_cpp.insert(creature_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(creature_guid);
 
     let mut pkt = wow_packet::WorldPacket::new_empty();
     pkt.write_bit(false);
@@ -367,7 +382,7 @@ async fn leave_group_triggers_visible_spellclick_refresh_like_cpp() {
     pkt.reset_read();
     session.handle_leave_group(pkt).await;
 
-    assert_eq!(session.group_guid, None);
+    assert_eq!(session.social.group_guid, None);
     let packets = drain_server_packet_bytes(&send_rx);
     assert!(packets.iter().any(|bytes| {
         wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
@@ -381,7 +396,7 @@ async fn leave_group_triggers_visible_spellclick_refresh_like_cpp() {
 #[test]
 fn represented_mount_aura_display_candidates_match_cpp_filter() {
     let (mut session, _, _) = make_session();
-    session.player_class = 1;
+    session.identity.player_class = 1;
     session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
         wow_data::MountEntry {
             id: 7,
@@ -542,6 +557,7 @@ async fn summon_object_slot_live_spell_without_focus_creates_visible_slotted_go_
         .expect("live non-focus slotted GameObject summon should execute");
 
     let summoned_guid = session
+        .core
         .client_visible_guids_like_cpp
         .snapshot_like_cpp()
         .into_iter()
@@ -622,6 +638,7 @@ async fn summon_object_wild_live_spell_with_focus_uses_focus_orientation_like_cp
     let manager = canonical.lock().unwrap();
     let managed = manager.find_map(571, 0).expect("canonical map");
     let summoned_guid = session
+        .core
         .client_visible_guids_like_cpp
         .snapshot_like_cpp()
         .into_iter()
@@ -713,6 +730,7 @@ async fn focus_implicit_destination_uses_effect_facing_when_spell_attr4_requests
     let manager = canonical.lock().unwrap();
     let managed = manager.find_map(571, 0).expect("canonical map");
     let summoned_guid = session
+        .core
         .client_visible_guids_like_cpp
         .snapshot_like_cpp()
         .into_iter()
@@ -818,6 +836,7 @@ async fn db_implicit_destination_or_db_uses_spell_target_position_like_cpp() {
     let manager = canonical.lock().unwrap();
     let managed = manager.find_map(571, 0).expect("canonical map");
     let summoned_guid = session
+        .core
         .client_visible_guids_like_cpp
         .snapshot_like_cpp()
         .into_iter()

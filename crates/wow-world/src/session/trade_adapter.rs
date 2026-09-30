@@ -35,7 +35,7 @@ impl WorldSession {
                 })
                 .is_some_and(|changed| changed);
             #[cfg(test)]
-            if !canonical && self.player_handle_like_cpp.is_none() {
+            if !canonical && self.core.player_handle_like_cpp.is_none() {
                 let _ = self.mutate_player_trade_state_like_cpp(|state| {
                     if let Some(state) = state {
                         state.client_state_index = state.client_state_index.wrapping_add(1);
@@ -53,7 +53,7 @@ impl WorldSession {
                 })
                 .is_some_and(|changed| changed);
             #[cfg(test)]
-            if !canonical && self.player_handle_like_cpp.is_none() {
+            if !canonical && self.core.player_handle_like_cpp.is_none() {
                 let _ = self.mutate_player_trade_state_like_cpp(|state| {
                     if let Some(state) = state {
                         state.client_state_index = state.client_state_index.wrapping_add(1);
@@ -67,7 +67,7 @@ impl WorldSession {
             .with_owned_player_mut_like_cpp(|player| player.clear_trade_item_like_cpp(trade_slot))
             .is_some();
         #[cfg(test)]
-        let canonical = if !canonical && self.player_handle_like_cpp.is_none() {
+        let canonical = if !canonical && self.core.player_handle_like_cpp.is_none() {
             self.mutate_player_trade_state_like_cpp(|state| {
                 let Some(state) = state else { return };
                 state.client_state_index = state.client_state_index.wrapping_add(1);
@@ -135,7 +135,7 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        let canonical = if !canonical && self.player_handle_like_cpp.is_none() {
+        let canonical = if !canonical && self.core.player_handle_like_cpp.is_none() {
             self.mutate_player_trade_state_like_cpp(|state| {
                 let Some(state) = state else { return };
                 state.client_state_index = state.client_state_index.wrapping_add(1);

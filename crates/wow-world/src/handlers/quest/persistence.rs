@@ -11,7 +11,7 @@ mod item_mutations;
 
 impl WorldSession {
     pub(super) async fn quest_poi_store_like_cpp(&mut self) -> Arc<HashMap<i32, QuestPoiData>> {
-        if let Some(store) = &self.quest_poi_store_like_cpp {
+        if let Some(store) = &self.catalogs.quest_poi_store_like_cpp {
             return Arc::clone(store);
         }
 
@@ -20,7 +20,7 @@ impl WorldSession {
                 "QuestPOIQuery: quest POI persistence port unavailable; sending empty C++ response"
             );
             let store = Arc::new(HashMap::new());
-            self.quest_poi_store_like_cpp = Some(Arc::clone(&store));
+            self.catalogs.quest_poi_store_like_cpp = Some(Arc::clone(&store));
             return store;
         };
 
@@ -34,7 +34,7 @@ impl WorldSession {
             }
         };
 
-        self.quest_poi_store_like_cpp = Some(Arc::clone(&store));
+        self.catalogs.quest_poi_store_like_cpp = Some(Arc::clone(&store));
         store
     }
 
@@ -72,7 +72,7 @@ impl WorldSession {
             .statuses_like_cpp()
             .iter()
             .filter_map(|(quest_id, status)| {
-                let store = self.quests.store.as_ref();
+                let store = self.catalogs.quests.store.as_ref();
                 if state.rewarded_quest_ids_like_cpp().contains(quest_id)
                     && store
                         .and_then(|store| store.get(*quest_id))
@@ -134,7 +134,7 @@ impl WorldSession {
             }
             None => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     quest_id,
                     "Quest status save skipped because canonical Player quest state is unavailable"
                 );
@@ -162,13 +162,13 @@ impl WorldSession {
         match port.persist_status_like_cpp(request).await {
             wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
             wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id,
                 error = %reason,
                 "Failed to save quest status"
             ),
             wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id,
                 error = %reason,
                 "Quest status save commit outcome is unknown"
@@ -197,13 +197,13 @@ impl WorldSession {
         {
             wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
             wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id,
                 error = %reason,
                 "Failed to delete quest"
             ),
             wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id,
                 error = %reason,
                 "Quest deletion commit outcome is unknown"
@@ -228,7 +228,7 @@ impl WorldSession {
             wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Loaded(rows) => rows,
             wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     error = %reason,
                     "Failed to load quest status"
                 );
@@ -278,7 +278,7 @@ impl WorldSession {
                 // because the character DB status row has no persisted quest-log slot.
                 let slot = next_active_slot;
                 next_active_slot = next_active_slot.saturating_add(1);
-                let store = self.quests.store.as_ref();
+                let store = self.catalogs.quests.store.as_ref();
                 let obj_count = store
                     .and_then(|s| s.get(quest_id))
                     .map_or(0, |q| q.objectives.len());
@@ -308,7 +308,8 @@ impl WorldSession {
                     let data = row.count.unwrap_or(0);
                     if let (Some(status), Some(quest)) = (
                         loaded_quests.status_mut_like_cpp(quest_id),
-                        self.quests
+                        self.catalogs
+                            .quests
                             .store
                             .as_ref()
                             .and_then(|store| store.get(quest_id)),
@@ -332,7 +333,7 @@ impl WorldSession {
             }
             wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     error = %reason,
                     "Failed to load quest objective status"
                 );
@@ -359,7 +360,7 @@ impl WorldSession {
             }
             wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     error = %reason,
                     "Failed to load rewarded quest status"
                 );
@@ -371,7 +372,7 @@ impl WorldSession {
         );
         if self.install_represented_loaded_quest_statuses_like_cpp(&loaded_quests) == false {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Failed to install loaded quest status into canonical Player owner"
             );
             return;
@@ -383,7 +384,7 @@ impl WorldSession {
         stale_rewarded_active_rows.dedup();
         for quest_id in stale_rewarded_active_rows {
             info!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id,
                 "QuestLoad: migrating stale active rewarded quest status before deleting active row like C++"
             );
@@ -399,7 +400,7 @@ impl WorldSession {
                 for row in daily_rows {
                     let quest_id = row.quest_id.unwrap_or(0);
                     let completed_time = row.completed_time.unwrap_or(0);
-                    let store = self.quests.store.as_ref();
+                    let store = self.catalogs.quests.store.as_ref();
                     if let Some(quest) = store.and_then(|store| store.get(quest_id)) {
                         loaded_last_daily_time = completed_time;
                         if quest.is_df_quest_like_cpp() {
@@ -412,7 +413,7 @@ impl WorldSession {
             }
             wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     error = %reason,
                     "Failed to load daily quest status"
                 );
@@ -430,6 +431,7 @@ impl WorldSession {
                 for row in weekly_rows {
                     let quest_id = row.quest_id.unwrap_or(0);
                     if self
+                        .catalogs
                         .quests
                         .store
                         .as_ref()
@@ -442,7 +444,7 @@ impl WorldSession {
             }
             wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     error = %reason,
                     "Failed to load weekly quest status"
                 );
@@ -456,6 +458,7 @@ impl WorldSession {
                 for row in monthly_rows {
                     let quest_id = row.quest_id.unwrap_or(0);
                     if self
+                        .catalogs
                         .quests
                         .store
                         .as_ref()
@@ -468,7 +471,7 @@ impl WorldSession {
             }
             wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     error = %reason,
                     "Failed to load monthly quest status"
                 );
@@ -482,21 +485,21 @@ impl WorldSession {
                 .map(|row| {
                     let quest_id = row.quest_id.unwrap_or_else(|| {
                         warn!(
-                            account = self.account_id,
+                            account = self.core.account_id,
                             "Failed to read seasonal quest id"
                         );
                         0
                     });
                     let event_id = row.event_id.unwrap_or_else(|| {
                         warn!(
-                            account = self.account_id,
+                            account = self.core.account_id,
                             quest_id, "Failed to read seasonal quest event id"
                         );
                         u32::MAX
                     });
                     let completed_time = row.completed_time.unwrap_or_else(|| {
                         warn!(
-                            account = self.account_id,
+                            account = self.core.account_id,
                             quest_id, event_id, "Failed to read seasonal quest completedTime"
                         );
                         -1
@@ -510,7 +513,7 @@ impl WorldSession {
                 .collect(),
             wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     error = %reason,
                     "Failed to load seasonal quest status"
                 );
@@ -518,8 +521,8 @@ impl WorldSession {
             }
         };
 
-        let quest_store = self.quests.store.as_ref().map(Arc::clone);
-        let quest_v2_store = self.quests.v2_store.as_ref().map(Arc::clone);
+        let quest_store = self.catalogs.quests.store.as_ref().map(Arc::clone);
+        let quest_v2_store = self.catalogs.quests.v2_store.as_ref().map(Arc::clone);
         let seasonal_outcome = self.load_seasonal_quest_status_like_cpp(
             seasonal_rows,
             quest_store.as_deref(),
@@ -535,7 +538,7 @@ impl WorldSession {
             || seasonal_outcome.completed_bit_no_change_or_noop > 0
         {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 rows_seen = seasonal_outcome.rows_seen,
                 skipped_no_quest_store = seasonal_outcome.skipped_no_quest_store,
                 skipped_missing_quest = seasonal_outcome.skipped_missing_quest,
@@ -552,7 +555,7 @@ impl WorldSession {
 
         let recurrence = self.player_quest_gameplay_snapshot_like_cpp();
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             active = recurrence
                 .as_ref()
                 .map_or(0, |state| state.statuses_like_cpp().len()),

@@ -8,34 +8,34 @@ use super::*;
 impl WorldSession {
     /// Set the C++ `sDurabilityCostsStore` equivalent for this session.
     pub fn set_durability_costs_store(&mut self, store: Arc<DurabilityCostsStore>) {
-        self.durability_costs_store = Some(store);
+        self.catalogs.durability_costs_store = Some(store);
     }
     /// Set the C++ `sDurabilityQualityStore` equivalent for this session.
     pub fn set_durability_quality_store(&mut self, store: Arc<DurabilityQualityStore>) {
-        self.durability_quality_store = Some(store);
+        self.catalogs.durability_quality_store = Some(store);
     }
     pub fn set_repair_cost_rate_like_cpp(&mut self, rate: f32) {
-        self.repair_cost_rate_like_cpp = rate.max(0.0);
+        self.config.repair_cost_rate_like_cpp = rate.max(0.0);
     }
     pub(crate) fn repair_cost_rate_like_cpp(&self) -> f32 {
-        self.repair_cost_rate_like_cpp
+        self.config.repair_cost_rate_like_cpp
     }
     /// Set the C++ `RATE_DURABILITY_LOSS_ON_DEATH` fraction
     /// (`DurabilityLoss.OnDeath / 100`).
     pub fn set_durability_loss_on_death_rate_like_cpp(&mut self, rate: f32) {
-        self.durability_loss_on_death_rate_like_cpp = rate.clamp(0.0, 1.0);
+        self.config.durability_loss_on_death_rate_like_cpp = rate.clamp(0.0, 1.0);
     }
     #[must_use]
     pub(crate) fn durability_loss_on_death_rate_like_cpp(&self) -> f32 {
-        self.durability_loss_on_death_rate_like_cpp
+        self.config.durability_loss_on_death_rate_like_cpp
     }
     /// Set the C++ `CONFIG_STATS_LIMITS_*` values (`World.cpp:1664-1668`).
     pub fn set_stats_limits_like_cpp(&mut self, limits: wow_data::StatsLimitsLikeCpp) {
-        self.stats_limits_like_cpp = limits;
+        self.config.stats_limits_like_cpp = limits;
     }
     #[must_use]
     pub(crate) fn stats_limits_like_cpp(&self) -> wow_data::StatsLimitsLikeCpp {
-        self.stats_limits_like_cpp
+        self.config.stats_limits_like_cpp
     }
     /// C++ `Player::DurabilityLossAll` (`Player.cpp:4522-4544`).
     ///
@@ -330,11 +330,11 @@ impl WorldSession {
     }
     /// Get the durability cost store reference.
     pub fn durability_costs_store(&self) -> Option<&Arc<DurabilityCostsStore>> {
-        self.durability_costs_store.as_ref()
+        self.catalogs.durability_costs_store.as_ref()
     }
     /// Get the durability quality store reference.
     pub fn durability_quality_store(&self) -> Option<&Arc<DurabilityQualityStore>> {
-        self.durability_quality_store.as_ref()
+        self.catalogs.durability_quality_store.as_ref()
     }
     /// C++ `Item::CalculateDurabilityRepairCost`.
     pub(crate) fn item_durability_repair_cost_like_cpp(
@@ -358,6 +358,7 @@ impl WorldSession {
         }
 
         let item = match self
+            .catalogs
             .items
             .store
             .as_ref()
@@ -367,6 +368,7 @@ impl WorldSession {
             None => return 0,
         };
         let stats = match self
+            .catalogs
             .items
             .stats_store
             .as_ref()
@@ -380,6 +382,7 @@ impl WorldSession {
         }
 
         let durability_cost = match self
+            .catalogs
             .durability_costs_store
             .as_ref()
             .and_then(|store| store.get(u32::from(stats.item_level)))
@@ -389,6 +392,7 @@ impl WorldSession {
         };
         let durability_quality_entry_id = (stats.quality as u32 + 1) * 2;
         let durability_quality = match self
+            .catalogs
             .durability_quality_store
             .as_ref()
             .and_then(|store| store.get(durability_quality_entry_id))
@@ -805,7 +809,8 @@ impl WorldSession {
         Some(repair_items)
     }
     pub fn item_template_max_durability(&self, item_id: u32) -> u32 {
-        self.items
+        self.catalogs
+            .items
             .stats_store
             .as_ref()
             .and_then(|store| store.sparse_template(item_id))

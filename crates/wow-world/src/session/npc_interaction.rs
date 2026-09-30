@@ -39,7 +39,7 @@ impl WorldSession {
         let mut canonical_fail_closed_like_cpp = false;
         let mut canonical_reaction_input_like_cpp = None;
         let canonical_access = (|| {
-            let manager = self.canonical_map_manager.as_ref()?;
+            let manager = self.core.canonical_map_manager.as_ref()?;
             let Ok(manager) = manager.lock() else {
                 return None;
             };
@@ -59,9 +59,9 @@ impl WorldSession {
                 }
                 #[cfg(test)]
                 let is_alive = if canonical_player.unit().data().max_health == 0
-                    && self.player_handle_like_cpp.is_none()
+                    && self.core.player_handle_like_cpp.is_none()
                 {
-                    self.player_alive_like_cpp && self.player_health_like_cpp > 0
+                    self.combat.player_alive_like_cpp && self.combat.player_health_like_cpp > 0
                 } else {
                     canonical_player.unit().is_alive() && canonical_player.unit().data().health > 0
                 };
@@ -72,11 +72,11 @@ impl WorldSession {
             } else {
                 #[cfg(test)]
                 {
-                    if self.player_handle_like_cpp.is_some() {
+                    if self.core.player_handle_like_cpp.is_some() {
                         canonical_fail_closed_like_cpp = true;
                         return None;
                     }
-                    self.player_alive_like_cpp && self.player_health_like_cpp > 0
+                    self.combat.player_alive_like_cpp && self.combat.player_health_like_cpp > 0
                 }
                 #[cfg(not(test))]
                 {
@@ -210,7 +210,7 @@ impl WorldSession {
         player_interaction_combat_reach: f32,
         target_player_contested_pvp: bool,
     ) -> Option<RepresentedCreatureAccessLikeCpp> {
-        let manager = self.map_manager.as_ref()?;
+        let manager = self.core.map_manager.as_ref()?;
         let manager = manager
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -302,8 +302,8 @@ impl WorldSession {
         let canonical =
             self.with_owned_player_like_cpp(|player| *player.interaction_data_like_cpp());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.player_interaction_data_like_cpp);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.interaction.player_interaction_data_like_cpp);
         }
         canonical
     }
@@ -313,10 +313,10 @@ impl WorldSession {
             .with_owned_player_mut_like_cpp(|player| player.reset_interaction_data_like_cpp())
             .is_some();
         #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.player_interaction_data_like_cpp.reset();
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.interaction.player_interaction_data_like_cpp.reset();
         }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
 
     pub(crate) fn set_player_interaction_source_like_cpp(
@@ -329,11 +329,12 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.player_interaction_data_like_cpp
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.interaction
+                .player_interaction_data_like_cpp
                 .set_source(source_guid);
         }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
 
     pub(crate) fn set_player_trainer_interaction_like_cpp(
@@ -347,11 +348,12 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.player_interaction_data_like_cpp
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.interaction
+                .player_interaction_data_like_cpp
                 .set_trainer(source_guid, trainer_id);
         }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
 
     pub(crate) fn reset_player_interaction_if_source_like_cpp(
@@ -362,8 +364,9 @@ impl WorldSession {
             player.reset_interaction_if_source_like_cpp(source_guid)
         });
         #[cfg(test)]
-        if canonical.is_some() || self.player_handle_like_cpp.is_none() {
+        if canonical.is_some() || self.core.player_handle_like_cpp.is_none() {
             let fixture = self
+                .interaction
                 .player_interaction_data_like_cpp
                 .reset_if_source(source_guid);
             return canonical.unwrap_or(fixture);

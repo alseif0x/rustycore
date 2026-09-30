@@ -14,6 +14,7 @@ impl WorldSession {
         area_id: u32,
     ) {
         let state = self
+            .world_entities
             .represented_gameobject_use_states
             .entry(guid)
             .or_default();
@@ -25,7 +26,8 @@ impl WorldSession {
         guid: ObjectGuid,
         lock_id: u32,
     ) {
-        self.represented_gameobject_use_states
+        self.world_entities
+            .represented_gameobject_use_states
             .entry(guid)
             .or_default()
             .lock_id = (lock_id != 0).then_some(lock_id);
@@ -38,6 +40,7 @@ impl WorldSession {
         override_source_known: bool,
     ) {
         let state = self
+            .world_entities
             .represented_gameobject_use_states
             .entry(guid)
             .or_default();
@@ -53,6 +56,7 @@ impl WorldSession {
         rotation: [f32; 4],
     ) {
         let state = self
+            .world_entities
             .represented_gameobject_use_states
             .entry(guid)
             .or_default();
@@ -65,7 +69,8 @@ impl WorldSession {
         guid: ObjectGuid,
         anim_progress: u8,
     ) {
-        self.represented_gameobject_use_states
+        self.world_entities
+            .represented_gameobject_use_states
             .entry(guid)
             .or_default()
             .go_anim_progress = anim_progress;
@@ -77,7 +82,8 @@ impl WorldSession {
         owner_guid: ObjectGuid,
     ) {
         let owner_guid = (!owner_guid.is_empty()).then_some(owner_guid);
-        self.represented_gameobject_use_states
+        self.world_entities
+            .represented_gameobject_use_states
             .entry(guid)
             .or_default()
             .owner_guid = owner_guid;
@@ -90,7 +96,7 @@ impl WorldSession {
         else {
             return;
         };
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
             return;
         };
         let Ok(mut manager) = manager.lock() else {
@@ -134,7 +140,8 @@ impl WorldSession {
         guid: ObjectGuid,
         phase_shift: PhaseShift,
     ) {
-        self.represented_gameobject_phase_shifts
+        self.world_entities
+            .represented_gameobject_phase_shifts
             .insert(guid, phase_shift);
     }
 }

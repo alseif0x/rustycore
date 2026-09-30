@@ -34,6 +34,7 @@ async fn drain_presents_the_durable_prefix_then_the_general_rail_then_the_suffix
     // Durable rail: one non-visibility command, then a visibility-gated one.
     {
         let mut pending = session
+            .core
             .durable_creature_runtime_commands_like_cpp
             .lock()
             .expect("durable rail");
@@ -107,6 +108,7 @@ async fn an_overflowed_durable_backlog_kicks_before_any_command_is_applied_like_
     };
     {
         let mut pending = session
+            .core
             .durable_creature_runtime_commands_like_cpp
             .lock()
             .expect("durable rail");
@@ -129,7 +131,7 @@ async fn an_overflowed_durable_backlog_kicks_before_any_command_is_applied_like_
         "an overflowed authoritative backlog must disconnect the desynchronized session"
     );
     assert_eq!(
-        session.session_command_rx.len(),
+        session.core.session_command_rx.len(),
         1,
         "the pump returns before draining, so the queued command is not applied"
     );

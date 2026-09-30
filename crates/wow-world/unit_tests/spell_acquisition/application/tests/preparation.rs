@@ -478,5 +478,5 @@ fn committed_skill_snapshot_refreshes_enchanting_runtime_projection() {
     let (mut session, _) = make_session();
     apply_prepared_player_spell_acquisition_like_cpp(&mut session, &prepared)
         .expect("apply committed enchanting snapshot");
-    assert_eq!(session.represented_enchanting_skill, 150);
+    assert_eq!(session.progression.represented_enchanting_skill, 150);
 }

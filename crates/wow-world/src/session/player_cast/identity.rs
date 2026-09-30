@@ -30,11 +30,11 @@ impl WorldSession {
     /// client requests: without it a cast prepared before a map transfer would
     /// still launch after the player returns.
     pub(crate) fn current_player_residence_revision_like_cpp(&self) -> Option<u64> {
-        let handle = self.player_handle_like_cpp?;
+        let handle = self.core.player_handle_like_cpp?;
         if Some(handle.guid()) != self.player_guid() {
             return None;
         }
-        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
         manager
             .player_active_residence_revision_like_cpp(handle)
             .map(|(_, revision)| revision)
@@ -46,7 +46,7 @@ impl WorldSession {
     ) -> Option<(ObjectGuid, Option<u64>)> {
         u32::try_from(spell_id).ok().filter(|id| *id != 0)?;
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() && self.canonical_map_manager.is_none() {
+        if self.core.player_handle_like_cpp.is_none() && self.core.canonical_map_manager.is_none() {
             return Some((
                 represented_spell_cast_guid_for_map_like_cpp(
                     self.realm_id(),
@@ -57,11 +57,11 @@ impl WorldSession {
                 None,
             ));
         }
-        let handle = self.player_handle_like_cpp?;
+        let handle = self.core.player_handle_like_cpp?;
         if Some(handle.guid()) != self.player_guid() {
             return None;
         }
-        let mut manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let mut manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
         let (key, revision) = manager.player_active_residence_revision_like_cpp(handle)?;
         let map_id = u16::try_from(key.map_id).ok()?;
         let counter = manager

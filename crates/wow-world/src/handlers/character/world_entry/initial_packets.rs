@@ -214,7 +214,7 @@ impl WorldSession {
         if updateobject_trace_enabled {
             info!(
                 guid = ?guid,
-                count = self.client_visible_guids_like_cpp.len(),
+                count = self.core.client_visible_guids_like_cpp.len(),
                 "RUST_LOGIN after_initial_update_visibility_for_player"
             );
         }

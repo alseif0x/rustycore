@@ -80,6 +80,7 @@ async fn repair_inventory_item_durability_spends_money_and_restores_like_cpp() {
         },
     ])));
     session
+        .inventory
         .player_item_test_fixture_like_cpp
         .inventory_items
         .insert(
@@ -129,7 +130,11 @@ async fn repair_inventory_item_durability_spends_money_and_restores_like_cpp() {
     );
 
     session.set_player_gold_like_cpp(10);
-    let item = session.inventory_item_objects.get_mut(&item_guid).unwrap();
+    let item = session
+        .inventory
+        .inventory_item_objects
+        .get_mut(&item_guid)
+        .unwrap();
     item.set_durability(40);
     assert!(
         !session
@@ -174,6 +179,7 @@ fn represented_item_mods_records_weapon_damage_without_stat_entry_like_cpp() {
         },
     )])));
     session
+        .inventory
         .player_item_test_fixture_like_cpp
         .inventory_items
         .insert(
@@ -306,6 +312,7 @@ fn represented_item_mods_apply_scaling_weapon_dps_like_cpp() {
         },
     ])));
     session
+        .inventory
         .player_item_test_fixture_like_cpp
         .inventory_items
         .insert(
@@ -426,6 +433,7 @@ fn destroyed_inventory_item_mod_remove_matches_cpp_destroy_item_equipment_branch
         [],
     )));
     session
+        .inventory
         .player_item_test_fixture_like_cpp
         .inventory_items
         .insert(

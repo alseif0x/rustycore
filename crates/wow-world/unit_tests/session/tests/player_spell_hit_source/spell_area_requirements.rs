@@ -35,6 +35,7 @@ fn player_spell_hit_source_authority_evaluates_spell_area_quest_requirements_lik
     );
 
     session
+        .quest_state
         .quest_test_fixture_like_cpp
         .rewarded_quests
         .insert(10_045);
@@ -43,7 +44,11 @@ fn player_spell_hit_source_authority_evaluates_spell_area_quest_requirements_lik
         "the same C++ spell_area row can autocast after its rewarded requirement fits"
     );
 
-    session.quest_test_fixture_like_cpp.rewarded_quests.clear();
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .rewarded_quests
+        .clear();
     session.invalidate_player_quest_status_authority_like_cpp();
     assert!(
         !session.can_authorize_empty_player_spell_hit_aura_source_like_cpp(),
@@ -80,6 +85,7 @@ fn player_spell_hit_source_authority_evaluates_spell_area_aura_requirement_like_
     );
 
     session
+        .auras
         .visible_auras
         .insert(0, test_visible_aura(0, 33_795));
     assert!(
@@ -98,7 +104,7 @@ fn player_spell_hit_source_authority_evaluates_spell_area_aura_requirement_like_
         "a present aura disproves a negative C++ SpellArea prerequisite"
     );
 
-    session.visible_auras.clear();
+    session.auras.visible_auras.clear();
     assert!(
         !session.can_authorize_empty_player_spell_hit_aura_source_like_cpp(),
         "an absent aura makes the negative prerequisite fit"

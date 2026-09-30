@@ -17,7 +17,7 @@ impl WorldSession {
         money_after: u64,
     ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
         #[cfg(test)]
-        if let Some(success) = self.loot_money_persistence_test_result_like_cpp {
+        if let Some(success) = self.lifecycle.loot_money_persistence_test_result_like_cpp {
             return success.then_some(money_persistence);
         }
 
@@ -57,11 +57,13 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.player_flags_test_fixture_like_cpp
+        if self.core.player_handle_like_cpp.is_none() {
+            self.lifecycle
+                .player_flags_test_fixture_like_cpp
                 .represented_loaded_player_flags_like_cpp =
                 Some(_current_flags | PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP);
-            self.player_flags_test_fixture_like_cpp
+            self.lifecycle
+                .player_flags_test_fixture_like_cpp
                 .represented_loaded_player_flags_applied_like_cpp = _canonical;
         }
 
@@ -113,11 +115,11 @@ impl WorldSession {
         // COMMIT. The failure seam proves that no covered runtime state is
         // published on a definite rollback.
         #[cfg(test)]
-        if self.loot_money_persistence_test_result_like_cpp == Some(false) {
+        if self.lifecycle.loot_money_persistence_test_result_like_cpp == Some(false) {
             return None;
         }
         #[cfg(test)]
-        let bypass_database_like_cpp = self.loot_money_persistence_test_result_like_cpp
+        let bypass_database_like_cpp = self.lifecycle.loot_money_persistence_test_result_like_cpp
             == Some(true)
             || self.player_lifecycle_port_like_cpp().is_none();
         #[cfg(not(test))]
@@ -246,9 +248,10 @@ impl WorldSession {
             player.non_durable_skill_tombstones_like_cpp().clone()
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.player_skill_test_fixture_like_cpp
+                self.progression
+                    .player_skill_test_fixture_like_cpp
                     .player_skill_non_durable_tombstones_like_cpp
                     .clone(),
             );

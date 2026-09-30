@@ -23,9 +23,9 @@ async fn creature_kill_target_dies_proc_filters_group_reward_distance_like_cpp()
     group.add_member(far_member);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.player_guid = Some(player);
-    session.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
-    session.group_guid = Some(group_guid);
+    session.core.player_guid = Some(player);
+    session.movement.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
+    session.social.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
@@ -69,6 +69,7 @@ async fn creature_kill_target_dies_proc_filters_group_reward_distance_like_cpp()
         "C++ overworld loot still creates an independent pool for every connected tapper, regardless of group reward distance"
     );
     let selected_loot = session
+        .loot
         .loot_table
         .get(&guid)
         .expect("the handling session retains only its personal loot view");
@@ -83,7 +84,7 @@ async fn creature_kill_notifies_current_tapper_pet_after_death_state_like_cpp() 
     let player = ObjectGuid::create_player(1, 51);
     let pet_guid =
         ObjectGuid::create_world_object(wow_core::guid::HighGuid::Pet, 0, 1, 0, 0, 500, 52);
-    session.player_guid = Some(player);
+    session.core.player_guid = Some(player);
     session.set_represented_pet_mode_state_like_cpp(
         Some(pet_guid),
         wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
@@ -169,9 +170,9 @@ async fn creature_kill_sets_skinning_flags_when_skin_loot_template_exists_like_c
     let mut stores = LootStores::new();
     stores.insert(LootStoreKind::Skinning, skinning_store);
     session.set_loot_stores(Arc::new(stores));
-    session.player_guid = Some(player);
+    session.core.player_guid = Some(player);
     session.set_map_manager(manager);
-    session.current_map_id = 0;
+    session.core.current_map_id = 0;
     session.register_world_creature(
         0,
         Position::new(10.0, 10.0, 0.0, 0.0),
@@ -193,7 +194,7 @@ async fn creature_kill_sets_skinning_flags_when_skin_loot_template_exists_like_c
 
     session.apply_damage(None, guid, 100).await.unwrap();
 
-    let manager = session.map_manager.as_ref().unwrap().read().unwrap();
+    let manager = session.core.map_manager.as_ref().unwrap().read().unwrap();
     let world_creature = manager.find_creature(0, 0, guid).unwrap();
     assert!(
         world_creature

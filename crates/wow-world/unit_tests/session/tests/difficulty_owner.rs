@@ -6,7 +6,7 @@ use super::*;
 fn difficulty_mutation_runs_once_on_active_and_detached_owner_before_save_projection() {
     let (mut session, _, send_rx) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     for detached in [false, true] {
         if detached {
             assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
@@ -57,7 +57,7 @@ fn difficulty_mutation_runs_once_on_active_and_detached_owner_before_save_projec
 fn difficulty_mutation_does_not_run_for_stale_or_missing_owner() {
     let (mut session, _, _) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
@@ -71,7 +71,7 @@ fn difficulty_mutation_does_not_run_for_stale_or_missing_owner() {
         session.with_owned_player_mut_like_cpp(|_| panic!("stale owner")),
         None::<()>
     );
-    session.canonical_map_manager = None;
+    session.core.canonical_map_manager = None;
     assert_eq!(
         session.with_owned_player_mut_like_cpp(|_| panic!("missing owner")),
         None::<()>

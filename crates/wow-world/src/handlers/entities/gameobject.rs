@@ -96,13 +96,14 @@ impl crate::session::WorldSession {
             return;
         }
 
-        let gameobject_access = if self.canonical_map_manager.is_some() {
+        let gameobject_access = if self.core.canonical_map_manager.is_some() {
             match self.canonical_gameobject_access_like_cpp(gameobject_guid) {
                 Some(access) => access,
                 None => return,
             }
         } else {
             if !self
+                .core
                 .client_visible_guids_like_cpp
                 .contains(&gameobject_guid)
             {
@@ -111,6 +112,7 @@ impl crate::session::WorldSession {
             RepresentedGameObjectAccessLikeCpp {
                 entry: gameobject_guid.entry(),
                 position: self
+                    .world_entities
                     .represented_gameobject_use_states
                     .get(&gameobject_guid)
                     .and_then(|state| state.position)
@@ -147,7 +149,7 @@ impl crate::session::WorldSession {
         let Some(player_position) = self.player_position_like_cpp() else {
             return;
         };
-        if self.canonical_map_manager.is_some() {
+        if self.core.canonical_map_manager.is_some() {
             let Some(verified_access) = self.represented_gameobject_can_interact_with_like_cpp(
                 gameobject_guid,
                 interact_distance,
@@ -167,7 +169,7 @@ impl crate::session::WorldSession {
             .represented_meets_player_condition_id_like_cpp(template.get_condition_id1_like_cpp())
         {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 guid = ?gameobject_guid,
                 go_type,
                 condition_id = template.get_condition_id1_like_cpp(),
@@ -231,13 +233,14 @@ impl crate::session::WorldSession {
                 return;
             }
             GAMEOBJECT_TYPE_FISHING_NODE => {
-                let effect_start = self.represented_gameobject_use_effects.len();
+                let effect_start = self.world_entities.represented_gameobject_use_effects.len();
                 self.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid);
                 let Some(area_id) = self.represented_gameobject_area_id_like_cpp(gameobject_guid)
                 else {
                     return;
                 };
                 let loot_request = self
+                    .world_entities
                     .represented_gameobject_use_effects
                     .get(effect_start..)
                     .unwrap_or(&[])
@@ -488,7 +491,7 @@ impl crate::session::WorldSession {
             }
             _ => {
                 debug!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     guid = ?gameobject_guid,
                     go_type,
                     "GameObjUse: represented gameobject use type is not ported yet"
@@ -539,13 +542,16 @@ impl crate::session::WorldSession {
             return;
         }
 
-        let state = self.represented_gameobject_use_states.get(&gameobject_guid);
+        let state = self
+            .world_entities
+            .represented_gameobject_use_states
+            .get(&gameobject_guid);
         let interaction_distance = represented_gameobject_interaction_distance_like_cpp(
             state.and_then(|state| state.go_type),
             state.and_then(|state| state.interact_radius_override),
         );
 
-        let gameobject_access = if self.canonical_map_manager.is_some() {
+        let gameobject_access = if self.core.canonical_map_manager.is_some() {
             match self.represented_gameobject_can_interact_with_like_cpp(
                 gameobject_guid,
                 interaction_distance,
@@ -555,6 +561,7 @@ impl crate::session::WorldSession {
             }
         } else {
             if !self
+                .core
                 .client_visible_guids_like_cpp
                 .contains(&gameobject_guid)
             {
@@ -583,12 +590,14 @@ impl crate::session::WorldSession {
 
         #[cfg(test)]
         {
-            self.represented_gameobject_criteria_events.push(
-                crate::session::RepresentedGameObjectCriteriaEvent::UseGameobject {
-                    player_guid,
-                    gameobject_entry: gameobject_access.entry,
-                },
-            );
+            self.world_entities
+                .represented_gameobject_criteria_events
+                .push(
+                    crate::session::RepresentedGameObjectCriteriaEvent::UseGameobject {
+                        player_guid,
+                        gameobject_entry: gameobject_access.entry,
+                    },
+                );
         }
     }
 
@@ -608,6 +617,7 @@ impl crate::session::WorldSession {
         }
 
         let state = self
+            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)?;
         let go_type = state.go_type?;
@@ -622,13 +632,14 @@ impl crate::session::WorldSession {
 
         let map_key = self.current_canonical_player_map_key_like_cpp()?;
         {
-            let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+            let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
             let map = manager.find_map(map_key.map_id, map_key.instance_id)?;
             let gameobject = map.map().get_typed_game_object(gameobject_guid)?;
             if !gameobject.world().object().is_in_world() {
                 return None;
             }
             let gameobject_phase_shift = self
+                .world_entities
                 .represented_gameobject_phase_shifts
                 .get(&gameobject_guid)
                 .unwrap_or_else(|| gameobject.world().phase_shift());
@@ -655,7 +666,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "CloseInteraction parse failed: {error}"
                 );
                 return;

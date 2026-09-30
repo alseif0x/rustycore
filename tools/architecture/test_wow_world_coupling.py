@@ -203,6 +203,62 @@ class CouplingTests(unittest.TestCase):
         self.assertIn("DAG violations among top edges: 1", text)
         self.assertIn("Lexical scan limits", text)
 
+    def test_substate_leaves_attribute_nested_accesses(self):
+        self.write("session/state.rs", """
+            pub struct WorldSession {
+                pub core: SessionCore,
+                #[cfg(test)]
+                pub(crate) movement: MovementState,
+                pub(crate) plain: u32,
+            }
+        """)
+        self.write("session/state/session_core.rs", """
+            pub struct SessionCore {
+                pub account_id: u32,
+                #[cfg(test)]
+                pub(crate) fixture: u8,
+            }
+        """)
+        self.write("session/state/movement.rs", """
+            pub(crate) struct MovementState {
+                pub(crate) position: u8,
+            }
+        """)
+        self.write("session/alpha.rs", """
+            impl WorldSession {
+                fn alpha(&self) -> u32 {
+                    let _ = self.core.fixture;
+                    let _ = self.core.helper();
+                    let _ = self.movement.position;
+                    self.core
+                        .account_id + self.plain
+                }
+            }
+        """)
+        self.write("handlers/chat/mod.rs", """
+            pub fn handle(session: &mut WorldSession) {
+                let _ = session.core.account_id;
+                let _ = session.core;
+            }
+        """)
+        self.write("session/beta/mod.rs", "\n")
+        self.write("handlers/misc.rs", "\n")
+        report = self.report()
+        r5 = report["r5"]
+        self.assertEqual(r5["worldsession_fields"], 3)
+        self.assertEqual(r5["worldsession_cfg_fields"], 1)
+        self.assertEqual(r5["substate_leaf_fields"], 4)
+        self.assertEqual(r5["substate_leaf_cfg_fields"], 2)
+        owner = report["fields"]["owner"]
+        self.assertEqual(sorted(owner), ["account_id", "fixture", "plain", "position"])
+        self.assertEqual(owner["position"], "session/alpha")
+        self.assertEqual(owner["plain"], "session/alpha")
+        # `account_id` is read once in each domain; the tie breaks by name.
+        self.assertEqual(owner["account_id"], "handlers/chat")
+        self.assertEqual(report["fields"]["unused_in_production"], [])
+        text = coupling.render(report, 5)
+        self.assertIn("sub-state leaf fields             4  (2 cfg-gated)", text)
+
     def test_missing_struct_is_an_error(self):
         self.write("session/state.rs", "pub struct Other {}\n")
         with contextlib.redirect_stderr(io.StringIO()):

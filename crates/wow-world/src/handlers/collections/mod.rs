@@ -124,7 +124,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "MountSetFavorite parse failed: {error}"
                 );
                 return;
@@ -149,7 +149,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "MountSpecial parse failed: {error}"
                 );
                 return;
@@ -213,7 +213,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "CollectionItemSetFavorite parse failed: {error}"
                 );
                 return;
@@ -248,7 +248,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "TransmogrifyItems parse failed: {error}"
                 );
                 return;
@@ -256,7 +256,7 @@ impl crate::session::WorldSession {
         };
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             npc = ?request.npc,
             item_count = request.items.len(),
             current_spec_only = request.current_spec_only,
@@ -267,7 +267,7 @@ impl crate::session::WorldSession {
     /// CMSG_MOUNT_CLEAR_FANFARE — C++ currently logs only.
 
     pub async fn handle_mount_clear_fanfare(&mut self, _pkt: wow_packet::WorldPacket) {
-        debug!(account = self.account_id, "Mount fanfare cleared");
+        debug!(account = self.core.account_id, "Mount fanfare cleared");
     }
 
     /// CMSG_TOY_CLEAR_FANFARE — clear the account toy fanfare bit.
@@ -280,7 +280,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "ToyClearFanfare parse failed: {error}"
                 );
                 return;
@@ -307,7 +307,10 @@ impl crate::session::WorldSession {
         let request = match UseToy::read(&mut pkt) {
             Ok(request) => request,
             Err(error) => {
-                warn!(account = self.account_id, "UseToy parse failed: {error}");
+                warn!(
+                    account = self.core.account_id,
+                    "UseToy parse failed: {error}"
+                );
                 return;
             }
         };
@@ -334,7 +337,7 @@ impl crate::session::WorldSession {
         };
         let Some(spell_info) = spell_store.get(request.cast.spell_id).cloned() else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 spell_id = request.cast.spell_id,
                 item_id,
                 "HandleUseToy: unknown spell id used by toy item"
@@ -356,7 +359,7 @@ impl crate::session::WorldSession {
         };
         if remaining_ms > 0 {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 item_id,
                 spell_id = request.cast.spell_id,
                 remaining_ms,
@@ -456,7 +459,7 @@ impl crate::session::WorldSession {
             .await
         {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 spell_id = request.cast.spell_id,
                 item_id,
                 "UseToy represented spell execution failed: {error}"
@@ -464,7 +467,7 @@ impl crate::session::WorldSession {
         }
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             item_id,
             spell_id = request.cast.spell_id,
             "UseToy executed through represented spell path"
@@ -483,7 +486,10 @@ impl crate::session::WorldSession {
         let request = match AddToy::read(&mut pkt) {
             Ok(request) => request,
             Err(error) => {
-                warn!(account = self.account_id, "AddToy parse failed: {error}");
+                warn!(
+                    account = self.core.account_id,
+                    "AddToy parse failed: {error}"
+                );
                 return;
             }
         };
@@ -536,7 +542,7 @@ impl crate::session::WorldSession {
             }
             info!(
                 "Added toy item={} from bag {} slot {} for account {}",
-                destroyed_entry_id, bag, slot, self.account_id
+                destroyed_entry_id, bag, slot, self.core.account_id
             );
         } else {
             self.remove_account_toy_like_cpp(destroyed_entry_id);

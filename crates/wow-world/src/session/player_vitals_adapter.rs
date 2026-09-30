@@ -36,19 +36,19 @@ impl WorldSession {
         #[cfg(test)]
         {
             let (health, max_health, is_alive) = resolved.unwrap_or_else(|| {
-                let max_health = self.player_max_health_like_cpp.max(1);
+                let max_health = self.combat.player_max_health_like_cpp.max(1);
                 let health = if alive {
-                    self.player_health_like_cpp.max(1).min(max_health)
+                    self.combat.player_health_like_cpp.max(1).min(max_health)
                 } else {
                     0
                 };
                 (health, max_health, alive)
             });
-            self.player_health_like_cpp = health;
-            self.player_max_health_like_cpp = max_health;
-            self.player_alive_like_cpp = is_alive;
+            self.combat.player_health_like_cpp = health;
+            self.combat.player_max_health_like_cpp = max_health;
+            self.combat.player_alive_like_cpp = is_alive;
         }
-        if resolved.is_some() || cfg!(test) && self.player_handle_like_cpp.is_none() {
+        if resolved.is_some() || cfg!(test) && self.core.player_handle_like_cpp.is_none() {
             self.sync_player_registry_state_like_cpp();
         }
     }
@@ -64,11 +64,11 @@ impl WorldSession {
             (health, max_health, player.unit().is_alive() && health > 0)
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some((
-                self.player_health_like_cpp,
-                self.player_max_health_like_cpp.max(1),
-                self.player_alive_like_cpp && self.player_health_like_cpp > 0,
+                self.combat.player_health_like_cpp,
+                self.combat.player_max_health_like_cpp.max(1),
+                self.combat.player_alive_like_cpp && self.combat.player_health_like_cpp > 0,
             ));
         }
         canonical
@@ -113,7 +113,7 @@ impl WorldSession {
             })
             .is_some();
         if !canonical
-            && self.player_handle_like_cpp.is_none()
+            && self.core.player_handle_like_cpp.is_none()
             && let Some(guid) = self.player_guid()
         {
             canonical = self
@@ -122,8 +122,8 @@ impl WorldSession {
                 })
                 .is_some();
         }
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.player_game_master_like_cpp = is_game_master;
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.combat.player_game_master_like_cpp = is_game_master;
         }
     }
 
@@ -149,8 +149,8 @@ impl WorldSession {
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| player.set_cheat_god_like_cpp(enabled))
             .is_some();
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.player_cheat_god_like_cpp = enabled;
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.combat.player_cheat_god_like_cpp = enabled;
         }
     }
 }

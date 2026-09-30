@@ -73,9 +73,9 @@ impl WorldSession {
     pub(in crate::session) fn canonical_player_attack_state_like_cpp(
         &self,
     ) -> Option<Option<ObjectGuid>> {
-        let guid = self.player_guid?;
+        let guid = self.core.player_guid?;
         let map_id = u32::from(self.player_map_id_like_cpp());
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
         let manager = manager.lock().ok()?;
         let mut result = None;
         manager.do_for_all_maps_with_map_id(map_id, |managed| {
@@ -158,7 +158,7 @@ impl WorldSession {
         let Some(spell_store) = self.spell_store() else {
             return RepresentedMeleeDamageTakenLikeCpp::NONE;
         };
-        let Some(manager) = self.map_manager.as_ref() else {
+        let Some(manager) = self.core.map_manager.as_ref() else {
             return RepresentedMeleeDamageTakenLikeCpp::NONE;
         };
         let instance_id = self
@@ -295,7 +295,7 @@ impl WorldSession {
                 .sum::<f32>()
                 + aura_sum(wow_data::spell::aura_types::SPELL_AURA_MOD_ENEMY_DODGE),
         };
-        let Some(manager) = self.map_manager.as_ref() else {
+        let Some(manager) = self.core.map_manager.as_ref() else {
             return (attacker, VictimFacts::default());
         };
         let instance_id = self
@@ -468,7 +468,7 @@ impl WorldSession {
             .filter(|(misc_value, _)| misc_value & 0x01 != 0)
             .map(|(_, amount)| amount as f32)
             .sum::<f32>();
-        let Some(manager) = self.map_manager.as_ref() else {
+        let Some(manager) = self.core.map_manager.as_ref() else {
             return RepresentedArmorMitigationLikeCpp::NONE;
         };
         let instance_id = self
@@ -574,7 +574,7 @@ impl WorldSession {
         let moved_unit_guid = self.player_moved_unit_guid_like_cpp();
         let current_group_guid = self.resolved_group_guid_like_cpp();
         let player_phase_shift = self.represented_player_phase_shift_like_cpp();
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
             return (
                 true,
                 true,
@@ -753,7 +753,7 @@ impl WorldSession {
         let mut attacker_pvp_flags =
             self.with_owned_player_like_cpp(|player| player.unit().pvp_flags_like_cpp());
         #[cfg(test)]
-        if attacker_pvp_flags.is_none() && self.player_handle_like_cpp.is_none() {
+        if attacker_pvp_flags.is_none() && self.core.player_handle_like_cpp.is_none() {
             attacker_pvp_flags =
                 player_guid.and_then(|guid| self.canonical_player_pvp_flags_like_cpp(guid));
         }
@@ -879,7 +879,8 @@ impl WorldSession {
         &self,
         class: u8,
     ) -> Option<(u8, u8, u8)> {
-        self.chr
+        self.catalogs
+            .chr
             .classes_store
             .as_ref()?
             .get(u32::from(class))

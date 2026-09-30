@@ -59,8 +59,8 @@ fn white_swing_damage_rolls_the_published_range_like_cpp() {
             unit.set_weapon_damage(WeaponAttackType::BaseAttack, 5.0, 9.0);
         })
         .unwrap();
-    session.combat_target = Some(guid);
-    session.in_combat = true;
+    session.combat.combat_target = Some(guid);
+    session.combat.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -215,8 +215,8 @@ fn white_swing_applies_victim_armor_mitigation_like_cpp() {
             unit.set_weapon_damage(WeaponAttackType::BaseAttack, 1_000.0, 1_000.0);
         })
         .unwrap();
-    session.combat_target = Some(guid);
-    session.in_combat = true;
+    session.combat.combat_target = Some(guid);
+    session.combat.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {

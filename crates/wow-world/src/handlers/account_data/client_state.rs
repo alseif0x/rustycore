@@ -531,7 +531,7 @@ impl crate::session::WorldSession {
     pub async fn handle_ping(&mut self, ping: wow_packet::packets::auth::Ping) {
         trace!(
             "Ping: serial={}, latency={}ms for account {}",
-            ping.serial, ping.latency, self.account_id
+            ping.serial, ping.latency, self.core.account_id
         );
         self.send_packet(&wow_packet::packets::auth::Pong {
             serial: ping.serial,
@@ -546,7 +546,7 @@ impl crate::session::WorldSession {
     pub async fn handle_loading_screen_notify(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = LoadingScreenNotify::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "LoadingScreenNotify parse failed: {error}"
             );
             return;
@@ -558,7 +558,7 @@ impl crate::session::WorldSession {
     pub async fn handle_violence_level(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = ViolenceLevel::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "ViolenceLevel parse failed: {error}"
             );
             return;
@@ -580,7 +580,7 @@ impl crate::session::WorldSession {
             Ok(mask) => mask,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "SetActionBarToggles parse failed: {error}"
                 );
                 return;
@@ -595,7 +595,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "SetAdvancedCombatLogging parse failed: {error}"
                 );
                 return;
@@ -610,7 +610,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "SetCurrencyFlags parse failed: {error}"
                 );
                 return;

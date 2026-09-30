@@ -159,6 +159,7 @@ async fn repair_all_inventory_item_durability_uses_guild_bank_limit_like_cpp() {
         },
     ])));
     session
+        .inventory
         .player_item_test_fixture_like_cpp
         .inventory_items
         .insert(
@@ -171,6 +172,7 @@ async fn repair_all_inventory_item_durability_uses_guild_bank_limit_like_cpp() {
             },
         );
     session
+        .inventory
         .player_item_test_fixture_like_cpp
         .inventory_items
         .insert(
@@ -248,11 +250,13 @@ async fn repair_all_inventory_item_durability_uses_guild_bank_limit_like_cpp() {
     );
 
     session
+        .inventory
         .inventory_item_objects
         .get_mut(&weapon_guid)
         .unwrap()
         .set_durability(0);
     session
+        .inventory
         .inventory_item_objects
         .get_mut(&armor_guid)
         .unwrap()
@@ -398,6 +402,7 @@ fn equip_durability_test_weapon_like_cpp(
         ),
     ));
     session
+        .inventory
         .player_item_test_fixture_like_cpp
         .inventory_items
         .insert(

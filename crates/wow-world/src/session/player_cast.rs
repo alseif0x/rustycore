@@ -43,18 +43,18 @@ impl WorldSession {
 
     pub(crate) fn take_ready_player_cast_like_cpp(&mut self) -> Option<SpellCastState> {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_cast_execution_like_cpp(
                     wow_entities::CastExecutionStateLikeCpp::take_ready_cast,
                 )
                 .flatten();
         }
-        let handle = self.player_handle_like_cpp?;
+        let handle = self.core.player_handle_like_cpp?;
         if Some(handle.guid()) != self.player_guid() {
             return None;
         }
-        let mut manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let mut manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
         let revision = manager
             .player_active_residence_revision_like_cpp(handle)
             .map(|(_, revision)| revision);
@@ -128,10 +128,10 @@ impl Runtime for WorldSession {
     }
 
     fn visual(&self, spell: &wow_data::SpellInfo) -> Option<SpellCastVisualLikeCpp> {
-        let config = &self.legacy_creature_aggro_config_like_cpp;
+        let config = &self.config.legacy_creature_aggro_config_like_cpp;
         let Some(store) = config.spell_x_spell_visual_store.as_ref() else {
             #[cfg(test)]
-            if self.player_handle_like_cpp.is_none() {
+            if self.core.player_handle_like_cpp.is_none() {
                 return Some(SpellCastVisualLikeCpp::default());
             }
             return None;
@@ -240,14 +240,14 @@ impl Runtime for WorldSession {
 
     fn install(&mut self, cast: SpellCastState) -> bool {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none()
+        if self.core.player_handle_like_cpp.is_none()
             && cast.metadata.prepared_residence_revision.is_none()
         {
             return self.set_active_spell_cast_like_cpp(Some(cast));
         }
         let (Some(handle), Some(manager)) = (
-            self.player_handle_like_cpp,
-            self.canonical_map_manager.as_ref(),
+            self.core.player_handle_like_cpp,
+            self.core.canonical_map_manager.as_ref(),
         ) else {
             return false;
         };
@@ -296,15 +296,15 @@ impl Runtime for WorldSession {
         );
         if spell.cooldown_ms != 0 {
             #[cfg(test)]
-            if self.player_handle_like_cpp.is_none() {
+            if self.core.player_handle_like_cpp.is_none() {
                 let _ = self.mutate_cast_execution_like_cpp(|state| {
                     state.last_cast_time = Some(cast.cast_start_time);
                 });
                 return;
             }
             let (Some(handle), Some(manager)) = (
-                self.player_handle_like_cpp,
-                self.canonical_map_manager.as_ref(),
+                self.core.player_handle_like_cpp,
+                self.core.canonical_map_manager.as_ref(),
             ) else {
                 return;
             };

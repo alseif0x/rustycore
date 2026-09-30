@@ -21,10 +21,10 @@ impl WorldSession {
             .session_account_state = Some(port);
     }
     pub fn set_battlenet_account_id(&mut self, battlenet_account_id: u32) {
-        self.account_state.battlenet_account_id = battlenet_account_id;
+        self.core.account_state.battlenet_account_id = battlenet_account_id;
     }
     pub fn battlenet_account_id(&self) -> u32 {
-        self.account_state.battlenet_account_id
+        self.core.account_state.battlenet_account_id
     }
     /// C++ `CollectionMgr::SaveAccountHeirlooms`.
     pub(crate) fn account_heirloom_rows_like_cpp(&self) -> Vec<(u32, u32)> {
@@ -41,7 +41,8 @@ impl WorldSession {
     /// C++ `CollectionMgr::GetHeirloomBonus`.
     #[cfg(test)]
     pub(crate) fn account_heirloom_bonus_like_cpp(&self, item_id: u32) -> u32 {
-        self.represented_account_heirlooms_like_cpp
+        self.collections
+            .represented_account_heirlooms_like_cpp
             .get(&item_id)
             .map(|data| data.bonus_id)
             .unwrap_or(0)
@@ -103,6 +104,7 @@ impl WorldSession {
         cast_item: i32,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
         let heirloom = self
+            .catalogs
             .heirloom_store
             .as_ref()?
             .get_by_item_id_like_cpp(item_id)?
@@ -147,7 +149,7 @@ impl WorldSession {
         &mut self,
         item_id: u32,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
-        let heirloom_store = Arc::clone(self.heirloom_store.as_ref()?);
+        let heirloom_store = Arc::clone(self.catalogs.heirloom_store.as_ref()?);
         let heirloom = heirloom_store.get_by_item_id_like_cpp(item_id)?;
         self.player_collection_state_snapshot_like_cpp()?
             .heirlooms_like_cpp()
@@ -293,12 +295,14 @@ impl WorldSession {
             #[cfg(test)]
             {
                 if !self
+                    .pets
                     .battle_pet_test_fixture_like_cpp
                     .represented_battle_pet_slots_authority_complete_like_cpp
                 {
                     return false;
                 }
-                self.battle_pet_test_fixture_like_cpp
+                self.pets
+                    .battle_pet_test_fixture_like_cpp
                     .represented_battle_pet_slots_like_cpp
                     .iter()
                     .map(RepresentedBattlePetSlotLikeCpp::packet_slot_like_cpp)
@@ -417,7 +421,7 @@ impl WorldSession {
         level: u8,
         gender: u8,
     ) -> bool {
-        if self.player_handle_like_cpp.is_none()
+        if self.core.player_handle_like_cpp.is_none()
             && !self.player_bootstrap_attached_for_test_like_cpp()
         {
             self.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -460,7 +464,7 @@ impl WorldSession {
         let Ok(spell_id_u32) = u32::try_from(spell_id) else {
             return false;
         };
-        if self.mount_store.as_ref().is_some_and(|store| {
+        if self.catalogs.mount_store.as_ref().is_some_and(|store| {
             store
                 .get_by_source_spell_id_like_cpp(spell_id_u32)
                 .is_none()
@@ -470,6 +474,7 @@ impl WorldSession {
 
         if include_faction_counterpart
             && let Some(other_faction_spell_id) = self
+                .catalogs
                 .mount_definition_store_like_cpp
                 .as_ref()
                 .and_then(|store| store.other_faction_spell_id_like_cpp(spell_id_u32))
@@ -501,7 +506,7 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn account_mounts_like_cpp(&self) -> &HashMap<i32, u8> {
-        &self.account_mounts_like_cpp
+        &self.collections.account_mounts_like_cpp
     }
     pub(crate) fn account_mount_rows_like_cpp(&self) -> Vec<AccountMount> {
         let Some(mut mounts) =
@@ -532,7 +537,8 @@ impl WorldSession {
                 let Ok(spell_id) = u32::try_from(mount.spell_id) else {
                     return false;
                 };
-                self.mount_store
+                self.catalogs
+                    .mount_store
                     .as_ref()
                     .and_then(|store| store.get_by_source_spell_id_like_cpp(spell_id))
                     .is_none_or(|entry| {
@@ -549,7 +555,7 @@ impl WorldSession {
             .with_owned_player_mut_like_cpp(|player| player.set_at_login_flags_like_cpp(flags))
             .is_some();
         #[cfg(test)]
-        if !canonical && self.player_handle_like_cpp.is_none() {
+        if !canonical && self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_persistent_capability_state_like_cpp(|state| {
                     state.at_login_flags = flags;
@@ -571,14 +577,14 @@ impl WorldSession {
     pub(crate) fn represented_at_login_flag_removals_like_cpp(
         &self,
     ) -> &[RepresentedAtLoginFlagRemovalLikeCpp] {
-        &self.represented_at_login_flag_removals_like_cpp
+        &self.lifecycle.represented_at_login_flag_removals_like_cpp
     }
     /// Kick the session (mark as disconnecting).
     pub fn kick(&mut self, reason: &str) {
         warn!(
             "Kicking account {} ({}): {reason}",
-            self.account_id, self.account_name
+            self.core.account_id, self.core.account_name
         );
-        self.state = SessionState::Disconnecting;
+        self.core.state = SessionState::Disconnecting;
     }
 }

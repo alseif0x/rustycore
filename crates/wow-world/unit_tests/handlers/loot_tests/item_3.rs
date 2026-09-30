@@ -212,7 +212,7 @@ async fn loot_unit_group_loot_first_open_starts_roll_for_blocked_item_like_cpp()
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object,
@@ -301,6 +301,7 @@ async fn loot_unit_group_loot_first_open_starts_roll_for_blocked_item_like_cpp()
     assert_eq!(remote_start_roll.read_packed_guid().unwrap(), loot_object);
 
     let state = session
+        .loot
         .represented_loot_rolls
         .get(&(loot_object, 0))
         .unwrap();
@@ -317,11 +318,12 @@ async fn loot_unit_group_loot_first_open_starts_roll_for_blocked_item_like_cpp()
         ROLL_VOTE_NOT_VALID_LIKE_CPP
     );
 
-    let entry = &session.loot_table.get(&owner_guid).unwrap().items[0];
+    let entry = &session.loot.loot_table.get(&owner_guid).unwrap().items[0];
     assert!(entry.flags.blocked);
     assert!(!entry.flags.under_threshold);
     assert!(
         session
+            .loot
             .loot_table
             .get(&owner_guid)
             .unwrap()
@@ -342,8 +344,13 @@ async fn item_loot_releases_ae_view_and_tracks_multiple_items_like_cpp() {
     session
         .handle_loot_release(loot_release_packet(primary_guid))
         .await;
-    assert!(session.active_loot_guid.is_empty());
-    assert!(session.active_loot_view_owners.contains(&secondary_guid));
+    assert!(session.loot.active_loot_guid.is_empty());
+    assert!(
+        session
+            .loot
+            .active_loot_view_owners
+            .contains(&secondary_guid)
+    );
 
     session
         .open_active_item_loot_view_like_cpp(player_guid, first_item)
@@ -353,10 +360,15 @@ async fn item_loot_releases_ae_view_and_tracks_multiple_items_like_cpp() {
         .await;
 
     assert!(session.is_active_loot_guid(first_item));
-    assert_eq!(session.active_loot_view_owners.len(), 2);
-    assert!(session.active_loot_view_owners.contains(&first_item));
-    assert!(session.active_loot_view_owners.contains(&second_item));
-    assert!(!session.active_loot_view_owners.contains(&secondary_guid));
+    assert_eq!(session.loot.active_loot_view_owners.len(), 2);
+    assert!(session.loot.active_loot_view_owners.contains(&first_item));
+    assert!(session.loot.active_loot_view_owners.contains(&second_item));
+    assert!(
+        !session
+            .loot
+            .active_loot_view_owners
+            .contains(&secondary_guid)
+    );
     assert!(
         !secondary_authority
             .snapshot_for_player_like_cpp(player_guid)
@@ -382,7 +394,7 @@ async fn loot_item_uses_active_loot_view_like_cpp() {
     let inactive_guid = test_creature_guid(19_002);
     session.set_player_guid(Some(player_guid));
     session.set_active_loot_guid(active_guid);
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         inactive_guid,
         CreatureLoot {
             loot_guid: inactive_guid,
@@ -425,7 +437,7 @@ async fn loot_item_uses_active_loot_view_like_cpp() {
     );
     assert_eq!(sent.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
     assert_eq!(sent.read_packed_guid().unwrap(), player_guid);
-    assert!(!session.loot_table.get(&inactive_guid).unwrap().items[0].taken);
+    assert!(!session.loot.loot_table.get(&inactive_guid).unwrap().items[0].taken);
 }
 #[tokio::test]
 async fn loot_item_releases_blocked_item_like_cpp() {
@@ -436,7 +448,7 @@ async fn loot_item_releases_blocked_item_like_cpp() {
     session.set_active_loot_guid(loot_guid);
     session.set_player_position_like_cpp(Position::ZERO);
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -482,7 +494,7 @@ async fn loot_item_releases_blocked_item_like_cpp() {
     );
     assert_eq!(sent.remaining(), 0);
     assert!(session.is_active_loot_guid(loot_guid));
-    assert!(!session.loot_table.get(&loot_guid).unwrap().items[0].taken);
+    assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
 }
 #[tokio::test]
 async fn loot_item_releases_when_player_is_not_allowed_looter_like_cpp() {
@@ -494,7 +506,7 @@ async fn loot_item_releases_when_player_is_not_allowed_looter_like_cpp() {
     session.set_active_loot_guid(loot_guid);
     session.set_player_position_like_cpp(Position::ZERO);
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -537,7 +549,7 @@ async fn loot_item_releases_when_player_is_not_allowed_looter_like_cpp() {
     );
     assert_eq!(sent.remaining(), 0);
     assert!(session.is_active_loot_guid(loot_guid));
-    assert!(!session.loot_table.get(&loot_guid).unwrap().items[0].taken);
+    assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
 }
 #[tokio::test]
 async fn loot_item_releases_when_roll_winner_is_different_like_cpp() {
@@ -549,7 +561,7 @@ async fn loot_item_releases_when_roll_winner_is_different_like_cpp() {
     session.set_active_loot_guid(loot_guid);
     session.set_player_position_like_cpp(Position::ZERO);
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -592,7 +604,7 @@ async fn loot_item_releases_when_roll_winner_is_different_like_cpp() {
     );
     assert_eq!(sent.remaining(), 0);
     assert!(session.is_active_loot_guid(loot_guid));
-    assert!(!session.loot_table.get(&loot_guid).unwrap().items[0].taken);
+    assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
 }
 #[tokio::test]
 async fn master_loot_item_without_group_sends_didnt_kill_like_cpp() {
@@ -638,7 +650,7 @@ async fn master_loot_item_uses_group_master_looter_guid_like_cpp() {
         broadcast_info(leader_guid, leader_tx),
         Default::default(),
     );
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(leader_guid));
@@ -684,7 +696,7 @@ async fn master_loot_item_missing_target_sends_player_not_found_like_cpp() {
     group.master_looter_guid = master_guid;
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
 
@@ -721,11 +733,11 @@ async fn master_loot_item_non_master_loot_view_returns_silently_like_cpp() {
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
 
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
     session.set_active_loot_guid(loot_owner);
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         loot_owner,
         CreatureLoot {
             loot_guid: loot_object,
@@ -788,12 +800,12 @@ async fn master_loot_item_ineligible_target_sends_master_other_like_cpp() {
         broadcast_info(target_guid, target_tx),
         Default::default(),
     );
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
     session.set_active_loot_guid(loot_owner);
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         loot_owner,
         CreatureLoot {
             loot_guid: loot_object,

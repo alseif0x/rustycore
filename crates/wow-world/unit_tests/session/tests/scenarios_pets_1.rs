@@ -32,7 +32,10 @@ fn canonical_player_pet_lifecycle_follows_active_detached_and_stale_ownership_li
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     assert!(session.update_player_pet_lifecycle_state_like_cpp(|state| *state = owned.clone()));
     assert_eq!(
@@ -99,7 +102,7 @@ fn player_registry_publishes_party_member_pet_stats_like_cpp() {
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
-    session.player_name = Some("PetOwnerTester".to_string());
+    session.identity.player_name = Some("PetOwnerTester".to_string());
     session.set_player_registry(Arc::clone(&registry));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_represented_pet_mode_state_like_cpp(Some(pet_guid), 1, 0);
@@ -148,8 +151,15 @@ fn load_represented_pet_stable_rows_partitions_slots_like_cpp() {
     );
 
     assert_eq!(loaded, 3);
-    assert_eq!(session.represented_pet_stable_like_cpp.active_pets.len(), 3);
-    let active = session.represented_pet_stable_like_cpp.active_pets[2]
+    assert_eq!(
+        session
+            .pets
+            .represented_pet_stable_like_cpp
+            .active_pets
+            .len(),
+        3
+    );
+    let active = session.pets.represented_pet_stable_like_cpp.active_pets[2]
         .as_ref()
         .expect("active pet slot");
     assert_eq!(active.pet_number, 42);
@@ -169,17 +179,21 @@ fn load_represented_pet_stable_rows_partitions_slots_like_cpp() {
     assert_eq!(active.specialization_id, 2);
 
     assert_eq!(
-        session.represented_pet_stable_like_cpp.stabled_pets.len(),
+        session
+            .pets
+            .represented_pet_stable_like_cpp
+            .stabled_pets
+            .len(),
         4
     );
     assert_eq!(
-        session.represented_pet_stable_like_cpp.stabled_pets[3]
+        session.pets.represented_pet_stable_like_cpp.stabled_pets[3]
             .as_ref()
             .map(|pet| pet.pet_number),
         Some(43)
     );
     assert_eq!(
-        session.represented_pet_stable_like_cpp.unslotted_pets[0].pet_number,
+        session.pets.represented_pet_stable_like_cpp.unslotted_pets[0].pet_number,
         44
     );
     assert_eq!(
@@ -205,7 +219,10 @@ fn load_represented_pet_stable_rows_sets_temporary_unsummoned_when_summoned_exis
         42
     );
     assert_eq!(
-        session.represented_pet_stable_like_cpp.current_pet_index,
+        session
+            .pets
+            .represented_pet_stable_like_cpp
+            .current_pet_index,
         Some(0)
     );
 }
@@ -227,7 +244,10 @@ fn load_represented_pet_stable_rows_leaves_temporary_unsummoned_zero_when_missin
         0
     );
     assert_eq!(
-        session.represented_pet_stable_like_cpp.current_pet_index,
+        session
+            .pets
+            .represented_pet_stable_like_cpp
+            .current_pet_index,
         None
     );
 }
@@ -351,7 +371,9 @@ fn resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp() {
         0,
     ));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
-    session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
+    session
+        .pets
+        .represented_temporary_unsummoned_pet_number_like_cpp = 42;
     let mut xp_table = vec![0; 81];
     xp_table[80] = 10_000;
     session.set_player_xp_table(Arc::new(xp_table));
@@ -450,7 +472,10 @@ fn resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp() {
     let pet_guid = session
         .represented_pet_guid_like_cpp()
         .expect("represented active pet guid");
-    assert_eq!(session.represented_pet_created_by_spell_like_cpp, 9_001);
+    assert_eq!(
+        session.pets.represented_pet_created_by_spell_like_cpp,
+        9_001
+    );
     let manager = canonical.lock().unwrap();
     let pet = manager
         .find_map(571, 0)
@@ -573,7 +598,9 @@ fn resummon_pet_zero_health_hunter_pet_loads_just_died_like_cpp() {
         0,
     ));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
-    session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
+    session
+        .pets
+        .represented_temporary_unsummoned_pet_number_like_cpp = 42;
     let mut stable = represented_hunter_pet_stable_like_cpp(42, 500);
     stable.active_pets[0].as_mut().unwrap().health = 0;
     session.set_represented_pet_stable_like_cpp(stable);
@@ -615,7 +642,9 @@ fn resummon_pet_temporary_unsummoned_skips_declined_names_for_non_hunter_pet_lik
         0,
     ));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
-    session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
+    session
+        .pets
+        .represented_temporary_unsummoned_pet_number_like_cpp = 42;
     let mut stable = represented_hunter_pet_stable_like_cpp(42, 500);
     stable.active_pets[0].as_mut().unwrap().pet_type = PetType::Summon;
     session.set_represented_pet_stable_like_cpp(stable);
@@ -644,7 +673,9 @@ fn resummon_pet_temporary_unsummoned_skips_declined_names_for_non_hunter_pet_lik
 #[test]
 fn resummon_pet_temporary_unsummoned_waits_while_player_dead_like_cpp() {
     let (mut session, _, _send_rx) = make_session();
-    session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
+    session
+        .pets
+        .represented_temporary_unsummoned_pet_number_like_cpp = 42;
     session.set_represented_pet_stable_like_cpp(represented_hunter_pet_stable_like_cpp(42, 500));
     session.set_player_alive_like_cpp(false);
 
@@ -660,7 +691,9 @@ fn resummon_pet_temporary_unsummoned_waits_while_player_dead_like_cpp() {
 #[test]
 fn resummon_pet_temporary_unsummoned_waits_while_player_flying_like_cpp() {
     let (mut session, _, _send_rx) = make_session();
-    session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
+    session
+        .pets
+        .represented_temporary_unsummoned_pet_number_like_cpp = 42;
     session.set_represented_pet_stable_like_cpp(represented_hunter_pet_stable_like_cpp(42, 500));
     session.set_player_movement_flags_like_cpp(MovementFlag::FLYING);
 
@@ -691,7 +724,9 @@ fn resummon_pet_temporary_unsummoned_failed_load_clears_number_like_cpp() {
         0,
     ));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
-    session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
+    session
+        .pets
+        .represented_temporary_unsummoned_pet_number_like_cpp = 42;
     session.set_represented_pet_stable_like_cpp(represented_hunter_pet_stable_like_cpp(99, 500));
 
     session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
@@ -708,7 +743,9 @@ fn resummon_pet_temporary_unsummoned_failed_load_clears_number_like_cpp() {
 fn resummon_pet_temporary_unsummoned_skips_when_pet_already_active_like_cpp() {
     let (mut session, _, _send_rx) = make_session();
     let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 500, 8421);
-    session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
+    session
+        .pets
+        .represented_temporary_unsummoned_pet_number_like_cpp = 42;
     session.set_represented_pet_mode_state_like_cpp(
         Some(pet_guid),
         wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,

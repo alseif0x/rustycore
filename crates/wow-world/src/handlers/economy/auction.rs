@@ -194,7 +194,7 @@ impl crate::session::WorldSession {
             .unwrap_or(wow_core::ObjectGuid::EMPTY);
         info!(
             "AuctionHelloRequest from {:?} account {}",
-            guid, self.account_id
+            guid, self.core.account_id
         );
         self.send_packet(&AuctionHelloResponse::open(guid));
     }
@@ -232,7 +232,7 @@ impl crate::session::WorldSession {
             0,
         ) else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 auctioneer = ?packet.auctioneer,
                 auction_id = packet.auction_id,
                 "AuctionPlaceBid rejected: auctioneer missing, invalid, hostile/dead, out of range, or lacks AUCTIONEER flag"
@@ -263,7 +263,7 @@ impl crate::session::WorldSession {
             0,
         ) else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 auctioneer = ?packet.auctioneer,
                 auction_id = packet.auction_id,
                 item_id = packet.item_id,
@@ -333,7 +333,7 @@ impl crate::session::WorldSession {
             0,
         ) else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 auctioneer = ?packet.auctioneer,
                 runtime = packet.runtime,
                 "AuctionSellItem rejected: auctioneer missing, invalid, hostile/dead, out of range, or lacks AUCTIONEER flag"
@@ -364,7 +364,7 @@ impl crate::session::WorldSession {
             0,
         ) else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 auctioneer = ?packet.auctioneer,
                 "AuctionReplicateItems rejected: auctioneer missing, invalid, hostile/dead, out of range, or lacks AUCTIONEER flag"
             );
@@ -407,7 +407,7 @@ impl crate::session::WorldSession {
     pub async fn handle_auctionable_token_sell(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = AuctionableTokenSell::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "AuctionableTokenSell parse failed: {error}"
             );
         }
@@ -424,7 +424,7 @@ impl crate::session::WorldSession {
     ) {
         if let Err(error) = AuctionableTokenSellAtMarketPrice::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "AuctionableTokenSellAtMarketPrice parse failed: {error}"
             );
         }
@@ -437,7 +437,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "CommerceTokenGetLog parse failed: {error}"
                 );
                 return;

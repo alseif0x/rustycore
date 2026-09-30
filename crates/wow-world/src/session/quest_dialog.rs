@@ -429,7 +429,7 @@ impl WorldSession {
         creature_guid: ObjectGuid,
         creature_entry: u32,
     ) -> bool {
-        let Some(quest_store) = self.quests.store.as_ref().map(Arc::clone) else {
+        let Some(quest_store) = self.catalogs.quests.store.as_ref().map(Arc::clone) else {
             return false;
         };
 
@@ -507,14 +507,15 @@ impl WorldSession {
         gameobject_entry: u32,
         source: wow_entities::QuestgiverUseSource,
     ) -> bool {
-        self.represented_gameobject_use_effects
-            .push(RepresentedGameObjectUseEffect::SendGossip {
+        self.world_entities.represented_gameobject_use_effects.push(
+            RepresentedGameObjectUseEffect::SendGossip {
                 gameobject_guid,
                 player_guid,
                 gossip_id: source.gossip_id,
-            });
+            },
+        );
 
-        let Some(quest_store) = self.quests.store.as_ref().map(Arc::clone) else {
+        let Some(quest_store) = self.catalogs.quests.store.as_ref().map(Arc::clone) else {
             return true;
         };
 

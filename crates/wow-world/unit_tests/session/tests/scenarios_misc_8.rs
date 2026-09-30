@@ -85,6 +85,7 @@ fn tavern_rest_revalidation_clears_stale_trigger_like_cpp() {
     assert!(session.represented_is_resting_like_cpp());
     assert_eq!(
         session
+            .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_inn_area_trigger_id_like_cpp,
         42
@@ -101,6 +102,7 @@ fn tavern_rest_revalidation_clears_stale_trigger_like_cpp() {
     assert!(!session.represented_is_resting_like_cpp());
     assert_eq!(
         session
+            .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_inn_area_trigger_id_like_cpp,
         0
@@ -551,7 +553,7 @@ fn give_xp_runtime_raf_awards_triple_xp_without_spending_rested_bonus_like_cpp()
     group.add_member(recruit_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     assert!(

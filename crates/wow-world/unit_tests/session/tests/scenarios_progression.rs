@@ -39,18 +39,22 @@ async fn reputation_min_tracking_event_objective_auto_rewards_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![],
+                slot: 0,
+            },
+        );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.reputation_changed_like_cpp(faction_id, 100).await;
@@ -94,18 +98,22 @@ async fn increase_reputation_tracking_event_objective_auto_rewards_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![0],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.reputation_changed_like_cpp(faction_id, 100).await;
@@ -155,18 +163,22 @@ async fn reputation_max_tracking_event_objective_auto_rewards_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![],
+                slot: 0,
+            },
+        );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session.reputation_changed_like_cpp(faction_id, -100).await;
@@ -202,7 +214,10 @@ fn canonical_player_talents_and_glyphs_follow_active_detached_and_stale_ownershi
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
     let mut owned = wow_entities::PlayerTalentRuntimeState::default();
     owned.mark_talents_loaded_like_cpp();
     owned.mark_glyphs_loaded_like_cpp();
@@ -293,7 +308,10 @@ fn canonical_player_reputation_follows_active_detached_and_stale_ownership_like_
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     assert!(
         session
@@ -452,7 +470,7 @@ fn reputation_gain_recruit_a_friend_bonus_requires_configured_distance_like_cpp(
     group.add_member(recruit_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_state(SessionState::LoggedIn);
@@ -614,7 +632,10 @@ fn reputation_transition_writes_through_to_the_canonical_player_like_cpp() {
 
     // Read the Player directly through its canonical owner handle: no
     // projection, no write-back, no copy.
-    let handle = session.player_handle_like_cpp.expect("canonical handle");
+    let handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
     let observed = canonical
         .lock()
         .unwrap()
@@ -645,9 +666,9 @@ fn player_registry_reputation_snapshot_syncs_from_canonical_player_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 604);
 
     session.set_player_guid(Some(player_guid));
-    session.player_name = Some("RepSnapshot".into());
-    session.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
-    session.current_map_id = 571;
+    session.identity.player_name = Some("RepSnapshot".into());
+    session.movement.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
+    session.core.current_map_id = 571;
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_player_registry(Arc::clone(&player_registry));
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);

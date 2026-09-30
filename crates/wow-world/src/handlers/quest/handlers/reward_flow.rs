@@ -32,13 +32,13 @@ impl WorldSession {
         let quest_id: u32 = pkt.read_uint32().unwrap_or(0);
 
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             ?guid,
             quest_id,
             "Received QuestGiverRequestReward like C++"
         );
 
-        let quest_store = match &self.quests.store {
+        let quest_store = match &self.catalogs.quests.store {
             Some(s) => Arc::clone(s),
             None => return,
         };
@@ -46,7 +46,7 @@ impl WorldSession {
             Some(q) => q.clone(),
             None => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     quest_id, "RequestReward: unknown quest"
                 );
                 return;
@@ -55,7 +55,7 @@ impl WorldSession {
 
         if self.is_quest_disabled_like_cpp(quest_id) {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id, "RequestReward: quest disabled"
             );
             return;
@@ -69,7 +69,7 @@ impl WorldSession {
             )
         {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 ?guid,
                 quest_id,
                 "RequestReward: represented involved source rejected"
@@ -117,7 +117,7 @@ impl WorldSession {
             // Objectives not finished — silently ignore
             // (C# would send SMSG_QUEST_GIVER_REQUEST_ITEMS instead)
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id, "RequestReward: quest not complete"
             );
             return;
@@ -171,14 +171,14 @@ impl WorldSession {
         let from_script: bool = pkt.read_bit().unwrap_or(false);
 
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             ?guid,
             quest_id,
             from_script,
             "Received QuestGiverCompleteQuest like C++"
         );
 
-        let quest_store = match &self.quests.store {
+        let quest_store = match &self.catalogs.quests.store {
             Some(s) => Arc::clone(s),
             None => return,
         };
@@ -187,7 +187,7 @@ impl WorldSession {
             Some(q) => q,
             None => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     quest_id, "QuestGiverCompleteQuest: unknown quest"
                 );
                 return;
@@ -196,7 +196,7 @@ impl WorldSession {
 
         if self.is_quest_disabled_like_cpp(quest_id) {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id, "QuestGiverCompleteQuest: quest disabled"
             );
             return;
@@ -211,7 +211,7 @@ impl WorldSession {
                 )
             {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?guid,
                     quest_id,
                     from_script,
@@ -221,7 +221,7 @@ impl WorldSession {
             }
         } else if !from_script || self.player_guid() != Some(guid) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 ?guid,
                 quest_id,
                 from_script,
@@ -233,7 +233,7 @@ impl WorldSession {
         // Check if player has the quest active
         if !self.has_quest(quest_id) {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id, "Player doesn't have quest"
             );
             return;
@@ -329,7 +329,7 @@ impl WorldSession {
             Ok(choice) => choice,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     ?error,
                     "ChooseReward: failed to read C++ QuestChoiceItem"
                 );
@@ -339,7 +339,7 @@ impl WorldSession {
         let choice_item_id = choice.item_id;
 
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             ?guid,
             quest_id,
             choice_item_id,
@@ -347,7 +347,7 @@ impl WorldSession {
             "Received QuestGiverChooseReward like C++"
         );
 
-        let quest_store = match &self.quests.store {
+        let quest_store = match &self.catalogs.quests.store {
             Some(s) => Arc::clone(s),
             None => return,
         };
@@ -355,7 +355,7 @@ impl WorldSession {
             Some(q) => q.clone(),
             None => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     quest_id, "ChooseReward: unknown quest"
                 );
                 return;
@@ -364,7 +364,7 @@ impl WorldSession {
 
         if self.is_quest_disabled_like_cpp(quest_id) {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id, "ChooseReward: quest disabled"
             );
             return;
@@ -378,14 +378,14 @@ impl WorldSession {
             Some(QUEST_STATUS_COMPLETE_LIKE_CPP) => {}
             Some(QUEST_STATUS_INCOMPLETE_LIKE_CPP) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     quest_id, "ChooseReward: quest not complete yet"
                 );
                 return;
             }
             _ => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     quest_id, "ChooseReward: player doesn't have quest"
                 );
                 return;
@@ -399,7 +399,7 @@ impl WorldSession {
                 && choice.loot_item_type != QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP
             {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     quest_id,
                     loot_item_type = choice.loot_item_type,
                     "ChooseReward: unsupported C++ LootItemType"
@@ -408,7 +408,7 @@ impl WorldSession {
             }
             if !self.represented_reward_choice_template_exists_like_cpp(choice) {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     quest_id,
                     choice_item_id,
                     loot_item_type = choice.loot_item_type,
@@ -421,7 +421,7 @@ impl WorldSession {
             ) || self.represented_quest_package_choice_matches_like_cpp(&quest, choice);
             if !valid {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     quest_id,
                     choice_item_id,
                     loot_item_type = choice.loot_item_type,
@@ -444,7 +444,7 @@ impl WorldSession {
             )
         {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 ?guid,
                 quest_id,
                 "ChooseReward: represented involved source rejected"
@@ -454,7 +454,7 @@ impl WorldSession {
 
         if !self.represented_can_reward_quest_inventory_like_cpp(&quest, choice) {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id,
                 choice_item_id,
                 "ChooseReward: represented reward inventory validation rejected like C++"

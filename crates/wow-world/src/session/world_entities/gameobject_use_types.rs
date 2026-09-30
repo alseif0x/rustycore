@@ -14,6 +14,7 @@ impl WorldSession {
     ) -> bool {
         let now = Instant::now();
         let state = self
+            .world_entities
             .represented_gameobject_use_states
             .entry(gameobject_guid)
             .or_default();
@@ -21,7 +22,7 @@ impl WorldSession {
             .loot_state
             .is_some_and(|loot_state| loot_state != wow_entities::LootState::Ready)
         {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::DoorOrButtonRejectedNotReady { gameobject_guid },
             );
             return false;
@@ -40,7 +41,7 @@ impl WorldSession {
         state.gameobject_flags |= wow_entities::GO_FLAG_IN_USE;
         state.cooldown_until = (restore_time_ms != 0)
             .then_some(now + Duration::from_millis(u64::from(restore_time_ms)));
-        self.represented_gameobject_use_effects.push(
+        self.world_entities.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::DoorOrButtonUsed {
                 gameobject_guid,
                 user_guid,
@@ -56,6 +57,7 @@ impl WorldSession {
         gameobject_guid: ObjectGuid,
     ) -> bool {
         let Some(state) = self
+            .world_entities
             .represented_gameobject_use_states
             .get_mut(&gameobject_guid)
         else {
@@ -73,7 +75,7 @@ impl WorldSession {
         state.go_state = Some(restored_go_state);
         state.loot_state = Some(wow_entities::LootState::JustDeactivated);
         state.cooldown_until = None;
-        self.represented_gameobject_use_effects.push(
+        self.world_entities.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::DoorOrButtonReset {
                 gameobject_guid,
                 go_state: restored_go_state,
@@ -88,6 +90,7 @@ impl WorldSession {
     ) -> bool {
         let now = Instant::now();
         let expired = self
+            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)
             .and_then(|state| state.cooldown_until)
@@ -105,6 +108,7 @@ impl WorldSession {
     ) -> bool {
         let now = Instant::now();
         let state = self
+            .world_entities
             .represented_gameobject_use_states
             .entry(gameobject_guid)
             .or_default();
@@ -112,7 +116,8 @@ impl WorldSession {
             .cooldown_until
             .is_some_and(|cooldown_until| cooldown_until > now)
         {
-            self.represented_gameobject_use_effects
+            self.world_entities
+                .represented_gameobject_use_effects
                 .push(RepresentedGameObjectUseEffect::CooldownRejected { gameobject_guid });
             return false;
         }
@@ -120,7 +125,7 @@ impl WorldSession {
         state.trap_use_source = Some(source);
 
         if source.spell_id != 0 {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::CastSpell {
                     gameobject_guid,
                     player_guid: user_guid,
@@ -136,7 +141,7 @@ impl WorldSession {
         };
         state.cooldown_until =
             Some(now + Duration::from_millis(u64::from(cooldown_secs).saturating_mul(1000)));
-        self.represented_gameobject_use_effects.push(
+        self.world_entities.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::CooldownStarted {
                 gameobject_guid,
                 cooldown_secs,
@@ -160,6 +165,7 @@ impl WorldSession {
     ) -> bool {
         let slot_count = source.chair_slots.max(1).min(5);
         let state = self
+            .world_entities
             .represented_gameobject_use_states
             .entry(gameobject_guid)
             .or_default();
@@ -193,7 +199,7 @@ impl WorldSession {
         }
 
         let Some(slot) = nearest_slot else {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::ChairNoFreeSlot {
                     gameobject_guid,
                     player_guid,
@@ -208,16 +214,17 @@ impl WorldSession {
         self.set_player_stand_state_like_cpp(wow_entities::chair_stand_state_like_cpp(
             source.chair_height,
         ));
-        self.represented_gameobject_use_effects
-            .push(RepresentedGameObjectUseEffect::ChairUsed {
+        self.world_entities.represented_gameobject_use_effects.push(
+            RepresentedGameObjectUseEffect::ChairUsed {
                 gameobject_guid,
                 player_guid,
                 slot: slot as u32,
                 teleport_position: nearest_position,
                 stand_state,
-            });
+            },
+        );
         if source.triggered_event_id != 0 {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::TriggerGameEvent {
                     gameobject_guid,
                     player_guid,
@@ -238,7 +245,7 @@ impl WorldSession {
         self.send_packet(&wow_packet::packets::misc::EnableBarberShop {
             customization_scope: source.customization_scope.min(u32::from(u8::MAX)) as u8,
         });
-        self.represented_gameobject_use_effects.push(
+        self.world_entities.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::BarberChairUsed {
                 gameobject_guid,
                 player_guid,
@@ -267,7 +274,7 @@ impl WorldSession {
             object_guid: gameobject_guid,
             interaction_type,
         });
-        self.represented_gameobject_use_effects.push(
+        self.world_entities.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::UiLinkOpened {
                 gameobject_guid,
                 player_guid,
@@ -291,7 +298,7 @@ impl WorldSession {
             if !owner_guid.is_some_and(|owner_guid| {
                 self.represented_player_is_same_raid_with_like_cpp(player_guid, owner_guid)
             }) {
-                self.represented_gameobject_use_effects.push(
+                self.world_entities.represented_gameobject_use_effects.push(
                     RepresentedGameObjectUseEffect::SpellcasterPartyOnlyRejected {
                         gameobject_guid,
                         player_guid,
@@ -304,7 +311,7 @@ impl WorldSession {
         if !self.remove_represented_mounted_auras_by_type_like_cpp() {
             return false;
         }
-        self.represented_gameobject_use_effects.push(
+        self.world_entities.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::RemoveMountedAuras {
                 gameobject_guid,
                 player_guid,
@@ -313,6 +320,7 @@ impl WorldSession {
 
         let use_count = {
             let state = self
+                .world_entities
                 .represented_gameobject_use_states
                 .entry(gameobject_guid)
                 .or_default();
@@ -323,7 +331,7 @@ impl WorldSession {
             state.use_count = state.use_count.saturating_add(1);
             state.use_count
         };
-        self.represented_gameobject_use_effects.push(
+        self.world_entities.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::GameObjectUseCountIncremented {
                 gameobject_guid,
                 use_count,
@@ -350,7 +358,7 @@ impl WorldSession {
         linked_trap_entry: u32,
     ) -> bool {
         if linked_trap_entry != 0 {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::TriggerLinkedTrap {
                     gameobject_guid,
                     player_guid,
@@ -369,7 +377,7 @@ impl WorldSession {
     ) -> bool {
         if source.cinematic_id != 0 {
             self.send_represented_cinematic_start_like_cpp(source.cinematic_id);
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::TriggerCinematic {
                     gameobject_guid,
                     player_guid,
@@ -379,7 +387,7 @@ impl WorldSession {
         }
 
         if source.event_id != 0 {
-            self.represented_gameobject_use_effects.push(
+            self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::TriggerGameEvent {
                     gameobject_guid,
                     player_guid,

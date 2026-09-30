@@ -11,7 +11,8 @@ impl WorldSession {
         &self,
         parent_item_id: u32,
     ) -> Option<&ItemChildEquipmentEntry> {
-        self.items
+        self.catalogs
+            .items
             .child_equipment_store
             .as_ref()?
             .values()
@@ -21,7 +22,7 @@ impl WorldSession {
         &self,
         spell_id: u32,
     ) -> bool {
-        let Some(spell_store) = self.spell_catalogs.spell_store.as_ref() else {
+        let Some(spell_store) = self.catalogs.spell_catalogs.spell_store.as_ref() else {
             return true;
         };
         let Ok(spell_id) = i32::try_from(spell_id) else {
@@ -33,7 +34,8 @@ impl WorldSession {
         };
         spell_store
             .check_shapeshift_like_cpp(spell_id, form_id, |form| {
-                self.spell_catalogs
+                self.catalogs
+                    .spell_catalogs
                     .spell_shapeshift_form_store
                     .as_ref()
                     .and_then(|store| store.get(form))
@@ -110,7 +112,7 @@ impl WorldSession {
         let Some(_player_guid) = self.player_guid() else {
             return 0;
         };
-        let Some(item_effect_store) = self.items.effect_store.as_ref().cloned() else {
+        let Some(item_effect_store) = self.catalogs.items.effect_store.as_ref().cloned() else {
             return 0;
         };
         let Some(item_entry) = self
@@ -127,6 +129,7 @@ impl WorldSession {
         let primary_spec = self.represented_primary_specialization_id_like_cpp();
         let mut applied = 0usize;
         if self
+            .catalogs
             .items
             .stats_store
             .as_ref()
@@ -195,7 +198,7 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return Some((false, false));
         }
 
@@ -251,7 +254,7 @@ impl WorldSession {
     pub(crate) fn creature_equipment_store_like_cpp(
         &self,
     ) -> Option<&Arc<CreatureEquipmentStoreLikeCpp>> {
-        self.creature_equipment_store_like_cpp.as_ref()
+        self.catalogs.creature_equipment_store_like_cpp.as_ref()
     }
     pub fn send_equip_error(
         &self,
@@ -294,7 +297,8 @@ impl WorldSession {
             else {
                 return;
             };
-            self.player_item_test_fixture_like_cpp
+            self.inventory
+                .player_item_test_fixture_like_cpp
                 .represented_avg_equipped_item_level_updates_like_cpp
                 .push(avg_equipped_item_level);
         }
@@ -706,6 +710,7 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_avg_equipped_item_level_updates_like_cpp(&self) -> &[f32] {
         &self
+            .inventory
             .player_item_test_fixture_like_cpp
             .represented_avg_equipped_item_level_updates_like_cpp
     }

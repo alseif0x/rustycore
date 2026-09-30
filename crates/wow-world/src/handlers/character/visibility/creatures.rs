@@ -40,7 +40,7 @@ impl WorldSession {
                 // which the Wrath client rejects by resetting the connection. This function
                 // runs on world-port/spawn and must not re-create already-known creatures.
                 visible_guids.push(guid);
-                if self.client_visible_guids_like_cpp.contains(&guid) {
+                if self.core.client_visible_guids_like_cpp.contains(&guid) {
                     continue;
                 }
                 let mut create_data = creature.create_data.clone();
@@ -63,7 +63,7 @@ impl WorldSession {
 
             // Publish the creature membership and its create blocks as one step;
             // see `publish_transition_like_cpp`.
-            let visibility_like_cpp = self.client_visible_guids_like_cpp.clone();
+            let visibility_like_cpp = self.core.client_visible_guids_like_cpp.clone();
             visibility_like_cpp.publish_transition_like_cpp(
                 |guid| !guid.is_any_type_creature(),
                 visible_guids.iter().copied(),
@@ -80,11 +80,11 @@ impl WorldSession {
                     self.send_packet(&update);
                 },
             );
-            self.last_visibility_pos = Some(*position);
+            self.visibility.last_visibility_pos = Some(*position);
             debug!(
                 "Sent {} map-owned creatures to account {} on map {}",
                 visible_guids.len(),
-                self.account_id,
+                self.core.account_id,
                 map_id
             );
             return;
@@ -93,9 +93,10 @@ impl WorldSession {
         let port = match self.visibility_spawn_catalog_persistence_port_like_cpp() {
             Some(port) => port,
             None => {
-                self.client_visible_guids_like_cpp
+                self.core
+                    .client_visible_guids_like_cpp
                     .retain(|guid| !guid.is_any_type_creature());
-                self.last_visibility_pos = Some(*position);
+                self.visibility.last_visibility_pos = Some(*position);
                 warn!("No world database — skipping creature spawn");
                 return;
             }
@@ -132,9 +133,10 @@ impl WorldSession {
         };
 
         if rows.is_empty() {
-            self.client_visible_guids_like_cpp
+            self.core
+                .client_visible_guids_like_cpp
                 .retain(|guid| !guid.is_any_type_creature());
-            self.last_visibility_pos = Some(*position);
+            self.visibility.last_visibility_pos = Some(*position);
             return;
         }
 
@@ -171,13 +173,13 @@ impl WorldSession {
         // of creatures sent to this client, not every creature loaded on map.
         // The membership and its packet are published as one step; see
         // `publish_transition_like_cpp`.
-        let visibility_like_cpp = self.client_visible_guids_like_cpp.clone();
+        let visibility_like_cpp = self.core.client_visible_guids_like_cpp.clone();
         visibility_like_cpp.publish_transition_like_cpp(
             |guid| !guid.is_any_type_creature(),
             visible_guids.iter().copied(),
             || self.send_packet(&update),
         );
-        self.last_visibility_pos = Some(*position);
+        self.visibility.last_visibility_pos = Some(*position);
         let mob_count = visible_guids
             .iter()
             .filter(|g| {
@@ -188,7 +190,7 @@ impl WorldSession {
         let npc_count = visible_guids.len().saturating_sub(mob_count);
         info!(
             "Sent {} creatures ({} mobs / {} npcs) to account {} on map {}",
-            count, mob_count, npc_count, self.account_id, map_id
+            count, mob_count, npc_count, self.core.account_id, map_id
         );
     }
 
@@ -215,7 +217,7 @@ impl WorldSession {
         };
         let forced_refresh = self.consume_movement_visibility_refresh_request_like_cpp();
 
-        if !forced_refresh && let Some(last) = self.last_visibility_pos {
+        if !forced_refresh && let Some(last) = self.visibility.last_visibility_pos {
             let dx = pos.x - last.x;
             let dy = pos.y - last.y;
             if dx * dx + dy * dy < 50.0 * 50.0 {
@@ -256,21 +258,21 @@ impl WorldSession {
             let creature_vis_trace = std::env::var_os("RUSTYCORE_CREATURE_VIS_TRACE").is_some();
             if creature_vis_trace {
                 info!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     map_id,
                     x = pos.x,
                     y = pos.y,
                     z = pos.z,
                     visibility_range = range,
                     candidate_creatures = map_creatures.len(),
-                    already_visible_guids = self.client_visible_guids_like_cpp.len(),
+                    already_visible_guids = self.core.client_visible_guids_like_cpp.len(),
                     "RUST_CREATURE_VIS visibility_candidates"
                 );
                 for (idx, creature) in map_creatures.iter().take(80).enumerate() {
                     let creature_pos = creature.position();
                     let guid = creature.guid();
                     info!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         map_id,
                         idx,
                         ?guid,
@@ -282,13 +284,14 @@ impl WorldSession {
                         y = creature_pos.y,
                         z = creature_pos.z,
                         distance_2d = creature_pos.distance_2d(&pos),
-                        already_client_visible = self.client_visible_guids_like_cpp.contains(&guid),
+                        already_client_visible =
+                            self.core.client_visible_guids_like_cpp.contains(&guid),
                         "RUST_CREATURE_VIS candidate"
                     );
                 }
                 if map_creatures.len() > 80 {
                     info!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         map_id,
                         omitted = map_creatures.len() - 80,
                         "RUST_CREATURE_VIS candidates_omitted"
@@ -319,7 +322,7 @@ impl WorldSession {
             for creature in &map_creatures {
                 let guid = creature.guid();
                 new_visible_creatures.insert(guid);
-                if !self.client_visible_guids_like_cpp.contains(&guid) {
+                if !self.core.client_visible_guids_like_cpp.contains(&guid) {
                     let mut create_data = creature.create_data.clone();
                     create_data.health = i64::from(creature.current_hp());
                     create_data.max_health = i64::from(creature.max_hp());
@@ -333,7 +336,7 @@ impl WorldSession {
                     if creature_vis_trace {
                         let creature_pos = creature.position();
                         info!(
-                            account = self.account_id,
+                            account = self.core.account_id,
                             map_id,
                             ?guid,
                             entry = creature.entry(),
@@ -361,6 +364,7 @@ impl WorldSession {
             }
 
             let removed_creatures: Vec<ObjectGuid> = self
+                .core
                 .client_visible_guids_like_cpp
                 .snapshot_like_cpp()
                 .into_iter()
@@ -378,6 +382,7 @@ impl WorldSession {
                 new_visible_gos = gameobjects.iter().map(|go| go.guid).collect();
                 for gameobject in gameobjects {
                     if !self
+                        .core
                         .client_visible_guids_like_cpp
                         .contains(&gameobject.guid)
                     {
@@ -386,13 +391,16 @@ impl WorldSession {
                     }
                 }
                 let removed_gos: Vec<ObjectGuid> = self
+                    .core
                     .client_visible_guids_like_cpp
                     .snapshot_like_cpp()
                     .into_iter()
                     .filter(|g| g.is_game_object() && !new_visible_gos.contains(g))
                     .collect();
                 for guid in &removed_gos {
-                    self.represented_gameobject_phase_shifts.remove(guid);
+                    self.world_entities
+                        .represented_gameobject_phase_shifts
+                        .remove(guid);
                 }
 
                 if !removed_gos.is_empty() {
@@ -411,6 +419,7 @@ impl WorldSession {
                     .collect();
                 for dynamic_object in dynamic_objects {
                     if !self
+                        .core
                         .client_visible_guids_like_cpp
                         .contains(&dynamic_object.guid)
                     {
@@ -420,6 +429,7 @@ impl WorldSession {
                     }
                 }
                 let removed_dynamic_objects: Vec<ObjectGuid> = self
+                    .core
                     .client_visible_guids_like_cpp
                     .snapshot_like_cpp()
                     .into_iter()
@@ -442,6 +452,7 @@ impl WorldSession {
                     .collect();
                 for area_trigger in area_triggers {
                     if !self
+                        .core
                         .client_visible_guids_like_cpp
                         .contains(&area_trigger.guid)
                     {
@@ -450,6 +461,7 @@ impl WorldSession {
                     }
                 }
                 let removed_area_triggers: Vec<ObjectGuid> = self
+                    .core
                     .client_visible_guids_like_cpp
                     .snapshot_like_cpp()
                     .into_iter()
@@ -468,7 +480,11 @@ impl WorldSession {
             if let Some((corpses, scene_objects, conversations)) = canonical_misc_objects {
                 new_visible_corpses = corpses.iter().map(|corpse| corpse.guid).collect();
                 for corpse in corpses {
-                    if !self.client_visible_guids_like_cpp.contains(&corpse.guid) {
+                    if !self
+                        .core
+                        .client_visible_guids_like_cpp
+                        .contains(&corpse.guid)
+                    {
                         update_blocks.push(UpdateObject::create_corpse_block(corpse));
                         created_corpses += 1;
                     }
@@ -477,6 +493,7 @@ impl WorldSession {
                 new_visible_scene_objects = scene_objects.iter().map(|scene| scene.guid).collect();
                 for scene_object in scene_objects {
                     if !self
+                        .core
                         .client_visible_guids_like_cpp
                         .contains(&scene_object.guid)
                     {
@@ -491,6 +508,7 @@ impl WorldSession {
                     .collect();
                 for conversation in conversations {
                     if !self
+                        .core
                         .client_visible_guids_like_cpp
                         .contains(&conversation.guid)
                     {
@@ -500,6 +518,7 @@ impl WorldSession {
                 }
 
                 let removed_misc_objects: Vec<ObjectGuid> = self
+                    .core
                     .client_visible_guids_like_cpp
                     .snapshot_like_cpp()
                     .into_iter()
@@ -518,6 +537,7 @@ impl WorldSession {
                 let server_time_ms = crate::session::game_time_ms_like_cpp();
                 for transport in transports {
                     if !self
+                        .visibility
                         .client_visible_transports_like_cpp
                         .contains(&transport.guid)
                     {
@@ -529,6 +549,7 @@ impl WorldSession {
                     }
                 }
                 let removed_transports: Vec<ObjectGuid> = self
+                    .visibility
                     .client_visible_transports_like_cpp
                     .snapshot_like_cpp()
                     .into_iter()
@@ -539,7 +560,7 @@ impl WorldSession {
 
             for (guid, player) in visible_other_players {
                 new_visible_players.insert(guid);
-                if self.client_visible_guids_like_cpp.contains(&guid) {
+                if self.core.client_visible_guids_like_cpp.contains(&guid) {
                     continue;
                 }
 
@@ -551,6 +572,7 @@ impl WorldSession {
                 }
             }
             let removed_players: Vec<ObjectGuid> = self
+                .core
                 .client_visible_guids_like_cpp
                 .snapshot_like_cpp()
                 .into_iter()
@@ -563,7 +585,7 @@ impl WorldSession {
             // skip a viewer whose client already received the create block, or
             // address a caster whose out-of-range block is already queued, so
             // publish both under the same write.
-            let visibility_like_cpp = self.client_visible_guids_like_cpp.clone();
+            let visibility_like_cpp = self.core.client_visible_guids_like_cpp.clone();
             let publish_visibility = || {
                 visibility_like_cpp.publish_transition_like_cpp(
                     |guid| {
@@ -623,7 +645,8 @@ impl WorldSession {
                 );
             };
             if transports_visibility_available {
-                let transports_like_cpp = self.client_visible_transports_like_cpp.clone();
+                let transports_like_cpp =
+                    self.visibility.client_visible_transports_like_cpp.clone();
                 transports_like_cpp.publish_transition_like_cpp(
                     |guid| new_visible_transports.contains(guid),
                     new_visible_transports.iter().copied(),
@@ -632,17 +655,19 @@ impl WorldSession {
             } else {
                 publish_visibility();
             }
-            self.last_visibility_pos = Some(pos);
+            self.visibility.last_visibility_pos = Some(pos);
             debug!(
                 "Visibility updated at ({:.1}, {:.1}): {} creatures / {} GOs in range",
                 pos.x,
                 pos.y,
-                self.client_visible_guids_like_cpp
+                self.core
+                    .client_visible_guids_like_cpp
                     .snapshot_like_cpp()
                     .into_iter()
                     .filter(|guid| guid.is_any_type_creature())
                     .count(),
-                self.client_visible_guids_like_cpp
+                self.core
+                    .client_visible_guids_like_cpp
                     .snapshot_like_cpp()
                     .into_iter()
                     .filter(|guid| guid.is_game_object())
@@ -694,7 +719,11 @@ impl WorldSession {
 
                 new_visible_creatures.insert(spawn.guid);
 
-                if !self.client_visible_guids_like_cpp.contains(&spawn.guid) {
+                if !self
+                    .core
+                    .client_visible_guids_like_cpp
+                    .contains(&spawn.guid)
+                {
                     self.register_materialized_creature_spawn_like_cpp(map_id, &spawn);
                     update_blocks.push(self.viewer_creature_create_block_like_cpp(&spawn));
                     created_creatures += 1;
@@ -704,6 +733,7 @@ impl WorldSession {
 
         // Creatures that left range → out-of-range
         let removed_creatures: Vec<ObjectGuid> = self
+            .core
             .client_visible_guids_like_cpp
             .snapshot_like_cpp()
             .into_iter()
@@ -735,7 +765,7 @@ impl WorldSession {
         {
             Ok(wow_persistence::VisibilitySpawnCatalogOutcomeLikeCpp::Loaded(rows)) => rows,
             _ => {
-                self.last_visibility_pos = Some(pos);
+                self.visibility.last_visibility_pos = Some(pos);
                 return;
             }
         };
@@ -808,7 +838,7 @@ impl WorldSession {
                     terrain_swap_map,
                 );
 
-                if !self.client_visible_guids_like_cpp.contains(&guid) {
+                if !self.core.client_visible_guids_like_cpp.contains(&guid) {
                     let go_pos = Position::new(pos_x, pos_y, pos_z, orientation);
                     let dynamic_flags = self
                         .represented_gameobject_dynamic_flags_for_player_like_cpp(
@@ -887,13 +917,16 @@ impl WorldSession {
         }
 
         let removed_gos: Vec<ObjectGuid> = self
+            .core
             .client_visible_guids_like_cpp
             .snapshot_like_cpp()
             .into_iter()
             .filter(|g| g.is_game_object() && !new_visible_gos.contains(g))
             .collect();
         for guid in &removed_gos {
-            self.represented_gameobject_phase_shifts.remove(guid);
+            self.world_entities
+                .represented_gameobject_phase_shifts
+                .remove(guid);
         }
 
         if !removed_gos.is_empty() {
@@ -926,25 +959,30 @@ impl WorldSession {
             self.send_packet(&update);
         }
 
-        self.client_visible_guids_like_cpp
+        self.core
+            .client_visible_guids_like_cpp
             .retain(|guid| !guid.is_any_type_creature() && !guid.is_game_object());
-        self.client_visible_guids_like_cpp
+        self.core
+            .client_visible_guids_like_cpp
             .extend(new_visible_creatures.iter().copied());
-        self.client_visible_guids_like_cpp
+        self.core
+            .client_visible_guids_like_cpp
             .extend(new_visible_gos.iter().copied());
 
         // ── Update position marker ──────────────────────────────────────
-        self.last_visibility_pos = Some(pos);
+        self.visibility.last_visibility_pos = Some(pos);
         debug!(
             "Visibility updated at ({:.1}, {:.1}): {} creatures / {} GOs in range",
             pos.x,
             pos.y,
-            self.client_visible_guids_like_cpp
+            self.core
+                .client_visible_guids_like_cpp
                 .snapshot_like_cpp()
                 .into_iter()
                 .filter(|guid| guid.is_any_type_creature())
                 .count(),
-            self.client_visible_guids_like_cpp
+            self.core
+                .client_visible_guids_like_cpp
                 .snapshot_like_cpp()
                 .into_iter()
                 .filter(|guid| guid.is_game_object())

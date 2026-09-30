@@ -23,7 +23,7 @@ impl WorldSession {
         attacker_guid: ObjectGuid,
     ) -> Option<f32> {
         let map_key = self.current_canonical_player_map_key_like_cpp()?;
-        let manager = self.canonical_map_manager.as_ref()?.clone();
+        let manager = self.core.canonical_map_manager.as_ref()?.clone();
         let manager = manager.lock().ok()?;
         let managed = manager.find_map(map_key.map_id, map_key.instance_id)?;
         creature_threat_value_on_map_like_cpp(managed.map(), creature_guid, attacker_guid)
@@ -37,7 +37,7 @@ impl WorldSession {
         let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
             return false;
         };
-        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
             return false;
         };
         let Ok(mut manager) = manager.lock() else {
@@ -57,7 +57,7 @@ impl WorldSession {
         &mut self,
         config: LegacyCreatureAggroConfigLikeCpp,
     ) {
-        self.legacy_creature_aggro_config_like_cpp = config;
+        self.config.legacy_creature_aggro_config_like_cpp = config;
     }
     pub(crate) fn canonical_player_combat_reach_snapshot_like_cpp(&self) -> f32 {
         self.canonical_player_snapshot_like_cpp(|player| player.unit().data().combat_reach)
@@ -72,15 +72,16 @@ impl WorldSession {
         }
     }
     pub fn set_spell_threat_store(&mut self, store: Arc<SpellThreatStoreLikeCpp>) {
-        self.spell_catalogs.spell_threat_store = Some(store);
+        self.catalogs.spell_catalogs.spell_threat_store = Some(store);
     }
     pub(crate) fn spell_threat_entry_like_cpp(
         &self,
         spell_id: u32,
     ) -> Option<&SpellThreatEntryLikeCpp> {
-        let store = self.spell_catalogs.spell_threat_store.as_ref()?;
+        let store = self.catalogs.spell_catalogs.spell_threat_store.as_ref()?;
         store.get_spell_threat_entry_like_cpp(spell_id, |lookup_spell_id| {
-            self.spell_catalogs
+            self.catalogs
+                .spell_catalogs
                 .spell_chain_store
                 .as_ref()
                 .map(|spell_chains| spell_chains.first_spell_in_chain_like_cpp(lookup_spell_id))
@@ -118,7 +119,8 @@ impl WorldSession {
         }
 
         Some(
-            self.spell_catalogs
+            self.catalogs
+                .spell_catalogs
                 .spell_levels_store
                 .as_deref()
                 .and_then(|store| {
@@ -402,7 +404,7 @@ impl WorldSession {
                 })
                 .is_some();
             #[cfg(test)]
-            if !_canonical && self.player_handle_like_cpp.is_none() {
+            if !_canonical && self.core.player_handle_like_cpp.is_none() {
                 let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
                     auras.remove_threat_snapshot_like_cpp(slot);
                     for effect_index in 0..u32::BITS {
@@ -446,7 +448,7 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if !_canonical && self.player_handle_like_cpp.is_none() {
+        if !_canonical && self.core.player_handle_like_cpp.is_none() {
             let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
                 auras.insert_threat_snapshot_like_cpp(slot, snapshot.clone());
                 let interrupt_flags = snapshot.interrupt_flags();
@@ -489,7 +491,7 @@ impl WorldSession {
 
         if let (Some(key), Some(manager)) = (
             self.current_canonical_player_map_key_like_cpp(),
-            self.canonical_map_manager.as_ref(),
+            self.core.canonical_map_manager.as_ref(),
         ) && let Ok(manager) = manager.lock()
             && let Some(reach) = manager
                 .find_map(key.map_id, key.instance_id)

@@ -31,6 +31,8 @@ IMPL_HEAD = re.compile(
 )
 FN_ITEM = re.compile(r"\bfn\s+(" + IDENT + r")")
 FIELD_ACCESS = re.compile(r"\b(?:self|session|s)\s*\.\s*(" + IDENT + r")\b(?!\s*(?:\(|::\s*<))")
+# A second member after a sub-state group: `self.<group>.<leaf>` (#1241 F2).
+LEAF_ACCESS = re.compile(r"\s*\.\s*(" + IDENT + r")\b(?!\s*(?:\(|::\s*<))")
 METHOD_CALL = re.compile(
     r"\b(?:self|session)\s*\.\s*(" + IDENT + r")\s*(?:::\s*<[^;{}()]*>\s*)?\("
 )
@@ -167,12 +169,8 @@ def strip_attributes(segment: str) -> tuple[str, list[str]]:
         rest = rest[j + 1:].lstrip()
 
 
-def parse_fields(state_text: str) -> list[dict[str, Any]]:
-    """Named fields of `pub struct WorldSession`, with any cfg attributes."""
-    code = blank_noncode(state_text)
-    head = STRUCT_HEAD.search(code)
-    if not head:
-        raise ValueError("pub struct WorldSession not found")
+def struct_fields(code: str, head: re.Match[str]) -> list[dict[str, Any]]:
+    """Named fields of the struct whose `{` ends `head` (code must be blanked)."""
     body = code[head.end():matching_close(code, head.end() - 1)]
     fields = []
     for segment in split_top_level(body):
@@ -181,8 +179,54 @@ def parse_fields(state_text: str) -> list[dict[str, Any]]:
         m = FIELD_NAME.match(rest)
         if m:
             cfgs = [a for a in attrs if re.match(r"#\s*\[\s*cfg\s*\(", a)]
-            fields.append({"name": m.group(1), "cfg": cfgs})
+            field_type = " ".join(rest[m.end():].split())
+            fields.append({"name": m.group(1), "cfg": cfgs, "type": field_type})
     return sorted(fields, key=lambda f: f["name"])
+
+
+def parse_fields(state_text: str) -> list[dict[str, Any]]:
+    """Named fields of `pub struct WorldSession`, with any cfg attributes and type."""
+    code = blank_noncode(state_text)
+    head = STRUCT_HEAD.search(code)
+    if not head:
+        raise ValueError("pub struct WorldSession not found")
+    return struct_fields(code, head)
+
+
+def type_ident(field_type: str) -> str:
+    """Last path segment of a field type without generics (`a::B<C>` -> `B`)."""
+    return field_type.split("<", 1)[0].strip().split("::")[-1].strip()
+
+
+def substate_leaves(
+    fields: list[dict[str, Any]], sources: list[tuple[str, str, str]]
+) -> dict[str, dict[str, Any]]:
+    """Leaf fields per top-level WorldSession field (#1241 F2 sub-states).
+
+    A top-level field whose type is a struct defined in the crate contributes
+    that struct's named fields as leaves (one level: `self.<group>.<leaf>`);
+    any other top-level field is its own leaf. A leaf inherits the cfg of its
+    top-level field.
+    """
+    wanted = {type_ident(f["type"]) for f in fields}
+    structs: dict[str, list[dict[str, Any]]] = {}
+    for _rel, _text, code in sources:
+        for m in re.finditer(r"\bstruct\s+(" + IDENT + r")\b[^{;()]*\{", code):
+            if m.group(1) in wanted and m.group(1) not in structs:
+                structs[m.group(1)] = struct_fields(code, m)
+    leaves: dict[str, dict[str, Any]] = {}
+    for field in fields:
+        members = structs.get(type_ident(field["type"]))
+        if not members:
+            leaves[field["name"]] = {"group": None, "cfg": field["cfg"]}
+            continue
+        for member in members:
+            name = member["name"]
+            if name in leaves:
+                name = f"{field['name']}.{name}"
+            leaves[name] = {"group": field["name"], "cfg": field["cfg"] + member["cfg"],
+                            "leaf": member["name"]}
+    return leaves
 
 
 def impl_methods(code: str) -> list[str]:
@@ -276,8 +320,14 @@ def analyze(root: pathlib.Path, hub_threshold: int = DEFAULT_HUB_THRESHOLD,
             top: int = DEFAULT_TOP) -> dict[str, Any]:
     src = root / CRATE_SRC
     fields = parse_fields((src / STATE_FILE).read_text(encoding="utf-8"))
-    field_names = {f["name"] for f in fields}
     sources = load_sources(src)
+    leaves = substate_leaves(fields, sources)
+    field_names = set(leaves)
+    plain = {name for name, leaf in leaves.items() if leaf["group"] is None}
+    group_leaves: dict[str, dict[str, str]] = collections.defaultdict(dict)
+    for name, leaf in leaves.items():
+        if leaf["group"] is not None:
+            group_leaves[leaf["group"]][leaf["leaf"]] = name
 
     lines = {"production": 0, "test": 0}
     method_totals = {"production": 0, "test": 0}
@@ -300,8 +350,13 @@ def analyze(root: pathlib.Path, hub_threshold: int = DEFAULT_HUB_THRESHOLD,
         for name in names:
             defs[name].add(dom)
         for m in FIELD_ACCESS.finditer(code):
-            if m.group(1) in field_names:
-                access[m.group(1)][dom] += 1
+            name = m.group(1)
+            if name in group_leaves:
+                leaf = LEAF_ACCESS.match(code, m.end())
+                if leaf and leaf.group(1) in group_leaves[name]:
+                    access[group_leaves[name][leaf.group(1)]][dom] += 1
+            elif name in plain:
+                access[name][dom] += 1
 
     owner = {name: min(c.items(), key=lambda kv: (-kv[1], kv[0]))[0]
              for name, c in access.items()}
@@ -374,6 +429,8 @@ def analyze(root: pathlib.Path, hub_threshold: int = DEFAULT_HUB_THRESHOLD,
             "test_lines": lines["test"],
             "worldsession_fields": len(fields),
             "worldsession_cfg_fields": sum(1 for f in fields if f["cfg"]),
+            "substate_leaf_fields": len(leaves),
+            "substate_leaf_cfg_fields": sum(1 for leaf in leaves.values() if leaf["cfg"]),
             "impl_methods_production": method_totals["production"],
             "impl_methods_test": method_totals["test"],
             "impl_method_names_production": len(defs),
@@ -405,6 +462,8 @@ def render(report: dict[str, Any], top: int) -> str:
         f"  test lines (path-classed)  {r5['test_lines']:>8}",
         f"  WorldSession fields        {r5['worldsession_fields']:>8}"
         f"  ({r5['worldsession_cfg_fields']} cfg-gated)",
+        f"  sub-state leaf fields      {r5['substate_leaf_fields']:>8}"
+        f"  ({r5['substate_leaf_cfg_fields']} cfg-gated)",
         f"  impl WorldSession fns      {r5['impl_methods_production']:>8}"
         f"  production ({r5['impl_method_names_production']} distinct names),"
         f" {r5['impl_methods_test']} test",

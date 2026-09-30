@@ -81,7 +81,10 @@ fn canonical_player_spells_and_metadata_follow_active_detached_and_stale_ownersh
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
     let owned_row = RepresentedPlayerSpellLikeCpp {
         spell_id: 635,
         active: true,
@@ -288,7 +291,10 @@ fn canonical_player_aura_authority_metadata_follows_detached_and_stale_ownership
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     assert!(session.set_player_aura_authority_complete_like_cpp(true));
     assert!(
@@ -422,7 +428,7 @@ fn player_registry_publishes_multieffect_scalable_aura_points_like_cpp() {
     );
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
-    session.player_name = Some("MultiEffectAuraTester".to_string());
+    session.identity.player_name = Some("MultiEffectAuraTester".to_string());
     session.set_player_registry(Arc::clone(&registry));
     let mut scalable_aura =
         reputation_aura_for_test(1, RepresentedAuraEffectLikeCpp::ModReputationGain, 35, None);
@@ -434,7 +440,7 @@ fn player_registry_publishes_multieffect_scalable_aura_points_like_cpp() {
             effect_index: 2,
             amount: 71,
         });
-    session.visible_auras.insert(1, scalable_aura);
+    session.auras.visible_auras.insert(1, scalable_aura);
     assert!(
         with_canonical_player_at_mut_like_cpp(&canonical, guid, 571, 0, |player| {
             let aura = wow_entities::AppliedAuraRef::new(1, guid, 1, 0x0000_0005);
@@ -492,7 +498,8 @@ fn represented_vehicle_switch_cross_vehicle_records_spellclick_plan_like_cpp() {
         80,
         0,
     ));
-    session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
+    session.vehicles.player_vehicle_seat_flags_like_cpp =
+        Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
     session.set_player_moved_unit_guid_like_cpp(base);
     session.set_condition_store(Arc::new(ConditionEntriesByTypeStore::default()));
     session.set_npc_spell_click_store(Arc::new(NpcSpellClickStoreLikeCpp::from_rows_like_cpp(
@@ -565,7 +572,7 @@ fn player_registry_publishes_party_member_pet_aura_flags_and_points_like_cpp() {
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
-    session.player_name = Some("PetAuraOwnerTester".to_string());
+    session.identity.player_name = Some("PetAuraOwnerTester".to_string());
     session.set_player_registry(Arc::clone(&registry));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_represented_pet_mode_state_like_cpp(Some(pet_guid), 1, 0);

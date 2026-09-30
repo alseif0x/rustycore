@@ -8,7 +8,7 @@ use super::*;
 #[test]
 fn represented_failed_map_difficulty_x_condition_matches_cpp_first_failed_order() {
     let (mut session, _, _) = make_session();
-    session.player_class = 1;
+    session.identity.player_class = 1;
     session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries([
         wow_data::PlayerConditionEntry {
             id: 42,
@@ -91,26 +91,32 @@ fn canonical_visibility_uses_player_instance() {
         0,
     );
     add_canonical_test_gameobject_on_map(&canonical, instance_guid, 49_601, position, 571, 7);
-    session.represented_gameobject_use_states.insert(
-        default_instance_guid,
-        RepresentedGameObjectUseState {
-            display_id: Some(7_600),
-            go_type: Some(3),
-            map_id: Some(571),
-            position: Some(position),
-            ..Default::default()
-        },
-    );
-    session.represented_gameobject_use_states.insert(
-        instance_guid,
-        RepresentedGameObjectUseState {
-            display_id: Some(7_601),
-            go_type: Some(3),
-            map_id: Some(571),
-            position: Some(position),
-            ..Default::default()
-        },
-    );
+    session
+        .world_entities
+        .represented_gameobject_use_states
+        .insert(
+            default_instance_guid,
+            RepresentedGameObjectUseState {
+                display_id: Some(7_600),
+                go_type: Some(3),
+                map_id: Some(571),
+                position: Some(position),
+                ..Default::default()
+            },
+        );
+    session
+        .world_entities
+        .represented_gameobject_use_states
+        .insert(
+            instance_guid,
+            RepresentedGameObjectUseState {
+                display_id: Some(7_601),
+                go_type: Some(3),
+                map_id: Some(571),
+                position: Some(position),
+                ..Default::default()
+            },
+        );
 
     let visible = session
         .visible_gameobjects_from_canonical_map_like_cpp(571, &position, 100.0)
@@ -192,7 +198,10 @@ async fn dynamic_object_values_snapshot_visible_emits_once_after_map_clear_like_
         7,
     );
     prepare_dynamic_object_values_snapshot_like_cpp(&canonical, 571, 7, dynamic_guid, 37.5);
-    session.client_visible_guids_like_cpp.insert(dynamic_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(dynamic_guid);
 
     session.process_pending().await;
 
@@ -244,7 +253,10 @@ async fn dynamic_object_values_snapshot_uses_canonical_map_not_legacy_session_ma
         dynamic_guid,
         37.5,
     );
-    session.client_visible_guids_like_cpp.insert(dynamic_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(dynamic_guid);
     let expected_packet = {
         let guard = canonical.lock().unwrap();
         let summary = guard
@@ -289,7 +301,10 @@ async fn dynamic_object_values_snapshot_same_map_wrong_instance_not_consumed_lik
         0,
     );
     prepare_dynamic_object_values_snapshot_like_cpp(&canonical, 571, 0, dynamic_guid, 37.5);
-    session.client_visible_guids_like_cpp.insert(dynamic_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(dynamic_guid);
 
     session.process_pending().await;
 
@@ -330,6 +345,7 @@ fn set_viewpoint_target_visibility_wrong_instance_does_not_fabricate_like_cpp() 
     assert!(drain_server_packet_bytes(&send_rx).is_empty());
     assert!(
         !session
+            .core
             .client_visible_guids_like_cpp
             .contains(&dynamic_object_guid),
         "wrong-instance/missing canonical target must not insert client visibility"
@@ -490,11 +506,14 @@ async fn update_visibility_uses_map_sources_without_world_db_like_cpp() {
         other_player_guid,
     ] {
         assert!(
-            session.client_visible_guids_like_cpp.contains(&guid),
+            session.core.client_visible_guids_like_cpp.contains(&guid),
             "C++ VisibleNotifier class missing from client GUID cache: {guid:?}"
         );
     }
-    assert_eq!(session.last_visibility_pos, Some(player_position));
+    assert_eq!(
+        session.visibility.last_visibility_pos,
+        Some(player_position)
+    );
     let packet = send_rx
         .try_recv()
         .expect("map-driven visibility should send create data without DB");
@@ -562,8 +581,8 @@ async fn send_initial_packets_after_add_to_map_rebuilds_visibility_after_login_c
         ),
     );
 
-    session.last_visibility_pos = Some(player_position);
-    session.client_visible_guids_like_cpp.clear();
+    session.visibility.last_visibility_pos = Some(player_position);
+    session.core.client_visible_guids_like_cpp.clear();
 
     session
         .send_initial_packets_after_add_to_map(player_guid, &player_position, 571, false)
@@ -571,11 +590,15 @@ async fn send_initial_packets_after_add_to_map_rebuilds_visibility_after_login_c
 
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&creature_guid),
         "C++ SendInitialPacketsAfterAddToMap::UpdateVisibilityForPlayer rebuilds visibility after Map::AddPlayerToMap clears m_clientGUIDs"
     );
-    assert_eq!(session.last_visibility_pos, Some(player_position));
+    assert_eq!(
+        session.visibility.last_visibility_pos,
+        Some(player_position)
+    );
     let packets = drain_server_packet_bytes(&send_rx);
     assert!(
         packets.iter().any(|packet| {
@@ -650,7 +673,10 @@ fn canonical_player_difficulty_and_loot_preferences_follow_detached_and_stale_ow
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     assert!(session.replace_player_difficulty_preferences_like_cpp(2, 15, 4));
     assert!(session.set_pass_on_group_loot_like_cpp(true));
@@ -726,6 +752,7 @@ fn canonical_access_requirement_map_difficulty_message_sends_difficulty_abort_li
         0,
     ));
     session
+        .instances
         .instance_test_fixture_like_cpp
         .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_with_expansion_and_max_players_like_cpp(
@@ -789,6 +816,7 @@ fn canonical_access_requirement_map_difficulty_condition_sends_condition_abort_l
         0,
     ));
     session
+        .instances
         .instance_test_fixture_like_cpp
         .represented_raid_difficulty_id_like_cpp = 3;
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
@@ -846,20 +874,24 @@ fn instance_count_prunes_expired_entries_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     session.set_max_instances_per_hour_like_cpp(2);
     session
+        .instances
         .represented_instance_reset_times_like_cpp
         .insert(1, 10);
     session
+        .instances
         .represented_instance_reset_times_like_cpp
         .insert(2, 5_000);
 
     assert!(session.check_instance_count_at_like_cpp(3, 20));
     assert!(
         !session
+            .instances
             .represented_instance_reset_times_like_cpp
             .contains_key(&1)
     );
     assert!(
         session
+            .instances
             .represented_instance_reset_times_like_cpp
             .contains_key(&2)
     );

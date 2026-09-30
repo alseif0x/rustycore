@@ -78,7 +78,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "RequestAccountData parse failed: {error}"
                 );
                 return;
@@ -98,7 +98,7 @@ impl crate::session::WorldSession {
             Ok(compressed_data) => compressed_data,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "RequestAccountData compression failed: {error}"
                 );
                 return;
@@ -119,7 +119,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "UpdateAccountData parse failed: {error}"
                 );
                 return;
@@ -138,7 +138,7 @@ impl crate::session::WorldSession {
 
         if packet.size > MAX_ACCOUNT_DATA_SIZE_LIKE_CPP {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 data_type = packet.data_type,
                 size = packet.size,
                 "UpdateAccountData rejected oversized payload like C++"
@@ -150,7 +150,7 @@ impl crate::session::WorldSession {
             Ok(data) => data,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     data_type = packet.data_type,
                     "UpdateAccountData decompression failed: {error}"
                 );
@@ -166,13 +166,16 @@ impl crate::session::WorldSession {
         let packet = match AddonList::read(&mut pkt) {
             Ok(packet) => packet,
             Err(error) => {
-                warn!(account = self.account_id, "AddonList parse failed: {error}");
+                warn!(
+                    account = self.core.account_id,
+                    "AddonList parse failed: {error}"
+                );
                 return;
             }
         };
 
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             addon_count = packet.addons.len(),
             "HandleAddonList consumed addon list like C++"
         );
@@ -183,7 +186,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "SaveCufProfiles parse failed: {error}"
                 );
                 return;
@@ -192,7 +195,7 @@ impl crate::session::WorldSession {
 
         if !self.represented_save_cuf_profiles_like_cpp(packet.profiles) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 max_profiles = wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP,
                 "SaveCufProfiles ignored profile count above C++ MAX_CUF_PROFILES"
             );
@@ -203,14 +206,17 @@ impl crate::session::WorldSession {
         let packet = match TutorialSetFlag::read(&mut pkt) {
             Ok(packet) => packet,
             Err(error) => {
-                warn!(account = self.account_id, "Tutorial parse failed: {error}");
+                warn!(
+                    account = self.core.account_id,
+                    "Tutorial parse failed: {error}"
+                );
                 return;
             }
         };
 
         if !self.apply_tutorial_action_like_cpp(packet.action, packet.tutorial_bit) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 action = packet.action,
                 tutorial_bit = packet.tutorial_bit,
                 "CMSG_TUTORIAL ignored invalid action or TutorialBit like C++"

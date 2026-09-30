@@ -113,11 +113,13 @@ impl WorldSession {
     /// that pass's diff, then the query callbacks. Neither depends on a packet
     /// having been dispatched, so both run for an empty pass too.
     pub(crate) fn run_map_phase_tail_like_cpp(&mut self, diff_ms: u32) {
-        if self.state == SessionState::LoggedIn && self.driver.time_synchronization.timer_ms > 0 {
-            if diff_ms >= self.driver.time_synchronization.timer_ms {
+        if self.core.state == SessionState::LoggedIn
+            && self.core.driver.time_synchronization.timer_ms > 0
+        {
+            if diff_ms >= self.core.driver.time_synchronization.timer_ms {
                 self.send_time_sync();
             } else {
-                self.driver.time_synchronization.timer_ms -= diff_ms;
+                self.core.driver.time_synchronization.timer_ms -= diff_ms;
             }
         }
         self.process_ready_character_rename_callbacks_like_cpp();
@@ -138,8 +140,8 @@ impl WorldSession {
             .player_registry()?
             .session_phase_address_like_cpp(guid)?
             .registration();
-        let handle = self.player_handle_like_cpp?;
-        let manager = self.canonical_map_manager.as_ref()?;
+        let handle = self.core.player_handle_like_cpp?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let manager = manager.lock().ok()?;
         let (map_key, residence_revision) =
             manager.player_active_residence_revision_like_cpp(handle)?;
@@ -185,14 +187,14 @@ impl WorldSession {
         }
 
         // The map-owned incarnation, a separate generation space.
-        if self.player_handle_like_cpp != Some(admission.handle) {
+        if self.core.player_handle_like_cpp != Some(admission.handle) {
             return false;
         }
 
         // Residence, map incarnation and revision, observed now rather than
         // trusted from the request. A→B→A is caught by the revision even though
         // the key matches again.
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
             return false;
         };
         let Ok(manager) = manager.lock() else {
@@ -235,7 +237,7 @@ impl WorldSession {
             PacketUpdatePhase::World => 0,
             PacketUpdatePhase::Map => 1,
         };
-        let accepted = match self.admission.last_phase_authority_like_cpp[slot] {
+        let accepted = match self.core.admission.last_phase_authority_like_cpp[slot] {
             Some((last_coordinator, _)) if coordinator_id < last_coordinator => false,
             Some((last_coordinator, last_epoch))
                 if coordinator_id == last_coordinator && tick_epoch <= last_epoch =>
@@ -245,7 +247,8 @@ impl WorldSession {
             _ => true,
         };
         if accepted {
-            self.admission.last_phase_authority_like_cpp[slot] = Some((coordinator_id, tick_epoch));
+            self.core.admission.last_phase_authority_like_cpp[slot] =
+                Some((coordinator_id, tick_epoch));
         }
         accepted
     }

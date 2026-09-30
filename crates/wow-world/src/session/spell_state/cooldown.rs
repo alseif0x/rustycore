@@ -29,13 +29,18 @@ impl WorldSession {
         let canonical = self
             .with_owned_player_like_cpp(|player| player.unit().subsystems().spells.history.clone());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             let mut history = wow_entities::SpellHistory {
-                cooldowns_loaded: self.represented_character_spell_cooldowns_loaded_like_cpp,
-                charges_loaded: self.represented_character_spell_charges_loaded_like_cpp,
+                cooldowns_loaded: self
+                    .spell_state
+                    .represented_character_spell_cooldowns_loaded_like_cpp,
+                charges_loaded: self
+                    .spell_state
+                    .represented_character_spell_charges_loaded_like_cpp,
                 ..Default::default()
             };
             history.cooldowns = self
+                .spell_state
                 .represented_character_spell_cooldowns_like_cpp
                 .values()
                 .map(|row| {
@@ -57,6 +62,7 @@ impl WorldSession {
                 })
                 .collect();
             history.charges = self
+                .spell_state
                 .represented_character_spell_charges_like_cpp
                 .iter()
                 .map(|(&category_id, rows)| {
@@ -84,10 +90,13 @@ impl WorldSession {
         &mut self,
         history: wow_entities::SpellHistory,
     ) -> bool {
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_character_spell_cooldowns_loaded_like_cpp = history.cooldowns_loaded;
-            self.represented_character_spell_charges_loaded_like_cpp = history.charges_loaded;
-            self.represented_character_spell_cooldowns_like_cpp = history
+        if self.core.player_handle_like_cpp.is_none() {
+            self.spell_state
+                .represented_character_spell_cooldowns_loaded_like_cpp = history.cooldowns_loaded;
+            self.spell_state
+                .represented_character_spell_charges_loaded_like_cpp = history.charges_loaded;
+            self.spell_state
+                .represented_character_spell_cooldowns_like_cpp = history
                 .cooldowns
                 .values()
                 .map(|row| {
@@ -107,7 +116,8 @@ impl WorldSession {
                     )
                 })
                 .collect();
-            self.represented_character_spell_charges_like_cpp = history
+            self.spell_state
+                .represented_character_spell_charges_like_cpp = history
                 .charges
                 .iter()
                 .map(|(&category_id, rows)| {
@@ -136,7 +146,7 @@ impl WorldSession {
         f: impl FnOnce(&mut wow_entities::SpellHistory) -> R,
     ) -> Option<R> {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             let mut history = self.player_spell_history_snapshot_like_cpp()?;
             let result = f(&mut history);
             return self
@@ -207,7 +217,7 @@ impl WorldSession {
         }
 
         // Per-spell cooldown (if exists in SpellStore)
-        if let Some(store) = &self.spell_catalogs.spell_store {
+        if let Some(store) = &self.catalogs.spell_catalogs.spell_store {
             if let Some(spell_info) = store.get(spell_id) {
                 if elapsed_ms < spell_info.cooldown_ms {
                     return true;
@@ -228,7 +238,7 @@ impl WorldSession {
     ) {
         #[cfg(test)]
         {
-            self.represented_spell_history_packets_like_cpp = (history, charges);
+            self.spell_state.represented_spell_history_packets_like_cpp = (history, charges);
         }
     }
     /// Login snapshot of spell-history + charge packet entries
@@ -237,6 +247,8 @@ impl WorldSession {
     pub(crate) fn spell_history_packets_like_cpp(
         &self,
     ) -> (Vec<SpellHistoryEntry>, Vec<SpellChargeEntry>) {
-        self.represented_spell_history_packets_like_cpp.clone()
+        self.spell_state
+            .represented_spell_history_packets_like_cpp
+            .clone()
     }
 }

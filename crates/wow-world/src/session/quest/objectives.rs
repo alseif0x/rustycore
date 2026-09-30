@@ -10,14 +10,19 @@ impl WorldSession {
         &self,
         quest_id: u32,
     ) -> Option<bool> {
-        self.quests.store.as_ref()?.get(quest_id).map(|quest| {
-            !quest.is_df_quest_like_cpp()
-                && !quest.is_daily_like_cpp()
-                && (!quest.is_repeatable()
-                    || quest.is_weekly_like_cpp()
-                    || quest.is_monthly_like_cpp()
-                    || quest.is_seasonal_like_cpp())
-        })
+        self.catalogs
+            .quests
+            .store
+            .as_ref()?
+            .get(quest_id)
+            .map(|quest| {
+                !quest.is_df_quest_like_cpp()
+                    && !quest.is_daily_like_cpp()
+                    && (!quest.is_repeatable()
+                        || quest.is_weekly_like_cpp()
+                        || quest.is_monthly_like_cpp()
+                        || quest.is_seasonal_like_cpp())
+            })
     }
     pub(in crate::session) async fn update_represented_storing_value_quest_objective_progress_like_cpp(
         &mut self,
@@ -32,13 +37,14 @@ impl WorldSession {
             QuestUpdateAddCredit, QuestUpdateAddPvpCredit, QuestUpdateComplete,
         };
 
-        let Some(store) = self.quests.store.clone() else {
+        let Some(store) = self.catalogs.quests.store.clone() else {
             return;
         };
 
         let victim_team =
             if objective_type == QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP && !credit_guid.is_empty() {
-                self.player_registry
+                self.core
+                    .player_registry
                     .as_ref()
                     .and_then(|registry| registry.quest_credit_race(credit_guid))
                     .map(player_team_for_race_cpp)
@@ -99,7 +105,7 @@ impl WorldSession {
             quests_to_save.push(quest_id);
 
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id,
                 obj_idx,
                 current,
@@ -169,7 +175,7 @@ impl WorldSession {
                     self.send_packet(&QuestUpdateComplete { quest_id });
                 }
                 info!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     quest_id, "Quest objectives complete"
                 );
             }
@@ -188,7 +194,7 @@ impl WorldSession {
         self.invalidate_player_quest_status_authority_like_cpp();
         use wow_packet::packets::quest::{QuestUpdateAddCreditSimple, QuestUpdateComplete};
 
-        let Some(store) = self.quests.store.clone() else {
+        let Some(store) = self.catalogs.quests.store.clone() else {
             return;
         };
 
@@ -289,7 +295,7 @@ impl WorldSession {
                     self.send_packet(&QuestUpdateComplete { quest_id });
                 }
                 info!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     quest_id, "Quest objectives complete"
                 );
             }
@@ -307,7 +313,7 @@ impl WorldSession {
         self.invalidate_player_quest_status_authority_like_cpp();
         use wow_packet::packets::quest::QuestUpdateComplete;
 
-        let Some(store) = self.quests.store.clone() else {
+        let Some(store) = self.catalogs.quests.store.clone() else {
             return;
         };
 
@@ -335,7 +341,7 @@ impl WorldSession {
             let objective_was_complete = change.objective_was_complete;
             let objective_is_now_complete = change.objective_is_now_complete;
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id,
                 old_money,
                 new_money = new_money_i64,
@@ -405,7 +411,7 @@ impl WorldSession {
                     self.send_packet(&QuestUpdateComplete { quest_id });
                 }
                 info!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     quest_id, "Quest objectives complete"
                 );
             }
@@ -423,7 +429,7 @@ impl WorldSession {
         self.invalidate_player_quest_status_authority_like_cpp();
         use wow_packet::packets::quest::QuestUpdateComplete;
 
-        let Some(store) = self.quests.store.clone() else {
+        let Some(store) = self.catalogs.quests.store.clone() else {
             return;
         };
 
@@ -454,7 +460,7 @@ impl WorldSession {
             let objective_was_complete = change.objective_was_complete;
             let objective_is_now_complete = change.objective_is_now_complete;
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id,
                 currency_id,
                 current_quantity,
@@ -525,7 +531,7 @@ impl WorldSession {
                     self.send_packet(&QuestUpdateComplete { quest_id });
                 }
                 info!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     quest_id, "Quest objectives complete"
                 );
             }
@@ -544,10 +550,10 @@ impl WorldSession {
         self.invalidate_player_quest_status_authority_like_cpp();
         use wow_packet::packets::quest::QuestUpdateComplete;
 
-        let Some(store) = self.quests.store.clone() else {
+        let Some(store) = self.catalogs.quests.store.clone() else {
             return;
         };
-        let Some(faction_store) = self.factions.store.as_ref() else {
+        let Some(faction_store) = self.catalogs.factions.store.as_ref() else {
             return;
         };
         let Some(faction_entry) = faction_store.get(faction_id) else {
@@ -587,7 +593,7 @@ impl WorldSession {
             let objective_was_complete = change.objective_was_complete;
             let objective_is_now_complete = change.objective_is_now_complete;
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id,
                 objective_type,
                 faction_id,
@@ -659,7 +665,7 @@ impl WorldSession {
                     self.send_packet(&QuestUpdateComplete { quest_id });
                 }
                 info!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     quest_id, "Quest objectives complete"
                 );
             }
@@ -777,7 +783,8 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn represented_quest_push_result_sender_mismatch_count_like_cpp(&self) -> u32 {
-        self.quest_test_fixture_like_cpp
+        self.quest_state
+            .quest_test_fixture_like_cpp
             .represented_quest_push_result_sender_mismatch_count_like_cpp
     }
 }

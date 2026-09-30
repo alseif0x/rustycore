@@ -49,7 +49,7 @@ impl WorldSession {
             victim_guid: victim,
         };
         #[cfg(test)]
-        if let Some(dispatcher) = &self.give_player_xp_script_dispatcher_like_cpp {
+        if let Some(dispatcher) = &self.config.give_player_xp_script_dispatcher_like_cpp {
             dispatcher(script_context, &mut xp);
         } else {
             let _ = wow_script::player::on_give_player_xp_like_cpp(script_context, &mut xp);
@@ -110,7 +110,10 @@ impl WorldSession {
             }
             let new_level = self.player_level_like_cpp() + 1;
 
-            info!(account = self.account_id, new_level, "Player leveled up");
+            info!(
+                account = self.core.account_id,
+                new_level, "Player leveled up"
+            );
 
             // C++ `Player::GiveLevel` computes these deltas from
             // player_classlevelstats + player_racestats and GtBaseMP before
@@ -183,7 +186,7 @@ impl WorldSession {
             return;
         }
         #[cfg(test)]
-        if !owner_marked && self.player_handle_like_cpp.is_some() {
+        if !owner_marked && self.core.player_handle_like_cpp.is_some() {
             // A stale handle is an unknown owner in tests too. Only legacy
             // handle-less fixtures may exercise the isolated packet adapter.
             return;

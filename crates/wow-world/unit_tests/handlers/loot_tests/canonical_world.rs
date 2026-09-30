@@ -133,7 +133,7 @@ pub(super) fn canonical_corpse_snapshot(
     session: &WorldSession,
     guid: ObjectGuid,
 ) -> Option<Corpse> {
-    let manager = session.canonical_map_manager.as_ref()?;
+    let manager = session.core.canonical_map_manager.as_ref()?;
     let manager = manager.lock().ok()?;
     let map = manager.find_map(u32::from(session.player_map_id_like_cpp()), 0)?;
     map.map().get_typed_corpse(guid).cloned()
@@ -159,7 +159,7 @@ pub(super) fn canonical_creature_snapshot(
     session: &WorldSession,
     guid: ObjectGuid,
 ) -> Option<Creature> {
-    let manager = session.canonical_map_manager.as_ref()?;
+    let manager = session.core.canonical_map_manager.as_ref()?;
     let manager = manager.lock().ok()?;
     let map = manager.find_map(u32::from(session.player_map_id_like_cpp()), 0)?;
     map.map().with_creature_like_cpp(guid, Clone::clone)
@@ -186,7 +186,7 @@ pub(super) fn canonical_gameobject_snapshot(
     session: &WorldSession,
     guid: ObjectGuid,
 ) -> Option<GameObject> {
-    let manager = session.canonical_map_manager.as_ref()?;
+    let manager = session.core.canonical_map_manager.as_ref()?;
     let manager = manager.lock().ok()?;
     let map = manager.find_map(u32::from(session.player_map_id_like_cpp()), 0)?;
     map.map().get_typed_game_object(guid).cloned()

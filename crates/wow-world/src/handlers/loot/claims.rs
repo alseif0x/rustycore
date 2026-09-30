@@ -86,11 +86,15 @@ impl WorldSession {
             .unwrap_or(0);
         let mut sent = 0;
 
-        if self.client_visible_guids_like_cpp.contains(&creature_guid) {
+        if self
+            .core
+            .client_visible_guids_like_cpp
+            .contains(&creature_guid)
+        {
             let source_update = self.creature_loot_release_values_for_viewer_like_cpp(
                 creature_guid,
                 player_guid,
-                self.pending_bind.is_some(),
+                self.instances.pending_bind.is_some(),
                 authority,
                 packet_update.clone(),
             );
@@ -136,6 +140,7 @@ impl WorldSession {
         source: GameObjectLootSource,
     ) {
         let state = self
+            .world_entities
             .represented_gameobject_use_states
             .entry(gameobject_guid)
             .or_default();
@@ -285,8 +290,8 @@ impl WorldSession {
         let can_install_first_generation = represented_local_loot_fixture_allowed_like_cpp()
             && authority.is_retired_like_cpp()
             && authority.generation_like_cpp() == 0
-            && self.loot_table.contains_key(&owner_guid)
-            && (self.active_loot_view_owners.contains(&owner_guid)
+            && self.loot.loot_table.contains_key(&owner_guid)
+            && (self.loot.active_loot_view_owners.contains(&owner_guid)
                 || self.is_active_loot_guid(owner_guid));
         if !can_install_first_generation {
             return Some(authority);
@@ -302,10 +307,12 @@ impl WorldSession {
 
         let authority = self.represented_owned_loot_authority_like_cpp(owner_guid)?;
         if let Some(snapshot) = authority.snapshot_for_player_like_cpp(scope_player) {
-            self.active_loot_view_generations_like_cpp
+            self.loot
+                .active_loot_view_generations_like_cpp
                 .entry(owner_guid)
                 .or_insert(snapshot.generation);
-            self.active_loot_view_authorities_like_cpp
+            self.loot
+                .active_loot_view_authorities_like_cpp
                 .entry(owner_guid)
                 .or_insert_with(|| authority.clone());
         }
@@ -332,19 +339,26 @@ impl WorldSession {
         // encounter tapper, but those peer pools now live in the authority;
         // retaining their session-local markers can misclassify a later
         // shared snapshot as personal loot.
-        self.represented_personal_loot_money
+        self.loot
+            .represented_personal_loot_money
             .retain(|(owner, _), _| *owner != owner_guid);
-        self.represented_personal_loot_owners.remove(&owner_guid);
+        self.loot
+            .represented_personal_loot_owners
+            .remove(&owner_guid);
         match scope {
             OwnedLootScope::Personal(scope_player_guid) => {
-                self.represented_personal_loot_owners.insert(owner_guid);
-                self.represented_personal_loot_money
+                self.loot
+                    .represented_personal_loot_owners
+                    .insert(owner_guid);
+                self.loot
+                    .represented_personal_loot_money
                     .insert((owner_guid, scope_player_guid), loot.coins);
             }
             OwnedLootScope::Shared => {}
         }
-        self.loot_table.insert(owner_guid, loot);
-        self.represented_loot_cache_generations_like_cpp
+        self.loot.loot_table.insert(owner_guid, loot);
+        self.loot
+            .represented_loot_cache_generations_like_cpp
             .insert(owner_guid, generation);
     }
 
@@ -382,10 +396,12 @@ impl WorldSession {
         owner_guid: ObjectGuid,
         claim: &LootClaimLease,
     ) -> bool {
-        self.active_loot_view_authorities_like_cpp
+        self.loot
+            .active_loot_view_authorities_like_cpp
             .get(&owner_guid)
             .is_some_and(|opened| claim.shares_authority_like_cpp(opened))
             && self
+                .loot
                 .active_loot_view_generations_like_cpp
                 .get(&owner_guid)
                 .is_some_and(|opened| *opened == claim.generation_like_cpp())

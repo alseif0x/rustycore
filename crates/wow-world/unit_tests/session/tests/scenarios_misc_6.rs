@@ -49,8 +49,8 @@ fn canonical_player_existing_sync_receives_mount_collision_update_like_cpp() {
         .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
         .unwrap();
 
-    assert_eq!(session.player_mount_display_id_like_cpp, 4321);
-    assert!((session.player_collision_height_like_cpp - 7.32).abs() < 0.0001);
+    assert_eq!(session.vehicles.player_mount_display_id_like_cpp, 4321);
+    assert!((session.movement.player_collision_height_like_cpp - 7.32).abs() < 0.0001);
     let manager = canonical.lock().unwrap();
     let player = manager
         .find_map(571, 0)
@@ -72,7 +72,7 @@ fn player_bootstrap_is_consumed_without_a_second_runtime_owner_like_cpp() {
     session.set_player_next_level_xp_like_cpp(4000);
     session.set_selection_guid_like_cpp(Some(test_creature_guid(77)));
     session.set_known_spells_like_cpp(vec![118, 133]);
-    session.player_currencies.insert(
+    session.inventory.player_currencies.insert(
         395,
         PlayerCurrency {
             state: PlayerCurrencyState::Unchanged,
@@ -97,6 +97,7 @@ fn player_bootstrap_is_consumed_without_a_second_runtime_owner_like_cpp() {
     let item_object =
         session.make_inventory_item_object(item_guid, 700, guid, 2, 0, ItemContext::None, 23);
     session
+        .inventory
         .inventory_item_objects
         .insert(item_guid, item_object);
 
@@ -133,10 +134,10 @@ fn player_bootstrap_is_consumed_without_a_second_runtime_owner_like_cpp() {
         session.inventory_item_objects_like_cpp()[&item_guid].count(),
         2
     );
-    assert_eq!(session.player_guid, Some(guid));
-    assert_eq!(session.player_name.as_deref(), Some("Jaina"));
-    assert_eq!(session.player_position, Some(start));
-    assert_eq!(session.current_map_id, 571);
+    assert_eq!(session.core.player_guid, Some(guid));
+    assert_eq!(session.identity.player_name.as_deref(), Some("Jaina"));
+    assert_eq!(session.movement.player_position, Some(start));
+    assert_eq!(session.core.current_map_id, 571);
 
     let moved = Position::new(5.0, 6.0, 7.0, 8.0);
     session.set_player_map_position_like_cpp(1, moved);
@@ -153,13 +154,13 @@ fn player_bootstrap_is_consumed_without_a_second_runtime_owner_like_cpp() {
     assert_eq!(session.player_xp_like_cpp(), 66);
     assert!(session.known_spells_like_cpp().contains(&116));
     assert!(!session.inventory_items_like_cpp().contains_key(&23));
-    assert_eq!(session.player_position, Some(moved));
-    assert_eq!(session.current_map_id, 1);
-    assert_eq!(session.player_level, 71);
+    assert_eq!(session.movement.player_position, Some(moved));
+    assert_eq!(session.core.current_map_id, 1);
+    assert_eq!(session.identity.player_level, 71);
 
     session.set_player_guid(None);
     assert_eq!(session.player_guid(), None);
-    assert!(!session.player_bootstrap_attached_like_cpp);
+    assert!(!session.core.player_bootstrap_attached_like_cpp);
 }
 
 #[test]
@@ -172,7 +173,10 @@ fn canonical_player_identity_is_the_post_install_authority_like_cpp() {
     add_canonical_test_player_on_map(&canonical, guid, Position::ZERO, 571, 0);
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
 
-    let handle = session.player_handle_like_cpp.expect("canonical handle");
+    let handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
     canonical
         .lock()
         .unwrap()
@@ -183,11 +187,11 @@ fn canonical_player_identity_is_the_post_install_authority_like_cpp() {
         })
         .expect("canonical player");
 
-    session.player_name = Some("stale fixture name".into());
-    session.player_race = 1;
-    session.player_class = 1;
-    session.player_level = 1;
-    session.player_gender = 0;
+    session.identity.player_name = Some("stale fixture name".into());
+    session.identity.player_race = 1;
+    session.identity.player_class = 1;
+    session.identity.player_level = 1;
+    session.identity.player_gender = 0;
     assert_eq!(
         session.player_name_like_cpp(),
         Some("CanonicalOwner".into())
@@ -402,13 +406,14 @@ fn represented_current_vehicle_seat_switch_gate_matches_cpp() {
 
     assert!(!session.represented_current_vehicle_seat_can_switch_from_like_cpp());
 
-    session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
+    session.vehicles.player_vehicle_seat_flags_like_cpp =
+        Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
     assert!(
         !session.represented_current_vehicle_seat_can_switch_from_like_cpp(),
         "C++ VehicleSeatEntry::CanSwitchFromSeat only checks VEHICLE_SEAT_FLAG_CAN_SWITCH"
     );
 
-    session.player_vehicle_seat_flags_like_cpp =
+    session.vehicles.player_vehicle_seat_flags_like_cpp =
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK | wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
     assert!(session.represented_current_vehicle_seat_can_switch_from_like_cpp());
 }
@@ -417,7 +422,8 @@ fn represented_vehicle_switch_same_vehicle_records_cpp_change_seat_plan() {
     let (mut session, _, _) = make_session();
     let base = test_creature_guid(61_001);
 
-    session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
+    session.vehicles.player_vehicle_seat_flags_like_cpp =
+        Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
     session.set_player_moved_unit_guid_like_cpp(base);
 
     assert!(session.represented_request_vehicle_switch_seat_like_cpp(base, 4));
@@ -496,7 +502,8 @@ fn represented_vehicle_switch_same_vehicle_records_cpp_change_seat_plan() {
 async fn vehicle_switch_handlers_record_same_vehicle_change_seat_like_cpp() {
     let (mut session, _, _) = make_session();
     let base = test_creature_guid(61_101);
-    session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
+    session.vehicles.player_vehicle_seat_flags_like_cpp =
+        Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
     session.set_player_moved_unit_guid_like_cpp(base);
 
     session
@@ -562,7 +569,7 @@ fn player_registry_publishes_player_vehicle_kit_snapshot_like_cpp() {
     session.set_player_registry(Arc::clone(&registry));
 
     session.register_in_player_registry();
-    session.player_mount_vehicle_kit_like_cpp = Some(
+    session.vehicles.player_mount_vehicle_kit_like_cpp = Some(
         represented_vehicle_kit_with_passenger_like_cpp(guid, test_creature_guid(62_051), true),
     );
     session.sync_player_registry_state_like_cpp();
@@ -645,7 +652,7 @@ fn represented_eject_passenger_removes_ejectable_passenger_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 55);
     let passenger_guid = ObjectGuid::create_player(1, 56);
     session.set_player_guid(Some(player_guid));
-    session.player_mount_vehicle_kit_like_cpp = Some(
+    session.vehicles.player_mount_vehicle_kit_like_cpp = Some(
         represented_vehicle_kit_with_passenger_like_cpp(player_guid, passenger_guid, true),
     );
 
@@ -653,6 +660,7 @@ fn represented_eject_passenger_removes_ejectable_passenger_like_cpp() {
 
     assert!(
         session
+            .vehicles
             .player_mount_vehicle_kit_like_cpp
             .as_ref()
             .unwrap()
@@ -667,13 +675,14 @@ fn represented_eject_passenger_rejects_non_ejectable_seat_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 57);
     let passenger_guid = ObjectGuid::create_player(1, 58);
     session.set_player_guid(Some(player_guid));
-    session.player_mount_vehicle_kit_like_cpp = Some(
+    session.vehicles.player_mount_vehicle_kit_like_cpp = Some(
         represented_vehicle_kit_with_passenger_like_cpp(player_guid, passenger_guid, false),
     );
 
     assert!(!session.represented_eject_passenger_like_cpp(passenger_guid));
     assert_eq!(
         session
+            .vehicles
             .player_mount_vehicle_kit_like_cpp
             .as_ref()
             .unwrap()
@@ -689,13 +698,14 @@ fn represented_eject_passenger_rejects_without_vehicle_kit_or_unit_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 59);
     let passenger_guid = ObjectGuid::create_player(1, 60);
     session.set_player_guid(Some(player_guid));
-    session.player_mount_vehicle_kit_like_cpp = Some(
+    session.vehicles.player_mount_vehicle_kit_like_cpp = Some(
         represented_vehicle_kit_with_passenger_like_cpp(player_guid, passenger_guid, true),
     );
 
     assert!(!session.represented_eject_passenger_like_cpp(ObjectGuid::EMPTY));
     assert_eq!(
         session
+            .vehicles
             .player_mount_vehicle_kit_like_cpp
             .as_ref()
             .unwrap()
@@ -887,6 +897,6 @@ fn player_attack_rejects_typed_player_victim_without_pvp_snapshot_like_cpp() {
         assert_eq!(attacker_entity.unit().data().target, ObjectGuid::EMPTY);
         assert!(!victim_entity.unit().has_attacker_like_cpp(attacker));
     }
-    assert_eq!(session.combat_target, None);
-    assert!(!session.in_combat);
+    assert_eq!(session.combat.combat_target, None);
+    assert!(!session.combat.in_combat);
 }

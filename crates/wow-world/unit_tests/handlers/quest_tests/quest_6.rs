@@ -76,7 +76,7 @@ async fn push_quest_to_party_prerequisite_precedes_expansion_gate_like_cpp() {
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
     receiver_session.unregister_from_player_registry();
-    receiver_session.expansion = 1;
+    receiver_session.core.expansion = 1;
     receiver_session.register_in_player_registry();
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
@@ -243,7 +243,7 @@ async fn push_quest_to_party_missing_group_registry_keeps_explicit_blocker_like_
     session.set_quest_store(Arc::new(quest_store));
     session.set_quest_pool_store(Arc::new(quest_pool_store));
     add_active_quest(&mut session, 7115);
-    session.group_guid = Some(1234);
+    session.social.group_guid = Some(1234);
 
     run_push_quest_to_party(&mut session, 7115).await;
 
@@ -464,18 +464,22 @@ async fn quest_giver_status_query_starter_allows_objective_progress_condition_li
         .or_default()
         .push(starter_quest_id);
     session.set_quest_store(Arc::new(store));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        active_quest_id,
-        PlayerQuestStatus {
-            quest_id: active_quest_id,
-            status: QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![2],
-            slot: 0,
-        },
-    );
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
+            active_quest_id,
+            PlayerQuestStatus {
+                quest_id: active_quest_id,
+                status: QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![2],
+                slot: 0,
+            },
+        );
     session.set_condition_store(Arc::new(
         ConditionEntriesByTypeStore::from_conditions_like_cpp([Condition {
             source_type: ConditionSourceType::QuestAvailable,
@@ -511,18 +515,22 @@ async fn quest_giver_status_query_starter_rejects_objective_progress_mismatch_li
         .or_default()
         .push(starter_quest_id);
     session.set_quest_store(Arc::new(store));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        active_quest_id,
-        PlayerQuestStatus {
-            quest_id: active_quest_id,
-            status: QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![2],
-            slot: 0,
-        },
-    );
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
+            active_quest_id,
+            PlayerQuestStatus {
+                quest_id: active_quest_id,
+                status: QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![2],
+                slot: 0,
+            },
+        );
     session.set_condition_store(Arc::new(
         ConditionEntriesByTypeStore::from_conditions_like_cpp([Condition {
             source_type: ConditionSourceType::QuestAvailable,
@@ -605,18 +613,22 @@ async fn quest_giver_status_query_covenant_completed_ender_uses_quest_info_tag_l
     session.set_quest_info_store(Arc::new(QuestInfoStore::from_entries([
         quest_info_entry_like_cpp(712, 15, 0),
     ])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
-    );
+            PlayerQuestStatus {
+                quest_id,
+                status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
     let guid = creature_guid(9012, 12);
     let mut manager = wow_map::MapManager::default();
     insert_creature(&mut manager, guid, 9012);
@@ -652,6 +664,7 @@ async fn quest_giver_close_active_existing_template_records_acknowledge_like_cpp
 
     assert_eq!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .represented_auto_accept_acknowledged_quests_like_cpp,
         vec![5901]
@@ -667,6 +680,7 @@ async fn quest_giver_close_missing_active_quest_records_no_acknowledge_like_cpp(
 
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .represented_auto_accept_acknowledged_quests_like_cpp
             .is_empty()
@@ -683,6 +697,7 @@ async fn quest_giver_close_missing_template_records_no_acknowledge_like_cpp() {
 
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .represented_auto_accept_acknowledged_quests_like_cpp
             .is_empty()
@@ -701,6 +716,7 @@ async fn quest_giver_close_short_packet_records_no_acknowledge_and_sends_no_pack
 
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .represented_auto_accept_acknowledged_quests_like_cpp
             .is_empty()
@@ -718,6 +734,7 @@ async fn quest_log_remove_short_packet_does_not_remove_like_cpp() {
 
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .contains_key(&5911)
@@ -734,6 +751,7 @@ async fn quest_log_remove_slot_outside_max_does_not_remove_like_cpp() {
 
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .contains_key(&5912)
@@ -751,12 +769,14 @@ async fn quest_log_remove_valid_slot_removes_only_that_slot_like_cpp() {
 
     assert!(
         !session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .contains_key(&880_001)
     );
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .contains_key(&17)
@@ -788,6 +808,7 @@ async fn quest_log_remove_empty_valid_slot_does_not_remove_other_quest_like_cpp(
 
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .contains_key(&5914)
@@ -806,12 +827,14 @@ async fn quest_log_remove_duplicate_slot_fails_closed_and_removes_none_like_cpp(
 
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .contains_key(&5915)
     );
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .contains_key(&5916)
@@ -838,6 +861,7 @@ fn quest_log_create_entries_preserve_end_time_like_cpp() {
     let (mut session, _send_rx) = make_session();
     add_active_quest_in_slot(&mut session, 5917, 4);
     session
+        .quest_state
         .quest_test_fixture_like_cpp
         .player_quests
         .get_mut(&5917)

@@ -128,7 +128,7 @@ async fn set_loot_method_is_represented_noop_like_this_cpp_branch() {
     group.master_looter_guid = original_master;
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
     session
@@ -144,20 +144,20 @@ async fn set_loot_method_is_represented_noop_like_this_cpp_branch() {
 async fn opt_out_of_loot_sets_pass_on_group_loot_like_cpp() {
     let (mut session, send_rx) = make_session_with_send();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
-    assert!(!session.pass_on_group_loot);
+    assert!(!session.loot.pass_on_group_loot);
 
     session
         .handle_opt_out_of_loot(opt_out_of_loot_packet(true))
         .await;
 
-    assert!(session.pass_on_group_loot);
+    assert!(session.loot.pass_on_group_loot);
     assert!(send_rx.try_recv().is_err());
 
     session
         .handle_opt_out_of_loot(opt_out_of_loot_packet(false))
         .await;
 
-    assert!(!session.pass_on_group_loot);
+    assert!(!session.loot.pass_on_group_loot);
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]
@@ -168,7 +168,7 @@ async fn opt_out_of_loot_without_loaded_player_is_ignored_like_cpp() {
         .handle_opt_out_of_loot(opt_out_of_loot_packet(true))
         .await;
 
-    assert!(!session.pass_on_group_loot);
+    assert!(!session.loot.pass_on_group_loot);
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]
@@ -208,7 +208,7 @@ async fn random_roll_ignores_party_index_for_home_group_lookup_like_cpp() {
     player_registry.register_or_replace(other, broadcast_info(other, other_tx), Default::default());
 
     session.set_player_guid(Some(sender));
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 

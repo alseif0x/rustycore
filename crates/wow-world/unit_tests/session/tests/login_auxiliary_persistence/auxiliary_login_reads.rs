@@ -58,11 +58,13 @@ async fn auxiliary_login_reads_preserve_cpp_row_and_publication_rules() {
         ]
     );
     assert_eq!(
-        session.represented_completed_achievements_like_cpp,
+        session
+            .collections
+            .represented_completed_achievements_like_cpp,
         HashSet::from([9001, 9002])
     );
     assert_eq!(
-        session.represented_instance_reset_times_like_cpp,
+        session.instances.represented_instance_reset_times_like_cpp,
         BTreeMap::from([(0, 0), (10, 100)])
     );
     assert_eq!(
@@ -93,9 +95,11 @@ async fn empty_auxiliary_login_rows_clear_stale_represented_state() {
     let guid = ObjectGuid::create_player(1, 43);
     session.set_player_guid(Some(guid));
     session
+        .collections
         .represented_completed_achievements_like_cpp
         .insert(7);
     session
+        .instances
         .represented_instance_reset_times_like_cpp
         .insert(8, 9);
 
@@ -110,10 +114,16 @@ async fn empty_auxiliary_login_rows_clear_stale_represented_state() {
 
     assert!(
         session
+            .collections
             .represented_completed_achievements_like_cpp
             .is_empty()
     );
-    assert!(session.represented_instance_reset_times_like_cpp.is_empty());
+    assert!(
+        session
+            .instances
+            .represented_instance_reset_times_like_cpp
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -127,9 +137,11 @@ async fn failed_auxiliary_login_reads_do_not_publish_or_preserve_stale_values() 
     let guid = ObjectGuid::create_player(1, 44);
     session.set_player_guid(Some(guid));
     session
+        .collections
         .represented_completed_achievements_like_cpp
         .insert(7);
     session
+        .instances
         .represented_instance_reset_times_like_cpp
         .insert(8, 9);
 
@@ -144,10 +156,16 @@ async fn failed_auxiliary_login_reads_do_not_publish_or_preserve_stale_values() 
 
     assert!(
         session
+            .collections
             .represented_completed_achievements_like_cpp
             .is_empty()
     );
-    assert!(session.represented_instance_reset_times_like_cpp.is_empty());
+    assert!(
+        session
+            .instances
+            .represented_instance_reset_times_like_cpp
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -156,9 +174,11 @@ async fn missing_auxiliary_login_port_means_unknown_and_clears_session_caches() 
     let guid = ObjectGuid::create_player(1, 45);
     session.set_player_guid(Some(guid));
     session
+        .collections
         .represented_completed_achievements_like_cpp
         .insert(7);
     session
+        .instances
         .represented_instance_reset_times_like_cpp
         .insert(8, 9);
 
@@ -173,8 +193,14 @@ async fn missing_auxiliary_login_port_means_unknown_and_clears_session_caches() 
 
     assert!(
         session
+            .collections
             .represented_completed_achievements_like_cpp
             .is_empty()
     );
-    assert!(session.represented_instance_reset_times_like_cpp.is_empty());
+    assert!(
+        session
+            .instances
+            .represented_instance_reset_times_like_cpp
+            .is_empty()
+    );
 }

@@ -82,7 +82,7 @@ impl WorldSession {
             .unwrap_or(wow_core::ObjectGuid::EMPTY);
         info!(
             "TabardVendorActivate {:?} account {}",
-            guid, self.account_id
+            guid, self.core.account_id
         );
         self.send_packet(&NpcInteractionOpenResult::new(guid, 14)); // GuildTabardVendor
     }
@@ -101,7 +101,7 @@ impl WorldSession {
         ) else {
             debug!(
                 npc_guid = ?repair.npc_guid,
-                account = self.account_id,
+                account = self.core.account_id,
                 "RepairItem rejected: NPC missing, out of range, dead, or lacks REPAIR flag"
             );
             return;
@@ -129,7 +129,7 @@ impl WorldSession {
                 npc_guid = ?repair.npc_guid,
                 item_guid = ?repair.item_guid,
                 repaired,
-                account = self.account_id,
+                account = self.core.account_id,
                 "RepairItem single-item represented runtime"
             );
             return;
@@ -146,7 +146,7 @@ impl WorldSession {
             debug!(
                 npc_guid = ?repair.npc_guid,
                 repaired,
-                account = self.account_id,
+                account = self.core.account_id,
                 "RepairItem all-items represented guild-bank runtime"
             );
             return;
@@ -162,7 +162,7 @@ impl WorldSession {
         debug!(
             npc_guid = ?repair.npc_guid,
             repaired,
-            account = self.account_id,
+            account = self.core.account_id,
             "RepairItem all-items represented runtime"
         );
     }

@@ -319,7 +319,10 @@ fn canonical_player_vitals_follow_active_detached_and_stale_handle_ownership_lik
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
     session
         .with_owned_player_mut_like_cpp(|player| {
             player.unit_mut().set_max_health(321);
@@ -392,7 +395,10 @@ fn canonical_player_powers_follow_active_detached_and_stale_handle_ownership_lik
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
     session.set_loaded_player_powers_like_cpp([123, 45, 0, 0, 0, 0, 0, 0, 0, 0]);
     assert!(session.sync_canonical_player_primary_power_like_cpp(PowerType::Mana, 123, 321, 222,));
 
@@ -467,7 +473,10 @@ fn canonical_player_progression_follows_active_detached_and_stale_handle_ownersh
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
     assert!(session.set_player_xp_like_cpp(123));
     assert!(session.set_player_next_level_xp_like_cpp(456));
     assert!(session.set_player_character_points_like_cpp(7));
@@ -545,7 +554,10 @@ fn canonical_player_specialization_metadata_follows_detached_and_stale_ownership
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
     assert!(session.set_player_create_mode_like_cpp(1));
     assert!(session.set_represented_shapeshift_form_like_cpp(5));
     assert!(session.set_loot_specialization_id_like_cpp(65));
@@ -637,7 +649,10 @@ fn canonical_player_battleground_context_follows_detached_and_stale_ownership_li
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     assert!(session.set_player_battleground_context_like_cpp(3, 529));
     assert!(session.set_represented_arena_team_id_invited_like_cpp(77));
@@ -725,7 +740,10 @@ fn canonical_player_menu_follows_active_detached_and_stale_ownership_like_cpp() 
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     assert!(session.set_player_trainer_interaction_like_cpp(source_guid, 77));
     assert!(session.replace_player_gossip_options_like_cpp(vec![option.clone()]));
@@ -806,7 +824,10 @@ fn canonical_player_outdoors_state_follows_active_detached_and_stale_ownership_l
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("initial world map");
-    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    let old_handle = session
+        .core
+        .player_handle_like_cpp
+        .expect("canonical handle");
 
     session.set_represented_is_outdoors_like_cpp(true);
     assert_eq!(

@@ -19,7 +19,7 @@ impl WorldSession {
         instance_id: u32,
         r: crate::map_manager::PendingRespawn,
     ) {
-        if let Some(manager) = &self.map_manager {
+        if let Some(manager) = &self.core.map_manager {
             manager
                 .write()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -37,7 +37,7 @@ impl WorldSession {
         instance_id: u32,
         now: std::time::Instant,
     ) -> Vec<crate::map_manager::PendingRespawn> {
-        if let Some(manager) = &self.map_manager {
+        if let Some(manager) = &self.core.map_manager {
             return manager
                 .write()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -49,23 +49,28 @@ impl WorldSession {
     pub(crate) fn creature_spawn_catalogs_for_test_like_cpp(&self) -> CreatureSpawnCatalogsLikeCpp {
         CreatureSpawnCatalogsLikeCpp {
             difficulty: self
+                .catalogs
                 .creature_difficulty_store_like_cpp
                 .clone()
                 .unwrap_or_else(|| Arc::new(CreatureDifficultyStoreLikeCpp::default())),
             base_stats: self
+                .catalogs
                 .creature_base_stats_store_like_cpp
                 .clone()
                 .unwrap_or_else(|| Arc::new(CreatureBaseStatsStoreLikeCpp::default())),
-            health_rates: self.creature_health_rates_like_cpp,
+            health_rates: self.config.creature_health_rates_like_cpp,
             addons: self
+                .catalogs
                 .creature_addon_store_like_cpp
                 .clone()
                 .unwrap_or_else(|| Arc::new(CreatureAddonStoreLikeCpp::default())),
             equipment: self
+                .catalogs
                 .creature_equipment_store_like_cpp
                 .clone()
                 .unwrap_or_else(|| Arc::new(CreatureEquipmentStoreLikeCpp::default())),
             power_types: self
+                .catalogs
                 .power_type_store
                 .clone()
                 .unwrap_or_else(|| Arc::new(PowerTypeStore::from_entries([]))),
@@ -81,7 +86,7 @@ impl WorldSession {
     ) -> (PhaseShift, i32) {
         let mut phase_shift = PhaseShift::default();
         if let (Some(phase_store), Some(phase_group_store)) =
-            (&self.phase_store, &self.phase_group_store)
+            (&self.catalogs.phase_store, &self.catalogs.phase_group_store)
         {
             init_db_phase_shift_like_cpp(
                 &mut phase_shift,
@@ -95,7 +100,7 @@ impl WorldSession {
 
         let mut validated_terrain_swap_map = -1;
         if let (Some(map_store), Some(terrain_swap_store)) =
-            (&self.maps.store, &self.terrain_swap_store)
+            (&self.catalogs.maps.store, &self.catalogs.terrain_swap_store)
             && let Some(terrain_swap_map) = terrain_swap_store.validate_spawn_terrain_swap_like_cpp(
                 map_store,
                 u32::from(map_id),
@@ -118,7 +123,8 @@ impl WorldSession {
             return 1;
         };
 
-        self.vehicle_template_store
+        self.catalogs
+            .vehicle_template_store
             .as_ref()
             .map(|store| store.despawn_delay_ms_like_cpp(vehicle_kit.creature_entry()))
             .unwrap_or(1)
@@ -130,15 +136,19 @@ impl WorldSession {
         if trap_guid.is_empty() || !trap_guid.is_game_object() {
             return;
         }
-        if let Some(state) = self.represented_gameobject_use_states.get_mut(&trap_guid) {
+        if let Some(state) = self
+            .world_entities
+            .represented_gameobject_use_states
+            .get_mut(&trap_guid)
+        {
             state.loot_state = Some(wow_entities::LootState::NotReady);
             state.loot_state_unit_guid = ObjectGuid::EMPTY;
             if state.go_type.map(u32::from) != Some(wow_entities::GAMEOBJECT_TYPE_TRANSPORT) {
                 state.go_state = Some(wow_entities::GoState::Ready);
             }
         }
-        self.client_visible_guids_like_cpp.remove(&trap_guid);
-        self.loot_table.remove(&trap_guid);
+        self.core.client_visible_guids_like_cpp.remove(&trap_guid);
+        self.loot.loot_table.remove(&trap_guid);
         self.send_represented_gameobject_delete_packets_like_cpp(trap_guid);
     }
 }

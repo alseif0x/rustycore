@@ -8,16 +8,16 @@ use super::*;
 impl WorldSession {
     /// Set the currency types store for this session.
     pub fn set_currency_types_store(&mut self, store: Arc<CurrencyTypesStore>) {
-        self.currency_types_store = Some(store);
+        self.catalogs.currency_types_store = Some(store);
     }
     /// Get the currency types store reference.
     pub fn currency_types_store(&self) -> Option<&Arc<CurrencyTypesStore>> {
-        self.currency_types_store.as_ref()
+        self.catalogs.currency_types_store.as_ref()
     }
     /// Set the item currency cost store for this session.
     #[cfg(test)]
     pub fn set_item_currency_cost_store(&mut self, store: Arc<ItemCurrencyCostStore>) {
-        self.item_currency_cost_store = Some(store);
+        self.catalogs.item_currency_cost_store = Some(store);
     }
     /// C++ `Player::GetCurrencyQuantity`.
     pub(crate) fn player_currency_quantity(&self, currency_id: u32) -> Option<u32> {
@@ -39,7 +39,7 @@ impl WorldSession {
         currency_id: u32,
         flags: u8,
     ) -> bool {
-        let Some(store) = self.currency_types_store.as_ref() else {
+        let Some(store) = self.catalogs.currency_types_store.as_ref() else {
             return false;
         };
         if !store.has_record(currency_id) {
@@ -94,6 +94,7 @@ impl WorldSession {
         }
 
         let Some(entry) = self
+            .catalogs
             .currency_types_store
             .as_ref()
             .and_then(|store| store.get(currency_id))
@@ -187,7 +188,7 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        let test_result = self.loot_money_persistence_test_result_like_cpp;
+        let test_result = self.lifecycle.loot_money_persistence_test_result_like_cpp;
         #[cfg(not(test))]
         let test_result: Option<bool> = None;
 
@@ -531,8 +532,8 @@ impl WorldSession {
     pub(crate) fn resolved_player_money_like_cpp(&self) -> Option<u64> {
         let canonical = self.with_owned_player_like_cpp(Player::money);
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.player_gold);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.inventory.player_gold);
         }
         canonical
     }

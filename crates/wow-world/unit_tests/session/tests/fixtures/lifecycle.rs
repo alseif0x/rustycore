@@ -168,7 +168,7 @@ pub(in crate::session::tests) fn setup_dead_creature_past_despawn(
         .unwrap();
 
     // Mark the creature as client-visible so the DESTROY packet is built.
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.client_visible_guids_like_cpp.insert(guid);
 
     (session, send_rx, guid)
 }
@@ -179,7 +179,7 @@ pub(in crate::session::tests) fn force_respawn_ready(session: &mut WorldSession)
     let map_id = session.player_map_id_like_cpp();
     let past = Instant::now() - Duration::from_secs(1);
     // Drain whatever is in the queue, rewrite respawn_at, push back.
-    if let Some(manager) = &session.map_manager {
+    if let Some(manager) = &session.core.map_manager {
         let mut mgr = manager.write().unwrap_or_else(|p| p.into_inner());
         let entries =
             mgr.drain_ready_respawns(map_id, 0, Instant::now() + Duration::from_secs(9999));

@@ -89,11 +89,12 @@ impl WorldSession {
             )
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some((
-                self.active_player_local_flags_like_cpp,
-                self.active_player_transport_server_time_like_cpp,
-                self.active_player_multi_action_bars_like_cpp,
+                self.presentation.active_player_local_flags_like_cpp,
+                self.presentation
+                    .active_player_transport_server_time_like_cpp,
+                self.presentation.active_player_multi_action_bars_like_cpp,
             ));
         }
         canonical
@@ -104,17 +105,19 @@ impl WorldSession {
         mutate: impl FnOnce(&mut wow_entities::PlayerGameplayState) -> R,
     ) -> Option<R> {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             let mut state =
                 wow_entities::PlayerGameplayState::with_active_player_update_fields_like_cpp(
-                    self.active_player_local_flags_like_cpp,
-                    self.active_player_transport_server_time_like_cpp,
-                    self.active_player_multi_action_bars_like_cpp,
+                    self.presentation.active_player_local_flags_like_cpp,
+                    self.presentation
+                        .active_player_transport_server_time_like_cpp,
+                    self.presentation.active_player_multi_action_bars_like_cpp,
                 );
             let result = mutate(&mut state);
-            self.active_player_local_flags_like_cpp = state.active_local_flags;
-            self.active_player_transport_server_time_like_cpp = state.active_transport_server_time;
-            self.active_player_multi_action_bars_like_cpp = state.multi_action_bars;
+            self.presentation.active_player_local_flags_like_cpp = state.active_local_flags;
+            self.presentation
+                .active_player_transport_server_time_like_cpp = state.active_transport_server_time;
+            self.presentation.active_player_multi_action_bars_like_cpp = state.multi_action_bars;
             return Some(result);
         }
         self.with_owned_player_mut_like_cpp(|player| mutate(player.gameplay_state_mut()))
@@ -176,8 +179,9 @@ impl WorldSession {
             })
             .unwrap_or(false);
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             let Some(button) = self
+                .presentation
                 .represented_action_buttons_like_cpp
                 .get_mut(usize::from(index))
             else {
@@ -194,10 +198,10 @@ impl WorldSession {
             .with_owned_player_mut_like_cpp(Player::reset_action_buttons_for_load_like_cpp)
             .is_some();
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_action_buttons_like_cpp =
+        if self.core.player_handle_like_cpp.is_none() {
+            self.presentation.represented_action_buttons_like_cpp =
                 [0; wow_packet::packets::misc::MAX_ACTION_BUTTONS];
-            self.represented_action_buttons_loaded_like_cpp = false;
+            self.presentation.represented_action_buttons_loaded_like_cpp = false;
         }
     }
 
@@ -206,8 +210,8 @@ impl WorldSession {
     ) -> Option<[u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS]> {
         let canonical = self.with_owned_player_like_cpp(Player::action_buttons_snapshot_like_cpp);
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.represented_action_buttons_like_cpp);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.presentation.represented_action_buttons_like_cpp);
         }
         canonical
     }
@@ -219,10 +223,12 @@ impl WorldSession {
         {
             return canonical;
         }
-        self.player_handle_like_cpp
+        self.core
+            .player_handle_like_cpp
             .is_none()
             .then(|| {
-                self.represented_action_buttons_like_cpp
+                self.presentation
+                    .represented_action_buttons_like_cpp
                     .get(usize::from(index))
                     .copied()
             })

@@ -19,11 +19,12 @@ impl WorldSession {
     ) -> RepresentedSpellClickPlanLikeCpp {
         let mut plan = RepresentedSpellClickPlanLikeCpp::default();
 
-        let Some(spell_click_store) = self.spell_catalogs.npc_spell_click_store.as_ref() else {
+        let Some(spell_click_store) = self.catalogs.spell_catalogs.npc_spell_click_store.as_ref()
+        else {
             plan.exact_context_unrepresented = true;
             return plan;
         };
-        let Some(condition_store) = self.condition_store.as_ref() else {
+        let Some(condition_store) = self.catalogs.condition_store.as_ref() else {
             plan.exact_context_unrepresented = true;
             return plan;
         };
@@ -79,14 +80,14 @@ impl WorldSession {
             plan.exact_context_unrepresented = true;
             return plan;
         };
-        let area_table_store = self.area_table_store.as_ref().cloned();
+        let area_table_store = self.catalogs.area_table_store.as_ref().cloned();
 
         for click_info in click_bounds {
             let requirements_fit = match click_info.user_type {
                 SPELL_CLICK_USER_FRIEND_LIKE_CPP => {
                     let player_faction_template = self.player_faction_template_id_like_cpp();
                     if creature.is_summon
-                        || self.factions.template_store.is_none()
+                        || self.catalogs.factions.template_store.is_none()
                         || player_faction_template.is_none()
                     {
                         plan.exact_context_unrepresented = true;
@@ -382,15 +383,17 @@ impl WorldSession {
         .await
     }
     pub(crate) fn update_visible_spell_clicks_like_cpp(&mut self) -> usize {
-        let Some(spell_click_store) = self.spell_catalogs.npc_spell_click_store.as_ref() else {
+        let Some(spell_click_store) = self.catalogs.spell_catalogs.npc_spell_click_store.as_ref()
+        else {
             return 0;
         };
-        let Some(condition_store) = self.condition_store.as_ref() else {
+        let Some(condition_store) = self.catalogs.condition_store.as_ref() else {
             return 0;
         };
 
         let mut sent = 0;
         let visible_guids = self
+            .core
             .client_visible_guids_like_cpp
             .snapshot_like_cpp()
             .into_iter()

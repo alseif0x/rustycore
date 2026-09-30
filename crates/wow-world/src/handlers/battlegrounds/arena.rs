@@ -112,7 +112,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "ArenaTeamRoster parse failed: {error}"
                 );
                 return;
@@ -123,7 +123,7 @@ impl crate::session::WorldSession {
         // The live arena-team manager is not ported here yet, so Rust preserves
         // that unknown-team branch instead of inventing an empty roster packet.
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             team_id = request.team_id,
             "ArenaTeamRoster ignored without represented arena-team manager"
         );
@@ -132,7 +132,7 @@ impl crate::session::WorldSession {
     pub async fn handle_arena_team_accept(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = ArenaTeamAccept::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "ArenaTeamAccept parse failed: {error}"
             );
             return;
@@ -142,7 +142,7 @@ impl crate::session::WorldSession {
         // sArenaTeamMgr has no team for the invited id. Rust has no live
         // ArenaTeamMgr in this represented seam, so preserve that no-op.
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             "ArenaTeamAccept ignored without represented arena-team manager"
         );
     }
@@ -150,7 +150,7 @@ impl crate::session::WorldSession {
     pub async fn handle_arena_team_decline(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = ArenaTeamDecline::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "ArenaTeamDecline parse failed: {error}"
             );
             return;
@@ -162,7 +162,7 @@ impl crate::session::WorldSession {
     pub async fn handle_arena_team_leave(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = ArenaTeamLeave::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "ArenaTeamLeave parse failed: {error}"
             );
             return;
@@ -172,7 +172,7 @@ impl crate::session::WorldSession {
         // real team. No represented ArenaTeamMgr exists yet, so the bounded
         // no-team branch is intentionally silent.
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             "ArenaTeamLeave ignored without represented arena-team manager"
         );
     }
@@ -182,7 +182,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "ArenaTeamRemove parse failed: {error}"
                 );
                 return;
@@ -191,7 +191,7 @@ impl crate::session::WorldSession {
 
         // C++ returns silently when sArenaTeamMgr has no arena team for TeamId.
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             team_id = request.team_id,
             target_name = %request.target_name,
             "ArenaTeamRemove ignored without represented arena-team manager"
@@ -203,7 +203,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "ArenaTeamDisband parse failed: {error}"
                 );
                 return;
@@ -212,7 +212,7 @@ impl crate::session::WorldSession {
 
         // C++ returns silently when sArenaTeamMgr has no arena team for TeamId.
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             team_id = request.team_id,
             "ArenaTeamDisband ignored without represented arena-team manager"
         );
@@ -223,7 +223,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "ArenaTeamLeader parse failed: {error}"
                 );
                 return;
@@ -232,7 +232,7 @@ impl crate::session::WorldSession {
 
         // C++ returns silently when sArenaTeamMgr has no arena team for TeamId.
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             team_id = request.team_id,
             target_name = %request.target_name,
             "ArenaTeamLeader ignored without represented arena-team manager"
@@ -244,7 +244,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "QueryArenaTeam parse failed: {error}"
                 );
                 return;
@@ -253,7 +253,7 @@ impl crate::session::WorldSession {
 
         // C++ returns silently when sArenaTeamMgr has no arena team for TeamId.
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             team_id = request.team_id,
             "QueryArenaTeam ignored without represented arena-team manager"
         );

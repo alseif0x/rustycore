@@ -87,25 +87,35 @@ async fn gameobject_visual_despawn_shared_vision_phase_range_and_have_at_client_
     );
     assert_eq!(canonical.lock().unwrap().update(60_000), Some(60_000));
     session
+        .world_entities
         .represented_gameobject_phase_shifts
         .insert(incompatible_phase_guid, PhaseShift::from_phases([20]));
     session
+        .world_entities
         .represented_gameobject_phase_shifts
         .insert(out_of_range_guid, PhaseShift::from_phases([10]));
     session
+        .world_entities
         .represented_gameobject_phase_shifts
         .insert(not_visible_guid, PhaseShift::from_phases([10]));
     session
+        .world_entities
         .represented_gameobject_phase_shifts
         .insert(sendable_guid, PhaseShift::from_phases([10]));
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(incompatible_phase_guid);
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(out_of_range_guid);
-    session.client_visible_guids_like_cpp.insert(sendable_guid);
     session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(sendable_guid);
+    session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(target_guid);
 
@@ -120,27 +130,32 @@ async fn gameobject_visual_despawn_shared_vision_phase_range_and_have_at_client_
     );
     assert_eq!(
         session
+            .visibility
             .represented_gameobject_visual_despawns_delivered_like_cpp
             .len(),
         1
     );
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&incompatible_phase_guid)
     );
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&out_of_range_guid)
     );
     assert!(
         !session
+            .core
             .client_visible_guids_like_cpp
             .contains(&not_visible_guid)
     );
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&sendable_guid)
     );
@@ -179,9 +194,11 @@ async fn gameobject_visual_despawn_direct_blocked_until_shared_vision_qualifies_
     );
     assert_eq!(canonical.lock().unwrap().update(60_000), Some(60_000));
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(dynamic_seer_guid);
 
@@ -192,6 +209,7 @@ async fn gameobject_visual_despawn_direct_blocked_until_shared_vision_qualifies_
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
+            .visibility
             .represented_gameobject_visual_despawns_delivered_like_cpp
             .is_empty()
     );
@@ -204,6 +222,7 @@ async fn gameobject_visual_despawn_direct_blocked_until_shared_vision_qualifies_
         viewer_guid,
     );
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(target_guid);
     assert_eq!(
@@ -241,9 +260,11 @@ async fn gameobject_visual_despawn_mismatched_seer_with_vehicle_sends_like_cpp()
     );
     assert_eq!(canonical.lock().unwrap().update(60_000), Some(60_000));
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(seer_guid);
     let mut vehicle_kit = Vehicle::new(
@@ -255,7 +276,7 @@ async fn gameobject_visual_despawn_mismatched_seer_with_vehicle_sends_like_cpp()
         std::iter::empty(),
     );
     vehicle_kit.install();
-    session.player_mount_vehicle_kit_like_cpp = Some(vehicle_kit);
+    session.vehicles.player_mount_vehicle_kit_like_cpp = Some(vehicle_kit);
 
     session.process_pending().await;
 
@@ -263,6 +284,7 @@ async fn gameobject_visual_despawn_mismatched_seer_with_vehicle_sends_like_cpp()
     assert!(opcodes.contains(&ServerOpcodes::GameObjectDespawn));
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&gameobject_guid)
     );
@@ -303,6 +325,7 @@ async fn gameobject_visual_despawn_out_of_range_keeps_client_visible_guid_like_c
         &[gameobject_guid]
     );
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
 
@@ -311,6 +334,7 @@ async fn gameobject_visual_despawn_out_of_range_keeps_client_visible_guid_like_c
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&gameobject_guid)
     );
@@ -351,6 +375,7 @@ async fn gameobject_visibility_on_destroy_out_of_range_keeps_client_visible_guid
         &[gameobject_guid]
     );
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
 
@@ -359,6 +384,7 @@ async fn gameobject_visibility_on_destroy_out_of_range_keeps_client_visible_guid
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&gameobject_guid)
     );
@@ -413,6 +439,7 @@ async fn gameobject_visibility_on_destroy_vertical_only_separation_sends_destroy
         &[gameobject_guid]
     );
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
 
@@ -424,6 +451,7 @@ async fn gameobject_visibility_on_destroy_vertical_only_separation_sends_destroy
     );
     assert!(
         !session
+            .core
             .client_visible_guids_like_cpp
             .contains(&gameobject_guid)
     );
@@ -684,7 +712,7 @@ fn creature_message_to_set_gate_requires_have_at_client_phase_map_and_range_like
         "C++ MessageDistDeliverer::SendPacket requires HaveAtClient"
     );
 
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.client_visible_guids_like_cpp.insert(guid);
     assert!(
         session.represented_can_receive_creature_message_to_set_like_cpp(guid, &creature, false),
         "same phase + in range + HaveAtClient must receive"
@@ -739,6 +767,7 @@ fn creature_message_to_set_gate_requires_have_at_client_phase_map_and_range_like
         .add_to_world();
     *wrong_map.creature.unit_mut().world_mut().phase_shift_mut() = PhaseShift::from_phases([10]);
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(wrong_map.guid());
     assert!(

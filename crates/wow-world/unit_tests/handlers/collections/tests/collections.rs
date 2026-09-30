@@ -127,6 +127,7 @@ async fn mount_special_anim_fanouts_to_visible_sessions_like_cpp() {
     visible_session.set_player_map_position_like_cpp(571, Position::ZERO);
     visible_session.set_state(crate::session::SessionState::LoggedIn);
     visible_session
+        .core
         .client_visible_guids_like_cpp
         .insert(source_guid);
 
@@ -523,7 +524,10 @@ async fn add_player_toy_dynamic_field_sends_update_object_like_cpp() {
 #[tokio::test]
 async fn collection_item_set_favorite_marks_permanent_appearance_like_cpp() {
     let (mut session, send_rx) = make_session();
-    session.represented_item_appearances_like_cpp.insert(65);
+    session
+        .collections
+        .represented_item_appearances_like_cpp
+        .insert(65);
 
     session
         .handle_collection_item_set_favorite(collection_item_set_favorite_packet(
@@ -583,6 +587,7 @@ async fn collection_item_set_favorite_ignores_unknown_toy_like_cpp() {
 async fn collection_item_set_favorite_ignores_temporary_or_unknown_appearance_like_cpp() {
     let (mut session, send_rx) = make_session();
     session
+        .collections
         .represented_temporary_item_appearances_like_cpp
         .insert(65, HashSet::from([ObjectGuid::create_item(1, 900)]));
 

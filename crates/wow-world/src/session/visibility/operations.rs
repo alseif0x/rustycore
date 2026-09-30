@@ -41,11 +41,11 @@ impl WorldSession {
         target: &WorldObject,
         seer: &WorldObject,
     ) -> bool {
-        let Some(condition_store) = self.condition_store.as_ref() else {
+        let Some(condition_store) = self.catalogs.condition_store.as_ref() else {
             return true;
         };
 
-        let area_table_store = self.area_table_store.as_ref().map(Arc::clone);
+        let area_table_store = self.catalogs.area_table_store.as_ref().map(Arc::clone);
         wow_conditions::is_object_meeting_visibility_by_object_id_conditions_like_cpp(
             condition_store,
             target.object().type_id() as u32,
@@ -113,7 +113,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return Vec::new();
         };
-        let Some(registry) = &self.player_registry else {
+        let Some(registry) = &self.core.player_registry else {
             return Vec::new();
         };
         let instance_id = self
@@ -152,22 +152,23 @@ impl WorldSession {
         // Resolve the viewer before taking the map lock; the handle resolver
         // takes the same manager and must not recurse into that mutex.
         let player_phase_shift = self.represented_player_phase_shift_like_cpp()?;
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let manager = manager.lock().ok()?;
         let map = manager.find_map(u32::from(map_id), instance_id)?;
         let target = map.map().get_typed_player(target_guid)?;
         Some(player_phase_shift.can_see(target.unit().world().phase_shift()))
     }
     pub fn set_phase_store(&mut self, store: Arc<PhaseStore>) {
-        self.phase_store = Some(store);
+        self.catalogs.phase_store = Some(store);
     }
     pub(crate) fn represented_player_phase_shift_like_cpp(&self) -> Option<PhaseShift> {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.unit().world().phase_shift().clone());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.visibility_test_fixture_like_cpp
+                self.visibility
+                    .visibility_test_fixture_like_cpp
                     .represented_player_phase_shift
                     .clone(),
             );
@@ -189,8 +190,9 @@ impl WorldSession {
             return true;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.visibility_test_fixture_like_cpp
+        if self.core.player_handle_like_cpp.is_none() {
+            self.visibility
+                .visibility_test_fixture_like_cpp
                 .represented_player_phase_shift =
                 phase_shift.take().expect("fixture phase remains available");
             return true;
@@ -213,13 +215,14 @@ impl WorldSession {
             }
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             let rest = self.player_rest_state_snapshot_like_cpp()?;
             if rest.is_location_initialized_like_cpp() {
                 return Some(rest.is_resting_by_flag_like_cpp());
             }
             return Some(
-                self.player_flags_test_fixture_like_cpp
+                self.lifecycle
+                    .player_flags_test_fixture_like_cpp
                     .represented_loaded_player_flags_like_cpp
                     .map(|flags| (flags & PLAYER_FLAGS_RESTING_LIKE_CPP) != 0)
                     .unwrap_or(rest.is_resting_by_flag_like_cpp()),
@@ -267,6 +270,7 @@ impl WorldSession {
             }
             #[cfg(test)]
             if let Some(seer_guid) = self
+                .visibility
                 .visibility_test_fixture_like_cpp
                 .represented_seer_guid_like_cpp
             {
@@ -281,6 +285,7 @@ impl WorldSession {
 
         #[cfg(test)]
         return self
+            .visibility
             .visibility_test_fixture_like_cpp
             .represented_seer_guid_like_cpp;
 
@@ -290,13 +295,14 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn represented_seer_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        self.visibility_test_fixture_like_cpp
+        self.visibility
+            .visibility_test_fixture_like_cpp
             .represented_seer_guid_like_cpp
     }
     fn current_canonical_player_farsight_object_value_like_cpp(&self) -> Option<ObjectGuid> {
         let guid = self.player_guid()?;
         let key = self.current_canonical_player_map_key_like_cpp()?;
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let manager = manager.lock().ok()?;
         Some(
             manager
@@ -330,7 +336,7 @@ impl WorldSession {
             return false;
         };
         if !canonical_farsight_object.is_empty() {
-            self.last_observed_farsight_object_like_cpp = canonical_farsight_object;
+            self.visibility.last_observed_farsight_object_like_cpp = canonical_farsight_object;
             return false;
         }
 
@@ -339,34 +345,39 @@ impl WorldSession {
             .represented_seer_guid_like_cpp()
             .is_some_and(|seer_guid| !seer_guid.is_empty() && seer_guid != player_guid);
         #[cfg(not(test))]
-        let had_non_player_seer = !self.last_observed_farsight_object_like_cpp.is_empty();
+        let had_non_player_seer = !self
+            .visibility
+            .last_observed_farsight_object_like_cpp
+            .is_empty();
         if !had_non_player_seer {
             return false;
         }
 
         #[cfg(test)]
         {
-            self.visibility_test_fixture_like_cpp
+            self.visibility
+                .visibility_test_fixture_like_cpp
                 .represented_seer_guid_like_cpp = Some(player_guid);
         }
-        self.last_observed_farsight_object_like_cpp = ObjectGuid::EMPTY;
+        self.visibility.last_observed_farsight_object_like_cpp = ObjectGuid::EMPTY;
         self.send_active_player_farsight_object_values_update_like_cpp(
             player_guid,
             ObjectGuid::EMPTY,
         );
-        self.last_visibility_pos = None;
+        self.visibility.last_visibility_pos = None;
         true
     }
     pub(crate) async fn force_update_visibility_with_catalogs_like_cpp(
         &mut self,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
     ) {
-        self.last_visibility_pos = None;
+        self.visibility.last_visibility_pos = None;
         self.update_visibility_with_catalogs_like_cpp(creature_spawn_catalogs)
             .await;
     }
     pub(crate) fn clear_pending_visibility_refresh_like_cpp(&self) {
-        self.flags
+        self.core
+            .flags
             .visibility_refresh_pending_like_cpp
             .store(false, Ordering::Release);
     }
@@ -378,6 +389,7 @@ impl WorldSession {
             return;
         }
         if self
+            .core
             .flags
             .visibility_refresh_pending_like_cpp
             .swap(false, Ordering::AcqRel)

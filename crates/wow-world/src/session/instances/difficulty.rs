@@ -90,10 +90,10 @@ impl WorldSession {
     /// Set the C++ Difficulty.db2 store used by `sDifficultyStore`.
     pub fn set_difficulty_store(&mut self, store: Arc<DifficultyStore>) {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.difficulty_store = Some(store);
+        self.catalogs.difficulty_store = Some(store);
     }
     pub(crate) fn difficulty_store(&self) -> Option<&Arc<DifficultyStore>> {
-        self.difficulty_store.as_ref()
+        self.catalogs.difficulty_store.as_ref()
     }
     pub(crate) fn player_difficulty_preferences_snapshot_like_cpp(
         &self,
@@ -101,13 +101,16 @@ impl WorldSession {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.difficulty_preferences_like_cpp());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some((
-                self.instance_test_fixture_like_cpp
+                self.instances
+                    .instance_test_fixture_like_cpp
                     .represented_dungeon_difficulty_id_like_cpp,
-                self.instance_test_fixture_like_cpp
+                self.instances
+                    .instance_test_fixture_like_cpp
                     .represented_raid_difficulty_id_like_cpp,
-                self.instance_test_fixture_like_cpp
+                self.instances
+                    .instance_test_fixture_like_cpp
                     .represented_legacy_raid_difficulty_id_like_cpp,
             ));
         }
@@ -125,12 +128,15 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.instance_test_fixture_like_cpp
+        if self.core.player_handle_like_cpp.is_none() {
+            self.instances
+                .instance_test_fixture_like_cpp
                 .represented_dungeon_difficulty_id_like_cpp = dungeon;
-            self.instance_test_fixture_like_cpp
+            self.instances
+                .instance_test_fixture_like_cpp
                 .represented_raid_difficulty_id_like_cpp = raid;
-            self.instance_test_fixture_like_cpp
+            self.instances
+                .instance_test_fixture_like_cpp
                 .represented_legacy_raid_difficulty_id_like_cpp = legacy_raid;
             return true;
         }
@@ -146,18 +152,21 @@ impl WorldSession {
         difficulty_id: u32,
     ) -> bool {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             match kind {
                 SessionDifficultyKindLikeCpp::Dungeon => {
-                    self.instance_test_fixture_like_cpp
+                    self.instances
+                        .instance_test_fixture_like_cpp
                         .represented_dungeon_difficulty_id_like_cpp = difficulty_id;
                 }
                 SessionDifficultyKindLikeCpp::Raid => {
-                    self.instance_test_fixture_like_cpp
+                    self.instances
+                        .instance_test_fixture_like_cpp
                         .represented_raid_difficulty_id_like_cpp = difficulty_id;
                 }
                 SessionDifficultyKindLikeCpp::LegacyRaid => {
-                    self.instance_test_fixture_like_cpp
+                    self.instances
+                        .instance_test_fixture_like_cpp
                         .represented_legacy_raid_difficulty_id_like_cpp = difficulty_id;
                 }
             }
@@ -418,7 +427,7 @@ impl WorldSession {
     ) -> Option<wow_persistence::RepresentedGroupPersistenceCommandLikeCpp> {
         let group_guid = self.resolved_group_guid_like_cpp()?;
         let player_guid = self.player_guid()?;
-        let registry = self.directory.group_registry.as_ref()?;
+        let registry = self.core.directory.group_registry.as_ref()?;
         let outcome = registry
             .set_difficulty_transition_like_cpp(group_guid, player_guid, difficulty_id, kind)
             .ok()?;
@@ -430,7 +439,7 @@ impl WorldSession {
                 self.apply_group_difficulty_like_cpp(group_guid, difficulty_id, kind);
                 continue;
             }
-            let Some(player_registry) = self.player_registry.as_ref() else {
+            let Some(player_registry) = self.core.player_registry.as_ref() else {
                 continue;
             };
             if let Some(member) = player_registry.group_presence(member_guid) {
@@ -473,7 +482,12 @@ impl WorldSession {
 
         let player_guid = self.player_guid()?;
         if let Some(group_guid) = self.resolved_group_guid_like_cpp() {
-            let group = self.directory.group_registry.as_ref()?.get(&group_guid)?;
+            let group = self
+                .core
+                .directory
+                .group_registry
+                .as_ref()?
+                .get(&group_guid)?;
             if !group.is_leader_like_cpp(player_guid) || group.is_lfg_group_like_cpp() {
                 return None;
             }
@@ -510,23 +524,24 @@ impl WorldSession {
         (current != difficulty_id).then_some(player_guid)
     }
     pub fn set_map_difficulty_store(&mut self, store: Arc<MapDifficultyStore>) {
-        self.maps.difficulty_store = Some(store);
+        self.catalogs.maps.difficulty_store = Some(store);
     }
     pub fn set_map_difficulty_x_condition_store(
         &mut self,
         store: Arc<MapDifficultyXConditionStore>,
     ) {
-        self.maps.difficulty_x_condition_store = Some(store);
+        self.catalogs.maps.difficulty_x_condition_store = Some(store);
     }
     pub(crate) fn map_difficulty_store(&self) -> Option<&Arc<MapDifficultyStore>> {
-        self.maps.difficulty_store.as_ref()
+        self.catalogs.maps.difficulty_store.as_ref()
     }
     pub(crate) fn current_map_difficulty_id_like_cpp(&self) -> u8 {
         if let Some(difficulty_id) = self.current_canonical_player_map_difficulty_id_like_cpp() {
             return difficulty_id;
         }
         let map_id = u32::from(self.player_map_id_like_cpp());
-        self.canonical_map_manager
+        self.core
+            .canonical_map_manager
             .as_ref()
             .and_then(|manager| manager.lock().ok())
             .and_then(|manager| {
@@ -544,7 +559,7 @@ impl WorldSession {
     pub(crate) fn current_canonical_player_map_difficulty_id_like_cpp(&self) -> Option<u8> {
         let player_guid = self.player_guid()?;
         let map_id = u32::from(self.player_map_id_like_cpp());
-        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
         let mut difficulty_id = None;
         manager.do_for_all_maps_with_map_id(map_id, |managed| {
             if difficulty_id.is_none() && managed.map().get_typed_player(player_guid).is_some() {
@@ -558,8 +573,8 @@ impl WorldSession {
         &self,
         map_difficulty_id: u32,
     ) -> Option<u32> {
-        let store = self.maps.difficulty_x_condition_store.as_ref()?;
-        let player_conditions = self.player_condition_store.as_ref()?;
+        let store = self.catalogs.maps.difficulty_x_condition_store.as_ref()?;
+        let player_conditions = self.catalogs.player_condition_store.as_ref()?;
         let context = self.represented_player_condition_context_like_cpp()?;
         store.failed_condition_like_cpp(map_difficulty_id, player_conditions, |condition| {
             context

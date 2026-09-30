@@ -644,7 +644,7 @@ impl WorldSession {
         let map_key = self
             .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
         let game_time_secs = i64::try_from(wow_core::GameTime::now().as_secs()).unwrap_or(i64::MAX);
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
         let mut manager = manager.lock().ok()?;
         let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
         let map = managed.map_mut();
@@ -702,7 +702,8 @@ impl WorldSession {
         guid: ObjectGuid,
         max_opens: u32,
     ) {
-        self.represented_gameobject_use_states
+        self.world_entities
+            .represented_gameobject_use_states
             .entry(guid)
             .or_default()
             .fishing_hole_max_opens = Some(max_opens);
@@ -713,7 +714,8 @@ impl WorldSession {
         guid: ObjectGuid,
         radius: u32,
     ) {
-        self.represented_gameobject_use_states
+        self.world_entities
+            .represented_gameobject_use_states
             .entry(guid)
             .or_default()
             .fishing_hole_radius = Some(radius as f32);
@@ -727,6 +729,7 @@ impl WorldSession {
             20.0 + wow_movement::CONTACT_DISTANCE_LIKE_CPP;
 
         let source = self
+            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)?;
         let source_position = source.position?;
@@ -734,7 +737,7 @@ impl WorldSession {
         let now = Instant::now();
         let mut nearest: Option<(ObjectGuid, f32)> = None;
 
-        for (candidate_guid, candidate) in &self.represented_gameobject_use_states {
+        for (candidate_guid, candidate) in &self.world_entities.represented_gameobject_use_states {
             if *candidate_guid == gameobject_guid {
                 continue;
             }

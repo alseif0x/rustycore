@@ -16,6 +16,7 @@ impl WorldSession {
     ) {
         let linked_trap_guid = self.canonical_gameobject_linked_trap_guid_like_cpp(guid);
         let state = self
+            .world_entities
             .represented_gameobject_use_states
             .entry(guid)
             .or_default();
@@ -31,7 +32,11 @@ impl WorldSession {
         &mut self,
         guid: ObjectGuid,
     ) -> bool {
-        let Some(state) = self.represented_gameobject_use_states.get_mut(&guid) else {
+        let Some(state) = self
+            .world_entities
+            .represented_gameobject_use_states
+            .get_mut(&guid)
+        else {
             return false;
         };
         match state.per_player_despawn_until {
@@ -100,6 +105,7 @@ impl WorldSession {
         self.send_represented_gameobject_despawn_to_visible_set_like_cpp(gameobject_guid);
         self.restore_represented_gameobject_override_flags_like_cpp(gameobject_guid);
         let map_id = self
+            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)
             .and_then(|state| state.map_id)
@@ -133,7 +139,7 @@ impl WorldSession {
         let Ok(packet_map_id) = u16::try_from(key.map_id) else {
             return 0;
         };
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
             return 0;
         };
         let player_guid = self.player_guid();
@@ -157,7 +163,8 @@ impl WorldSession {
             let player_world = player.unit().world().clone();
             let player_phase_shift = player_world.phase_shift().clone();
             let visibility_range = map.visibility_range();
-            let represented_gameobject_phase_shifts = &self.represented_gameobject_phase_shifts;
+            let represented_gameobject_phase_shifts =
+                &self.world_entities.represented_gameobject_phase_shifts;
 
             managed_map
                 .last_game_objects_update_summary()
@@ -194,7 +201,7 @@ impl WorldSession {
             if !seen.insert(guid) {
                 continue;
             }
-            if !self.client_visible_guids_like_cpp.remove(&guid) {
+            if !self.core.client_visible_guids_like_cpp.remove(&guid) {
                 continue;
             }
             self.send_packet(&wow_packet::packets::update::UpdateObject::destroy_objects(
@@ -241,7 +248,7 @@ impl WorldSession {
         let Some(key) = self.current_canonical_player_map_key_like_cpp() else {
             return 0;
         };
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
             return 0;
         };
         let Some(player_guid) = self.player_guid() else {
@@ -271,7 +278,8 @@ impl WorldSession {
             let player_position = player.unit().world().position();
             let player_phase_shift = player.unit().world().phase_shift().clone();
             let visibility_range = map.visibility_range();
-            let represented_gameobject_phase_shifts = &self.represented_gameobject_phase_shifts;
+            let represented_gameobject_phase_shifts =
+                &self.world_entities.represented_gameobject_phase_shifts;
             let mut shared_vision_target_guids = map
                 .typed_combat_unit_guids_like_cpp()
                 .into_iter()
@@ -327,7 +335,7 @@ impl WorldSession {
                         return false;
                     }
                     let Some(gameobject) = map.get_typed_game_object(*guid) else {
-                        return self.client_visible_guids_like_cpp.contains(guid);
+                        return self.core.client_visible_guids_like_cpp.contains(guid);
                     };
                     if !gameobject.world().object().is_in_world() {
                         return false;
@@ -384,10 +392,11 @@ impl WorldSession {
         let mut seen = std::collections::HashSet::new();
         let mut sent = 0;
         for guid in despawnable_guids {
-            if !seen.insert(guid) || !self.client_visible_guids_like_cpp.contains(&guid) {
+            if !seen.insert(guid) || !self.core.client_visible_guids_like_cpp.contains(&guid) {
                 continue;
             }
             if !self
+                .visibility
                 .represented_gameobject_visual_despawns_delivered_like_cpp
                 .insert((key.map_id, key.instance_id, update_generation, guid))
             {

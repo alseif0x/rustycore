@@ -228,6 +228,7 @@ async fn represented_non_encounter_personal_chest_keeps_two_session_pools_indepe
     attach_canonical_gameobject(&mut first, gameobject);
     second.set_canonical_map_manager(Arc::clone(
         first
+            .core
             .canonical_map_manager
             .as_ref()
             .expect("both sessions share the canonical map owner"),
@@ -391,14 +392,16 @@ async fn represented_empty_personal_encounter_chest_does_not_install_or_open_lik
             .personal_snapshots_like_cpp()
             .is_empty()
     );
-    assert!(!session.loot_table.contains_key(&gameobject_guid));
+    assert!(!session.loot.loot_table.contains_key(&gameobject_guid));
     assert!(
         !session
+            .loot
             .represented_personal_loot_owners
             .contains(&gameobject_guid)
     );
     assert!(
         !session
+            .loot
             .represented_personal_loot_money
             .contains_key(&(gameobject_guid, player_guid))
     );
@@ -505,11 +508,13 @@ async fn represented_gameobject_personal_encounter_loot_uses_current_player_when
     assert_eq!(loot.coins, 0);
     assert!(
         session
+            .loot
             .represented_personal_loot_owners
             .contains(&gameobject_guid)
     );
     assert!(
         session
+            .loot
             .represented_personal_loot_money
             .contains_key(&(gameobject_guid, player_guid))
     );
@@ -522,7 +527,7 @@ async fn represented_gameobject_personal_encounter_loot_uses_tap_list_like_cpp()
     let non_player_tapper = ObjectGuid::create_item(1, 900);
     let gameobject_guid = test_gameobject_guid(91_009);
     attach_loot_guid_allocator_for_owner(&mut session, gameobject_guid);
-    session.represented_gameobject_tap_lists.insert(
+    session.loot.represented_gameobject_tap_lists.insert(
         gameobject_guid,
         vec![
             second_tapper,
@@ -561,16 +566,19 @@ async fn represented_gameobject_personal_encounter_loot_uses_tap_list_like_cpp()
     assert_eq!(loot.coins, 0);
     assert!(
         session
+            .loot
             .represented_personal_loot_owners
             .contains(&gameobject_guid)
     );
     assert!(
         session
+            .loot
             .represented_personal_loot_money
             .contains_key(&(gameobject_guid, first_tapper))
     );
     assert!(
         session
+            .loot
             .represented_personal_loot_money
             .contains_key(&(gameobject_guid, second_tapper))
     );
@@ -583,9 +591,11 @@ async fn represented_gameobject_personal_encounter_loot_skips_locked_tappers_lik
     let gameobject_guid = test_gameobject_guid(91_010);
     attach_loot_guid_allocator_for_owner(&mut session, gameobject_guid);
     session
+        .loot
         .represented_gameobject_tap_lists
         .insert(gameobject_guid, vec![locked_tapper, open_tapper]);
     session
+        .loot
         .represented_locked_dungeon_encounters
         .insert((locked_tapper, 733));
     let source = GameObjectLootSource {
@@ -624,9 +634,11 @@ async fn represented_gameobject_personal_encounter_open_does_not_auto_allow_non_
     let gameobject_guid = test_gameobject_guid(91_011);
     session.set_player_guid(Some(player_guid));
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session
+        .loot
         .represented_gameobject_tap_lists
         .insert(gameobject_guid, vec![other_tapper]);
     let source = GameObjectLootSource {
@@ -648,6 +660,7 @@ async fn represented_gameobject_personal_encounter_open_does_not_auto_allow_non_
     assert!(!session.is_active_loot_guid(gameobject_guid));
     assert_eq!(
         session
+            .loot
             .loot_table
             .get(&gameobject_guid)
             .unwrap()
@@ -663,9 +676,10 @@ async fn represented_gameobject_personal_encounter_open_reads_player_money_like_
     let loot_object = represented_loot_object_guid_like_cpp(gameobject_guid);
     session.set_player_guid(Some(player_guid));
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         gameobject_guid,
         CreatureLoot {
             loot_guid: loot_object,
@@ -684,9 +698,11 @@ async fn represented_gameobject_personal_encounter_open_reads_player_money_like_
         },
     );
     session
+        .loot
         .represented_personal_loot_owners
         .insert(gameobject_guid);
     session
+        .loot
         .represented_personal_loot_money
         .insert((gameobject_guid, player_guid), 123);
     let source = GameObjectLootSource {
@@ -726,7 +742,7 @@ async fn represented_gameobject_personal_encounter_money_pickup_consumes_only_pl
     let loot_object = represented_loot_object_guid_like_cpp(gameobject_guid);
     session.set_player_guid(Some(player_guid));
     session.set_active_loot_guid(gameobject_guid);
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         gameobject_guid,
         CreatureLoot {
             loot_guid: loot_object,
@@ -745,12 +761,15 @@ async fn represented_gameobject_personal_encounter_money_pickup_consumes_only_pl
         },
     );
     session
+        .loot
         .represented_personal_loot_owners
         .insert(gameobject_guid);
     session
+        .loot
         .represented_personal_loot_money
         .insert((gameobject_guid, player_guid), 123);
     session
+        .loot
         .represented_personal_loot_money
         .insert((gameobject_guid, other_tapper), 456);
 
@@ -761,17 +780,22 @@ async fn represented_gameobject_personal_encounter_money_pickup_consumes_only_pl
     assert_eq!(notify.read_uint64().unwrap(), 123);
     assert_eq!(
         session
+            .loot
             .represented_personal_loot_money
             .get(&(gameobject_guid, player_guid)),
         Some(&0)
     );
     assert_eq!(
         session
+            .loot
             .represented_personal_loot_money
             .get(&(gameobject_guid, other_tapper)),
         Some(&456)
     );
-    assert_eq!(session.loot_table.get(&gameobject_guid).unwrap().coins, 999);
+    assert_eq!(
+        session.loot.loot_table.get(&gameobject_guid).unwrap().coins,
+        999
+    );
 }
 #[test]
 fn represented_gameobject_personal_encounter_items_are_single_tapper_like_cpp() {
@@ -848,6 +872,7 @@ async fn represented_gameobject_chest_first_generation_records_use_effects_like_
     let gameobject_guid = test_gameobject_guid(91_002);
     session.set_player_guid(Some(player_guid));
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
 
@@ -870,7 +895,7 @@ async fn represented_gameobject_chest_first_generation_records_use_effects_like_
         .await;
 
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::TriggerGameEvent {
                 gameobject_guid,

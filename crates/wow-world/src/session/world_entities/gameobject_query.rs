@@ -12,7 +12,8 @@ impl WorldSession {
         guid: ObjectGuid,
         faction_template: u32,
     ) {
-        self.represented_gameobject_use_states
+        self.world_entities
+            .represented_gameobject_use_states
             .entry(guid)
             .or_default()
             .faction_template = (faction_template != 0).then_some(faction_template);
@@ -21,7 +22,11 @@ impl WorldSession {
         &mut self,
         guid: ObjectGuid,
     ) {
-        if let Some(state) = self.represented_gameobject_use_states.get_mut(&guid) {
+        if let Some(state) = self
+            .world_entities
+            .represented_gameobject_use_states
+            .get_mut(&guid)
+        {
             if let Some(flags) = state.gameobject_override_flags {
                 state.gameobject_flags = flags;
             }
@@ -30,6 +35,7 @@ impl WorldSession {
     pub(crate) fn update_visible_gameobjects_like_cpp(&mut self) -> usize {
         let mut sent = 0;
         let visible_guids = self
+            .core
             .client_visible_guids_like_cpp
             .snapshot_like_cpp()
             .into_iter()
@@ -41,7 +47,12 @@ impl WorldSession {
             let Some(access) = self.canonical_gameobject_access_like_cpp(guid) else {
                 continue;
             };
-            let Some(state) = self.represented_gameobject_use_states.get(&guid).cloned() else {
+            let Some(state) = self
+                .world_entities
+                .represented_gameobject_use_states
+                .get(&guid)
+                .cloned()
+            else {
                 continue;
             };
             let objective_refresh =
@@ -84,7 +95,7 @@ impl WorldSession {
         // it from the entity read scope would recursively lock the manager.
         let viewer_phase_shift = self.represented_player_phase_shift_like_cpp();
         let candidates = {
-            let manager = self.canonical_map_manager.as_ref()?;
+            let manager = self.core.canonical_map_manager.as_ref()?;
             let Ok(manager) = manager.lock() else {
                 return None;
             };
@@ -127,14 +138,20 @@ impl WorldSession {
             {
                 continue;
             }
-            if let Some(phase_shift) = self.represented_gameobject_phase_shifts.get(&guid)
+            if let Some(phase_shift) = self
+                .world_entities
+                .represented_gameobject_phase_shifts
+                .get(&guid)
                 && !viewer_phase_shift
                     .as_ref()
                     .is_some_and(|viewer| viewer.can_see(phase_shift))
             {
                 continue;
             }
-            let state = self.represented_gameobject_use_states.get(&guid);
+            let state = self
+                .world_entities
+                .represented_gameobject_use_states
+                .get(&guid);
             if state.is_some_and(|state| {
                 state
                     .per_player_despawn_until
@@ -192,21 +209,23 @@ impl WorldSession {
         Some(gameobjects)
     }
     pub fn set_gameobject_display_info_store(&mut self, store: Arc<GameObjectDisplayInfoStore>) {
-        self.gameobjects.display_info_store = Some(store);
+        self.catalogs.gameobjects.display_info_store = Some(store);
     }
     pub(crate) fn gameobject_display_info_store(&self) -> Option<&Arc<GameObjectDisplayInfoStore>> {
-        self.gameobjects.display_info_store.as_ref()
+        self.catalogs.gameobjects.display_info_store.as_ref()
     }
     pub fn set_gameobject_template_lifecycle_store(
         &mut self,
         store: Arc<GameObjectTemplateLifecycleStoreLikeCpp>,
     ) {
-        self.gameobject_template_lifecycle_store_like_cpp = Some(store);
+        self.catalogs.gameobject_template_lifecycle_store_like_cpp = Some(store);
     }
     pub(crate) fn gameobject_template_lifecycle_store(
         &self,
     ) -> Option<&Arc<GameObjectTemplateLifecycleStoreLikeCpp>> {
-        self.gameobject_template_lifecycle_store_like_cpp.as_ref()
+        self.catalogs
+            .gameobject_template_lifecycle_store_like_cpp
+            .as_ref()
     }
     pub(in crate::session) fn visible_gameobject_guids_from_last_update_summary_like_cpp<F>(
         &self,
@@ -216,7 +235,7 @@ impl WorldSession {
         F: FnOnce(&wow_map::map::GameObjectsUpdateSummaryLikeCpp) -> Vec<ObjectGuid>,
     {
         let key = self.current_canonical_player_map_key_like_cpp()?;
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let player_guid = self.player_guid()?;
         let represented_seer_guid = self.current_seer_guid_like_cpp();
         let direct_target_seer_gate_allows_send = represented_seer_guid.is_none_or(|seer_guid| {
@@ -235,7 +254,8 @@ impl WorldSession {
         let player_position = player.unit().world().position();
         let player_phase_shift = player.unit().world().phase_shift().clone();
         let visibility_range = map.visibility_range();
-        let represented_gameobject_phase_shifts = &self.represented_gameobject_phase_shifts;
+        let represented_gameobject_phase_shifts =
+            &self.world_entities.represented_gameobject_phase_shifts;
         let mut shared_vision_target_guids = map
             .typed_combat_unit_guids_like_cpp()
             .into_iter()
@@ -289,7 +309,7 @@ impl WorldSession {
                     return false;
                 }
                 let Some(gameobject) = map.get_typed_game_object(*guid) else {
-                    return self.client_visible_guids_like_cpp.contains(guid);
+                    return self.core.client_visible_guids_like_cpp.contains(guid);
                 };
                 if !gameobject.world().object().is_in_world() {
                     return false;

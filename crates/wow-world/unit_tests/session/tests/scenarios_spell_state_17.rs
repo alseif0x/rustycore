@@ -101,7 +101,7 @@ async fn spell_change_raid_marker_effect_row_stores_marker_and_fanouts_like_cpp(
     );
     session.set_player_guid(Some(leader_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(
         Arc::clone(&group_registry),
         Arc::new(PendingInvites::default()),
@@ -207,7 +207,7 @@ async fn spell_change_raid_marker_raid_requires_leader_or_assistant_like_cpp() {
     );
     session.set_player_guid(Some(member_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(
         Arc::clone(&group_registry),
         Arc::new(PendingInvites::default()),
@@ -278,18 +278,22 @@ async fn spell_quest_complete_effect_marks_active_event_quest_complete_like_cpp(
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![],
+                slot: 0,
+            },
+        );
 
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(
@@ -322,6 +326,7 @@ async fn spell_quest_complete_effect_marks_active_event_quest_complete_like_cpp(
         .expect("represented quest-complete spell row should execute");
 
     let status = session
+        .quest_state
         .quest_test_fixture_like_cpp
         .player_quests
         .get(&quest_id)
@@ -333,6 +338,7 @@ async fn spell_quest_complete_effect_marks_active_event_quest_complete_like_cpp(
     );
     assert!(
         !session
+            .quest_state
             .quest_test_fixture_like_cpp
             .rewarded_quests
             .contains(&quest_id)
@@ -359,18 +365,22 @@ async fn spell_quest_complete_effect_auto_rewards_active_tracking_event_like_cpp
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![],
+                slot: 0,
+            },
+        );
 
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(
@@ -404,12 +414,14 @@ async fn spell_quest_complete_effect_auto_rewards_active_tracking_event_like_cpp
 
     assert!(
         !session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .contains_key(&quest_id)
     );
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .rewarded_quests
             .contains(&quest_id)
@@ -477,12 +489,14 @@ async fn spell_quest_complete_effect_rewards_unlogged_tracking_event_like_cpp() 
 
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .rewarded_quests
             .contains(&quest_id)
     );
     assert!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .represented_quest_completed_bits_like_cpp
             .contains(&65)
@@ -504,18 +518,22 @@ async fn spell_quest_complete_effect_keeps_failed_active_quest_unchanged_like_cp
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_FAILED_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_FAILED_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![],
+                slot: 0,
+            },
+        );
 
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(
@@ -548,6 +566,7 @@ async fn spell_quest_complete_effect_keeps_failed_active_quest_unchanged_like_cp
         .expect("represented failed quest-complete spell row should execute as no-op");
 
     let status = session
+        .quest_state
         .quest_test_fixture_like_cpp
         .player_quests
         .get(&quest_id)

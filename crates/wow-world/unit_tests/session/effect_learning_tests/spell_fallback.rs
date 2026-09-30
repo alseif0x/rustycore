@@ -35,6 +35,7 @@ async fn spell_learn_spell_fallback_defers_without_complete_spell_rows_like_cpp(
     );
     assert!(
         session
+            .spell_state
             .player_spell_test_fixture_like_cpp
             .represented_fallback_player_spell_rows_like_cpp
             .is_empty(),
@@ -57,6 +58,7 @@ fn fallback_reconciliation_preserves_dependent_promotion_like_cpp() {
     let (mut session, _, _) = make_session();
     let spell_id = 13_351_i32;
     session
+        .spell_state
         .player_spell_test_fixture_like_cpp
         .represented_fallback_player_spell_rows_like_cpp
         .insert(
@@ -85,6 +87,7 @@ fn fallback_reconciliation_preserves_dependent_promotion_like_cpp() {
     );
 
     let reconciled = session
+        .spell_state
         .player_spell_test_fixture_like_cpp
         .represented_player_spell_rows_like_cpp[&spell_id];
     assert!(reconciled.dependent);

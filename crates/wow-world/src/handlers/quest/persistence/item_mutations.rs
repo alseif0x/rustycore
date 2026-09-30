@@ -18,7 +18,7 @@ impl WorldSession {
         post_move_non_bank_count: u32,
         added_count: u32,
     ) -> Vec<PlayerQuestStatus> {
-        let Some(quest_store) = self.quests.store.as_ref() else {
+        let Some(quest_store) = self.catalogs.quests.store.as_ref() else {
             return Vec::new();
         };
         let Ok(entry_object_id) = i32::try_from(entry_id) else {
@@ -200,7 +200,7 @@ impl WorldSession {
                 .unwrap_or_default(),
             changed_quest_ids: Vec::new(),
         };
-        let Some(quest_store) = self.quests.store.as_ref() else {
+        let Some(quest_store) = self.catalogs.quests.store.as_ref() else {
             return plan;
         };
         let post_removal_counts = post_removal_non_bank_counts
@@ -234,7 +234,7 @@ impl WorldSession {
         quest_log_item_id: u32,
         count: u32,
     ) -> bool {
-        let Some(quest_store) = self.quests.store.as_ref() else {
+        let Some(quest_store) = self.catalogs.quests.store.as_ref() else {
             return false;
         };
         let Some(state) = self.player_quest_gameplay_snapshot_like_cpp() else {
@@ -296,7 +296,7 @@ impl WorldSession {
         statuses
             .iter()
             .map(|status| {
-                let store = self.quests.store.as_ref();
+                let store = self.catalogs.quests.store.as_ref();
                 let objectives = store
                     .and_then(|store| store.get(status.quest_id))
                     .into_iter()
@@ -363,7 +363,7 @@ impl WorldSession {
         quest_log_item_id: u32,
         count: u32,
     ) -> Option<QuestSourceItemBoundPersistencePlanLikeCpp> {
-        let quest_store = self.quests.store.as_ref()?;
+        let quest_store = self.catalogs.quests.store.as_ref()?;
         let count_i32 = i32::try_from(count).unwrap_or(i32::MAX);
         let entry_object_id = i32::try_from(entry_id).unwrap_or(i32::MAX);
         let quest_log_object_id = i32::try_from(quest_log_item_id).unwrap_or(i32::MAX);

@@ -9,8 +9,8 @@ async fn spell_school_damage_respects_ignore_caster_damage_modifiers_like_cpp() 
     let caster_modifier_gated_spell_id = 737_i32;
     let guid = test_creature_guid(18_022);
     let player_guid = ObjectGuid::create_player(1, 68);
-    session.player_guid = Some(player_guid);
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(player_guid);
+    session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     session
@@ -117,8 +117,8 @@ async fn spell_school_damage_applies_ice_lance_frozen_triple_like_cpp() {
     let spell_id = 228_598_i32;
     let guid = test_creature_guid(18_023);
     let player_guid = ObjectGuid::create_player(1, 69);
-    session.player_guid = Some(player_guid);
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(player_guid);
+    session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
 
@@ -177,8 +177,8 @@ async fn spell_school_damage_applies_drain_soul_wounded_double_like_cpp() {
     let spell_id = 198_590_i32;
     let guid = test_creature_guid(18_024);
     let player_guid = ObjectGuid::create_player(1, 70);
-    session.player_guid = Some(player_guid);
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(player_guid);
+    session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
 
@@ -230,8 +230,8 @@ async fn spell_direct_heal_applies_damage_done_versus_aurastate_like_cpp() {
     let spell_id = 738_i32;
     let guid = test_creature_guid(18_025);
     let player_guid = ObjectGuid::create_player(1, 71);
-    session.player_guid = Some(player_guid);
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(player_guid);
+    session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     session
@@ -290,8 +290,8 @@ async fn spell_direct_heal_respects_ignore_healing_modifiers_like_cpp() {
     let gated_spell_id = 740_i32;
     let guid = test_creature_guid(18_026);
     let player_guid = ObjectGuid::create_player(1, 72);
-    session.player_guid = Some(player_guid);
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(player_guid);
+    session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     session

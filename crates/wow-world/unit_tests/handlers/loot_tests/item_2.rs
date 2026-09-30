@@ -39,7 +39,7 @@ async fn failed_item_persistence_publishes_no_removal_or_release_like_cpp() {
 
     assert!(!session.is_disconnecting());
     assert!(session.is_active_loot_guid(owner_guid));
-    assert!(!session.loot_table.get(&owner_guid).unwrap().items[0].taken);
+    assert!(!session.loot.loot_table.get(&owner_guid).unwrap().items[0].taken);
     assert!(
         !drain_server_opcodes_like_cpp(&send_rx)
             .contains(&(wow_constants::ServerOpcodes::LootRelease as u16))
@@ -93,7 +93,7 @@ async fn cancelled_stored_item_money_before_commit_retries_without_local_consump
     session.wait_for_active_loot_persistence_like_cpp().await;
     assert!(durable_source_row.load(Ordering::Acquire));
     assert_eq!(session.player_gold_like_cpp(), 100);
-    assert_eq!(session.loot_table.get(&owner_guid).unwrap().coins, 7);
+    assert_eq!(session.loot.loot_table.get(&owner_guid).unwrap().coins, 7);
     assert!(!first_runtime_applied.load(Ordering::Acquire));
 
     let retry_source = Arc::clone(&durable_source_row);
@@ -131,7 +131,7 @@ async fn cancelled_stored_item_money_before_commit_retries_without_local_consump
     session.wait_for_active_loot_persistence_like_cpp().await;
     assert!(!durable_source_row.load(Ordering::Acquire));
     assert_eq!(session.player_gold_like_cpp(), 107);
-    assert_eq!(session.loot_table.get(&owner_guid).unwrap().coins, 0);
+    assert_eq!(session.loot.loot_table.get(&owner_guid).unwrap().coins, 0);
     assert!(retry_runtime_applied.load(Ordering::Acquire));
     assert!(session.is_active_loot_guid(owner_guid));
 }
@@ -217,7 +217,7 @@ async fn stored_item_money_save_reconciled_balance_still_publishes_source_once_l
         .await;
 
     assert_eq!(session.player_gold_like_cpp(), 107);
-    assert_eq!(session.loot_table.get(&owner_guid).unwrap().coins, 0);
+    assert_eq!(session.loot.loot_table.get(&owner_guid).unwrap().coins, 0);
     assert!(balance_applied.load(Ordering::Acquire));
     assert!(publication_applied.load(Ordering::Acquire));
     assert!(
@@ -286,7 +286,7 @@ async fn stored_item_money_delete_cas_allows_exactly_one_durable_grant_like_cpp(
     assert_eq!(successes, 1);
     assert_eq!(durable_grants.load(Ordering::SeqCst), 1);
     assert_eq!(session.player_gold_like_cpp(), 107);
-    assert_eq!(session.loot_table.get(&owner_guid).unwrap().coins, 0);
+    assert_eq!(session.loot.loot_table.get(&owner_guid).unwrap().coins, 0);
     assert_eq!(
         drain_server_opcodes_like_cpp(&send_rx)
             .into_iter()
@@ -607,18 +607,22 @@ async fn loot_item_added_progresses_incomplete_quest_item_objective_like_cpp() {
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![0],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
 
     assert!(session.item_loot_quest_status_allows_like_cpp(
         item_id,
@@ -633,6 +637,7 @@ async fn loot_item_added_progresses_incomplete_quest_item_objective_like_cpp() {
     assert_eq!(changed_quest_ids, vec![quest_id]);
     assert_eq!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .get(&quest_id)
@@ -667,18 +672,22 @@ fn banked_quest_item_recomputes_objective_and_reopens_quest_like_cpp() {
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![3],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![3],
+                slot: 0,
+            },
+        );
 
     let planned = session.plan_bank_item_quest_persistence_like_cpp(item_id, 0, true, 0, 0);
     assert_eq!(planned.len(), 1);
@@ -692,6 +701,7 @@ fn banked_quest_item_recomputes_objective_and_reopens_quest_like_cpp() {
         Some(vec![quest_id])
     );
     let status = session
+        .quest_state
         .quest_test_fixture_like_cpp
         .player_quests
         .get(&quest_id)
@@ -729,18 +739,22 @@ async fn withdrawn_banked_item_restores_bound_objective_like_cpp() {
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![0],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
 
     let planned = session.plan_bank_item_quest_persistence_like_cpp(item_id, 0, false, 0, 1);
     assert_eq!(planned.len(), 1);
@@ -755,6 +769,7 @@ async fn withdrawn_banked_item_restores_bound_objective_like_cpp() {
 
     assert_eq!(changed_quest_ids, vec![quest_id]);
     let status = session
+        .quest_state
         .quest_test_fixture_like_cpp
         .player_quests
         .get(&quest_id)
@@ -785,18 +800,22 @@ async fn loot_item_eligibility_does_not_treat_complete_quest_as_incomplete_like_
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![0],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
 
     assert!(!session.has_incomplete_quest_objective_for_item_like_cpp(item_id));
     assert!(!session.item_loot_quest_status_allows_like_cpp(
@@ -812,6 +831,7 @@ async fn loot_item_eligibility_does_not_treat_complete_quest_as_incomplete_like_
     assert!(changed_quest_ids.is_empty());
     assert_eq!(
         session
+            .quest_state
             .quest_test_fixture_like_cpp
             .player_quests
             .get(&quest_id)

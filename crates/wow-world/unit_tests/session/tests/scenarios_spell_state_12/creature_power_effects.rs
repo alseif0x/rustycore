@@ -254,7 +254,10 @@ async fn spell_power_burn_on_a_creature_with_zero_amplitude_deals_no_damage_like
         0,
     ));
     session.set_player_health_like_cpp(100, 100);
-    session.client_visible_guids_like_cpp.insert(creature_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(creature_guid);
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 7);
     add_canonical_test_creature_indexed_on_map_with_level(
@@ -376,7 +379,10 @@ async fn spell_power_burn_on_a_creature_applies_the_scaled_damage_like_cpp() {
         0,
     ));
     session.set_player_health_like_cpp(100, 100);
-    session.client_visible_guids_like_cpp.insert(creature_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(creature_guid);
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 7);
     add_canonical_test_creature_indexed_on_map_with_level(

@@ -19,14 +19,14 @@ impl WorldSession {
 
         let Some(player_guid) = self.player_guid() else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "LoadCompletedAchievements skipped: player guid unavailable"
             );
             return;
         };
         let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 guid = player_guid.counter(),
                 "LoadCompletedAchievements skipped: Player lifecycle port unavailable"
             );
@@ -46,7 +46,7 @@ impl WorldSession {
             ) => rows,
             wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     guid = player_guid.counter(),
                     "LoadCompletedAchievements query failed: {reason}"
                 );
@@ -54,7 +54,7 @@ impl WorldSession {
             }
             wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(_) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     guid = player_guid.counter(),
                     "Player lifecycle port returned the wrong auxiliary login data for completed achievements"
                 );

@@ -11,13 +11,13 @@ impl WorldSession {
         &mut self,
         item: VendorBuyItemTestOverrideLikeCpp,
     ) {
-        self.vendor_buy_item_test_override_like_cpp = Some(item);
+        self.interaction.vendor_buy_item_test_override_like_cpp = Some(item);
     }
     #[cfg(test)]
     pub(crate) fn vendor_buy_item_test_override_like_cpp(
         &self,
     ) -> Option<VendorBuyItemTestOverrideLikeCpp> {
-        self.vendor_buy_item_test_override_like_cpp
+        self.interaction.vendor_buy_item_test_override_like_cpp
     }
     pub(in crate::session) fn represented_player_has_quest_for_loot_item_like_cpp(
         &self,
@@ -45,7 +45,7 @@ impl WorldSession {
         let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
             return false;
         };
-        let Some(store) = self.quests.store.as_ref() else {
+        let Some(store) = self.catalogs.quests.store.as_ref() else {
             return false;
         };
         wow_entities::player_has_incomplete_quest_objective_for_object_id_like_cpp(
@@ -58,7 +58,7 @@ impl WorldSession {
         &self,
         item_id: u32,
     ) -> bool {
-        let Some(quest_store) = self.quests.store.as_ref() else {
+        let Some(quest_store) = self.catalogs.quests.store.as_ref() else {
             return false;
         };
         let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
@@ -107,13 +107,13 @@ impl WorldSession {
             HighGuid::Item,
             "item GUID allocator must use HighGuid::Item"
         );
-        self.item_guid_generator_like_cpp = Some(generator);
+        self.core.item_guid_generator_like_cpp = Some(generator);
     }
     #[cfg(test)]
     pub(crate) fn item_guid_generator_like_cpp_for_bridge(
         &self,
     ) -> Option<Arc<ObjectGuidGenerator>> {
-        self.item_guid_generator_like_cpp.clone()
+        self.core.item_guid_generator_like_cpp.clone()
     }
     /// Bounded C++ `CollectionMgr::OnItemAdded`.
     pub(crate) fn on_item_added_to_collection_like_cpp(
@@ -124,6 +124,7 @@ impl WorldSession {
         let mut updates = Vec::new();
 
         if self
+            .catalogs
             .heirloom_store
             .as_ref()
             .and_then(|store| store.get_by_item_id_like_cpp(item_id))
@@ -145,11 +146,12 @@ impl WorldSession {
         item_id: u32,
     ) -> Option<u32> {
         let overrides = self
+            .catalogs
             .items
             .spec_override_store
             .as_ref()?
             .overrides_for_item_like_cpp(item_id)?;
-        let chr_specializations = self.chr.specialization_store.as_ref()?;
+        let chr_specializations = self.catalogs.chr.specialization_store.as_ref()?;
 
         let mut mask = 0_u32;
         for item_spec_override in overrides {
@@ -165,12 +167,14 @@ impl WorldSession {
     /// C++ `DB2Manager::GetItemDisplayId`.
     pub fn item_display_id(&self, item_id: u32, appearance_mod_id: u32) -> Option<u32> {
         let modified = self
+            .catalogs
             .items
             .modified_appearance_store
             .as_ref()
             .and_then(|store| store.get_for_item(item_id, appearance_mod_id))?;
         let appearance_id = u32::try_from(modified.item_appearance_id).ok()?;
-        self.items
+        self.catalogs
+            .items
             .appearance_store
             .as_ref()
             .and_then(|store| store.item_display_info_id(appearance_id))
@@ -221,7 +225,8 @@ impl WorldSession {
             self.record_represented_remove_items_set_item_like_cpp(item_guid, &item_set)
         };
         #[cfg(test)]
-        self.player_item_test_fixture_like_cpp
+        self.inventory
+            .player_item_test_fixture_like_cpp
             .represented_item_set_spell_events_like_cpp
             .extend(events.iter().copied());
         events
@@ -336,18 +341,19 @@ impl WorldSession {
             .item_template_quality(item_id)
             .and_then(<ItemQuality as num_traits::FromPrimitive>::from_i8);
         match quality {
-            Some(ItemQuality::Poor) => self.loot_drop_rates.item_poor,
-            Some(ItemQuality::Normal) => self.loot_drop_rates.item_normal,
-            Some(ItemQuality::Uncommon) => self.loot_drop_rates.item_uncommon,
-            Some(ItemQuality::Rare) => self.loot_drop_rates.item_rare,
-            Some(ItemQuality::Epic) => self.loot_drop_rates.item_epic,
-            Some(ItemQuality::Legendary) => self.loot_drop_rates.item_legendary,
-            Some(ItemQuality::Artifact) => self.loot_drop_rates.item_artifact,
+            Some(ItemQuality::Poor) => self.config.loot_drop_rates.item_poor,
+            Some(ItemQuality::Normal) => self.config.loot_drop_rates.item_normal,
+            Some(ItemQuality::Uncommon) => self.config.loot_drop_rates.item_uncommon,
+            Some(ItemQuality::Rare) => self.config.loot_drop_rates.item_rare,
+            Some(ItemQuality::Epic) => self.config.loot_drop_rates.item_epic,
+            Some(ItemQuality::Legendary) => self.config.loot_drop_rates.item_legendary,
+            Some(ItemQuality::Artifact) => self.config.loot_drop_rates.item_artifact,
             _ => 1.0,
         }
     }
     pub(crate) fn item_effect_count_like_cpp(&self, item_entry: u32) -> usize {
-        self.items
+        self.catalogs
+            .items
             .effect_store
             .as_ref()
             .map(|store| {
@@ -364,7 +370,7 @@ impl WorldSession {
             .is_some_and(|flags| flags.contains(ItemFlags::IS_BOUND_TO_ACCOUNT))
     }
     pub(in crate::session) fn item_shield_block_value_like_cpp(&self, item_id: u32) -> Option<i16> {
-        let basic = self.items.store.as_ref()?.get(item_id)?;
+        let basic = self.catalogs.items.store.as_ref()?.get(item_id)?;
         if basic.class_id != ItemClass::Armor as u8
             || basic.subclass_id != ItemSubClassArmor::Shield as u8
         {
@@ -374,7 +380,8 @@ impl WorldSession {
         let template = self.item_random_property_template(item_id)?;
         let item_level = u32::from(template.item_level);
         let quality = u32::try_from(template.quality).ok()?;
-        self.shield_block_regular_game_table
+        self.catalogs
+            .shield_block_regular_game_table
             .as_ref()?
             .shield_block_for_quality_like_cpp(item_level, quality)
             .filter(|value| *value != 0)
@@ -445,8 +452,9 @@ impl WorldSession {
             })
     }
     pub(crate) fn has_active_non_item_loot_views_like_cpp(&self) -> bool {
-        (!self.active_loot_guid.is_empty() && !self.active_loot_guid.is_item())
+        (!self.loot.active_loot_guid.is_empty() && !self.loot.active_loot_guid.is_item())
             || self
+                .loot
                 .active_loot_view_owners
                 .iter()
                 .any(|guid| !guid.is_item())
@@ -484,7 +492,7 @@ impl WorldSession {
         &self,
         count: usize,
     ) -> Option<Vec<(u64, ObjectGuid)>> {
-        let generator = self.item_guid_generator_like_cpp.as_deref()?;
+        let generator = self.core.item_guid_generator_like_cpp.as_deref()?;
         self.allocate_item_instance_guids_with_generator_like_cpp(generator, count)
     }
     pub(in crate::session) fn represented_has_item_fit_to_spell_requirements_like_cpp(
@@ -509,6 +517,7 @@ impl WorldSession {
             }
             class if class == ItemClass::Armor as i8 => {
                 if self
+                    .catalogs
                     .spell_catalogs
                     .spell_store
                     .as_ref()
@@ -555,6 +564,7 @@ impl WorldSession {
         equipped: &SpellEquippedItemsEntry,
     ) -> bool {
         let Some(item) = self
+            .catalogs
             .items
             .store
             .as_ref()
@@ -586,13 +596,15 @@ impl WorldSession {
         remove: RepresentedAuctionRemoveItemLikeCpp,
     ) {
         #[cfg(test)]
-        self.represented_auction_remove_items_like_cpp.push(remove);
+        self.inventory
+            .represented_auction_remove_items_like_cpp
+            .push(remove);
     }
     #[cfg(test)]
     pub(crate) fn represented_auction_remove_items_like_cpp(
         &self,
     ) -> &[RepresentedAuctionRemoveItemLikeCpp] {
-        &self.represented_auction_remove_items_like_cpp
+        &self.inventory.represented_auction_remove_items_like_cpp
     }
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_auction_sell_item_like_cpp(
@@ -600,13 +612,15 @@ impl WorldSession {
         sell: RepresentedAuctionSellItemLikeCpp,
     ) {
         #[cfg(test)]
-        self.represented_auction_sell_items_like_cpp.push(sell);
+        self.inventory
+            .represented_auction_sell_items_like_cpp
+            .push(sell);
     }
     #[cfg(test)]
     pub(crate) fn represented_auction_sell_items_like_cpp(
         &self,
     ) -> &[RepresentedAuctionSellItemLikeCpp] {
-        &self.represented_auction_sell_items_like_cpp
+        &self.inventory.represented_auction_sell_items_like_cpp
     }
     pub(in crate::session) fn record_represented_offhand_item_mod_remove_like_cpp(
         &mut self,
@@ -627,13 +641,17 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn buyback_items_like_cpp(&self) -> &HashMap<u8, InventoryItem> {
-        &self.player_item_test_fixture_like_cpp.buyback_items
+        &self
+            .inventory
+            .player_item_test_fixture_like_cpp
+            .buyback_items
     }
     #[cfg(test)]
     pub(crate) fn represented_item_mod_reapply_events_like_cpp(
         &self,
     ) -> &[RepresentedItemModsReapplyEventLikeCpp] {
         &self
+            .inventory
             .player_item_test_fixture_like_cpp
             .represented_item_mod_reapply_events_like_cpp
     }
@@ -683,7 +701,7 @@ impl WorldSession {
         player_guid: ObjectGuid,
         source: wow_entities::ItemForgeUseSource,
     ) -> bool {
-        self.represented_gameobject_use_effects.push(
+        self.world_entities.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::ItemForgeUsed {
                 gameobject_guid,
                 player_guid,

@@ -372,7 +372,10 @@ impl WorldSession {
             // The drained pool is a unit data field, published the same way the
             // represented creature heal publishes its health change.
             if drained > 0
-                && self.client_visible_guids_like_cpp.contains(&target_guid)
+                && self
+                    .core
+                    .client_visible_guids_like_cpp
+                    .contains(&target_guid)
                 && let Some(update) = self.represented_unit_values_update_to_update_object_like_cpp(
                     target_guid,
                     self.player_map_id_like_cpp(),

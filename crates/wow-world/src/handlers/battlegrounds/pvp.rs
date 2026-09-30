@@ -198,7 +198,7 @@ impl crate::session::WorldSession {
     pub async fn handle_request_battlefield_status(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = RequestBattlefieldStatus::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "RequestBattlefieldStatus parse failed: {error}"
             );
             return;
@@ -218,7 +218,7 @@ impl crate::session::WorldSession {
             Ok(hello) => hello,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "BattlemasterHello parse failed: {error}"
                 );
                 return;
@@ -243,7 +243,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "BattlefieldList parse failed: {error}"
                 );
                 return;
@@ -268,7 +268,7 @@ impl crate::session::WorldSession {
             Ok(join) => join,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "BattlemasterJoin parse failed: {error}"
                 );
                 return;
@@ -298,7 +298,7 @@ impl crate::session::WorldSession {
             Ok(join) => join,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "BattlemasterJoinArena parse failed: {error}"
                 );
                 return;
@@ -328,7 +328,7 @@ impl crate::session::WorldSession {
             Ok(join) => join,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "BattlemasterJoinSkirmish parse failed: {error}"
                 );
                 return;
@@ -394,7 +394,7 @@ impl crate::session::WorldSession {
             Ok(port) => port,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "BattlefieldPort parse failed: {error}"
                 );
                 return;
@@ -413,7 +413,7 @@ impl crate::session::WorldSession {
     pub async fn handle_battlefield_leave(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = BattlefieldLeave::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "BattlefieldLeave parse failed: {error}"
             );
             return;
@@ -434,7 +434,7 @@ impl crate::session::WorldSession {
             Ok(packet) => packet,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "AcceptWargameInvite parse failed: {error}"
                 );
                 return;
@@ -456,7 +456,10 @@ impl crate::session::WorldSession {
 
     pub async fn handle_toggle_pvp(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = TogglePvp::read(&mut pkt) {
-            warn!(account = self.account_id, "TogglePvP parse failed: {error}");
+            warn!(
+                account = self.core.account_id,
+                "TogglePvP parse failed: {error}"
+            );
             return;
         }
 
@@ -467,7 +470,10 @@ impl crate::session::WorldSession {
         let packet = match SetPvp::read(&mut pkt) {
             Ok(packet) => packet,
             Err(error) => {
-                warn!(account = self.account_id, "SetPvP parse failed: {error}");
+                warn!(
+                    account = self.core.account_id,
+                    "SetPvP parse failed: {error}"
+                );
                 return;
             }
         };

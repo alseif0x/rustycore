@@ -56,7 +56,7 @@ async fn use_equipment_set_ignored_guid_preserves_slot_like_cpp() {
 #[tokio::test]
 async fn use_equipment_set_skips_non_weapon_slots_in_combat_like_cpp() {
     let (mut session, send_rx) = make_session_with_send_capacity(1);
-    session.in_combat = true;
+    session.combat.in_combat = true;
     let head_guid = ObjectGuid::create_item(1, 58);
     let mainhand_guid = ObjectGuid::create_item(1, 59);
     session.insert_inventory_item_like_cpp(

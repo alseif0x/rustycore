@@ -30,11 +30,11 @@ impl WorldSession {
         // client request is not a generation trigger. A retired/missing
         // authority therefore means there is no loot response.
         if !self.reconcile_represented_loot_cache_like_cpp(owner_guid, player_guid) {
-            self.loot_table.remove(&owner_guid);
+            self.loot.loot_table.remove(&owner_guid);
             return None;
         }
 
-        let loot = self.loot_table.get(&owner_guid)?;
+        let loot = self.loot.loot_table.get(&owner_guid)?;
         if !self.represented_loot_can_be_opened_by_player_like_cpp(owner_guid, loot, player_guid) {
             return None;
         }
@@ -94,12 +94,17 @@ impl WorldSession {
 
                     // Session mirrors become observable only after the client
                     // response was accepted by its ordered send queue.
-                    self.loot_table.insert(owner_guid, snapshot.loot.clone());
-                    self.represented_loot_cache_generations_like_cpp
+                    self.loot
+                        .loot_table
+                        .insert(owner_guid, snapshot.loot.clone());
+                    self.loot
+                        .represented_loot_cache_generations_like_cpp
                         .insert(owner_guid, snapshot.generation);
-                    self.active_loot_view_generations_like_cpp
+                    self.loot
+                        .active_loot_view_generations_like_cpp
                         .insert(owner_guid, outcome.generation);
-                    self.active_loot_view_authorities_like_cpp
+                    self.loot
+                        .active_loot_view_authorities_like_cpp
                         .insert(owner_guid, authority.clone());
                     Some(())
                 },
@@ -132,11 +137,13 @@ impl WorldSession {
             self.ensure_represented_player_looting_like_cpp(owner_guid, player_guid);
         } else if let Some(authority) = authority.as_ref() {
             if !self
+                .loot
                 .active_loot_view_authorities_like_cpp
                 .get(&owner_guid)
                 .is_some_and(|opened| opened.shares_storage_like_cpp(authority))
             {
-                self.active_loot_view_authorities_like_cpp
+                self.loot
+                    .active_loot_view_authorities_like_cpp
                     .insert(owner_guid, authority.clone());
             }
         }
@@ -145,7 +152,7 @@ impl WorldSession {
 
         let first_open = match authoritative_open {
             Some(outcome) => outcome.first_viewer,
-            None => match self.loot_table.get_mut(&owner_guid) {
+            None => match self.loot.loot_table.get_mut(&owner_guid) {
                 Some(loot) if !loot.looted_by_player => {
                     loot.looted_by_player = true;
                     true
@@ -158,6 +165,7 @@ impl WorldSession {
         }
 
         let loot_method = self
+            .loot
             .loot_table
             .get(&owner_guid)
             .map(|loot| loot.loot_method)
@@ -194,10 +202,12 @@ impl WorldSession {
         let current_generation = authority
             .snapshot_for_player_like_cpp(player_guid)
             .map(|snapshot| snapshot.generation);
-        self.active_loot_view_authorities_like_cpp
+        self.loot
+            .active_loot_view_authorities_like_cpp
             .get(&owner_guid)
             .is_some_and(|opened| opened.shares_storage_like_cpp(authority))
             && self
+                .loot
                 .active_loot_view_generations_like_cpp
                 .get(&owner_guid)
                 .is_some_and(|opened| Some(*opened) == current_generation)
@@ -208,7 +218,7 @@ impl WorldSession {
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) {
-        if let Some(loot) = self.loot_table.get_mut(&owner_guid)
+        if let Some(loot) = self.loot.loot_table.get_mut(&owner_guid)
             && !loot.players_looting.contains(&player_guid)
         {
             loot.players_looting.push(player_guid);
@@ -240,6 +250,7 @@ impl WorldSession {
         #[cfg(test)]
         {
             return !self
+                .loot
                 .represented_locked_dungeon_encounters
                 .contains(&(player_guid, dungeon_encounter_id));
         }
@@ -255,15 +266,16 @@ impl WorldSession {
         &self,
         loot_object: ObjectGuid,
     ) -> Option<ObjectGuid> {
-        let active_owners: Vec<ObjectGuid> = if self.active_loot_view_owners.is_empty() {
-            vec![self.active_loot_guid]
+        let active_owners: Vec<ObjectGuid> = if self.loot.active_loot_view_owners.is_empty() {
+            vec![self.loot.active_loot_guid]
         } else {
-            self.active_loot_view_owners.iter().copied().collect()
+            self.loot.active_loot_view_owners.iter().copied().collect()
         };
 
         active_owners.into_iter().find(|owner_guid| {
             !owner_guid.is_empty()
                 && self
+                    .loot
                     .loot_table
                     .get(owner_guid)
                     .is_some_and(|loot| loot.loot_guid == loot_object)
@@ -277,7 +289,7 @@ impl WorldSession {
     ) -> Option<wow_core::Position> {
         let map_key = self
             .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let manager = manager.lock().ok()?;
         let map = manager.find_map(map_key.map_id, map_key.instance_id)?.map();
         map.map_object_by_kind(guid, allowed)
@@ -286,8 +298,8 @@ impl WorldSession {
 
     pub(super) fn represented_spell_max_range_like_cpp(&self, spell_id: i32) -> Option<f32> {
         let spell_store = self.spell_store()?;
-        let spell_misc_store = self.spell_catalogs.spell_misc_store()?;
-        let spell_range_store = self.spell_catalogs.spell_range_store()?;
+        let spell_misc_store = self.catalogs.spell_catalogs.spell_misc_store()?;
+        let spell_range_store = self.catalogs.spell_catalogs.spell_range_store()?;
         spell_store.get(spell_id)?;
         let spell_id = u32::try_from(spell_id).ok()?;
         let range_index = spell_misc_store.get(spell_id)?.range_index;
@@ -302,10 +314,12 @@ impl WorldSession {
     /// out cooperatively without holding a map lock across network work.
     pub(crate) fn close_retired_active_loot_windows_like_cpp(&mut self, player_guid: ObjectGuid) {
         let mut stale_owners = self
+            .loot
             .active_loot_view_authorities_like_cpp
             .iter()
             .filter_map(|(owner_guid, authority)| {
                 let generation = self
+                    .loot
                     .active_loot_view_generations_like_cpp
                     .get(owner_guid)
                     .copied();
@@ -351,7 +365,7 @@ impl WorldSession {
             }
         };
 
-        debug!(account = self.account_id, unit = ?req.unit, "CMSG_LOOT_RELEASE");
+        debug!(account = self.core.account_id, unit = ?req.unit, "CMSG_LOOT_RELEASE");
 
         let player_guid = match self.player_guid() {
             Some(g) => g,

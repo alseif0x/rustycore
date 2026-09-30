@@ -85,7 +85,7 @@ fn known_spell_commands_match_previous_active_and_detached_owner() {
 fn known_spell_commands_leave_replacement_untouched_for_stale_and_missing_owner() {
     let (mut session, _, _) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
@@ -100,7 +100,7 @@ fn known_spell_commands_leave_replacement_untouched_for_stale_and_missing_owner(
         .unwrap();
     for missing in [false, true] {
         if missing {
-            session.canonical_map_manager = None;
+            session.core.canonical_map_manager = None;
         }
         session.set_known_spells_like_cpp(vec![]);
         session.learn_known_spell_like_cpp(20);
@@ -119,7 +119,7 @@ fn known_spell_commands_leave_replacement_untouched_for_stale_and_missing_owner(
 fn narrow_spell_queries_match_full_snapshot_for_active_and_detached_owner() {
     let (mut session, _, _) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     for detached in [false, true] {
         if detached {
             assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
@@ -216,7 +216,7 @@ fn narrow_spell_queries_match_full_snapshot_for_active_and_detached_owner() {
 fn narrow_spell_queries_reject_stale_and_missing_owner_without_fabricated_authority() {
     let (mut session, _, _) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
@@ -231,7 +231,7 @@ fn narrow_spell_queries_reject_stale_and_missing_owner_without_fabricated_author
         .unwrap();
     for missing in [false, true] {
         if missing {
-            session.canonical_map_manager = None;
+            session.core.canonical_map_manager = None;
         }
         assert_eq!(
             session.with_player_spell_runtime_like_cpp(|_| panic!(
@@ -353,7 +353,7 @@ fn spell_save_finalization_matches_previous_active_and_detached_owner() {
 fn spell_save_finalization_cannot_touch_a_replacement_or_missing_owner() {
     let (mut session, _, _) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
@@ -368,7 +368,7 @@ fn spell_save_finalization_cannot_touch_a_replacement_or_missing_owner() {
         .unwrap();
     for missing in [false, true] {
         if missing {
-            session.canonical_map_manager = None;
+            session.core.canonical_map_manager = None;
         }
         session.mark_current_player_save_to_db_committed_like_cpp(
             &wow_persistence::PlayerCharacterCommittedGroupsLikeCpp {
@@ -390,7 +390,7 @@ fn spell_save_finalization_cannot_touch_a_replacement_or_missing_owner() {
 fn loaded_spell_reconciliation_matches_previous_active_and_detached_owner() {
     let (mut session, _, _) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     for detached in [false, true] {
         if detached {
             assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
@@ -518,7 +518,7 @@ fn loaded_spell_reconciliation_rejects_invalid_rows_and_stale_owner() {
             expected
         );
     }
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
@@ -530,7 +530,7 @@ fn loaded_spell_reconciliation_rejects_invalid_rows_and_stale_owner() {
         .unwrap();
     for missing in [false, true] {
         if missing {
-            session.canonical_map_manager = None;
+            session.core.canonical_map_manager = None;
         }
         assert!(!session.replace_loaded_represented_player_spell_rows_like_cpp([row], true));
         assert_eq!(
@@ -547,7 +547,7 @@ fn loaded_spell_reconciliation_rejects_invalid_rows_and_stale_owner() {
 fn trait_config_lifecycle_matches_previous_route_for_active_and_detached_owner() {
     let (mut session, _, _) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     for detached in [false, true] {
         if detached {
             assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
@@ -615,7 +615,7 @@ fn trait_config_lifecycle_matches_previous_route_for_active_and_detached_owner()
 fn trait_config_lifecycle_does_not_reset_replacement_through_stale_or_missing_owner() {
     let (mut session, _, _) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
@@ -631,7 +631,7 @@ fn trait_config_lifecycle_does_not_reset_replacement_through_stale_or_missing_ow
         .unwrap();
     for missing in [false, true] {
         if missing {
-            session.canonical_map_manager = None;
+            session.core.canonical_map_manager = None;
         }
         session.begin_represented_trait_config_authority_load_like_cpp();
         for id in [0, 1] {
@@ -656,7 +656,7 @@ fn trait_config_lifecycle_does_not_reset_replacement_through_stale_or_missing_ow
 fn spell_metadata_transitions_preserve_active_and_detached_owner_contracts() {
     let (mut session, _, _) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     for detached in [false, true] {
         if detached {
             assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
@@ -733,7 +733,7 @@ fn spell_metadata_transitions_preserve_active_and_detached_owner_contracts() {
 fn spell_metadata_rejects_stale_and_missing_owner_without_mutating_replacement() {
     let (mut session, _, _) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     let mut replacement = Box::new(Player::new(Some(1), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
@@ -751,7 +751,7 @@ fn spell_metadata_rejects_stale_and_missing_owner_without_mutating_replacement()
         .unwrap();
     for missing in [false, true] {
         if missing {
-            session.canonical_map_manager = None;
+            session.core.canonical_map_manager = None;
         }
         assert!(!session.set_complete_represented_spell_trait_definition_ids_like_cpp([(10, 20)]));
         session.add_represented_override_spell_like_cpp(50, 70);
@@ -770,7 +770,7 @@ fn spell_metadata_rejects_stale_and_missing_owner_without_mutating_replacement()
 fn spellbook_mutation_uses_native_active_and_detached_owner_once() {
     let (mut session, _, _) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 0);
-    let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     for detached in [false, true] {
         if detached {
             assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
@@ -857,7 +857,7 @@ fn spellbook_mutation_uses_native_active_and_detached_owner_once() {
             }),
         Some(vec![42])
     );
-    session.canonical_map_manager = None;
+    session.core.canonical_map_manager = None;
     assert_eq!(
         session.mutate_player_spell_runtime_for_test_like_cpp(|_| panic!(
             "missing owner must not run callback"

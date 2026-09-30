@@ -14,7 +14,8 @@ impl WorldSession {
         pet_guid: ObjectGuid,
         packet_info: RepresentedBattlePetDataLikeCpp,
     ) {
-        self.battle_pet_test_fixture_like_cpp
+        self.pets
+            .battle_pet_test_fixture_like_cpp
             .represented_battle_pets_like_cpp
             .insert(pet_guid, packet_info);
     }
@@ -29,6 +30,7 @@ impl WorldSession {
             .iter()
             .filter_map(|pet_guid| {
                 let pet = self
+                    .pets
                     .battle_pet_test_fixture_like_cpp
                     .represented_battle_pets_like_cpp
                     .get(pet_guid)?;
@@ -61,7 +63,7 @@ impl WorldSession {
             ))
             .is_ok();
         if !packet_enqueued {
-            warn!("Send channel closed for account {}", self.account_id);
+            warn!("Send channel closed for account {}", self.core.account_id);
         }
         packet_enqueued
     }
@@ -90,7 +92,8 @@ impl WorldSession {
             player.set_battle_pet_data_like_cpp(pet_guid, pet.quality, pet.level);
         });
         #[cfg(test)]
-        self.battle_pet_test_fixture_like_cpp
+        self.pets
+            .battle_pet_test_fixture_like_cpp
             .represented_battle_pet_data_updates_like_cpp
             .push(pet_guid);
         true
@@ -98,6 +101,7 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_battle_pet_data_updates_like_cpp(&self) -> &[ObjectGuid] {
         &self
+            .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pet_data_updates_like_cpp
     }

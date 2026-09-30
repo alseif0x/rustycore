@@ -32,7 +32,7 @@ async fn stale_release_keeps_replacement_viewer_and_pool_like_cpp() {
     assert_eq!(snapshot.loot.coins, 13);
     assert!(!snapshot.loot.items[0].taken);
     assert!(snapshot.loot.players_looting.contains(&first_guid));
-    assert!(!first.active_loot_view_owners.contains(&owner));
+    assert!(!first.loot.active_loot_view_owners.contains(&owner));
 }
 #[tokio::test]
 async fn remote_master_timeout_then_release_still_fans_out_and_finalizes_corpse_like_cpp() {
@@ -412,6 +412,7 @@ async fn dungeon_encounter_builds_independent_unlocked_personal_pools_like_cpp()
         });
     fixture
         .session
+        .loot
         .represented_locked_dungeon_encounters
         .insert((fixture.second_tapper, encounter_id));
 
@@ -457,7 +458,7 @@ async fn represented_personal_encounter_locked_or_empty_late_player_does_not_ins
     let gameobject =
         make_canonical_gameobject_for_session(&first, gameobject_guid, GAMEOBJECT_TYPE_CHEST as u8);
     attach_canonical_gameobject(&mut first, gameobject);
-    let manager = Arc::clone(first.canonical_map_manager.as_ref().unwrap());
+    let manager = Arc::clone(first.core.canonical_map_manager.as_ref().unwrap());
     locked.set_canonical_map_manager(Arc::clone(&manager));
     empty.set_canonical_map_manager(manager);
 
@@ -488,6 +489,7 @@ async fn represented_personal_encounter_locked_or_empty_late_player_does_not_ins
     first.set_loot_stores(Arc::clone(&stores));
     locked.set_loot_stores(stores);
     locked
+        .loot
         .represented_locked_dungeon_encounters
         .insert((locked_player, encounter_id));
 
@@ -544,6 +546,7 @@ async fn represented_gathering_node_first_use_records_effects_like_cpp() {
     let gameobject_guid = test_gameobject_guid(91_003);
     session.set_player_guid(Some(player_guid));
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
 
@@ -565,7 +568,7 @@ async fn represented_gathering_node_first_use_records_effects_like_cpp() {
         .await;
 
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::TriggerGameEvent {
                 gameobject_guid,
@@ -587,6 +590,7 @@ async fn represented_fishing_hole_updates_catch_criteria_like_cpp() {
     let gameobject_guid = test_gameobject_guid(91_005);
     session.set_player_guid(Some(player_guid));
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
 
@@ -595,7 +599,7 @@ async fn represented_fishing_hole_updates_catch_criteria_like_cpp() {
         .await;
 
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::FishingHoleCatchCriteriaUpdated {
                 gameobject_guid,
@@ -612,6 +616,7 @@ async fn represented_gathering_node_runtime_state_matches_cpp_side_effects() {
     let gameobject_guid = test_gameobject_guid(91_007);
     session.set_player_guid(Some(player_guid));
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
 
@@ -633,6 +638,7 @@ async fn represented_gathering_node_runtime_state_matches_cpp_side_effects() {
         .await;
 
     let state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&gameobject_guid)
         .expect("represented gathering use records GO state");
@@ -647,7 +653,7 @@ async fn represented_gathering_node_runtime_state_matches_cpp_side_effects() {
     assert_eq!(state.despawn_delay_secs, Some(15));
     assert!(state.despawn_delay_until.is_some());
     assert_eq!(
-        session.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects,
         vec![
             RepresentedGameObjectUseEffect::OutdoorPvpCustomSpellRequested {
                 gameobject_guid,
@@ -706,6 +712,7 @@ async fn gathering_node_state_sync_command_updates_receiver_before_refresh_like_
         .await;
 
     let state = session
+        .world_entities
         .represented_gameobject_use_states
         .get(&gameobject_guid)
         .expect("synced gathering node state");

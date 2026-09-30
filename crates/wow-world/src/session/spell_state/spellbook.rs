@@ -7,7 +7,7 @@ use super::*;
 
 impl WorldSession {
     pub fn set_cast_unstuck_enabled_like_cpp(&mut self, enabled: bool) {
-        self.represented_cast_unstuck_enabled_like_cpp = enabled;
+        self.config.represented_cast_unstuck_enabled_like_cpp = enabled;
     }
 
     pub fn set_offhand_check_at_spell_unlearn_like_cpp(&mut self, enabled: bool) {
@@ -29,7 +29,8 @@ impl WorldSession {
         &self,
         spell_id: u32,
     ) -> SpellLearnSkillLookupLikeCpp<'_> {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_learn_skill_store
             .as_ref()
             .map(|store| store.spell_learn_skill_lookup_like_cpp(spell_id))
@@ -39,20 +40,23 @@ impl WorldSession {
         &self,
         spell_id: u32,
     ) -> &[SpellLearnSpellNodeLikeCpp] {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_learn_spell_store
             .as_ref()
             .map(|store| store.get_spell_learn_spell_map_bounds_like_cpp(spell_id))
             .unwrap_or(&[])
     }
     pub(crate) fn is_spell_learn_spell_like_cpp(&self, spell_id: u32) -> bool {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_learn_spell_store
             .as_ref()
             .is_some_and(|store| store.is_spell_learn_spell_like_cpp(spell_id))
     }
     pub(crate) fn is_spell_learn_to_spell_like_cpp(&self, spell_id1: u32, spell_id2: u32) -> bool {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_learn_spell_store
             .as_ref()
             .is_some_and(|store| store.is_spell_learn_to_spell_like_cpp(spell_id1, spell_id2))
@@ -101,7 +105,7 @@ impl WorldSession {
         &self,
         known_spells: &mut Vec<i32>,
     ) -> usize {
-        let Some(spell_chains) = self.spell_catalogs.spell_chain_store() else {
+        let Some(spell_chains) = self.catalogs.spell_catalogs.spell_chain_store() else {
             return 0;
         };
 
@@ -254,7 +258,7 @@ impl WorldSession {
             let Ok(spell_id_u32) = u32::try_from(spell_id) else {
                 continue;
             };
-            if !self.mount_store.as_ref().is_none_or(|store| {
+            if !self.catalogs.mount_store.as_ref().is_none_or(|store| {
                 store
                     .get_by_source_spell_id_like_cpp(spell_id_u32)
                     .is_some()
@@ -614,6 +618,7 @@ impl WorldSession {
                 if prev_spell_id != 0 {
                     if let Ok(prev_known_spell_id) = i32::try_from(prev_spell_id) {
                         let current_spell_is_ranked = self
+                            .catalogs
                             .spell_catalogs
                             .spell_chain_store()
                             .and_then(|store| store.spell_chain_node_like_cpp(current_spell_id))
@@ -688,7 +693,10 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn known_spells_fixture_like_cpp(&self) -> Vec<i32> {
-        self.player_spell_test_fixture_like_cpp.known_spells.clone()
+        self.spell_state
+            .player_spell_test_fixture_like_cpp
+            .known_spells
+            .clone()
     }
     pub(crate) fn represented_dependent_known_spells_like_cpp(&self) -> HashSet<i32> {
         self.with_player_spell_runtime_like_cpp(|runtime| {

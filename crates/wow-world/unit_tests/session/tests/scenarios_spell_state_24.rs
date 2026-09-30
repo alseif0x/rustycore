@@ -12,8 +12,14 @@ fn represented_item_set_aura_refresh_materializes_remove_then_apply_like_cpp() {
     let item_guid = ObjectGuid::create_item(1, 924);
 
     session.set_player_guid(Some(player_guid));
-    session.visible_auras.insert(1, test_visible_aura(1, 9044));
-    session.visible_auras.insert(2, test_visible_aura(2, 9999));
+    session
+        .auras
+        .visible_auras
+        .insert(1, test_visible_aura(1, 9044));
+    session
+        .auras
+        .visible_auras
+        .insert(2, test_visible_aura(2, 9999));
     session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
         id: 713,
         name: "Materialized Refresh Set".to_string(),
@@ -46,6 +52,7 @@ fn represented_item_set_aura_refresh_materializes_remove_then_apply_like_cpp() {
     );
     assert_eq!(
         session
+            .auras
             .visible_auras
             .values()
             .filter(|aura| aura.spell_id == 9044)
@@ -55,6 +62,7 @@ fn represented_item_set_aura_refresh_materializes_remove_then_apply_like_cpp() {
     );
     assert!(
         session
+            .auras
             .visible_auras
             .values()
             .any(|aura| aura.spell_id == 9999),
@@ -73,7 +81,10 @@ fn represented_item_set_aura_refresh_form_change_does_not_duplicate_active_aura_
     session.set_player_guid(Some(player_guid));
     session.set_spell_store(Arc::new(spell_store));
     session.set_represented_shapeshift_form_like_cpp(5);
-    session.visible_auras.insert(1, test_visible_aura(1, 9045));
+    session
+        .auras
+        .visible_auras
+        .insert(1, test_visible_aura(1, 9045));
     session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
         id: 714,
         name: "Active Aura Refresh Set".to_string(),
@@ -106,6 +117,7 @@ fn represented_item_set_aura_refresh_form_change_does_not_duplicate_active_aura_
     );
     assert_eq!(
         session
+            .auras
             .visible_auras
             .values()
             .filter(|aura| aura.spell_id == 9045)
@@ -279,7 +291,7 @@ fn loaded_equipped_item_enchantments_apply_equip_spell_aura_like_cpp() {
         session.represented_item_bonus_actions_like_cpp(),
         outcome.effect_actions.as_slice()
     );
-    assert!(session.visible_auras.values().any(|aura| {
+    assert!(session.auras.visible_auras.values().any(|aura| {
         aura.spell_id == 1234 && aura.caster_guid == item_guid && aura.effect_mask == 1
     }));
     assert!(
@@ -308,8 +320,8 @@ fn send_new_item_plan_group_broadcasts_to_group_members_including_self() {
     group.add_member(other_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.player_guid = Some(self_guid);
-    session.group_guid = Some(group_guid);
+    session.core.player_guid = Some(self_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     let plan = send_new_item_plan(SendNewItemDelivery::GroupBroadcast);

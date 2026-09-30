@@ -34,7 +34,7 @@ impl WorldSession {
         let transport_create = map_transport_create_from_load_row_like_cpp(*rows.first()?);
 
         let data_dir = self.mmap_runtime_config_like_cpp().data_dir.clone();
-        let taxi_path_nodes = TaxiPathNodeStore::load(&data_dir, &self.locale).ok()?;
+        let taxi_path_nodes = TaxiPathNodeStore::load(&data_dir, &self.core.locale).ok()?;
         let nodes: Vec<TaxiPathNodeEntry> = taxi_path_nodes
             .entries()
             .filter(|node| node.path_id == transport_create.taxi_path_id)
@@ -83,7 +83,11 @@ impl WorldSession {
         let mut passengers: Vec<_> = registry
             .fellow_transport_passengers(player_guid, map_id, instance_id, transport_guid)
             .into_iter()
-            .filter(|passenger| self.client_visible_guids_like_cpp.contains(&passenger.guid))
+            .filter(|passenger| {
+                self.core
+                    .client_visible_guids_like_cpp
+                    .contains(&passenger.guid)
+            })
             .collect();
         passengers.sort_by_key(|passenger| passenger.guid);
         passengers
@@ -104,7 +108,7 @@ impl WorldSession {
         map_id: u16,
         persisted_transport: Option<PersistedTransportLoginLikeCpp>,
     ) -> Box<InitTransportsPlanLikeCpp> {
-        self.client_visible_transports_like_cpp.clear();
+        self.visibility.client_visible_transports_like_cpp.clear();
         let mut plan = Box::new(InitTransportsPlanLikeCpp::default());
         let now_ms = crate::session::game_time_ms_like_cpp();
         if let Some(snapshot) = persisted_transport {
@@ -130,7 +134,7 @@ impl WorldSession {
         };
 
         let data_dir = self.mmap_runtime_config_like_cpp().data_dir.clone();
-        let locale = self.locale.clone();
+        let locale = self.core.locale.clone();
         let taxi_path_nodes = match TaxiPathNodeStore::load(&data_dir, &locale) {
             Ok(store) => store,
             Err(error) => {
@@ -258,7 +262,8 @@ impl WorldSession {
             }
         }
         self.send_packet(&update);
-        self.client_visible_transports_like_cpp
+        self.visibility
+            .client_visible_transports_like_cpp
             .extend(other_visible_guids);
     }
 
@@ -489,10 +494,11 @@ impl WorldSession {
             );
         }
         self.lifecycle.login_time = Some(std::time::Instant::now());
-        self.suppress_creature_movement_queued_at_or_before_like_cpp = None;
+        self.world_entities
+            .suppress_creature_movement_queued_at_or_before_like_cpp = None;
         // Clear per-session loot/combat state as part of the Rust AddToWorld
         // equivalent, before C++ would build `Map::SendInitSelf`.
-        self.loot_table.clear();
+        self.loot.loot_table.clear();
         self.set_active_loot_guid(ObjectGuid::EMPTY);
         self.set_combat_target_like_cpp(None);
         self.set_in_combat_like_cpp(false);
@@ -592,7 +598,7 @@ impl WorldSession {
                 );
             }
             player_pkt.set_player_account_guids_like_cpp(
-                ObjectGuid::create_global(HighGuid::WowAccount, 0, self.account_id as i64),
+                ObjectGuid::create_global(HighGuid::WowAccount, 0, self.core.account_id as i64),
                 ObjectGuid::create_global(
                     HighGuid::BNetAccount,
                     0,
@@ -654,7 +660,8 @@ impl WorldSession {
                     init_transports_plan.own_transport.take(),
                     fellow_passenger_blocks,
                 ) {
-                    self.client_visible_transports_like_cpp
+                    self.visibility
+                        .client_visible_transports_like_cpp
                         .insert(transport_guid);
                 }
             }
@@ -681,19 +688,19 @@ impl WorldSession {
         if updateobject_trace_enabled {
             info!(
                 guid = ?guid,
-                count = self.client_visible_guids_like_cpp.len(),
+                count = self.core.client_visible_guids_like_cpp.len(),
                 "RUST_LOGIN map_add before_clear_client_guids"
             );
         }
-        self.client_visible_guids_like_cpp.clear();
+        self.core.client_visible_guids_like_cpp.clear();
         // C++ clears m_clientGUIDs here, then Player::SendInitialPacketsAfterAddToMap
         // starts with UpdateVisibilityForPlayer. Do not let Rust's movement-distance
         // throttle reuse the previous login/logout position after the clear.
-        self.last_visibility_pos = None;
+        self.visibility.last_visibility_pos = None;
         if updateobject_trace_enabled {
             info!(
                 guid = ?guid,
-                count = self.client_visible_guids_like_cpp.len(),
+                count = self.core.client_visible_guids_like_cpp.len(),
                 "RUST_LOGIN map_add after_clear_client_guids"
             );
         }
@@ -705,7 +712,7 @@ impl WorldSession {
         if updateobject_trace_enabled {
             info!(
                 guid = ?guid,
-                count = self.client_visible_guids_like_cpp.len(),
+                count = self.core.client_visible_guids_like_cpp.len(),
                 "RUST_LOGIN map_add after_update_object_visibility"
             );
         }
@@ -724,7 +731,8 @@ impl WorldSession {
         // enter-world packet burst. Rust fan-out commands are queued from a
         // sessionless world tick, so remember the burst boundary and drop only
         // movement commands that were queued at or before it.
-        self.suppress_creature_movement_queued_at_or_before_like_cpp =
+        self.world_entities
+            .suppress_creature_movement_queued_at_or_before_like_cpp =
             Some(std::time::Instant::now());
 
         // Rust keeps the session status flip after the initial after-add packet

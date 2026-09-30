@@ -23,7 +23,7 @@ impl WorldSession {
             Ok(m) => m,
             Err(e) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "Failed to parse movement packet: {e}"
                 );
                 return;
@@ -51,14 +51,14 @@ impl WorldSession {
     ) {
         let Some(player_guid) = self.player_guid() else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Movement packet received without loaded player"
             );
             return;
         };
         let Some(mover_guid) = self.player_moved_unit_guid_like_cpp() else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Movement packet received without active mover"
             );
             return;
@@ -66,7 +66,7 @@ impl WorldSession {
         let mover_is_player = mover_guid == player_guid;
         if std::env::var_os("RUSTYCORE_LOGIN_TRACE").is_some() {
             info!(
-                account = self.account_id,
+                account = self.core.account_id,
                 ?opcode,
                 mover = ?info.guid,
                 expected_mover = ?mover_guid,
@@ -91,7 +91,7 @@ impl WorldSession {
                 || self.represented_far_teleport_pending_like_cpp())
         {
             trace!(
-                account = self.account_id,
+                account = self.core.account_id,
                 ?mover_guid,
                 "Ignoring movement while Player teleport is pending"
             );
@@ -115,7 +115,7 @@ impl WorldSession {
                 );
             }
             trace!(
-                account = self.account_id,
+                account = self.core.account_id,
                 removed = ?movement_validation.removed_flags,
                 rules = ?movement_validation.stripped_rules,
                 "MovementInfo flags sanitized before position update and broadcast"
@@ -129,7 +129,7 @@ impl WorldSession {
                 "reject",
             );
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Movement GUID mismatch: expected {:?}, got {:?}", mover_guid, info.guid
             );
             return;
@@ -143,7 +143,7 @@ impl WorldSession {
                 "reject",
             );
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "Invalid movement position: {pos:?}"
             );
             return;
@@ -157,7 +157,7 @@ impl WorldSession {
             .unwrap_or(false)
         {
             trace!(
-                account = self.account_id,
+                account = self.core.account_id,
                 ?mover_guid,
                 "Ignoring movement while mover MoveSpline is not finalized"
             );
@@ -187,7 +187,7 @@ impl WorldSession {
                 pos.distance_2d(&current) > wow_core::Position::GRID_SIZE_LIKE_CPP
             }) {
                 trace!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "Ignoring stale transport movement after large position delta"
                 );
                 return;
@@ -195,7 +195,7 @@ impl WorldSession {
 
             if transport.x.abs() > 75.0 || transport.y.abs() > 75.0 || transport.z.abs() > 75.0 {
                 trace!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "Ignoring movement with invalid transport offset"
                 );
                 return;
@@ -210,7 +210,7 @@ impl WorldSession {
             .is_valid_map_coord_like_cpp()
             {
                 trace!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "Ignoring movement with invalid world transport coordinate"
                 );
                 return;
@@ -289,7 +289,7 @@ impl WorldSession {
                     pos,
                 );
                 trace!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     map_id = self.player_map_id_like_cpp(),
                     instance_id = grid_instance_id,
                     old_grid_x = old_player_cell_like_cpp.as_ref().map(|cell| cell.grid_x()),
@@ -323,7 +323,7 @@ impl WorldSession {
                         || outcome.legacy_creature_mirrors != 0)
                 {
                     info!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         map_id = self.player_map_id_like_cpp(),
                         instance_id = grid_instance_id,
                         x = pos.x,
@@ -384,7 +384,7 @@ impl WorldSession {
                         return;
                     };
                     warn!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         map_id = self.player_map_id_like_cpp(),
                         x = info.position.x,
                         y = info.position.y,
@@ -402,7 +402,7 @@ impl WorldSession {
             // Keep the broadcast registry in sync so chat range checks are accurate.
             self.update_registry_position();
             trace!(
-                account = self.account_id,
+                account = self.core.account_id,
                 x = pos.x,
                 y = pos.y,
                 z = pos.z,
@@ -436,7 +436,7 @@ impl WorldSession {
                 })
                 .is_some();
             trace!(
-                account = self.account_id,
+                account = self.core.account_id,
                 mover = ?mover_guid,
                 x = pos.x,
                 y = pos.y,
@@ -484,7 +484,7 @@ impl WorldSession {
         }
         if std::env::var_os("RUSTYCORE_LOGIN_TRACE").is_some() {
             info!(
-                account = self.account_id,
+                account = self.core.account_id,
                 ?opcode,
                 adjusted_time,
                 x = pos.x,
@@ -619,7 +619,7 @@ impl WorldSession {
     /// The mover must match C++ `Player::GetUnitBeingMoved()`.
     pub async fn handle_set_active_mover(&mut self, pkt: SetActiveMover) {
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             mover = ?pkt.active_mover,
             expected = ?self.player_moved_unit_guid_like_cpp(),
             "RUST_LOGIN_TRACE SetActiveMover"
@@ -627,14 +627,14 @@ impl WorldSession {
 
         let Some(expected_mover) = self.player_moved_unit_guid_like_cpp() else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "SetActiveMover received without canonical active mover"
             );
             return;
         };
         if pkt.active_mover != expected_mover {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "SetActiveMover GUID mismatch: expected {:?}, got {:?}",
                 expected_mover,
                 pkt.active_mover
@@ -653,7 +653,7 @@ impl WorldSession {
         pkt: MoveInitActiveMoverComplete,
     ) {
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             ticks = pkt.ticks,
             "RUST_LOGIN_TRACE MoveInitActiveMoverComplete"
         );
@@ -665,7 +665,11 @@ impl WorldSession {
         opcode: ClientOpcodes,
         mut pkt: MovementAckMessage,
     ) {
-        trace!(account = self.account_id, ?opcode, "MovementAckMessage");
+        trace!(
+            account = self.core.account_id,
+            ?opcode,
+            "MovementAckMessage"
+        );
         self.record_validated_movement_ack_like_cpp(opcode, &mut pkt.ack, None);
     }
     /// Handle C++ `HandleMoveSetVehicleRecAck`.
@@ -677,7 +681,7 @@ impl WorldSession {
         #[cfg(test)]
         record_move_set_vehicle_rec_id_ack_handler_call_for_test();
         trace!(
-            account = self.account_id,
+            account = self.core.account_id,
             ?opcode,
             vehicle_rec_id = pkt.vehicle_rec_id,
             "MoveSetVehicleRecIdAck"
@@ -691,7 +695,7 @@ impl WorldSession {
         mut pkt: MovementSpeedAck,
     ) {
         trace!(
-            account = self.account_id,
+            account = self.core.account_id,
             ?opcode,
             speed = pkt.speed,
             "MovementSpeedAck"
@@ -723,7 +727,7 @@ impl WorldSession {
     /// Handle C++ `HandleMoveKnockBackAck`.
     pub async fn handle_move_knock_back_ack(&mut self, mut pkt: MoveKnockBackAck) {
         trace!(
-            account = self.account_id,
+            account = self.core.account_id,
             has_speeds = pkt.speeds.is_some(),
             "MoveKnockBackAck"
         );
@@ -745,7 +749,7 @@ impl WorldSession {
         mut pkt: MoveSetCollisionHeightAck,
     ) {
         trace!(
-            account = self.account_id,
+            account = self.core.account_id,
             height = pkt.height,
             mount_display_id = pkt.mount_display_id,
             reason = pkt.reason,
@@ -763,7 +767,7 @@ impl WorldSession {
         mut pkt: MoveApplyMovementForceAck,
     ) {
         trace!(
-            account = self.account_id,
+            account = self.core.account_id,
             force = ?pkt.force.id,
             "MoveApplyMovementForceAck"
         );
@@ -788,7 +792,7 @@ impl WorldSession {
         mut pkt: MoveRemoveMovementForceAck,
     ) {
         trace!(
-            account = self.account_id,
+            account = self.core.account_id,
             force = ?pkt.id,
             "MoveRemoveMovementForceAck"
         );
@@ -810,7 +814,7 @@ impl WorldSession {
     /// Handle C++ `HandleMoveTimeSkippedOpcode`.
     pub async fn handle_move_time_skipped(&mut self, pkt: MoveTimeSkipped) {
         trace!(
-            account = self.account_id,
+            account = self.core.account_id,
             mover = ?pkt.mover_guid,
             time_skipped = pkt.time_skipped,
             "MoveTimeSkipped"
@@ -833,7 +837,7 @@ impl WorldSession {
     /// Handle C++ `HandleMoveSplineDoneOpcode` bookkeeping until taxi runtime is complete.
     pub async fn handle_move_spline_done(&mut self, mut pkt: MoveSplineDone) {
         trace!(
-            account = self.account_id,
+            account = self.core.account_id,
             spline_id = pkt.spline_id,
             "MoveSplineDone"
         );
@@ -842,7 +846,7 @@ impl WorldSession {
     /// Handle C++ `HandleMoveTeleportAck` bookkeeping until near-teleport runtime is complete.
     pub async fn handle_move_teleport_ack(&mut self, pkt: MoveTeleportAck) {
         trace!(
-            account = self.account_id,
+            account = self.core.account_id,
             mover = ?pkt.mover_guid,
             ack_index = pkt.ack_index,
             move_time = pkt.move_time,

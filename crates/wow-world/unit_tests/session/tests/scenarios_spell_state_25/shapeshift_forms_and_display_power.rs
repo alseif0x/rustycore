@@ -4,7 +4,7 @@ use super::*;
 async fn represented_form_change_refreshes_item_equip_spells_like_cpp() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 78);
-    session.player_guid = Some(player_guid);
+    session.core.player_guid = Some(player_guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
 
     let item_id = 30_100_u32;
@@ -72,7 +72,7 @@ async fn represented_form_change_refreshes_item_equip_spells_like_cpp() {
 async fn represented_form_change_refreshes_item_set_auras_like_cpp() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 79);
-    session.player_guid = Some(player_guid);
+    session.core.player_guid = Some(player_guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
 
     let chest_guid = ObjectGuid::create_item(1, 918);
@@ -155,7 +155,7 @@ async fn represented_form_change_refreshes_item_set_auras_like_cpp() {
 async fn represented_form_change_applies_and_removes_boost_spells_like_cpp() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 80);
-    session.player_guid = Some(player_guid);
+    session.core.player_guid = Some(player_guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
 
     // C++ `HandleShapeshiftBoosts` casts spell 3025 for cat form.
@@ -194,7 +194,7 @@ async fn represented_form_change_applies_and_removes_boost_spells_like_cpp() {
 async fn represented_form_change_applies_and_sweeps_stance_passives_like_cpp() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 81);
-    session.player_guid = Some(player_guid);
+    session.core.player_guid = Some(player_guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
 
     let passive_spell_id = 90_999_i32;
@@ -238,7 +238,7 @@ async fn represented_form_change_applies_and_sweeps_stance_passives_like_cpp() {
 async fn represented_shapeshift_form_selects_display_power_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let player_guid = ObjectGuid::create_player(1, 82);
-    session.player_guid = Some(player_guid);
+    session.core.player_guid = Some(player_guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
 
     let mut spell_store = wow_data::SpellStore::new();
@@ -340,7 +340,7 @@ async fn represented_shapeshift_form_selects_display_power_like_cpp() {
 async fn represented_power_display_aura_selects_display_power_like_cpp() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 83);
-    session.player_guid = Some(player_guid);
+    session.core.player_guid = Some(player_guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
 
     let aura_spell_id = 91_001_i32;

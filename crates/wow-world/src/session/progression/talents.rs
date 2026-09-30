@@ -7,17 +7,17 @@ use super::*;
 
 impl WorldSession {
     pub fn set_talent_store(&mut self, store: Arc<TalentStore>) {
-        self.talent_store = Some(store);
+        self.catalogs.talent_store = Some(store);
     }
     pub(crate) fn talent_store(&self) -> Option<&Arc<TalentStore>> {
-        self.talent_store.as_ref()
+        self.catalogs.talent_store.as_ref()
     }
     pub fn set_num_talents_at_level_store(&mut self, store: Arc<NumTalentsAtLevelStore>) {
-        self.num_talents_at_level_store = Some(store);
+        self.catalogs.num_talents_at_level_store = Some(store);
         self.refresh_represented_talent_points_like_cpp();
     }
     pub(crate) fn num_talents_at_level_store(&self) -> Option<&Arc<NumTalentsAtLevelStore>> {
-        self.num_talents_at_level_store.as_ref()
+        self.catalogs.num_talents_at_level_store.as_ref()
     }
     pub(crate) fn player_talent_runtime_snapshot_like_cpp(
         &self,
@@ -25,21 +25,27 @@ impl WorldSession {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.talent_runtime_like_cpp().clone());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             let mut runtime = wow_entities::PlayerTalentRuntimeState::default();
-            runtime.replace_talent_groups_like_cpp(self.represented_talents_like_cpp.clone());
-            runtime.replace_glyph_groups_like_cpp(self.represented_glyphs_like_cpp);
-            if self.represented_talents_loaded_like_cpp {
+            runtime.replace_talent_groups_like_cpp(
+                self.progression.represented_talents_like_cpp.clone(),
+            );
+            runtime.replace_glyph_groups_like_cpp(self.progression.represented_glyphs_like_cpp);
+            if self.progression.represented_talents_loaded_like_cpp {
                 runtime.mark_talents_loaded_like_cpp();
             }
-            if self.represented_glyphs_loaded_like_cpp {
+            if self.progression.represented_glyphs_loaded_like_cpp {
                 runtime.mark_glyphs_loaded_like_cpp();
             }
-            runtime.set_active_group_like_cpp(self.represented_active_talent_group_like_cpp);
-            runtime.set_bonus_groups_like_cpp(self.represented_bonus_talent_groups_like_cpp);
+            runtime.set_active_group_like_cpp(
+                self.progression.represented_active_talent_group_like_cpp,
+            );
+            runtime.set_bonus_groups_like_cpp(
+                self.progression.represented_bonus_talent_groups_like_cpp,
+            );
             runtime.set_reset_talents_state_like_cpp(
-                self.represented_talent_reset_cost_like_cpp,
-                self.represented_talent_reset_time_secs_like_cpp,
+                self.progression.represented_talent_reset_cost_like_cpp,
+                self.progression.represented_talent_reset_time_secs_like_cpp,
             );
             return Some(runtime);
         }
@@ -50,15 +56,20 @@ impl WorldSession {
         &mut self,
         runtime: wow_entities::PlayerTalentRuntimeState,
     ) -> bool {
-        if self.player_handle_like_cpp.is_none() {
-            self.represented_talents_like_cpp = runtime.talent_groups_snapshot_like_cpp();
-            self.represented_talents_loaded_like_cpp = runtime.talents_loaded_like_cpp();
-            self.represented_glyphs_like_cpp = runtime.glyph_groups_snapshot_like_cpp();
-            self.represented_glyphs_loaded_like_cpp = runtime.glyphs_loaded_like_cpp();
-            self.represented_active_talent_group_like_cpp = runtime.active_group_like_cpp();
-            self.represented_bonus_talent_groups_like_cpp = runtime.bonus_groups_like_cpp();
-            self.represented_talent_reset_cost_like_cpp = runtime.reset_talents_cost_like_cpp();
-            self.represented_talent_reset_time_secs_like_cpp =
+        if self.core.player_handle_like_cpp.is_none() {
+            self.progression.represented_talents_like_cpp =
+                runtime.talent_groups_snapshot_like_cpp();
+            self.progression.represented_talents_loaded_like_cpp =
+                runtime.talents_loaded_like_cpp();
+            self.progression.represented_glyphs_like_cpp = runtime.glyph_groups_snapshot_like_cpp();
+            self.progression.represented_glyphs_loaded_like_cpp = runtime.glyphs_loaded_like_cpp();
+            self.progression.represented_active_talent_group_like_cpp =
+                runtime.active_group_like_cpp();
+            self.progression.represented_bonus_talent_groups_like_cpp =
+                runtime.bonus_groups_like_cpp();
+            self.progression.represented_talent_reset_cost_like_cpp =
+                runtime.reset_talents_cost_like_cpp();
+            self.progression.represented_talent_reset_time_secs_like_cpp =
                 runtime.reset_talents_time_secs_like_cpp();
             return true;
         }
@@ -74,7 +85,7 @@ impl WorldSession {
         f: impl FnOnce(&mut wow_entities::PlayerTalentRuntimeState) -> R,
     ) -> Option<R> {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             let mut runtime = self.player_talent_runtime_snapshot_like_cpp()?;
             let result = f(&mut runtime);
             return self
@@ -400,7 +411,7 @@ impl WorldSession {
     }
     pub(crate) fn refresh_represented_talent_points_like_cpp(&mut self) {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             let Some(spent) = self.represented_spent_talent_points_count_like_cpp() else {
                 return;
             };
@@ -431,7 +442,7 @@ impl WorldSession {
         });
         #[cfg(test)]
         if let Some(points) = _points {
-            self.player_character_points_like_cpp = points;
+            self.progression.player_character_points_like_cpp = points;
         }
     }
     pub(in crate::session) fn represented_talent_info_like_cpp(
@@ -511,7 +522,7 @@ impl WorldSession {
                 .next_reset_talents_cost_like_cpp(now_secs)
         });
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self
                 .player_talent_runtime_snapshot_like_cpp()
                 .map(|runtime| runtime.next_reset_talents_cost_like_cpp(now_secs));
@@ -523,12 +534,14 @@ impl WorldSession {
         cost: u32,
     ) {
         #[cfg(test)]
-        self.represented_talent_respec_criteria_events_like_cpp
+        self.progression
+            .represented_talent_respec_criteria_events_like_cpp
             .push(
                 RepresentedTalentRespecCriteriaEventLikeCpp::MoneySpentOnRespecs { amount: cost },
             );
         #[cfg(test)]
-        self.represented_talent_respec_criteria_events_like_cpp
+        self.progression
+            .represented_talent_respec_criteria_events_like_cpp
             .push(RepresentedTalentRespecCriteriaEventLikeCpp::TotalRespecs { quantity: 1 });
         #[cfg(not(test))]
         let _ = cost;
@@ -558,8 +571,8 @@ impl WorldSession {
                 .reset_talents_cost_like_cpp()
         });
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(self.represented_talent_reset_cost_like_cpp);
+        if self.core.player_handle_like_cpp.is_none() {
+            return Some(self.progression.represented_talent_reset_cost_like_cpp);
         }
         canonical
     }
@@ -570,28 +583,33 @@ impl WorldSession {
                 .reset_talents_time_secs_like_cpp()
         });
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(self.represented_talent_reset_time_secs_like_cpp);
+        if self.core.player_handle_like_cpp.is_none() {
+            return Some(self.progression.represented_talent_reset_time_secs_like_cpp);
         }
         canonical
     }
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_talent_reset_script_hook_like_cpp(&mut self, no_cost: bool) {
         #[cfg(test)]
-        self.represented_talent_reset_script_hooks_like_cpp
+        self.progression
+            .represented_talent_reset_script_hooks_like_cpp
             .push(RepresentedTalentResetScriptHookLikeCpp { no_cost });
     }
     #[cfg(test)]
     pub(crate) fn represented_talent_reset_script_hooks_like_cpp(
         &self,
     ) -> &[RepresentedTalentResetScriptHookLikeCpp] {
-        &self.represented_talent_reset_script_hooks_like_cpp
+        &self
+            .progression
+            .represented_talent_reset_script_hooks_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn represented_talent_respec_criteria_events_like_cpp(
         &self,
     ) -> &[RepresentedTalentRespecCriteriaEventLikeCpp] {
-        &self.represented_talent_respec_criteria_events_like_cpp
+        &self
+            .progression
+            .represented_talent_respec_criteria_events_like_cpp
     }
 
     pub(crate) fn reset_represented_glyphs_like_cpp(&mut self) {

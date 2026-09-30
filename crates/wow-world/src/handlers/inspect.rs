@@ -140,7 +140,7 @@ impl WorldSession {
             yesterday_hk,
             lifetime_max_rank,
             honor_level,
-        )) = registry.inspect_honor_stats(request.target, self.canonical_map_manager.as_ref())
+        )) = registry.inspect_honor_stats(request.target, self.core.canonical_map_manager.as_ref())
         else {
             return;
         };

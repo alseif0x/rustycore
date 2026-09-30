@@ -18,14 +18,14 @@ impl WorldSession {
             None => return,
         };
         let request = wow_persistence::PlayerRealmCharacterCountRefreshRequestLikeCpp {
-            account_id: self.account_id,
+            account_id: self.core.account_id,
             realm_id: self.realm_id() as u32,
         };
         match port.refresh_realm_character_count_like_cpp(request).await {
             wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {
                 debug!(
                     "Updated realmcharacters: account={} realm={}",
-                    self.account_id,
+                    self.core.account_id,
                     self.realm_id()
                 );
             }
@@ -83,7 +83,7 @@ impl WorldSession {
         }
 
         if matches!(
-            port.load_account_character_count_like_cpp(self.account_id)
+            port.load_account_character_count_like_cpp(self.core.account_id)
                 .await,
             wow_persistence::CharacterAdministrationLoadOutcomeLikeCpp::Loaded(count)
                 if count >= u64::from(MAX_CHARACTERS_PER_ACCOUNT)
@@ -125,7 +125,7 @@ impl WorldSession {
 
         let request = wow_persistence::CharacterCreatePersistenceRequestLikeCpp {
             guid: new_guid_counter as u64,
-            account_id: self.account_id,
+            account_id: self.core.account_id,
             name: pkt.name.clone(),
             race: pkt.race,
             class: pkt.class,
@@ -139,7 +139,7 @@ impl WorldSession {
             create_time,
             health,
             power1,
-            last_login_build: self.build,
+            last_login_build: self.core.build,
             customizations: pkt
                 .customizations
                 .iter()
@@ -160,7 +160,7 @@ impl WorldSession {
                     pkt.name,
                     new_guid_counter,
                     pkt.customizations.len(),
-                    self.account_id
+                    self.core.account_id
                 );
 
                 // Update realmcharacters count in login DB
@@ -211,7 +211,7 @@ impl WorldSession {
         if !self.is_legit_character(&pkt.guid) {
             warn!(
                 "Account {} tried to delete non-owned character {:?}",
-                self.account_id, pkt.guid
+                self.core.account_id, pkt.guid
             );
             self.send_packet(&DeleteChar {
                 code: response_codes::CHAR_DELETE_FAILED,
@@ -220,13 +220,13 @@ impl WorldSession {
         }
 
         match port
-            .delete_owned_character_like_cpp(pkt.guid.counter() as u64, self.account_id)
+            .delete_owned_character_like_cpp(pkt.guid.counter() as u64, self.core.account_id)
             .await
         {
             wow_persistence::CharacterAdministrationMutationOutcomeLikeCpp::Applied => {
                 info!(
                     "Character {:?} deleted for account {}",
-                    pkt.guid, self.account_id
+                    pkt.guid, self.core.account_id
                 );
                 self.remove_legit_character(&pkt.guid);
 
@@ -265,7 +265,7 @@ impl WorldSession {
         if !self.is_legit_character(&pkt.guid) {
             warn!(
                 "Account {} tried to rename non-owned character {:?}",
-                self.account_id, pkt.guid
+                self.core.account_id, pkt.guid
             );
             self.kick(
                 "WorldSession::HandleCharRenameOpcode rename character from a different account",
@@ -322,7 +322,7 @@ impl WorldSession {
             Ok(old_name) => {
                 info!(
                     "Account {} renamed character {:?} from {} to {}",
-                    self.account_id, guid, old_name, outcome.new_name
+                    self.core.account_id, guid, old_name, outcome.new_name
                 );
             }
             Err(failure) => match failure {
@@ -356,7 +356,7 @@ impl WorldSession {
         if !self.is_legit_character(&request.guid) {
             warn!(
                 "Account {} tried to customize non-owned character {:?}",
-                self.account_id, request.guid
+                self.core.account_id, request.guid
             );
             self.kick("WorldSession::HandleCharCustomize Trying to customise character of another account");
             return;
@@ -451,7 +451,7 @@ impl WorldSession {
 
         info!(
             "Account {} customized character {:?} from {} to {}",
-            self.account_id, request.guid, old_name, request.name
+            self.core.account_id, request.guid, old_name, request.name
         );
         self.send_char_customize_success_like_cpp(&request);
     }
@@ -571,7 +571,7 @@ impl WorldSession {
     pub async fn handle_hearth_and_resurrect(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = HearthAndResurrect::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "HearthAndResurrect parse failed: {error}"
             );
             return;
@@ -586,7 +586,7 @@ impl WorldSession {
         };
         let Some(area_table_store) = self.area_table_store() else {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 area_id, "HearthAndResurrect ignored without represented AreaTableStore"
             );
             return;
@@ -687,7 +687,7 @@ impl WorldSession {
         map_id: u16,
         instance_id: u32,
     ) -> MapCorpseLoadOutcomeLikeCpp {
-        let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone) else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref().map(Arc::clone) else {
             return MapCorpseLoadOutcomeLikeCpp::default();
         };
         {

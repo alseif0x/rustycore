@@ -194,7 +194,8 @@ impl WorldSession {
     ) {
         #[cfg(test)]
         if quest.reward_skill_line_id != 0 {
-            self.quest_test_fixture_like_cpp
+            self.quest_state
+                .quest_test_fixture_like_cpp
                 .represented_quest_reward_skill_updates_like_cpp
                 .push((quest.reward_skill_line_id, quest.reward_skill_points));
         }
@@ -209,7 +210,8 @@ impl WorldSession {
             let caster_selection_unrepresented =
                 (quest.flags & QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP) == 0;
             if quest.reward_spell > 0 {
-                self.quest_test_fixture_like_cpp
+                self.quest_state
+                    .quest_test_fixture_like_cpp
                     .represented_quest_reward_spell_casts_like_cpp
                     .push(RepresentedQuestRewardSpellCastLikeCpp {
                         quest_id: quest.id,
@@ -228,7 +230,8 @@ impl WorldSession {
                 if spell_id == 0 {
                     continue;
                 }
-                self.quest_test_fixture_like_cpp
+                self.quest_state
+                    .quest_test_fixture_like_cpp
                     .represented_quest_reward_spell_casts_like_cpp
                     .push(RepresentedQuestRewardSpellCastLikeCpp {
                         quest_id: quest.id,
@@ -253,7 +256,8 @@ impl WorldSession {
     ) {
         #[cfg(test)]
         if quest.reward_title_id != 0 {
-            self.quest_test_fixture_like_cpp
+            self.quest_state
+                .quest_test_fixture_like_cpp
                 .represented_quest_reward_titles_like_cpp
                 .push(RepresentedQuestRewardTitleLikeCpp {
                     quest_id: quest.id,
@@ -281,7 +285,8 @@ impl WorldSession {
                 return;
             }
 
-            self.quest_test_fixture_like_cpp
+            self.quest_state
+                .quest_test_fixture_like_cpp
                 .represented_quest_reward_mails_like_cpp
                 .push(RepresentedQuestRewardMailLikeCpp {
                     quest_id: quest.id,
@@ -334,7 +339,12 @@ impl WorldSession {
             }
         };
         let faction_store = self.faction_store().map(Arc::clone);
-        let quest_faction_reward_store = self.quests.faction_reward_store.as_ref().map(Arc::clone);
+        let quest_faction_reward_store = self
+            .catalogs
+            .quests
+            .faction_reward_store
+            .as_ref()
+            .map(Arc::clone);
         let reputation_reward_rate_store = self.reputation_reward_rate_store().map(Arc::clone);
         let reputation_spillover_template_store =
             self.reputation_spillover_template_store().map(Arc::clone);
@@ -506,7 +516,8 @@ impl WorldSession {
 
             #[cfg(test)]
             {
-                self.quest_test_fixture_like_cpp
+                self.quest_state
+                    .quest_test_fixture_like_cpp
                     .represented_quest_reward_reputations_like_cpp
                     .push(RepresentedQuestRewardReputationLikeCpp {
                         quest_id: quest.id,
@@ -701,7 +712,7 @@ impl WorldSession {
             .await
         {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id,
                 "RewardQuest: represented quest objective/item-drop removal failed before reward mutation"
             );
@@ -715,7 +726,7 @@ impl WorldSession {
             .await
         {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id,
                 "RewardQuest: represented fixed reward item grant failed before reward mutation"
             );
@@ -727,7 +738,7 @@ impl WorldSession {
             .await
         {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id,
                 choice_item_id,
                 "RewardQuest: represented chosen reward item grant failed before reward mutation"
@@ -745,7 +756,7 @@ impl WorldSession {
             .await
         {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id,
                 choice_item_id,
                 "RewardQuest: represented quest package item grant failed before reward mutation"
@@ -758,7 +769,7 @@ impl WorldSession {
             .await
         {
             debug!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id,
                 choice_item_id,
                 "RewardQuest: represented quest reward currency grant failed before reward mutation"
@@ -845,7 +856,7 @@ impl WorldSession {
         }
 
         info!(
-            account = self.account_id,
+            account = self.core.account_id,
             quest_id,
             xp,
             gold = money,
@@ -857,7 +868,7 @@ impl WorldSession {
             .notify_game_event_quest_complete_like_cpp(quest_id)
             .await;
         debug!(
-            account = self.account_id,
+            account = self.core.account_id,
             quest_id,
             outcome = ?game_event_outcome,
             "Represented C++ GameEventMgr::HandleQuestComplete notification after quest reward"

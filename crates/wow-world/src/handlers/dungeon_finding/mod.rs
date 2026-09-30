@@ -103,7 +103,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "DFGetSystemInfo parse failed: {error}"
                 );
                 return;
@@ -126,7 +126,7 @@ impl crate::session::WorldSession {
         store: &wow_data::LfgDungeonStoreLikeCpp,
     ) -> Option<LfgPlayerInfo> {
         let level = self.player_level_like_cpp();
-        let expansion = self.expansion;
+        let expansion = self.core.expansion;
         let current_item_level = self.represented_average_item_level_like_cpp()?.max(0.0) as i32;
 
         let mut info = LfgPlayerInfo {
@@ -333,7 +333,7 @@ impl crate::session::WorldSession {
         dungeon_info: &mut LfgPlayerDungeonInfo,
         reward: &wow_data::LfgDungeonRewardLikeCpp,
     ) {
-        let Some(quest_store) = self.quests.store.as_ref() else {
+        let Some(quest_store) = self.catalogs.quests.store.as_ref() else {
             return;
         };
         let Some(mut quest) = quest_store.get(reward.first_quest_id) else {
@@ -441,7 +441,7 @@ impl crate::session::WorldSession {
     pub async fn handle_df_get_join_status(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = DfGetJoinStatus::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "DFGetJoinStatus parse failed: {error}"
             );
             return;

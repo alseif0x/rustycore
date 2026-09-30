@@ -11,16 +11,21 @@ use std::vec::Vec;
 
 impl super::WorldSession {
     pub(crate) fn reset_timeout_time_like_cpp(&mut self, only_active: bool) {
-        let timeout_secs = if self.state == SessionState::LoggedIn {
-            Some(self.admission.socket_timeouts_like_cpp.active_secs)
+        let timeout_secs = if self.core.state == SessionState::LoggedIn {
+            Some(self.core.admission.socket_timeouts_like_cpp.active_secs)
         } else if !only_active {
-            Some(self.admission.socket_timeouts_like_cpp.unauthenticated_secs)
+            Some(
+                self.core
+                    .admission
+                    .socket_timeouts_like_cpp
+                    .unauthenticated_secs,
+            )
         } else {
             None
         };
 
         if let Some(timeout_secs) = timeout_secs {
-            self.admission.socket_timeout_deadline_like_cpp =
+            self.core.admission.socket_timeout_deadline_like_cpp =
                 Instant::now() + Duration::from_secs(timeout_secs);
         }
     }
@@ -30,7 +35,7 @@ impl super::WorldSession {
     }
 
     pub(crate) fn is_connection_idle_like_cpp(&self) -> bool {
-        Instant::now() > self.admission.socket_timeout_deadline_like_cpp
+        Instant::now() > self.core.admission.socket_timeout_deadline_like_cpp
     }
 
     fn packet_spoof_now_secs_like_cpp() -> u64 {
@@ -266,6 +271,7 @@ impl super::WorldSession {
 
         let now = Self::packet_spoof_now_secs_like_cpp();
         let counter = self
+            .core
             .admission
             .packet_throttling_like_cpp
             .entry(pkt.opcode_raw())
@@ -282,14 +288,14 @@ impl super::WorldSession {
 
         warn!(
             "AntiDOS: Account {}, Character: {:?}, flooding packet (opc: {:?} (0x{:X}), count: {})",
-            self.account_id,
+            self.core.account_id,
             self.player_name_like_cpp(),
             opcode,
             pkt.opcode_raw(),
             amount_counter
         );
 
-        match self.admission.packet_spoof_config_like_cpp.policy {
+        match self.core.admission.packet_spoof_config_like_cpp.policy {
             PacketSpoofConfigLikeCpp::POLICY_LOG => true,
             PacketSpoofConfigLikeCpp::POLICY_KICK => {
                 self.kick("WorldSession::DosProtection::EvaluateOpcode AntiDOS");
@@ -305,11 +311,11 @@ impl super::WorldSession {
     }
 
     fn stage_packet_spoof_ban_like_cpp(&mut self) {
-        let target = match self.admission.packet_spoof_config_like_cpp.ban_mode {
+        let target = match self.core.admission.packet_spoof_config_like_cpp.ban_mode {
             PacketSpoofConfigLikeCpp::BAN_IP => {
-                let Some(address) = self.transport.remote_address_like_cpp.clone() else {
+                let Some(address) = self.core.transport.remote_address_like_cpp.clone() else {
                     warn!(
-                        account = self.account_id,
+                        account = self.core.account_id,
                         "AntiDOS: PacketSpoof BAN_IP requested but remote address is unavailable; kicking without persistent IP ban"
                     );
                     return;
@@ -320,22 +326,24 @@ impl super::WorldSession {
                 // TrinityCore's AntiDOS path maps BAN_CHARACTER to account bans because
                 // character-level packet spoof bans are not implemented there either.
                 PacketSpoofPendingBanTargetLikeCpp::Account {
-                    account_id: self.account_id,
+                    account_id: self.core.account_id,
                 }
             }
         };
 
-        self.admission.pending_packet_spoof_ban_like_cpp = Some(PacketSpoofPendingBanLikeCpp {
-            target,
-            duration_secs: self
-                .admission
-                .packet_spoof_config_like_cpp
-                .ban_duration_secs,
-        });
+        self.core.admission.pending_packet_spoof_ban_like_cpp =
+            Some(PacketSpoofPendingBanLikeCpp {
+                target,
+                duration_secs: self
+                    .core
+                    .admission
+                    .packet_spoof_config_like_cpp
+                    .ban_duration_secs,
+            });
     }
 
     pub(super) async fn flush_packet_spoof_ban_like_cpp(&mut self) {
-        let Some(plan) = self.admission.pending_packet_spoof_ban_like_cpp.take() else {
+        let Some(plan) = self.core.admission.pending_packet_spoof_ban_like_cpp.take() else {
             return;
         };
         let Some(port) = self
@@ -346,10 +354,10 @@ impl super::WorldSession {
             .clone()
         else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "AntiDOS: PacketSpoof ban requested but login DB is unavailable"
             );
-            self.admission.pending_packet_spoof_ban_like_cpp = Some(plan);
+            self.core.admission.pending_packet_spoof_ban_like_cpp = Some(plan);
             return;
         };
 
@@ -384,11 +392,11 @@ impl super::WorldSession {
             wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
             | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     error = %reason,
                     "AntiDOS: failed to persist PacketSpoof ban"
                 );
-                self.admission.pending_packet_spoof_ban_like_cpp = Some(plan);
+                self.core.admission.pending_packet_spoof_ban_like_cpp = Some(plan);
             }
         }
     }
@@ -409,7 +417,7 @@ impl super::WorldSession {
                         reason,
                     } => {
                         warn!(
-                            account = self.account_id,
+                            account = self.core.account_id,
                             error = %reason,
                             ip = address,
                             "AntiDOS: failed to query accounts affected by PacketSpoof IP ban"

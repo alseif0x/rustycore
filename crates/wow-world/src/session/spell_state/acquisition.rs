@@ -47,7 +47,7 @@ impl WorldSession {
         money_after: u64,
     ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
         #[cfg(test)]
-        if let Some(success) = self.loot_money_persistence_test_result_like_cpp {
+        if let Some(success) = self.lifecycle.loot_money_persistence_test_result_like_cpp {
             return success.then_some(money_persistence);
         }
 
@@ -210,7 +210,7 @@ impl WorldSession {
         non_durable_skill_tombstones: BTreeSet<u16>,
     ) -> bool {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return self.fixture_replace_complete_spell_acquisition_runtime_like_cpp(
                 spell_rows,
                 traits,
@@ -379,21 +379,25 @@ impl WorldSession {
         action: crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp,
     ) {
         #[cfg(test)]
-        self.represented_spell_acquisition_post_commit_actions_like_cpp
+        self.spell_state
+            .represented_spell_acquisition_post_commit_actions_like_cpp
             .push(action);
         #[cfg(not(test))]
         let _ = action;
     }
     pub(crate) fn begin_spell_acquisition_post_commit_action_batch_like_cpp(&mut self) {
         #[cfg(test)]
-        self.represented_spell_acquisition_post_commit_actions_like_cpp
+        self.spell_state
+            .represented_spell_acquisition_post_commit_actions_like_cpp
             .clear();
     }
     #[cfg(test)]
     pub(crate) fn represented_spell_acquisition_post_commit_actions_like_cpp(
         &self,
     ) -> &[crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp] {
-        &self.represented_spell_acquisition_post_commit_actions_like_cpp
+        &self
+            .spell_state
+            .represented_spell_acquisition_post_commit_actions_like_cpp
     }
     pub(crate) fn grant_dual_wield_after_spell_acquisition_like_cpp(&mut self) -> bool {
         self.mutate_canonical_player_like_cpp(|player| {

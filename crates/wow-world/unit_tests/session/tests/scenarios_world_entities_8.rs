@@ -11,11 +11,11 @@ fn creature_kill_reputation_applies_generic_and_faction_auras_like_cpp() {
     let creature_guid = test_creature_guid(69_501);
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
     configure_single_creature_kill_reputation_for_test(&mut session);
-    session.visible_auras.insert(
+    session.auras.visible_auras.insert(
         1,
         reputation_aura_for_test(1, RepresentedAuraEffectLikeCpp::ModReputationGain, 20, None),
     );
-    session.visible_auras.insert(
+    session.auras.visible_auras.insert(
         2,
         reputation_aura_for_test(
             2,
@@ -24,7 +24,7 @@ fn creature_kill_reputation_applies_generic_and_faction_auras_like_cpp() {
             Some(7),
         ),
     );
-    session.visible_auras.insert(
+    session.auras.visible_auras.insert(
         3,
         reputation_aura_for_test(
             3,
@@ -210,7 +210,7 @@ fn register_world_creature_mirrors_existing_canonical_map_like_cpp() {
     canonical.lock().unwrap().create_world_map(571, 0);
     session.set_map_manager(manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.current_map_id = 571;
+    session.core.current_map_id = 571;
     session.register_world_creature(
         571,
         Position::new(10.0, 20.0, 30.0, 1.0),
@@ -281,7 +281,7 @@ fn register_world_creature_preserves_create_state_in_canonical_like_cpp() {
     canonical.lock().unwrap().create_world_map(571, 0);
     session.set_map_manager(manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.current_map_id = 571;
+    session.core.current_map_id = 571;
     session.register_world_creature(
         571,
         Position::new(10.0, 20.0, 30.0, 1.0),
@@ -369,7 +369,7 @@ fn register_world_creature_hydrates_db_waypoint_path_like_cpp() {
     session.set_waypoint_path_resolver_like_cpp(Arc::new(move |path_id| {
         (path_id == 77_001).then_some(path.clone())
     }));
-    session.current_map_id = 571;
+    session.core.current_map_id = 571;
     session.register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp(
         571,
         Position::new(10.0, 20.0, 30.0, 1.0),
@@ -454,7 +454,7 @@ fn register_world_creature_applies_addon_lifecycle_like_cpp() {
     session.set_waypoint_path_resolver_like_cpp(Arc::new(move |path_id| {
         (path_id == 77_002).then_some(path.clone())
     }));
-    session.current_map_id = 571;
+    session.core.current_map_id = 571;
     session.register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp(
         571,
         Position::new(10.0, 20.0, 30.0, 1.0),
@@ -549,7 +549,7 @@ fn registered_creature_addon_aura_effects_feed_canonical_consumers_like_cpp() {
     let guid = test_creature_guid(615);
 
     session.set_map_manager(Arc::clone(&manager));
-    session.current_map_id = 571;
+    session.core.current_map_id = 571;
     session.register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp(
         571,
         Position::new(10.0, 20.0, 30.0, 1.0),
@@ -646,7 +646,7 @@ fn represented_gameobject_owner_syncs_to_canonical_created_by_like_cpp() {
 
     canonical.lock().unwrap().create_world_map(571, 0);
     session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.current_map_id = 571;
+    session.core.current_map_id = 571;
     session.record_represented_gameobject_owner_guid_like_cpp(gameobject_guid, owner_guid);
     session.record_represented_gameobject_runtime_state_like_cpp(
         571,
@@ -675,7 +675,7 @@ fn represented_gameobject_owner_update_mutates_existing_canonical_created_by_lik
 
     canonical.lock().unwrap().create_world_map(571, 0);
     session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.current_map_id = 571;
+    session.core.current_map_id = 571;
     session.record_represented_gameobject_runtime_state_like_cpp(
         571,
         gameobject_guid,
@@ -704,7 +704,7 @@ fn mutate_world_creature_relocates_canonical_map_object_like_cpp() {
     canonical.lock().unwrap().create_world_map(571, 0);
     session.set_map_manager(manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.current_map_id = 571;
+    session.core.current_map_id = 571;
     session.register_world_creature(
         571,
         Position::new(10.0, 20.0, 30.0, 1.0),

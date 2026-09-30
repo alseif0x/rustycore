@@ -12,7 +12,7 @@ async fn far_transfer_writer_fence_retains_native_authority_on_cancel_and_failur
             install_canonical_player_owner_for_test(&mut session, 0, 0);
             session.set_player_health_like_cpp(100, 100);
             session.set_map_store(crate::teleport_test_fixtures::world_maps([0, 1]));
-            let handle = session.player_handle_like_cpp.unwrap();
+            let handle = session.core.player_handle_like_cpp.unwrap();
             let destination = Position::new(10.0, 20.0, 30.0, 0.5);
             let (realm_tx, realm) = flume::unbounded();
             session.install_realm_send_channel_for_test(realm_tx);
@@ -67,7 +67,7 @@ async fn far_transfer_writer_fence_retains_native_authority_on_cancel_and_failur
             } else {
                 drop(transfer);
             }
-            assert_eq!(session.player_handle_like_cpp, Some(handle));
+            assert_eq!(session.core.player_handle_like_cpp, Some(handle));
             assert_eq!(session.pending_teleport_like_cpp(), Some((1, destination)));
             assert!(session.represented_far_teleport_pending_like_cpp());
             if outcome != "written" && outcome != "cancelled" {
@@ -78,7 +78,7 @@ async fn far_transfer_writer_fence_retains_native_authority_on_cancel_and_failur
                 "failure/cancellation must not publish a late token"
             );
             assert!(session.finish_worldport_native_before_disconnect_like_cpp());
-            assert_eq!(session.player_handle_like_cpp, Some(handle));
+            assert_eq!(session.core.player_handle_like_cpp, Some(handle));
             assert_eq!(session.player_position_like_cpp(), Some(destination));
         }
     }
@@ -181,12 +181,13 @@ fn appearance_read_distinguishes_missing_active_and_detached_owner() {
         Some(choices)
     );
     session
+        .core
         .canonical_map_manager
         .as_ref()
         .unwrap()
         .lock()
         .unwrap()
-        .retire_player_like_cpp(session.player_handle_like_cpp.unwrap())
+        .retire_player_like_cpp(session.core.player_handle_like_cpp.unwrap())
         .unwrap();
     assert_eq!(session.owned_player_customizations_like_cpp(), None);
 }
@@ -207,11 +208,11 @@ async fn recovery_is_bounded_and_terminal_save_requires_coherent_source() {
             position: home,
         })
     );
-    let handle = session.player_handle_like_cpp.unwrap();
+    let handle = session.core.player_handle_like_cpp.unwrap();
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     assert!(session.set_pending_teleport_like_cpp(Some((1, Position::default()))));
     assert!(session.set_represented_far_teleport_pending_like_cpp(true));
-    session.state = SessionState::Transfer;
+    session.core.state = SessionState::Transfer;
     session.recover_rejected_worldport_like_cpp().await;
     assert_eq!(
         session
@@ -226,11 +227,11 @@ async fn recovery_is_bounded_and_terminal_save_requires_coherent_source() {
     assert!(!session.try_attach_worldport_destination_like_cpp(0, home));
     for _ in 0..2 {
         session.recover_rejected_worldport_like_cpp().await;
-        assert_eq!(session.state, SessionState::Disconnecting);
+        assert_eq!(session.core.state, SessionState::Disconnecting);
         let state = session.player_teleport_state_snapshot_like_cpp().unwrap();
         assert_eq!(state.recovery, PlayerTransferRecovery::Terminal);
         assert!(state.far_pending, "terminal is not successful entry");
-        assert_eq!(session.player_handle_like_cpp, Some(handle));
+        assert_eq!(session.core.player_handle_like_cpp, Some(handle));
         assert!(output.is_empty());
     }
     let save = session
@@ -271,7 +272,7 @@ async fn recovery_missing_or_invalid_homebind_terminates_without_replacing_sourc
             );
         }
         session.recover_rejected_worldport_like_cpp().await;
-        assert_eq!(session.state, SessionState::Disconnecting);
+        assert_eq!(session.core.state, SessionState::Disconnecting);
         assert_eq!(
             session.pending_teleport_like_cpp(),
             Some((1, Position::default()))
@@ -288,8 +289,8 @@ fn rejected_entry_preserves_source_coordinates_and_exact_detached_owner() {
         session.set_map_store(crate::teleport_test_fixtures::world_maps([0, 1]));
         let source = Position::new(1.0, 2.0, 3.0, 0.5);
         session.set_player_position_like_cpp(source);
-        let handle = session.player_handle_like_cpp.unwrap();
-        let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+        let handle = session.core.player_handle_like_cpp.unwrap();
+        let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
         let address = session
             .with_owned_player_like_cpp(|p| p as *const Player as usize)
             .unwrap();
@@ -303,7 +304,7 @@ fn rejected_entry_preserves_source_coordinates_and_exact_detached_owner() {
             !session
                 .try_attach_worldport_destination_like_cpp(1, Position::new(10.0, 20.0, 30.0, 0.0))
         );
-        assert_eq!(session.player_handle_like_cpp, Some(handle));
+        assert_eq!(session.core.player_handle_like_cpp, Some(handle));
         assert_eq!(session.player_map_id_like_cpp(), 0);
         let manager = manager.try_lock().expect("failure releases map guards");
         assert_eq!(
@@ -328,7 +329,7 @@ async fn detached_return_keeps_incarnation_through_immediate_and_delayed_entry()
         install_canonical_player_owner_for_test(&mut session, 0, 0);
         session.set_map_store(crate::teleport_test_fixtures::world_maps([0, 1]));
         session.set_player_health_like_cpp(100, 100);
-        let handle = session.player_handle_like_cpp.unwrap();
+        let handle = session.core.player_handle_like_cpp.unwrap();
         let address = session
             .with_owned_player_like_cpp(|p| p as *const Player as usize)
             .unwrap();
@@ -368,7 +369,7 @@ async fn detached_return_keeps_incarnation_through_immediate_and_delayed_entry()
         );
         assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
         assert_eq!(session.current_canonical_player_map_key_like_cpp(), None);
-        assert_eq!(session.player_handle_like_cpp, Some(handle));
+        assert_eq!(session.core.player_handle_like_cpp, Some(handle));
         // Exercise attachment separately from packet publication. This is not
         // full ACK/client acceptance; preparing a map must not count as entry.
         assert!(session.try_attach_worldport_destination_like_cpp(0, destination));
@@ -376,7 +377,7 @@ async fn detached_return_keeps_incarnation_through_immediate_and_delayed_entry()
             session.current_canonical_player_map_key_like_cpp(),
             Some(wow_map::MapKey::new(0, 0))
         );
-        assert_eq!(session.player_handle_like_cpp, Some(handle));
+        assert_eq!(session.core.player_handle_like_cpp, Some(handle));
         assert_eq!(
             session.with_owned_player_like_cpp(|p| (
                 p as *const Player as usize,
@@ -398,8 +399,8 @@ fn map_entry_preparation_preserves_active_and_detached_player_residence() {
         if detached {
             assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
         }
-        let handle = session.player_handle_like_cpp.unwrap();
-        let manager = Arc::clone(session.canonical_map_manager.as_ref().unwrap());
+        let handle = session.core.player_handle_like_cpp.unwrap();
+        let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
         let residence = manager.lock().unwrap().player_residence_like_cpp(handle);
         for created in [true, false] {
             let decision = session.prepare_canonical_map_entry_like_cpp(1).unwrap();
@@ -415,7 +416,7 @@ fn map_entry_preparation_preserves_active_and_detached_player_residence() {
                 other => panic!("unexpected admission {other:?}"),
             };
             assert_eq!(key, wow_map::MapKey::new(1, 0));
-            assert_eq!(session.player_handle_like_cpp, Some(handle));
+            assert_eq!(session.core.player_handle_like_cpp, Some(handle));
             let manager = manager
                 .try_lock()
                 .expect("preparation releases its map guard");
@@ -435,9 +436,10 @@ fn map_entry_missing_catalog_does_not_change_the_current_player() {
     let (mut session, _, output) = make_session();
     install_canonical_player_owner_for_test(&mut session, 0, 0);
     session.set_map_store(crate::teleport_test_fixtures::world_maps([0]));
-    let handle = session.player_handle_like_cpp.unwrap();
+    let handle = session.core.player_handle_like_cpp.unwrap();
     assert_eq!(session.prepare_canonical_map_entry_like_cpp(1), None);
     let manager = session
+        .core
         .canonical_map_manager
         .as_ref()
         .unwrap()

@@ -47,7 +47,8 @@ impl WorldSession {
         &self,
         spell_id: u32,
     ) -> Vec<&SpellAreaLikeCpp> {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_area_store
             .as_ref()
             .map(|store| store.spell_area_for_aura_map_bounds_like_cpp(spell_id))
@@ -101,7 +102,7 @@ impl WorldSession {
                 .represented_player_aura_state_mask_like_cpp()
                 .unwrap_or(0);
         }
-        let Some(manager) = self.map_manager.as_ref() else {
+        let Some(manager) = self.core.map_manager.as_ref() else {
             return 0;
         };
         let instance_id = self
@@ -186,7 +187,7 @@ impl WorldSession {
     /// `CombatRoundTime`. `None` when no form, no store, or a zero field.
     pub(crate) fn represented_shapeshift_combat_round_time_like_cpp(&self) -> Option<f32> {
         let form_id = self.represented_shapeshift_form_like_cpp()?;
-        let store = self.spell_catalogs.spell_shapeshift_form_store()?;
+        let store = self.catalogs.spell_catalogs.spell_shapeshift_form_store()?;
         let form = store.get(form_id)?;
         (form.combat_round_time > 0).then(|| f32::from(form.combat_round_time))
     }
@@ -311,7 +312,7 @@ impl WorldSession {
         effect: &wow_data::SpellEffectInfo,
     ) -> i32 {
         let mut mount_type_id = u16::try_from(effect.effect_misc_value_2).unwrap_or_default();
-        if let Some(mount_entry) = self.mount_store.as_ref().and_then(|store| {
+        if let Some(mount_entry) = self.catalogs.mount_store.as_ref().and_then(|store| {
             u32::try_from(spell_id)
                 .ok()
                 .and_then(|spell_id| store.get_by_source_spell_id_like_cpp(spell_id))
@@ -354,8 +355,12 @@ impl WorldSession {
         };
         let spell_store = self.spell_store().cloned();
         let difficulty_store = self.difficulty_store().cloned();
-        let aura_options_store = self.spell_catalogs.spell_aura_options_store.clone();
-        let spell_misc_store = self.spell_catalogs.spell_misc_store().cloned();
+        let aura_options_store = self
+            .catalogs
+            .spell_catalogs
+            .spell_aura_options_store
+            .clone();
+        let spell_misc_store = self.catalogs.spell_catalogs.spell_misc_store().cloned();
 
         let effects: Vec<_> = effect_rows
             .into_iter()
@@ -448,7 +453,7 @@ impl WorldSession {
             let spell_visual_id = represented_aura_visual_without_caster_like_cpp(
                 row.spell_id,
                 row.difficulty,
-                &self.legacy_creature_aggro_config_like_cpp,
+                &self.config.legacy_creature_aggro_config_like_cpp,
             );
             let provenance = wow_entities::AuraCastProvenanceLikeCpp {
                 cast_id,
@@ -495,7 +500,7 @@ impl WorldSession {
             #[cfg(test)]
             let installed = if _canonical {
                 Some(())
-            } else if self.player_handle_like_cpp.is_none() {
+            } else if self.core.player_handle_like_cpp.is_none() {
                 self.mutate_player_aura_subsystem_like_cpp(|auras| {
                     auras.insert_threat_snapshot_like_cpp(slot, _fallback_snapshot);
                     auras.insert_runtime_application_like_cpp(_fallback_aura);
@@ -528,6 +533,7 @@ impl WorldSession {
         spell_id: u32,
     ) -> Vec<i32> {
         let Some(mount) = self
+            .catalogs
             .mount_store
             .as_ref()
             .and_then(|store| store.get_by_source_spell_id_like_cpp(spell_id))
@@ -540,6 +546,7 @@ impl WorldSession {
         }
 
         let Some(displays) = self
+            .catalogs
             .mount_x_display_store
             .as_ref()
             .and_then(|store| store.displays_for_mount_like_cpp(mount.id))
@@ -564,7 +571,7 @@ impl WorldSession {
     ) -> Option<i32> {
         let candidates = self.represented_mount_aura_display_candidates_like_cpp(spell_id);
         candidates
-            .choose(&mut self.driver.represented_runtime_rng_like_cpp)
+            .choose(&mut self.core.driver.represented_runtime_rng_like_cpp)
             .copied()
     }
 
@@ -634,7 +641,7 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if !mutated && self.player_handle_like_cpp.is_none() {
+        if !mutated && self.core.player_handle_like_cpp.is_none() {
             // Handle-less fixtures have no canonical Player to carry the derived
             // transform field, so it only lives for this mutation. Acceptance
             // cases that assert `IsPolymorphed` install a canonical Player
@@ -670,7 +677,7 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if !mutated && self.player_handle_like_cpp.is_none() {
+        if !mutated && self.core.player_handle_like_cpp.is_none() {
             let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
                 auras.remove_transform_aura_like_cpp(spell_id);
             });

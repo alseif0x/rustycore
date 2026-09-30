@@ -26,6 +26,7 @@ async fn failed_quest_bound_loot_persistence_rolls_back_credit_and_claim_like_cp
 
     assert_eq!(grants.load(Ordering::SeqCst), 0);
     let status = first
+        .quest_state
         .quest_test_fixture_like_cpp
         .player_quests
         .get(&quest_id)

@@ -15,7 +15,7 @@ impl WorldSession {
         }
         let caster_position = self.player_position_like_cpp()?;
         let player_map_key = self.current_canonical_player_map_key_like_cpp()?;
-        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = self.core.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
         };
@@ -87,12 +87,14 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub fn set_start_all_spells_like_cpp(&mut self, enabled: bool) {
-        self.player_bootstrap_catalog_test_fixture_like_cpp
+        self.catalogs
+            .player_bootstrap_catalog_test_fixture_like_cpp
             .start_all_spells_like_cpp = enabled;
     }
     #[cfg(test)]
     pub(crate) fn start_all_spells_like_cpp(&self) -> bool {
-        self.player_bootstrap_catalog_test_fixture_like_cpp
+        self.catalogs
+            .player_bootstrap_catalog_test_fixture_like_cpp
             .start_all_spells_like_cpp
     }
     /// Install the complete process-wide C++ script binding audit.
@@ -140,8 +142,8 @@ impl WorldSession {
             self.spell_state
                 .spell_linked_rejected_trigger_spell_ids_like_cpp
                 .as_deref(),
-            self.spell_catalogs.spell_chain_store.as_deref(),
-            self.spell_catalogs.spell_linked_store.as_deref(),
+            self.catalogs.spell_catalogs.spell_chain_store.as_deref(),
+            self.catalogs.spell_catalogs.spell_linked_store.as_deref(),
         )
     }
     /// Prove that every effective effect and every world-table hook for one
@@ -157,7 +159,7 @@ impl WorldSession {
         if !self.spell_has_no_unrepresented_runtime_hooks_like_cpp(spell_id) {
             return false;
         }
-        let Some(spell_store) = self.spell_catalogs.spell_store.as_ref() else {
+        let Some(spell_store) = self.catalogs.spell_catalogs.spell_store.as_ref() else {
             return false;
         };
         if spell_store.get(spell_id_i32).is_none() {
@@ -167,7 +169,7 @@ impl WorldSession {
             .effects_for_difficulty_like_cpp(
                 spell_id_i32,
                 difficulty_id,
-                self.difficulty_store.as_deref(),
+                self.catalogs.difficulty_store.as_deref(),
             )
             .is_some_and(|effects| {
                 effects
@@ -176,31 +178,35 @@ impl WorldSession {
             })
     }
     pub(crate) fn next_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_chain_store
             .as_ref()
             .map(|store| store.next_spell_in_chain_like_cpp(spell_id))
             .unwrap_or(0)
     }
     pub(crate) fn first_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_chain_store
             .as_ref()
             .map(|store| store.first_spell_in_chain_like_cpp(spell_id))
             .unwrap_or(spell_id)
     }
     pub(crate) fn prev_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_chain_store
             .as_ref()
             .map(|store| store.prev_spell_in_chain_like_cpp(spell_id))
             .unwrap_or(0)
     }
     pub(in crate::session) fn player_spell_hit_source_identity_complete_like_cpp(&self) -> bool {
-        let Some(player_guid) = self.player_guid else {
+        let Some(player_guid) = self.core.player_guid else {
             return false;
         };
-        self.player_handle_like_cpp
+        self.core
+            .player_handle_like_cpp
             .is_some_and(|handle| handle.guid() == player_guid)
             || cfg!(test) && self.player_bootstrap_attached_for_test_like_cpp()
     }
@@ -209,14 +215,16 @@ impl WorldSession {
         link_type: SpellLinkedTypeLikeCpp,
         spell_id: u32,
     ) -> &[i32] {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_linked_store
             .as_ref()
             .and_then(|store| store.get_spell_linked_like_cpp(link_type, spell_id))
             .unwrap_or(&[])
     }
     pub(crate) fn spell_area_map_bounds_like_cpp(&self, spell_id: u32) -> Vec<&SpellAreaLikeCpp> {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_area_store
             .as_ref()
             .map(|store| store.spell_area_map_bounds_like_cpp(spell_id))
@@ -226,7 +234,8 @@ impl WorldSession {
         &self,
         area_id: u32,
     ) -> Vec<&SpellAreaLikeCpp> {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_area_store
             .as_ref()
             .map(|store| store.spell_area_for_area_map_bounds_like_cpp(area_id))
@@ -237,7 +246,8 @@ impl WorldSession {
         spell_id: u32,
         difficulty: u32,
     ) -> u32 {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_custom_attribute_store
             .as_ref()
             .map(|store| store.attributes_for_spell_difficulty_like_cpp(spell_id, difficulty))
@@ -249,7 +259,8 @@ impl WorldSession {
         spell_id: u32,
         difficulty: u32,
     ) -> Option<&ServersideSpellInfoLikeCpp> {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .serverside_spell_store
             .as_ref()
             .and_then(|store| store.get_serverside_spell_like_cpp(spell_id, difficulty))
@@ -259,30 +270,34 @@ impl WorldSession {
         spell_id: u32,
         difficulty: u32,
     ) -> Option<&SpellProcEntryLikeCpp> {
-        let store = self.spell_catalogs.spell_proc_store.as_ref()?;
+        let store = self.catalogs.spell_catalogs.spell_proc_store.as_ref()?;
         store.spell_proc_entry_with_fallback_like_cpp(spell_id, difficulty, |current_difficulty| {
-            self.difficulty_store
+            self.catalogs
+                .difficulty_store
                 .as_ref()
                 .and_then(|difficulties| difficulties.get(current_difficulty))
                 .map(|difficulty| u32::from(difficulty.fallback_difficulty_id))
         })
     }
     pub(crate) fn spells_required_for_spell_like_cpp(&self, spell_id: u32) -> &[u32] {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_required_store
             .as_ref()
             .map(|store| store.spells_required_for_spell_like_cpp(spell_id))
             .unwrap_or(&[])
     }
     pub(crate) fn spells_requiring_spell_like_cpp(&self, req_spell: u32) -> &[u32] {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_required_store
             .as_ref()
             .map(|store| store.spells_requiring_spell_like_cpp(req_spell))
             .unwrap_or(&[])
     }
     pub(crate) fn is_spell_requiring_spell_like_cpp(&self, spell_id: u32, req_spell: u32) -> bool {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_required_store
             .as_ref()
             .map(|store| store.is_spell_requiring_spell_like_cpp(spell_id, req_spell))
@@ -293,7 +308,8 @@ impl WorldSession {
         spell_id: u32,
         difficulty: u8,
     ) -> u32 {
-        self.spell_catalogs
+        self.catalogs
+            .spell_catalogs
             .spell_misc_store()
             .and_then(|store| {
                 store.entry_for_spell_difficulty_with_fallback_like_cpp(
@@ -343,7 +359,7 @@ impl WorldSession {
     ) -> Option<i32> {
         u32::try_from(mount_capability_id)
             .ok()
-            .and_then(|id| self.mount_capability_store.as_ref()?.get(id))
+            .and_then(|id| self.catalogs.mount_capability_store.as_ref()?.get(id))
             .map(|capability| capability.mod_spell_aura_id)
             .filter(|spell_id| *spell_id > 0)
     }
@@ -523,7 +539,7 @@ impl WorldSession {
         &mut self,
         spells: &[i32],
     ) -> usize {
-        if self.mount_store.is_none() {
+        if self.catalogs.mount_store.is_none() {
             return 0;
         }
 
@@ -746,57 +762,79 @@ impl WorldSession {
             represented_player_spell_runtime_like_cpp(player.spell_runtime_like_cpp())
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(RepresentedPlayerSpellRuntimeLikeCpp {
-                known_spells: self.player_spell_test_fixture_like_cpp.known_spells.clone(),
+                known_spells: self
+                    .spell_state
+                    .player_spell_test_fixture_like_cpp
+                    .known_spells
+                    .clone(),
                 rows: self
+                    .spell_state
                     .player_spell_test_fixture_like_cpp
                     .represented_player_spell_rows_like_cpp
                     .clone(),
                 rows_loaded: self
+                    .spell_state
                     .player_spell_test_fixture_like_cpp
                     .represented_player_spell_rows_loaded_like_cpp,
                 rows_complete: self
+                    .spell_state
                     .player_spell_test_fixture_like_cpp
                     .represented_player_spell_rows_complete_like_cpp,
                 fallback_rows: self
+                    .spell_state
                     .player_spell_test_fixture_like_cpp
                     .represented_fallback_player_spell_rows_like_cpp
                     .clone(),
                 dependent_known_spells: self
+                    .spell_state
                     .player_spell_test_fixture_like_cpp
                     .represented_dependent_known_spells_like_cpp
                     .clone(),
                 removed_known_spells: self
+                    .spell_state
                     .player_spell_test_fixture_like_cpp
                     .represented_removed_known_spells_like_cpp
                     .clone(),
                 favorite_known_spells: self
+                    .spell_state
                     .player_spell_test_fixture_like_cpp
                     .represented_favorite_known_spells_like_cpp
                     .clone(),
                 trait_definition_ids: self
+                    .spell_state
                     .player_spell_test_fixture_like_cpp
                     .represented_spell_trait_definition_ids_like_cpp
                     .clone(),
                 trait_definition_ids_complete: self
+                    .spell_state
                     .player_spell_test_fixture_like_cpp
                     .represented_spell_trait_definition_ids_complete_like_cpp,
                 trait_config_rows: self
+                    .spell_state
                     .player_spell_test_fixture_like_cpp
                     .represented_trait_config_rows_like_cpp
                     .clone(),
                 trait_config_rows_complete: self
+                    .spell_state
                     .player_spell_test_fixture_like_cpp
                     .represented_trait_config_rows_complete_like_cpp,
                 trait_entry_rows_complete: self
+                    .spell_state
                     .player_spell_test_fixture_like_cpp
                     .represented_trait_entry_rows_complete_like_cpp,
                 trait_entry_rows_empty: self
+                    .spell_state
                     .player_spell_test_fixture_like_cpp
                     .represented_trait_entry_rows_empty_like_cpp,
-                override_spells: self.represented_override_spells_like_cpp.clone(),
-                override_spells_complete: self.represented_override_spells_complete_like_cpp,
+                override_spells: self
+                    .spell_state
+                    .represented_override_spells_like_cpp
+                    .clone(),
+                override_spells_complete: self
+                    .spell_state
+                    .represented_override_spells_complete_like_cpp,
             });
         }
         canonical
@@ -806,7 +844,7 @@ impl WorldSession {
         query: impl FnOnce(&wow_entities::PlayerSpellRuntimeState) -> R,
     ) -> Option<R> {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             let runtime = canonical_player_spell_runtime_like_cpp(
                 self.player_spell_runtime_snapshot_like_cpp()?,
             );
@@ -825,7 +863,7 @@ impl WorldSession {
         f: impl FnOnce(&mut wow_entities::PlayerSpellRuntimeState) -> R,
     ) -> Option<R> {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             let mut runtime = canonical_player_spell_runtime_like_cpp(
                 self.player_spell_runtime_snapshot_like_cpp()?,
             );
@@ -900,6 +938,7 @@ impl WorldSession {
     #[allow(dead_code)]
     pub(crate) fn represented_mount_source_spell_usable_like_cpp(&self, spell_id: u32) -> bool {
         let Some(mount) = self
+            .catalogs
             .mount_store
             .as_ref()
             .and_then(|store| store.get_by_source_spell_id_like_cpp(spell_id))
@@ -922,8 +961,10 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if _canonical || self.player_handle_like_cpp.is_none() {
-            self.represented_self_res_spells_like_cpp.insert(spell_id);
+        if _canonical || self.core.player_handle_like_cpp.is_none() {
+            self.spell_state
+                .represented_self_res_spells_like_cpp
+                .insert(spell_id);
         }
     }
     pub(crate) fn remove_represented_self_res_spell_like_cpp(&mut self, spell_id: i32) -> bool {
@@ -934,8 +975,11 @@ impl WorldSession {
                 .remove(&spell_id)
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return self.represented_self_res_spells_like_cpp.remove(&spell_id);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return self
+                .spell_state
+                .represented_self_res_spells_like_cpp
+                .remove(&spell_id);
         }
         canonical.unwrap_or(false)
     }

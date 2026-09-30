@@ -35,12 +35,16 @@ impl WorldSession {
         owner_guid: ObjectGuid,
         _player_guid: ObjectGuid,
     ) {
-        self.loot_table.remove(&owner_guid);
-        self.represented_loot_cache_generations_like_cpp
+        self.loot.loot_table.remove(&owner_guid);
+        self.loot
+            .represented_loot_cache_generations_like_cpp
             .remove(&owner_guid);
-        self.represented_personal_loot_money
+        self.loot
+            .represented_personal_loot_money
             .retain(|(owner, _), _| *owner != owner_guid);
-        self.represented_personal_loot_owners.remove(&owner_guid);
+        self.loot
+            .represented_personal_loot_owners
+            .remove(&owner_guid);
     }
 
     pub(super) fn next_represented_loot_object_guid_like_cpp(
@@ -72,7 +76,7 @@ impl WorldSession {
             if key.map_id != owner_map_id {
                 return None;
             }
-            let manager = self.canonical_map_manager.as_ref()?;
+            let manager = self.core.canonical_map_manager.as_ref()?;
             let mut manager = manager.lock().ok()?;
             let map = manager.find_map_mut(key.map_id, key.instance_id)?.map_mut();
             let counter = map.generate_low_guid_like_cpp(HighGuid::LootObject).ok()?;
@@ -102,7 +106,7 @@ impl WorldSession {
                 .sync_represented_creature_loot_to_canonical_like_cpp(owner_guid, player_guid)
                 .is_none()
         {
-            self.loot_table.remove(&owner_guid);
+            self.loot.loot_table.remove(&owner_guid);
         }
     }
 
@@ -112,7 +116,7 @@ impl WorldSession {
         _spell_id: u32,
     ) {
         #[cfg(test)]
-        self.represented_loot_roll_criteria_events.push(
+        self.loot.represented_loot_roll_criteria_events.push(
             crate::session::RepresentedLootRollCriteriaEvent::Disenchant {
                 player_guid: _player_guid,
                 spell_id: _spell_id,

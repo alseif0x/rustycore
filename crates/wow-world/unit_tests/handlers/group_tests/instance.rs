@@ -32,7 +32,7 @@ async fn minimap_ping_sender_not_in_registry_skips_sending_like_cpp() {
     player_registry.register_or_replace(other, broadcast_info(other, other_tx), Default::default());
 
     session.set_player_guid(Some(sender));
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 

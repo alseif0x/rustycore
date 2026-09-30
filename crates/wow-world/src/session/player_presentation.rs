@@ -20,8 +20,8 @@ impl WorldSession {
     pub(crate) fn player_is_game_master_like_cpp(&self) -> Option<bool> {
         let canonical = self.with_owned_player_like_cpp(Player::is_game_master_like_cpp);
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.player_game_master_like_cpp);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.combat.player_game_master_like_cpp);
         }
         canonical
     }
@@ -37,11 +37,11 @@ impl WorldSession {
             )
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some((
-                self.player_unit_flags_like_cpp,
-                self.player_mount_display_id_like_cpp,
-                self.player_object_scale_like_cpp,
+                self.presentation.player_unit_flags_like_cpp,
+                self.vehicles.player_mount_display_id_like_cpp,
+                self.presentation.player_object_scale_like_cpp,
             ));
         }
         canonical
@@ -62,7 +62,7 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if !canonical
-            && self.player_handle_like_cpp.is_none()
+            && self.core.player_handle_like_cpp.is_none()
             && let Some(guid) = self.player_guid()
         {
             canonical = self
@@ -75,13 +75,17 @@ impl WorldSession {
                 .is_some();
         }
         #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.player_mount_display_id_like_cpp = display_id;
-            self.player_mounted_like_cpp = mounted;
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.vehicles.player_mount_display_id_like_cpp = display_id;
+            self.vehicles.player_mounted_like_cpp = mounted;
             if mounted {
-                self.player_unit_flags_like_cpp.insert(UnitFlags::MOUNT);
+                self.presentation
+                    .player_unit_flags_like_cpp
+                    .insert(UnitFlags::MOUNT);
             } else {
-                self.player_unit_flags_like_cpp.remove(UnitFlags::MOUNT);
+                self.presentation
+                    .player_unit_flags_like_cpp
+                    .remove(UnitFlags::MOUNT);
             }
             return true;
         }
@@ -95,8 +99,8 @@ impl WorldSession {
             return;
         };
         let computed_height = if let (Some(display_store), Some(model_store)) = (
-            self.creatures.display_info_store.as_ref(),
-            self.creatures.model_data_store.as_ref(),
+            self.catalogs.creatures.display_info_store.as_ref(),
+            self.catalogs.creatures.model_data_store.as_ref(),
         ) {
             let native_display_id = crate::handlers::character::default_display_id(
                 self.player_race_like_cpp(),
@@ -125,9 +129,9 @@ impl WorldSession {
         });
         #[cfg(test)]
         if let Some(height) = _canonical_height.or(computed_height)
-            && (_canonical_height.is_some() || self.player_handle_like_cpp.is_none())
+            && (_canonical_height.is_some() || self.core.player_handle_like_cpp.is_none())
         {
-            self.player_collision_height_like_cpp = height;
+            self.movement.player_collision_height_like_cpp = height;
         }
     }
 
@@ -144,8 +148,8 @@ impl WorldSession {
             }
         });
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.represented_shapeshift_form_like_cpp);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.auras.represented_shapeshift_form_like_cpp);
         }
         canonical
     }
@@ -163,8 +167,8 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.represented_shapeshift_form_like_cpp = form_id;
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.auras.represented_shapeshift_form_like_cpp = form_id;
             return true;
         }
         canonical
@@ -173,8 +177,11 @@ impl WorldSession {
     pub(crate) fn represented_primary_specialization_id_like_cpp(&self) -> Option<u32> {
         let canonical = self.with_owned_player_like_cpp(Player::primary_specialization_id_like_cpp);
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.represented_primary_specialization_id_like_cpp);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(
+                self.progression
+                    .represented_primary_specialization_id_like_cpp,
+            );
         }
         canonical
     }
@@ -187,8 +194,9 @@ impl WorldSession {
             .with_owned_player_mut_like_cpp(|player| player.set_primary_specialization(spec_id))
             .is_some();
         #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.represented_primary_specialization_id_like_cpp = spec_id;
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.progression
+                .represented_primary_specialization_id_like_cpp = spec_id;
             return true;
         }
         canonical
@@ -212,20 +220,28 @@ impl WorldSession {
         is_in_water: bool,
     ) -> Result<wow_data::MountCapabilityEntry, wow_data::MountCapabilityRejectLikeCpp> {
         let capability_store = self
+            .catalogs
             .mount_capability_store
             .as_ref()
             .ok_or(wow_data::MountCapabilityRejectLikeCpp::MissingCapabilityRow)?;
         let type_store = self
+            .catalogs
             .mount_type_x_capability_store
             .as_ref()
             .ok_or(wow_data::MountCapabilityRejectLikeCpp::MissingMountTypeCapabilities)?;
         let area_store = self
+            .catalogs
             .area_table_store
             .as_ref()
             .ok_or(wow_data::MountCapabilityRejectLikeCpp::Area)?;
 
         let map_id = u32::from(self.player_map_id_like_cpp());
-        let map = self.maps.store.as_ref().and_then(|store| store.get(map_id));
+        let map = self
+            .catalogs
+            .maps
+            .store
+            .as_ref()
+            .and_then(|store| store.get(map_id));
         let (_, area_id) = self
             .player_zone_area_like_cpp()
             .ok_or(wow_data::MountCapabilityRejectLikeCpp::Area)?;
@@ -330,6 +346,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedForceDeselectLikeCpp] {
         &self
+            .social
             .duel_test_fixture_like_cpp
             .represented_force_deselects_like_cpp
     }
@@ -349,7 +366,8 @@ impl WorldSession {
         if !enable {
             #[cfg(test)]
             if let Some(player_guid) = self.player_guid() {
-                self.visibility_test_fixture_like_cpp
+                self.visibility
+                    .visibility_test_fixture_like_cpp
                     .represented_seer_guid_like_cpp = Some(player_guid);
             }
             return;
@@ -362,7 +380,8 @@ impl WorldSession {
         if self.canonical_map_has_seer_like_object_like_cpp(target) {
             #[cfg(test)]
             {
-                self.visibility_test_fixture_like_cpp
+                self.visibility
+                    .visibility_test_fixture_like_cpp
                     .represented_seer_guid_like_cpp = Some(target);
             }
         } else {

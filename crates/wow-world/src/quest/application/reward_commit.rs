@@ -60,7 +60,7 @@ impl WorldSession {
         // exercising the transaction itself and must reach it.
         #[cfg(test)]
         if port.is_none()
-            && let Some(success) = self.loot_money_persistence_test_result_like_cpp
+            && let Some(success) = self.lifecycle.loot_money_persistence_test_result_like_cpp
         {
             if !success {
                 return None;
@@ -73,7 +73,7 @@ impl WorldSession {
 
         let Some(port) = port else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 quest_id,
                 "Quest reward has no durable owner installed; the operation completed in memory only"
             );
@@ -150,7 +150,7 @@ impl WorldSession {
     /// either way.
     fn fail_quest_reward_after_rollback_like_cpp(&mut self, quest_id: u32, reason: &str) {
         warn!(
-            account = self.account_id,
+            account = self.core.account_id,
             quest_id,
             error = %reason,
             "Quest reward transaction did not commit; nothing was granted and the session is quarantined"
@@ -200,7 +200,7 @@ impl WorldSession {
         match observed {
             Some(true) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     quest_id,
                     error = %reason,
                     "Quest reward COMMIT reply was lost but the durable quest status proves the transaction committed"
@@ -209,7 +209,7 @@ impl WorldSession {
             }
             Some(false) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     quest_id,
                     error = %reason,
                     "Quest reward COMMIT reply was lost but the durable quest status proves the transaction rolled back"
@@ -221,7 +221,7 @@ impl WorldSession {
                     "quest reward COMMIT outcome is unknown; relog required before another reward",
                 );
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     quest_id,
                     error = %reason,
                     "Quest reward COMMIT outcome remains indeterminate; quarantined the session"

@@ -114,6 +114,7 @@ fn represented_gameobject_runtime_state_captures_canonical_linked_trap_guid_like
 
     assert_eq!(
         session
+            .world_entities
             .represented_gameobject_use_states
             .get(&guid)
             .and_then(|state| state.linked_trap_guid),
@@ -130,7 +131,7 @@ fn remove_world_creature_removes_canonical_map_object_like_cpp() {
     canonical.lock().unwrap().create_world_map(571, 0);
     session.set_map_manager(manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.current_map_id = 571;
+    session.core.current_map_id = 571;
     session.register_world_creature(
         571,
         Position::new(10.0, 20.0, 30.0, 1.0),
@@ -335,6 +336,7 @@ fn represented_gameobject_phase_shift_applies_db_phase_and_visible_map_like_cpp(
     );
 
     let phase_shift = session
+        .world_entities
         .represented_gameobject_phase_shifts
         .get(&guid)
         .unwrap();
@@ -412,7 +414,7 @@ fn tick_creatures_sync_launches_real_move_spline_for_represented_wander() {
             creature.seed_runtime_rng_like_cpp(0x5757);
         })
         .unwrap();
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.client_visible_guids_like_cpp.insert(guid);
 
     let sent = (0..32)
         .find_map(|_| {
@@ -459,8 +461,8 @@ async fn spell_damage_syncs_canonical_creature_health() {
     let manager = shared_map_manager();
     let guid = test_creature_guid(18_002);
     let player = ObjectGuid::create_player(1, 42);
-    session.player_guid = Some(player);
-    session.client_visible_guids_like_cpp.insert(guid);
+    session.core.player_guid = Some(player);
+    session.core.client_visible_guids_like_cpp.insert(guid);
     register_test_creature(&mut session, manager.clone(), guid, 40);
 
     session.apply_damage(None, guid, 7).await.unwrap();
@@ -481,7 +483,7 @@ async fn spell_damage_effects_add_pct_threat_and_one_cast_bonus_like_cpp() {
     let guid = test_creature_guid(18_003);
     let player = ObjectGuid::create_player(1, 43);
     let spell_id = 18_003;
-    session.player_guid = Some(player);
+    session.core.player_guid = Some(player);
     install_canonical_player_owner_for_test(&mut session, 0, 0);
     register_test_creature(&mut session, manager.clone(), guid, 40);
     let mut spell_store = wow_data::SpellStore::new();
@@ -554,9 +556,12 @@ fn hostile_cast_level_threat_enters_combat_without_damage_like_cpp() {
     let creature_guid = test_creature_guid(18_004);
     let caster_guid = ObjectGuid::create_player(1, 44);
     let spell_id = 18_004;
-    session.player_guid = Some(caster_guid);
-    session.state = SessionState::LoggedIn;
-    session.client_visible_guids_like_cpp.insert(creature_guid);
+    session.core.player_guid = Some(caster_guid);
+    session.core.state = SessionState::LoggedIn;
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(creature_guid);
     register_test_creature(&mut session, manager.clone(), creature_guid, 40);
     let mut store = wow_data::SpellStore::new();
     store.insert(
@@ -622,7 +627,7 @@ async fn spell_damage_no_threat_attributes_skip_engage_and_threat_like_cpp() {
         let guid = test_creature_guid(counter);
         let player = ObjectGuid::create_player(1, counter);
         let spell_id = counter as i32;
-        session.player_guid = Some(player);
+        session.core.player_guid = Some(player);
         register_test_creature(&mut session, manager.clone(), guid, 40);
         let mut spell_store = wow_data::SpellStore::new();
         let mut attributes = [0; 15];
@@ -652,7 +657,7 @@ async fn spell_damage_no_threat_attributes_skip_engage_and_threat_like_cpp() {
     let guid = test_creature_guid(18_007);
     let player = ObjectGuid::create_player(1, 18_007);
     let spell_id = 18_007;
-    session.player_guid = Some(player);
+    session.core.player_guid = Some(player);
     register_test_creature(&mut session, manager.clone(), guid, 40);
     let mut spell_store = wow_data::SpellStore::new();
     let mut attributes = [0; 15];
@@ -703,7 +708,7 @@ async fn spell_damage_without_threat_row_adds_spell_level_threat_like_cpp() {
     let creature_guid = test_creature_guid(18_009);
     let player_guid = ObjectGuid::create_player(1, 18_009);
     let spell_id = 18_009;
-    session.player_guid = Some(player_guid);
+    session.core.player_guid = Some(player_guid);
     register_test_creature(&mut session, manager.clone(), creature_guid, 40);
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(
@@ -755,7 +760,7 @@ async fn spell_damage_adds_threat_without_overwriting_current_victim_like_cpp() 
     let tank = ObjectGuid::create_player(1, 44);
     let caster = ObjectGuid::create_player(1, 45);
     let spell_id = 18_008;
-    session.player_guid = Some(caster);
+    session.core.player_guid = Some(caster);
     let mut spell_store = wow_data::SpellStore::new();
     let mut attributes = [0; 15];
     attributes[2] = wow_data::spell::attributes::SPELL_ATTR2_NO_INITIAL_THREAT;
@@ -822,12 +827,13 @@ async fn spell_damage_kill_keeps_empty_creature_loot_non_lootable_like_cpp() {
     let manager = shared_map_manager();
     let guid = test_creature_guid(18_006);
     let player = ObjectGuid::create_player(1, 47);
-    session.player_guid = Some(player);
+    session.core.player_guid = Some(player);
     register_test_creature(&mut session, manager.clone(), guid, 40);
 
     session.apply_damage(None, guid, 100).await.unwrap();
 
     let loot = session
+        .loot
         .loot_table
         .get(&guid)
         .expect("creature corpse loot is generated during kill");

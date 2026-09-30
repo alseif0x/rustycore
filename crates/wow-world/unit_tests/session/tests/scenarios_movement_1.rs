@@ -30,7 +30,7 @@ fn create_map_player_context_group_owner_falls_back_to_leader_like_cpp() {
     let map_entry =
         represented_map_entry_for_create_map_context_like_cpp(631, wow_data::map::MAP_RAID);
 
-    session.group_guid = Some(group_guid);
+    session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     install_create_map_difficulty_stores_like_cpp(
         &mut session,
@@ -59,9 +59,11 @@ fn create_map_player_context_missing_default_raid_metadata_falls_back_to_legacy_
         represented_map_entry_for_create_map_context_like_cpp(249, wow_data::map::MAP_RAID);
 
     session
+        .instances
         .instance_test_fixture_like_cpp
         .represented_raid_difficulty_id_like_cpp = 15;
     session
+        .instances
         .instance_test_fixture_like_cpp
         .represented_legacy_raid_difficulty_id_like_cpp = 4;
 
@@ -97,12 +99,17 @@ async fn send_if_visible_monster_move_rejects_commands_queued_before_enter_world
             0,
         ),
     );
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_map_manager(Arc::clone(&manager));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
-    session.client_visible_guids_like_cpp.insert(source_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(source_guid);
     let enter_world_cutoff = Instant::now();
-    session.suppress_creature_movement_queued_at_or_before_like_cpp = Some(enter_world_cutoff);
+    session
+        .world_entities
+        .suppress_creature_movement_queued_at_or_before_like_cpp = Some(enter_world_cutoff);
 
     session
         .session_command_tx()
@@ -146,7 +153,9 @@ async fn send_if_visible_monster_move_rejects_commands_queued_before_enter_world
         packet_bytes
     );
     assert_eq!(
-        session.suppress_creature_movement_queued_at_or_before_like_cpp,
+        session
+            .world_entities
+            .suppress_creature_movement_queued_at_or_before_like_cpp,
         Some(enter_world_cutoff)
     );
     assert!(send_rx.try_recv().is_err(), "no extra packets");
@@ -338,7 +347,7 @@ async fn teleport_units_uses_cross_map_db_destination_for_player_like_cpp() {
         )),
         "C++ EffectTeleportUnits accepts cross-map TARGET_DEST_DB, fills missing orientation from unitTarget, and calls Player::TeleportTo"
     );
-    assert_eq!(session.state, SessionState::Transfer);
+    assert_eq!(session.core.state, SessionState::Transfer);
 }
 #[tokio::test]
 async fn teleport_units_target_dest_home_uses_represented_homebind_like_cpp() {
@@ -416,7 +425,7 @@ async fn teleport_units_target_dest_home_uses_represented_homebind_like_cpp() {
         session.pending_teleport_like_cpp(),
         Some((1, home_position))
     );
-    assert_eq!(session.state, SessionState::Transfer);
+    assert_eq!(session.core.state, SessionState::Transfer);
 }
 #[tokio::test]
 async fn teleport_units_target_dest_home_without_homebind_is_noop_boundary_like_cpp() {
@@ -464,7 +473,7 @@ async fn teleport_units_target_dest_home_without_homebind_is_noop_boundary_like_
         .expect("missing represented homebind keeps current bounded no-op");
 
     assert_eq!(session.pending_teleport_like_cpp(), None);
-    assert_ne!(session.state, SessionState::Transfer);
+    assert_ne!(session.core.state, SessionState::Transfer);
 }
 #[tokio::test]
 async fn teleport_units_without_destination_is_noop_like_cpp() {
@@ -515,7 +524,7 @@ async fn teleport_units_without_destination_is_noop_like_cpp() {
         None,
         "C++ EffectTeleportUnits returns when m_targets.HasDst() is false"
     );
-    assert_ne!(session.state, SessionState::Transfer);
+    assert_ne!(session.core.state, SessionState::Transfer);
 }
 #[tokio::test]
 async fn primary_teleport_units_uses_explicit_destination_like_cpp() {
@@ -595,14 +604,14 @@ async fn primary_teleport_units_uses_explicit_destination_like_cpp() {
         )),
         "C++ EffectTeleportUnits consumes existing m_targets destination and fills missing orientation from unitTarget"
     );
-    assert_eq!(session.state, SessionState::Transfer);
+    assert_eq!(session.core.state, SessionState::Transfer);
 }
 #[test]
 fn represented_player_speed_change_propagates_to_active_pet_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
     let pet_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 7_001, 9_001);
-    session.client_visible_guids_like_cpp.insert(pet_guid);
+    session.core.client_visible_guids_like_cpp.insert(pet_guid);
     session.set_represented_pet_mode_state_like_cpp(
         Some(pet_guid),
         wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
@@ -643,7 +652,7 @@ fn represented_player_speed_change_does_not_propagate_to_pet_in_combat_like_cpp(
         wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
         wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
     );
-    session.in_combat = true;
+    session.combat.in_combat = true;
 
     session.set_player_movement_speed_rate_and_notify_like_cpp(UnitMoveTypeLikeCpp::Run, 2.0);
 
@@ -860,6 +869,7 @@ fn represented_non_mounted_flight_speed_removal_recomputes_like_cpp() {
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Flight) - 10.5).abs() < 0.0001
     );
     let vehicle_flight_slot = session
+        .auras
         .visible_auras
         .iter()
         .find_map(|(&slot, aura)| {

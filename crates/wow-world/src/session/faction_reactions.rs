@@ -61,15 +61,15 @@ pub(crate) enum ReputationGainSourceLikeCpp {
 
 impl WorldSession {
     pub(crate) const fn reset_schedule_like_cpp(&self) -> wow_instances::ResetSchedule {
-        self.reset_schedule_like_cpp
+        self.config.reset_schedule_like_cpp
     }
 
     pub(crate) fn resolved_watched_faction_index_like_cpp(&self) -> Option<i32> {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.watched_faction_index_like_cpp());
         #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(self.watched_faction_index_like_cpp);
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.progression.watched_faction_index_like_cpp);
         }
         canonical
     }
@@ -87,8 +87,8 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if !_canonical && self.player_handle_like_cpp.is_none() {
-            self.watched_faction_index_like_cpp = index;
+        if !_canonical && self.core.player_handle_like_cpp.is_none() {
+            self.progression.watched_faction_index_like_cpp = index;
         }
     }
 
@@ -98,7 +98,7 @@ impl WorldSession {
     ) -> wow_data::reputation::ReputationRankLikeCpp {
         use wow_data::reputation::ReputationRankLikeCpp;
 
-        let Some(faction_template_store) = self.factions.template_store.as_ref() else {
+        let Some(faction_template_store) = self.catalogs.factions.template_store.as_ref() else {
             return ReputationRankLikeCpp::Neutral;
         };
         let Some(source_faction_template) =
@@ -129,14 +129,14 @@ impl WorldSession {
             }
             if input.target_is_unit
                 && !input.target_ignores_reputation
-                && let Some(faction_store) = self.factions.store.as_ref()
+                && let Some(faction_store) = self.catalogs.factions.store.as_ref()
                 && let Some(source_faction_entry) =
                     faction_store.get(u32::from(source_faction_template.faction))
                 && source_faction_entry.can_have_reputation_like_cpp()
             {
                 let mut rank = reputation_mgr.rank_for_faction_entry_like_cpp(
                     source_faction_entry,
-                    self.friendship_rep_reaction_store.as_deref(),
+                    self.catalogs.friendship_rep_reaction_store.as_deref(),
                     self.player_race_like_cpp(),
                     self.player_class_like_cpp(),
                 );
@@ -185,7 +185,7 @@ impl WorldSession {
         let reputation_mgr = ReputationMgrLikeCpp::borrowing_like_cpp(&reputation_state);
 
         if input.self_has_player_owner {
-            if let Some(faction_template_store) = self.factions.template_store.as_ref()
+            if let Some(faction_template_store) = self.catalogs.factions.template_store.as_ref()
                 && let Some(target_faction_template) =
                     faction_template_store.get(input.target_faction_template_id)
                 && let Some(forced_rank) = reputation_mgr
@@ -194,7 +194,7 @@ impl WorldSession {
                 return forced_rank;
             }
         } else if input.target_has_player_owner
-            && let Some(faction_template_store) = self.factions.template_store.as_ref()
+            && let Some(faction_template_store) = self.catalogs.factions.template_store.as_ref()
             && faction_template_store
                 .get(input.self_faction_template_id)
                 .is_some()
@@ -221,7 +221,8 @@ impl WorldSession {
             }
 
             if input.self_has_player_owner {
-                let Some(faction_template_store) = self.factions.template_store.as_ref() else {
+                let Some(faction_template_store) = self.catalogs.factions.template_store.as_ref()
+                else {
                     return self.represented_faction_reaction_to_like_cpp(
                         RepresentedFactionReactionInputLikeCpp {
                             source_faction_template_id: input.self_faction_template_id,
@@ -244,7 +245,7 @@ impl WorldSession {
                         return forced_rank;
                     }
                     if !input.self_ignores_reputation
-                        && let Some(faction_store) = self.factions.store.as_ref()
+                        && let Some(faction_store) = self.catalogs.factions.store.as_ref()
                         && let Some(target_faction_entry) =
                             faction_store.get(u32::from(target_faction_template.faction))
                         && target_faction_entry.can_have_reputation_like_cpp()

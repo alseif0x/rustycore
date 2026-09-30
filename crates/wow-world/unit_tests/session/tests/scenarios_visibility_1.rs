@@ -10,7 +10,7 @@ async fn visible_object_values_update_command_sends_only_when_visible_like_cpp()
     let (mut session, _, send_rx) = make_session();
     let object_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 9901);
     let packet_bytes = vec![0x34, 0x12, 0xAA, 0xBB];
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_player_map_position_like_cpp(571, Position::ZERO);
 
     session
@@ -29,7 +29,10 @@ async fn visible_object_values_update_command_sends_only_when_visible_like_cpp()
         .await;
     assert!(send_rx.try_recv().is_err());
 
-    session.client_visible_guids_like_cpp.insert(object_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(object_guid);
     session
         .session_command_tx()
         .try_send(SessionCommand::SendVisibleObjectValuesUpdate(
@@ -58,7 +61,7 @@ async fn send_if_visible_command_not_sent_when_source_not_visible_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let source_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1001);
     let packet_bytes = vec![0x11, 0x22, 0x33];
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_player_map_position_like_cpp(571, Position::ZERO);
 
     session
@@ -106,10 +109,13 @@ async fn send_if_visible_command_sent_when_source_visible_like_cpp() {
             0,
         ),
     );
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_map_manager(manager);
     session.set_player_map_position_like_cpp(571, Position::ZERO);
-    session.client_visible_guids_like_cpp.insert(source_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(source_guid);
 
     session
         .session_command_tx()
@@ -162,11 +168,14 @@ async fn send_realm_if_visible_uses_legacy_source_when_canonical_mirror_is_missi
     );
     let canonical = shared_canonical_map_manager();
     canonical.lock().unwrap().create_world_map(571, 0);
-    session.state = SessionState::LoggedIn;
+    session.core.state = SessionState::LoggedIn;
     session.set_map_manager(manager);
     session.set_canonical_map_manager(canonical);
     session.set_player_map_position_like_cpp(571, Position::ZERO);
-    session.client_visible_guids_like_cpp.insert(source_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(source_guid);
 
     session
         .session_command_tx()
@@ -215,7 +224,10 @@ async fn send_if_visible_command_rejected_when_not_logged_in_like_cpp() {
     let source_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1005);
     // state is NOT LoggedIn (default after make_session is Authed)
     session.set_player_map_position_like_cpp(571, Position::ZERO);
-    session.client_visible_guids_like_cpp.insert(source_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(source_guid);
 
     session
         .session_command_tx()
@@ -242,6 +254,7 @@ fn visibility_gated_durable_packets_follow_older_general_refresh_like_cpp() {
     let (session, _, _) = make_session();
     let creature_guid = test_creature_guid(1012);
     session
+        .core
         .durable_creature_runtime_commands_like_cpp
         .lock()
         .unwrap()
@@ -279,6 +292,7 @@ fn visibility_barrier_preserves_entire_durable_suffix_fifo_like_cpp() {
     let victim_guid = ObjectGuid::create_player(1, 7007);
     {
         let mut durable = session
+            .core
             .durable_creature_runtime_commands_like_cpp
             .lock()
             .unwrap();
@@ -566,7 +580,10 @@ async fn dynamic_object_values_snapshot_direct_player_out_of_range_keeps_visible
         7,
     );
     prepare_dynamic_object_values_snapshot_like_cpp(&canonical, 571, 7, dynamic_guid, 38.5);
-    session.client_visible_guids_like_cpp.insert(dynamic_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(dynamic_guid);
 
     assert_eq!(
         session.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(),
@@ -576,6 +593,7 @@ async fn dynamic_object_values_snapshot_direct_player_out_of_range_keeps_visible
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&dynamic_guid)
     );
@@ -628,9 +646,13 @@ async fn dynamic_object_values_snapshot_dynamic_object_seer_near_same_phase_send
     );
     prepare_dynamic_object_values_snapshot_like_cpp(&canonical, 571, 7, dynamic_guid, 39.5);
     session
+        .visibility
         .visibility_test_fixture_like_cpp
         .represented_seer_guid_like_cpp = Some(seer_guid);
-    session.client_visible_guids_like_cpp.insert(dynamic_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(dynamic_guid);
 
     assert_eq!(
         session.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(),
@@ -643,6 +665,7 @@ async fn dynamic_object_values_snapshot_dynamic_object_seer_near_same_phase_send
     );
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&dynamic_guid)
     );
@@ -714,7 +737,10 @@ async fn dynamic_object_values_snapshot_shared_vision_phase_mismatch_no_send_lik
             .phase_shift_mut() = PhaseShift::from_phases([20]);
     }
     prepare_dynamic_object_values_snapshot_like_cpp(&canonical, 571, 7, dynamic_guid, 44.5);
-    session.client_visible_guids_like_cpp.insert(dynamic_guid);
+    session
+        .core
+        .client_visible_guids_like_cpp
+        .insert(dynamic_guid);
 
     assert_eq!(
         session.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(),
@@ -723,6 +749,7 @@ async fn dynamic_object_values_snapshot_shared_vision_phase_mismatch_no_send_lik
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&dynamic_guid)
     );
@@ -835,6 +862,7 @@ fn add_farsight_set_viewpoint_target_visibility_sends_far_dynamic_object_like_cp
     );
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&dynamic_object_guid),
         "direct C++ UpdateVisibilityOf(target) consumption should mark far DynamicObject visible"
@@ -880,6 +908,7 @@ fn set_viewpoint_target_visibility_already_visible_sends_no_duplicate_like_cpp()
         0,
     );
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(dynamic_object_guid);
 
@@ -887,6 +916,7 @@ fn set_viewpoint_target_visibility_already_visible_sends_no_duplicate_like_cpp()
     assert!(drain_server_packet_bytes(&send_rx).is_empty());
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .contains(&dynamic_object_guid)
     );

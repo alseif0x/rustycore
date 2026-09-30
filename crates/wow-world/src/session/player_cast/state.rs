@@ -33,11 +33,11 @@ impl WorldSession {
         f: impl FnOnce(&wow_entities::CastExecutionStateLikeCpp) -> R,
     ) -> Option<R> {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return Some(f(&wow_entities::CastExecutionStateLikeCpp {
-                active: self.active_spell_cast.clone(),
-                last_cast_time: self.last_spell_cast_time,
-                last_cast_time_per_spell: self.last_spell_cast_time_per_spell.clone(),
+                active: self.spell_state.active_spell_cast.clone(),
+                last_cast_time: self.spell_state.last_spell_cast_time,
+                last_cast_time_per_spell: self.spell_state.last_spell_cast_time_per_spell.clone(),
             }));
         }
         self.with_owned_player_like_cpp(|player| f(&player.unit().subsystems().spells.execution))
@@ -48,16 +48,16 @@ impl WorldSession {
         f: impl FnOnce(&mut wow_entities::CastExecutionStateLikeCpp) -> R,
     ) -> Option<R> {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             let mut state = wow_entities::CastExecutionStateLikeCpp {
-                active: self.active_spell_cast.clone(),
-                last_cast_time: self.last_spell_cast_time,
-                last_cast_time_per_spell: self.last_spell_cast_time_per_spell.clone(),
+                active: self.spell_state.active_spell_cast.clone(),
+                last_cast_time: self.spell_state.last_spell_cast_time,
+                last_cast_time_per_spell: self.spell_state.last_spell_cast_time_per_spell.clone(),
             };
             let result = f(&mut state);
-            self.active_spell_cast = state.active;
-            self.last_spell_cast_time = state.last_cast_time;
-            self.last_spell_cast_time_per_spell = state.last_cast_time_per_spell;
+            self.spell_state.active_spell_cast = state.active;
+            self.spell_state.last_spell_cast_time = state.last_cast_time;
+            self.spell_state.last_spell_cast_time_per_spell = state.last_cast_time_per_spell;
             return Some(result);
         }
         self.with_owned_player_mut_like_cpp(|player| {
@@ -113,8 +113,12 @@ impl WorldSession {
         &self,
     ) -> Option<Option<RepresentedPendingSpellCastRequestLikeCpp>> {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            return Some(self.represented_pending_spell_cast_request_like_cpp.clone());
+        if self.core.player_handle_like_cpp.is_none() {
+            return Some(
+                self.spell_state
+                    .represented_pending_spell_cast_request_like_cpp
+                    .clone(),
+            );
         }
         self.with_owned_player_like_cpp(wow_entities::Player::pending_spell_cast_snapshot_like_cpp)
     }
@@ -134,9 +138,11 @@ impl WorldSession {
         #[cfg(test)] fallback: impl FnOnce(&mut Option<RepresentedPendingSpellCastRequestLikeCpp>) -> R,
     ) -> Option<R> {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             return Some(fallback(
-                &mut self.represented_pending_spell_cast_request_like_cpp,
+                &mut self
+                    .spell_state
+                    .represented_pending_spell_cast_request_like_cpp,
             ));
         }
         self.with_owned_player_mut_like_cpp(canonical)
@@ -193,6 +199,7 @@ impl WorldSession {
                 .player_moved_unit_guid_like_cpp()
                 .is_none_or(|moved| moved == request.casting_unit_guid)
             && self
+                .core
                 .player_handle_like_cpp
                 .is_none_or(|handle| handle.guid() == request.casting_unit_guid);
         if !casting_unit_is_current {
@@ -297,7 +304,10 @@ impl WorldSession {
             )
             .await
         {
-            warn!(account = self.account_id, "Spell execution failed: {}", e);
+            warn!(
+                account = self.core.account_id,
+                "Spell execution failed: {}", e
+            );
             // Send CastFailed so client cancels cast animation
             use wow_packet::packets::spell::CastFailed;
             self.send_packet(&CastFailed {

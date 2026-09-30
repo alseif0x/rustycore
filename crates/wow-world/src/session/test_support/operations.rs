@@ -18,7 +18,7 @@ impl WorldSession {
         let Some(guid) = self.player_guid() else {
             return false;
         };
-        let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone) else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref().map(Arc::clone) else {
             return false;
         };
         let Ok(mut manager) = manager.lock() else {
@@ -28,24 +28,27 @@ impl WorldSession {
             return false;
         };
         drop(manager);
-        self.player_handle_like_cpp = Some(handle);
-        self.player_identity_bootstrap_like_cpp = None;
+        self.core.player_handle_like_cpp = Some(handle);
+        self.core.player_identity_bootstrap_like_cpp = None;
         self.with_owned_player_like_cpp(Player::guid) == Some(guid)
     }
     #[cfg(test)]
     pub(crate) fn id_generators_for_test_like_cpp(&self) -> SessionIdGeneratorsLikeCpp {
         let defaults = SessionIdGeneratorsLikeCpp::default();
         SessionIdGeneratorsLikeCpp {
-            player: self.guid_generator.clone().unwrap_or(defaults.player),
+            player: self.core.guid_generator.clone().unwrap_or(defaults.player),
             item: self
+                .core
                 .item_guid_generator_like_cpp
                 .clone()
                 .unwrap_or(defaults.item),
             equipment_set: self
+                .core
                 .equipment_set_guid_generator_like_cpp
                 .clone()
                 .unwrap_or(defaults.equipment_set),
             void_storage_item: self
+                .core
                 .void_storage_item_id_generator_like_cpp
                 .clone()
                 .unwrap_or(defaults.void_storage_item),
@@ -53,11 +56,11 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn emotes_store_for_test_like_cpp(&self) -> Option<&Arc<EmotesStore>> {
-        self.emotes_store.as_ref()
+        self.catalogs.emotes_store.as_ref()
     }
     #[cfg(test)]
     pub(crate) fn emotes_text_store_for_test_like_cpp(&self) -> Option<&Arc<EmotesTextStore>> {
-        self.emotes_text_store.as_ref()
+        self.catalogs.emotes_text_store.as_ref()
     }
     #[cfg(test)]
     pub(crate) fn player_bootstrap_catalogs_for_test_like_cpp(
@@ -65,30 +68,36 @@ impl WorldSession {
     ) -> PlayerBootstrapCatalogsLikeCpp {
         let mut catalogs = PlayerBootstrapCatalogsLikeCpp::default();
         if let Some(store) = &self
+            .catalogs
             .player_bootstrap_catalog_test_fixture_like_cpp
             .player_create_info_store_like_cpp
         {
             catalogs.create_info = Arc::clone(store);
         }
         if let Some(store) = &self
+            .catalogs
             .player_bootstrap_catalog_test_fixture_like_cpp
             .player_create_cast_spell_store_like_cpp
         {
             catalogs.cast_spells = Arc::clone(store);
         }
         if let Some(store) = &self
+            .catalogs
             .player_bootstrap_catalog_test_fixture_like_cpp
             .player_create_custom_spell_store_like_cpp
         {
             catalogs.custom_spells = Arc::clone(store);
         }
         catalogs.start_all_spells = self
+            .catalogs
             .player_bootstrap_catalog_test_fixture_like_cpp
             .start_all_spells_like_cpp;
         catalogs.start_all_explored = self
+            .catalogs
             .player_bootstrap_catalog_test_fixture_like_cpp
             .start_all_explored_like_cpp;
         catalogs.start_all_reputation = self
+            .catalogs
             .player_bootstrap_catalog_test_fixture_like_cpp
             .start_all_reputation_like_cpp;
         catalogs
@@ -97,12 +106,15 @@ impl WorldSession {
     pub(crate) fn player_rest_rate_policy_for_test_like_cpp(&self) -> PlayerRestRatePolicyLikeCpp {
         PlayerRestRatePolicyLikeCpp {
             offline_wilderness: self
+                .progression
                 .rest_mgr_test_fixture_like_cpp
                 .rest_offline_wilderness_rate_like_cpp,
             offline_tavern_or_city: self
+                .progression
                 .rest_mgr_test_fixture_like_cpp
                 .rest_offline_tavern_or_city_rate_like_cpp,
             ingame: self
+                .progression
                 .rest_mgr_test_fixture_like_cpp
                 .rest_ingame_rate_like_cpp,
         }
@@ -110,46 +122,50 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn chat_policy_catalogs_for_test_like_cpp(&self) -> ChatPolicyCatalogsLikeCpp {
         ChatPolicyCatalogsLikeCpp {
-            addon_channel: self.addon_channel_like_cpp,
-            fake_message_preventing: self.chat_fake_message_preventing_like_cpp,
-            strict_link_checking_kick: self.chat_strict_link_checking_kick_like_cpp,
-            level_requirements: self.chat_level_requirements_like_cpp,
-            listen_ranges: self.chat_listen_ranges_like_cpp,
-            flood: self.chat_flood_config_like_cpp,
-            party_raid_warnings: self.party_raid_warnings_like_cpp,
+            addon_channel: self.config.addon_channel_like_cpp,
+            fake_message_preventing: self.config.chat_fake_message_preventing_like_cpp,
+            strict_link_checking_kick: self.config.chat_strict_link_checking_kick_like_cpp,
+            level_requirements: self.config.chat_level_requirements_like_cpp,
+            listen_ranges: self.config.chat_listen_ranges_like_cpp,
+            flood: self.config.chat_flood_config_like_cpp,
+            party_raid_warnings: self.config.party_raid_warnings_like_cpp,
         }
     }
     #[cfg(test)]
     pub(crate) fn tact_key_store_for_test_like_cpp(&self) -> Option<&Arc<TactKeyStore>> {
-        self.tact_key_store.as_ref()
+        self.catalogs.tact_key_store.as_ref()
     }
     #[cfg(test)]
     pub(crate) fn area_trigger_catalogs_for_test_like_cpp(&self) -> AreaTriggerCatalogsLikeCpp {
         AreaTriggerCatalogsLikeCpp {
             db2: self
+                .catalogs
                 .area_trigger_db2_store
                 .clone()
                 .unwrap_or_else(|| Arc::new(AreaTriggerDb2Store::from_entries([]))),
             destinations: self
+                .catalogs
                 .area_trigger_store
                 .clone()
                 .unwrap_or_else(|| Arc::new(AreaTriggerStore::default())),
             scripts: self
+                .catalogs
                 .area_trigger_script_store
                 .clone()
                 .unwrap_or_else(|| Arc::new(AreaTriggerScriptStoreLikeCpp::default())),
             taverns: self
+                .catalogs
                 .tavern_area_trigger_store
                 .clone()
                 .unwrap_or_else(|| Arc::new(TavernAreaTriggerStoreLikeCpp::default())),
-            script_dispatcher: self.area_trigger_script_dispatcher_like_cpp.clone(),
+            script_dispatcher: self.config.area_trigger_script_dispatcher_like_cpp.clone(),
         }
     }
     #[cfg(test)]
     pub(crate) fn battlemaster_list_store_for_test_like_cpp(
         &self,
     ) -> Option<&Arc<BattlemasterListStore>> {
-        self.battlemaster_list_store.as_ref()
+        self.catalogs.battlemaster_list_store.as_ref()
     }
     #[cfg(test)]
     pub(crate) fn set_represented_cinematic_like_cpp_for_test(
@@ -172,38 +188,45 @@ impl WorldSession {
     pub(crate) fn support_feature_policy_for_test_like_cpp(&self) -> SupportFeaturePolicyLikeCpp {
         SupportFeaturePolicyLikeCpp {
             support_enabled: self
+                .interaction
                 .support_feature_test_fixture_like_cpp
                 .represented_support_enabled_like_cpp,
             tickets_enabled: self
+                .interaction
                 .support_feature_test_fixture_like_cpp
                 .represented_support_tickets_enabled_like_cpp,
             bugs_enabled: self
+                .interaction
                 .support_feature_test_fixture_like_cpp
                 .represented_support_bugs_enabled_like_cpp,
             complaints_enabled: self
+                .interaction
                 .support_feature_test_fixture_like_cpp
                 .represented_support_complaints_enabled_like_cpp,
             suggestions_enabled: self
+                .interaction
                 .support_feature_test_fixture_like_cpp
                 .represented_support_suggestions_enabled_like_cpp,
-            character_undelete_enabled: self.feature_system_character_undelete_enabled_like_cpp,
-            bpay_store_enabled: self.feature_system_bpay_store_enabled_like_cpp,
-            max_characters_per_realm: self.characters_per_realm_like_cpp,
-            declined_names_used: self.declined_names_used_like_cpp,
+            character_undelete_enabled: self
+                .config
+                .feature_system_character_undelete_enabled_like_cpp,
+            bpay_store_enabled: self.config.feature_system_bpay_store_enabled_like_cpp,
+            max_characters_per_realm: self.config.characters_per_realm_like_cpp,
+            declined_names_used: self.config.declined_names_used_like_cpp,
         }
     }
     #[cfg(test)]
     pub(crate) fn set_loot_money_persistence_test_result_like_cpp(&mut self, success: bool) {
-        self.loot_money_persistence_test_result_like_cpp = Some(success);
+        self.lifecycle.loot_money_persistence_test_result_like_cpp = Some(success);
     }
     #[cfg(test)]
     pub(crate) fn clear_loot_money_persistence_test_result_like_cpp(&mut self) {
-        self.loot_money_persistence_test_result_like_cpp = None;
+        self.lifecycle.loot_money_persistence_test_result_like_cpp = None;
     }
     pub(crate) fn loot_money_persistence_test_result_for_worker_like_cpp(&self) -> Option<bool> {
         #[cfg(test)]
         {
-            self.loot_money_persistence_test_result_like_cpp
+            self.lifecycle.loot_money_persistence_test_result_like_cpp
         }
         #[cfg(not(test))]
         {
@@ -371,20 +394,21 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn progression_catalogs_for_test_like_cpp(&self) -> ProgressionCatalogsLikeCpp {
         let mut catalogs = ProgressionCatalogsLikeCpp::default();
-        if let Some(table) = &self.player_xp_table {
+        if let Some(table) = &self.catalogs.player_xp_table {
             catalogs.player_xp = Arc::clone(table);
         }
-        if let Some(store) = &self.exploration_base_xp_store {
+        if let Some(store) = &self.catalogs.exploration_base_xp_store {
             catalogs.exploration_base_xp = Arc::clone(store);
         }
-        catalogs.exploration_xp_rate = self.exploration_xp_rate_like_cpp;
-        catalogs.min_discovered_scaled_xp_ratio = self.min_discovered_scaled_xp_ratio_like_cpp;
+        catalogs.exploration_xp_rate = self.config.exploration_xp_rate_like_cpp;
+        catalogs.min_discovered_scaled_xp_ratio =
+            self.config.min_discovered_scaled_xp_ratio_like_cpp;
         catalogs
     }
     pub(in crate::session) fn player_bootstrap_attached_for_test_like_cpp(&self) -> bool {
         #[cfg(test)]
         {
-            return self.player_bootstrap_attached_like_cpp;
+            return self.core.player_bootstrap_attached_like_cpp;
         }
         #[cfg(not(test))]
         {
@@ -393,7 +417,7 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn install_detached_canonical_player_for_test_like_cpp(&mut self) -> bool {
-        let Some(position) = self.player_position else {
+        let Some(position) = self.movement.player_position else {
             return false;
         };
         self.install_detached_canonical_player_from_session_like_cpp(position)

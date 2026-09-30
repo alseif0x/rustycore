@@ -53,10 +53,10 @@ impl WorldSession {
             return;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            self.cuf_profiles_like_cpp =
+        if self.core.player_handle_like_cpp.is_none() {
+            self.presentation.cuf_profiles_like_cpp =
                 vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
-            self.cuf_profiles_loaded_like_cpp = false;
+            self.presentation.cuf_profiles_loaded_like_cpp = false;
         }
     }
 
@@ -64,6 +64,6 @@ impl WorldSession {
     pub(crate) fn represented_cuf_profiles_like_cpp(
         &self,
     ) -> &[Option<wow_packet::packets::misc::CufProfile>] {
-        &self.cuf_profiles_like_cpp
+        &self.presentation.cuf_profiles_like_cpp
     }
 }

@@ -52,7 +52,7 @@ impl WorldSession {
         let (Some(guid), Some(pos), Some(reg)) = (
             self.player_guid(),
             self.player_position_like_cpp(),
-            &self.player_registry,
+            &self.core.player_registry,
         ) else {
             return;
         };
@@ -68,7 +68,7 @@ impl WorldSession {
             .unwrap_or(0);
         let _ = reg.publish_movement_for_control_channel(
             guid,
-            &self.session_command_tx,
+            &self.core.session_command_tx,
             crate::session::directory::PlayerMovementDirectoryUpdate {
                 position: pos,
                 map_id,
@@ -95,9 +95,10 @@ impl WorldSession {
                 #[cfg(test)]
                 {
                     return self
+                        .core
                         .player_handle_like_cpp
                         .is_none()
-                        .then_some(self.player_collision_height_like_cpp);
+                        .then_some(self.movement.player_collision_height_like_cpp);
                 }
                 #[cfg(not(test))]
                 {
@@ -161,7 +162,7 @@ impl WorldSession {
         }
         .to_bytes();
         if self.send_tx().send(self_packet).is_err() {
-            warn!("Send channel closed for account {}", self.account_id);
+            warn!("Send channel closed for account {}", self.core.account_id);
         }
 
         let Some(status) = self.current_player_movement_info_like_cpp(player_guid) else {
@@ -189,10 +190,11 @@ impl WorldSession {
         let mut seen = std::collections::HashSet::new();
         let mut sent = 0;
         for guid in removable_guids {
-            if !seen.insert(guid) || !self.client_visible_guids_like_cpp.contains(&guid) {
+            if !seen.insert(guid) || !self.core.client_visible_guids_like_cpp.contains(&guid) {
                 continue;
             }
             if !self
+                .visibility
                 .represented_capture_point_removed_delivered_like_cpp
                 .insert((map_id, instance_id, update_generation, guid))
             {

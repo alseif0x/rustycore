@@ -45,6 +45,7 @@ async fn summon_object_live_spell_requires_focus_waits_for_search_spell_focus_li
 
     assert!(
         session
+            .core
             .client_visible_guids_like_cpp
             .snapshot_like_cpp()
             .into_iter()
@@ -173,6 +174,7 @@ async fn summon_object_live_spell_requires_focus_allows_matching_focus_aura_like
     let manager = canonical.lock().unwrap();
     let managed = manager.find_map(571, 0).expect("canonical map");
     let summoned_guid = session
+        .core
         .client_visible_guids_like_cpp
         .snapshot_like_cpp()
         .into_iter()
@@ -318,6 +320,7 @@ async fn generic_apply_aura_single_effect_row_applies_like_cpp() {
         .expect("single represented generic apply-aura effect row should execute");
 
     let aura = session
+        .auras
         .visible_auras
         .values()
         .find(|aura| aura.spell_id == spell_id)
@@ -342,7 +345,7 @@ async fn generic_apply_aura_retains_cast_provenance_on_the_canonical_unit_like_c
     let (mut session, _, _) = make_session();
     let spell_id = 727_i32;
     let player_guid = ObjectGuid::create_player(1, 7032);
-    session.player_guid = Some(player_guid);
+    session.core.player_guid = Some(player_guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(
@@ -412,7 +415,7 @@ async fn creature_apply_aura_retains_cast_provenance_on_the_canonical_unit_like_
     let creature_guid = test_creature_guid(7_035);
     let position = Position::new(5.0, 5.0, 0.0, 0.0);
     let canonical = shared_canonical_map_manager();
-    session.player_guid = Some(player_guid);
+    session.core.player_guid = Some(player_guid);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 0);
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
@@ -537,6 +540,7 @@ async fn generic_owned_aura_cancel_removes_single_effect_row_like_cpp() {
     assert_eq!(removed, 1);
     assert!(
         !session
+            .auras
             .visible_auras
             .values()
             .any(|aura| aura.spell_id == spell_id)
@@ -600,6 +604,7 @@ async fn generic_owned_aura_cancel_preserves_passive_spell_like_cpp() {
     assert_eq!(removed, 0);
     assert!(
         session
+            .auras
             .visible_auras
             .values()
             .any(|aura| aura.spell_id == spell_id)
@@ -668,7 +673,7 @@ async fn generic_apply_aura_multi_row_waits_for_effect_mask_grouping_like_cpp() 
         "special represented aura row still executes"
     );
     assert_eq!(
-        session.visible_auras.len(),
+        session.auras.visible_auras.len(),
         1,
         "C++ groups apply-aura rows through one AuraApplication effect mask; Rust must not fabricate a second generic slot"
     );
@@ -729,6 +734,7 @@ async fn battle_pet_xp_pct_aura_registers_cpp_multiplier_like_cpp() {
         .expect("represented battle-pet XP aura should execute");
 
     let aura = session
+        .auras
         .visible_auras
         .values()
         .find(|aura| aura.spell_id == spell_id)

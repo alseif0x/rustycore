@@ -302,7 +302,7 @@ impl WorldSession {
                 difficulty_store,
             );
         }
-        let Some(manager) = self.map_manager.as_ref() else {
+        let Some(manager) = self.core.map_manager.as_ref() else {
             return 0;
         };
         let difficulty_id = self.current_map_difficulty_id_like_cpp();
@@ -353,7 +353,7 @@ impl WorldSession {
             let (health, max_health, _) = self.resolved_player_vitals_like_cpp()?;
             return Some(100.0 * health as f32 / max_health.max(1) as f32);
         }
-        let manager = self.map_manager.as_ref()?;
+        let manager = self.core.map_manager.as_ref()?;
         let instance_id = self
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
@@ -374,7 +374,7 @@ impl WorldSession {
         &self,
         target_guid: ObjectGuid,
     ) -> u32 {
-        let Some(manager) = self.map_manager.as_ref() else {
+        let Some(manager) = self.core.map_manager.as_ref() else {
             return 0;
         };
         let instance_id = self
@@ -615,6 +615,7 @@ impl WorldSession {
     fn represented_spell_school_mask_like_cpp(&self, spell_id: i32) -> Option<u8> {
         let spell_id = u32::try_from(spell_id).ok()?;
         let entry = self
+            .catalogs
             .spell_catalogs
             .spell_misc_store()?
             .get_by_spell_id(spell_id)?;

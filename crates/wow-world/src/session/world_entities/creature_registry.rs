@@ -454,13 +454,17 @@ impl WorldSession {
                 }
             }
         }
-        let canonical_health_owner = self.canonical_map_manager.as_ref().and_then(|manager| {
-            let manager = manager.lock().ok()?;
-            manager
-                .find_map(u32::from(map_id), 0)?
-                .map()
-                .with_creature_like_cpp(guid, |current| current.unit().clone())
-        });
+        let canonical_health_owner = self
+            .core
+            .canonical_map_manager
+            .as_ref()
+            .and_then(|manager| {
+                let manager = manager.lock().ok()?;
+                manager
+                    .find_map(u32::from(map_id), 0)?
+                    .map()
+                    .with_creature_like_cpp(guid, |current| current.unit().clone())
+            });
         if let Some(current_unit) = canonical_health_owner {
             // When a canonical object pre-exists (for example grid loading
             // racing legacy registration), seed the compatibility mirror from
@@ -471,9 +475,9 @@ impl WorldSession {
                 .preserve_authoritative_health_state_for_snapshot_like_cpp(&current_unit);
         }
 
-        if let Some(manager) = &self.map_manager {
+        if let Some(manager) = &self.core.map_manager {
             let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
-            let waypoint_path_resolver = self.waypoint_path_resolver_like_cpp.clone();
+            let waypoint_path_resolver = self.catalogs.waypoint_path_resolver_like_cpp.clone();
             let mut world_creature = crate::map_manager::WorldCreature::from_canonical(
                 canonical_creature,
                 create_data.clone(),
@@ -502,7 +506,7 @@ impl WorldSession {
         map_id: u16,
         creature: wow_entities::Creature,
     ) -> Option<CanonicalCreatureInsertOutcomeLikeCpp> {
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
             return None;
         };
         insert_canonical_creature_map_object_on_map_like_cpp(
@@ -517,7 +521,7 @@ impl WorldSession {
         guid: ObjectGuid,
     ) -> Option<crate::map_manager::WorldCreature> {
         let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        let manager = self.map_manager.as_ref().cloned()?;
+        let manager = self.core.map_manager.as_ref().cloned()?;
         let removed = {
             let mut manager = manager
                 .write()
@@ -534,7 +538,7 @@ impl WorldSession {
     }
     fn remove_canonical_creature_map_object_like_cpp(&mut self, guid: ObjectGuid) {
         let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
             return;
         };
         remove_canonical_creature_map_object_on_map_like_cpp(
@@ -550,7 +554,7 @@ impl WorldSession {
         position: wow_core::Position,
     ) {
         let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
             return;
         };
         relocate_canonical_creature_map_object_on_map_like_cpp(
@@ -569,7 +573,7 @@ impl WorldSession {
         let expected_legacy_authority = creature.loot_authority_like_cpp().clone();
         let expected_legacy_stamp = expected_legacy_authority.stamp_like_cpp();
         let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
+        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
             return;
         };
         let authority = sync_canonical_creature_entity_on_map_like_cpp(
@@ -593,7 +597,7 @@ impl WorldSession {
     {
         let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
         let mut f = Some(f);
-        if let Some(manager) = self.map_manager.as_ref().cloned() {
+        if let Some(manager) = self.core.map_manager.as_ref().cloned() {
             let result = {
                 let mut manager = manager
                     .write()

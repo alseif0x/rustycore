@@ -113,8 +113,8 @@ async fn loot_unit_valid_target_removes_looting_interrupt_auras_like_cpp() {
 
     session.handle_loot_unit(loot_unit_packet(loot_guid)).await;
 
-    assert!(!session.visible_auras.contains_key(&3));
-    assert!(session.visible_auras.contains_key(&4));
+    assert!(!session.auras.visible_auras.contains_key(&3));
+    assert!(session.auras.visible_auras.contains_key(&4));
 }
 #[tokio::test]
 async fn loot_roll_need_vote_broadcasts_immediate_roll_like_cpp() {
@@ -134,7 +134,7 @@ async fn loot_roll_need_vote_broadcasts_immediate_roll_like_cpp() {
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    session.loot_table.insert(
+    session.loot.loot_table.insert(
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object,

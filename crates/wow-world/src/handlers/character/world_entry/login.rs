@@ -134,7 +134,7 @@ impl WorldSession {
             usable_character_homebind_like_cpp(
                 *homebind,
                 self.map_store().map(Arc::as_ref),
-                self.expansion,
+                self.core.expansion,
             )
         });
         let first_login = at_login_flags & 0x020 != 0;

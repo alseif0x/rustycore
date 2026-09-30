@@ -112,7 +112,7 @@ impl WorldSession {
             })
         } else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 player_guid = ?self.player_guid(),
                 "Skipping represented player spell save because PlayerSpellMap was not loaded coherently"
             );
@@ -139,7 +139,7 @@ impl WorldSession {
                 })
         } else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 player_guid = ?self.player_guid(),
                 "Skipping represented player skill save because complete character_skills slot authority is unavailable"
             );
@@ -172,7 +172,7 @@ impl WorldSession {
             )
         } else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 player_guid = ?self.player_guid(),
                 "Skipping represented player glyph save because character_glyphs was not loaded coherently"
             );
@@ -206,7 +206,7 @@ impl WorldSession {
             Some(rows)
         } else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 player_guid = ?self.player_guid(),
                 "Skipping represented player talent save because character_talent was not loaded coherently"
             );
@@ -239,7 +239,7 @@ impl WorldSession {
             )
         } else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 player_guid = ?self.player_guid(),
                 "Skipping represented player spell cooldown save because character_spell_cooldown was not loaded coherently"
             );
@@ -273,7 +273,7 @@ impl WorldSession {
             )
         } else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 player_guid = ?self.player_guid(),
                 "Skipping represented player spell charge save because character_spell_charges was not loaded coherently"
             );
@@ -304,7 +304,7 @@ impl WorldSession {
             })
         } else {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 player_guid = ?self.player_guid(),
                 "Skipping represented player action-button save because character_action was not loaded coherently"
             );
@@ -357,7 +357,7 @@ impl WorldSession {
             ),
             _ => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     player_guid = ?self.player_guid(),
                     "Skipping represented equipment-set save because canonical Player authority was unavailable or character_equipmentsets/character_transmog_outfits were not loaded coherently"
                 );
@@ -388,7 +388,7 @@ impl WorldSession {
             ),
             _ => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     player_guid = ?self.player_guid(),
                     "Skipping represented void-storage save because canonical Player authority was unavailable or character_void_storage was not loaded coherently"
                 );
@@ -410,7 +410,7 @@ impl WorldSession {
                 })
             } else {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "Skipping SaveTutorialsData because tutorial data was not loaded coherently"
                 );
                 None
@@ -420,6 +420,7 @@ impl WorldSession {
         };
 
         let instance_lock_times = self
+            .instances
             .represented_instance_reset_times_like_cpp
             .iter()
             .map(
@@ -473,7 +474,7 @@ impl WorldSession {
             ),
             _ => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     player_guid = ?self.player_guid(),
                     "Skipping represented CUF profile save because canonical character_cuf_profiles authority was unavailable or not loaded coherently"
                 );
@@ -483,7 +484,7 @@ impl WorldSession {
 
         Some(PlayerCharacterSaveRequestLikeCpp {
             player_guid: guid_counter,
-            account_id: self.account_id,
+            account_id: self.core.account_id,
             wall_clock_unix_secs: now_unix_secs,
             character,
             spells,
@@ -520,7 +521,7 @@ impl WorldSession {
 
     fn mark_player_skills_saved_like_cpp(&mut self) {
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        if self.core.player_handle_like_cpp.is_none() {
             self.fixture_mark_player_skills_saved_like_cpp();
             return;
         }

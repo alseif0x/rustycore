@@ -32,18 +32,22 @@ fn update_visible_gameobjects_sends_dynamic_flags_for_active_objective_like_cpp(
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![0],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -62,16 +66,20 @@ fn update_visible_gameobjects_sends_dynamic_flags_for_active_objective_like_cpp(
         Position::new(12.0, 0.0, 0.0, 0.0),
     );
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_gameobject_use_states.insert(
-        gameobject_guid,
-        RepresentedGameObjectUseState {
-            go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
-            loot_state: Some(wow_entities::LootState::Ready),
-            ..Default::default()
-        },
-    );
+    session
+        .world_entities
+        .represented_gameobject_use_states
+        .insert(
+            gameobject_guid,
+            RepresentedGameObjectUseState {
+                go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
+                loot_state: Some(wow_entities::LootState::Ready),
+                ..Default::default()
+            },
+        );
 
     assert_eq!(session.update_visible_gameobjects_like_cpp(), 1);
     assert_eq!(
@@ -122,15 +130,19 @@ fn update_visible_gameobjects_questgiver_future_status_does_not_activate_like_cp
         Position::new(12.0, 0.0, 0.0, 0.0),
     );
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_gameobject_use_states.insert(
-        gameobject_guid,
-        RepresentedGameObjectUseState {
-            go_type: Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8),
-            ..Default::default()
-        },
-    );
+    session
+        .world_entities
+        .represented_gameobject_use_states
+        .insert(
+            gameobject_guid,
+            RepresentedGameObjectUseState {
+                go_type: Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8),
+                ..Default::default()
+            },
+        );
 
     assert_eq!(session.update_visible_gameobjects_like_cpp(), 1);
     assert_eq!(
@@ -213,18 +225,22 @@ fn update_visible_gameobjects_sends_dynamic_flags_for_chest_quest_loot_reference
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![0],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -243,20 +259,24 @@ fn update_visible_gameobjects_sends_dynamic_flags_for_chest_quest_loot_reference
         Position::new(12.0, 0.0, 0.0, 0.0),
     );
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_gameobject_use_states.insert(
-        gameobject_guid,
-        RepresentedGameObjectUseState {
-            go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
-            loot_state: Some(wow_entities::LootState::Ready),
-            chest_loot_source: Some(wow_entities::GameObjectLootSource {
-                loot_id,
+    session
+        .world_entities
+        .represented_gameobject_use_states
+        .insert(
+            gameobject_guid,
+            RepresentedGameObjectUseState {
+                go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
+                loot_state: Some(wow_entities::LootState::Ready),
+                chest_loot_source: Some(wow_entities::GameObjectLootSource {
+                    loot_id,
+                    ..Default::default()
+                }),
                 ..Default::default()
-            }),
-            ..Default::default()
-        },
-    );
+            },
+        );
 
     assert_eq!(session.update_visible_gameobjects_like_cpp(), 1);
     assert_eq!(
@@ -303,20 +323,24 @@ fn update_visible_gameobjects_gm_chest_without_activation_gets_activate_like_cpp
         Position::new(12.0, 0.0, 0.0, 0.0),
     );
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_gameobject_use_states.insert(
-        gameobject_guid,
-        RepresentedGameObjectUseState {
-            go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
-            loot_state: Some(wow_entities::LootState::Ready),
-            chest_loot_source: Some(wow_entities::GameObjectLootSource {
-                chest_quest_id: quest_id,
+    session
+        .world_entities
+        .represented_gameobject_use_states
+        .insert(
+            gameobject_guid,
+            RepresentedGameObjectUseState {
+                go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
+                loot_state: Some(wow_entities::LootState::Ready),
+                chest_loot_source: Some(wow_entities::GameObjectLootSource {
+                    chest_quest_id: quest_id,
+                    ..Default::default()
+                }),
                 ..Default::default()
-            }),
-            ..Default::default()
-        },
-    );
+            },
+        );
 
     assert_eq!(session.update_visible_gameobjects_like_cpp(), 1);
     assert_eq!(
@@ -359,19 +383,23 @@ fn update_visible_gameobjects_gm_goober_without_activation_gets_activate_like_cp
         Position::new(12.0, 0.0, 0.0, 0.0),
     );
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_gameobject_use_states.insert(
-        gameobject_guid,
-        RepresentedGameObjectUseState {
-            go_type: Some(wow_entities::GAMEOBJECT_TYPE_GOOBER as u8),
-            goober_use_source: Some(wow_entities::GooberUseSource {
-                quest_id,
+    session
+        .world_entities
+        .represented_gameobject_use_states
+        .insert(
+            gameobject_guid,
+            RepresentedGameObjectUseState {
+                go_type: Some(wow_entities::GAMEOBJECT_TYPE_GOOBER as u8),
+                goober_use_source: Some(wow_entities::GooberUseSource {
+                    quest_id,
+                    ..Default::default()
+                }),
                 ..Default::default()
-            }),
-            ..Default::default()
-        },
-    );
+            },
+        );
 
     assert_eq!(session.update_visible_gameobjects_like_cpp(), 1);
     assert_eq!(
@@ -435,18 +463,22 @@ fn update_visible_gameobjects_sends_dynamic_flags_for_gathering_node_quest_loot_
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![0],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -465,17 +497,21 @@ fn update_visible_gameobjects_sends_dynamic_flags_for_gathering_node_quest_loot_
         Position::new(12.0, 0.0, 0.0, 0.0),
     );
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_gameobject_use_states.insert(
-        gameobject_guid,
-        RepresentedGameObjectUseState {
-            go_type: Some(wow_entities::GAMEOBJECT_TYPE_GATHERING_NODE as u8),
-            go_state: Some(wow_entities::GoState::Ready),
-            gathering_node_loot_id: Some(loot_id),
-            ..Default::default()
-        },
-    );
+    session
+        .world_entities
+        .represented_gameobject_use_states
+        .insert(
+            gameobject_guid,
+            RepresentedGameObjectUseState {
+                go_type: Some(wow_entities::GAMEOBJECT_TYPE_GATHERING_NODE as u8),
+                go_state: Some(wow_entities::GoState::Ready),
+                gathering_node_loot_id: Some(loot_id),
+                ..Default::default()
+            },
+        );
 
     assert_eq!(session.update_visible_gameobjects_like_cpp(), 1);
     assert_eq!(
@@ -516,7 +552,7 @@ fn update_visible_gameobjects_adds_no_interact_for_failed_player_condition_like_
         description: String::new(),
     });
 
-    session.player_class = 1;
+    session.identity.player_class = 1;
     session.set_player_guid(Some(player_guid));
     session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries([
         wow_data::PlayerConditionEntry {
@@ -528,18 +564,22 @@ fn update_visible_gameobjects_adds_no_interact_for_failed_player_condition_like_
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![0],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -558,17 +598,21 @@ fn update_visible_gameobjects_adds_no_interact_for_failed_player_condition_like_
         Position::new(12.0, 0.0, 0.0, 0.0),
     );
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_gameobject_use_states.insert(
-        gameobject_guid,
-        RepresentedGameObjectUseState {
-            go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
-            loot_state: Some(wow_entities::LootState::Ready),
-            condition_id1: Some(condition_id),
-            ..Default::default()
-        },
-    );
+    session
+        .world_entities
+        .represented_gameobject_use_states
+        .insert(
+            gameobject_guid,
+            RepresentedGameObjectUseState {
+                go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
+                loot_state: Some(wow_entities::LootState::Ready),
+                condition_id1: Some(condition_id),
+                ..Default::default()
+            },
+        );
 
     assert_eq!(session.update_visible_gameobjects_like_cpp(), 1);
     assert_eq!(
@@ -612,16 +656,20 @@ fn update_visible_gameobjects_skips_unknown_quest_gameobject_like_cpp() {
         Position::new(12.0, 0.0, 0.0, 0.0),
     );
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_gameobject_use_states.insert(
-        gameobject_guid,
-        RepresentedGameObjectUseState {
-            go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
-            loot_state: Some(wow_entities::LootState::Ready),
-            ..Default::default()
-        },
-    );
+    session
+        .world_entities
+        .represented_gameobject_use_states
+        .insert(
+            gameobject_guid,
+            RepresentedGameObjectUseState {
+                go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
+                loot_state: Some(wow_entities::LootState::Ready),
+                ..Default::default()
+            },
+        );
 
     assert_eq!(session.update_visible_gameobjects_like_cpp(), 0);
     assert!(send_rx.try_recv().is_err());
@@ -685,18 +733,22 @@ async fn accept_invite_to_raid_group_triggers_visible_gameobject_refresh_like_cp
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![0],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -715,16 +767,20 @@ async fn accept_invite_to_raid_group_triggers_visible_gameobject_refresh_like_cp
         Position::new(12.0, 0.0, 0.0, 0.0),
     );
     session
+        .core
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
-    session.represented_gameobject_use_states.insert(
-        gameobject_guid,
-        RepresentedGameObjectUseState {
-            go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
-            loot_state: Some(wow_entities::LootState::Ready),
-            ..Default::default()
-        },
-    );
+    session
+        .world_entities
+        .represented_gameobject_use_states
+        .insert(
+            gameobject_guid,
+            RepresentedGameObjectUseState {
+                go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
+                loot_state: Some(wow_entities::LootState::Ready),
+                ..Default::default()
+            },
+        );
 
     let mut pkt = wow_packet::WorldPacket::new_empty();
     pkt.write_bit(false);
@@ -734,7 +790,7 @@ async fn accept_invite_to_raid_group_triggers_visible_gameobject_refresh_like_cp
     pkt.reset_read();
     session.handle_party_invite_response(pkt).await;
 
-    assert_eq!(session.group_guid, Some(group_guid));
+    assert_eq!(session.social.group_guid, Some(group_guid));
     assert!(
         group_registry
             .get(&group_guid)
@@ -788,18 +844,22 @@ async fn creature_kill_tracking_event_objective_auto_rewards_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session.quest_test_fixture_like_cpp.player_quests.insert(
-        quest_id,
-        crate::handlers::quest::PlayerQuestStatus {
+    session
+        .quest_state
+        .quest_test_fixture_like_cpp
+        .player_quests
+        .insert(
             quest_id,
-            status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: vec![0],
-            slot: 0,
-        },
-    );
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
 
     adopt_player_quest_fixture_into_canonical_owner_like_cpp(&mut session);
     session

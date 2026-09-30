@@ -11,7 +11,8 @@ impl WorldSession {
         creature: &wow_entities::Creature,
     ) -> Option<AttackReputationFactionSnapshotLikeCpp> {
         let faction_template_id = u32::try_from(creature.unit().data().faction_template).ok()?;
-        self.factions
+        self.catalogs
+            .factions
             .template_store
             .as_ref()
             .and_then(|store| store.get(faction_template_id))
@@ -20,7 +21,7 @@ impl WorldSession {
                 AttackReputationFactionSnapshotLikeCpp {
                     faction_id,
                     contested_guard: entry.is_contested_guard_faction_like_cpp(),
-                    can_have_reputation: self.factions.store.as_ref().and_then(|store| {
+                    can_have_reputation: self.catalogs.factions.store.as_ref().and_then(|store| {
                         store
                             .get(faction_id)
                             .map(|faction| faction.can_have_reputation_like_cpp())
@@ -38,16 +39,18 @@ impl WorldSession {
             })
     }
     pub fn set_reputation_rates_like_cpp(&mut self, rates: ReputationRatesLikeCpp) {
-        self.reputation_rates = rates;
+        self.config.reputation_rates = rates;
     }
     #[cfg(test)]
     pub fn set_start_all_reputation_like_cpp(&mut self, enabled: bool) {
-        self.player_bootstrap_catalog_test_fixture_like_cpp
+        self.catalogs
+            .player_bootstrap_catalog_test_fixture_like_cpp
             .start_all_reputation_like_cpp = enabled;
     }
     #[cfg(test)]
     pub(crate) fn start_all_reputation_like_cpp(&self) -> bool {
-        self.player_bootstrap_catalog_test_fixture_like_cpp
+        self.catalogs
+            .player_bootstrap_catalog_test_fixture_like_cpp
             .start_all_reputation_like_cpp
     }
     pub(crate) fn reputation_price_discount_for_faction_template_like_cpp(
@@ -56,7 +59,7 @@ impl WorldSession {
     ) -> f32 {
         use wow_data::reputation::ReputationRankLikeCpp;
 
-        let Some(faction_template_store) = self.factions.template_store.as_ref() else {
+        let Some(faction_template_store) = self.catalogs.factions.template_store.as_ref() else {
             return 1.0;
         };
         let Some(faction_template) = faction_template_store.get(faction_template_id) else {
@@ -65,7 +68,7 @@ impl WorldSession {
         if faction_template.faction == 0 {
             return 1.0;
         }
-        let Some(faction_store) = self.factions.store.as_ref() else {
+        let Some(faction_store) = self.catalogs.factions.store.as_ref() else {
             return 1.0;
         };
         let Some(faction_entry) = faction_store.get(u32::from(faction_template.faction)) else {
@@ -76,7 +79,7 @@ impl WorldSession {
         // manager lock; the session accessors re-enter it.
         let player_race = self.player_race_like_cpp();
         let player_class = self.player_class_like_cpp();
-        let friendship_rep_reaction_store = self.friendship_rep_reaction_store.as_deref();
+        let friendship_rep_reaction_store = self.catalogs.friendship_rep_reaction_store.as_deref();
         let Some(rank) = self.with_reputation_mgr_like_cpp(|mgr| {
             mgr.rank_for_faction_entry_like_cpp(
                 faction_entry,
@@ -102,6 +105,7 @@ impl WorldSession {
         use wow_data::reputation::ReputationRankLikeCpp;
 
         let Some(faction_template) = self
+            .catalogs
             .factions
             .template_store
             .as_ref()
@@ -113,6 +117,7 @@ impl WorldSession {
             return ReputationRankLikeCpp::Neutral;
         }
         let Some(faction_entry) = self
+            .catalogs
             .factions
             .store
             .as_ref()
@@ -122,7 +127,7 @@ impl WorldSession {
         };
         let player_race = self.player_race_like_cpp();
         let player_class = self.player_class_like_cpp();
-        let friendship_rep_reaction_store = self.friendship_rep_reaction_store.as_deref();
+        let friendship_rep_reaction_store = self.catalogs.friendship_rep_reaction_store.as_deref();
         self.with_reputation_mgr_like_cpp(|mgr| {
             mgr.rank_for_faction_entry_like_cpp(
                 faction_entry,
@@ -134,15 +139,17 @@ impl WorldSession {
         .unwrap_or(ReputationRankLikeCpp::Neutral)
     }
     pub(crate) fn reputation_rates_like_cpp(&self) -> ReputationRatesLikeCpp {
-        self.reputation_rates
+        self.config.reputation_rates
     }
     #[cfg(test)]
     pub(crate) fn reputation_mgr_like_cpp(&self) -> ReputationMgrRefLikeCpp<'_> {
-        ReputationMgrLikeCpp::borrowing_like_cpp(&self.reputation_state_like_cpp)
+        ReputationMgrLikeCpp::borrowing_like_cpp(&self.progression.reputation_state_like_cpp)
     }
     #[cfg(test)]
     pub(crate) fn reputation_mgr_like_cpp_mut(&mut self) -> ReputationMgrMutLikeCpp<'_> {
-        ReputationMgrLikeCpp::borrowing_mut_like_cpp(&mut self.reputation_state_like_cpp)
+        ReputationMgrLikeCpp::borrowing_mut_like_cpp(
+            &mut self.progression.reputation_state_like_cpp,
+        )
     }
     /// Run one C++ `ReputationMgr` read against the Player's own state.
     ///
@@ -162,8 +169,10 @@ impl WorldSession {
             return canonical;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            let manager = ReputationMgrLikeCpp::borrowing_like_cpp(&self.reputation_state_like_cpp);
+        if self.core.player_handle_like_cpp.is_none() {
+            let manager = ReputationMgrLikeCpp::borrowing_like_cpp(
+                &self.progression.reputation_state_like_cpp,
+            );
             return Some(operation.take().expect("reputation operation is available")(&manager));
         }
         None
@@ -187,9 +196,10 @@ impl WorldSession {
             return canonical;
         }
         #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
-            let mut manager =
-                ReputationMgrLikeCpp::borrowing_mut_like_cpp(&mut self.reputation_state_like_cpp);
+        if self.core.player_handle_like_cpp.is_none() {
+            let mut manager = ReputationMgrLikeCpp::borrowing_mut_like_cpp(
+                &mut self.progression.reputation_state_like_cpp,
+            );
             return Some(operation.take().expect("reputation mutation is available")(
                 &mut manager,
             ));
@@ -212,7 +222,7 @@ impl WorldSession {
         reputation_to_rank_like_cpp(
             faction_entry,
             standing,
-            self.friendship_rep_reaction_store.as_deref(),
+            self.catalogs.friendship_rep_reaction_store.as_deref(),
         )
     }
     pub(crate) fn canonical_player_reputation_standing_like_cpp(
@@ -228,17 +238,17 @@ impl WorldSession {
         })
     }
     pub fn set_paragon_reputation_store(&mut self, store: Arc<ParagonReputationStore>) {
-        self.paragon_reputation_store = Some(store);
+        self.catalogs.paragon_reputation_store = Some(store);
         self.initialize_reputation_mgr_like_cpp();
     }
     pub(crate) fn paragon_reputation_store(&self) -> Option<&Arc<ParagonReputationStore>> {
-        self.paragon_reputation_store.as_ref()
+        self.catalogs.paragon_reputation_store.as_ref()
     }
     pub(in crate::session) fn initialize_reputation_mgr_like_cpp(&mut self) {
-        let Some(faction_store) = self.factions.store.clone() else {
+        let Some(faction_store) = self.catalogs.factions.store.clone() else {
             return;
         };
-        let paragon_reputation_store = self.paragon_reputation_store.clone();
+        let paragon_reputation_store = self.catalogs.paragon_reputation_store.clone();
         let race = self.player_race_like_cpp();
         let class = self.player_class_like_cpp();
         let _ = self.mutate_reputation_mgr_like_cpp(|mgr| {
@@ -254,23 +264,23 @@ impl WorldSession {
         &mut self,
         store: Arc<ReputationRewardRateStoreLikeCpp>,
     ) {
-        self.reputation_reward_rate_store = Some(store);
+        self.catalogs.reputation_reward_rate_store = Some(store);
     }
     pub(crate) fn reputation_reward_rate_store(
         &self,
     ) -> Option<&Arc<ReputationRewardRateStoreLikeCpp>> {
-        self.reputation_reward_rate_store.as_ref()
+        self.catalogs.reputation_reward_rate_store.as_ref()
     }
     pub fn set_reputation_spillover_template_store(
         &mut self,
         store: Arc<RepSpilloverTemplateStoreLikeCpp>,
     ) {
-        self.reputation_spillover_template_store = Some(store);
+        self.catalogs.reputation_spillover_template_store = Some(store);
     }
     pub(crate) fn reputation_spillover_template_store(
         &self,
     ) -> Option<&Arc<RepSpilloverTemplateStoreLikeCpp>> {
-        self.reputation_spillover_template_store.as_ref()
+        self.catalogs.reputation_spillover_template_store.as_ref()
     }
     pub(crate) fn apply_represented_first_login_reputation_with_catalogs_like_cpp(
         &mut self,

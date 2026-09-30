@@ -152,7 +152,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "JoinChannel parse failed: {error}"
                 );
                 return;
@@ -167,7 +167,7 @@ impl crate::session::WorldSession {
             }
             JoinChannelPrecheckLikeCpp::PasswordTooLong => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     password_len = request.password.len(),
                     max_password_len = MAX_CHANNEL_PASS_STR_LIKE_CPP,
                     "JoinChannel password too long"
@@ -189,7 +189,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "LeaveChannel parse failed: {error}"
                 );
                 return;
@@ -210,7 +210,7 @@ impl crate::session::WorldSession {
     pub async fn handle_chat_channel_command(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = ChannelCommand::read(&mut pkt) {
             warn!(
-                account = self.account_id,
+                account = self.core.account_id,
                 "ChannelCommand parse failed: {error}"
             );
         }
@@ -227,7 +227,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "ChannelPlayerCommand parse failed: {error}"
                 );
                 return;
@@ -250,7 +250,7 @@ impl crate::session::WorldSession {
             Ok(request) => request,
             Err(error) => {
                 warn!(
-                    account = self.account_id,
+                    account = self.core.account_id,
                     "ChannelPassword parse failed: {error}"
                 );
                 return;
@@ -269,6 +269,6 @@ impl crate::session::WorldSession {
         &mut self,
         _pkt: wow_packet::WorldPacket,
     ) {
-        self.addon_filter.registered_addon_prefixes.clear();
+        self.social.addon_filter.registered_addon_prefixes.clear();
     }
 }
