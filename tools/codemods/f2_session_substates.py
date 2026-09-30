@@ -46,7 +46,8 @@ HEADER = (
     "// Copyright (c) 2026 alseif0x\n"
     "// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html\n\n"
 )
-MARKER = "pub core: SessionCore,"
+# Any visibility: the wrapper is `pub(crate)` since the F2 narrowing.
+MARKER = re.compile(r"^    pub(?:\([^)]*\))? core: SessionCore,$", re.M)
 DROP_ORDER_NOTE = """\
 // Declaration order is drop order (#1241 F2). These side-effecting members must
 // keep this relative order: `core.session_command_tx`/`session_command_rx`
@@ -80,7 +81,7 @@ GROUPS = (
         loaded_player_customizations_like_cpp
     """.split()),
     ('phase', 'SessionPhaseRail', None, None, """
-       
+
     """.split()),
     ('loot', 'LootState', 'loot', 'Loot windows and AE-loot views with their authorities and generations, loot rolls, personal loot money and the loot test hooks.', """
         loot_table represented_loot_cache_generations_like_cpp active_loot_guid
@@ -321,7 +322,7 @@ GROUPS = (
         quest_test_fixture_like_cpp
     """.split()),
     ('view', 'SessionWorldView', None, None, """
-       
+
     """.split()),
 )
 
@@ -559,7 +560,7 @@ def plan() -> dict:
 
 def step1() -> bool:
     text = STATE.read_text(encoding="utf-8")
-    if MARKER in text:
+    if MARKER.search(text):
         return False
     code = blank_noncode(text)
     open_index, close, fields = struct_fields(text, code, re.compile(r"\bpub\s+struct\s+WorldSession\s*\{"))
