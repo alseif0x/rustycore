@@ -10,6 +10,9 @@ La forma objetivo de crates/capas, los presupuestos duros y la secuencia de fase
 distribución de `wow-world` se detallan en
 [wow-world-distribution-plan.md](wow-world-distribution-plan.md); este documento sigue siendo el
 plan técnico general y aquel no lo sustituye.
+El enfoque de esa distribución es ahora #1241 (mover sin copiar, un PR por fase o dominio);
+[wow-world-distribution-plan.md](wow-world-distribution-plan.md) se reescribió como su documento
+de progreso y sustituye el enfoque de #1233.
 
 ## #1233 — descomposición de Session y reglas independientes, 2026-09-22
 

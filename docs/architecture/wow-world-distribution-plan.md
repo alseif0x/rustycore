@@ -1,176 +1,205 @@
-# Plan de distribución de `wow-world` — forma modular estilo AzerothCore
+# Distribución de `wow-world` — programa #1241
 
-**Estado:** programa en ejecución, nivel 1 (implementación sin campañas intermedias; una única
-validación final). **Autoridad:** macro #1233 bajo #584; el plan técnico general sigue siendo
-[refactor-completion-plan.md](refactor-completion-plan.md) y aquí solo se detalla la forma, los
-presupuestos y la secuencia de esta rebanada. **No reclama** paridad, ahorro de build ni cierre
-de issue.
+**Estado:** F0 en curso. **Autoridad:** #1241, hija de #584; el plan técnico general sigue siendo
+[refactor-completion-plan.md](refactor-completion-plan.md). Este documento es el registro de
+progreso del programa y **sustituye** el enfoque anterior de #1233 (una rama, validación
+diferida); no hay un segundo plan activo. **No reclama** paridad, ahorro de build ni cierre de
+issue.
 
-Base medida: `3.4.3` @ `9daa13f6`. Trabajo en la rama `584-wow-world-distribution`.
+Base: `3.4.3` @ `e786ece1`. Una rama y un PR por fase (F0, F1, ...) o por dominio, integrados de
+forma continua en `3.4.3`. La excepción correspondiente de proceso está en
+[AGENTS.md](../../AGENTS.md) ("#1241 wow-world split programme").
 
-El estándar estructural que gobierna estos cortes —capas, nombres, visibilidad, colocación de
-tests, presupuestos y checklist de cambios— es
-[structure-and-conventions.md](structure-and-conventions.md). Regla central de ese estándar: la
-paridad con la referencia C++ es **de lógica**, no de estructura; ningún corte se justifica con
-"en C++ es así".
+Referencia estructural vigente (capas, nombres, visibilidad, colocación de tests, presupuestos):
+[structure-and-conventions.md](structure-and-conventions.md). El orden global del workspace vive
+en [workspace-structure-programme.md](workspace-structure-programme.md).
 
-El orden global —incluidas las olas de saneamiento del resto del workspace y las dependencias
-entre fases— vive en [workspace-structure-programme.md](workspace-structure-programme.md); este
-documento detalla solo `wow-world`.
-
-## 1. Problema, con números
+## 1. Diagnóstico (medido en `3.4.3` @ `e786ece1`)
 
 | medida | valor |
 |---|---:|
-| líneas del workspace (41 crates) | 881 133 |
-| `wow-world` | **422 134 (48 %)**, 767 ficheros |
-| ├ `session/` | 218 146 (369 ficheros; `tests/` 118 498) |
-| ├ `handlers/` | 143 016 (237 ficheros) |
-| └ `handlers/misc/` (vertedero sin dueño) | 21 154 (48 ficheros, 20 módulos) |
-| owner lógico mayor (`session`, según el ratchet) | **223 952 líneas** |
-| bloques `impl WorldSession` | **221**, y **915** referencias al tipo |
-| crates vacíos/stub | 6 (`wow-combat`, `wow-spell`, `wow-achievement`, `wow-pvp`, `wow-scripts`, `world-modules`) |
-| inversiones de dependencia | 5 (`packet→loot/movement`, `data→entities/movement`, `entities→loot`, `map→loot`, `world-modules→world-server`) |
+| líneas `.rs` de `wow-world/src` | ~412 000 |
+| …tests/fixtures dentro de `src` (por ruta) | **224 620 (55 %)**; `session/tests/` solo: 124 918 |
+| …producción | 187 252 |
+| campos de `WorldSession` (`session/state.rs:175`) | **455** (306 con `cfg`) |
+| métodos `impl WorldSession` | **3 834**, en 344 ficheros de producción |
+| `crates/wow-world/tests/` (integración) | 3 016 |
 
-Evidencia interna de que el tamaño no es una opinión: en la medición de #1236 (checkout aislado,
-documentada en ese PR) el fichero `creature_melee_tick.rs` de 1 608 líneas hizo que un worker
-tardara 19 minutos sin editar nada; partido en cuatro módulos, la primera edición llegó a los
-6 minutos.
+La fuente de estas cifras y del mapa de acoplamiento es ahora
+`python3 tools/architecture/wow_world_coupling.py report` (medido en `e786ece1`; incluye los
+bloques `impl crate::session::WorldSession`/`super::` y excluye funciones anidadas); las cifras
+anteriores de la issue (460 campos, 3 625 métodos, 323 ficheros) eran de un prototipo.
 
-Precedente externo: proyectos grandes de Rust trocean **por capas y frecuencia de cambio**, dejan
-la capa de aplicación delgada y usan crates como cerca del compilador (`rustc`, `rust-analyzer`,
-`bevy`, `zed`); un crate de ~250 k líneas se considera problema y se descompone
-([agaric #2878](https://github.com/jfolcini/agaric/issues/2878)), y la forma del workspace afecta
-la latencia de herramientas ([slint #12097](https://github.com/slint-ui/slint/issues/12097)). La
-guía oficial de Rust reserva **módulos** para organizar dentro y **crates** para unidades
-independientes con API propia (The Rust Book, cap. 7).
+**Causa raíz:** los bloques `impl WorldSession` inherentes solo pueden vivir en el crate que define
+`WorldSession`. El código que recibe `&mut WorldSession` no puede salir de `wow-world` por muchos
+submódulos que se creen: partir ficheros dentro del crate no es distribuir.
 
-## 2. Forma objetivo
+**Por qué fallaron los intentos previos** (rama `584-map-manager-domain`, `e786ece1..5b443512`):
 
-### 2.1 Grafo de crates (las flechas solo bajan)
+| crate | base | HEAD | Δ |
+|---|---:|---:|---:|
+| wow-world | 414 888 | 411 286 | **−3 602 (−0,9 %)** |
+| wow-map | 53 516 | 113 049 | +59 533 |
+| wow-entities | 79 797 | 102 228 | +22 431 |
+| world-server | 60 438 | 72 312 | +11 874 |
 
-```
-CAPA 5  composición      world-server · bnet-server
-CAPA 4  aplicación       wow-world            (Session, adaptadores, ticks, publicación)
-CAPA 3  reglas           wow-combat · wow-spell · wow-spell-acquisition · wow-conditions
-        deterministas    wow-loot · wow-quest · wow-items · wow-pets · wow-social
-        sin Session      wow-economy · wow-instances · wow-battlegrounds
-        sin I/O          wow-dungeon-finding · wow-progression · wow-ai · wow-account-collections
-CAPA 2  modelo/estado    wow-entities · wow-map · wow-movement · wow-packet · wow-network
-CAPA 1  datos/durables   wow-data (solo catálogos) · wow-persistence · wow-database
-CAPA 0  base             wow-core · wow-constants · wow-config · wow-crypto · wow-logging
-                         · wow-math · wow-proto
-```
+1. Se construyeron rutas "canónicas" paralelas sin retirar las legadas: se copió en vez de mover.
+2. Mover, rediseñar y documentar se hicieron en el mismo paso.
+3. La validación se difirió al final: 231 commits WIP que no compilan; la puerta de publicación
+   sigue roja (188 entradas obsoletas del baseline de campos de `WorldSession`, crecimiento del
+   ratchet de hotspots, p. ej. +19 025 en el agregado `wow-map/src/map/mod.rs`, y una arista
+   `wow-world -> wow-spell` sin dueño).
 
-Objetivo: **12-14 crates de dominio con contrato real**; el resto de familias de handler son
-**directorios** dentro de la app (como `game/` en AzerothCore o los módulos internos de
-`tokio`/`datafusion`). Ni un crate por carpeta ni un monolito.
+**Mapa de acoplamiento** (ficheros de producción, `3.4.3`):
 
-### 2.2 Skeleton de la aplicación
+- Campos hub (dominios que los usan; van a `SessionCore`): `account_id` (49),
+  `player_handle_like_cpp` (47), `canonical_map_manager` (29), `lifecycle` (24),
+  `client_visible_guids_like_cpp` (16), `state` (16), `spell_catalogs` (15), `player_registry`
+  (14); 19 campos en total con ≥8 dominios. `player_guid` apenas se accede como campo (8 dominios):
+  su uso es el accesor `self.player_guid()`, de `session/player_binding`.
+- Dueños más llamados (llamadas entrantes, base del DAG): `session/player_items` 771,
+  `session/player_binding` 740, `session/publication` 648, `session/canonical_access` 586,
+  `session/instances` 548, `session/spell_state` 407, `session/world_entities` 245,
+  `session/movement` 235, `session/quest` 228, `session/social` 211.
+- Consumidores más pesados (cima): `handlers/character` 1 358, `handlers/loot` 606,
+  `session/spell_effects` 498, `handlers/quest` 335, `handlers/group` 198.
+- Aristas mayores: `character -> player_items` 397, `character -> publication` 196,
+  `loot -> player_items` 132, `quest handlers -> session/quest` 118, `loot -> instances` 93,
+  `group -> social` 74.
 
-```
-wow-world/src/
-├─ session/
-│  ├─ state/         WorldSession + SUB-ESTADOS DUEÑOS (SessionTransport, SessionPlayerAccess,
-│  │                 SessionLoot, SessionSpells, SessionPersistenceFence, SessionCatalogs)
-│  ├─ construction.rs · admission · lifecycle/ · driver/ · persistence/ · publication/
-│  ├─ directory.rs · registry.rs (fuente única de registro de opcodes) · policy.rs
-│  ├─ handlers/      ADAPTADORES por familia de opcode: decode → dominio → aplicar → publicar
-│  └─ tests/         escenarios de integración + fixtures compartidos (test_support)
-└─ runtime/          orquestación de ticks (el estado de mapa pertenece a wow-map)
-```
+## 2. Decisiones aprobadas (usuario, 2026-09-30)
 
-### 2.3 Skeleton de un crate de dominio
+1. Partir de `3.4.3` limpio y aparcar `584-map-manager-domain`; sin rescate commit a commit.
+2. Un PR por fase o dominio, integrado continuamente en `3.4.3`.
+3. **Mover primero, rediseñar después.** Un paso solo-movimiento conserva sus anclas C++ y no
+   requiere nueva re-auditoría C++ ni comparación por helper. Los cambios de comportamiento van a
+   F6 con evidencia de paridad.
+4. Nombres de crate `crates/wow-world-<dominio>`, en el layout plano, crate igual que su carpeta.
 
-```
-wow-<dominio>/src/
-├─ model.rs     datos del dominio (no conoce Session)
-├─ rules/       funciones puras: entradas → decisión o intención
-├─ adapter.rs   puente de importación del consumidor (temporal; se retira al migrar)
-└─ tests/       escenarios focales junto a la regla que prueban
-```
+## 3. Reglas de ejecución
 
-### 2.4 Presupuestos duros (se hacen cumplir, no se revisan)
+- **R1 Mover, nunca copiar.** El mismo commit borra el origen. La comprobación net-move rechaza el
+  PR si `wow-world` no encoge aproximadamente lo que crece el destino.
+- **R2 Sin rediseño dentro de un movimiento.** Sin cambio semántico, sin renombres, sin nueva ruta
+  canónica. Las anclas C++ viajan sin cambios.
+- **R3 Cada paso compila.** Cada PR pasa `cargo check -p wow-world --all-targets` (más el crate del
+  dominio movido) y los tests del dominio movido. Integración continua; sin rama WIP larga.
+- **R4 Codemods, no reescritura a mano.** Ediciones masivas (`self.foo` -> `self.dom.foo`) con
+  scripts guiados por el compilador.
+- **R5 Una métrica pública:** líneas de producción de `wow-world` y número de métodos
+  `impl WorldSession`. Sin porcentajes por helper ni párrafos de checkpoint.
+- Siguen vigentes las restricciones congeladas de #1233: firmas visibles a handlers, registros,
+  bytes y orden de paquetes, admisión por fase, persistencia/recuperación de COMMIT, locks y
+  dueños de runtime.
 
-| unidad | límite | hoy |
-|---|---:|---:|
-| fichero físico | 1 000 líneas (objetivo 400-600) | máx. 1 716 |
-| owner lógico (ratchet) | 20 000 líneas | `session` 223 952 |
-| crate de dominio | ~60 000 líneas | `wow-world` 422 134 |
-| capa de aplicación | ~200 000 líneas | 422 134 |
-| módulo sin dueño (`misc`/`utils`/`common`) | 0 | 21 154 |
+## 4. Compatibilidad con el sistema de módulos (#583)
 
-## 3. Reglas de corte
+- **M1:** `wow-module-api` y `wow-script` siguen en la capa base; los crates de dominio pueden
+  depender de ellos, nunca al revés. La superficie de módulos nunca expone `WorldSession` ni
+  ningún `<Dominio>State`.
+- **M2:** registro de módulos y handles de hooks son estado hub: viven en `SessionCore` y llegan a
+  la lógica por su `<Dominio>Cx`. Los puntos de llamada de hooks se mueven **sin cambios** (mismo
+  punto, orden y contexto).
+- **M3:** cada `wow-world-<dominio>` es el dueño natural de los hooks de su dominio; añadir hooks
+  nuevos es trabajo de #583, no de un paso de movimiento.
+- **M4:** el `register()` por crate de F5 usa el mismo patrón de registro invertido que la
+  composición de módulos; `world-server` / `world-modules` siguen siendo los únicos puntos de
+  composición.
+- **Aceptación:** cada paso F3/F4 mantiene verdes los tests de módulos/hooks y el fixture
+  `compose.py check`.
 
-1. **Clasificar cada hoja del grafo**: *regla pura* (no menciona `WorldSession`, no hace I/O) → se
-   va al crate de dominio con sus tests; *estado* → se queda tras contrato estrecho; *orquestación*
-   (vida, driver, persistencia, publicación) → se queda en la app.
-2. **Nunca cruza un `&mut WorldSession`**: el dominio recibe un DTO y devuelve una **intención**;
-   la app la aplica. Un solo escritor, un solo lock, una sola autoridad por transición.
-3. **Crate solo si**: contrato independiente + dirección forzada por el compilador + (≥2
-   consumidores o aislamiento de compilación útil). Si no, módulo privado.
-4. **Movimiento y comportamiento separados**: ninguna reparación de gameplay dentro de una fase de
-   movimiento.
-5. **Prohibido** crear espejos de estado, contextos universales, traits por helper, campos públicos
-   o locks nuevos para poder mover código.
+## 5. Arquitectura objetivo
 
-## 4. Fases
+1. **`SessionCore` más un struct de estado por dominio:** `WorldSession` = `core: SessionCore`
+   (identidad, conexión, handles de mapa/registro, catálogos) + `items: ItemsState`,
+   `loot: LootState`, etc.
+2. **La lógica nunca recibe `&mut WorldSession`:** `impl LootState { fn op(&mut self,
+   cx: LootCx<'_>, ...) }`, donde `LootCx` es un struct de préstamos disjuntos por dominio
+   (p. ej. `{ items: &mut ItemsState, map: &MapHandle, core: &SessionCore }`), no un contexto
+   universal.
+3. **Registro invertido:** cada crate expone `pub fn register(registry: &mut HandlerRegistry)` y
+   `world-server` los compone. `PacketHandlerEntry` sigue siendo la única fuente de registro y
+   llamada.
+4. **DAG por capas sin ciclos**, según llamadas entrantes:
+   - base: `player_binding`, `publication`, `canonical_access`, `player_items`, `instances`,
+     `spell_state` (orden propuesto por la herramienta: entrantes − salientes);
+   - medio: `world_entities`, `movement`, `quest`, `social`, `progression`, `combat`, `pets`,
+     `persistence`;
+   - cima: `spell_effects`, `loot`, `group`, `character`.
 
-Cada fase es un commit coherente en la misma rama, con el compilador como feedback
-(`cargo check -p <crate>`, `CARGO_BUILD_JOBS=1`) y sin campañas intermedias.
+   La herramienta de acoplamiento re-deriva este orden antes de cada dominio.
 
-| fase | alcance | salida verificable | tipo |
+Modelo de referencia: patrón común de rustc (`provide`), axum (`FromRef`), Bevy (`Plugin`) y
+rust-analyzer (capas con invariantes probados). TrinityCore/AzerothCore son solo referencia de
+**comportamiento**.
+
+## 6. Fases y aceptación
+
+| fase | alcance | aceptación |
+|---|---|---|
+| F0 | Base y herramientas: aparcar la rama, mapa de acoplamiento, net-move (R1) planificado por `tools/validation-v2` en quick/final cuando cambia `crates/wow-world/src/`, enmienda de `AGENTS.md`/skill y este documento | herramientas con tests; documentos sin plan competidor |
+| F1 | Tests fuera de `src`: los que usan API pública o `test-fixtures` a `crates/wow-world/tests/`; fixtures compartidos a `wow-world-testkit`; los de acceso privado quedan `#[cfg(test)]` en ficheros hermanos | `wow-world/src` ≤ ~190k líneas; mismo número de tests (antes/después registrado); suites movidas verdes |
+| F2 | Sub-estados: agrupar los 455 campos en ~25 `<Dominio>State` + `SessionCore`, por codemod, aún dentro de `wow-world` | `WorldSession` = `core` + ~25 campos; compila; suite completa de `wow-world` verde |
+| F3 | Métodos a sub-estados, de abajo arriba en orden DAG: `impl WorldSession` -> `impl <Dominio>State` con `<Dominio>Cx`, dejando thunks de una línea; un PR por dominio | métodos `impl WorldSession` bajan de 3 834 hacia ~uno por handler/thunk |
+| F4 | Extracción: cuando un dominio ya no nombra `WorldSession`, `git mv` a `crates/wow-world-<dominio>/` con `register()`; movimiento puro (R1) | `wow-world` queda como cáscara (core, driver, composición) |
+| F5 | Registro dentro de los dominios: thunks a sus crates mediante traits extractores (`HasLoot`, `HasItems`, ...) definidos en un crate API bajo e implementados por `WorldSession` | `wow-world` con 20k-40k líneas de producción |
+| F6 | Pista de comportamiento, separada: por dominio, elegir y borrar `represented_*` o canónico; decidir `session/legacy_runtime` (8 432 líneas) | evidencia de paridad por retirada (anclas C++, capturas y QA live donde se requiera) |
+
+## 7. Rama aparcada
+
+`584-map-manager-domain` @ `5b443512` (WIP de #1233) queda aparcada como referencia; no se fusiona.
+Inventario de solo lectura de sus 231 commits (`e786ece1..5b443512`, 2026-09-30), clasificados por
+heurística sobre numstat:
+
+| clase | n | wow-world/src | wow-world/tests | otros crates |
+|---|---:|---:|---:|---:|
+| solo docs | 58 | 0 | 0 | 0 |
+| wip (`abfd8aac`, `152a5b9b`) | 2 | −30 733 | +32 750 | **+86 376** |
+| candidato a movimiento | 4 | −35 | +25 | +31 |
+| crecimiento | 18 | +1 695 | +872 | +300 |
+| mixto | 149 | +7 844 | −53 | −111 |
+
+- Los checkpoints WIP copiaron más de lo que movieron: `abfd8aac` quita ~30,7k líneas de
+  `wow-world/src` y añade ~29,1k a wow-map, ~15,1k a wow-entities y ~9,3k a world-server. Es
+  también el único commit que retira campos de `WorldSession` (`session/state.rs` +142/−452).
+- 223 de los 231 commits tocan ficheros que `abfd8aac` reescribe; solo `0b4bd5a3` (−3 líneas) es
+  independiente.
+- **Decisión:** sin rescate commit a commit. F2 y F3 rehacen los movimientos sobre `3.4.3` limpio
+  con codemods, usando el mapeo de ficheros de `abfd8aac` solo como guía.
+
+Evidencia (local del host de desarrollo, fuera de cualquier caché de build):
+`/home/server/rustycore-world-refactor-parked-evidence/` — logs de la puerta, manifiestos de
+validación y `salvage-inventory/commits.tsv`. El worktree aparcado conserva sus arreglos de puerta
+sin commitear; su caché `target` de 63 GB se borró con aprobación del usuario.
+
+Pendientes heredados, a reevaluar solo si se rescata la pieza afectada:
+
+- `handlers/loot/request_cache.rs:65-80`: `next_represented_loot_object_guid_like_cpp` separa
+  `cfg(test)` / `cfg(not(test))`; con `test-fixtures` pero sin `test` los brazos de fixture usan
+  asignación solo canónica.
+- Hallazgos de la puerta en `5b443512`: 188 entradas obsoletas del baseline de campos, crecimiento
+  del ratchet de hotspots y arista `wow-world -> wow-spell` sin dueño.
+
+## 8. Estado
+
+| fase | estado | PR | métrica R5 al cerrar |
 |---|---|---|---|
-| F0 | Resync del ledger de hotspots (estaba rojo en `3.4.3`) | `hotspot-ratchet` PASS | mecánico |
-| F1 | Reparar la base de #1233 (no parseaba; 898 errores) y portar el split de melee | lib + tests compilan, 0 errores | mecánico |
-| F2 | Retirar la autoridad duplicada de personal-phase (canónica en `wow-map`) | 547 líneas fuera, builds verdes | mecánico |
-| F3 | `phasing` → `wow-map` | ambos crates verdes; tests viajan con el código | mecánico |
-| F4 | Fixtures de test → `handlers/test_support/` | 19 escenarios preservados, cuerpos idénticos | mecánico |
-| F5 | `handlers/misc` → 13 directorios de dominio | sin `misc`; 0 errores; sin cambio de comportamiento | mecánico |
-| F6 | Dominios ya cohesivos → su crate: `reputation`→`wow-progression`, `spell_acquisition::planner`, `profession`/`trainer`, `entity_update_bridge`→`wow-entities`, `battle_pet_*`→`wow-pets` | crate + tests por dominio | mecánico |
-| F7 | **Romper el tipo Dios**: sub-estados dueños dentro de `WorldSession` (transport, player-access, loot, spells, persistencia) | ninguna familia de handler comparte ya un `&mut self` de 100 k | **diseño** |
-| F8 | Handlers grandes → adaptadores (`items` 3 904, `loot/sources` 3 110, `world_entry` 2 782, `quest/handlers` 2 714, `session_state` 2 705, `loot/requests` 2 544) | cada adaptador ≤600 líneas; regla y test en su dominio | **diseño** |
-| F9 | `map_manager` + `map_manager_tests` → `wow-map` **con contrato** (hoy 93 y 134 referencias desde sesión) | ciclo ausente; tick y publicación con un dueño explícito | **diseño** |
-| F10 | Tests: escenarios de dominio a su crate; integración en la app | cada crate prueba lo suyo; `test_support` sin deps de `misc` | mecánico |
-| F11 | Grafo: romper `packet→loot/movement`, `data→entities/movement`, `entities→loot`, `map→loot`; llenar o retirar los 6 stubs; invertir `world-modules→world-server` | grafo acíclico por capas | diseño menor |
-| F12 | `world-server/app.rs` (5 645 líneas, 151 `await`) → módulos por fase | composition root sin funciones gigantes | diseño |
-| F13 | Deuda: 180 warnings; regenerar la política de ownership (revisada, no a ciegas); registrar/cerrar los 2 huecos de comportamiento de phasing | política consistente con el árbol | mecánico |
+| F0 | en curso | — | — |
+| F1 | pendiente | — | — |
+| F2 | pendiente | — | — |
+| F3 | pendiente | — | — |
+| F4 | pendiente | — | — |
+| F5 | pendiente | — | — |
+| F6 | pendiente | — | — |
 
-## 5. Medición y criterio de éxito
+## 9. Herramientas
 
-- **Navegabilidad (segura)**: fichero máximo ≤1 000; `wow-world` ≤200 000; sin `misc`; owner lógico
-  máximo ≤20 000; ninguna familia de handler sobre un `&mut self` de 100 k.
-- **Build (a medir, no a prometer)**: protocolo de #1231 (check/build frescos y tibios,
-  `--timings`, mediana y rango, mismo host y toolchain). Con `CARGO_BUILD_JOBS=1` la ganancia de
-  reloj puede ser nula o negativa: **un resultado negativo se publica como negativo** y no se usa
-  para justificar más troceo.
-- **Herramientas**: latencia de `rust-analyzer` antes/después (motivo del caso slint).
-- **Corrección**: ninguna fase cambia bytes de paquete, orden de fases, admisión ni persistencia;
-  cualquier reparación de comportamiento va en su propio commit con su ancla C++ y su prueba.
+- `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
+  hub, aristas de métodos entre dominios, violaciones del DAG) y métrica R5.
+- `tools/architecture/net_move.py`: comprobación R1 net-move
+  (`python3 tools/architecture/net_move.py check --base origin/3.4.3`).
 
-## 6. Cumplimiento y proceso
+## Nota histórica
 
-- Una sola rama y un commit por fase; el ledger y la política físicas se actualizan con **delta
-  revisado** (nunca regenerando a ciegas ni subiendo un techo sin retirada validada).
-- Los dos huecos de comportamiento detectados al auditar la duplicación de personal-phase quedan
-  **fuera** de los movimientos y documentados: el `PhaseShift`/`PhaseRef` reducido de `wow-map`
-  frente al de `wow-entities` (cambia `has_personal_phase`), y el registro por objeto +
-  `InitDbPersonalOwnership` que C++ hace en `ObjectGridLoader::LoadHelper` y el `LoadGrid` de
-  `wow-map` no (`ObjectGridLoader.cpp:119-126`), más la decisión sobre `map->Balance()`.
-- Nada se publica (push/PR/merge) sin autorización explícita; la aceptación es **una única campaña
-  final** cuando el árbol esté distribuido, con `./tools/validation-v2 final --architecture`.
-
-## 7. Estado a la fecha de este documento
-
-Hechas F0-F4 (commits `c6c8fd0a` en su rama de ledger, y `a0d710e2`…`3f15a02c` aquí), con F5 en
-curso. Pendientes F6-F13 en el orden de la tabla.
-
-## 8. Riesgos
-
-- **F7/F8/F9 son diseño, no movimiento**: si el contrato no se fija antes de mover autoridad, se
-  cambia comportamiento sin querer. Cada una exige decidir dueño del tick, del estado y de la
-  publicación antes de tocar código.
-- **Trocear no siempre acelera el build**: más unidades = más metadata y linking. El argumento del
-  programa es navegabilidad y fronteras, y el build se mide aparte.
-- **Deriva de la política**: los techos pueden quedar obsoletos si se suben para "hacer pasar" una
-  fase. Este plan lo prohíbe explícitamente.
+La versión anterior de este documento era el plan de #1233 ("forma modular estilo AzerothCore",
+F0-F13, rama `584-wow-world-distribution`); queda en el historial de Git y no es un plan activo.

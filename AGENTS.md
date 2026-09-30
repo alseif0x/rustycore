@@ -15,6 +15,7 @@ is correctness proof. This guide does not override explicit user scope or approv
   smaller compatible subset. A bounded milestone never silently reduces the full port.
 - Integration/default branch: 3.4.3. One implementation macro-issue, one feature branch,
   one PR into 3.4.3. Main is only an optional stable release pointer; releases are tags.
+  Exception: see "#1241 wow-world split programme" below.
 - Toolchain is declared in rust-toolchain.toml / Cargo.toml (currently Rust 1.98, edition 2024).
 - Development host is aarch64; hosted runners are x86_64. Label machine-dependent evidence.
 - Local protoc: /home/ubuntu/.local/protoc/bin/protoc. Set PROTOC for protobuf-dependent builds.
@@ -98,6 +99,7 @@ proof. Compare the complete operation, scripts and effective data before adaptin
 Keep 3.4.3 packet layouts, IDs/data schemas, admission and lifecycle contracts explicit: 3.3.5
 wire formats or SQL are not drop-in replacements. Resolve version differences using target-build
 evidence and an explicit behavior contract; record source SHA/functions and retained uncertainty.
+A #1241 move-only step is exempt from a new C++ re-audit (see the programme note below).
 Use secondary references selectively for the active responsibility, not as a new whole-port audit.
 If an affected comment/test relies on an unsupported earlier analysis,
 locate the C++ equivalent and correct the evidence before approving the behavior. Pause an
@@ -168,6 +170,21 @@ Report implementation/unvalidated work separately from accepted evidence. At fin
 acceptance, fix findings and rerun affected evidence as needed. An explicit user
 request for an earlier diagnostic run remains authoritative. Do not claim unexecuted
 evidence as passing.
+
+### #1241 wow-world split programme
+
+This programme exception is owned by #1241 and
+[wow-world-distribution-plan.md](docs/architecture/wow-world-distribution-plan.md):
+
+- It uses one PR per phase (F0, F1, ...) or per domain, merged continuously into 3.4.3,
+  instead of one long-lived branch.
+- A move-only step (R2: no semantic change, no rename, no new canonical path) keeps its
+  C++ anchors unchanged and needs no new C++ re-audit or per-helper source comparison.
+  Behavior changes go to #1241 F6 with parity evidence.
+- The level-1 deferral does not apply. Each #1241 PR must compile
+  (`cargo check -p wow-world --all-targets` plus the moved domain's crate), pass the moved
+  domain's tests (R3) and pass the R1 net-move check
+  `python3 tools/architecture/net_move.py check --base origin/3.4.3`.
 
 ### Local development levels
 

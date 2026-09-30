@@ -76,7 +76,9 @@ Claims of model use require a successful spawn trace.
 ## Acceptance and resumption
 
 Implementation checks stay crate-scoped and sequential (`cargo check -p`, focused
-`cargo test -p` with `CARGO_BUILD_JOBS=1`), as the worker definition says. Completed-delivery
+`cargo test -p` with `CARGO_BUILD_JOBS=1`), as the worker definition says. Any explicit
+instruction deferring worker checks for a whole sweep (the parked #1233 sweep) does not
+apply to #1241 units: their workers run these checks (R3). Completed-delivery
 acceptance follows AGENTS.md: the parent plans it once and may assign the worker as the
 exclusive validation executor for the agreed non-live sequence; that assignment does not
 include another QA campaign or autonomous repairs. The parent interprets findings and
