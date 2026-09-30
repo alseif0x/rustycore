@@ -47,7 +47,7 @@ pub use ops_1::*;
 pub use state::*;
 
 #[cfg(test)]
-#[path = "movement/tests/mod.rs"]
+#[path = "../../unit_tests/handlers/movement/tests/mod.rs"]
 mod tests;
 
 // ── Handler registrations ─────────────────────────────────────────

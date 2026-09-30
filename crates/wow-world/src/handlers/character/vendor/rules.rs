@@ -577,5 +577,5 @@ pub(in crate::handlers::character) fn sell_item_amount_action(
 }
 
 #[cfg(test)]
-#[path = "rules_tests.rs"]
+#[path = "../../../../unit_tests/handlers/character/vendor/rules_tests.rs"]
 mod tests;

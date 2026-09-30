@@ -11,6 +11,11 @@ work; #583 owns the preserved M0–M4 native/Wasm product. The technical gate re
 production module integration waits for the required core work. Its Rust/Wasm/C mixed
 product remains mandatory even though operator activation is optional.
 
+Test paths after #1241 F1: the `cfg(test)`-only `wow-world` test files that dated sections cite
+under `crates/wow-world/src/` now live at the same relative path under
+`crates/wow-world/unit_tests/` (same modules and tests; reproducible record in
+`tools/codemods/f1_relocate_unit_tests.py`). Historical entries keep the path current at their date.
+
 The current code integration head is `581eb19e8602d02ff593f89997fc495eb0f36e34` (PR #955, following docs-only PR #954 and PR #953/#948/#935/#933/#931/#929/#927/#926/#925/#924/#923, PR #922/#921, PR #918, PR #917, PR #916, PR #915, PR #913, PR #909, PR #907, PR #906, PR #904, PR #902, PR #901, PR #899, PR #897, PR #895, PR #893 and PR #891,
 PR #889, PR #876, P3.10 correction PR #873 and delivery PR #871).
 Current exact inventory after PR #948: 649 WorldSession fields (219 production, 430 test fixtures). PR #931 also ratifies the P4 physical split of loaded-grid creature tests: a 797-line production facade and 28 regressions in responsibility-scoped test modules. PR #933 splits the game-event runtime into seven modules with a compact facade and preserves all 181 game-event regressions. Encounter-lock resolution, the Player `m_seer` visibility projection, canonical Pet visibility CREATE discovery and unified directed object DESTROY publication for Creature/Pet/Corpse are integrated; no unresolved production WorldSession residual remains in this audited slice. Session retains only a receiver-local publication fence for the explicit FAR_SIGHT clear packet. PR #935 also splits the spawn-loader catalog models into private responsibility modules while preserving startup ownership and public paths. PR #948 moves the remaining linked-respawn, GameEvent prefix/suffix and spawn-group member adapters into the existing object, GameEvent and pool children; the parent facade is 730 lines and the aggregate remains exactly 3,427 lines.

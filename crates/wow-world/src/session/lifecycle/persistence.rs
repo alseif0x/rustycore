@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 mod deferred;
 #[cfg(test)]
+#[path = "../../../unit_tests/session/lifecycle/persistence/fixture_tests.rs"]
 mod fixture_tests;
 pub use deferred::PlayerSaveOutcomeLikeCpp;
 mod prepared;

@@ -92,7 +92,7 @@ async fn insufficient_money_uses_prepared_effective_price_without_mutation() {
 
 #[test]
 fn buy_registration_carries_the_call_while_legacy_shortcuts_stay_disabled() {
-    let trainer = include_str!("../../trainer.rs");
+    let trainer = include_str!("../../../../src/handlers/trainer.rs");
     let registrations: Vec<_> = inventory::iter::<PacketHandlerEntry>
         .into_iter()
         .filter(|entry| entry.opcode == ClientOpcodes::TrainerBuySpell)

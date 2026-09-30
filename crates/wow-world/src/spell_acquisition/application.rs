@@ -120,6 +120,7 @@ pub(crate) enum PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp {
 }
 
 #[cfg(test)]
+#[path = "../../unit_tests/spell_acquisition/application/tests/mod.rs"]
 mod tests;
 
 mod prepare;

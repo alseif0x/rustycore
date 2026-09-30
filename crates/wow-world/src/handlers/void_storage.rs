@@ -234,7 +234,7 @@ impl Default for EffectiveVoidStorageRandomPropertiesLikeCpp {
 }
 
 #[cfg(test)]
-#[path = "void_storage_tests/mod.rs"]
+#[path = "../../unit_tests/handlers/void_storage_tests/mod.rs"]
 mod tests;
 
 mod items;

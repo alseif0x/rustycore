@@ -35,6 +35,7 @@ pub enum FinalizationStep {
 const STEP_COUNT: usize = 15;
 
 #[cfg(test)]
+#[path = "../unit_tests/finalization/tests.rs"]
 mod tests;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

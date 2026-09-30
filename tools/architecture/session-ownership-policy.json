@@ -78354,7 +78354,7 @@
         {
           "package": "wow-world",
           "module": "crate::session::deferred_visibility::tests",
-          "path": "crates/wow-world/src/session/deferred_visibility/tests.rs",
+          "path": "crates/wow-world/src/session/deferred_visibility.rs",
           "enclosing": "Fixture::new",
           "direction_markers": [
             "unresolved_dual_side"

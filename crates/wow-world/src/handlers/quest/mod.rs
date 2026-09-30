@@ -459,7 +459,7 @@ impl RepresentedQuestGiverStatusSourceLikeCpp {
 pub(crate) const MAX_QUEST_LOG_SIZE_LIKE_CPP: u8 = 25;
 
 #[cfg(test)]
-#[path = "../quest_tests.rs"]
+#[path = "../../../unit_tests/handlers/quest_tests.rs"]
 mod tests;
 
 use wow_constants::quest::{

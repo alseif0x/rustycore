@@ -180,7 +180,7 @@ fn del_ignore_dispatch_metadata_matches_cpp() {
 
 #[test]
 fn social_handler_source_cannot_reacquire_concrete_persistence() {
-    let source = include_str!("../../social.rs")
+    let source = include_str!("../../../../src/handlers/social.rs")
         .split("#[cfg(test)]")
         .next()
         .expect("production source prefix");

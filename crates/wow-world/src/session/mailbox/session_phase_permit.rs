@@ -163,5 +163,5 @@ impl SessionPhasePermitLikeCpp {
 }
 
 #[cfg(test)]
-#[path = "session_phase_permit/tests.rs"]
+#[path = "../../../unit_tests/session/mailbox/session_phase_permit/tests.rs"]
 mod tests;

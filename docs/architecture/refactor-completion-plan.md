@@ -13,6 +13,10 @@ plan técnico general y aquel no lo sustituye.
 El enfoque de esa distribución es ahora #1241 (mover sin copiar, un PR por fase o dominio);
 [wow-world-distribution-plan.md](wow-world-distribution-plan.md) se reescribió como su documento
 de progreso y sustituye el enfoque de #1233.
+Desde #1241 F1, los ficheros de test solo-`cfg(test)` que las secciones fechadas citan bajo
+`crates/wow-world/src/` viven en la misma ruta relativa bajo `crates/wow-world/unit_tests/`
+(mismos módulos y tests; registro reproducible en `tools/codemods/f1_relocate_unit_tests.py`).
+Las entradas históricas conservan la ruta vigente en su fecha.
 
 ## #1233 — descomposición de Session y reglas independientes, 2026-09-22
 

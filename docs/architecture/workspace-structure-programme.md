@@ -13,6 +13,11 @@ estado está cada una, para que cualquier agente pueda retomar sin perderse.
 | este documento | el **orden, dependencias y estado** de todo el workspace |
 | [refactor-completion-plan.md](refactor-completion-plan.md) | el plan técnico general del port (no lo sustituimos) |
 
+**Rutas de test tras #1241 F1:** los ficheros de test solo-`cfg(test)` de `wow-world` que las
+secciones fechadas citan bajo `crates/wow-world/src/` viven en la misma ruta relativa bajo
+`crates/wow-world/unit_tests/` (mismos módulos y tests; ver
+`tools/codemods/f1_relocate_unit_tests.py`). Las entradas históricas no se reescriben.
+
 **Regla de los dos planos:** la lógica se contrasta con la referencia C++ 3.4.3; la estructura la
 decide este programa. Ninguna decisión estructural se justifica con "en C++ es así".
 

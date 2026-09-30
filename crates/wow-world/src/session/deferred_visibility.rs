@@ -121,4 +121,5 @@ impl WorldSession {
 }
 
 #[cfg(test)]
+#[path = "../../unit_tests/session/deferred_visibility/tests.rs"]
 mod tests;

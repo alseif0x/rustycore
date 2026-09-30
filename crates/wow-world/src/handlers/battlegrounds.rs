@@ -9,5 +9,5 @@ mod arena;
 mod pvp;
 
 #[cfg(test)]
-#[path = "battlegrounds/tests/mod.rs"]
+#[path = "../../unit_tests/handlers/battlegrounds/tests/mod.rs"]
 mod tests;

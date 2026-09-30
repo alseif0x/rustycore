@@ -159,5 +159,5 @@ impl WorldSession {
 }
 
 #[cfg(test)]
-#[path = "phase_pass_tests.rs"]
+#[path = "../../../unit_tests/session/driver/phase_pass_tests.rs"]
 mod tests;

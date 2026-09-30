@@ -9,5 +9,5 @@ mod travel;
 mod worldport_create;
 
 #[cfg(test)]
-#[path = "travel/tests/mod.rs"]
+#[path = "../../unit_tests/handlers/travel/tests/mod.rs"]
 mod tests;

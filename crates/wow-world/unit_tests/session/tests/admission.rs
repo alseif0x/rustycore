@@ -347,7 +347,7 @@ async fn packet_spoof_persistence_failure_restages_the_exact_plan_like_cpp() {
 
 #[test]
 fn packet_spoof_admission_has_no_concrete_persistence_after_port_cut() {
-    let source = include_str!("../admission.rs");
+    let source = include_str!("../../../src/session/admission.rs");
     for forbidden in [
         "LoginDatabase",
         "LoginStatements",

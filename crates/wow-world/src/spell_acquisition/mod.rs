@@ -36,4 +36,5 @@ pub(crate) use trainer_purchase::*;
 pub(crate) use wow_spell_acquisition::*;
 
 #[cfg(test)]
+#[path = "../../unit_tests/spell_acquisition/tests/mod.rs"]
 mod tests;

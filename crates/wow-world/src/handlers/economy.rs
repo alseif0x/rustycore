@@ -15,5 +15,5 @@ const MEDIUM_AUCTION_TIME_MINUTES_LIKE_CPP: u32 = 2 * MIN_AUCTION_TIME_MINUTES_L
 const LONG_AUCTION_TIME_MINUTES_LIKE_CPP: u32 = 4 * MIN_AUCTION_TIME_MINUTES_LIKE_CPP;
 
 #[cfg(test)]
-#[path = "economy/tests/mod.rs"]
+#[path = "../../unit_tests/handlers/economy/tests/mod.rs"]
 mod tests;
