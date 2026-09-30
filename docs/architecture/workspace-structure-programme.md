@@ -1011,6 +1011,23 @@ sin cambios de versiones de dependencias de registro. La campaña de publicació
 se registra sobre el candidato commiteado; implementación escrita no equivale
 a aceptación. Este checkpoint no reduce el objetivo global ni cierra#1233/#584.
 
+Resultado de la puerta del checkpoint2026-09-30,20:11 UTC: commits locales
+`abfd8aac` (WIP completo) y `152a5b9b` (rutas/format/tests pendientes integrados).
+Candidato realmente comprobado: `152a5b9bc30f990b6032f578fa7c333bc9696394`,
+tracked/untracked limpio. Comando `./tools/validation-v2 final --base origin/3.4.3
+--architecture --timings --logs --require-changes`, PROTOC local, jobs1 y target
+del worktree. Resultado FAILED/exit1,20:11:15.529→20:11:19.082UTC (3.552s).
+Manifiesto local `target/validation-v2/manifests/publication-checkpoint-20260930-2011.json`.
+Falla política física: cuatro filas de suites originales ya trasladadas y dieciséis
+techos físicos excedidos; no se regeneraron baselines para ocultarlos. La continuación
+syntax-only falla al resolver `replies` en canonical_runtime/movement/tests/disposition.rs.
+El intento previo de fmt también detectó `fixtures_world` sin resolver en Character
+gossip. No se ejecutó la compilación del workspace ni sus suites; no existe
+aceptación ni medición válida de campaña ordinaria completa. Todo el source está
+guardado localmente; el push permanece pendiente de resolver la puerta o de una
+excepción explícita del usuario para publicar WIP. Workers detenidos y cerrados;
+ninguna activación/runtime/DB ni cierre de la macro. El usuario pide parar tras push.
+
 El recuento por nombres de paths distingue 234 541 líneas en rutas denominadas
 tests/fixtures y 174 353 en las restantes; éstas pueden contener tests inline.
 Es una clasificación de navegación concurrente, no atribución semántica de
